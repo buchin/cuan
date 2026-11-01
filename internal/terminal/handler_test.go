@@ -1,9 +1,11 @@
 package terminal
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -247,5 +249,121 @@ func TestHandler_WebSocketResizeAndPingPong(t *testing.T) {
 	cols, rows := sess.PTY().GetSize()
 	if cols != 110 || rows != 35 {
 		t.Fatalf("expected 110x35, got %dx%d", cols, rows)
+	}
+}
+
+func TestHandler_WebSocketRunnerSocketProxy(t *testing.T) {
+	taskID := "task-runner-proxy-test"
+	tmpDir, err := os.MkdirTemp("", "cuan-proxy-test-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 1. Spawn a decoupled runner PTY session
+	proc, err := SpawnPTY(ctx, PTYConfig{
+		TaskID:      taskID,
+		WorkDir:     tmpDir,
+		Shell:       "/bin/sh",
+		InitialCols: 80,
+		InitialRows: 24,
+	})
+	if err != nil {
+		t.Fatalf("spawn pty: %v", err)
+	}
+	defer proc.Close()
+
+	runnerSess := NewSession("runner-sess-1", taskID, proc, ModeInteractive)
+	defer runnerSess.Close()
+
+	// Expose via standard Unix domain socket path
+	sockPath := SocketPath(taskID)
+	bridge, err := NewSocketBridge(runnerSess, sockPath)
+	if err != nil {
+		t.Fatalf("new socket bridge: %v", err)
+	}
+	defer bridge.Close()
+
+	// 2. Setup Handler with attachOnly=true and NO local sessions in manager
+	mgr := NewManager(ManagerConfig{WorkspacesDir: tmpDir})
+	defer mgr.CloseAll()
+
+	handler := NewHandler(HandlerConfig{
+		AttachOnly: true,
+		Manager:    mgr,
+	})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/tasks/" + taskID + "/terminal?mode=interactive&attach=1"
+
+	// 3. Connect browser WebSocket client
+	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial ws to handler: %v", err)
+	}
+	defer wsConn.Close()
+
+	// 4. Send shell command through WebSocket
+	echoCmd := "echo RUNNER_WS_PROXY_VERIFIED\n"
+	if err := wsConn.WriteMessage(websocket.TextMessage, []byte(echoCmd)); err != nil {
+		t.Fatalf("write echo cmd over ws: %v", err)
+	}
+
+	// 5. Read response back from WebSocket
+	found := false
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = wsConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_, msg, rErr := wsConn.ReadMessage()
+		if len(msg) > 0 {
+			if strings.Contains(string(msg), "RUNNER_WS_PROXY_VERIFIED") {
+				found = true
+				break
+			}
+		}
+		if rErr != nil && !strings.Contains(rErr.Error(), "timeout") {
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("expected to read RUNNER_WS_PROXY_VERIFIED through WebSocket proxy")
+	}
+
+	// 6. Test deploy resilience: disconnect client, reconnect new client while runner keeps running
+	_ = wsConn.Close()
+
+	wsConn2, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("reconnect ws after deploy simulation: %v", err)
+	}
+	defer wsConn2.Close()
+
+	// Second client should receive scrollback with the verified output
+	receivedScrollback := false
+	deadline2 := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline2) {
+		_ = wsConn2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_, msg, rErr := wsConn2.ReadMessage()
+		if len(msg) > 0 {
+			if strings.Contains(string(msg), "RUNNER_WS_PROXY_VERIFIED") {
+				receivedScrollback = true
+				break
+			}
+		}
+		if rErr != nil && !strings.Contains(rErr.Error(), "timeout") {
+			break
+		}
+	}
+
+	if !receivedScrollback {
+		t.Errorf("second client expected to receive scrollback history after reconnect")
 	}
 }

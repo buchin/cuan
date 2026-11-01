@@ -189,6 +189,11 @@ func (s *Server) drainTaskLaunches(ctx context.Context, now time.Time) {
 	}
 }
 func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaunch, state, text string) {
+	// Customer / visitor rooms must NEVER receive internal intermediate status dumps or execution errors.
+	if s.isCustomerRoom(ctx, job.RoomID) {
+		return
+	}
+
 	// The foreground reply can itself deliver a stopped launch. Wait until that
 	// durable reply is reconciled, then avoid a second identical agent bubble.
 	if state == "stopped" && job.SourceRequestID != "" {

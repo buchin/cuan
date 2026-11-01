@@ -21,6 +21,7 @@ import (
 	"github.com/buchin/cuan/internal/git"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 type activeAttempt struct {
@@ -541,33 +542,48 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()
 
 	var liveStreamedCount int64
-	req := agent.ExecutionRequest{
-		TaskID:       t.ID,
-		Prompt:       prompt,
-		WorkingDir:   workingDir,
-		Env:          env,
-		Timeout:      timeoutDuration,
-		OutputFormat: "stream-json",
-		OnLog: func(stream, line string) {
-			atomic.AddInt64(&liveStreamedCount, 1)
-			r.streamLogLine(ctx, att.ID, stream, line)
-		},
-		RegisterSteer: func(steerFn func(prompt string) error) {
-			r.mu.Lock()
-			if act, ok := r.activeAttempts[att.ID]; ok {
-				act.steerFunc = steerFn
-			}
-			r.mu.Unlock()
-		},
+	var result *agent.ExecutionResult
+	var err error
+
+	// If using the official agy adapter on a host where agy binary is present,
+	// execute inside a native OS pseudo-terminal (creack/pty) and expose a live
+	// Unix domain socket bridge for zero-downtime streaming.
+	if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
+		if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
+			result, err = r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
+		}
 	}
 
-	r.mu.Lock()
-	if act, ok := r.activeAttempts[att.ID]; ok {
-		req.SteerChan = act.steerChan
-	}
-	r.mu.Unlock()
+	// Fallback to standard adapter execution (used by mock adapters in test suite)
+	if result == nil && err == nil {
+		req := agent.ExecutionRequest{
+			TaskID:       t.ID,
+			Prompt:       prompt,
+			WorkingDir:   workingDir,
+			Env:          env,
+			Timeout:      timeoutDuration,
+			OutputFormat: "stream-json",
+			OnLog: func(stream, line string) {
+				atomic.AddInt64(&liveStreamedCount, 1)
+				r.streamLogLine(ctx, att.ID, stream, line)
+			},
+			RegisterSteer: func(steerFn func(prompt string) error) {
+				r.mu.Lock()
+				if act, ok := r.activeAttempts[att.ID]; ok {
+					act.steerFunc = steerFn
+				}
+				r.mu.Unlock()
+			},
+		}
 
-	result, err := r.adapter.Execute(ctx, req)
+		r.mu.Lock()
+		if act, ok := r.activeAttempts[att.ID]; ok {
+			req.SteerChan = act.steerChan
+		}
+		r.mu.Unlock()
+
+		result, err = r.adapter.Execute(ctx, req)
+	}
 	duration := time.Since(startTime)
 
 	var compReq CompleteAttemptRequest
@@ -741,4 +757,190 @@ func (r *Runner) doRequest(ctx context.Context, method, path string, body interf
 	}
 
 	return r.httpClient.Do(req)
+}
+
+// executeWithPTY spawns agy inside a native pseudo-terminal (creack/pty) and binds
+// Unix domain sockets for decoupled streaming to cuan-server.
+func (r *Runner) executeWithPTY(
+	ctx context.Context,
+	claim ClaimTaskResponse,
+	t *task.Task,
+	att *task.TaskAttempt,
+	prompt, workingDir string,
+	env map[string]string,
+	timeoutDuration time.Duration,
+	liveStreamedCount *int64,
+) (*agent.ExecutionResult, error) {
+	agyBin, err := agent.ResolveAGYBinaryPath()
+	if err != nil || agyBin == "" {
+		return nil, fmt.Errorf("resolve agy binary: %w", err)
+	}
+
+	execCtx, cancelExec := context.WithTimeout(ctx, timeoutDuration)
+	defer cancelExec()
+
+	r.mu.Lock()
+	if act, ok := r.activeAttempts[att.ID]; ok {
+		act.cancel = cancelExec
+	}
+	r.mu.Unlock()
+
+	ptyArgs := []string{
+		"--dangerously-skip-permissions",
+		"--prompt-interactive", prompt,
+		"--add-dir", workingDir,
+	}
+	if claim.Task != nil && claim.Task.AssignedAgent != "" && claim.Task.AssignedAgent != "agy" {
+		ptyArgs = append(ptyArgs, "--model", claim.Task.AssignedAgent)
+	}
+
+	ptyEnv := []string{
+		"SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22",
+		"SSH_CLIENT=127.0.0.1 22 22",
+		"SSH_TTY=/dev/pts/0",
+		"TERM=xterm-256color",
+		"COLORTERM=truecolor",
+	}
+	for k, v := range env {
+		ptyEnv = append(ptyEnv, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	proc, err := terminal.SpawnPTY(execCtx, terminal.PTYConfig{
+		TaskID:      t.ID,
+		WorkDir:     workingDir,
+		Shell:       agyBin,
+		Args:        ptyArgs,
+		Env:         ptyEnv,
+		InitialCols: 100,
+		InitialRows: 30,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("spawn pty: %w", err)
+	}
+	defer proc.Close()
+
+	sessionID := "runner-sess-" + att.ID
+	sess := terminal.NewSession(sessionID, t.ID, proc, terminal.ModeInteractive)
+	defer sess.Close()
+
+	// Expose Unix domain socket bridge for both task ID and attempt ID
+	bridgeTask, _ := terminal.NewSocketBridge(sess, terminal.SocketPath(t.ID))
+	if bridgeTask != nil {
+		defer bridgeTask.Close()
+	}
+	bridgeAtt, _ := terminal.NewSocketBridge(sess, terminal.SocketPath(att.ID))
+	if bridgeAtt != nil {
+		defer bridgeAtt.Close()
+	}
+
+	// Register steering function
+	steerFunc := func(steerPrompt string) error {
+		_, wErr := sess.WriteInput("steer", []byte(steerPrompt+"\n"))
+		return wErr
+	}
+
+	r.mu.Lock()
+	var steerCh <-chan string
+	if act, ok := r.activeAttempts[att.ID]; ok {
+		act.steerFunc = steerFunc
+		steerCh = act.steerChan
+	}
+	r.mu.Unlock()
+
+	if steerCh != nil {
+		go func() {
+			for {
+				select {
+				case <-execCtx.Done():
+					return
+				case p, ok := <-steerCh:
+					if !ok {
+						return
+					}
+					_ = steerFunc(p)
+				}
+			}
+		}()
+	}
+
+	// Subscribe logger to feed database logs in real time
+	logSubID := "logger-" + att.ID
+	logSub, _, _ := sess.Subscribe(logSubID, terminal.ModeWatch)
+	defer sess.Unsubscribe(logSubID)
+
+	var logBuf bytes.Buffer
+	var logMu sync.Mutex
+	go func() {
+		for {
+			select {
+			case <-execCtx.Done():
+				return
+			case chunk, ok := <-logSub.SendChan:
+				if !ok {
+					return
+				}
+				logMu.Lock()
+				logBuf.Write(chunk)
+				for {
+					line, lErr := logBuf.ReadString('\n')
+					if len(line) > 0 {
+						clean := strings.TrimRight(line, "\r\n")
+						if clean != "" {
+							atomic.AddInt64(liveStreamedCount, 1)
+							r.streamLogLine(ctx, att.ID, "stdout", clean)
+						}
+					}
+					if lErr != nil {
+						break
+					}
+				}
+				logMu.Unlock()
+			}
+		}
+	}()
+
+	// Monitor agent task report completion in background
+	reportCheckTicker := time.NewTicker(500 * time.Millisecond)
+	defer reportCheckTicker.Stop()
+
+	doneChan := make(chan struct{})
+	go func() {
+		defer close(doneChan)
+		for {
+			select {
+			case <-execCtx.Done():
+				return
+			case <-reportCheckTicker.C:
+				if r.confirmAgentReport(ctx, claim) {
+					// Agent has completed task report, flush output and stop
+					time.Sleep(1500 * time.Millisecond)
+					_ = sess.Close()
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for PTY process completion or context cancellation
+	waitErr := proc.Wait()
+	exitCode := proc.ExitCode()
+
+	res := &agent.ExecutionResult{
+		Status:   "SUCCESS",
+		ExitCode: exitCode,
+		Duration: timeoutDuration,
+	}
+	if exitCode != 0 {
+		res.Status = "FAILED"
+		res.Error = fmt.Sprintf("exit code %d", exitCode)
+	}
+	if waitErr != nil && errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+		res.Status = "TIMEOUT"
+		res.Error = "execution timed out"
+	} else if waitErr != nil && errors.Is(execCtx.Err(), context.Canceled) {
+		res.Status = "CANCELED"
+		res.Error = "execution canceled"
+	}
+
+	return res, nil
 }
