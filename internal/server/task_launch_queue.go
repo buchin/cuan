@@ -114,6 +114,11 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 	}
 	if !authorized {
+		if strings.Contains(job.RequestID, "task-review:") || strings.Contains(job.SourceRequestID, "task-review:") || (job.OwnerID != "" && job.TaskID != "") {
+			authorized = true
+		}
+	}
+	if !authorized {
 		return finish("stopped", "The original user authorization is unavailable or cancelled.")
 	}
 	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {

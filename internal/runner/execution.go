@@ -332,6 +332,32 @@ func (r *Runner) processCompletionEventAndDoD(ctx context.Context, ws *git.TaskW
 		EmitAttemptSucceeded(ctx, evt)
 	}
 
+	compEvt := AttemptCompletedEvent{
+		EventID:       evt.EventID,
+		EventType:     evt.EventType,
+		TaskID:        t.ID,
+		AttemptID:     att.ID,
+		AttemptNumber: att.AttemptNumber,
+		RunnerID:      r.cfg.RunnerID,
+		ExitCode:      compReq.ExitCode,
+		WorkingDir:    workingDir,
+		BranchName:    compReq.BranchName,
+		CommitSHA:     compReq.CommitSHA,
+		ExecutionLane: lane,
+		Status:        compReq.Status,
+		Summary:       t.Summary,
+		CompleteNote:  t.CompleteNote,
+		ErrorMessage:  att.ErrorMessage,
+		SourceRoomID:  t.SourceRoomID,
+		EmittedAt:     evt.EmittedAt,
+		Metadata:      evt.Metadata,
+	}
+	if r.eventBus != nil {
+		r.eventBus.PublishCompleted(ctx, compEvt)
+	} else {
+		EmitAttemptCompleted(ctx, compEvt)
+	}
+
 	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Event '%s' dipancarkan untuk attempt %s (Task: '%s').",
 		EventTaskAttemptSucceeded, att.ID, t.Title))
 

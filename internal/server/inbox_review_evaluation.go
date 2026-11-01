@@ -157,6 +157,10 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	if err != nil {
 		decision, err = parseFallbackTextReview(raw)
 	}
+	if err != nil && d != nil && d.LatestAttempt != nil {
+		decision = evaluateTaskDoDDeterministic(d)
+		err = nil
+	}
 	if d == nil || err != nil {
 		link := ""
 		if d != nil {

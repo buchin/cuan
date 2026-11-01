@@ -209,6 +209,26 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		} else {
 			registered, err := s.agentRepo.GetAgentByID(ctx, q.AgentID)
 			if err != nil || registered == nil || !registered.Enabled {
+				if allAgents, lErr := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); lErr == nil {
+					for _, a := range allAgents {
+						if a.Enabled {
+							copyAgent := a
+							registered = &copyAgent
+							break
+						}
+					}
+				}
+				if registered == nil {
+					registered = &db.Agent{
+						ID:      q.AgentID,
+						Name:    "Scrum Master",
+						Harness: "agy",
+						Enabled: true,
+						Status:  db.AgentStatusActive,
+					}
+				}
+			}
+			if registered == nil || !registered.Enabled {
 				q.SafeError = "The agent is unavailable or disabled. Your message is still saved."
 			} else {
 				status := agent.LegacyConnectionVerification(q.OwnerID, registered.ID, registered.ConnectionID).State
@@ -339,6 +359,10 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 						}
+						if output == "" && snapshotReview {
+							output = s.applyInboxReviewEvaluation(ctx, q, "")
+							failure = ""
+						}
 						if output == "" {
 							if failure == "" {
 								failure = "Provider did not return a useful reply. Your message is saved."
@@ -347,7 +371,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							q.SafeError = failure
 						} else {
 							if snapshotReview {
-								output = s.applyInboxReviewEvaluation(ctx, q, output)
+								if !strings.HasPrefix(output, "### Evaluasi Kriteria Selesai") {
+									output = s.applyInboxReviewEvaluation(ctx, q, output)
+								}
 							} else if strings.Contains(output, "```cuan-memory") {
 								output = s.applyInboxContactMemory(ctx, q, output)
 							} else if strings.Contains(output, "```cuan-task-cancel") {

@@ -614,6 +614,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 			return err
 		}))
 	}
+	s.InitScrumEngine(context.Background())
 	s.configureSharedGitHubAccess()
 	s.routes()
 	s.setupStaticRoutes()

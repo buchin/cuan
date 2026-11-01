@@ -677,6 +677,9 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Trigger autonomous scrum engine for attempt completion
+	s.onRunnerAttemptCompleted(r.Context(), att)
+
 	respondJSON(w, http.StatusOK, att)
 }
 

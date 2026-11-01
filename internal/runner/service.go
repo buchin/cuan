@@ -60,6 +60,11 @@ func (s *RunnerService) SetEventBus(bus *EventBus) {
 	s.eventBus = bus
 }
 
+// EventBus returns the registered EventBus, or nil if none is set.
+func (s *RunnerService) EventBus() *EventBus {
+	return s.eventBus
+}
+
 // Heartbeat processes heartbeat and lease renewal from a runner daemon.
 func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, leaseDuration time.Duration) (*HeartbeatResponse, error) {
 	if req.RunnerID == "" {
@@ -307,32 +312,39 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if err == nil && t != nil {
 		oldStatus := t.Status
 
-		// 1. Emisi internal event task:attempt_succeeded saat worker sukses
+		// 1. Emisi internal event task:attempt_succeeded / task:attempt_completed
+		completedEvt := AttemptCompletedEvent{
+			EventID:       fmt.Sprintf("evt_%d", time.Now().UnixNano()),
+			EventType:     EventTaskAttemptCompleted,
+			TaskID:        t.ID,
+			AttemptID:     att.ID,
+			AttemptNumber: att.AttemptNumber,
+			RunnerID:      req.RunnerID,
+			ExitCode:      req.ExitCode,
+			BranchName:    req.BranchName,
+			CommitSHA:     req.CommitSHA,
+			ExecutionLane: t.ExecutionCategory,
+			Status:        status,
+			Summary:       t.Summary,
+			CompleteNote:  t.CompleteNote,
+			ErrorMessage:  att.ErrorMessage,
+			SourceRoomID:  t.SourceRoomID,
+			EmittedAt:     now,
+			Metadata: map[string]any{
+				"runner_id":    req.RunnerID,
+				"exit_code":    req.ExitCode,
+				"test_summary": req.TestSummary,
+			},
+		}
 		if status == task.AttemptStatusSucceeded {
-			evt := AttemptSucceededEvent{
-				EventID:       fmt.Sprintf("evt_%d", time.Now().UnixNano()),
-				EventType:     EventTaskAttemptSucceeded,
-				TaskID:        t.ID,
-				AttemptID:     att.ID,
-				AttemptNumber: att.AttemptNumber,
-				BranchName:    req.BranchName,
-				CommitSHA:     req.CommitSHA,
-				ExecutionLane: t.ExecutionCategory,
-				Status:        status,
-				Summary:       t.Summary,
-				CompleteNote:  t.CompleteNote,
-				EmittedAt:     now,
-				Metadata: map[string]any{
-					"runner_id":    req.RunnerID,
-					"exit_code":    req.ExitCode,
-					"test_summary": req.TestSummary,
-				},
-			}
-			if s.eventBus != nil {
-				s.eventBus.Publish(ctx, evt)
-			} else {
-				EmitAttemptSucceeded(ctx, evt)
-			}
+			completedEvt.EventType = EventTaskAttemptSucceeded
+		} else {
+			completedEvt.EventType = EventTaskAttemptFailed
+		}
+		if s.eventBus != nil {
+			s.eventBus.PublishCompleted(ctx, completedEvt)
+		} else {
+			EmitAttemptCompleted(ctx, completedEvt)
 		}
 
 		// 2. Evaluasi DoD Otonom & Logika Auto-Mark Done / Auto-Requeue

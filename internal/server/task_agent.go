@@ -17,6 +17,7 @@ import (
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/project"
+	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
 	"github.com/buchin/cuan/internal/workflow"
@@ -160,7 +161,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 		dodBuilder.WriteString("\n")
 		instructions = dodBuilder.String() + instructions
 	}
-	instructions = workflow.Developer + "\n\n" + instructions
+	instructions = workflow.Developer + "\n\n" + cuanPrompt.GetRunnerPromptAdditions() + "\n\n" + instructions
 	if techTaste := s.formatTechnicalTastePrompt(ctx); techTaste != "" {
 		instructions += "\n\n" + techTaste + "\n"
 	}

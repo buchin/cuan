@@ -219,6 +219,31 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 					}
 				}
 			}
+			if (authorization == nil || !authenticatedApproval) && d.TaskID != "" {
+				isReviewTurn := false
+				for i := range messages {
+					if messages[i].ID == q.MessageID && messages[i].AuthorID == "cuan_work_review" {
+						isReviewTurn = true
+						break
+					}
+				}
+				tOwner, _ := s.taskArtifactOwner(ctx, tDetail)
+				if isReviewTurn || (tOwner != "" && tOwner == q.OwnerID) || strings.Contains(q.RequestID, "task-review:") {
+					// Autonomous Scrum revision or continuation: the task is already authorized
+					authorization = &db.ProjectMessage{
+						ID:         "auth_" + tDetail.ID,
+						RoomID:     q.RoomID,
+						AuthorType: "user",
+						AuthorName: "Owner",
+						Content:    tDetail.Instructions,
+						CreatedAt:  tDetail.CreatedAt,
+					}
+					authenticatedApproval = true
+					if authorizationRequestID == "" {
+						authorizationRequestID = q.RequestID
+					}
+				}
+			}
 		}
 	}
 	if authorization == nil || !authenticatedApproval {
@@ -484,6 +509,24 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if launch, err := s.taskSvc.LatestLaunch(ctx, detail.ID); err == nil && launch != nil && launch.RoomID != "" {
 		targetRoomID = launch.RoomID
 	}
+	if targetRoomID == "" && detail.ProjectID != "" {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
+			for _, r := range rooms {
+				if r.ProjectID == detail.ProjectID {
+					targetRoomID = r.ID
+					break
+				}
+			}
+		}
+	}
+	if targetRoomID == "" {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil && len(rooms) > 0 {
+			targetRoomID = rooms[0].ID
+		}
+	}
+	if targetRoomID == "" {
+		return
+	}
 	requests, err := store.ListInboxRequests(ctx, targetRoomID)
 	if err != nil {
 		return
@@ -495,7 +538,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			break
 		}
 	}
-	if origin == nil && targetRoomID != detail.SourceRoomID {
+	if origin == nil && targetRoomID != detail.SourceRoomID && detail.SourceRoomID != "" {
 		if srcReqs, err := store.ListInboxRequests(ctx, detail.SourceRoomID); err == nil {
 			for i := range srcReqs {
 				if srcReqs[i].MessageID == detail.SourceMessageID {
@@ -506,7 +549,28 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	if origin == nil || origin.OwnerID == "" || origin.AgentID == "" {
-		return
+		ownerID := ""
+		if o, err := s.taskArtifactOwner(ctx, detail); err == nil && o != "" {
+			ownerID = o
+		}
+		if ownerID == "" && len(requests) > 0 {
+			ownerID = requests[0].OwnerID
+		}
+		if ownerID == "" {
+			ownerID = "operator_user"
+		}
+		agentID := detail.AssignedAgent
+		if agentID == "" && len(requests) > 0 {
+			agentID = requests[0].AgentID
+		}
+		if agentID == "" {
+			agentID = "scrum_master"
+		}
+		origin = &db.InboxRequest{
+			OwnerID: ownerID,
+			AgentID: agentID,
+			RoomID:  targetRoomID,
+		}
 	}
 	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {
 		return

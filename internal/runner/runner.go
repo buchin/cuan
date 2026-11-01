@@ -19,6 +19,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/git"
+	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -516,14 +517,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Lane %s: menggunakan direktori operasional '%s' tanpa checkout git branch baru.", lane, workingDir))
 	}
 
-	// Prepare execution request
-	prompt := t.Instructions
-	if prompt == "" {
-		prompt = t.Title
-	}
-	if claim.AgentPrompt != "" {
-		prompt += claim.AgentPrompt
-	}
+	// Prepare execution request with AGENTS.md guidance & Scrum rules injected
+	prompt := cuanPrompt.BuildRunnerPrompt(t.Title, t.Instructions, claim.AgentPrompt, workingDir)
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()
