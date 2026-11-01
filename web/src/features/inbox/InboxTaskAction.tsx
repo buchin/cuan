@@ -14,12 +14,14 @@ export function InboxTaskAction({
   draft,
   linkedTask,
   onContinueChat,
+  onViewTask,
 }: {
   conversationId: string
   messageId: string
   draft?: InboxTaskDraft
   linkedTask?: Task
   onContinueChat?: (suggestedText: string) => void
+  onViewTask?: (task: Task) => void
 }) {
   const { t } = useLanguage()
 
@@ -85,6 +87,7 @@ export function InboxTaskAction({
             task={existing}
             conversationId={conversationId}
             onContinueChat={onContinueChat}
+            onViewDetails={onViewTask}
           />
         </div>
       )
@@ -97,6 +100,7 @@ export function InboxTaskAction({
           returnTo={`/inbox/${encodeURIComponent(conversationId)}`}
           showProject={true}
           showActions={true}
+          onClick={onViewTask}
           className="p-3 sm:p-3.5 bg-background/80 dark:bg-background/40 border-border/70"
         />
       </div>

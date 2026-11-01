@@ -11,7 +11,6 @@ import {
 } from './Attachments'
 import { CannedResponsesPicker } from './CannedResponsesPicker'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { type Agent, isModelVisionCapable } from '../../api/agents'
 import { ContactStatus } from '../agents/ContactStatus'
 import { agentForContact } from '../agents/connection'
@@ -52,8 +51,16 @@ import {
   Lock,
   Copy,
   Plus,
+  Clock,
+  CheckCircle2,
+  ListChecks,
+  GitBranch,
+  ExternalLink,
+  ArrowRight,
+  Terminal,
 } from 'lucide-react'
 import { Task } from '../../api/types'
+import { tasksApi } from '../../api/tasks'
 import './chat-calm.css'
 import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
@@ -61,9 +68,16 @@ import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
-import { ConversationWorkMonitor } from './ConversationWorkMonitor'
-import { TaskItemCard } from '../tasks/TaskItemCard'
-import { getQueuedTasksPositions } from '../tasks/task-ui'
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { ChatMarkdown } from './ChatMarkdown'
+import {
+  taskRef,
+  statusLabel,
+  taskTargetUrl,
+  taskTerminalUrl,
+  relativeTime,
+  agentDisplayName,
+} from '../tasks/task-ui'
 import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
 import { notifyTaskCompleted } from './task-notifications'
@@ -254,13 +268,50 @@ export function InboxView({
     }
     prevActiveTasksRef.current = currentActiveIds
   }, [activeConversationTasks, linkedTasks])
-  const [showTasksModal, setShowTasksModal] = useState(false)
-  const [convTab, setConvTab] = useState<'chat' | 'tasks'>('chat')
+  const [peekTask, setPeekTask] = useState<Task | null>(null)
+  const [_peekTaskLoading, setPeekTaskLoading] = useState(false)
   const [escalatingMessage, setEscalatingMessage] = useState<ChatMessage | null>(null)
 
-  useEffect(() => {
-    setConvTab('chat')
-  }, [activeContact?.id])
+  const handleOpenTaskDrawer = useCallback(
+    async (taskOrId: Task | string) => {
+      if (typeof taskOrId === 'string') {
+        const existing = linkedTasks.find((t) => t.id === taskOrId)
+        if (existing) {
+          setPeekTask(existing)
+          return
+        }
+        setPeekTaskLoading(true)
+        try {
+          const fetched = await tasksApi.get(taskOrId)
+          if (fetched) setPeekTask(fetched)
+        } catch {
+          // ignore error
+        } finally {
+          setPeekTaskLoading(false)
+        }
+      } else {
+        setPeekTask(taskOrId)
+      }
+    },
+    [linkedTasks]
+  )
+
+  const handleMessageContainerClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      const anchor = target?.closest('a')
+      if (anchor) {
+        const href = anchor.getAttribute('href') || ''
+        const match = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
+        if (match && match[1]) {
+          e.preventDefault()
+          e.stopPropagation()
+          handleOpenTaskDrawer(match[1])
+        }
+      }
+    },
+    [handleOpenTaskDrawer]
+  )
 
   const [copiedEmail, setCopiedEmail] = useState(false)
   const copyEmailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1187,39 +1238,12 @@ export function InboxView({
 
             {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
 
-            {convTab === 'tasks' ? (
-              <ConversationWorkMonitor
-                tasks={linkedTasks}
-                activeContact={activeContact}
-                onRefresh={() =>
-                  loadConversation(
-                    activeContact.conversation_id || activeContact.id,
-                    false,
-                  )
-                }
-                onNewTask={() => {
-                  const latest = messages[messages.length - 1]
-                  setEscalatingMessage(
-                    latest || ({
-                      id: 0,
-                      uuid: '',
-                      author_type: 'user',
-                      content: '',
-                      created_at: new Date().toISOString(),
-                    } as any)
-                  )
-                }}
-                onBackToChat={() => setConvTab('chat')}
-                loading={loading}
-              />
-            ) : (
-              <>
-
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
             <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
               <div
                 ref={messageListRef}
                 onScroll={handleScroll}
+                onClick={handleMessageContainerClick}
                 className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
                 <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2">
@@ -1554,6 +1578,7 @@ export function InboxView({
                           content={msg.content || msg.message}
                           hideTaskActions={!!linkedTaskForMsg}
                           receiptExtraction={msg.receipt_extraction}
+                          onTaskClick={handleOpenTaskDrawer}
                         />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
@@ -1702,6 +1727,7 @@ export function InboxView({
                           }
                           messageId={msg.uuid}
                           draft={isAgentMessage ? msg.task_draft : undefined}
+                          onViewTask={handleOpenTaskDrawer}
                           onContinueChat={(text) => {
                             setInputMessage((prev) => (prev ? `${prev} ${text}` : text))
                             textareaRef.current?.focus()
@@ -1711,7 +1737,11 @@ export function InboxView({
                       {msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
                         <button
                           type="button"
-                          onClick={() => setConvTab('tasks')}
+                          data-testid="assigned-task-btn"
+                          onClick={() => {
+                            const task = linkedTasks.find((t) => t.source_message_id === msg.uuid)
+                            if (task) handleOpenTaskDrawer(task)
+                          }}
                           className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-0 p-0"
                           title={t('View in Tasks')}
                         >
@@ -1785,7 +1815,7 @@ export function InboxView({
                         setInputMessage((prev) => (prev ? `${prev} ${text}` : text))
                         textareaRef.current?.focus()
                       }}
-                      onViewDetails={() => setConvTab('tasks')}
+                      onViewDetails={() => handleOpenTaskDrawer(completedTask)}
                     />
                   </div>
                 </div>
@@ -2075,44 +2105,235 @@ export function InboxView({
                 </div>
               </div>
             </div>
-              </>
-            )}
           </>
         )}
       </div>
 
-      <ActionDialog
-        open={showTasksModal}
-        title={t('Connected tasks')}
-        onClose={() => setShowTasksModal(false)}
+      {/* Progressive Disclosure SlideDrawer for Linked Task Peek */}
+      <SlideDrawer
+        isOpen={Boolean(peekTask)}
+        onClose={() => setPeekTask(null)}
+        title={peekTask?.title || t('Detail Tugas')}
+        description={
+          peekTask
+            ? `${taskRef(peekTask.id)} · ${statusLabel(peekTask.status || 'not_started')}`
+            : undefined
+        }
+        size="md"
+        data-testid="inbox-task-drawer"
+        badge={
+          peekTask && (
+            <span
+              className={cn(
+                'text-[11px] font-mono font-medium px-2 py-0.5 rounded border border-border/40',
+                peekTask.status === 'done'
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                  : peekTask.status === 'review'
+                    ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10'
+                    : peekTask.status === 'doing'
+                      ? 'text-blue-600 dark:text-blue-400 bg-blue-500/10'
+                      : 'text-muted-foreground bg-muted/40'
+              )}
+            >
+              {taskRef(peekTask.id)}
+            </span>
+          )
+        }
+        headerActions={
+          peekTask && (
+            <Link
+              to={taskTargetUrl(peekTask)}
+              className="rounded-md p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+              title={t('Buka Halaman Tugas Penuh')}
+              aria-label={t('Buka Halaman Tugas Penuh')}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          )
+        }
+        footer={
+          peekTask && (
+            <div className="flex items-center justify-between w-full gap-2">
+              <button
+                type="button"
+                onClick={() => setPeekTask(null)}
+                className="action-secondary min-h-10 px-3.5 text-xs"
+              >
+                <span>{t('Tutup')}</span>
+              </button>
+              <Link
+                to={taskTargetUrl(peekTask)}
+                className="action-primary min-h-10 px-3.5 text-xs inline-flex items-center gap-1.5"
+              >
+                <span>{t('Buka Halaman Tugas')}</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          )
+        }
       >
-        <div className="space-y-3">
-          {linkedTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground space-y-2">
-              <CheckSquare className="h-8 w-8 text-muted-foreground/50" />
-              <p className="text-sm font-medium">{t('No tasks connected to this conversation')}</p>
-              <p className="text-xs text-muted-foreground/80 max-w-xs">
-                {t('Tasks created by agents during this conversation will appear here.')}
-              </p>
+        {peekTask && (
+          <div className="space-y-4 text-sm" data-testid="inbox-task-drawer-content">
+            {/* Meta Strip: Status, Assignee, Time */}
+            <div className="rounded-xl border border-border/40 bg-card/60 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 text-xs font-medium',
+                      peekTask.status === 'done'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : peekTask.status === 'review'
+                          ? 'text-purple-600 dark:text-purple-400'
+                          : peekTask.status === 'doing'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-muted-foreground'
+                    )}
+                  >
+                    {peekTask.status === 'done' ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <Clock className="h-4 w-4" />
+                    )}
+                    <span>{statusLabel(peekTask.status || 'not_started')}</span>
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+                  <span>{relativeTime(peekTask.updated_at || peekTask.created_at)}</span>
+                </div>
+              </div>
+
+              {/* Assignee & Branch */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/30 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <Bot className="h-3.5 w-3.5 text-primary" />
+                  <span>
+                    {agentDisplayName(
+                      peekTask.latest_attempt?.agent_name ||
+                        peekTask.assignee_id ||
+                        peekTask.assignee ||
+                        'cuan-runner'
+                    )}
+                  </span>
+                </span>
+
+                {peekTask.branch_name && (
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded">
+                    <GitBranch className="h-3 w-3" />
+                    <span>{peekTask.branch_name}</span>
+                  </span>
+                )}
+
+                {peekTask.pr_url && (
+                  <a
+                    href={peekTask.pr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs ml-auto"
+                  >
+                    <span>Pull Request</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {(() => {
-                const queuedPositions = getQueuedTasksPositions(linkedTasks)
-                return linkedTasks.map((task) => (
-                  <TaskItemCard
-                    key={task.id}
-                    task={task}
-                    queuePosition={queuedPositions.get(task.id)}
-                    returnTo={location.pathname}
-                    onNavigate={() => setShowTasksModal(false)}
+
+            {/* Summary / Completion Note */}
+            {(peekTask.summary || peekTask.complete_note) && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  <span>{t('Ringkasan Hasil')}</span>
+                </div>
+                <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-xs leading-relaxed text-foreground">
+                  <ChatMarkdown
+                    content={peekTask.summary || peekTask.complete_note || ''}
                   />
-                ))
-              })()}
-            </div>
-          )}
-        </div>
-      </ActionDialog>
+                </div>
+              </div>
+            )}
+
+            {/* Definition of Done Checklist */}
+            {peekTask.dod_checklist && Array.isArray(peekTask.dod_checklist) && peekTask.dod_checklist.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <ListChecks className="h-3.5 w-3.5 text-primary" />
+                    <span>{t('Kriteria Selesai (DoD)')}</span>
+                  </span>
+                  <span className="font-mono text-[11px]">
+                    {
+                      peekTask.dod_checklist.filter((item) =>
+                        typeof item === 'string'
+                          ? item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
+                          : !!item.completed
+                      ).length
+                    }
+                    /{peekTask.dod_checklist.length}
+                  </span>
+                </div>
+                <ul className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2 text-xs">
+                  {peekTask.dod_checklist.map((item, idx) => {
+                    const isChecked =
+                      typeof item === 'string'
+                        ? item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
+                        : !!item.completed
+                    const text =
+                      typeof item === 'string'
+                        ? item.replace(/^(\[[ xX]\]|✓)\s*/, '').trim()
+                        : item.text
+                    return (
+                      <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                        <span
+                          className={cn(
+                            'mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px]',
+                            isChecked
+                              ? 'text-emerald-600 dark:text-emerald-400 font-bold'
+                              : 'text-muted-foreground/50'
+                          )}
+                        >
+                          {isChecked ? '✓' : '·'}
+                        </span>
+                        <span className={cn('break-words text-foreground/90', isChecked && 'font-medium text-foreground')}>
+                          {text}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* Task Instructions / Description */}
+            {peekTask.description && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t('Instruksi / Deskripsi')}
+                </div>
+                <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                  {peekTask.description}
+                </div>
+              </div>
+            )}
+
+            {/* Active Execution / Terminal link */}
+            {(peekTask.status === 'doing' ||
+              peekTask.latest_attempt?.status === 'running' ||
+              peekTask.latest_attempt?.status === 'queued') && (
+              <div className="pt-2">
+                <Link
+                  to={taskTerminalUrl(peekTask)}
+                  className="action-secondary w-full text-xs py-2.5 inline-flex items-center justify-center gap-2 rounded-lg"
+                >
+                  <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>{t('Buka Terminal Langsung')}</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </SlideDrawer>
 
       {escalatingMessage && (
         <Suspense fallback={null}>
@@ -2123,7 +2344,7 @@ export function InboxView({
             onClose={() => setEscalatingMessage(null)}
             onTaskCreated={(newTask) => {
               setLinkedTasks((prev) => [newTask, ...prev.filter((t) => t.id !== newTask.id)])
-              setConvTab('tasks')
+              handleOpenTaskDrawer(newTask)
               if (activeContact) {
                 activeContact.task_count = (activeContact.task_count || 0) + 1
                 activeContact.active_tasks = (activeContact.active_tasks || 0) + 1

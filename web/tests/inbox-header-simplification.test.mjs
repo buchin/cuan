@@ -105,13 +105,14 @@ test('4. Requirement 4: Room tasks remain accessible via global navigation; rigi
     !inboxViewSource.includes('{/* ── Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) ── */}'),
     'InboxView must eliminate rigid sub-tabs bar for calm canvas'
   )
+  // In S61-T3, rigid ConversationWorkMonitor sub-tab is eliminated in favor of Progressive Disclosure SlideDrawer
   assert.ok(
-    inboxViewSource.includes('<ConversationWorkMonitor'),
-    'InboxView must render ConversationWorkMonitor when convTab is tasks'
+    !inboxViewSource.includes('<ConversationWorkMonitor'),
+    'InboxView must eliminate ConversationWorkMonitor in favor of SlideDrawer'
   )
   assert.ok(
-    inboxViewSource.includes('tasks={linkedTasks}'),
-    'ConversationWorkMonitor must receive room linked tasks'
+    inboxViewSource.includes('SlideDrawer'),
+    'InboxView must integrate SlideDrawer for task peek'
   )
 
   // Verify global navigation to Tasks remains intact in AppShell

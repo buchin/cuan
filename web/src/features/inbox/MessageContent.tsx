@@ -12,6 +12,7 @@ import {
 export { ChatPreviewCard } from './RoomCard'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import type { ReceiptExtraction } from '../../api/appsSkills'
+import type { Task } from '../../api/types'
 
 // Promote a trailing paragraph of known navigation links. Never interpret model
 // text as an executable action or turn arbitrary destinations into primary CTAs.
@@ -37,10 +38,12 @@ export function MessageContent({
   content,
   hideTaskActions = false,
   receiptExtraction,
+  onTaskClick,
 }: {
   content: string
   hideTaskActions?: boolean
   receiptExtraction?: ReceiptExtraction
+  onTaskClick?: (task: Task) => void
 }) {
   const { language, t } = useLanguage()
   const { body, actions } = messageNavigation(content)
@@ -65,12 +68,12 @@ export function MessageContent({
           <StatusReportCard report={report} />
           {report.dodDetails?.remainingText && (
             <div className="pt-1">
-              <ChatMarkdown content={report.dodDetails.remainingText} />
+              <ChatMarkdown content={report.dodDetails.remainingText} onTaskClick={onTaskClick} />
             </div>
           )}
         </div>
       ) : (
-        displayBody && <ChatMarkdown content={displayBody} />
+        displayBody && <ChatMarkdown content={displayBody} onTaskClick={onTaskClick} />
       )}
       {extractedReceipt && (
         <ReceiptPreviewCard extraction={extractedReceipt} />
@@ -84,7 +87,7 @@ export function MessageContent({
             const taskMatch = action.href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
             const taskId = taskMatch ? taskMatch[1] : extractTaskId(action.href)
             if (taskId) {
-              return <TaskCard key={action.href} taskId={taskId} />
+              return <TaskCard key={action.href} taskId={taskId} onClick={onTaskClick} />
             }
             const inboxMatch = action.href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
             const chatMatch = action.href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)
