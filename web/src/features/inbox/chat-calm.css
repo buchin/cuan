@@ -62,12 +62,12 @@
   border-color: transparent !important;
 }
 
-/* Header */
+/* Header: Seamless flow into chat canvas without 1px dividing border cut */
 .wa-chat-header,
 .calm-chat-header {
   background: var(--wa-header);
   color: var(--wa-text);
-  border-bottom: 1px solid hsl(var(--border) / 0.4);
+  border-bottom: none;
 }
 
 /* Conversation Stream: Pure, flat canvas without dot-pattern wallpaper */
@@ -201,13 +201,13 @@
   box-shadow: none !important;
 }
 
-/* Composer: Calm Monochromatic with ergonomic safe-area cushion */
+/* Composer: Calm Monochromatic floating surface with ergonomic safe-area cushion and zero horizontal border cut */
 .wa-composer,
 .calm-composer {
   background: var(--wa-bg);
   padding: 8px 10px max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
   transition: padding-bottom 0.15s ease-out;
-  border-top: 1px solid hsl(var(--border) / 0.35);
+  border-top: none;
 }
 @media (min-width: 640px) {
   .wa-composer,
@@ -218,12 +218,12 @@
 
 .wa-input-capsule,
 .calm-input-capsule {
-  background: var(--wa-incoming);
+  background: hsl(var(--muted) / 0.45);
   color: var(--wa-text);
-  border: 1px solid hsl(var(--border) / 0.5);
+  border: 1px solid transparent;
   border-radius: 24px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
-  transition: border-radius 0.18s ease-out, border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.04);
+  transition: border-radius 0.18s ease-out, border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 .wa-input-capsule.is-multiline,
 .calm-input-capsule.is-multiline {
@@ -231,19 +231,19 @@
 }
 .wa-input-capsule:focus-within,
 .calm-input-capsule:focus-within {
-  border-color: hsl(var(--foreground) / 0.35);
-  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.2), 0 1px 3px rgb(0 0 0 / 0.05);
+  border-color: transparent;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 0.08);
 }
 .dark .wa-input-capsule,
 .dark .calm-input-capsule {
   background: #1e2023;
-  border-color: rgb(255 255 255 / 0.1);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  border-color: transparent;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
 }
 .dark .wa-input-capsule:focus-within,
 .dark .calm-input-capsule:focus-within {
-  border-color: rgb(255 255 255 / 0.3);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.15), 0 2px 6px rgb(0 0 0 / 0.3);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
 }
 
 .wa-action-btn,

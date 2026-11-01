@@ -83,7 +83,6 @@ import { TaskCompletionCard } from './TaskCompletionCard'
 import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
-import { TasteGroundingChips } from './TasteGroundingChips'
 
 const CannedResponsesDialog = lazy(() =>
   import('./CannedResponsesDialog').then((m) => ({
@@ -393,6 +392,25 @@ export function InboxView({
   )
 
   const activeAgent = agents?.find((a) => a.id === activeContact?.id || a.id === activeContact?.agent_id || a.name === activeContact?.name)
+  const contactDisplayName = (() => {
+    if (!activeContact) return ''
+    if (activeContact.type === 'agent') {
+      const matched = agentForContact(activeContact, agents) || activeAgent
+      if (matched?.name) return matched.name
+      if (activeContact.agent_name) return activeContact.agent_name
+      // If activeContact.name is a technical task title, fallback to friendly agent name
+      if (
+        activeContact.name &&
+        !activeContact.id.startsWith('topic_') &&
+        !activeContact.name.startsWith('Verifikasi') &&
+        !activeContact.name.startsWith('Task ')
+      ) {
+        return activeContact.name
+      }
+      return 'Hermes Support'
+    }
+    return activeContact.name || t('Customer')
+  })()
   const contactSupportsVision = activeAgent ? isModelVisionCapable(activeAgent.model_id, activeAgent.provider || activeAgent.harness) : true
 
   useEffect(() => {
@@ -1112,7 +1130,7 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header ── */}
-            <div className="wa-chat-header h-14 sm:h-16 px-2 sm:px-4 flex items-center justify-between shrink-0">
+            <div className="wa-chat-header h-14 sm:h-16 px-2 sm:px-4 flex items-center justify-between shrink-0 border-b-0">
               <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button
@@ -1136,68 +1154,51 @@ export function InboxView({
                   </div>
                 </div>
 
-                <div className="min-w-0">
-                  {activeContact.type === 'agent' && (
-                    <Link
-                      className="flex min-h-11 min-w-0 flex-col justify-center md:hidden"
-                      aria-label="Manage agent connection"
-                      to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
-                    >
-                      <span className="truncate text-base font-semibold">
-                        {activeContact.name}
-                      </span>
-                    </Link>
-                  )}
-                  <div
-                    className={
-                      activeContact.type === 'agent' ? 'hidden md:block' : ''
-                    }
-                  >
-                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
-                      <h2 className="truncate text-base font-semibold leading-tight">
-                        {activeContact.name}
-                      </h2>
-                      {activeContact.type === 'customer' && activeContact.email && (
-                        <div className="flex items-center gap-1 min-w-0" data-testid="customer-email-header">
-                          <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">·</span>
-                          <span
-                            className="truncate text-xs text-muted-foreground font-normal max-w-[140px] sm:max-w-[200px]"
-                            title={activeContact.email}
-                            data-testid="customer-email-text"
-                          >
-                            {activeContact.email}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleCopyCustomerEmail}
-                            aria-label={copiedEmail ? t('Disalin!') : t('Copy email')}
-                            title={copiedEmail ? t('Disalin!') : `${t('Copy email')}: ${activeContact.email}`}
-                            data-testid="copy-customer-email-button"
-                            className={cn(
-                              "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1.5 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
-                              copiedEmail
-                                ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                            )}
-                          >
-                            {copiedEmail ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                                <Check className="h-3.5 w-3.5 shrink-0" />
-                                <span>{t('Disalin!')}</span>
-                              </span>
-                            ) : (
-                              <Copy className="h-3.5 w-3.5 shrink-0" />
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <ContactStatus
-                      contact={activeContact}
-                      agents={agents}
-                      now={now}
-                    />
+                <div className="min-w-0 flex flex-col justify-center">
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+                    <h2 className="truncate text-base font-semibold leading-tight">
+                      {contactDisplayName || activeContact.name}
+                    </h2>
+                    {activeContact.type === 'customer' && activeContact.email && (
+                      <div className="flex items-center gap-1 min-w-0" data-testid="customer-email-header">
+                        <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">·</span>
+                        <span
+                          className="truncate text-xs text-muted-foreground font-normal max-w-[140px] sm:max-w-[200px]"
+                          title={activeContact.email}
+                          data-testid="customer-email-text"
+                        >
+                          {activeContact.email}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCopyCustomerEmail}
+                          aria-label={copiedEmail ? t('Disalin!') : t('Copy email')}
+                          title={copiedEmail ? t('Disalin!') : `${t('Copy email')}: ${activeContact.email}`}
+                          data-testid="copy-customer-email-button"
+                          className={cn(
+                            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1.5 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
+                            copiedEmail
+                              ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          )}
+                        >
+                          {copiedEmail ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                              <Check className="h-3.5 w-3.5 shrink-0" />
+                              <span>{t('Disalin!')}</span>
+                            </span>
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 shrink-0" />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  <ContactStatus
+                    contact={activeContact}
+                    agents={agents}
+                    now={now}
+                  />
                 </div>
               </div>
 
@@ -1214,7 +1215,7 @@ export function InboxView({
                 )}
                 {activeContact.type === 'agent' && (
                   <Link
-                    className="icon-action hidden md:inline-flex"
+                    className="icon-action inline-flex"
                     aria-label="Manage agent connection"
                     title="Manage agent connection"
                     to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
@@ -1587,15 +1588,6 @@ export function InboxView({
                         </div>
                       )}
 
-                      {/* Real-Time Taste Grounding Chips */}
-                      {msg.grounding_tastes && msg.grounding_tastes.length > 0 && (
-                        <TasteGroundingChips
-                          tastes={msg.grounding_tastes}
-                          className="mt-2"
-                          returnTo={`/inbox/${encodeURIComponent(activeContact.conversation_id || activeContact.id)}`}
-                        />
-                      )}
-
                       {/* Ready-to-Use Customer Draft Reply Card */}
                       {msg.reply_draft && (
                         <div className="mt-3 p-3 rounded-xl bg-card border border-primary/30 shadow-xs text-foreground space-y-2">
@@ -1941,7 +1933,7 @@ export function InboxView({
             {/* ── Modern Composer (Bottom) ── */}
             <div
               data-inbox-composer
-              className="wa-composer shrink-0 z-20"
+              className="wa-composer shrink-0 z-20 border-t-0"
               onPaste={(e) => {
                 if (!sending && activeContact.type === 'agent')
                   uploads.onPaste(e)
@@ -2069,20 +2061,22 @@ export function InboxView({
                     className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug pl-1.5 pr-2 sm:pl-2 sm:pr-2.5"
                   />
 
-                  <CannedResponsesPicker
-                    inputMessage={inputMessage}
-                    onSelect={(content) => {
-                      unsentDrafts.current[activeConvRef.current] = content
-                      setInputMessage(content)
-                      if (textareaRef.current) {
-                        textareaRef.current.value = content
-                        autoResizeTextarea(textareaRef.current)
-                      }
-                      textareaRef.current?.focus()
-                    }}
-                    onOpenManage={() => setShowCannedManageModal(true)}
-                    disabled={sending}
-                  />
+                  {activeContact.type === 'customer' && (
+                    <CannedResponsesPicker
+                      inputMessage={inputMessage}
+                      onSelect={(content) => {
+                        unsentDrafts.current[activeConvRef.current] = content
+                        setInputMessage(content)
+                        if (textareaRef.current) {
+                          textareaRef.current.value = content
+                          autoResizeTextarea(textareaRef.current)
+                        }
+                        textareaRef.current?.focus()
+                      }}
+                      onOpenManage={() => setShowCannedManageModal(true)}
+                      disabled={sending}
+                    />
+                  )}
 
                   <button
                     type="button"
