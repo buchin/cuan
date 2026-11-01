@@ -1478,7 +1478,7 @@ export function InboxView({
                     {showDate && (
                       <time
                         dateTime={msg.created_at}
-                        className="wa-day-label mb-3 mt-1 self-center rounded-md px-3 py-1 text-xs"
+                        className="wa-day-label calm-day-label my-3 self-center text-xs font-medium text-muted-foreground"
                       >
                         {dayLabel}
                       </time>
@@ -1712,10 +1712,10 @@ export function InboxView({
                         <button
                           type="button"
                           onClick={() => setConvTab('tasks')}
-                          className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-0 p-0"
                           title={t('View in Tasks')}
                         >
-                          <CheckSquare className="h-3 w-3" />
+                          <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>{t('Assigned to task')}</span>
                         </button>
                       )}
@@ -1753,9 +1753,9 @@ export function InboxView({
                         <div
                           key={q.request_id}
                           aria-label="Agent response progress"
-                          className="mt-3 flex w-full self-stretch flex-col items-start"
+                          className="mt-2.5 flex w-full self-stretch flex-col items-start"
                         >
-                          <div className="wa-message-bubble wa-incoming relative min-w-0">
+                          <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
                             {activity}
                           </div>
                         </div>

@@ -19,29 +19,47 @@
 }
 
 .dark .wa-chat {
-  --wa-bg: #121212;
-  --wa-header: #18181b;
-  --wa-incoming: #1e2023;
-  --wa-outgoing: #27272a;
+  --wa-bg: #141416;
+  --wa-header: #18181a;
+  --wa-incoming: #1b1c1f;
+  --wa-outgoing: #25272c;
   --wa-text: #ededed;
-  --wa-meta: #a1a1aa;
-  --wa-outgoing-meta: #a1a1aa;
+  --wa-meta: #8e8e93;
+  --wa-outgoing-meta: #8e8e93;
   --wa-send: #ededed;
   --wa-send-text: #ffffff;
   --wa-pattern: transparent;
 }
 
 .dark .calm-chat {
-  --wa-bg: #121212;
-  --wa-header: #18181b;
-  --wa-incoming: #1e2023;
-  --wa-outgoing: #27272a;
+  --wa-bg: #141416;
+  --wa-header: #18181a;
+  --wa-incoming: #1b1c1f;
+  --wa-outgoing: #25272c;
   --wa-text: #ededed;
-  --wa-meta: #a1a1aa;
-  --wa-outgoing-meta: #a1a1aa;
+  --wa-meta: #8e8e93;
+  --wa-outgoing-meta: #8e8e93;
   --wa-send: #ededed;
   --wa-send-text: #ffffff;
   --wa-pattern: transparent;
+}
+
+.dark .wa-message-bubble,
+.dark .calm-message-bubble {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark .wa-incoming,
+.dark .calm-incoming {
+  background: var(--wa-incoming);
+  border-color: transparent !important;
+}
+
+.dark .wa-outgoing,
+.dark .calm-outgoing {
+  background: var(--wa-outgoing);
+  border-color: transparent !important;
 }
 
 /* Header */
@@ -77,6 +95,7 @@
   box-shadow: none;
   color: var(--wa-text);
   border: 1px solid hsl(var(--border) / 0.2);
+  border-color: transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -91,14 +110,14 @@
 .wa-incoming,
 .calm-incoming {
   background: var(--wa-incoming);
-  border-color: hsl(var(--border) / 0.25);
+  border-color: transparent;
 }
 
 /* Outgoing bubble: Calm monochromatic neutral */
 .wa-outgoing,
 .calm-outgoing {
   background: var(--wa-outgoing);
-  border-color: hsl(var(--border) / 0.25);
+  border-color: transparent;
 }
 
 /* Strictly ELIMINATE the legacy WhatsApp speech bubble tail clip-path */
@@ -164,13 +183,22 @@
 
 .wa-day-label,
 .calm-day-label {
-  background: hsl(var(--muted) / 0.6);
-  color: var(--wa-meta);
-  border: 1px solid hsl(var(--border) / 0.3);
-  font-size: 11px;
+  background: transparent !important;
+  color: hsl(var(--muted-foreground));
+  border: none !important;
+  font-size: 12px;
   font-weight: 500;
-  border-radius: 9999px;
-  padding: 3px 12px;
+  border-radius: 0;
+  padding: 4px 0;
+  box-shadow: none !important;
+}
+
+.dark .wa-day-label,
+.dark .calm-day-label {
+  background: transparent !important;
+  color: #8e8e93 !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Composer: Calm Monochromatic with ergonomic safe-area cushion */
@@ -392,7 +420,13 @@
 .wa-message-bubble:has([data-card="task-card"]),
 .calm-message-bubble:has([data-card="task-card"]),
 .wa-message-bubble:has([data-testid="task-completion-card"]),
-.calm-message-bubble:has([data-testid="task-completion-card"]) {
+.calm-message-bubble:has([data-testid="task-completion-card"]),
+.wa-message-bubble:has([aria-label="Agent response progress"]),
+.calm-message-bubble:has([aria-label="Agent response progress"]),
+.wa-message-bubble:has([aria-label="Task from conversation"]),
+.calm-message-bubble:has([aria-label="Task from conversation"]),
+[aria-label="Agent response progress"] .wa-message-bubble,
+[aria-label="Agent response progress"] .calm-message-bubble {
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
@@ -408,7 +442,13 @@
   .wa-message-bubble:has([data-card="task-card"]),
   .calm-message-bubble:has([data-card="task-card"]),
   .wa-message-bubble:has([data-testid="task-completion-card"]),
-  .calm-message-bubble:has([data-testid="task-completion-card"]) {
+  .calm-message-bubble:has([data-testid="task-completion-card"]),
+  .wa-message-bubble:has([aria-label="Agent response progress"]),
+  .calm-message-bubble:has([aria-label="Agent response progress"]),
+  .wa-message-bubble:has([aria-label="Task from conversation"]),
+  .calm-message-bubble:has([aria-label="Task from conversation"]),
+  [aria-label="Agent response progress"] .wa-message-bubble,
+  [aria-label="Agent response progress"] .calm-message-bubble {
     max-width: min(88%, 700px);
   }
 }

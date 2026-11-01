@@ -213,3 +213,35 @@ import { GroupedSection, GroupedRow } from '@/components/layout/GroupedSection'
 5. **DILARANG:** Menampilkan raw JSON, log streaming panjang, atau prompt mentah langsung di aliran pesan utama (*Glanceable Layer*). Buka di `SlideDrawer`.
 6. **DILARANG:** Menggunakan animasi berputar (*spinning spinner*) berukuran besar yang membuat cemas. Gunakan denyut lembut `StatusDot` (`animate-pulse`) atau skeleton tenang.
 7. **DILARANG:** Menggunakan peninggalan kata "Toko" pada teks antarmuka atau kamus locale. Gunakan terminologi netral dan inklusif: "Workspace", "Ruang Kerja", atau "Bisnis".
+
+---
+
+## 7. Standar Evaluasi Visual & Kualitas Pengalaman Pengguna (Usability & Low Visual Noise Quality Gate)
+
+Inspeksi hasil pengerjaan antarmuka **TIDAK BOLEH** hanya terpaku pada verifikasi teknis sempit (seperti sekadar memeriksa hilangnya garis stroke 1px atau kelulusan regex pada unit test).
+
+**Tujuan Hakiki (The Real Goal):** Mencapai **Standar Kenyamanan & Ketenangan Pengguna (Zero Cognitive Fatigue)** yang setara dengan Things 3 dan Bear Notes.
+
+Scrum Master dan Development Team **WAJIB** mengevaluasi hasil render secara menyeluruh (*holistic assessment*) berdasarkan 4 pilar kenyamanan berikut:
+
+### 7.1. Eliminasi Visual Noise & Ketenangan Monokromatik (Zero Visual Noise)
+- Seluruh antarmuka tidak boleh memiliki elemen yang saling berebut perhatian pengguna (*no screaming elements*).
+- Dilarang ada warna jenuh/neon di dark mode. Aksen warna harus tenang, teredam, dan monokromatik.
+- Penanda tanggal atau status tidak boleh menggunakan latar putih solid (`#ffffff`) atau kontras menyilaukan.
+
+### 7.2. Whitespace & Breathing Room (Ruang Bernapas yang Cukup)
+- Tata letak tidak boleh sesak (*cramped*) seperti dashboard SaaS / DevOps analitik konvensional.
+- Padding, margin, dan pembatas harus memberikan ruang bernapas lega sehingga mata pengguna rileks saat membaca dalam durasi panjang.
+
+### 7.3. Hierarki Tipografi Alami (Effortless Readability)
+- Pengguna harus dapat membedakan konteks (siapa pengirim, judul pesan, isi ringkasan) secara instan hanya dari bobot font (`font-medium` vs `text-muted-foreground`), tanpa memerlukan pembungkus kotak/wireframe berlapis-lapis.
+- Gelembung percakapan mengalir alami tanpa stroke border ganda yang kaku.
+
+### 7.4. Usability & Keutuhan Konteks Alur Kerja (Predictable Interaction Flow)
+- Aliran komunikasi utama tidak boleh disela atau diputus oleh widget birokrasi, banner duplikasi, atau pergantian halaman yang membingungkan.
+- Tindakan sekunder (seperti detail tugas atau log teknis) harus diakses secara tenang melalui *Progressive Disclosure* (`SlideDrawer`).
+
+### 7.5. Protokol Evaluasi Nyata SM & Tim:
+1. Render aplikasi dan ambil tangkapan layar nyata (*real screenshot*) pada mobile viewport (390px) dan desktop.
+2. Ajukan pertanyaan evaluasi kunci: *"Apakah layar ini terasa tenang, bersahabat, dan memanjakan mata saat dipakai berjam-jam seperti Bear Notes & Things 3, atau masih menyisakan kebisingan visual?"*
+3. **Jika belum mencapai standar kenyamanan ini, tim WAJIB merevisi dan memperbaiki desainnya kembali hingga benar-benar memuaskan sebelum dinyatakan selesai atau di-deploy.**
