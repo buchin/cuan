@@ -145,6 +145,10 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
 		return
 	}
+	if taskDetail.ExecutionCategory == task.ExecutionCategoryReadOnly || isInvestigationOrNonCodeText(taskDetail.Title, taskDetail.Instructions, taskDetail.Summary, taskDetail.CompleteNote) {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code investigation task %s", taskID)
+		return
+	}
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, taskDetail.BranchName, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
@@ -170,4 +174,17 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 		CompleteNote: &note,
 	})
 	s.triggerAutoDeploy(ctx, projectID, taskID)
+}
+
+func isInvestigationOrNonCodeText(texts ...string) bool {
+	combined := strings.ToLower(strings.Join(texts, " "))
+	for _, term := range []string{
+		"investigasi", "investigation", "rca", "root cause",
+		"analisis", "analysis", "klarifikasi", "audit", "pemadaman", "outage",
+	} {
+		if strings.Contains(combined, term) {
+			return true
+		}
+	}
+	return false
 }

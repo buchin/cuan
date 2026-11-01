@@ -3,15 +3,17 @@ package runner
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
-	DefaultBaseTimeout    = 25 * time.Minute // Attempt 1 (Base Run)
-	DefaultRequeueTimeout = 35 * time.Minute // Attempt 2 (First Requeue / Gap Fixable)
-	DefaultMaxCapTimeout  = 45 * time.Minute // Attempt 3+ (Final Requeue / Max Cap)
-	DefaultGracePeriod    = 30 * time.Second // Termination tolerance grace period before SIGKILL
-	MaxAttempts           = 3                // Maximum attempts allowed per task before review/blocked
+	DefaultBaseTimeout          = 25 * time.Minute // Attempt 1 (Base Run)
+	DefaultRequeueTimeout       = 35 * time.Minute // Attempt 2 (First Requeue / Gap Fixable)
+	DefaultMaxCapTimeout        = 45 * time.Minute // Attempt 3+ (Final Requeue / Max Cap)
+	DefaultInvestigationTimeout = 5 * time.Minute  // Investigation / Non-Code task timeout (pruned from 20m)
+	DefaultGracePeriod          = 30 * time.Second // Termination tolerance grace period before SIGKILL
+	MaxAttempts                 = 3                // Maximum attempts allowed per task before review/blocked
 )
 
 // CalculateAdaptiveTimeout returns progressive adaptive timeout based on attempt count:
@@ -54,6 +56,40 @@ func CalculateAdaptiveTimeout(attemptNumber int) time.Duration {
 	default:
 		return maxCapTimeout
 	}
+}
+
+// CalculateTaskTimeout returns execution timeout tailored to execution lane and task nature.
+// Investigation / Read-Only / RCA tasks receive 5m timeout to prevent hung/zombie agents.
+// Standard code tasks receive adaptive timeout (25m, 35m, 45m).
+func CalculateTaskTimeout(lane string, attemptNumber int, titleAndPrompt ...string) time.Duration {
+	if v := os.Getenv("CUAN_TASK_TIMEOUT_OVERRIDE"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+
+	combined := strings.ToLower(lane)
+	if len(titleAndPrompt) > 0 {
+		combined += " " + strings.ToLower(strings.Join(titleAndPrompt, " "))
+	}
+
+	if strings.Contains(combined, "readonly") ||
+		strings.Contains(combined, "read_only") ||
+		strings.Contains(combined, "investigasi") ||
+		strings.Contains(combined, "investigation") ||
+		strings.Contains(combined, "rca") ||
+		strings.Contains(combined, "root cause") ||
+		strings.Contains(combined, "analisis") ||
+		strings.Contains(combined, "analysis") {
+		if v := os.Getenv("CUAN_TASK_TIMEOUT_INVESTIGATION"); v != "" {
+			if d, err := time.ParseDuration(v); err == nil && d > 0 {
+				return d
+			}
+		}
+		return DefaultInvestigationTimeout
+	}
+
+	return CalculateAdaptiveTimeout(attemptNumber)
 }
 
 // GetGracePeriod returns the grace period duration for two-stage termination (SIGTERM -> SIGKILL).

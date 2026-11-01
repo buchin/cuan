@@ -117,3 +117,74 @@ func TestDefaultBusinessChatNotifier_SendTaskReviewBusinessMessage(t *testing.T)
 		t.Fatalf("expected task link in review content, got:\n%s", sentContent)
 	}
 }
+
+func TestFormatBusinessFriendlyMessage_DynamicContextNonOlshop(t *testing.T) {
+	title := "Integrasi subtitle drama korea"
+	summary := "Subtitle episode 1-16 telah disinkronkan dan siap diputar"
+
+	msg, nextSteps := FormatBusinessFriendlyMessage(title, summary, "dracin")
+
+	if strings.Contains(strings.ToLower(msg), "toko anda") {
+		t.Fatalf("non-olshop project 'dracin' must not contain 'toko Anda', got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Halo! Kabar baik untuk dracin") {
+		t.Fatalf("expected project name greeting for dracin, got:\n%s", msg)
+	}
+	for _, step := range nextSteps {
+		if strings.Contains(strings.ToLower(step), "toko anda") {
+			t.Fatalf("next step should not contain 'toko Anda' for dracin, got: %s", step)
+		}
+	}
+}
+
+func TestFormatBusinessFriendlyReviewMessage_DynamicContextNonOlshop(t *testing.T) {
+	title := "Konfigurasi CDN Video Streaming"
+	summary := "Evaluasi menemukan performa buffering masih tinggi"
+	gaps := []string{"Perlu optimasi cache rule di CDN"}
+
+	msg, _ := FormatBusinessFriendlyReviewMessage(title, summary, gaps, 2, "dracin")
+
+	if strings.Contains(strings.ToLower(msg), "toko anda") {
+		t.Fatalf("non-olshop project 'dracin' must not contain 'toko Anda', got:\n%s", msg)
+	}
+	if !strings.Contains(msg, "Halo! Pembaruan penting untuk dracin") {
+		t.Fatalf("expected project name review intro for dracin, got:\n%s", msg)
+	}
+}
+
+func TestBuildTaskReviewEnvelope_DualChannelAndJargonPurge(t *testing.T) {
+	title := "Investigasi runner heartbeat lost dan lease expired pada attempt #2"
+	summary := "Evaluasi definition of done dan dod menemukan kegagalan koneksi pihak ketiga"
+	gaps := []string{"Runner heartbeat lost and lease expired; marked interrupted and recoverable without auto-rerun."}
+
+	env := BuildTaskReviewEnvelope(title, summary, gaps, 2, false, "RCA log investigasi menunjukkan timeout", "dracin")
+
+	if env.RequiresDeploy {
+		t.Fatal("expected requires_deploy to be false for investigation")
+	}
+
+	// Verify jargon purge
+	forbidden := []string{"definition of done", "dod", "heartbeat lost", "lease expired", "attempt #"}
+	fullText := strings.ToLower(env.Summary + " " + env.Draft + " " + env.Evidence)
+	for _, f := range forbidden {
+		if strings.Contains(fullText, f) {
+			t.Fatalf("found forbidden technical jargon %q in envelope:\n%+v", f, env)
+		}
+	}
+
+	if strings.Contains(strings.ToLower(env.Draft), "toko anda") {
+		t.Fatalf("envelope draft for non-olshop 'dracin' must not contain 'toko Anda', got: %s", env.Draft)
+	}
+
+	jsonStr, err := env.ToJSON()
+	if err != nil {
+		t.Fatalf("failed to serialize TaskReviewEnvelope to JSON: %v", err)
+	}
+
+	if !strings.Contains(jsonStr, `"requires_deploy":false`) {
+		t.Fatalf("expected 'requires_deploy:false' in JSON, got: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"summary"`) || !strings.Contains(jsonStr, `"draft"`) || !strings.Contains(jsonStr, `"evidence"`) {
+		t.Fatalf("missing required envelope fields in JSON: %s", jsonStr)
+	}
+}

@@ -465,8 +465,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		lane = task.ExecutionCategoryCode
 	}
 
-	// Progressive Adaptive Timeout calculation (Attempt 1: 15m, Attempt 2: 20m, Attempt 3+: 25m)
-	timeoutDuration := CalculateAdaptiveTimeout(att.AttemptNumber)
+	// Adaptive Timeout calculation with pruned 5m timeout for investigation/readonly tasks
+	timeoutDuration := CalculateTaskTimeout(lane, att.AttemptNumber, t.Title, t.Instructions)
 	gracePeriod := GetGracePeriod()
 
 	// Stream initial start log
@@ -629,13 +629,32 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					compReq.ErrorMessage = verification.Error
 				}
 			}
-			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy && lane == task.ExecutionCategoryCode {
-				deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim)
-				if !deployed {
-					compReq.Status = task.AttemptStatusFailed
-					compReq.ErrorMessage = errNote
+			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {
+				hasCodeChanges, diffSummary := r.detectRepoCodeChanges(ctx, ws, claim.DefaultBranch)
+				compReq.HasCodeChanges = &hasCodeChanges
+				requiresDeploy := hasCodeChanges && lane == task.ExecutionCategoryCode
+				compReq.RequiresDeploy = &requiresDeploy
+				if diffSummary != "" && compReq.DiffSummary == "" {
+					compReq.DiffSummary = diffSummary
+				}
+
+				if requiresDeploy {
+					deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true)
+					if !deployed {
+						compReq.Status = task.AttemptStatusFailed
+						compReq.ErrorMessage = errNote
+					} else {
+						compReq.LiveDeploymentConfirmed = true
+					}
 				} else {
-					compReq.LiveDeploymentConfirmed = true
+					// Non-code or investigation tasks pass compliance without forcing fake live deploy
+					passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false)
+					if !passed {
+						compReq.Status = task.AttemptStatusFailed
+						compReq.ErrorMessage = errNote
+					} else {
+						r.streamLogLine(ctx, att.ID, "system", "Tugas investigasi/non-kode tanpa modifikasi berkas repo: meloloskan gate kepatuhan auto_deploy tanpa deployment palsu.")
+					}
 				}
 			}
 		}

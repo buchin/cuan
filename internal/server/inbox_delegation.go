@@ -335,11 +335,11 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 
 			s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, q.RoomID, t.SourceRoomID, 3, []string{
 				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-			})
+			}, d.ProjectName)
 
 			friendlyMsg, _ := runner.FormatBusinessFriendlyReviewMessage(t.Title, t.Summary, []string{
 				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-			}, 3)
+			}, 3, d.ProjectName)
 			return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
 		}
 		if t.Status == task.TaskStatusDone || t.Status == task.TaskStatusBlocked {
@@ -704,11 +704,11 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 	return items
 }
 
-func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, taskID, title, summary, currentRoomID, sourceRoomID string, attemptNum int, gaps []string) {
+func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, taskID, title, summary, currentRoomID, sourceRoomID string, attemptNum int, gaps []string, projectName ...string) {
 	if s.projectStudioRepo == nil {
 		return
 	}
-	content, _ := runner.FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNum)
+	content, _ := runner.FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNum, projectName...)
 	taskLink := fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", taskID)
 	fullMsg := content + taskLink
 

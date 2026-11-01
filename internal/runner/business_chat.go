@@ -2,7 +2,9 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -12,31 +14,85 @@ type BusinessChatNotifier interface {
 	SendTaskReviewBusinessMessage(ctx context.Context, roomID, taskID, title, summary string, gaps []string, attemptNumber int) error
 }
 
+// ProjectAwareNotifier extends BusinessChatNotifier with dynamic project domain awareness.
+type ProjectAwareNotifier interface {
+	BusinessChatNotifier
+	SendTaskCompletedBusinessMessageWithContext(ctx context.Context, roomID, taskID, title, summary, projectName string) error
+	SendTaskReviewBusinessMessageWithContext(ctx context.Context, roomID, taskID, title, summary, projectName string, gaps []string, attemptNumber int) error
+}
+
+// TaskReviewEnvelope represents a structured dual-channel output envelope for task reviews.
+type TaskReviewEnvelope struct {
+	Summary        string `json:"summary"`
+	Draft          string `json:"draft"`
+	Evidence       string `json:"evidence"`
+	RequiresDeploy bool   `json:"requires_deploy"`
+}
+
+// ToJSON serializes the TaskReviewEnvelope to JSON format.
+func (e TaskReviewEnvelope) ToJSON() (string, error) {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
 // Technical and Scrum jargon terms that must be purged from user-facing shop messages.
 var scrumJargonBlacklist = []string{
-	"definition of done", "dod", "sprint review", "sprint planning",
+	"definition of done", "definition-of-done", "dod", "sprint review", "sprint planning",
 	"scrum master", "scrum", "git commit", "pull request", "reconciler",
 	"fast-forward", "worker daemon", "pty terminal", "bwrap", "cgroup",
-	"attempt", "backlog", "in-flight", "sigterm", "sigkill", "lease expiration",
+	"attempt #", "attempt", "backlog", "in-flight", "sigterm", "sigkill",
+	"heartbeat lost", "lease expired", "lease expiration",
+}
+
+var (
+	attemptRegex   = regexp.MustCompile(`(?i)\battempt\s*(?:#?\s*\d+)?\b`)
+	heartbeatRegex = regexp.MustCompile(`(?i)\b(?:runner\s+)?heartbeat\s+lost\b`)
+	leaseRegex     = regexp.MustCompile(`(?i)\b(?:and\s+)?lease\s+expired\b`)
+)
+
+func resolveContextName(projectName ...string) (string, bool) {
+	if len(projectName) > 0 {
+		name := strings.TrimSpace(projectName[0])
+		if name != "" && !strings.EqualFold(name, "default") {
+			lower := strings.ToLower(name)
+			if strings.Contains(lower, "toko") || strings.Contains(lower, "shop") || strings.Contains(lower, "store") {
+				return "toko Anda", true
+			}
+			return name, false
+		}
+	}
+	return "toko Anda", true
 }
 
 // FormatBusinessFriendlyMessage transforms technical task completion into warm, zero-jargon business communication.
-func FormatBusinessFriendlyMessage(title, summary string) (string, []string) {
+func FormatBusinessFriendlyMessage(title, summary string, projectName ...string) (string, []string) {
 	cleanTitle := sanitizeJargon(title)
 	cleanSummary := sanitizeJargon(summary)
+	contextName, isShop := resolveContextName(projectName...)
 
 	if cleanTitle == "" {
-		cleanTitle = "Pembaruan Toko Online"
+		if isShop {
+			cleanTitle = "Pembaruan Toko Online"
+		} else {
+			cleanTitle = fmt.Sprintf("Pembaruan %s", contextName)
+		}
 	}
 	if cleanSummary == "" {
-		cleanSummary = "Pekerjaan sistem telah kami selesaikan dan diverifikasi dengan baik agar toko Anda dapat beroperasi lebih lancar."
+		if isShop {
+			cleanSummary = "Pekerjaan sistem telah kami selesaikan dan diverifikasi dengan baik agar toko Anda dapat beroperasi lebih lancar."
+		} else {
+			cleanSummary = fmt.Sprintf("Pekerjaan sistem telah kami selesaikan dan diverifikasi dengan baik agar %s dapat beroperasi lebih lancar.", contextName)
+		}
 	}
 
-	// Determine 1-2 strategic next steps based on task context
-	nextSteps := determineStrategicNextSteps(title, summary)
+	// Determine 1-2 strategic next steps based on task context and project
+	nextSteps := determineStrategicNextSteps(title, summary, projectName...)
 
 	var sb strings.Builder
-	sb.WriteString("Halo! Kabar baik untuk toko Anda, pekerjaan berikut telah berhasil diselesaikan dengan rapi:\n\n")
+	sb.WriteString(fmt.Sprintf("Halo! Kabar baik untuk %s, pekerjaan berikut telah berhasil diselesaikan dengan rapi:\n\n", contextName))
 	sb.WriteString(fmt.Sprintf("**%s**\n", cleanTitle))
 	sb.WriteString(fmt.Sprintf("%s\n\n", cleanSummary))
 
@@ -55,15 +111,24 @@ func FormatBusinessFriendlyMessage(title, summary string) (string, []string) {
 
 // FormatBusinessFriendlyReviewMessage formats a warm, transparent, zero-jargon business message
 // when a task reaches the retry limit or needs human review/direction.
-func FormatBusinessFriendlyReviewMessage(title, summary string, gaps []string, attemptNumber int) (string, []string) {
+func FormatBusinessFriendlyReviewMessage(title, summary string, gaps []string, attemptNumber int, projectName ...string) (string, []string) {
 	cleanTitle := sanitizeJargon(title)
 	cleanSummary := sanitizeJargon(summary)
+	contextName, isShop := resolveContextName(projectName...)
 
 	if cleanTitle == "" {
-		cleanTitle = "Pekerjaan Toko Online"
+		if isShop {
+			cleanTitle = "Pekerjaan Toko Online"
+		} else {
+			cleanTitle = fmt.Sprintf("Pekerjaan %s", contextName)
+		}
 	}
 	if cleanSummary == "" {
-		cleanSummary = "Pekerjaan sistem telah kami proses dan memerlukan peninjauan lebih lanjut agar hasil akhirnya optimal untuk toko Anda."
+		if isShop {
+			cleanSummary = "Pekerjaan sistem telah kami proses dan memerlukan peninjauan lebih lanjut agar hasil akhirnya optimal untuk toko Anda."
+		} else {
+			cleanSummary = fmt.Sprintf("Pekerjaan sistem telah kami proses dan memerlukan peninjauan lebih lanjut agar hasil akhirnya optimal untuk %s.", contextName)
+		}
 	}
 
 	followUpOptions := []string{
@@ -72,7 +137,7 @@ func FormatBusinessFriendlyReviewMessage(title, summary string, gaps []string, a
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Halo! Pembaruan penting untuk toko Anda terkait pekerjaan:\n\n")
+	sb.WriteString(fmt.Sprintf("Halo! Pembaruan penting untuk %s terkait pekerjaan:\n\n", contextName))
 	sb.WriteString(fmt.Sprintf("**%s**\n", cleanTitle))
 	sb.WriteString(fmt.Sprintf("%s\n\n", cleanSummary))
 
@@ -96,10 +161,79 @@ func FormatBusinessFriendlyReviewMessage(title, summary string, gaps []string, a
 	return sb.String(), followUpOptions
 }
 
+// BuildTaskReviewEnvelope creates a structured dual-channel output envelope for task review.
+func BuildTaskReviewEnvelope(title, summary string, gaps []string, attemptNumber int, requiresDeploy bool, evidence string, projectName ...string) TaskReviewEnvelope {
+	cleanTitle := sanitizeJargon(title)
+	cleanSummary := sanitizeJargon(summary)
+	contextName, isShop := resolveContextName(projectName...)
+
+	operatorSummary := cleanSummary
+	if operatorSummary == "" {
+		if cleanTitle != "" {
+			operatorSummary = fmt.Sprintf("Pekerjaan '%s' telah diproses dan memerlukan peninjauan operator.", cleanTitle)
+		} else if isShop {
+			operatorSummary = "Pekerjaan sistem telah diproses dan memerlukan peninjauan operator."
+		} else {
+			operatorSummary = fmt.Sprintf("Pekerjaan %s telah diproses dan memerlukan peninjauan operator.", contextName)
+		}
+	}
+
+	var draftVisitorReply string
+	if isShop {
+		draftVisitorReply = "Halo! Terkait kebutuhan toko Anda, kami telah memeriksa perkembangannya dan menyiapkan langkah terbaik untuk Anda. Silakan beri tahu kami jika ada detail yang ingin disesuaikan."
+	} else {
+		draftVisitorReply = fmt.Sprintf("Halo! Terkait kebutuhan %s, kami telah memeriksa perkembangannya dan menyiapkan langkah terbaik untuk Anda. Silakan beri tahu kami jika ada detail yang ingin disesuaikan.", contextName)
+	}
+
+	if len(gaps) > 0 {
+		cleanGap := sanitizeJargon(gaps[0])
+		if cleanGap != "" {
+			if isShop {
+				draftVisitorReply = fmt.Sprintf("Halo! Terkait layanan toko Anda, kami sedang memvalidasi bagian: %s. Tim kami siap membantu memastikan semuanya berjalan optimal.", cleanGap)
+			} else {
+				draftVisitorReply = fmt.Sprintf("Halo! Terkait layanan %s, kami sedang memvalidasi bagian: %s. Tim kami siap membantu memastikan semuanya berjalan optimal.", contextName, cleanGap)
+			}
+		}
+	}
+
+	cleanEvidence := sanitizeJargon(evidence)
+	if cleanEvidence == "" {
+		if len(gaps) > 0 {
+			var cleanedGaps []string
+			for _, g := range gaps {
+				if cg := sanitizeJargon(g); cg != "" {
+					cleanedGaps = append(cleanedGaps, cg)
+				}
+			}
+			cleanEvidence = strings.Join(cleanedGaps, "; ")
+		} else if !requiresDeploy {
+			cleanEvidence = "Investigasi dan analisis teknis selesai tanpa modifikasi kode repositori."
+		} else {
+			cleanEvidence = "Perubahan kode berhasil dikompilasi dan diverifikasi."
+		}
+	}
+
+	return TaskReviewEnvelope{
+		Summary:        operatorSummary,
+		Draft:          draftVisitorReply,
+		Evidence:       cleanEvidence,
+		RequiresDeploy: requiresDeploy,
+	}
+}
+
+// FormatTaskReviewEnvelopeJSON produces a formatted JSON string for the dual-channel envelope.
+func FormatTaskReviewEnvelopeJSON(title, summary string, gaps []string, attemptNumber int, requiresDeploy bool, evidence string, projectName ...string) (string, error) {
+	env := BuildTaskReviewEnvelope(title, summary, gaps, attemptNumber, requiresDeploy, evidence, projectName...)
+	return env.ToJSON()
+}
+
 func sanitizeJargon(text string) string {
 	cleaned := text
+	cleaned = heartbeatRegex.ReplaceAllString(cleaned, "koneksi terputus")
+	cleaned = leaseRegex.ReplaceAllString(cleaned, "waktu sesi habis")
+	cleaned = attemptRegex.ReplaceAllString(cleaned, "")
+
 	for _, jargon := range scrumJargonBlacklist {
-		// Case-insensitive replacement
 		lower := strings.ToLower(cleaned)
 		for {
 			idx := strings.Index(lower, jargon)
@@ -116,34 +250,65 @@ func sanitizeJargon(text string) string {
 	return cleaned
 }
 
-func determineStrategicNextSteps(title, summary string) []string {
+func determineStrategicNextSteps(title, summary string, projectName ...string) []string {
 	combined := strings.ToLower(title + " " + summary)
+	contextName, isShop := resolveContextName(projectName...)
 
 	switch {
 	case strings.Contains(combined, "katalog") || strings.Contains(combined, "produk") || strings.Contains(combined, "catalog"):
+		if isShop {
+			return []string{
+				"Periksa tampilan foto dan rincian harga produk di etalase toko Anda agar siap dipromosikan.",
+				"Siapkan pesan siaran promosi singkat untuk menyapa pelanggan setia Anda melalui WhatsApp.",
+			}
+		}
 		return []string{
-			"Periksa tampilan foto dan rincian harga produk di etalase toko Anda agar siap dipromosikan.",
-			"Siapkan pesan siaran promosi singkat untuk menyapa pelanggan setia Anda melalui WhatsApp.",
+			fmt.Sprintf("Periksa rincian katalog pada %s agar siap dipublikasikan.", contextName),
+			fmt.Sprintf("Siapkan pesan pemberitahuan singkat untuk menyapa pengguna setia %s.", contextName),
 		}
 	case strings.Contains(combined, "promo") || strings.Contains(combined, "diskon") || strings.Contains(combined, "voucher"):
+		if isShop {
+			return []string{
+				"Aktifkan kupon atau banner diskon di halaman depan toko agar langsung terlihat pengunjung.",
+				"Buat postingan pengumuman promo di media sosial (Instagram/TikTok/Facebook) untuk mengundang pembeli baru.",
+			}
+		}
 		return []string{
-			"Aktifkan kupon atau banner diskon di halaman depan toko agar langsung terlihat pengunjung.",
-			"Buat postingan pengumuman promo di media sosial (Instagram/TikTok/Facebook) untuk mengundang pembeli baru.",
+			fmt.Sprintf("Aktifkan fitur diskon atau banner promo di halaman depan %s.", contextName),
+			fmt.Sprintf("Buat postingan pengumuman di media sosial untuk mengundang pengguna baru %s.", contextName),
 		}
 	case strings.Contains(combined, "pembayaran") || strings.Contains(combined, "payment") || strings.Contains(combined, "checkout"):
+		if isShop {
+			return []string{
+				"Lakukan uji coba transaksi pembelian kecil untuk memastikan alur checkout pelanggan berjalan mulus.",
+				"Pastikan nomor rekening atau instruksi QRIS toko sudah tertera dengan jelas di faktur pesanan.",
+			}
+		}
 		return []string{
-			"Lakukan uji coba transaksi pembelian kecil untuk memastikan alur checkout pelanggan berjalan mulus.",
-			"Pastikan nomor rekening atau instruksi QRIS toko sudah tertera dengan jelas di faktur pesanan.",
+			fmt.Sprintf("Lakukan uji coba alur pembayaran pada %s untuk memastikan transaksi berjalan mulus.", contextName),
+			fmt.Sprintf("Pastikan instruksi pembayaran %s sudah tertera dengan jelas.", contextName),
 		}
 	case strings.Contains(combined, "laporan") || strings.Contains(combined, "analisis") || strings.Contains(combined, "rekap"):
+		if isShop {
+			return []string{
+				"Tinjau tren produk paling diminati minggu ini untuk mempersiapkan stok barang lebih awal.",
+				"Catat pelanggan paling loyal untuk diberikan apresiasi atau penawaran khusus.",
+			}
+		}
 		return []string{
-			"Tinjau tren produk paling diminati minggu ini untuk mempersiapkan stok barang lebih awal.",
-			"Catat pelanggan paling loyal untuk diberikan apresiasi atau penawaran khusus.",
+			fmt.Sprintf("Tinjau tren penggunaan dan performa paling aktif minggu ini pada %s.", contextName),
+			fmt.Sprintf("Catat pengguna paling aktif pada %s untuk diberikan apresiasi atau peningkatan layanan.", contextName),
 		}
 	default:
+		if isShop {
+			return []string{
+				"Tinjau tampilan dan fungsionalitas terbaru toko Anda secara langsung melalui browser atau smartphone.",
+				"Bagikan kabar pembaruan layanan ini kepada pelanggan setia toko Anda untuk meningkatkan kepuasan belanja.",
+			}
+		}
 		return []string{
-			"Tinjau tampilan dan fungsionalitas terbaru toko Anda secara langsung melalui browser atau smartphone.",
-			"Bagikan kabar pembaruan layanan ini kepada pelanggan setia toko Anda untuk meningkatkan kepuasan belanja.",
+			fmt.Sprintf("Tinjau tampilan dan fungsionalitas terbaru %s secara langsung melalui browser atau smartphone.", contextName),
+			fmt.Sprintf("Bagikan kabar pembaruan layanan ini kepada pengguna setia %s untuk meningkatkan kepuasan layanan.", contextName),
 		}
 	}
 }
@@ -168,11 +333,29 @@ func (n *DefaultBusinessChatNotifier) SendTaskCompletedBusinessMessage(ctx conte
 	return n.Sender(ctx, roomID, content+taskLink)
 }
 
+func (n *DefaultBusinessChatNotifier) SendTaskCompletedBusinessMessageWithContext(ctx context.Context, roomID, taskID, title, summary, projectName string) error {
+	if n.Sender == nil || roomID == "" {
+		return nil
+	}
+	content, _ := FormatBusinessFriendlyMessage(title, summary, projectName)
+	taskLink := fmt.Sprintf("\n\n[Lihat rincian pekerjaan](/tasks/%s)", taskID)
+	return n.Sender(ctx, roomID, content+taskLink)
+}
+
 func (n *DefaultBusinessChatNotifier) SendTaskReviewBusinessMessage(ctx context.Context, roomID, taskID, title, summary string, gaps []string, attemptNumber int) error {
 	if n.Sender == nil || roomID == "" {
 		return nil
 	}
 	content, _ := FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNumber)
+	taskLink := fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", taskID)
+	return n.Sender(ctx, roomID, content+taskLink)
+}
+
+func (n *DefaultBusinessChatNotifier) SendTaskReviewBusinessMessageWithContext(ctx context.Context, roomID, taskID, title, summary, projectName string, gaps []string, attemptNumber int) error {
+	if n.Sender == nil || roomID == "" {
+		return nil
+	}
+	content, _ := FormatBusinessFriendlyReviewMessage(title, summary, gaps, attemptNumber, projectName)
 	taskLink := fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", taskID)
 	return n.Sender(ctx, roomID, content+taskLink)
 }

@@ -289,7 +289,16 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
 				settings := project.SettingsFromMetadata(p.Metadata)
 				isCodeLane := t.ExecutionCategory == "" || t.ExecutionCategory == task.ExecutionCategoryCode
-				if settings.IsAutoDeployEnabled() && isCodeLane {
+				requiresDeploy := isCodeLane
+				if req.RequiresDeploy != nil {
+					requiresDeploy = *req.RequiresDeploy
+				} else if (req.HasCodeChanges != nil && !*req.HasCodeChanges) || (req.DiffSummary == "" && req.CommitSHA == "") {
+					if isInvestigationOrNonCode(t.Title, t.Instructions, t.Summary, t.CompleteNote) {
+						requiresDeploy = false
+					}
+				}
+
+				if settings.IsAutoDeployEnabled() && requiresDeploy {
 					if !req.LiveDeploymentConfirmed && !hasAutoDeployVerification(t.CompleteNote, t.Summary) {
 						status = task.AttemptStatusFailed
 						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"
@@ -383,8 +392,18 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 				// Proactive messenger di Chat/Inbox: lapor tugas tuntas dalam bahasa bisnis ramah
 				if s.chatNotifier != nil {
+					pName := ""
+					if s.projectFinder != nil && t.ProjectID != "" {
+						if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+							pName = p.Name
+						}
+					}
 					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
-						_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary)
+						if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+							_ = pn.SendTaskCompletedBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName)
+						} else {
+							_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary)
+						}
 					}
 				}
 			} else if dodVal != nil && dodVal.Action == "auto_requeue" && att.AttemptNumber < MaxAttempts {
@@ -432,8 +451,18 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					if dodVal != nil {
 						gaps = dodVal.Gaps
 					}
+					pName := ""
+					if s.projectFinder != nil && t.ProjectID != "" {
+						if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+							pName = p.Name
+						}
+					}
 					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
-						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+						if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+							_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, gaps, att.AttemptNumber)
+						} else {
+							_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+						}
 					}
 				}
 			}
@@ -444,8 +473,18 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				if errMsg == "" {
 					errMsg = "Pekerjaan terhenti dan memerlukan peninjauan lebih lanjut."
 				}
+				pName := ""
+				if s.projectFinder != nil && t.ProjectID != "" {
+					if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+						pName = p.Name
+					}
+				}
 				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
-					_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+					if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
+						_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+					} else {
+						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+					}
 				}
 			}
 		}
@@ -522,6 +561,19 @@ func hasAutoDeployVerification(note, summary string) bool {
 	combined := strings.ToLower(note + " " + summary)
 	return (strings.Contains(combined, "deploy") || strings.Contains(combined, "release") || strings.Contains(combined, "rilis")) &&
 		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
+}
+
+func isInvestigationOrNonCode(texts ...string) bool {
+	combined := strings.ToLower(strings.Join(texts, " "))
+	for _, term := range []string{
+		"investigasi", "investigation", "rca", "root cause",
+		"analisis", "analysis", "klarifikasi", "audit", "pemadaman", "outage",
+	} {
+		if strings.Contains(combined, term) {
+			return true
+		}
+	}
+	return false
 }
 
 func uniqueRooms(rooms ...string) []string {

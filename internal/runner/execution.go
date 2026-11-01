@@ -101,7 +101,7 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 	return false
 }
 
-func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse) (bool, string) {
+func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse, hasCodeChanges ...bool) (bool, string) {
 	if !claim.AutoDeploy {
 		return true, ""
 	}
@@ -134,6 +134,17 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
 		return false, "Kepatuhan auto_deploy: gagal decode snapshot task: " + err.Error()
 	}
+
+	// Smart Compliance Gate: If there are NO code modifications in the repo
+	// (investigation, RCA, data clarification, third-party outage),
+	// allow completion without enforcing fake live deployment.
+	if len(hasCodeChanges) > 0 && !hasCodeChanges[0] {
+		if strings.TrimSpace(snapshot.Summary) == "" && strings.TrimSpace(snapshot.CompleteNote) == "" {
+			return false, "Kepatuhan investigasi: tugas investigasi wajib menyertakan ringkasan temuan dan draf solusi"
+		}
+		return true, ""
+	}
+
 	combined := strings.ToLower(snapshot.CompleteNote + " " + snapshot.Summary)
 	hasDeployProof := (strings.Contains(combined, "deploy") || strings.Contains(combined, "rilis") || strings.Contains(combined, "release")) &&
 		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
@@ -150,6 +161,24 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 		return false, "Kepatuhan auto_deploy: runner wajib memastikan perubahan kode telah di-deploy dan terverifikasi live di production sebelum menyatakan task selesai; commit/push lokal saja tidak memenuhi syarat"
 	}
 	return true, ""
+}
+
+// detectRepoCodeChanges inspects git status and diff in the workspace to determine if any code changes occurred.
+func (r *Runner) detectRepoCodeChanges(ctx context.Context, ws *git.TaskWorkspace, defaultBranch string) (bool, string) {
+	if ws == nil || r.gitClient == nil || ws.Path == "" {
+		return false, ""
+	}
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+	cmdStatus := exec.CommandContext(ctx, "git", "-C", ws.Path, "status", "--porcelain")
+	statusOut, err := cmdStatus.Output()
+	hasUncommitted := err == nil && len(strings.TrimSpace(string(statusOut))) > 0
+
+	diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, defaultBranch)
+	hasCommittedDiff := len(strings.TrimSpace(diffSummary)) > 0
+
+	return (hasUncommitted || hasCommittedDiff), diffSummary
 }
 
 func (r *Runner) streamOutputLogs(ctx context.Context, attemptID, stdout, stderr string) {

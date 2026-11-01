@@ -1091,12 +1091,21 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 			continue
 		}
 
-		// Check 1: Exceeded hard timeout (> 20 minutes)
+		// Check 1: Exceeded timeout (pruned 5m for investigation/readonly tasks, default 20m for code tasks)
+		taskTimeout := timeout
+		combinedMeta := strings.ToLower(t.Title + " " + t.Instructions)
+		if t.ExecutionCategory == ExecutionCategoryReadOnly ||
+			strings.Contains(combinedMeta, "investigasi") ||
+			strings.Contains(combinedMeta, "investigation") ||
+			strings.Contains(combinedMeta, "rca") ||
+			strings.Contains(combinedMeta, "analisis") {
+			taskTimeout = 5 * time.Minute
+		}
 		startTime := a.CreatedAt
 		if a.StartedAt != nil && !a.StartedAt.IsZero() {
 			startTime = *a.StartedAt
 		}
-		exceededTimeout := now.Sub(startTime) > timeout
+		exceededTimeout := now.Sub(startTime) > taskTimeout
 
 		// Check 2: OS process is dead (only for local_terminal attempts currently running;
 		// decoupled runner daemon attempts are tracked via lease heartbeats, not local terminalManager)

@@ -137,4 +137,6 @@ type CompleteAttemptRequest struct {
 	LiveDeploymentConfirmed bool                 `json:"live_deployment_confirmed,omitempty"`
 	DoDValidation           *DoDValidationResult `json:"dod_validation,omitempty"`
 	RequeueFeedback         string               `json:"requeue_feedback,omitempty"`
+	RequiresDeploy          *bool                `json:"requires_deploy,omitempty"`
+	HasCodeChanges          *bool                `json:"has_code_changes,omitempty"`
 }
