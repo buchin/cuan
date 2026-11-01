@@ -421,24 +421,28 @@ export function InboxView({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const unattachedCompletedTasks = useMemo(() => {
     const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
+    const messageContents = messages.map((m) => m.content || m.message || '').join(' ')
     return linkedTasks.filter((t) => {
       const isCompleted =
         (t.status || '').toLowerCase().trim() === 'done' ||
         (t.status || '').toLowerCase().trim() === 'review'
       if (!isCompleted) return false
       if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
+      if (messageContents.includes(`/tasks/${t.id}`)) return false
       return true
     })
   }, [linkedTasks, messages])
 
   const unattachedActiveTasks = useMemo(() => {
     const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
+    const messageContents = messages.map((m) => m.content || m.message || '').join(' ')
     return linkedTasks.filter((t) => {
       const isCompleted =
         (t.status || '').toLowerCase().trim() === 'done' ||
         (t.status || '').toLowerCase().trim() === 'review'
       if (isCompleted) return false
       if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
+      if (messageContents.includes(`/tasks/${t.id}`)) return false
       return true
     })
   }, [linkedTasks, messages])
@@ -1901,10 +1905,13 @@ export function InboxView({
                 </div>
               )}
 
-              {/* Typing / In-flight Working Indicator */}
-              {((sending && activeContact.type === 'agent') || activeConversationTasks.length > 0) && (
-                <div className="flex flex-col items-start animate-fade-in my-2" data-testid="inbox-working-indicator">
-                  <div className="bg-card text-card-foreground border border-border/80 rounded-2xl rounded-tl-xs p-3 shadow-xs flex items-center gap-2.5 max-w-md">
+              {/* Typing Indicator */}
+              {sending && activeContact.type === 'agent' && (
+                <div
+                  className="flex flex-col items-start animate-fade-in my-2"
+                  data-testid="inbox-working-indicator"
+                >
+                  <div className="bg-card text-card-foreground border border-border/80 rounded-2xl rounded-tl-xs p-3 shadow-xs flex items-center gap-2.5">
                     <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-xs shrink-0">
                       {activeContact.avatar ? (
                         <span>{activeContact.avatar}</span>
@@ -1912,25 +1919,10 @@ export function InboxView({
                         <Bot className="h-3.5 w-3.5 text-primary" />
                       )}
                     </div>
-                    <div className="flex flex-col min-w-0 pr-1">
-                      {activeConversationTasks.length > 0 ? (
-                        <>
-                          <span className="text-xs text-foreground font-medium truncate">
-                            {activeConversationTasks[0].title || t('Task is running')}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                            <span>{activeConversationTasks[0].assignee ? `@${activeConversationTasks[0].assignee}` : (activeConversationTasks[0] as any).assigned_agent ? `@${(activeConversationTasks[0] as any).assigned_agent}` : t('Agent')}</span>
-                            <span>·</span>
-                            <span>{t('sedang mengeksekusi di background')}</span>
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground font-medium">
-                          {t('Sending message to')} {activeContact.name}...
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 ml-auto shrink-0 pl-1">
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {t('Sending message to')} {activeContact.name}...
+                    </span>
+                    <div className="flex items-center gap-1 ml-1 shrink-0">
                       <span
                         className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce"
                         style={{ animationDelay: '0ms' }}
@@ -1944,15 +1936,6 @@ export function InboxView({
                         style={{ animationDelay: '300ms' }}
                       />
                     </div>
-                    {activeConversationTasks.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenTaskDrawer(activeConversationTasks[0], 'terminal')}
-                        className="ml-2 text-xs font-medium text-primary hover:underline shrink-0"
-                      >
-                        {t('Live Terminal')}
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
