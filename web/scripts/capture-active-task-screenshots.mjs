@@ -91,18 +91,18 @@ function createMobileChatScenarioHtml() {
         </div>
       </div>
 
-      <!-- Agent Work Started Message -->
+      <!-- Agent Work Started Message (Calm Speech Bubble) -->
       <div class="flex flex-col items-start">
-        <div class="max-w-[85%] text-sm text-foreground leading-relaxed pl-1">
-          Work started. I'll report progress and the result here.
+        <div class="max-w-[85%] rounded-2xl rounded-tl-xs bg-[#1b1c1f] border border-border/30 px-3.5 py-2.5 text-sm text-foreground">
+          <p class="leading-relaxed">Work started. I'll report progress and the result here.</p>
         </div>
       </div>
 
-      <!-- Single Authoritative TaskCard (Calm Design Standard, Zero Duplication) -->
+      <!-- Single Authoritative TaskCard (Calm Design Standard, Zero Duplication, Clean Header) -->
       <div class="flex flex-col items-start w-full">
         <div class="w-full max-w-xl">
           <div data-card="task-card" class="rounded-xl border border-border/40 bg-card/40 p-4 text-card-foreground select-none space-y-3">
-            <!-- Header: Status Pill, Duration, Project, Action Buttons -->
+            <!-- Header: Status Pill, Duration, Project Tag (Clean Row, Zero Redundant Header Buttons) -->
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 pb-2.5">
               <div class="flex items-center gap-2 min-w-0">
                 <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold bg-blue-500/15 text-blue-800 dark:text-blue-200 border-blue-500/35">
@@ -113,15 +113,11 @@ function createMobileChatScenarioHtml() {
                   <span>Working</span>
                 </span>
                 <span class="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
-                  ⏱ 00:06
+                  ⏱ 01:20
                 </span>
                 <span class="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                  📁 cuan <span class="font-mono text-muted-foreground/80">#E7AD71</span>
+                  📁 cuan <span class="font-mono text-muted-foreground/80">#1C9481</span>
                 </span>
-              </div>
-              <div class="flex items-center gap-1">
-                <span class="h-7 w-7 rounded-md text-muted-foreground flex items-center justify-center text-xs font-mono border border-border/40">&gt;_</span>
-                <span class="h-7 w-7 rounded-md text-muted-foreground flex items-center justify-center text-xs border border-border/40">🔄</span>
               </div>
             </div>
 

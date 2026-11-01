@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { CheckSquare, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
-import { ChatMarkdown } from './ChatMarkdown'
+import { CollapsibleChatText } from './CollapsibleChatText'
+import { cn } from '../../lib/utils'
 import { StatusReportCard, parseTaskReportMessage } from '../../components/ui/StatusReportCard'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
@@ -44,6 +45,8 @@ export function MessageContent({
   onRetry,
   onContinueChat,
   isCustomerRoom,
+  hasSiblingCard = false,
+  isOutgoing = false,
 }: {
   content: string
   hideTaskActions?: boolean
@@ -54,6 +57,8 @@ export function MessageContent({
   onRetry?: (task: Task) => Promise<void> | void
   onContinueChat?: (suggestedText: string) => void
   isCustomerRoom?: boolean
+  hasSiblingCard?: boolean
+  isOutgoing?: boolean
 }) {
   const { language, t } = useLanguage()
   const { body, actions } = messageNavigation(content)
@@ -87,19 +92,39 @@ export function MessageContent({
           <StatusReportCard report={report} />
           {report.dodDetails?.remainingText && (
             <div className="pt-1">
-              <ChatMarkdown content={report.dodDetails.remainingText} onTaskClick={onTaskClick} isCustomerRoom={isCustomerRoom} />
+              <CollapsibleChatText
+                content={report.dodDetails.remainingText}
+                onTaskClick={onTaskClick}
+                isCustomerRoom={isCustomerRoom}
+                isOutgoing={isOutgoing}
+              />
             </div>
           )}
         </div>
       ) : (
-        effectiveBody ? <ChatMarkdown content={effectiveBody} onTaskClick={onTaskClick} isCustomerRoom={isCustomerRoom} /> : null
+        effectiveBody ? (
+          <div
+            className={cn(
+              'min-w-0 max-w-full',
+              (effectiveActions.length > 0 || hasSiblingCard) &&
+                'calm-message-bubble wa-incoming rounded-2xl px-4 py-2.5 mb-2.5 inline-block w-fit max-w-full text-foreground border border-border/30 shadow-none'
+            )}
+          >
+            <CollapsibleChatText
+              content={effectiveBody}
+              onTaskClick={onTaskClick}
+              isCustomerRoom={isCustomerRoom}
+              isOutgoing={isOutgoing}
+            />
+          </div>
+        ) : null
       )}
       {extractedReceipt && (
         <ReceiptPreviewCard extraction={extractedReceipt} />
       )}
       {effectiveActions.length > 0 && (
         <div
-          className="mt-3 flex flex-col gap-2.5 w-full max-w-full"
+          className="mt-1 flex flex-col gap-2.5 w-full max-w-full"
           aria-label="Message actions"
         >
           {effectiveActions.map((action) => {
