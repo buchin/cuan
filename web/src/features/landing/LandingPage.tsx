@@ -17,6 +17,7 @@ import {
   Activity,
   Radio,
   Compass,
+  Layers,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -323,6 +324,11 @@ export function LandingPage() {
                 Icon: Clock,
                 title: 'Zero-interruption worker & proactive chat.',
                 text: 'Decoupled worker runs independently with progressive timeouts. Once completed, friendly zero-jargon updates and strategic next steps arrive in your chat.',
+              },
+              {
+                Icon: Layers,
+                title: 'Adaptive tool budgeting & deep project inspection.',
+                text: 'Chat agents inspect codebases, repositories, and data without hitting premature turn quotas. Adaptive batching and loop guards prevent cut-off responses.',
               },
             ].map(({ Icon, title, text }) => (
               <div key={title} className="border-t border-border pt-5">

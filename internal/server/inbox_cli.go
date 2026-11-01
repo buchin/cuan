@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -56,6 +57,20 @@ func (b *boundedInboxOutput) String() string { b.mu.Lock(); defer b.mu.Unlock();
 
 func (s *Server) executeInboxCLI(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), attachmentPaths ...string) (string, string) {
 	return s.executeInboxCLIWithSafety(ctx, name, harness, prompt, home, workspace, step, nil, attachmentPaths...)
+}
+
+func getChatToolBudget() int {
+	if v := os.Getenv("CUAN_CHAT_TOOL_BUDGET"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	if v := os.Getenv("INBOX_TOOL_BUDGET"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 25 // increased from 12
 }
 
 func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), retrySafe *bool, attachmentPaths ...string) (string, string) {
@@ -277,12 +292,16 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if binary == "agy" {
 		maxTools := 0
 		if coordinator && !directCoordinator && !toolBudgetRecovery {
-			maxTools = 12
+			maxTools = getChatToolBudget()
+		} else if toolBudgetRecovery {
+			maxTools = 3
 		}
 		runtime = &inboxRuntimeStream{
-			step:          step,
-			maxToolCalls:  maxTools,
-			disallowTools: directCoordinator && !toolBudgetRecovery,
+			step:                  step,
+			maxToolCalls:          maxTools,
+			adaptiveBatching:      true,
+			inspectionBatchFactor: 3,
+			disallowTools:         directCoordinator && !toolBudgetRecovery,
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()
@@ -376,6 +395,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			}
 			repairCtx := context.WithValue(ctx, inboxSchemaRetryKey{}, true)
 			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
+			if reason == "tool_budget_exceeded" {
+				repairCtx = context.WithValue(repairCtx, inboxToolBudgetRecoveryKey{}, true)
+			}
 			recoverySafe := false
 			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, &recoverySafe, attachmentPaths...)
 			if err == "" && output != "" {
@@ -383,7 +405,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			}
 			if reason == "tool_budget_exceeded" {
 				// Prevent fatal rejection: synthesize a safe cut-off response directly with action: null.
-				fallbackReply := "Pemeriksaan tool telah mencapai batas kuota turn ini (12 tool calls). Analisis terpotong sebelum selesai seluruhnya. Dari data dan konteks yang terkumpul, Anda dapat memilih **Lanjutkan Analisis** atau **Coba Lagi** di bawah untuk melanjutkan pengambilan data lanjutan."
+				effectiveLimit := getChatToolBudget()
+				fallbackReply := fmt.Sprintf("Pemeriksaan tool telah mencapai batas kuota turn ini (%d tool turns). Analisis terpotong sebelum selesai seluruhnya. Dari data dan konteks yang terkumpul, Anda dapat memilih **Lanjutkan Analisis** atau **Coba Lagi** di bawah untuk melanjutkan pengambilan data lanjutan.", effectiveLimit)
 				fallbackJSON, _ := json.Marshal(map[string]any{
 					"reply":       fallbackReply,
 					"topic_title": "",
