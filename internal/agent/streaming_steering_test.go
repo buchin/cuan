@@ -127,3 +127,63 @@ echo "got: $val"
 		t.Fatalf("expected stdout to contain steered text, got: %s", result.Stdout)
 	}
 }
+
+func TestAGYAdapter_StreamJSONChunksAndResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "mock_stream_agent.sh")
+	scriptContent := `#!/bin/sh
+echo '{"event":"init","init":{"tools":["run_command"]}}'
+echo '{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}'
+echo '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"Processing task\n"}}'
+echo '{"event":"result","result":{"status":"SUCCESS","response":"Done streaming chunks","duration_seconds":1.2,"num_turns":1}}'
+`
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("failed to write script: %v", err)
+	}
+
+	adapter := &AGYAdapter{binaryPath: scriptPath}
+
+	var mu sync.Mutex
+	var streamedChunks []string
+
+	req := ExecutionRequest{
+		TaskID:       "task-test-stream-json",
+		Prompt:       "test streaming json chunks",
+		OutputFormat: "stream-json",
+		OnLog: func(stream, line string) {
+			mu.Lock()
+			streamedChunks = append(streamedChunks, line)
+			mu.Unlock()
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := adapter.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if result.Status != "SUCCESS" {
+		t.Fatalf("expected status SUCCESS, got: %s", result.Status)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(streamedChunks) != 4 {
+		t.Fatalf("expected 4 streamed chunks, got: %d", len(streamedChunks))
+	}
+
+	if result.StructuredOutput == nil {
+		t.Fatalf("expected StructuredOutput to be parsed from stream-json result")
+	}
+
+	if result.StructuredOutput.Response != "Done streaming chunks" {
+		t.Errorf("unexpected response: %s", result.StructuredOutput.Response)
+	}
+	if result.StructuredOutput.Status != "SUCCESS" {
+		t.Errorf("unexpected status: %s", result.StructuredOutput.Status)
+	}
+}

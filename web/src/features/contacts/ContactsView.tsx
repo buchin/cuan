@@ -273,7 +273,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
           <ListCreateAction label="New contact" kind="contacts" onClick={onNewContact} />
           <div className="space-y-2 mt-2">
             <div className="flex items-center gap-2">
-              <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-lg border border-border/50 bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+              <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-xl border border-border/40 bg-muted/20 px-3 focus-within:ring-2 focus-within:ring-ring">
                 <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <input
                   aria-label={t('Search contacts and notes')}

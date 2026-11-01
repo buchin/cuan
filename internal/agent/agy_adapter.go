@@ -72,7 +72,7 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 
 	outputFormat := req.OutputFormat
 	if outputFormat == "" {
-		outputFormat = "json"
+		outputFormat = "stream-json"
 	}
 
 	args := []string{
@@ -296,18 +296,41 @@ func (a *AGYAdapter) Execute(ctx context.Context, req ExecutionRequest) (*Execut
 		result.ExitCode = 0
 	}
 
-	// Parse structured output if JSON format
-	if outputFormat == "json" && len(safeStdout) > 0 {
-		var structured StructuredOutput
-		// In case output contains extra preamble or trailing lines, try to find JSON block
-		trimmed := strings.TrimSpace(safeStdout)
-		if idx := strings.Index(trimmed, "{"); idx != -1 {
-			trimmed = trimmed[idx:]
+	// Parse structured output if JSON or stream-json format
+	if (outputFormat == "json" || outputFormat == "stream-json") && len(safeStdout) > 0 {
+		var foundResult bool
+		// In stream-json mode, scan backwards for the final {"event":"result","result":{...}} chunk
+		lines := strings.Split(safeStdout, "\n")
+		for i := len(lines) - 1; i >= 0; i-- {
+			line := strings.TrimSpace(lines[i])
+			if strings.Contains(line, `"event":"result"`) || strings.Contains(line, `"result"`) {
+				var streamEv struct {
+					Event  string           `json:"event"`
+					Result StructuredOutput `json:"result"`
+				}
+				if err := json.Unmarshal([]byte(line), &streamEv); err == nil && streamEv.Result.Status != "" {
+					result.StructuredOutput = &streamEv.Result
+					if streamEv.Result.Status != "" && result.Status == "SUCCESS" {
+						result.Status = streamEv.Result.Status
+					}
+					foundResult = true
+					break
+				}
+			}
 		}
-		if err := json.Unmarshal([]byte(trimmed), &structured); err == nil {
-			result.StructuredOutput = &structured
-			if structured.Status != "" && result.Status == "SUCCESS" {
-				result.Status = structured.Status
+
+		if !foundResult {
+			var structured StructuredOutput
+			// In case output contains extra preamble or trailing lines, try to find JSON block
+			trimmed := strings.TrimSpace(safeStdout)
+			if idx := strings.Index(trimmed, "{"); idx != -1 {
+				trimmed = trimmed[idx:]
+			}
+			if err := json.Unmarshal([]byte(trimmed), &structured); err == nil {
+				result.StructuredOutput = &structured
+				if structured.Status != "" && result.Status == "SUCCESS" {
+					result.Status = structured.Status
+				}
 			}
 		}
 	}

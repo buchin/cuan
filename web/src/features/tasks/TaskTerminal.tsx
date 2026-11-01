@@ -96,6 +96,7 @@ export function TaskTerminal({
   const isReconnecting = useRef(false)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isTaskActive = ['running', 'queued'].includes(attempt.status)
   const isTaskActiveRef = useRef(isTaskActive)
@@ -808,8 +809,13 @@ export function TaskTerminal({
           }
         })
 
-        // If no live session is active, load saved paginated logs
+        // If no live session is active, load saved paginated logs and start incremental polling if working
         if (!liveId) {
+          if (pollTimerRef.current) {
+            clearTimeout(pollTimerRef.current)
+            pollTimerRef.current = null
+          }
+
           let after = 0
           for (let page = 0; page < 8 && !disposed; page++) {
             const result = await tasksApi.logs(taskId, attempt.id, after)
@@ -818,16 +824,63 @@ export function TaskTerminal({
             logs.current.push(...next)
             if (next.length) {
               terminal.write(next.map((l) => l.line).join('\r\n') + '\r\n')
+              if (following.current) terminal.scrollToBottom()
+              after = next[next.length - 1].id
             }
             if (next.length < 250) break
-            after = next[next.length - 1].id
           }
           if (disposed) return
-          setConnection('saved')
+
+          // Incremental polling loop while attempt is actively working / running
+          const pollNextLogs = async () => {
+            if (disposed) return
+            if (!isTaskActiveRef.current) {
+              setConnection('saved')
+              return
+            }
+            try {
+              const result = await tasksApi.logs(taskId, attempt.id, after)
+              if (disposed) return
+              const next = result.logs || []
+              const activeTerm = term.current || terminal
+              if (next.length > 0 && activeTerm) {
+                logs.current.push(...next)
+                activeTerm.write(next.map((l) => l.line).join('\r\n') + '\r\n')
+                if (following.current) activeTerm.scrollToBottom()
+                after = next[next.length - 1].id
+              }
+              const isFinal =
+                (result as any).is_final ||
+                ['succeeded', 'failed', 'canceled', 'cancelled'].includes(
+                  (result as any).status || '',
+                )
+              if (isFinal) {
+                setConnection('saved')
+                refreshRef.current?.()
+                return
+              }
+            } catch {
+              // Ignore transient polling failure
+            }
+
+            if (!disposed && isTaskActiveRef.current) {
+              pollTimerRef.current = setTimeout(pollNextLogs, 1000)
+            } else {
+              setConnection('saved')
+            }
+          }
+
+          if (isTaskActiveRef.current) {
+            setConnection('streaming')
+            pollTimerRef.current = setTimeout(pollNextLogs, 1000)
+          } else {
+            setConnection('saved')
+          }
+
           if (!logs.current.length) {
             setNotice(
-              ['running', 'queued'].includes(attempt.status)
-                ? 'No live terminal is available. This attempt is still recorded as active; refresh its status or cancel it before retrying.'
+              isTaskActiveRef.current
+                ? 'Agen sedang bekerja. Mengalirkan log proses secara berkala...'
                 : 'No output was saved for this session.',
             )
           }
@@ -856,6 +909,7 @@ export function TaskTerminal({
       if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
       if (socket.current) {
         socket.current.close()
         socket.current = null
@@ -931,6 +985,7 @@ export function TaskTerminal({
               connected: input
                 ? t('Connected · input enabled')
                 : t('Connected · read-only'),
+              streaming: t('Streaming live logs…'),
               saved: t('Saved output'),
               disconnected: t(
                 'Disconnected · task status is checked separately',
@@ -945,8 +1000,8 @@ export function TaskTerminal({
           aria-hidden
           className={
             'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
-            (connection === 'connected'
-              ? 'bg-emerald-500'
+            (connection === 'connected' || connection === 'streaming'
+              ? 'bg-emerald-500 animate-pulse'
               : connection === 'saved'
                 ? 'bg-muted-foreground'
                 : 'bg-amber-500')

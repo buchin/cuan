@@ -344,7 +344,7 @@ export function TaskItemCard({
     <div
       onClick={onClick ? () => onClick(currentTask) : undefined}
       className={cn(
-        'group rounded-xl border border-border bg-card p-4 text-card-foreground shadow-sm transition-all hover:border-border/80 space-y-3',
+        'group rounded-xl border border-border/40 bg-card/60 p-4 text-card-foreground shadow-2xs transition-all hover:border-border/60 hover:bg-card/80 space-y-3',
         onClick && 'cursor-pointer',
         className
       )}
@@ -429,7 +429,7 @@ export function TaskItemCard({
                 <div
                   ref={menuRef}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1 z-30 min-w-44 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-50 zoom-in-95"
+                  className="absolute right-0 top-full mt-1 z-30 min-w-44 rounded-xl border border-border/40 bg-popover/95 backdrop-blur-md p-1 text-popover-foreground shadow-lg animate-in fade-in-50 zoom-in-95"
                 >
                   <button
                     type="button"

@@ -552,7 +552,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		WorkingDir:   workingDir,
 		Env:          env,
 		Timeout:      timeoutDuration,
-		OutputFormat: "json",
+		OutputFormat: "stream-json",
 		OnLog: func(stream, line string) {
 			atomic.AddInt64(&liveStreamedCount, 1)
 			r.streamLogLine(ctx, att.ID, stream, line)

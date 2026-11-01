@@ -290,7 +290,7 @@ export function ProjectsView({
 
       {/* Projects Display: HairlineList Canvas (Zero nested cards) */}
       {displayedProjects.length === 0 ? (
-        <div className="border border-dashed border-border/60 px-4 py-12 text-center bg-muted/10 rounded-xl">
+        <div className="border border-dashed border-border/40 px-4 py-12 text-center bg-muted/10 rounded-xl">
           <FolderGit2 className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
           <h3 className="text-sm font-semibold text-foreground">
             {search.trim()

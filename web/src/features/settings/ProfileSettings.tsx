@@ -82,7 +82,7 @@ export function ProfileSettings() {
       {/* Role Banner / Status Indicator */}
       <div
         data-testid="profile-role-card"
-        className="flex items-center justify-between rounded-xl border border-border bg-card p-4 shadow-sm"
+        className="flex items-center justify-between rounded-xl border border-border/40 bg-card/50 p-4 shadow-2xs"
       >
         <div className="space-y-0.5">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">

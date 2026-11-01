@@ -179,7 +179,7 @@ export function NotificationSettings() {
       )}
 
       {/* Main Push Settings Card */}
-      <section className="space-y-4 rounded-lg border border-border bg-card p-5">
+      <section className="space-y-4 rounded-xl border border-border/40 bg-card/50 p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -275,7 +275,7 @@ export function NotificationSettings() {
       {/* Notification Preferences & Quiet Hours Form */}
       {prefs ? (
         <form
-          className="space-y-5 rounded-lg border border-border bg-card p-5"
+          className="space-y-5 rounded-xl border border-border/40 bg-card/50 p-5"
           onSubmit={async (e) => {
             e.preventDefault()
             if (!dirty || busy) return
@@ -314,7 +314,7 @@ export function NotificationSettings() {
               (kind) => (
                 <label
                   key={kind}
-                  className="flex min-h-11 items-center gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm text-foreground hover:bg-muted/40 transition-colors cursor-pointer select-none"
+                  className="flex min-h-11 items-center gap-3 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors cursor-pointer select-none"
                 >
                   <input
                     type="checkbox"

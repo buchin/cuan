@@ -157,7 +157,7 @@ export function ContactMemoryPanel({
     return entries.map((entry) => (
       <article
         key={entry.id}
-        className={`rounded-lg border p-3 space-y-2 ${entry.id === matchedNoteId ? 'ring-1 ring-ring' : ''}`}
+        className={`rounded-xl border border-border/40 bg-card/50 p-4 space-y-2 transition-colors hover:border-border/60 ${entry.id === matchedNoteId ? 'ring-1 ring-ring' : ''}`}
         data-search-match={entry.id === matchedNoteId || undefined}
       >
         <div className="flex items-start justify-between gap-3">
@@ -216,7 +216,7 @@ export function ContactMemoryPanel({
           <div
             role="group"
             aria-label={t('Confirm deletion')}
-            className="space-y-2 border-t pt-3"
+            className="space-y-2 border-t border-border/40 pt-3"
           >
             <p className="text-sm">
               {t(
@@ -247,7 +247,7 @@ export function ContactMemoryPanel({
   return (
     <section
       aria-label={t('Contact memory')}
-      className="space-y-4 border-t pt-5 mt-5"
+      className="space-y-4 border-t border-border/40 pt-5 mt-5"
     >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">{t('Notes & about')}</h3>
@@ -263,7 +263,7 @@ export function ContactMemoryPanel({
       </div>
       {editing && (
         <form
-          className="rounded-lg border p-3 space-y-3"
+          className="rounded-xl border border-border/40 bg-muted/20 p-4 space-y-3"
           onSubmit={(event) => {
             event.preventDefault()
             void save()
@@ -293,7 +293,7 @@ export function ContactMemoryPanel({
             maxLength={6000}
             rows={4}
             disabled={busy}
-            className="w-full resize-y rounded-md border bg-background p-3 text-base sm:text-sm"
+            className="w-full resize-y rounded-lg border border-border/40 bg-background/80 p-3 text-base sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             value={body}
             onChange={(event) => setBody(event.target.value)}
             placeholder={t(
