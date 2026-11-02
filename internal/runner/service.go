@@ -10,7 +10,7 @@ import (
 
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
-	"github.com/buchin/cuan/pkg/taskfsm"
+	"github.com/buchin/taskfsm"
 )
 
 type ProjectFinder interface {

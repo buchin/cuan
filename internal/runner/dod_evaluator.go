@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/task"
-	"github.com/buchin/cuan/pkg/dodeval"
+	"github.com/buchin/dodeval"
 )
 
 // DoDValidationRequest specifies input for autonomous DoD evaluation.

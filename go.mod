@@ -3,18 +3,21 @@ module github.com/buchin/cuan
 go 1.27.0
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/buchin/dodeval v0.0.0-20261102053115-bfc22ab48d52
+	github.com/buchin/taskfsm v0.0.0-20261102053049-02cd119fa5d7
 	github.com/creack/pty v1.1.24
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.11.0
 	golang.org/x/crypto v0.58.0
+	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.60.1
 )
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
-	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -25,7 +28,6 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

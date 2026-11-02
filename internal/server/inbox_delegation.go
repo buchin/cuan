@@ -513,7 +513,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		if err != nil || detail.LatestAttempt == nil {
 			continue
 		}
-		if detail.Status != task.TaskStatusDone && detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
+		if detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
 			s.queueInboxTaskReview(ctx, detail)
 		}
 
