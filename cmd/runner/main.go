@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -16,6 +17,57 @@ import (
 )
 
 func main() {
+	// Detached worker process execution (Pola #1: Detached Worker Process)
+	if len(os.Args) > 1 && os.Args[1] == "worker-task" {
+		workerFlags := flag.NewFlagSet("worker-task", flag.ExitOnError)
+		claimFile := workerFlags.String("claim-file", "", "Path to claim JSON file")
+		registryDir := workerFlags.String("registry-dir", "", "Path to worker registry directory")
+		serverURL := workerFlags.String("server-url", "", "Cuan server URL")
+		runnerID := workerFlags.String("runner-id", "", "Runner unique ID")
+		runnerToken := workerFlags.String("runner-token", "", "Runner authentication token")
+		agentBin := workerFlags.String("agent-bin", "", "Custom path to agent binary")
+		_ = workerFlags.Parse(os.Args[2:])
+
+		if *claimFile == "" {
+			log.Fatalf("cuan-runner worker-task requires --claim-file")
+		}
+
+		cfg := config.Load()
+		if *serverURL != "" {
+			cfg.RunnerServerURL = *serverURL
+		}
+		if *runnerID != "" {
+			cfg.RunnerID = *runnerID
+		}
+		if *runnerToken != "" {
+			cfg.RunnerToken = *runnerToken
+		}
+		if *registryDir != "" {
+			cfg.RunnerWorkerRegistryDir = *registryDir
+		}
+
+		claimData, err := os.ReadFile(*claimFile)
+		if err != nil {
+			log.Fatalf("Failed to read claim file %s: %v", *claimFile, err)
+		}
+
+		var claim runner.ClaimTaskResponse
+		if err := json.Unmarshal(claimData, &claim); err != nil {
+			log.Fatalf("Failed to parse claim JSON: %v", err)
+		}
+
+		adapter, err := agent.NewAGYAdapter(*agentBin)
+		if err != nil {
+			log.Fatalf("Failed to initialize agent adapter in detached worker: %v", err)
+		}
+
+		r := runner.NewRunner(cfg, adapter)
+		if err := r.RunDetachedAttempt(context.Background(), claim); err != nil {
+			log.Fatalf("Detached worker attempt failed: %v", err)
+		}
+		os.Exit(0)
+	}
+
 	showHelp := flag.Bool("help", false, "Show help message")
 	showVersion := flag.Bool("version", false, "Show cuan-runner version")
 	agentBin := flag.String("agent-bin", "", "Custom path to agent binary (default: searches PATH for 'agy')")

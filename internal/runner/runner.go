@@ -30,6 +30,8 @@ type activeAttempt struct {
 	cancel    context.CancelFunc
 	steerFunc func(prompt string) error
 	steerChan chan string
+	detached  bool
+	pid       int
 }
 
 type Runner struct {
@@ -54,6 +56,10 @@ type Runner struct {
 
 	dodEvaluator *DoDEvaluator
 	eventBus     *EventBus
+
+	// Detached Worker Registry & Launcher (Pola #1: Detached Worker Process)
+	registry *WorkerRegistry
+	launcher *DetachedLauncher
 }
 
 func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*http.Client) *Runner {
@@ -63,6 +69,13 @@ func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*h
 	}
 
 	baseURL := strings.TrimRight(cfg.RunnerServerURL, "/")
+
+	registryDir := cfg.RunnerWorkerRegistryDir
+	if registryDir == "" {
+		registryDir = filepath.Join(os.TempDir(), "cuan-workers")
+	}
+	registry := NewWorkerRegistry(registryDir)
+	launcher := NewDetachedLauncher(registry)
 
 	return &Runner{
 		cfg:            cfg,
@@ -75,6 +88,8 @@ func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*h
 		updater:        NewUpdateManager(""),
 		dodEvaluator:   NewDoDEvaluator(),
 		eventBus:       GlobalEventBus,
+		registry:       registry,
+		launcher:       launcher,
 	}
 }
 
@@ -120,6 +135,26 @@ func (r *Runner) DrainCoordinator() *DrainCoordinator {
 
 func (r *Runner) UpdateManager() *UpdateManager {
 	return r.updater
+}
+
+func (r *Runner) SetWorkerRegistry(reg *WorkerRegistry) {
+	if reg != nil {
+		r.registry = reg
+	}
+}
+
+func (r *Runner) WorkerRegistry() *WorkerRegistry {
+	return r.registry
+}
+
+func (r *Runner) SetDetachedLauncher(l *DetachedLauncher) {
+	if l != nil {
+		r.launcher = l
+	}
+}
+
+func (r *Runner) DetachedLauncher() *DetachedLauncher {
+	return r.launcher
 }
 
 func (r *Runner) RequestDrain(reason string) {
@@ -205,7 +240,12 @@ func (r *Runner) Start(ctx context.Context) error {
 		go r.drainCoord.StartMonitor(ctx, 1*time.Second)
 	}
 
-	// Immediate initial heartbeat
+	// Reconcile existing detached workers on startup (surviving supervisor restarts)
+	if err := r.ReconcileStartup(ctx); err != nil {
+		log.Printf("[Runner %s] Startup worker reconciliation note: %v", r.cfg.RunnerID, err)
+	}
+
+	// Immediate initial heartbeat (reports reconciled workers to renew leases)
 	r.sendHeartbeat(ctx, hostname)
 
 	// Heartbeat ticker (every 3 seconds)
@@ -219,16 +259,37 @@ func (r *Runner) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[Runner %s] Shutdown signaled, initiating graceful drain...", r.cfg.RunnerID)
+			log.Printf("[Runner %s] Shutdown signaled, initiating graceful supervisor stop...", r.cfg.RunnerID)
 			r.RequestDrain("shutdown context canceled")
-			// Allow active in-flight tasks to finish completely without interruption
-			drained := r.WaitForInFlight(30 * time.Minute)
-			if !drained {
-				log.Printf("[Runner %s] Graceful drain timeout reached, terminating in-flight work...", r.cfg.RunnerID)
-				r.cancelCurrentExecution()
-			} else {
-				log.Printf("[Runner %s] All in-flight work completed cleanly.", r.cfg.RunnerID)
+
+			r.mu.Lock()
+			detachedCount := 0
+			inProcessCount := 0
+			for _, act := range r.activeAttempts {
+				if act.detached {
+					detachedCount++
+				} else {
+					inProcessCount++
+				}
 			}
+			r.mu.Unlock()
+
+			if detachedCount > 0 {
+				log.Printf("[Runner %s] Zero-Kill Deploy: %d detached worker(s) continue executing independently without interruption.",
+					r.cfg.RunnerID, detachedCount)
+			}
+
+			// In-process tasks wait if any non-detached work is running
+			if inProcessCount > 0 {
+				drained := r.WaitForInFlight(15 * time.Second)
+				if !drained {
+					log.Printf("[Runner %s] Graceful drain timeout reached for in-process work...", r.cfg.RunnerID)
+					r.cancelCurrentExecution()
+				}
+			} else {
+				log.Printf("[Runner %s] Supervisor stopped cleanly.", r.cfg.RunnerID)
+			}
+
 			// Check for self-update if a new binary is on disk
 			r.CheckAndPerformSelfUpdate()
 			return nil
@@ -329,6 +390,15 @@ func (r *Runner) SteerAttempt(attemptID, prompt string) error {
 			return errors.New("steer channel is full or blocked")
 		}
 	}
+
+	// For detached worker processes, forward steering prompt via Unix domain socket bridge
+	if terminal.SocketExists(attemptID) {
+		return terminal.SendSocketInput(attemptID, prompt+"\n")
+	}
+	if act.attempt != nil && terminal.SocketExists(act.attempt.TaskID) {
+		return terminal.SendSocketInput(act.attempt.TaskID, prompt+"\n")
+	}
+
 	return errors.New("agent adapter does not support interactive steering")
 }
 
@@ -411,6 +481,32 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 		r.readersMu.RLock()
 	}
 
+	// In Detached Worker mode (Pola #1), spawn an isolated child worker process
+	// decoupled from the supervisor's systemd lifecycle.
+	if r.cfg.RunnerDetachedWorkers && r.launcher != nil {
+		rec, spawnErr := r.launcher.Spawn(ctx, r.cfg, claimResp)
+		if spawnErr != nil {
+			log.Printf("[Runner %s] Notice: failed to spawn detached worker (%v), falling back to in-process execution", r.cfg.RunnerID, spawnErr)
+		} else {
+			r.mu.Lock()
+			if r.activeAttempts == nil {
+				r.activeAttempts = make(map[string]*activeAttempt)
+			}
+			r.activeAttempts[claimResp.Attempt.ID] = &activeAttempt{
+				attempt:  claimResp.Attempt,
+				lane:     lane,
+				detached: true,
+				pid:      rec.PID,
+			}
+			r.currentAttempt = claimResp.Attempt
+			r.mu.Unlock()
+
+			// Monitor detached worker in background until completion
+			go r.monitorDetachedWorker(claimResp.Attempt.ID, rec.PID, lane)
+			return
+		}
+	}
+
 	execCtx, cancelFunc := context.WithCancel(ctx)
 	steerChan := make(chan string, 16)
 	r.mu.Lock()
@@ -461,6 +557,142 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 
 		r.runAttempt(execCtx, claim)
 	}(claimResp, lane)
+}
+
+// ReconcileStartup discovers and tracks active detached workers across supervisor restarts.
+func (r *Runner) ReconcileStartup(ctx context.Context) error {
+	if r.registry == nil {
+		return nil
+	}
+
+	records, err := r.registry.List()
+	if err != nil {
+		return err
+	}
+
+	for _, rec := range records {
+		if r.registry.IsProcessAlive(rec.PID) {
+			log.Printf("[Runner %s] Reconciliation: Detached worker PID %d is actively executing attempt %s (Task: '%s', Lane: %s)",
+				r.cfg.RunnerID, rec.PID, rec.AttemptID, rec.TaskID, rec.Lane)
+			r.registerReconciledWorker(rec)
+		} else {
+			log.Printf("[Runner %s] Reconciliation: Cleaning up stale worker record for dead PID %d (attempt %s)",
+				r.cfg.RunnerID, rec.PID, rec.AttemptID)
+			_ = r.registry.Delete(rec.AttemptID)
+		}
+	}
+	return nil
+}
+
+func (r *Runner) registerReconciledWorker(rec *DetachedWorkerRecord) {
+	lane := task.NormalizeExecutionCategory(rec.Lane)
+	if lane == "" {
+		lane = task.ExecutionCategoryCode
+	}
+
+	// Acquire lane lock to protect against duplicate task claim
+	switch lane {
+	case task.ExecutionCategoryCode:
+		r.gitDeployMu.Lock()
+	case task.ExecutionCategoryOps:
+		r.opsMu.Lock()
+	case task.ExecutionCategoryReadOnly:
+		r.readersMu.RLock()
+	}
+
+	r.mu.Lock()
+	if r.activeAttempts == nil {
+		r.activeAttempts = make(map[string]*activeAttempt)
+	}
+	r.activeAttempts[rec.AttemptID] = &activeAttempt{
+		attempt: &task.TaskAttempt{
+			ID:     rec.AttemptID,
+			TaskID: rec.TaskID,
+		},
+		lane:     lane,
+		detached: true,
+		pid:      rec.PID,
+	}
+	if r.currentAttempt == nil {
+		r.currentAttempt = r.activeAttempts[rec.AttemptID].attempt
+	}
+	r.mu.Unlock()
+
+	// Monitor detached worker in background until it finishes
+	go r.monitorDetachedWorker(rec.AttemptID, rec.PID, lane)
+}
+
+func (r *Runner) monitorDetachedWorker(attemptID string, pid int, lane string) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if !r.registry.IsProcessAlive(pid) {
+			break
+		}
+	}
+
+	// Detached worker process has exited; release lane concurrency lock and update active attempts
+	switch lane {
+	case task.ExecutionCategoryCode:
+		r.gitDeployMu.Unlock()
+	case task.ExecutionCategoryOps:
+		r.opsMu.Unlock()
+	case task.ExecutionCategoryReadOnly:
+		r.readersMu.RUnlock()
+	}
+
+	r.mu.Lock()
+	delete(r.activeAttempts, attemptID)
+	if r.currentAttempt != nil && r.currentAttempt.ID == attemptID {
+		r.currentAttempt = nil
+		for _, rem := range r.activeAttempts {
+			r.currentAttempt = rem.attempt
+			break
+		}
+	}
+	remaining := len(r.activeAttempts)
+	r.mu.Unlock()
+
+	_ = r.registry.Delete(attemptID)
+
+	log.Printf("[Runner %s] Detached worker PID %d for attempt %s finished; lane '%s' released (remaining active: %d).",
+		r.cfg.RunnerID, pid, attemptID, lane, remaining)
+}
+
+// RunDetachedAttempt executes a claimed attempt inside an isolated detached worker process.
+func (r *Runner) RunDetachedAttempt(ctx context.Context, claim ClaimTaskResponse) error {
+	if claim.Attempt == nil || claim.Task == nil {
+		return fmt.Errorf("invalid claim payload: attempt and task required")
+	}
+
+	attID := claim.Attempt.ID
+	defer func() {
+		if r.registry != nil {
+			_ = r.registry.Delete(attID)
+		}
+	}()
+
+	// Periodic registry heartbeat update
+	heartbeatDone := make(chan struct{})
+	defer close(heartbeatDone)
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatDone:
+				return
+			case <-ticker.C:
+				if r.registry != nil {
+					_ = r.registry.UpdateHeartbeat(attID)
+				}
+			}
+		}
+	}()
+
+	r.runAttempt(ctx, claim)
+	return nil
 }
 
 func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {

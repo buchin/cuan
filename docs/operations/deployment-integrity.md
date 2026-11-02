@@ -67,3 +67,13 @@ Starting with Sprint 56, background task attempts are decoupled from HTTP server
    - `activate-release.py` automatically unlinks `/tmp/cuan-drain` and triggers `systemctl restart cuan-runner`.
    - `scripts/deploy.sh` executes a post-deploy hook ensuring `/tmp/cuan-drain` removal and `cuan-runner.service` restart.
 3. **Rollback Resilience**: In the event of health check failure or rollback, `/tmp/cuan-drain` is immediately cleared and the worker daemon restarted so queue processing is never left stranded in drain mode.
+
+---
+
+## 7. Detached Worker Process Architecture (Pola #1: Zero-Kill Deployment)
+
+Starting with the Detached Worker Process architecture, task worker execution is decoupled from the `cuan-runner` supervisor daemon process tree:
+1. **Isolated Execution Scope (`setsid` & `systemd-run --scope`)**: Task worker executions run in detached sessions independent of the supervisor daemon's systemd cgroup unit.
+2. **Instant Pipeline Deploy (Zero-Wait)**: Pipeline deploy restarts the supervisor daemon (`systemctl restart cuan-runner`) in <1 second without waiting for in-flight tasks.
+3. **Zero-Kill Execution**: Child workers continue running independently until task completion (LLM/tool execution, git commit, project verification, DoD evaluation, and database updates finish uninterrupted). Users never encounter interrupted or stopped states during deployments.
+4. **Startup Reconciliation & Double-Claim Prevention**: When the new supervisor starts, it scans active worker records, verifies process liveness via PID, adopts in-flight attempts into its heartbeat reporting to renew leases, locks occupied lanes, and claims subsequent queued tasks immediately using the new release binary.

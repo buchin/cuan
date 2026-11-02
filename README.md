@@ -125,6 +125,8 @@ Transform customer interactions into structured business workflows:
   - Pre-flight repository verification, branch management, clone/fetch workspace isolation, and secret masking on git outputs.
 - **Decoupled Task Worker Daemon (`cmd/runner` / `cuan-runner`)**:
   - Independent Go worker daemon decoupled from the HTTP web server, guaranteeing zero interrupted work during server restarts or deployments.
+  - **Detached Worker Process (Zero-Kill Deployment)**: Task worker executions run in isolated execution scopes (`setsid` and `systemd-run --scope` with `KillMode=process`), completely decoupling active worker processes from the supervisor daemon lifecycle. Deployments restart supervisor daemons in <1s without waiting for in-flight tasks, and running workers finish LLM/tool execution, git commits, and database updates uninterrupted.
+  - **Startup Worker Reconciliation**: Newly started supervisor daemons automatically discover running detached workers via PID and heartbeat, renew leases on the API server, prevent double-claims, and immediately claim subsequent tasks from the queue.
   - **Graceful Drain & Zero-Interruption Self-Update**: Automatically finishes in-flight jobs during deployment before swapping to new release binaries.
   - **Progressive Adaptive Timeout**: Adaptively scales execution limits (Attempt 1: 15m -> Attempt 2: 20m -> Attempt 3: 25m max cap) with 20s graceful termination tolerance.
 - **Autonomous Scrum Engine & Proactive Review with AGENTS.md Injection**:

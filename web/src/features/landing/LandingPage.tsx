@@ -337,8 +337,8 @@ export function LandingPage() {
               },
               {
                 Icon: Zap,
-                title: 'Isolated cuan-runner daemon & auto-undrain deployment.',
-                text: 'Tasks are dispatched to a standalone worker daemon isolated from the web server. Deploy hooks automatically clean drain flags and restart workers with zero interruption to ongoing tasks.',
+                title: 'Detached worker process & zero-kill deploy.',
+                text: 'Tasks run in isolated execution scopes decoupled from supervisor restarts. Deploys complete instantly without waiting, and ongoing tasks finish uninterrupted.',
               },
               {
                 Icon: Sparkles,
