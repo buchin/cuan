@@ -155,6 +155,31 @@ func TestEvaluator_EmptyChecklist(t *testing.T) {
 	}
 }
 
+func TestParseAcceptanceCriteriaAndAnalyzeGaps(t *testing.T) {
+	markdown := `
+## Acceptance Criteria
+1. [ ] Verifikasi unit test mandiri pada micro-packages pkg/taskfsm dan pkg/dodeval (100% pass)
+2. [ ] Selesaikan Phase 3: Integrasi micro-packages ke task runner Cuan secara backward-compatible
+`
+	criteria := dodeval.ParseAcceptanceCriteria(markdown)
+	if len(criteria) != 2 {
+		t.Fatalf("expected 2 criteria, got %d", len(criteria))
+	}
+
+	ev := dodeval.Evidence{
+		Summary:           "Selesaikan Phase 3: Integrasi micro-packages ke task runner Cuan secara backward-compatible",
+		CompleteNote:      "Verifikasi unit test mandiri pada micro-packages pkg/taskfsm dan pkg/dodeval (100% pass)",
+		CleanWorkingTree:  true,
+		TargetedTestsPass: true,
+		BuildZeroError:    true,
+	}
+
+	res := dodeval.AnalyzeGaps(criteria, ev)
+	if !res.Passed {
+		t.Fatalf("expected AnalyzeGaps to pass with full evidence, got %d gaps: %v", len(res.Gaps), res.GapDescriptions)
+	}
+}
+
 func BenchmarkParseChecklist(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = dodeval.ParseChecklist(sampleMarkdown)

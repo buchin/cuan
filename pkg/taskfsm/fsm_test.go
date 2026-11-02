@@ -295,3 +295,82 @@ func BenchmarkStateMachine_Transition(b *testing.B) {
 		_ = sm.Transition(taskfsm.EventStart)
 	}
 }
+
+func TestFromAndToCuanTaskStatus(t *testing.T) {
+	mappings := map[string]taskfsm.State{
+		"backlog":   taskfsm.StatePlanning,
+		"planning":  taskfsm.StatePlanning,
+		"queued":    taskfsm.StateApproved,
+		"approved":  taskfsm.StateApproved,
+		"doing":     taskfsm.StateRunning,
+		"running":   taskfsm.StateRunning,
+		"review":    taskfsm.StateReview,
+		"done":      taskfsm.StateCompleted,
+		"completed": taskfsm.StateCompleted,
+		"blocked":   taskfsm.StateBlocked,
+		"failed":    taskfsm.StateCanceled,
+		"canceled":  taskfsm.StateCanceled,
+		"cancelled": taskfsm.StateCanceled,
+	}
+
+	for cuanStatus, expectedState := range mappings {
+		st, err := taskfsm.FromCuanTaskStatus(cuanStatus)
+		if err != nil {
+			t.Errorf("expected no error for %s, got %v", cuanStatus, err)
+		}
+		if st != expectedState {
+			t.Errorf("expected state %s for cuan status %s, got %s", expectedState, cuanStatus, st)
+		}
+	}
+
+	if _, err := taskfsm.FromCuanTaskStatus("invalid_state"); err == nil {
+		t.Error("expected error for invalid state, got nil")
+	}
+
+	if cuan := taskfsm.ToCuanTaskStatus(taskfsm.StateRunning); cuan != "doing" {
+		t.Errorf("expected 'doing' for StateRunning, got %s", cuan)
+	}
+}
+
+func TestCanAndValidateTransition(t *testing.T) {
+	// Valid transitions
+	validTransitions := [][2]taskfsm.State{
+		{taskfsm.StatePlanning, taskfsm.StateApproved},
+		{taskfsm.StatePlanning, taskfsm.StateCanceled},
+		{taskfsm.StateApproved, taskfsm.StateRunning},
+		{taskfsm.StateRunning, taskfsm.StateReview},
+		{taskfsm.StateRunning, taskfsm.StateCompleted},
+		{taskfsm.StateReview, taskfsm.StateCompleted},
+		{taskfsm.StateReview, taskfsm.StateApproved},
+		{taskfsm.StateReview, taskfsm.StateRunning},
+		{taskfsm.StateRunning, taskfsm.StateBlocked},
+		{taskfsm.StateBlocked, taskfsm.StateRunning},
+	}
+
+	for _, tr := range validTransitions {
+		if !taskfsm.CanTransition(tr[0], tr[1]) {
+			t.Errorf("expected CanTransition(%s, %s) to be true", tr[0], tr[1])
+		}
+		if err := taskfsm.ValidateTransition(tr[0], tr[1]); err != nil {
+			t.Errorf("expected ValidateTransition(%s, %s) to be nil, got %v", tr[0], tr[1], err)
+		}
+	}
+
+	// Invalid transitions
+	invalidTransitions := [][2]taskfsm.State{
+		{taskfsm.StatePlanning, taskfsm.StateRunning},
+		{taskfsm.StatePlanning, taskfsm.StateCompleted},
+		{taskfsm.StateCompleted, taskfsm.StateRunning},
+		{taskfsm.StateCompleted, taskfsm.StateApproved},
+		{taskfsm.StateCanceled, taskfsm.StateRunning},
+	}
+
+	for _, tr := range invalidTransitions {
+		if taskfsm.CanTransition(tr[0], tr[1]) {
+			t.Errorf("expected CanTransition(%s, %s) to be false", tr[0], tr[1])
+		}
+		if err := taskfsm.ValidateTransition(tr[0], tr[1]); err == nil {
+			t.Errorf("expected ValidateTransition(%s, %s) to error, got nil", tr[0], tr[1])
+		}
+	}
+}

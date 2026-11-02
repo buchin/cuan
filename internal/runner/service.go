@@ -10,6 +10,7 @@ import (
 
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/pkg/taskfsm"
 )
 
 type ProjectFinder interface {
@@ -63,6 +64,19 @@ func (s *RunnerService) SetEventBus(bus *EventBus) {
 // EventBus returns the registered EventBus, or nil if none is set.
 func (s *RunnerService) EventBus() *EventBus {
 	return s.eventBus
+}
+
+// ValidateTaskTransition checks if a task status transition is permitted by the state machine.
+func (s *RunnerService) ValidateTaskTransition(fromStatus, toStatus string) error {
+	fromState, err := taskfsm.FromCuanTaskStatus(fromStatus)
+	if err != nil {
+		return err
+	}
+	toState, err := taskfsm.FromCuanTaskStatus(toStatus)
+	if err != nil {
+		return err
+	}
+	return taskfsm.ValidateTransition(fromState, toState)
 }
 
 // Heartbeat processes heartbeat and lease renewal from a runner daemon.
@@ -508,6 +522,15 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					} else {
 						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
 					}
+				}
+			}
+		}
+
+		// Enforce state machine transition guardrails via pkg/taskfsm
+		if srcState, errSrc := taskfsm.FromCuanTaskStatus(oldStatus); errSrc == nil {
+			if dstState, errDst := taskfsm.FromCuanTaskStatus(t.Status); errDst == nil {
+				if !taskfsm.CanTransition(srcState, dstState) && srcState != dstState {
+					t.Status = task.TaskStatusReview
 				}
 			}
 		}
