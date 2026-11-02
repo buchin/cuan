@@ -1256,8 +1256,8 @@ func UpdateTaskStatus(ctx context.Context, taskID, status, summary, completeNote
 		return nil, fmt.Errorf("task_id is required")
 	}
 	status = strings.TrimSpace(status)
-	if status == "" {
-		return nil, fmt.Errorf("status is required")
+	if status == "" && summary == "" && completeNote == "" {
+		return nil, fmt.Errorf("at least one of status, summary, or complete_note is required")
 	}
 
 	client := GetCuanClient()
@@ -1270,9 +1270,16 @@ func UpdateTaskStatus(ctx context.Context, taskID, status, summary, completeNote
 		return nil, fmt.Errorf("cuan client is not configured and database connection is unavailable")
 	}
 
-	_, err := db.ExecContext(ctx,
-		"UPDATE tasks SET status = $1, summary = CASE WHEN $2 <> '' THEN $2 ELSE summary END, complete_note = CASE WHEN $3 <> '' THEN $3 ELSE complete_note END, updated_at = NOW() WHERE id = $4",
-		status, summary, completeNote, taskID)
+	var err error
+	if status == "" {
+		_, err = db.ExecContext(ctx,
+			"UPDATE tasks SET summary = CASE WHEN $1 <> '' THEN $1 ELSE summary END, complete_note = CASE WHEN $2 <> '' THEN $2 ELSE complete_note END, updated_at = NOW() WHERE id = $3",
+			summary, completeNote, taskID)
+	} else {
+		_, err = db.ExecContext(ctx,
+			"UPDATE tasks SET status = $1, summary = CASE WHEN $2 <> '' THEN $2 ELSE summary END, complete_note = CASE WHEN $3 <> '' THEN $3 ELSE complete_note END, updated_at = NOW() WHERE id = $4",
+			status, summary, completeNote, taskID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
 	}

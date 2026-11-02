@@ -505,7 +505,7 @@ func (c *CuanClient) UpdateTask(ctx context.Context, taskID, status, summary, co
 	}
 
 	endpoint := fmt.Sprintf("/api/v1/tasks/%s", url.PathEscape(taskID))
-	resp, err := c.doRequest(ctx, http.MethodPatch, endpoint, payload)
+	resp, err := c.doRequest(ctx, http.MethodPut, endpoint, payload)
 	if err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
 	}
