@@ -115,3 +115,113 @@ func (e *TransitionError) Error() string {
 	}
 	return fmt.Sprintf("taskfsm: illegal transition from state '%s' to '%s': %s", e.From, e.To, e.Reason)
 }
+
+// FromCuanTaskStatus maps Cuan task string status to taskfsm.State.
+func FromCuanTaskStatus(cuanStatus string) (State, error) {
+	switch cuanStatus {
+	case "backlog", "planning":
+		return StatePlanning, nil
+	case "queued", "approved":
+		return StateApproved, nil
+	case "doing", "running":
+		return StateRunning, nil
+	case "review":
+		return StateReview, nil
+	case "done", "completed":
+		return StateCompleted, nil
+	case "blocked":
+		return StateBlocked, nil
+	case "failed", "canceled", "cancelled":
+		return StateCanceled, nil
+	default:
+		return "", fmt.Errorf("unknown cuan task status: %q", cuanStatus)
+	}
+}
+
+// ToCuanTaskStatus maps taskfsm.State to Cuan task string status.
+func ToCuanTaskStatus(s State) string {
+	switch s {
+	case StatePlanning:
+		return "backlog"
+	case StateApproved:
+		return "queued"
+	case StateRunning:
+		return "doing"
+	case StateReview:
+		return "review"
+	case StateCompleted:
+		return "done"
+	case StateBlocked:
+		return "blocked"
+	case StateCanceled:
+		return "failed"
+	default:
+		return string(s)
+	}
+}
+
+// transitionTargets defines allowed next states for each state.
+var transitionTargets = map[State]map[State]bool{
+	StatePlanning: {
+		StateApproved: true,
+		StateCanceled: true,
+	},
+	StateApproved: {
+		StateRunning:  true,
+		StatePlanning: true,
+		StateBlocked:  true,
+		StateCanceled: true,
+	},
+	StateRunning: {
+		StateReview:    true,
+		StateCompleted: true,
+		StateApproved:  true,
+		StateBlocked:   true,
+		StateCanceled:  true,
+	},
+	StateReview: {
+		StateCompleted: true,
+		StateApproved:  true,
+		StateRunning:   true,
+		StateBlocked:   true,
+		StatePlanning:  true,
+		StateCanceled:  true,
+	},
+	StateBlocked: {
+		StateRunning:  true,
+		StateApproved: true,
+		StateReview:   true,
+		StatePlanning: true,
+		StateCanceled: true,
+	},
+	StateCompleted: {},
+	StateCanceled:  {},
+}
+
+// CanTransition reports whether transitioning from 'from' to 'to' is permitted.
+func CanTransition(from, to State) bool {
+	if from == to {
+		return true
+	}
+	if allowed, ok := transitionTargets[from]; ok {
+		return allowed[to]
+	}
+	return false
+}
+
+// ValidateTransition validates if a transition from 'from' to 'to' is legal.
+func ValidateTransition(from, to State) error {
+	if !IsValidState(from) {
+		return fmt.Errorf("invalid source state: %q", from)
+	}
+	if !IsValidState(to) {
+		return fmt.Errorf("invalid destination state: %q", to)
+	}
+	if from.IsTerminal() && from != to {
+		return fmt.Errorf("cannot transition from terminal state: %q", from)
+	}
+	if !CanTransition(from, to) {
+		return fmt.Errorf("illegal state transition from %q to %q", from, to)
+	}
+	return nil
+}
