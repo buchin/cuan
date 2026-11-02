@@ -8,7 +8,6 @@ import {
   LogOut,
   KeyRound,
   MoreHorizontal,
-  Settings,
   Globe,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -29,7 +28,7 @@ export function NavUser({
   sidebar = false,
   collapsed = false,
   dropdownPosition,
-  onSettings,
+  onSettings: _onSettings,
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
@@ -219,18 +218,6 @@ export function NavUser({
             <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               {t('Preferences')}
             </div>
-            <button
-              type="button"
-              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
-              onClick={() => {
-                setMenuOpen(false)
-                if (onSettings) onSettings()
-                else navigate('/settings')
-              }}
-            >
-              <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span>{t('Settings')}</span>
-            </button>
             <button
               type="button"
               data-testid="navuser-language-toggle"

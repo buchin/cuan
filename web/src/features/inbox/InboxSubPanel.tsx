@@ -427,7 +427,7 @@ export function InboxSubPanel({
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       {/* ── Single Unified Header (matching shadcn Mail h-13) ── */}
-      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/40 px-3 md:px-4">
+      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/60 px-3 md:px-4">
         <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
           <Link
             to="/chat"

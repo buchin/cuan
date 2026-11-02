@@ -71,7 +71,8 @@ export function TaskBoardView({
     [actionError, setActionError] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
     [selectedRows, setSelectedRows] = useState<Set<string>>(new Set()),
-    [limit, setLimit] = useState(100)
+    [limit, setLimit] = useState(100),
+    [currentPage, setCurrentPage] = useState(1)
   const toggleSelectAll = (totalRows: Task[]) => {
     if (selectedRows.size === totalRows.length) {
       setSelectedRows(new Set())
@@ -109,6 +110,18 @@ export function TaskBoardView({
       },
       { replace: true },
     )
+  const handleSortColumn = (col: string) => {
+    if (sort === col) {
+      update('sort', `${col}-desc`)
+    } else if (sort === `${col}-desc`) {
+      update('sort', col === 'updated' ? 'updated-asc' : 'updated')
+    } else {
+      update('sort', col)
+    }
+  }
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [query, status, project, priority, assignee, sort])
   useEffect(() => {
     let alive = true
     agentsApi
@@ -231,17 +244,50 @@ export function TaskBoardView({
     )
     .sort((a, b) => {
       if (sort === 'priority') {
-        const ranks = { urgent: 0, high: 1, normal: 2, low: 3 }
-        const diff = ranks[a.priority] - ranks[b.priority]
+        const ranks: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
+        const diff = (ranks[a.priority] ?? 2) - (ranks[b.priority] ?? 2)
+        if (diff) return diff
+      } else if (sort === 'priority-desc') {
+        const ranks: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
+        const diff = (ranks[b.priority] ?? 2) - (ranks[a.priority] ?? 2)
+        if (diff) return diff
+      } else if (sort === 'title') {
+        const diff = a.title.localeCompare(b.title)
+        if (diff) return diff
+      } else if (sort === 'title-desc') {
+        const diff = b.title.localeCompare(a.title)
+        if (diff) return diff
+      } else if (sort === 'task' || sort === 'id') {
+        const diff = a.id.localeCompare(b.id)
+        if (diff) return diff
+      } else if (sort === 'task-desc' || sort === 'id-desc') {
+        const diff = b.id.localeCompare(a.id)
+        if (diff) return diff
+      } else if (sort === 'status') {
+        const diff = (a.status || 'backlog').localeCompare(b.status || 'backlog')
+        if (diff) return diff
+      } else if (sort === 'status-desc') {
+        const diff = (b.status || 'backlog').localeCompare(a.status || 'backlog')
+        if (diff) return diff
+      } else if (sort === 'agent' || sort === 'assignee') {
+        const diff = name(a).localeCompare(name(b))
+        if (diff) return diff
+      } else if (sort === 'agent-desc' || sort === 'assignee-desc') {
+        const diff = name(b).localeCompare(name(a))
+        if (diff) return diff
+      } else if (sort === 'updated-asc') {
+        const diff = (Date.parse(a.updated_at) || 0) - (Date.parse(b.updated_at) || 0)
         if (diff) return diff
       }
-      if (sort === 'title') return a.title.localeCompare(b.title)
       const key = sort === 'created' ? 'created_at' : 'updated_at'
       return (
         (Date.parse(b[key]) || 0) - (Date.parse(a[key]) || 0) ||
         a.id.localeCompare(b.id)
       )
     })
+  const pageSize = 25
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const filterCount =
     Number(project !== 'all' && !activeProject) +
     Number(priority !== 'all') +
@@ -765,19 +811,73 @@ export function TaskBoardView({
                       className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-ring"
                     />
                   </th>
-                  <th className="w-[85px] px-2 py-2 font-mono text-xs font-medium">Task</th>
-                  <th className="w-[34%] px-2 py-2 font-medium">Title</th>
-                  <th className="w-[14%] px-2 py-2 font-medium">Status</th>
-                  <th className="w-[11%] px-2 py-2 font-medium">Priority</th>
-                  <th className="w-[15%] px-2 py-2 font-medium">Agent</th>
-                  <th className="w-[11%] px-2 py-2 text-right font-medium">Updated</th>
+                  <th
+                    className="w-[85px] px-2 py-2 font-mono text-xs font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={() => handleSortColumn('task')}
+                    title="Sort by Task ID"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span>Task</span>
+                      {sort === 'task' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'task-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
+                    </span>
+                  </th>
+                  <th
+                    className="w-[34%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={() => handleSortColumn('title')}
+                    title="Sort by Title"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span>Title</span>
+                      {sort === 'title' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'title-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
+                    </span>
+                  </th>
+                  <th
+                    className="w-[14%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={() => handleSortColumn('status')}
+                    title="Sort by Status"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span>Status</span>
+                      {sort === 'status' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'status-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
+                    </span>
+                  </th>
+                  <th
+                    className="w-[11%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={() => handleSortColumn('priority')}
+                    title="Sort by Priority"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span>Priority</span>
+                      {sort === 'priority' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'priority-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
+                    </span>
+                  </th>
+                  <th
+                    className="w-[15%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={() => handleSortColumn('agent')}
+                    title="Sort by Agent"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <span>Agent</span>
+                      {sort === 'agent' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'agent-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
+                    </span>
+                  </th>
+                  <th
+                    className="w-[11%] px-2 py-2 text-right font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    onClick={() => handleSortColumn('updated')}
+                    title="Sort by Updated Time"
+                  >
+                    <span className="inline-flex items-center gap-1 justify-end w-full">
+                      <span>Updated</span>
+                      {sort === 'updated-asc' ? <ArrowUp className="h-3 w-3 text-primary" /> : (sort === 'updated' || !sort) ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
+                    </span>
+                  </th>
                   <th className="w-[40px] px-1 py-2 text-center">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {rows.slice(0, limit).map((t) => (
+                {paginatedRows.map((t) => (
                   <tr
                     key={t.id}
                     className={cn(
@@ -928,23 +1028,33 @@ export function TaskBoardView({
               <div className="flex-1">
                 {selectedRows.size > 0
                   ? `${selectedRows.size} of ${rows.length} row(s) selected.`
-                  : `${rows.length} ${rows.length === 1 ? 'task' : 'tasks'} found.`}
+                  : rows.length === 0
+                    ? `0 tasks found.`
+                    : `Showing ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, rows.length)} of ${rows.length} ${rows.length === 1 ? 'task' : 'tasks'}.`}
               </div>
               <div className="flex items-center gap-3">
-                <span>{t('Page 1 of 1')}</span>
+                <span className="font-mono text-xs">{t('Page')} {currentPage} {t('of')} {totalPages}</span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    disabled
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className={cn(
+                      "inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-colors",
+                      currentPage <= 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-muted hover:text-foreground cursor-pointer"
+                    )}
                     aria-label="Previous page"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
                   <button
                     type="button"
-                    disabled
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className={cn(
+                      "inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-colors",
+                      currentPage >= totalPages ? "opacity-40 cursor-not-allowed" : "hover:bg-muted hover:text-foreground cursor-pointer"
+                    )}
                     aria-label="Next page"
                   >
                     <ChevronRight className="h-3.5 w-3.5" />

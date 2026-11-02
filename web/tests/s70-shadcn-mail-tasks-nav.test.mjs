@@ -28,7 +28,7 @@ test('1. S70-T1: Main & Manage Navigation Architecture (NAV_GROUPS)', () => {
     'NAV_GROUPS main group must contain routes for /inbox and /tasks'
   )
 
-  // Verify Manage group contains Projects, Contacts, Schedules, Agents, Team, Apps & Skills
+  // Verify Manage group contains Projects, Contacts, and Settings
   assert.ok(
     appShellSource.includes("id: 'manage'"),
     'NAV_GROUPS must define id: manage group'
@@ -40,11 +40,8 @@ test('1. S70-T1: Main & Manage Navigation Architecture (NAV_GROUPS)', () => {
   assert.ok(
     appShellSource.includes("to: '/projects'") &&
     appShellSource.includes("to: '/contacts'") &&
-    appShellSource.includes("to: '/settings/schedules'") &&
-    appShellSource.includes("to: '/settings/agent'") &&
-    appShellSource.includes("to: '/settings/team'") &&
-    appShellSource.includes("to: '/settings/apps-skills'"),
-    'NAV_GROUPS manage group must contain routes for all secondary resources'
+    appShellSource.includes("to: '/settings'"),
+    'NAV_GROUPS manage group must contain routes for projects, contacts, and settings'
   )
 
   // Verify AppTab includes agents, team, skills
@@ -87,12 +84,12 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
     'TaskBoardView table header must include Select all tasks checkbox'
   )
   assert.ok(
-    taskBoardSource.includes('>Task</th>') &&
-    taskBoardSource.includes('>Title</th>') &&
-    taskBoardSource.includes('>Status</th>') &&
-    taskBoardSource.includes('>Priority</th>') &&
-    taskBoardSource.includes('>Agent</th>') &&
-    taskBoardSource.includes('>Updated</th>'),
+    taskBoardSource.includes('<span>Task</span>') &&
+    taskBoardSource.includes('<span>Title</span>') &&
+    taskBoardSource.includes('<span>Status</span>') &&
+    taskBoardSource.includes('<span>Priority</span>') &&
+    taskBoardSource.includes('<span>Agent</span>') &&
+    taskBoardSource.includes('<span>Updated</span>'),
     'TaskBoardView table header must include all standard data columns'
   )
 
@@ -106,11 +103,13 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
   // Verify Pagination Footer
   assert.ok(
     taskBoardSource.includes('row(s) selected.') ||
-    taskBoardSource.includes('tasks found.'),
+    taskBoardSource.includes('tasks found.') ||
+    taskBoardSource.includes('Showing'),
     'TaskBoardView must render pagination selection and count summary'
   )
   assert.ok(
-    taskBoardSource.includes('Page 1 of 1'),
+    taskBoardSource.includes('totalPages') &&
+    taskBoardSource.includes('currentPage'),
     'TaskBoardView must render page indicator'
   )
 })

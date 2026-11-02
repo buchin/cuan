@@ -18,10 +18,6 @@ import {
   PanelLeft,
   Users,
   Settings,
-  Calendar,
-  Bot,
-  Building2,
-  Sparkles,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -94,10 +90,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       { id: 'projects', label: 'Projects', icon: FolderGit2, to: '/projects', description: 'Workspaces & repo' },
       { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
-      { id: 'schedules', label: 'Schedules', icon: Calendar, to: '/settings/schedules', description: 'Otomasi jadwal rutin' },
-      { id: 'agents', label: 'Agents', icon: Bot, to: '/settings/agent', description: 'Asisten & model AI' },
-      { id: 'team', label: 'Team', icon: Building2, to: '/settings/team', description: 'Anggota tim staf manusia' },
-      { id: 'skills', label: 'Apps & Skills', icon: Sparkles, to: '/settings/apps-skills', description: 'Integrasi tool & skill' },
+      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Pengaturan & preferensi' },
     ],
   },
 ]
@@ -305,16 +298,16 @@ export function AppShell({
       <KeyboardShortcuts />
       <nav
         aria-label={t('Main navigation')}
-        className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
+        className="primary-navigation hidden shrink-0 flex-col border-r border-border/60 bg-sidebar md:flex"
       >
-        <div className="sidebar-brand flex h-13 shrink-0 items-center justify-between border-b border-border px-3">
+        <div className="sidebar-brand flex h-13 shrink-0 items-center justify-between border-b border-border/60 px-4">
           <Link
             to="/chat"
             aria-label={t('Go to Chat')}
-            className="inline-flex h-8 items-center gap-2.5 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            className="inline-flex h-8 items-center gap-2 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
-            <CuanMark decorative className="h-6 w-6 shrink-0" />
-            <span className="nav-label text-base font-bold tracking-tight">
+            <CuanMark decorative className="h-5 w-5 shrink-0 text-foreground" />
+            <span className="nav-label text-sm font-semibold tracking-tight text-foreground">
               cuan
             </span>
           </Link>
@@ -384,7 +377,7 @@ export function AppShell({
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header
           className={cn(
-            'flex shrink-0 items-center justify-between gap-2 border-b border-border/40 bg-background px-3 md:px-5',
+            'flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background px-3 md:px-5',
             'app-page-header h-14 md:h-16 md:!h-13',
             sessionWorkspace || contentHeader || currentTab === 'inbox' || currentTab === 'chat'
               ? 'hidden'
