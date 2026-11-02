@@ -189,12 +189,7 @@ if [[ "$is_local" == 1 ]]; then
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
-  # Fast delta transfer with rsync (falls back to scp if needed)
-  if command -v rsync >/dev/null 2>&1; then
-    sshpass -e rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
-  else
-    sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
-  fi
+  sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
   sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
   sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"

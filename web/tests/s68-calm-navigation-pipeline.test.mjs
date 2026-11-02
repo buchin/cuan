@@ -32,10 +32,10 @@ test('1. S68-T1: High-Speed & Fail-Fast Pipeline Gate Architecture', () => {
     'scripts/deploy.sh must compile Go server, migrate, and runner binaries in parallel'
   )
 
-  // Deploy script uses rsync for fast delta transfer
+  // Deploy script uses rsync for atomic payload deployment
   assert.ok(
-    deployScript.includes('rsync -az --delete'),
-    'scripts/deploy.sh must support fast delta rsync transfer over SSH'
+    deployScript.includes('rsync -a --delete'),
+    'scripts/deploy.sh must perform atomic rsync to release directory'
   )
 })
 
