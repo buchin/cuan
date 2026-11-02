@@ -175,7 +175,7 @@ export function ConversationItem({
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
-          'inbox-contact-row flex flex-col items-start gap-1 w-full rounded-lg border border-transparent p-3 text-left transition-all hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
+          'inbox-contact-row flex flex-col items-start gap-1 w-full min-h-[4.5rem] rounded-lg border border-transparent p-3 text-left transition-all hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
           isSelected && 'bg-accent/70 border-border/50 text-accent-foreground font-medium shadow-xs',
         )}
       >
@@ -203,7 +203,7 @@ export function ConversationItem({
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+        <p className="text-xs text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
           {conversationPreview(contact.last_message)}
         </p>
 
@@ -214,7 +214,7 @@ export function ConversationItem({
               className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
             >
               <StatusDot status="working" size="xs" pulse />
-              <span>{activeTasks} {t('bekerja')}</span>
+              <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
             </span>
           )}
           {contact.type === 'agent' ? (
@@ -244,7 +244,7 @@ export function ConversationItem({
       {!isLast && (
         <div
           aria-hidden="true"
-          className="inbox-item-divider"
+          className="inbox-item-divider border-b border-border/40"
         />
       )}
     </ItemActions>
@@ -441,9 +441,9 @@ export function InboxSubPanel({
               handleTabClick('all')
             }}
             className={cn(
-              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
               activeTab === 'all' && !showArchived
-                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                ? 'bg-secondary text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
@@ -457,9 +457,9 @@ export function InboxSubPanel({
               handleTabClick('agents')
             }}
             className={cn(
-              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
               activeTab === 'agents' && !showArchived
-                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                ? 'bg-secondary text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
@@ -474,9 +474,9 @@ export function InboxSubPanel({
               handleTabClick('customers')
             }}
             className={cn(
-              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
               activeTab === 'customers' && !showArchived
-                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                ? 'bg-secondary text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
@@ -496,9 +496,9 @@ export function InboxSubPanel({
             aria-pressed={showArchived}
             onClick={() => setShowArchived((v) => !v)}
             className={cn(
-              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors',
+              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
               showArchived
-                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                ? 'bg-secondary text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >

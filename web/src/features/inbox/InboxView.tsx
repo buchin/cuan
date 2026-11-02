@@ -1219,7 +1219,7 @@ export function InboxView({
       >
         {canvasMode === 'studio' || !activeContact ? (
           <div className="flex h-full flex-1 flex-col overflow-hidden">
-            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b border-border/60 bg-background">
+            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 bg-background">
               <span className="text-sm font-semibold text-foreground">
                 {t('Studio · New Idea')}
               </span>
@@ -1244,7 +1244,7 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b border-border/60 bg-background">
+            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 bg-background">
               <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button
