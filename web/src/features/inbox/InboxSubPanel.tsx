@@ -10,7 +10,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck } from 'lucide-react'
+import { Search, Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
@@ -177,99 +177,71 @@ export function ConversationItem({
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
-          'inbox-contact-row w-full min-h-[4.5rem] text-left px-3.5 py-3 transition-colors flex items-start gap-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2',
-          isSelected && 'bg-accent/70 text-accent-foreground font-medium',
+          'inbox-contact-row flex flex-col items-start gap-1 w-full rounded-lg border border-transparent p-3 text-left transition-all hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
+          isSelected && 'bg-accent/70 border-border/50 text-accent-foreground font-medium shadow-xs',
         )}
       >
-        {/* Avatar with StatusDot micro-indicator */}
-        <div className="relative shrink-0 mt-0.5">
-          <div className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center text-sm font-semibold border border-border/60 shadow-xs">
-            {contact.avatar ? (
-              <span>{contact.avatar}</span>
-            ) : contact.type === 'agent' ? (
-              <Bot className="h-4 w-4 text-primary" />
-            ) : (
-              <User className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
-          {contact.type === 'agent' ? (
-            <div className="absolute -bottom-0.5 -right-0.5">
-              <StatusDot
-                status={hasActiveWork ? 'working' : isAgentDisabled ? 'neutral' : isAgentConnectionIssue ? 'exception' : status.state === 'ready' || status.state === 'online' || status.verified ? 'healthy' : 'neutral'}
-                pulse={hasActiveWork || status.state === 'running'}
-                size="sm"
-              />
-            </div>
-          ) : contact.is_online ? (
-            <div className="absolute -bottom-0.5 -right-0.5">
-              <StatusDot status="healthy" size="sm" title={t('Online on website')} />
-            </div>
-          ) : null}
-        </div>
-
-        {/* 3-Tier Apple Mail & Bear Inset List Content */}
-        <div className="flex-1 min-w-0">
-          {/* Tingkat 1: Pengirim + timestamp tabular-nums di kanan */}
-          <div className="flex items-center justify-between gap-1.5 mb-0.5">
-            <div className="flex items-center gap-1.5 min-w-0 truncate">
+        <div className="flex w-full flex-col gap-1">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={cn("text-xs truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
+                {contact.name}
+              </span>
               {unread > 0 && (
                 <span
                   aria-label={`${unread} unread messages`}
-                  className="h-2 w-2 shrink-0 rounded-full bg-primary"
+                  className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
                   title={`${unread} unread`}
                 />
               )}
-              <span className={cn("text-sm text-foreground truncate", unread ? "font-semibold" : "font-medium")}>
-                {contact.name}
-              </span>
             </div>
-            <span className={cn("text-xs shrink-0 tabular-nums", unread ? "text-primary font-medium" : "text-muted-foreground")}>
+            <span className={cn("text-[11px] shrink-0 font-mono tabular-nums", unread > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
               {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
             </span>
           </div>
 
-          {/* Tingkat 2: Subjek / Judul tipografi bersih Geist & Status-by-Exception */}
-          <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
-            <span className={cn("text-xs truncate font-medium", unread ? "text-foreground font-semibold" : "text-foreground/80")}>
-              {subject}
-            </span>
-            {/* Active task micro-indicator & unread count badge */}
-            <div data-testid="task-count-badge" className="flex items-center gap-1.5 shrink-0">
-              {activeTasks > 0 && (
-                <span
-                  data-testid="task-badge-active"
-                  className="inline-flex shrink-0 items-center gap-1.5"
-                  title={`${activeTasks} ${activeTasks === 1 ? t('task') : t('tasks')} ${t('aktif')}`}
-                  aria-label={`${activeTasks} active tasks`}
-                >
-                  <StatusDot status="working" size="xs" pulse aria-label={`${activeTasks} active tasks`} />
-                  <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                    {activeTasks} {t('bekerja')}
-                  </span>
-                </span>
-              )}
-              {unread > 0 && (
-                <span
-                  aria-label={`${unread} unread messages`}
-                  className="shrink-0 h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums"
-                >
-                  {unread}
-                </span>
-              )}
-            </div>
+          <div className="text-xs font-medium text-foreground/80 truncate">
+            {subject}
           </div>
+        </div>
 
-          {/* Tingkat 3: Cuplikan 2 baris line-clamp-2 warna muted zinc-400 */}
-          <p className="text-xs text-muted-foreground text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">
-            {conversationPreview(contact.last_message)}
-          </p>
+        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+          {conversationPreview(contact.last_message)}
+        </p>
 
-          {isAgentConnectionIssue && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-              {status.label}
-            </p>
+        <div className="flex items-center gap-1.5 pt-1">
+          {hasActiveWork && (
+            <span
+              data-testid="task-badge-active"
+              className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
+            >
+              <StatusDot status="working" size="xs" pulse />
+              <span>{activeTasks} {t('bekerja')}</span>
+            </span>
+          )}
+          {contact.type === 'agent' ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <Bot className="h-3 w-3 text-primary" />
+              <span>{contact.agent_name || 'agent'}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <User className="h-3 w-3 text-muted-foreground" />
+              <span>customer</span>
+            </span>
+          )}
+          {contact.product && (
+            <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
+              {contact.product}
+            </span>
           )}
         </div>
+
+        {isAgentConnectionIssue && (
+          <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+            {status.label}
+          </p>
+        )}
       </button>
       {!isLast && (
         <div
@@ -402,124 +374,28 @@ export function InboxSubPanel({
 
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
-      <div className="px-3 pt-2 pb-0 border-b border-border/40 space-y-1.5">
-        <ListCreateAction label="New message" kind="inbox" onClick={onNewMessage} />
-        {/* Search Bar */}
-        <ItemActions
-          label="Inbox"
-          actions={[
-            ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
-            { label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') },
-          ]}
-        >
-        <div className="relative">
-          <Search className="absolute left-2.5 top-3.5 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            aria-label={t('Search conversations')}
-            placeholder="Search conversations…"
-            className="w-full min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search border border-transparent text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+      {/* ── Single Unified Header (matching shadcn Mail h-13) ── */}
+      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/60 px-4">
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('Inbox')}</h1>
+          {totalUnreadCount > 0 && (
+            <span className="rounded-full bg-primary/15 text-primary px-2 py-0.5 text-xs font-mono font-semibold">
+              {totalUnreadCount}
+            </span>
+          )}
         </div>
-
-        </ItemActions>
-
-        {/* Filter Chips (All, Agents, Customers, Archived) - Calm Things 3 / Bear Notes Segments */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Conversation filters')}>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'all'}
-            onClick={() => handleTabClick('all')}
-            className={cn(
-              'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
-              activeTab === 'all'
-                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
-                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
-            )}
-          >
-            <span>{t('All')}</span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'agents'}
-            onClick={() => handleTabClick('agents')}
-            className={cn(
-              'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
-              activeTab === 'agents'
-                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
-                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
-            )}
-          >
-            <span>{t('Agents')}</span>
-            <span
-              className={cn(
-                'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
-                activeTab === 'agents'
-                  ? 'bg-background/80 text-foreground font-semibold'
-                  : 'bg-muted-foreground/15 text-muted-foreground',
-              )}
+        <div className="flex items-center gap-1">
+          {onNewMessage && (
+            <button
+              type="button"
+              onClick={onNewMessage}
+              aria-label={t('New message')}
+              title={t('New message')}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
-              {agentCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'customers'}
-            onClick={() => handleTabClick('customers')}
-            className={cn(
-              'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
-              activeTab === 'customers'
-                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
-                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
-            )}
-          >
-            <span>{t('Customers')}</span>
-            {onlineVisitorCount > 0 && (
-              <span className="relative flex h-2 w-2" title={`${onlineVisitorCount} ${t('online')}`}>
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            )}
-            <span
-              className={cn(
-                'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
-                activeTab === 'customers'
-                  ? 'bg-background/80 text-foreground font-semibold'
-                  : 'bg-muted-foreground/15 text-muted-foreground',
-              )}
-            >
-              {customerCount}
-            </span>
-          </button>
-          <button
-            type="button"
-            aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
-            title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived(value => !value)}
-            className={cn(
-              'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
-              showArchived
-                ? 'bg-secondary text-foreground font-semibold shadow-none border border-border/60'
-                : 'bg-muted/40 text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent',
-            )}
-          >
-            <Archive className="h-3.5 w-3.5" aria-hidden="true" />
-            {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length > 0 && (
-              <span
-                className={cn(
-                  'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
-                  showArchived
-                    ? 'bg-background/80 text-foreground font-semibold'
-                    : 'bg-muted-foreground/15 text-muted-foreground',
-                )}
-              >
-                {contacts.filter(c => archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at)).length}
-              </span>
-            )}
-          </button>
+              <Plus className="h-4 w-4" />
+            </button>
+          )}
           {totalUnreadCount > 0 && (
             <button
               type="button"
@@ -527,62 +403,139 @@ export function InboxSubPanel({
               aria-label={t('Mark all as read')}
               title={t('Mark all as read')}
               onClick={handleMarkAllRead}
-              className={cn(
-                'min-h-11 min-w-11 flex items-center justify-center gap-1 border-b-2 text-xs border-transparent text-muted-foreground hover:text-primary transition-colors',
-                markingAll && 'opacity-50 cursor-not-allowed'
-              )}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
-              <CheckCheck className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span className="sr-only">{t('Mark all as read')}</span>
+              <CheckCheck className="h-4 w-4 text-primary" />
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Search & Filter Toolbar ── */}
+      <div className="p-3 pb-2 space-y-2 border-b border-border/40">
+        <ItemActions
+          label="Inbox"
+          actions={[
+            ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
+            { label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') },
+          ]}
+        >
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              aria-label={t('Search conversations')}
+              placeholder="Search conversations…"
+              className="h-9 w-full rounded-md border border-input bg-background/60 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+        </ItemActions>
+
+        {/* Filter Categories: All, Agents, Customers, Archived */}
+        <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Conversation filters')}>
+          <button
+            type="button"
+            aria-pressed={activeTab === 'all' && !showArchived}
+            onClick={() => {
+              setShowArchived(false)
+              handleTabClick('all')
+            }}
+            className={cn(
+              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+              activeTab === 'all' && !showArchived
+                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <span>{t('All')}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === 'agents' && !showArchived}
+            onClick={() => {
+              setShowArchived(false)
+              handleTabClick('agents')
+            }}
+            className={cn(
+              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+              activeTab === 'agents' && !showArchived
+                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <span>{t('Agents')}</span>
+            <span className="font-mono text-[10px] text-muted-foreground">({agentCount})</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === 'customers' && !showArchived}
+            onClick={() => {
+              setShowArchived(false)
+              handleTabClick('customers')
+            }}
+            className={cn(
+              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors',
+              activeTab === 'customers' && !showArchived
+                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <span>{t('Customers')}</span>
+            {onlineVisitorCount > 0 && (
+              <span className="relative flex h-1.5 w-1.5" title={`${onlineVisitorCount} ${t('online')}`}>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+            )}
+            <span className="font-mono text-[10px] text-muted-foreground">({customerCount})</span>
+          </button>
+          <button
+            type="button"
+            aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
+            title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((v) => !v)}
+            className={cn(
+              'inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors',
+              showArchived
+                ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <Archive className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
         {/* Customer Sub-Filter (Chats vs Online Visitors) */}
-        {activeTab === 'customers' && (
-          <div className="flex items-center gap-1.5 pt-1 pb-2">
+        {activeTab === 'customers' && !showArchived && (
+          <div className="flex items-center gap-1 pt-0.5">
             <button
               type="button"
               onClick={() => setCustomerSubFilter('chats')}
               className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5',
+                'px-2 py-0.5 rounded text-xs font-medium transition-colors flex items-center gap-1',
                 customerSubFilter === 'chats'
-                  ? 'bg-secondary text-foreground font-semibold border border-border/50'
-                  : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  ? 'bg-secondary text-foreground font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <span>{t('Chats')}</span>
-              <span className={cn(
-                'text-[10px] px-1.5 py-0.2 rounded-full tabular-nums',
-                customerSubFilter === 'chats' ? 'bg-background/80 text-foreground font-semibold' : 'bg-background/60 text-muted-foreground'
-              )}>
-                {activeCustomerCount}
-              </span>
+              <span className="text-[10px] tabular-nums font-mono">({activeCustomerCount})</span>
             </button>
-
             <button
               type="button"
               onClick={() => setCustomerSubFilter('online')}
               className={cn(
-                'px-2.5 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5',
+                'px-2 py-0.5 rounded text-xs font-medium transition-colors flex items-center gap-1',
                 customerSubFilter === 'online'
-                  ? 'bg-emerald-600/20 text-emerald-400 font-semibold border border-emerald-500/30'
-                  : 'bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  ? 'bg-emerald-500/15 text-emerald-400 font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <span className="relative flex h-2 w-2">
-                {onlineVisitorCount > 0 && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                )}
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
               <span>{t('Online')}</span>
-              <span className={cn(
-                'text-[10px] px-1.5 py-0.2 rounded-full tabular-nums',
-                customerSubFilter === 'online' ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'bg-background/60 text-muted-foreground'
-              )}>
-                {onlineVisitorCount}
-              </span>
+              <span className="text-[10px] tabular-nums font-mono">({onlineVisitorCount})</span>
             </button>
           </div>
         )}
@@ -590,7 +543,7 @@ export function InboxSubPanel({
 
       {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
       {/* Contacts List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {loading ? (
           <p role="status" className="p-4 text-sm">
             Loading conversations…

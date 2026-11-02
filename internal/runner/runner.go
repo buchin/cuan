@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
@@ -770,13 +771,31 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()
-	_ = agent.PrepareAntigravitySettings(home, workingDir)
-	_ = agent.EnsureAntigravityMCPConfig(home)
+	profileHome, healthyAcct, _ := agent.ResolveHealthyAccountProfile("")
+	if profileHome != "" {
+		home = profileHome
+		_ = agent.PrepareAntigravitySettings(profileHome, workingDir)
+		_ = agent.EnsureAntigravityOnboarding(profileHome)
+	} else {
+		_ = agent.PrepareAntigravitySettings(home, workingDir)
+		_ = agent.EnsureAntigravityMCPConfig(home)
+	}
 	if workingDir != "" {
 		_ = agent.EnsureWorkspaceMCPConfig(workingDir)
 	}
 
 	env := map[string]string{}
+	if profileHome != "" {
+		for _, e := range agent.AntigravityProfileEnvironment(profileHome) {
+			parts := strings.SplitN(e, "=", 2)
+			if len(parts) == 2 {
+				env[parts[0]] = parts[1]
+			}
+		}
+		if healthyAcct != nil {
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Runner menggunakan akun '%s' (%s) dari kumpulan otak AI.", healthyAcct.Label, healthyAcct.Email))
+		}
+	}
 	if claim.DeployBranch != "" {
 		env["CUAN_DEPLOY_BRANCH"] = claim.DeployBranch
 	}
@@ -976,14 +995,30 @@ func (r *Runner) cancelCurrentExecution() {
 		if act.cancel != nil {
 			act.cancel()
 		}
+		if act.pid > 0 {
+			_ = syscall.Kill(-act.pid, syscall.SIGTERM)
+			_ = syscall.Kill(act.pid, syscall.SIGTERM)
+		}
 	}
 }
 
 func (r *Runner) cancelSpecificAttempt(attemptID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if act, ok := r.activeAttempts[attemptID]; ok && act.cancel != nil {
-		act.cancel()
+	if act, ok := r.activeAttempts[attemptID]; ok {
+		if act.cancel != nil {
+			act.cancel()
+		}
+		if act.pid > 0 {
+			_ = syscall.Kill(-act.pid, syscall.SIGTERM)
+			_ = syscall.Kill(act.pid, syscall.SIGTERM)
+		}
+	}
+	if r.registry != nil {
+		if rec, err := r.registry.Get(attemptID); err == nil && rec != nil && rec.PID > 0 {
+			_ = syscall.Kill(-rec.PID, syscall.SIGTERM)
+			_ = syscall.Kill(rec.PID, syscall.SIGTERM)
+		}
 	}
 }
 
@@ -1140,6 +1175,16 @@ func (r *Runner) executeWithPTY(
 						if clean != "" {
 							atomic.AddInt64(liveStreamedCount, 1)
 							r.streamLogLine(ctx, att.ID, "stdout", clean)
+
+							// Quota limit / exhaustion detection: fail fast to avoid interactive terminal hang
+							if strings.Contains(clean, "Individual quota reached") ||
+								strings.Contains(clean, "Resource has been exhausted") ||
+								strings.Contains(clean, "Quota exceeded") ||
+								strings.Contains(clean, "rate_limit_exceeded") {
+								r.streamLogLine(ctx, att.ID, "system", "Quota limit detected in session output. Aborting execution immediately.")
+								cancelExec()
+								_ = sess.Close()
+							}
 						}
 					}
 					if lErr != nil {

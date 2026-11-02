@@ -1218,39 +1218,46 @@ export function InboxView({
         )}
       >
         {canvasMode === 'studio' || !activeContact ? (
-          <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
-            <div className="calm-stream-constraint max-w-2xl mx-auto">
-              <StudioView
-                onAccepted={() => onContactUpdated?.()}
-                onConversationCreated={handleStudioConversationCreated}
-                agentSetup={agentSetup}
-                firstGoal={firstGoal}
-                hasProject={hasProject}
-                onAgentConnected={onAgentConnected ?? (() => {})}
-                onCreateProject={onCreateProject ?? (() => {})}
-                onRetrySetup={onRetrySetup ?? (() => {})}
-                checkRuntime={checkRuntime}
-                autoFocus={true}
-              />
+          <div className="flex h-full flex-1 flex-col overflow-hidden">
+            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b border-border/60 bg-background">
+              <span className="text-sm font-semibold text-foreground">
+                {t('Studio · New Idea')}
+              </span>
+            </div>
+            <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+              <div className="calm-stream-constraint max-w-2xl mx-auto">
+                <StudioView
+                  onAccepted={() => onContactUpdated?.()}
+                  onConversationCreated={handleStudioConversationCreated}
+                  agentSetup={agentSetup}
+                  firstGoal={firstGoal}
+                  hasProject={hasProject}
+                  onAgentConnected={onAgentConnected ?? (() => {})}
+                  onCreateProject={onCreateProject ?? (() => {})}
+                  onRetrySetup={onRetrySetup ?? (() => {})}
+                  checkRuntime={checkRuntime}
+                  autoFocus={true}
+                />
+              </div>
             </div>
           </div>
         ) : (
           <>
-            {/* ── Top Header ── */}
-            <div className="wa-chat-header h-14 sm:h-16 px-2 sm:px-4 flex items-center justify-between shrink-0 border-b-0">
-              <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+            {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
+            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b border-border/60 bg-background">
+              <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button
                   type="button"
                   onClick={handleBackToContacts}
                   title="Back to conversations"
-                  className="min-[1200px]:hidden inline-flex h-11 w-11 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
+                  className="min-[1200px]:hidden inline-flex h-9 w-9 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
 
                 <div className="relative shrink-0">
-                  <div className="h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-sm font-bold border border-border">
+                  <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border">
                     {activeContact.avatar ? (
                       <span>{activeContact.avatar}</span>
                     ) : activeContact.type === 'agent' ? (
@@ -1263,7 +1270,7 @@ export function InboxView({
 
                 <div className="min-w-0 flex flex-col justify-center">
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
-                    <h2 className="truncate text-base font-semibold leading-tight">
+                    <h2 className="truncate text-sm font-semibold leading-tight">
                       {contactDisplayName || activeContact.name}
                     </h2>
                     {activeContact.type === 'customer' && activeContact.email && (

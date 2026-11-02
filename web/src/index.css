@@ -217,32 +217,30 @@ body:has(.task-terminal-container),
   }
 }
 .primary-navigation {
-  width: 64px;
+  width: 56px;
 }
 .primary-navigation .nav-label {
   display: none;
 }
 .primary-navigation .nav-action {
+  min-height: 2.25rem;
+  height: 2.25rem;
   padding-inline: 0;
   justify-content: center;
 }
+.primary-navigation .nav-action svg {
+  width: 1rem;
+  height: 1rem;
+}
 .conversation-sidebar {
-  width: 280px;
+  width: 340px;
 }
 .bottom-navigation {
-  min-height: calc(64px + env(safe-area-inset-bottom));
+  min-height: calc(56px + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
 }
 .mobile-content-bottom {
-  padding-bottom: calc(64px + env(safe-area-inset-bottom));
-}
-.app-shell :is(.text-\[9px\], .text-\[10px\], .text-\[11px\]) {
-  font-size: 12px;
-  line-height: 1.5;
-}
-.app-shell .text-xs {
-  font-size: 12px;
-  line-height: 1.5;
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
 }
 @media (min-width: 768px) {
   .mobile-content-bottom {
@@ -251,17 +249,26 @@ body:has(.task-terminal-container),
 }
 @media (min-width: 1200px) {
   .primary-navigation {
-    width: 200px;
+    width: 220px;
   }
   .primary-navigation .nav-label {
     display: inline;
   }
   .primary-navigation .nav-action {
+    min-height: 2.25rem;
+    height: 2.25rem;
     padding-inline: 0.75rem;
+    padding-block: 0.375rem;
     justify-content: flex-start;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    border-radius: calc(var(--radius) - 2px);
+  }
+  .conversation-sidebar {
+    width: 340px;
   }
   .nav-collapsed .primary-navigation {
-    width: 64px;
+    width: 56px;
   }
   .nav-collapsed .primary-navigation .nav-label {
     display: none;

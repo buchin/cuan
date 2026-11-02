@@ -92,9 +92,10 @@ export function NavUser({
           aria-current={active ? 'page' : undefined}
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
-            'flex min-h-11 w-full items-center gap-2 p-2 text-left transition-colors rounded-md',
+            'flex w-full items-center gap-2 text-left transition-colors rounded-md',
+            sidebar ? 'h-9 px-2 py-1 text-xs' : 'min-h-11 p-2 text-sm',
             !bottomNavigation && 'hover:bg-accent hover:text-accent-foreground',
-            compact && 'justify-center p-2',
+            compact && 'justify-center p-1',
             sidebar && 'sidebar-account',
             sidebar &&
               active &&
@@ -109,7 +110,8 @@ export function NavUser({
           {/* Avatar */}
           <div
             className={cn(
-              'flex h-7 w-7 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full',
+              'flex shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold rounded-full',
+              sidebar ? 'h-6 w-6 text-[10px]' : 'h-7 w-7 text-xs',
               bottomNavigation && 'h-5 w-5 text-[9px]',
               bottomNavigation && !active && 'bg-muted text-muted-foreground',
             )}
@@ -121,17 +123,17 @@ export function NavUser({
 
           {!compact && !bottomNavigation && (
             <div className="account-label grid min-w-0 flex-1 text-left leading-tight truncate">
-              <span className="truncate font-semibold text-sm text-foreground">
+              <span className="truncate font-semibold text-xs text-foreground">
                 {username}
               </span>
-              <span className="truncate text-[11px] text-muted-foreground">
-                {t('Account')}
+              <span className="truncate text-[10px] text-muted-foreground">
+                {email}
               </span>
             </div>
           )}
 
           {!compact && !bottomNavigation && (
-            <MoreHorizontal className="account-label h-4 w-4 text-muted-foreground shrink-0" />
+            <MoreHorizontal className="account-label h-3.5 w-3.5 text-muted-foreground shrink-0" />
           )}
         </button>
 

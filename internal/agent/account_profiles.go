@@ -237,6 +237,46 @@ func DeleteProviderAccount(owner, id string) error {
 	return os.RemoveAll(dir)
 }
 
+// ResolveHealthyAccountProfile finds an available verified or non-quota-limited provider account
+// from the stored accounts directory and returns its home directory and account ID.
+func ResolveHealthyAccountProfile(owner string) (string, *ProviderAccount, error) {
+	if owner == "" {
+		owner = "owner_admin"
+	}
+	accounts, err := ListProviderAccounts(owner)
+	if err != nil || len(accounts) == 0 {
+		return "", nil, err
+	}
+
+	// 1. First priority: verified account with credentials present
+	for _, a := range accounts {
+		if a.Legacy || !a.CredentialsPresent {
+			continue
+		}
+		if a.State == "verified" {
+			home, err := ProviderAccountHome(owner, a.ID)
+			if err == nil && home != "" && IsAntigravityLoggedInInDir(home) {
+				return home, a, nil
+			}
+		}
+	}
+
+	// 2. Second priority: any account not quota_limited and not unavailable
+	for _, a := range accounts {
+		if a.Legacy || !a.CredentialsPresent {
+			continue
+		}
+		if a.State != "quota_limited" && a.State != "unavailable" && a.State != "login_required" {
+			home, err := ProviderAccountHome(owner, a.ID)
+			if err == nil && home != "" && IsAntigravityLoggedInInDir(home) {
+				return home, a, nil
+			}
+		}
+	}
+
+	return "", nil, errors.New("no healthy provider account available")
+}
+
 // A filtered child environment avoids inherited provider credentials, config paths,
 // cloud secrets, keyrings and fallback to another user's account. Never os.Setenv HOME.
 func AntigravityProfileEnvironment(home string) []string {

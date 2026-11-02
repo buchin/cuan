@@ -348,11 +348,11 @@ export function TaskBoardView({
     )
   }
   const statusPicker = (t: Task) => (
-    <span className="relative inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/40 bg-muted/20 px-2 text-xs hover:bg-muted/40 transition-colors">
+    <span className="relative inline-flex max-w-full items-center gap-1 rounded-md border border-border/40 bg-muted/20 px-1.5 text-xs hover:bg-muted/40 transition-colors">
       {statusIcon(t.status)}
       <select
         aria-label={`Change status for ${t.title}`}
-        className="h-9 min-w-0 max-w-full appearance-none bg-transparent pr-4 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        className="h-7 min-w-0 max-w-full appearance-none bg-transparent pr-4 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default"
         value={taskStatus(t.status)}
         disabled={
           !!saving ||
@@ -395,7 +395,7 @@ export function TaskBoardView({
       </select>
       <ChevronDown
         aria-hidden
-        className="pointer-events-none absolute right-2 h-3 w-3 text-muted-foreground"
+        className="pointer-events-none absolute right-1.5 h-3 w-3 text-muted-foreground"
       />
     </span>
   )
@@ -473,21 +473,21 @@ export function TaskBoardView({
         <label className="relative min-w-0 flex-1 sm:max-w-xs lg:max-w-sm">
           <Search
             aria-hidden
-            className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground"
           />
           <input
             aria-label="Search tasks"
             placeholder="Search tasks…"
             value={query}
             onChange={(e) => update('q', e.target.value)}
-            className="field-control pl-9 text-xs"
+            className="h-8 w-full rounded-md border border-input bg-transparent pl-8 pr-3 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </label>
         <button
           type="button"
           onClick={() => setFiltersOpen(true)}
           className={cn(
-            "hidden sm:inline-flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 text-xs font-medium hover:bg-accent/50 transition-colors",
+            "hidden sm:inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium hover:bg-accent/50 transition-colors",
             status !== 'all' && "border-solid bg-accent/40 text-foreground"
           )}
         >
@@ -503,7 +503,7 @@ export function TaskBoardView({
           type="button"
           onClick={() => setFiltersOpen(true)}
           className={cn(
-            "hidden sm:inline-flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 text-xs font-medium hover:bg-accent/50 transition-colors",
+            "hidden sm:inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium hover:bg-accent/50 transition-colors",
             priority !== 'all' && "border-solid bg-accent/40 text-foreground"
           )}
         >
@@ -515,44 +515,54 @@ export function TaskBoardView({
             </span>
           )}
         </button>
+        {(status !== 'all' || priority !== 'all' || query) && (
+          <button
+            type="button"
+            onClick={clear}
+            className="hidden sm:inline-flex h-8 items-center gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span>Reset</span>
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
-          className="action-secondary ml-auto h-11 px-3"
+          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
           onClick={() => setFiltersOpen(true)}
           aria-label={
             filterCount ? `Filters (${filterCount} active)` : 'Filters'
           }
         >
-          <SlidersHorizontal className="h-4 w-4" />
-          <span className="hidden sm:inline">Filters</span>
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">View</span>
           {filterCount > 0 && (
-            <span className="rounded bg-accent px-1.5 text-xs">
+            <span className="rounded bg-accent px-1.5 text-[10px] font-mono">
               {filterCount}
             </span>
           )}
         </button>
         <button
-          className="icon-action sm:hidden"
+          className="icon-action sm:hidden h-8 w-8"
           aria-label="Sort tasks"
           onClick={() => setSortOpen(true)}
         >
-          <ArrowUpDown className="h-4 w-4" />
+          <ArrowUpDown className="h-3.5 w-3.5" />
         </button>
         <label className="relative hidden sm:block">
           <ArrowUpDown
             aria-hidden
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
           />
           <select
             aria-label="Sort tasks"
             value={sort}
             onChange={(e) => update('sort', e.target.value)}
-            className="h-11 w-36 appearance-none rounded-lg border border-border/40 bg-muted/20 pl-9 pr-8 text-sm hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-8 w-32 appearance-none rounded-md border border-input bg-transparent pl-7 pr-6 text-xs hover:bg-accent/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {sortOptions}
           </select>
           <ChevronDown
             aria-hidden
-            className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground"
           />
         </label>
       </div>
@@ -612,7 +622,7 @@ export function TaskBoardView({
       {/* Desktop Horizontal Category Chips */}
       <nav
         aria-label="Filter task status"
-        className="hidden sm:flex shrink-0 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="hidden sm:flex shrink-0 items-center gap-1 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         {[{ id: 'all', label: 'All' }, ...TASK_STATUSES].map((item) => {
           const isSelected = status === item.id
@@ -632,22 +642,22 @@ export function TaskBoardView({
                 onStatusFilterChange?.(item.id)
               }}
               className={cn(
-                'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring',
+                'inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-all focus-visible:outline-1 focus-visible:outline-ring',
                 isSelected
-                  ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
+                  ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
               <span>{item.label}</span>
               <span
                 className={cn(
-                  'inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none',
+                  'font-mono text-[10px] tabular-nums',
                   isSelected
-                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-                    : 'bg-muted-foreground/15 text-muted-foreground',
+                    ? 'text-foreground font-semibold'
+                    : 'text-muted-foreground/80',
                 )}
               >
-                {count}
+                ({count})
               </span>
             </button>
           )
@@ -743,60 +753,60 @@ export function TaskBoardView({
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="hidden overflow-hidden rounded-md border border-border/40 bg-card/30 lg:block shadow-2xs">
-            <table className="w-full table-fixed text-left text-sm">
+            <table className="w-full table-fixed text-left text-xs">
               <thead className="sticky top-0 z-10 bg-muted/40 text-xs font-medium text-muted-foreground border-b border-border/40">
                 <tr>
-                  <th className="w-[40px] px-3 py-3 text-center">
+                  <th className="w-[40px] px-2 py-2 text-center">
                     <input
                       type="checkbox"
                       aria-label="Select all tasks"
                       checked={rows.length > 0 && selectedRows.size === rows.length}
                       onChange={() => toggleSelectAll(rows)}
-                      className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                      className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-ring"
                     />
                   </th>
-                  <th className="w-[90px] px-3 py-3 font-mono text-xs font-medium">Task</th>
-                  <th className="w-[32%] px-3 py-3 font-medium">Title</th>
-                  <th className="w-[15%] px-3 py-3 font-medium">Status</th>
-                  <th className="w-[11%] px-3 py-3 font-medium">Priority</th>
-                  <th className="w-[16%] px-3 py-3 font-medium">Agent</th>
-                  <th className="w-[11%] px-3 py-3 text-right font-medium">Updated</th>
-                  <th className="w-[48px] px-2 py-3 text-center">
+                  <th className="w-[85px] px-2 py-2 font-mono text-xs font-medium">Task</th>
+                  <th className="w-[34%] px-2 py-2 font-medium">Title</th>
+                  <th className="w-[14%] px-2 py-2 font-medium">Status</th>
+                  <th className="w-[11%] px-2 py-2 font-medium">Priority</th>
+                  <th className="w-[15%] px-2 py-2 font-medium">Agent</th>
+                  <th className="w-[11%] px-2 py-2 text-right font-medium">Updated</th>
+                  <th className="w-[40px] px-1 py-2 text-center">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
+              <tbody className="divide-y divide-border/30">
                 {rows.slice(0, limit).map((t) => (
                   <tr
                     key={t.id}
                     className={cn(
-                      "group cursor-pointer transition-colors hover:bg-muted/30",
+                      "group h-10 cursor-pointer transition-colors hover:bg-muted/30",
                       selectedRows.has(t.id) && "bg-muted/40"
                     )}
                     onClick={() => onSelectTask(t)}
                   >
-                    <td className="w-[40px] px-3 py-3 text-center" onClick={(e) => toggleSelectRow(t.id, e)}>
+                    <td className="w-[40px] px-2 py-1.5 text-center" onClick={(e) => toggleSelectRow(t.id, e)}>
                       <input
                         type="checkbox"
                         aria-label={`Select task ${t.title}`}
                         checked={selectedRows.has(t.id)}
                         onChange={() => {}}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                        className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-ring"
                       />
                     </td>
-                    <td className="px-3 py-3 font-mono text-xs text-muted-foreground font-medium">
+                    <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground font-medium">
                       {taskRef(t.id)}
                     </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 max-w-full">
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-1.5 max-w-full">
                         {!activeProject && projectName(t) !== 'No project' && (
-                          <span className="inline-flex shrink-0 items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground truncate max-w-[120px]">
+                          <span className="inline-flex shrink-0 items-center rounded border border-border/50 bg-muted/40 px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground truncate max-w-[110px]">
                             {projectName(t)}
                           </span>
                         )}
                         <button
-                          className="block text-left font-medium leading-5 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring truncate"
+                          className="block text-left text-xs font-medium leading-tight hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring truncate"
                           onClick={(e) => {
                             e.stopPropagation()
                             onSelectTask(t)
@@ -809,26 +819,26 @@ export function TaskBoardView({
                       </div>
                       {requestPreview(t) && (
                         <p
-                          className="mt-1 truncate text-xs text-muted-foreground"
+                          className="mt-0.5 truncate text-[11px] text-muted-foreground"
                           title={requestPreview(t)}
                         >
                           <span className="font-medium">Request:</span> {requestPreview(t)}
                         </p>
                       )}
                     </td>
-                    <td className="px-3 py-2">{statusPicker(t)}</td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs">
+                    <td className="px-2 py-1">{statusPicker(t)}</td>
+                    <td className="px-2 py-1">
+                      <span className="inline-flex items-center gap-1 text-xs">
                         {t.priority === 'urgent' || t.priority === 'high' ? (
-                          <ArrowUp className="h-3.5 w-3.5 text-destructive" />
+                          <ArrowUp className="h-3 w-3 text-destructive" />
                         ) : t.priority === 'low' ? (
-                          <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
+                          <ArrowDown className="h-3 w-3 text-muted-foreground" />
                         ) : (
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         )}
                         <span
                           className={cn(
-                            'capitalize',
+                            'capitalize text-xs',
                             t.priority === 'urgent' && 'font-semibold text-destructive',
                             t.priority === 'high' && 'font-semibold text-foreground',
                             t.priority === 'normal' && 'text-muted-foreground',
@@ -839,11 +849,11 @@ export function TaskBoardView({
                         </span>
                       </span>
                     </td>
-                    <td className="break-words px-3 py-3 text-xs text-muted-foreground">
+                    <td className="break-words px-2 py-1 text-xs text-muted-foreground">
                       <div className="relative">
                         <span
                           aria-hidden
-                          className="pointer-events-none absolute left-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
+                          className="pointer-events-none absolute left-1 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted text-[9px] font-medium text-muted-foreground"
                         >
                           {t.assignee_id || t.assignee
                             ? name(t)
@@ -854,7 +864,7 @@ export function TaskBoardView({
                         </span>
                         <select
                           aria-label={`Change assignee for ${t.title}`}
-                          className="h-9 w-full appearance-none truncate rounded-md border border-transparent bg-transparent pl-8 pr-5 text-xs text-foreground hover:border-input focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                          className="h-7 w-full appearance-none truncate rounded-md border border-transparent bg-transparent pl-6 pr-4 text-xs text-foreground hover:border-input focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring"
                           value={t.assignee_id || t.assignee || ''}
                           disabled={
                             !!saving ||
@@ -888,11 +898,11 @@ export function TaskBoardView({
                         </select>
                         <ChevronDown
                           aria-hidden
-                          className="pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground"
+                          className="pointer-events-none absolute right-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground"
                         />
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-xs text-muted-foreground">
+                    <td className="whitespace-nowrap px-2 py-1 text-right text-[11px] font-mono text-muted-foreground">
                       <time
                         dateTime={t.updated_at}
                         title={new Date(t.updated_at).toLocaleString('en-US')}
@@ -900,18 +910,18 @@ export function TaskBoardView({
                         {relativeTime(t.updated_at)}
                       </time>
                     </td>
-                    <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-1 py-1 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center">
                         <button
                           type="button"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           aria-label={`Actions for ${t.title}`}
                           onClick={(e) => {
                             e.stopPropagation()
                             onSelectTask(t)
                           }}
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <MoreHorizontal className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </td>
@@ -919,30 +929,30 @@ export function TaskBoardView({
                 ))}
               </tbody>
             </table>
-            <div className="hidden lg:flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-xs text-muted-foreground bg-muted/10">
+            <div className="hidden lg:flex items-center justify-between border-t border-border/40 px-3 py-2 text-xs text-muted-foreground bg-muted/10">
               <div className="flex-1">
                 {selectedRows.size > 0
                   ? `${selectedRows.size} of ${rows.length} row(s) selected.`
                   : `${rows.length} ${rows.length === 1 ? 'task' : 'tasks'} found.`}
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <span>{t('Page 1 of 1')}</span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     disabled
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
                     aria-label="Previous page"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
                   <button
                     type="button"
                     disabled
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
                     aria-label="Next page"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
