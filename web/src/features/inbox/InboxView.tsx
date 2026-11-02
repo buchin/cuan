@@ -1219,7 +1219,7 @@ export function InboxView({
       >
         {canvasMode === 'studio' || !activeContact ? (
           <div className="flex h-full flex-1 flex-col overflow-hidden">
-            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 bg-background">
+            <div className="wa-studio-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 bg-background">
               <span className="text-sm font-semibold text-foreground">
                 {t('Studio · New Idea')}
               </span>
@@ -1251,7 +1251,7 @@ export function InboxView({
                   type="button"
                   onClick={handleBackToContacts}
                   title="Back to conversations"
-                  className="min-[1200px]:hidden inline-flex h-9 w-9 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
+                  className="min-[1200px]:hidden inline-flex h-11 w-11 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
@@ -1270,7 +1270,7 @@ export function InboxView({
 
                 <div className="min-w-0 flex flex-col justify-center">
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
-                    <h2 className="truncate text-sm font-semibold leading-tight">
+                    <h2 className="truncate text-base font-semibold leading-tight">
                       {contactDisplayName || activeContact.name}
                     </h2>
                     {activeContact.type === 'customer' && activeContact.email && (

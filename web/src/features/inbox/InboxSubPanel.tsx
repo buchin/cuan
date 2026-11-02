@@ -185,6 +185,9 @@ export function ConversationItem({
               <span className={cn("text-xs truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
+              {contact.is_online && (
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-label="Online" title="Online" />
+              )}
               {unread > 0 && (
                 <span
                   aria-label={`${unread} unread messages`}
@@ -211,13 +214,14 @@ export function ConversationItem({
           {hasActiveWork && (
             <span
               data-testid="task-badge-active"
+              aria-label={`${activeTasks} active tasks`}
               className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
             >
               <StatusDot status="working" size="xs" pulse />
               <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
             </span>
           )}
-          {contact.type === 'agent' ? (
+          {showAgentName ? (
             <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               <Bot className="h-3 w-3 text-primary" />
               <span>{contact.agent_name || 'agent'}</span>
@@ -401,7 +405,7 @@ export function InboxSubPanel({
               aria-label={t('Mark all as read')}
               title={t('Mark all as read')}
               onClick={handleMarkAllRead}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="inline-flex h-8 w-8 min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               <CheckCheck className="h-4 w-4 text-primary" />
             </button>
@@ -426,7 +430,7 @@ export function InboxSubPanel({
               onChange={(e) => handleQueryChange(e.target.value)}
               aria-label={t('Search conversations')}
               placeholder="Search conversations…"
-              className="h-9 w-full rounded-md border border-input bg-background/60 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search w-full border border-input bg-background/60 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
         </ItemActions>
