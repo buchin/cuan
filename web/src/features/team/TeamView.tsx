@@ -1,5 +1,6 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Bot,
   Plus,
@@ -273,7 +274,7 @@ export function TeamView({
   const [search, setSearch] = useState('')
   const [agents, setAgents] = useState<Agent[]>([])
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
-  const [drawerAgent, setDrawerAgent] = useState<Agent | null>(null)
+  const [drawerAgent, setInternalDrawerAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
@@ -823,9 +824,29 @@ export function TeamView({
     return inv.email.toLowerCase().includes(q) || inv.role.toLowerCase().includes(q)
   })
 
-  const activeDrawerAgent = drawerAgent
-    ? agents.find((ag) => ag.id === drawerAgent.id) || drawerAgent
-    : null
+  const [searchParams, setSearchParams] = useSearchParams()
+  const agentParam = searchParams.get('agent') || ''
+
+  const selectAgent = useCallback((agent: Agent | null) => {
+    setInternalDrawerAgent(agent)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (agent) {
+          next.set('agent', agent.id)
+        } else {
+          next.delete('agent')
+        }
+        return next
+      },
+      { replace: true }
+    )
+  }, [setSearchParams])
+  const setDrawerAgent = selectAgent
+
+  const activeDrawerAgent =
+    (agentParam ? agents.find((ag) => ag.id === agentParam) : null) ||
+    (drawerAgent ? agents.find((ag) => ag.id === drawerAgent.id) || drawerAgent : null)
   const activeDrawerAccount = activeDrawerAgent
     ? accounts.find(
         (item) =>
@@ -860,10 +881,10 @@ export function TeamView({
 
   // Auto-select first agent on desktop (>=768px) if no agent is currently selected
   useEffect(() => {
-    if (!drawerAgent && visibleAgents.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
-      setDrawerAgent(visibleAgents[0])
+    if (!activeDrawerAgent && visibleAgents.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
+      selectAgent(visibleAgents[0])
     }
-  }, [visibleAgents, drawerAgent])
+  }, [visibleAgents, activeDrawerAgent, selectAgent])
 
   const renderAgentDetailContent = (
     a: Agent & { connection_state?: string },
@@ -1403,7 +1424,7 @@ export function TeamView({
             {/* Master-Detail Split Container */}
             <div className="flex flex-col md:flex-row gap-6 items-start">
               {/* Left Column: Master List */}
-              <div className={`w-full md:w-80 md:shrink-0 space-y-3 ${drawerAgent ? 'hidden md:block' : 'block'}`}>
+              <div className={`w-full md:w-80 md:shrink-0 space-y-3 ${activeDrawerAgent ? 'hidden md:block' : 'block'}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
@@ -1598,12 +1619,12 @@ export function TeamView({
               </div>
 
               {/* Right Column: Detail Canvas */}
-              <div className={`w-full flex-1 min-w-0 md:border-l md:border-border/40 md:pl-6 ${drawerAgent ? 'block' : 'hidden md:block'}`}>
+              <div className={`w-full flex-1 min-w-0 md:border-l md:border-border/40 md:pl-6 ${activeDrawerAgent ? 'block' : 'hidden md:block'}`}>
                 {activeDrawerAgent && activeDrawerA && activeDrawerState ? (
                   <div className="space-y-4">
                     <button
                       type="button"
-                      onClick={() => setDrawerAgent(null)}
+                      onClick={() => selectAgent(null)}
                       className="md:hidden inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-2"
                     >
                       <ChevronLeft className="h-4 w-4 shrink-0" />
@@ -1629,7 +1650,7 @@ export function TeamView({
             <SlideDrawer
               isOpen={false}
         onClose={() => {
-          setDrawerAgent(null)
+          selectAgent(null)
           setReplaceAgentId('')
           setReplacementKey('')
         }}
@@ -1656,7 +1677,7 @@ export function TeamView({
                   className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
                   onClick={() => {
                     setEditingAgent(activeDrawerAgent)
-                    setDrawerAgent(null)
+                    selectAgent(null)
                   }}
                 >
                   <Pencil className="mr-1.5 h-3.5 w-3.5" />
@@ -1666,7 +1687,7 @@ export function TeamView({
               <button
                 type="button"
                 className="action-secondary min-h-11 px-3 text-xs"
-                onClick={() => setDrawerAgent(null)}
+                onClick={() => selectAgent(null)}
               >
                 {t('Tutup')}
               </button>
@@ -1838,7 +1859,7 @@ export function TeamView({
                     className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-background px-3.5 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors"
                     onClick={() => {
                       setEditingAgent(a)
-                      setDrawerAgent(null)
+                      selectAgent(null)
                     }}
                     aria-label={`Edit ${a.name}`}
                   >

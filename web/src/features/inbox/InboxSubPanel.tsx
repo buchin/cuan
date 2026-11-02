@@ -121,17 +121,15 @@ export function ConversationItem({
     agentForContact(contact, agents),
     now,
   )
-  const warning =
-    contact.type === 'agent' &&
-    [
-      'disabled',
-      'login_required',
-      'quota_limited',
-      'unavailable',
-    ].includes(status.state)
   const id = contact.conversation_id || contact.id
   const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
+  const hasActiveWork = activeTasks > 0
+  const isAgentDisabled = contact.type === 'agent' && (status.state === 'disabled' || status.state === 'inactive')
+  const isAgentConnectionIssue =
+    contact.type === 'agent' &&
+    !hasActiveWork &&
+    ['login_required', 'quota_limited', 'unavailable'].includes(status.state)
 
   const rawAgent = contact.agent_name || ''
   const formattedAgent = rawAgent
@@ -197,8 +195,8 @@ export function ConversationItem({
           {contact.type === 'agent' ? (
             <div className="absolute -bottom-0.5 -right-0.5">
               <StatusDot
-                status={warning ? 'exception' : status.state === 'ready' || status.state === 'online' ? 'healthy' : 'neutral'}
-                pulse={status.state === 'running'}
+                status={hasActiveWork ? 'working' : isAgentDisabled ? 'neutral' : isAgentConnectionIssue ? 'exception' : status.state === 'ready' || status.state === 'online' || status.verified ? 'healthy' : 'neutral'}
+                pulse={hasActiveWork || status.state === 'running'}
                 size="sm"
               />
             </div>
@@ -266,7 +264,7 @@ export function ConversationItem({
             {conversationPreview(contact.last_message)}
           </p>
 
-          {warning && (
+          {isAgentConnectionIssue && (
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
               {status.label}
             </p>

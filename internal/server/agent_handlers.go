@@ -106,7 +106,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 				if profile, err := agent.ProviderAccountForConnection(ownerID, a.ID, conn.ID); err == nil && bindingErr == nil {
 					state = profile.State
 					checkedAt, verifiedAt = profile.LastCheckedAt, profile.VerifiedAt
-					if state == "quota_limited" {
+					if state == "quota_limited" || state == "unavailable" {
 						if profiles, err := agent.ListProviderAccounts(ownerID); err == nil {
 							for _, p := range profiles {
 								if p.ID != conn.ID && p.AllowFailover && p.CredentialsPresent && p.State != "quota_limited" && p.State != "login_required" && p.State != "unavailable" {

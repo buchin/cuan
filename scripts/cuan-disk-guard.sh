@@ -20,6 +20,13 @@ if [ "$USAGE" -ge 75 ]; then
     
     # 4. Clean system journal older than 7 days
     journalctl --vacuum-time=7d 2>/dev/null || true
+
+    # 5. Clean Go and NPM build caches in /tmp and user home
+    rm -rf /tmp/go-build* /tmp/gocache /tmp/go-cache 2>/dev/null || true
+    rm -rf /home/ubuntu/.npm/_cacache /root/.npm/_cacache 2>/dev/null || true
+
+    # 6. Prune agent CLI conversations older than 7 days
+    find /home/ubuntu/.local/share/cuan/accounts/*/home/.gemini/antigravity-cli/conversations/ -mindepth 1 -maxdepth 1 -mtime +7 -exec rm -rf {} + 2>/dev/null || true
     
     NEW_USAGE=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
     echo "$(date -u --iso-8601=seconds) [INFO] Cleanup complete. Disk usage reduced from ${USAGE}% to ${NEW_USAGE}%." >> "$LOG"
