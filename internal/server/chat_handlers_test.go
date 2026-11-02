@@ -1083,3 +1083,50 @@ func TestChatHandlers_CustomerEmail(t *testing.T) {
 		t.Fatalf("expected conv contact Name 'Siti Rahma', got '%s'", convResp.Contact.Name)
 	}
 }
+
+func TestChat_SingleAgentCuanMentionAndContacts(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	repo := cuanDB.NewMemoryAgentRepository()
+	srv.SetAgentRepository(repo)
+
+	// Ensure built-in agents (@cuan, @sm, @dev, @support)
+	if err := cuanDB.EnsureBuiltinAgents(context.Background(), repo); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. GET /api/v1/chat/contacts?type=agents -> verify ONLY @cuan is returned (internal legacy bots are hidden)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Contacts) != 1 {
+		t.Fatalf("expected exactly 1 contact (@cuan), got %d: %+v", len(resp.Contacts), resp.Contacts)
+	}
+	if resp.Contacts[0].Name != "@cuan" {
+		t.Fatalf("expected contact name '@cuan', got '%s'", resp.Contacts[0].Name)
+	}
+
+	// 2. Test mention resolution for @cuan
+	ctx := context.Background()
+	resCuan := srv.resolveConversationContext(ctx, "", "@cuan tolong cek laporan ini")
+	if !resCuan.IsAgent || resCuan.TargetAgentID != cuanDB.AgentIDCuan {
+		t.Fatalf("expected mention @cuan to resolve to agent_cuan, got %+v", resCuan)
+	}
+
+	// 3. Test legacy alias mentions (@team, @sm, @dev, @support) resolve to agent_cuan
+	for _, mention := range []string{"@team halo", "@sm sprint", "@dev build", "@support help"} {
+		resLegacy := srv.resolveConversationContext(ctx, "", mention)
+		if !resLegacy.IsAgent || resLegacy.TargetAgentID != cuanDB.AgentIDCuan {
+			t.Fatalf("expected legacy mention %q to resolve to agent_cuan, got %+v", mention, resLegacy)
+		}
+	}
+}
