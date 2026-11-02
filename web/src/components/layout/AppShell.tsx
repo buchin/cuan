@@ -10,7 +10,6 @@ import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
 import { SlideDrawer } from './SlideDrawer'
-import { ReloadButton } from '../ui/ReloadButton'
 import {
   Inbox,
   CheckSquare,
@@ -19,11 +18,6 @@ import {
   Users,
   Settings,
   MessageSquare,
-  MoreVertical,
-  Bot,
-  Clock,
-  Globe,
-  Keyboard,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -123,44 +117,17 @@ export function AppShell({
   breadcrumbs = [],
   hideSearch,
 }: AppShellProps) {
-  const { t, language, setPreference } = useLanguage()
+  const { t } = useLanguage()
   const { isOwner, user } = useAuth()
   const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
   const routerNavigate = useNavigate()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
-  const moreMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMobileMenuOpen(false)
-    setMoreMenuOpen(false)
   }, [location.pathname])
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        moreMenuRef.current &&
-        !moreMenuRef.current.contains(event.target as Node)
-      ) {
-        setMoreMenuOpen(false)
-      }
-    }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setMoreMenuOpen(false)
-      }
-    }
-    if (moreMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      document.addEventListener('keydown', handleKeyDown)
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [moreMenuOpen])
 
   // Eliminate redundant top navigation search icon on views with internal search inputs/filters or settings/account
   const hasInternalSearch =
@@ -477,106 +444,6 @@ export function AppShell({
               />
               </div>
             )}
-            <div className="relative" ref={moreMenuRef}>
-              <button
-                type="button"
-                data-testid="header-more-menu-trigger"
-                aria-label={t('More options')}
-                aria-expanded={moreMenuOpen}
-                onClick={() => setMoreMenuOpen((open) => !open)}
-                className="icon-action text-muted-foreground hover:text-foreground"
-                title={t('More options')}
-              >
-                <MoreVertical className="h-5 w-5" />
-              </button>
-              {moreMenuOpen && (
-                <div
-                  data-testid="header-more-menu"
-                  role="menu"
-                  className="absolute right-0 top-full mt-1.5 z-50 min-w-52 bg-popover text-popover-foreground border border-border/40 shadow-lg p-1.5 rounded-xl text-sm"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="more-menu-settings"
-                    onClick={() => {
-                      setMoreMenuOpen(false)
-                      routerNavigate('/settings')
-                    }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
-                  >
-                    <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{t('Settings')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="more-menu-agents"
-                    onClick={() => {
-                      setMoreMenuOpen(false)
-                      routerNavigate('/agents')
-                    }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
-                  >
-                    <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{t('Agents')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="more-menu-schedules"
-                    onClick={() => {
-                      setMoreMenuOpen(false)
-                      routerNavigate('/schedules')
-                    }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
-                  >
-                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{t('Schedules')}</span>
-                  </button>
-
-                  <div className="h-px bg-border/40 my-1" />
-
-                  <button
-                    type="button"
-                    role="menuitem"
-                    data-testid="more-menu-language-toggle"
-                    onClick={() => {
-                      const next = language === 'id' ? 'en' : 'id'
-                      setPreference(next)
-                    }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
-                  >
-                    <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{t('Language')}</span>
-                    <span className="ml-auto text-xs font-mono font-medium text-muted-foreground">
-                      {language === 'id' ? 'Bahasa Indonesia' : 'English'}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="hidden sm:flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
-                    onClick={() => {
-                      setMoreMenuOpen(false)
-                      window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))
-                    }}
-                  >
-                    <Keyboard className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{t('Keyboard shortcuts')}</span>
-                    <kbd className="ml-auto text-xs text-muted-foreground font-mono">?</kbd>
-                  </button>
-
-                  <div className="h-px bg-border/40 my-1" />
-
-                  <ReloadButton
-                    variant="menu-item"
-                    label={t('Reload app')}
-                  />
-                </div>
-              )}
-            </div>
           </div>
         </header>
         {secondaryNavigation}

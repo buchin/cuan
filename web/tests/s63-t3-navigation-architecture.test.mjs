@@ -18,7 +18,7 @@ const taskSessionPagePath = path.resolve(webSrcRoot, 'features', 'tasks', 'TaskS
 const taskUiPath = path.resolve(webSrcRoot, 'features', 'tasks', 'task-ui.ts')
 const workspacePathPath = path.resolve(webSrcRoot, 'features', 'tasks', 'workspacePath.ts')
 
-test('1. S63-T3: Top Header MoreVertical [⋮] Menu & Create Button Architecture', () => {
+test('1. S63-T3 & S68: Clean Top Header Action & Zero Visual Clutter Architecture', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
   // Header [+] Create Action button
@@ -31,48 +31,14 @@ test('1. S63-T3: Top Header MoreVertical [⋮] Menu & Create Button Architecture
     'Header must mount CreateAction component'
   )
 
-  // MoreVertical [⋮] Trigger Button
+  // In S68, redundant global MoreVertical popover is eradicated from header for Things 3 Zero Cognitive Fatigue
   assert.ok(
-    appShellSource.includes('data-testid="header-more-menu-trigger"'),
-    'Header must provide MoreVertical trigger with data-testid="header-more-menu-trigger"'
+    !appShellSource.includes('data-testid="header-more-menu-trigger"'),
+    'Header must eliminate redundant MoreVertical trigger in favor of unified NavUser'
   )
   assert.ok(
-    appShellSource.includes('MoreVertical'),
-    'Header must import and render MoreVertical icon'
-  )
-
-  // Dropdown Menu Popover
-  assert.ok(
-    appShellSource.includes('data-testid="header-more-menu"'),
-    'Header must provide dropdown container with data-testid="header-more-menu"'
-  )
-
-  // Menu items: Agents, Schedules, Settings
-  assert.ok(
-    appShellSource.includes('data-testid="more-menu-agents"'),
-    'MoreVertical menu must include Agents action with data-testid="more-menu-agents"'
-  )
-  assert.ok(
-    appShellSource.includes("routerNavigate('/agents')"),
-    'Agents menu item must route to /agents'
-  )
-
-  assert.ok(
-    appShellSource.includes('data-testid="more-menu-schedules"'),
-    'MoreVertical menu must include Schedules action with data-testid="more-menu-schedules"'
-  )
-  assert.ok(
-    appShellSource.includes("routerNavigate('/schedules')"),
-    'Schedules menu item must route to /schedules'
-  )
-
-  assert.ok(
-    appShellSource.includes('data-testid="more-menu-settings"'),
-    'MoreVertical menu must include Settings action with data-testid="more-menu-settings"'
-  )
-  assert.ok(
-    appShellSource.includes("routerNavigate('/settings')"),
-    'Settings menu item must route to /settings'
+    !appShellSource.includes('data-testid="header-more-menu"'),
+    'Header must eliminate redundant header-more-menu dropdown container'
   )
 })
 

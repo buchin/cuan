@@ -39,39 +39,21 @@ test('1. S68-T1: High-Speed & Fail-Fast Pipeline Gate Architecture', () => {
   )
 })
 
-test('2. S68-T2: MoreVertical Top Header Menu & Calm Design Standard', () => {
+test('2. S68-T2: Eradication of Redundant MoreVertical Menu & Zero Visual Noise', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
-  // MoreVertical trigger and container
+  // In S68, redundant MoreVertical popover is completely eliminated from header
   assert.ok(
-    appShellSource.includes('data-testid="header-more-menu-trigger"'),
-    'Header must render MoreVertical trigger'
+    !appShellSource.includes('data-testid="header-more-menu-trigger"'),
+    'Header must not contain duplicate MoreVertical trigger'
   )
   assert.ok(
-    appShellSource.includes('data-testid="header-more-menu"'),
-    'Header must render more options menu container'
-  )
-
-  // Settings action is top priority
-  assert.ok(
-    appShellSource.includes('data-testid="more-menu-settings"'),
-    'MoreVertical menu must include Settings action'
+    !appShellSource.includes('data-testid="header-more-menu"'),
+    'Header must not contain duplicate header-more-menu dropdown'
   )
   assert.ok(
-    appShellSource.includes("routerNavigate('/settings')"),
-    'Settings action must route to /settings'
-  )
-
-  // Quick Language Toggle
-  assert.ok(
-    appShellSource.includes('data-testid="more-menu-language-toggle"'),
-    'MoreVertical menu must provide inline language toggle'
-  )
-
-  // Calm styling: rounded-xl, border-border/40, shadow-lg
-  assert.ok(
-    appShellSource.includes('rounded-xl') && appShellSource.includes('border-border/40'),
-    'MoreVertical menu must use Bear Notes calm styling: rounded-xl and border-border/40'
+    !appShellSource.includes('moreMenuOpen'),
+    'Header must eliminate unnecessary moreMenuOpen state and event listeners'
   )
 })
 

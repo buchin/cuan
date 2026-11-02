@@ -82,9 +82,9 @@ function createDesktopHtml(showMoreMenu = true) {
           </a>
         </nav>
       </div>
-      <!-- User Profile at bottom -->
-      <div class="pt-4 border-t border-border/40">
-        <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/40 transition-colors">
+      <!-- User Profile at bottom with Preferences Popover Open -->
+      <div class="pt-4 border-t border-border/40 relative">
+        <div class="flex items-center gap-3 p-2 rounded-xl bg-accent/40 border border-border/40">
           <div class="h-8 w-8 rounded-full bg-primary text-primary-foreground font-mono font-bold flex items-center justify-center text-xs">
             BU
           </div>
@@ -96,67 +96,55 @@ function createDesktopHtml(showMoreMenu = true) {
             <div class="text-[10px] text-muted-foreground truncate">buchin@dropsugar.com</div>
           </div>
         </div>
+
+        <!-- Rendered NavUser Popover Menu (Single Source of Truth) -->
+        <div class="absolute left-0 bottom-full mb-2 z-50 w-64 bg-popover text-popover-foreground border border-border/40 shadow-xl p-1.5 rounded-xl text-sm">
+          <div class="p-2 border-b border-border/40 mb-1 flex items-center gap-2.5">
+            <div class="h-7 w-7 rounded-full bg-primary text-primary-foreground font-mono font-bold text-xs flex items-center justify-center">BU</div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold text-foreground">Buchin</div>
+              <div class="text-[10px] text-muted-foreground truncate">buchin@dropsugar.com</div>
+            </div>
+          </div>
+          <div class="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Account & Security</div>
+          <a href="#" class="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent rounded-lg transition-colors text-left">
+            <svg class="h-4 w-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+            <span>Profile & password</span>
+          </a>
+          <div class="h-px bg-border/40 my-1"></div>
+          <div class="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Preferences</div>
+          <a href="#" class="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent rounded-lg transition-colors text-left">
+            <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span>Settings</span>
+          </a>
+          <button class="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent rounded-lg transition-colors text-left">
+            <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Language</span>
+            <span class="ml-auto text-xs font-mono text-muted-foreground">Bahasa Indonesia</span>
+          </button>
+          <div class="h-px bg-border/40 my-1"></div>
+          <button class="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left font-semibold">
+            <svg class="h-4 w-4 text-destructive shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            <span>Sign out</span>
+          </button>
+        </div>
       </div>
     </aside>
 
     <!-- Main Workspace -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <!-- Top Navigation Header -->
+      <!-- Top Navigation Header (Clean, Zero Redundant MoreVertical) -->
       <header class="h-14 border-b border-border/40 px-6 flex items-center justify-between bg-card/20">
         <div class="flex items-center gap-3">
           <h1 class="text-sm font-semibold text-foreground">Tasks Workspace</h1>
           <span class="text-xs text-muted-foreground font-mono">Sprint 68</span>
         </div>
         <div class="flex items-center gap-2">
-          <!-- Universal Composer Button -->
+          <!-- Clean Header Action: New Task only (Zero MoreVertical Clutter) -->
           <button class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             <span>New Task</span>
           </button>
-
-          <!-- More Options Menu [⋮] -->
-          <div class="relative">
-            <button class="flex h-9 w-9 items-center justify-center rounded-lg border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
-            </button>
-
-            <!-- Rendered Dropdown Menu -->
-            <div class="absolute right-0 top-full mt-1.5 z-50 min-w-56 bg-popover text-popover-foreground border border-border/40 shadow-xl p-1.5 rounded-xl text-sm animate-in fade-in zoom-in-95">
-              <div class="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Preferences & System</div>
-              <button class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left font-medium">
-                <svg class="h-4 w-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span>Settings</span>
-              </button>
-              <button class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left">
-                <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                <span>Agents</span>
-              </button>
-              <button class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left">
-                <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span>Schedules</span>
-              </button>
-
-              <div class="h-px bg-border/40 my-1"></div>
-
-              <button class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left">
-                <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span>Language</span>
-                <span class="ml-auto text-xs font-mono text-muted-foreground">Bahasa Indonesia</span>
-              </button>
-              <button class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left">
-                <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                <span>Keyboard shortcuts</span>
-                <kbd class="ml-auto text-xs text-muted-foreground font-mono">?</kbd>
-              </button>
-
-              <div class="h-px bg-border/40 my-1"></div>
-
-              <button class="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left">
-                <svg class="h-4 w-4 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                <span>Reload app</span>
-              </button>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -205,19 +193,13 @@ function createMobileHtml() {
 </head>
 <body class="bg-background text-foreground antialiased font-sans">
   <div class="flex flex-col h-screen w-screen overflow-hidden bg-background">
-    <!-- Mobile Top Header -->
+    <!-- Mobile Top Header (Clean, Zero Redundant MoreVertical) -->
     <header class="h-14 border-b border-border/40 px-4 flex items-center justify-between bg-card/20 shrink-0">
       <div class="flex items-center gap-2">
         <div class="h-7 w-7 rounded-lg bg-primary text-primary-foreground font-bold font-mono flex items-center justify-center text-xs">
           C
         </div>
         <span class="font-bold text-base text-foreground tracking-tight">Cuan</span>
-      </div>
-
-      <div class="flex items-center gap-1.5">
-        <button class="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
-        </button>
       </div>
     </header>
 
