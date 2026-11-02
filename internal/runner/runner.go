@@ -649,7 +649,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124
 			compReq.ErrorMessage = fmt.Sprintf("Execution timed out after adaptive timeout (%v)", timeoutDuration)
-		} else if result.ExitCode != 0 || result.Status == "FAILED" {
+		} else if (result.ExitCode != 0 || result.Status == "FAILED") && !r.confirmAgentReport(ctx, claim) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = result.ExitCode
 			if compReq.ExitCode == 0 {
@@ -951,8 +951,16 @@ func (r *Runner) executeWithPTY(
 		Duration: timeoutDuration,
 	}
 	if exitCode != 0 {
-		res.Status = "FAILED"
-		res.Error = fmt.Sprintf("exit code %d", exitCode)
+		// If the agent already submitted and confirmed its final task report, the process
+		// termination (e.g. exit code -1 via signal when sess.Close() is called) is normal completion.
+		if r.confirmAgentReport(ctx, claim) {
+			res.Status = "SUCCESS"
+			res.ExitCode = 0
+			res.Error = ""
+		} else {
+			res.Status = "FAILED"
+			res.Error = fmt.Sprintf("exit code %d", exitCode)
+		}
 	}
 	if waitErr != nil && errors.Is(execCtx.Err(), context.DeadlineExceeded) {
 		res.Status = "TIMEOUT"

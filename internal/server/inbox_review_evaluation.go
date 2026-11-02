@@ -127,25 +127,44 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 }
 
 func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
+	cleanExplanation := raw
+	// If raw is wrapped in JSON, extract explanation to avoid leaking raw JSON envelope into chat
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "```json") {
+		if start := strings.Index(trimmed, "\n"); start >= 0 {
+			if end := strings.LastIndex(trimmed, "```"); end > start {
+				trimmed = strings.TrimSpace(trimmed[start:end])
+			}
+		}
+	}
+	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
+		var jsonObj map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &jsonObj); err == nil {
+			if exp, ok := jsonObj["explanation"].(string); ok && strings.TrimSpace(exp) != "" {
+				cleanExplanation = exp
+			}
+		}
+	}
+
 	upper := strings.ToUpper(raw)
 	if strings.Contains(upper, "BELUM LULUS") || strings.Contains(upper, "TIDAK LULUS") || strings.Contains(upper, "PERLU REVISI") {
 		revision := "Lengkapi kriteria Definition of Done yang belum terpenuhi sesuai evaluasi."
-		if idx := strings.Index(raw, "Gap yang Perlu Diperbaiki"); idx != -1 {
-			gapText := strings.TrimSpace(raw[idx:])
+		if idx := strings.Index(cleanExplanation, "Gap yang Perlu Diperbaiki"); idx != -1 {
+			gapText := strings.TrimSpace(cleanExplanation[idx:])
 			if len(gapText) > 20 {
 				revision = truncateProjectText(gapText, 1000)
 			}
 		}
 		return inboxReviewEvaluation{
 			Decision:    "revise",
-			Explanation: truncateProjectText(raw, 6000),
+			Explanation: truncateProjectText(cleanExplanation, 6000),
 			Revision:    revision,
 		}, nil
 	}
 	if strings.Contains(upper, "LULUS") && !strings.Contains(upper, "BELUM") && !strings.Contains(upper, "TIDAK") {
 		return inboxReviewEvaluation{
 			Decision:    "pass",
-			Explanation: truncateProjectText(raw, 6000),
+			Explanation: truncateProjectText(cleanExplanation, 6000),
 			Revision:    "",
 		}, nil
 	}
