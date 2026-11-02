@@ -411,7 +411,7 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 
 	var nextTaskID string
 	if s.taskSvc != nil {
-		nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\nPhase %d of %d: %s\n\nPart of approved multi-phase plan:\n%s\n\nApproval message: %s\nConversation: %s\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized.", target.NextPhase, target.NextPhase, target.TotalPhases, target.NextTitle, d.Instructions, d.SourceMessageID, q.RoomID)
+		nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\nPhase %d of %d: %s\n\nPart of approved multi-phase plan:\n%s\n\nApproval message: %s\nConversation: %s\nReport actual progress and verification evidence. Stay within this scope.", target.NextPhase, target.NextPhase, target.TotalPhases, target.NextTitle, d.Instructions, d.SourceMessageID, q.RoomID)
 		created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{
 			SourceRoomID:  q.RoomID,
 			ProjectID:     d.ProjectID,

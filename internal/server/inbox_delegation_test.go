@@ -1179,3 +1179,42 @@ func TestInboxDelegation_ResolvesProjectByName(t *testing.T) {
 		t.Fatalf("expected view work message, got: %s", out)
 	}
 }
+
+func TestInboxDelegation_InstructionsDoNotProhibitDeploy(t *testing.T) {
+	s, token, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p1", Name: "Project One"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	roomID := db.GenerateUUID()
+	_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: roomID, ProjectID: "p1", Title: "Room 1", CreatedAt: now, UpdatedAt: now})
+	msgID := db.GenerateUUID()
+	req := db.InboxRequest{OwnerID: owner.ID, AgentID: "agent_lifecycle", RoomID: roomID, RequestID: db.GenerateUUID(), MessageID: msgID, ReplyID: db.GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	msg := &db.ProjectMessage{ID: msgID, RoomID: roomID, AuthorType: "user", Content: "Build service", CreatedAt: now}
+	s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, req, msg)
+
+	del := inboxDelegation{Action: "save", Title: "Build Service", Description: "Build core service\n- [ ] Core built", ProjectID: "p1", AuthorizationID: msgID}
+	raw, _ := json.Marshal(del)
+	s.applyInboxDelegation(ctx, req, "```cuan-delegate\n"+string(raw)+"\n```")
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: "p1"})
+	if len(tasks) == 0 {
+		t.Fatal("task was not created")
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, tasks[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(detail.Instructions, "do not deploy unless authorized") {
+		t.Fatalf("task instructions must NOT contain obsolete prohibition 'do not deploy unless authorized', got: %s", detail.Instructions)
+	}
+	if !strings.Contains(detail.Instructions, "Report actual progress and verification evidence. Stay within this scope.") {
+		t.Fatalf("task instructions missing expected scope guidance, got: %s", detail.Instructions)
+	}
+}

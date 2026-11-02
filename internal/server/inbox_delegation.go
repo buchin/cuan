@@ -420,7 +420,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	} else {
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
-		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope."
 		dodChecklist := extractDoDFromDescription(d.Description)
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
 			SourceRoomID:  q.RoomID,
