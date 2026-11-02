@@ -155,7 +155,7 @@ export function SettingsView({
           !hasExplicitSection ? 'hidden md:block' : 'block'
         }`}
       >
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className={`${section === 'agents' ? 'max-w-5xl' : 'max-w-4xl'} mx-auto space-y-6`}>
           {/* Mobile Back Button to return to categorized master menu */}
           <div className="md:hidden">
             <Link
