@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -113,5 +114,33 @@ func TestTaskReportSendsRepeatedArtifactPaths(t *testing.T) {
 	}
 	if Run([]string{"get", "--artifact", "output.html"}, &out, &errOut) != 2 {
 		t.Fatal("get accepted delivery flags")
+	}
+}
+
+func TestTaskReportItemizedDoD(t *testing.T) {
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data map[string]any
+		json.NewDecoder(r.Body).Decode(&data)
+		note, ok := data["complete_note"].(string)
+		if !ok || !strings.Contains(note, "Criterion 1 passed") || !strings.Contains(note, "Criterion 2 passed") {
+			t.Errorf("complete_note missing dod items: %+v", data)
+		}
+		checklist, ok := data["dod_checklist"].([]any)
+		if !ok || len(checklist) != 2 {
+			t.Errorf("dod_checklist missing or incorrect length: %+v", data)
+		}
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer api.Close()
+
+	path := filepath.Join(t.TempDir(), "capability.json")
+	raw, _ := json.Marshal(Capability{API: api.URL, Token: "fixture", TaskID: "bound"})
+	os.WriteFile(path, raw, 0600)
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", path)
+
+	var out, errOut bytes.Buffer
+	if Run([]string{"report", "--state", "done", "--summary", "Audit done", "--dod-item", "Criterion 1 passed", "--dod-item", "Criterion 2 passed"}, &out, &errOut) != 0 {
+		t.Fatal(errOut.String())
 	}
 }

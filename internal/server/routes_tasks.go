@@ -493,7 +493,11 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {
-		env, prompt, _, _, err := s.issueTaskAgent(r.Context(), resp.Task.ID, resp.Attempt.ID, resp.Attempt.AgentName)
+		claimCtx := r.Context()
+		if resp.WorkingDir != "" {
+			claimCtx = context.WithValue(claimCtx, taskAgentWorkspaceKey{}, resp.WorkingDir)
+		}
+		env, prompt, _, _, err := s.issueTaskAgent(claimCtx, resp.Task.ID, resp.Attempt.ID, resp.Attempt.AgentName)
 		if err != nil {
 			respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("could not prepare task session: %v", err))
 			return

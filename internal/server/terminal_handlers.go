@@ -682,16 +682,22 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					return
 				}
 			}
-			emptyReport := ""
+			var updateSummary *string
+			var updateCompleteNote *string
 			resetCriteria := append([]task.DoDItem{}, detail.DoDChecklist...)
-			for i := range resetCriteria {
-				resetCriteria[i].Completed = false
+			if revision == "" {
+				emptyReport := ""
+				updateSummary = &emptyReport
+				updateCompleteNote = &emptyReport
+				for i := range resetCriteria {
+					resetCriteria[i].Completed = false
+				}
 			}
 
 			// If delegated to cuan-runner, attempt stays in AttemptStatusQueued and task is queued for worker daemon
 			if runnerID == "cuan-runner" {
 				queuedStatus := task.TaskStatusQueued
-				if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &queuedStatus, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: &emptyReport, CompleteNote: &emptyReport}); err != nil {
+				if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &queuedStatus, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: updateSummary, CompleteNote: updateCompleteNote}); err != nil {
 					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
 					respondJSONError(w, 503, "Task status could not be saved")
 					return
@@ -706,7 +712,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 
 			doing := task.TaskStatusDoing
-			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: &emptyReport, CompleteNote: &emptyReport}); err != nil {
+			if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &doing, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: updateSummary, CompleteNote: updateCompleteNote}); err != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
 				respondJSONError(w, 503, "Task status could not be saved")
 				return

@@ -46,6 +46,8 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 	file := fs.String("report-file", "", "Structured JSON report file (never human instructions)")
 	var artifacts []string
 	fs.Func("artifact", "Output file relative to WORKSPACE_DIR to deliver privately in Inbox (repeatable)", func(path string) error { artifacts = append(artifacts, path); return nil })
+	var dodItems []string
+	fs.Func("dod-item", "Itemized Definition of Done verification evidence (repeatable)", func(item string) error { dodItems = append(dodItems, item); return nil })
 	if e := fs.Parse(args[1:]); e != nil {
 		if e == flag.ErrHelp {
 			return 0
@@ -114,6 +116,28 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 				data[strings.ReplaceAll(f.Name, "-", "_")] = *v
 			}
 		})
+		if len(dodItems) > 0 {
+			if data["complete_note"] == nil || data["complete_note"] == "" {
+				var sb strings.Builder
+				sb.WriteString("### Bukti Verifikasi Definition of Done (DoD)\n")
+				for _, itm := range dodItems {
+					sb.WriteString("- [x] ")
+					sb.WriteString(itm)
+					sb.WriteString("\n")
+				}
+				data["complete_note"] = sb.String()
+			}
+			if _, exists := data["dod_checklist"]; !exists {
+				var items []map[string]any
+				for _, itm := range dodItems {
+					items = append(items, map[string]any{
+						"text":      itm,
+						"completed": true,
+					})
+				}
+				data["dod_checklist"] = items
+			}
+		}
 		if len(artifacts) > 0 {
 			data["artifacts"] = artifacts
 		}
