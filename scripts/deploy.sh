@@ -126,7 +126,7 @@ if [[ "$frontend_only" == 1 ]]; then
   if [[ "$is_local" == 1 ]]; then
     echo "==> Syncing static assets locally to /opt/cuan/current/web/dist/..."
     mkdir -p "$HOME/.local/share/cuan-releases/$release_sha/web"
-    cp -a web/dist "$HOME/.local/share/cuan-releases/$release_sha/web/"
+    cp -aL web/dist "$HOME/.local/share/cuan-releases/$release_sha/web/"
     sudo -n rsync -a --delete web/dist/ /opt/cuan/current/web/dist/
   else
     echo "==> Syncing static assets to production ($release_host)..."
@@ -161,7 +161,7 @@ elif [ -d "/opt/cuan/current/web/dist" ]; then
   mkdir -p web
   cp -a /opt/cuan/current/web/dist web/
 fi
-cp -a web/dist "$release_dir/web/"
+cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
 cp README.md "$release_dir/"
 python3 - "$release_dir" "$release_sha" <<'PY'
