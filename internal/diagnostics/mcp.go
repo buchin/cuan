@@ -478,8 +478,9 @@ func RunMCP(in io.Reader, out io.Writer, errOut io.Writer) int {
 			continue
 		}
 
-		// Handle notifications (no response if id is nil)
-		if req.ID == nil && req.Method == "notifications/initialized" {
+		// In JSON-RPC 2.0 and MCP, requests without an ID are notifications.
+		// The server MUST NOT send any response to a notification.
+		if req.ID == nil {
 			continue
 		}
 
@@ -514,6 +515,16 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 	case "tools/list":
 		resp.Result = map[string]any{
 			"tools": nativeMCPTools,
+		}
+
+	case "resources/list":
+		resp.Result = map[string]any{
+			"resources": []any{},
+		}
+
+	case "prompts/list":
+		resp.Result = map[string]any{
+			"prompts": []any{},
 		}
 
 	case "tools/call":

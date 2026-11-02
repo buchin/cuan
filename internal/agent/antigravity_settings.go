@@ -11,6 +11,130 @@ import (
 
 var cliSettingsMu sync.Mutex
 
+var defaultAllowedPermissions = []string{
+	"read_file(*)",
+	"read_url(*)",
+	"mcp(*)",
+	"mcp(cuan-inspect/*)",
+	"mcp(cuan-inspect:*)",
+	"mcp(cuan-platform-mcp/*)",
+	"mcp(cuan-platform-mcp:*)",
+	"mcp(cuan-inspect/inspect_git_status)",
+	"mcp(cuan-inspect/inspect_git_log)",
+	"mcp(cuan-inspect/inspect_git_diff)",
+	"mcp(cuan-inspect/inspect_git_branches)",
+	"mcp(cuan-inspect/inspect_system_health)",
+	"mcp(cuan-inspect/inspect_typecheck)",
+	"mcp(cuan-inspect/list_projects)",
+	"mcp(cuan-inspect/get_project)",
+	"mcp(cuan-inspect/list_tasks)",
+	"mcp(cuan-inspect/get_task)",
+	"mcp(cuan-inspect/create_task_draft)",
+	"mcp(cuan-inspect/update_task_status)",
+	"mcp(cuan-inspect/list_inbox_conversations)",
+	"mcp(cuan-inspect/get_inbox_messages)",
+	"mcp(cuan-inspect/create_inbox_conversation)",
+	"mcp(cuan-inspect/send_inbox_message)",
+	"mcp(cuan-inspect/list_contacts)",
+	"mcp(cuan-inspect/get_contact)",
+	"mcp(cuan-inspect/list_scheduled_jobs)",
+	"mcp(cuan-inspect/get_system_settings)",
+	"mcp(cuan-inspect/inspect_database_query)",
+	"mcp(cuan-inspect/inspect_database_schema)",
+	"mcp(cuan-inspect/inspect_app_logs)",
+	"mcp(cuan-inspect/list_apps)",
+	"mcp(cuan-inspect/list_skills)",
+	"mcp(cuan-inspect/toggle_agent_skill)",
+	"mcp(cuan-platform-mcp/inspect_git_status)",
+	"mcp(cuan-platform-mcp/inspect_git_log)",
+	"mcp(cuan-platform-mcp/inspect_git_diff)",
+	"mcp(cuan-platform-mcp/inspect_git_branches)",
+	"mcp(cuan-platform-mcp/inspect_system_health)",
+	"mcp(cuan-platform-mcp/inspect_typecheck)",
+	"mcp(cuan-platform-mcp/list_projects)",
+	"mcp(cuan-platform-mcp/get_project)",
+	"mcp(cuan-platform-mcp/list_tasks)",
+	"mcp(cuan-platform-mcp/get_task)",
+	"mcp(cuan-platform-mcp/create_task_draft)",
+	"mcp(cuan-platform-mcp/update_task_status)",
+	"mcp(cuan-platform-mcp/list_inbox_conversations)",
+	"mcp(cuan-platform-mcp/get_inbox_messages)",
+	"mcp(cuan-platform-mcp/create_inbox_conversation)",
+	"mcp(cuan-platform-mcp/send_inbox_message)",
+	"mcp(cuan-platform-mcp/list_contacts)",
+	"mcp(cuan-platform-mcp/get_contact)",
+	"mcp(cuan-platform-mcp/list_scheduled_jobs)",
+	"mcp(cuan-platform-mcp/get_system_settings)",
+	"mcp(cuan-platform-mcp/inspect_database_query)",
+	"mcp(cuan-platform-mcp/inspect_database_schema)",
+	"mcp(cuan-platform-mcp/inspect_app_logs)",
+	"mcp(cuan-platform-mcp/list_apps)",
+	"mcp(cuan-platform-mcp/list_skills)",
+	"mcp(cuan-platform-mcp/toggle_agent_skill)",
+	"view_file(*)",
+	"list_dir(*)",
+	"grep_search(*)",
+	"find_by_name(*)",
+	"view_file_outline(*)",
+	"view_code_item(*)",
+	"inspect_git_status(*)",
+	"inspect_git_log(*)",
+	"inspect_git_diff(*)",
+	"inspect_git_branches(*)",
+	"inspect_system_health(*)",
+	"inspect_typecheck(*)",
+	"search_web(*)",
+	"list_projects(*)",
+	"get_project(*)",
+	"list_tasks(*)",
+	"get_task(*)",
+	"create_task_draft(*)",
+	"list_inbox_conversations(*)",
+	"get_inbox_messages(*)",
+	"list_contacts(*)",
+	"get_contact(*)",
+	"list_scheduled_jobs(*)",
+	"get_system_settings(*)",
+	"inspect_database_query(*)",
+	"inspect_database_schema(*)",
+	"inspect_app_logs(*)",
+	"call_mcp_tool(*)",
+	"cuan-inspect/*",
+	"cuan-inspect:*",
+	"cuan-platform-mcp/*",
+	"cuan-platform-mcp:*",
+}
+
+func applyDefaultReadOnlyPermissions(settings map[string]json.RawMessage) bool {
+	var perms struct {
+		Allow []string `json:"allow"`
+		Ask   []string `json:"ask,omitempty"`
+		Deny  []string `json:"deny,omitempty"`
+	}
+	if raw, ok := settings["permissions"]; ok {
+		_ = json.Unmarshal(raw, &perms)
+	}
+	allowSet := make(map[string]bool)
+	for _, rule := range perms.Allow {
+		allowSet[rule] = true
+	}
+	permsChanged := false
+	for _, rule := range defaultAllowedPermissions {
+		if !allowSet[rule] {
+			perms.Allow = append(perms.Allow, rule)
+			allowSet[rule] = true
+			permsChanged = true
+		}
+	}
+	if permsChanged || settings["permissions"] == nil {
+		if data, err := json.Marshal(perms); err == nil {
+			settings["permissions"] = data
+			return true
+		}
+	}
+	return false
+}
+
 // prepareAntigravitySettings uses the provider's documented settings.json keys
 // before first sign-in. It never records acceptance of provider terms or opts in
 // to interaction sharing. Existing explicit preferences remain unchanged.
@@ -77,66 +201,8 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 				changed = true
 			}
 		}
-		var perms struct {
-			Allow []string `json:"allow"`
-			Ask   []string `json:"ask,omitempty"`
-			Deny  []string `json:"deny,omitempty"`
-		}
-		if raw, ok := settings["permissions"]; ok {
-			_ = json.Unmarshal(raw, &perms)
-		}
-		readTools := []string{
-			"read_file(*)",
-			"view_file(*)",
-			"list_dir(*)",
-			"grep_search(*)",
-			"find_by_name(*)",
-			"view_file_outline(*)",
-			"view_code_item(*)",
-			"inspect_git_status(*)",
-			"inspect_git_log(*)",
-			"inspect_git_diff(*)",
-			"inspect_git_branches(*)",
-			"inspect_system_health(*)",
-			"inspect_typecheck(*)",
-			"search_web(*)",
-			"list_projects(*)",
-			"get_project(*)",
-			"list_tasks(*)",
-			"get_task(*)",
-			"create_task_draft(*)",
-			"list_inbox_conversations(*)",
-			"get_inbox_messages(*)",
-			"list_contacts(*)",
-			"get_contact(*)",
-			"list_scheduled_jobs(*)",
-			"get_system_settings(*)",
-			"inspect_database_query(*)",
-			"inspect_database_schema(*)",
-			"inspect_app_logs(*)",
-			"call_mcp_tool(*)",
-			"cuan-inspect/*",
-			"cuan-inspect:*",
-			"cuan-platform-mcp/*",
-			"cuan-platform-mcp:*",
-		}
-		allowSet := make(map[string]bool)
-		for _, rule := range perms.Allow {
-			allowSet[rule] = true
-		}
-		permsChanged := false
-		for _, rule := range readTools {
-			if !allowSet[rule] {
-				perms.Allow = append(perms.Allow, rule)
-				allowSet[rule] = true
-				permsChanged = true
-			}
-		}
-		if permsChanged || settings["permissions"] == nil {
-			if data, err := json.Marshal(perms); err == nil {
-				settings["permissions"] = data
-				changed = true
-			}
+		if applyDefaultReadOnlyPermissions(settings) {
+			changed = true
 		}
 	}
 	if !changed {
@@ -218,66 +284,8 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 			changed = true
 		}
 	}
-	var perms struct {
-		Allow []string `json:"allow"`
-		Ask   []string `json:"ask,omitempty"`
-		Deny  []string `json:"deny,omitempty"`
-	}
-	if raw, ok := settings["permissions"]; ok {
-		_ = json.Unmarshal(raw, &perms)
-	}
-	readTools := []string{
-		"read_file(*)",
-		"view_file(*)",
-		"list_dir(*)",
-		"grep_search(*)",
-		"find_by_name(*)",
-		"view_file_outline(*)",
-		"view_code_item(*)",
-		"inspect_git_status(*)",
-		"inspect_git_log(*)",
-		"inspect_git_diff(*)",
-		"inspect_git_branches(*)",
-		"inspect_system_health(*)",
-		"inspect_typecheck(*)",
-		"search_web(*)",
-		"list_projects(*)",
-		"get_project(*)",
-		"list_tasks(*)",
-		"get_task(*)",
-		"create_task_draft(*)",
-		"list_inbox_conversations(*)",
-		"get_inbox_messages(*)",
-		"list_contacts(*)",
-		"get_contact(*)",
-		"list_scheduled_jobs(*)",
-		"get_system_settings(*)",
-		"inspect_database_query(*)",
-		"inspect_database_schema(*)",
-		"inspect_app_logs(*)",
-		"call_mcp_tool(*)",
-		"cuan-inspect/*",
-		"cuan-inspect:*",
-		"cuan-platform-mcp/*",
-		"cuan-platform-mcp:*",
-	}
-	allowSet := make(map[string]bool)
-	for _, rule := range perms.Allow {
-		allowSet[rule] = true
-	}
-	permsChanged := false
-	for _, rule := range readTools {
-		if !allowSet[rule] {
-			perms.Allow = append(perms.Allow, rule)
-			allowSet[rule] = true
-			permsChanged = true
-		}
-	}
-	if permsChanged || settings["permissions"] == nil {
-		if data, err := json.Marshal(perms); err == nil {
-			settings["permissions"] = data
-			changed = true
-		}
+	if applyDefaultReadOnlyPermissions(settings) {
+		changed = true
 	}
 	if !changed {
 		return nil
