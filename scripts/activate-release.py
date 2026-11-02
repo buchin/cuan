@@ -50,7 +50,7 @@ def restart_and_check(target_sha=None):
         subprocess.run(['systemctl', 'restart', SERVICE], check=True)
     except subprocess.CalledProcessError:
         return False
-    for _ in range(20):
+    for _ in range(60):
         if healthy(target_sha=target_sha):
             return True
         time.sleep(1)
