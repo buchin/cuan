@@ -225,6 +225,18 @@ func ProviderAccountHome(owner, id string) (string, error) {
 	return filepath.Join(dir, "home"), nil
 }
 
+// DeleteProviderAccount removes a provider account and its stored credentials.
+func DeleteProviderAccount(owner, id string) error {
+	if id == "" || id == "legacy" {
+		return errors.New("cannot delete legacy server account")
+	}
+	dir, err := accountDirectory(id)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(dir)
+}
+
 // A filtered child environment avoids inherited provider credentials, config paths,
 // cloud secrets, keyrings and fallback to another user's account. Never os.Setenv HOME.
 func AntigravityProfileEnvironment(home string) []string {

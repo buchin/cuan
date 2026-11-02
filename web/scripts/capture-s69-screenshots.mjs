@@ -128,7 +128,7 @@ function createAgentHtml(isMobile = false) {
                 <h3 class="font-bold text-base text-foreground">Cuan</h3>
                 <span class="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                   <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                  <span>Siap Melayani (3 Otak Terhubung)</span>
+                  <span>Siap Melayani (4 Otak Terhubung)</span>
                 </span>
               </div>
               <p class="text-xs text-muted-foreground mt-0.5">
@@ -164,65 +164,91 @@ function createAgentHtml(isMobile = false) {
 
           <!-- Nodes List -->
           <div class="rounded-2xl border border-border/40 bg-card/40 overflow-hidden divide-y divide-border/30">
-            <!-- Node 1: OpenAI -->
+            <!-- Node 1: Google Antigravity (@sm) -->
             <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-bold text-xs">
-                  AI
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 font-bold text-xs">
+                  G
                 </div>
                 <div>
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold text-sm text-foreground">OpenAI</span>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm text-foreground">Google Antigravity (@sm)</span>
+                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/10 text-blue-400 font-semibold border border-blue-500/25">Langganan Resmi</span>
                     <span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">Siap Melayani</span>
                     <span class="px-2 py-0.5 text-[10px] rounded-full bg-muted text-muted-foreground">Vision Ready</span>
-                    <span class="text-[10px] font-mono text-muted-foreground">gpt-4o</span>
+                    <span class="text-[10px] font-mono text-muted-foreground">gemini-2.5-pro</span>
                   </div>
                   <div class="text-xs text-muted-foreground mt-0.5">
-                    sk-proj-•••••••••••• · <span class="text-emerald-400 font-medium">✓ Latency: 142ms</span>
+                    pin.bbm.id.1@gmail.com · <span class="text-emerald-400 font-medium">✓ Kuota Tersedia</span>
                   </div>
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <button class="px-2.5 py-1 text-xs border border-border/60 rounded-lg text-foreground hover:bg-muted">Tes Latency</button>
+                <button class="px-2.5 py-1 text-xs border border-border/60 rounded-lg text-foreground hover:bg-muted">Tes Kuota</button>
                 <button class="px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 rounded-lg">Putuskan</button>
               </div>
             </div>
 
-            <!-- Node 2: Anthropic Claude -->
+            <!-- Node 2: Google Antigravity (@pin2) -->
             <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 font-bold text-xs">
-                  CL
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 font-bold text-xs">
+                  G
                 </div>
                 <div>
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold text-sm text-foreground">Anthropic (Claude)</span>
-                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">Siap Melayani</span>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm text-foreground">Google Antigravity (@pin2)</span>
+                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/10 text-blue-400 font-semibold border border-blue-500/25">Langganan Resmi</span>
+                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/30">Cadangan (Failover)</span>
                     <span class="px-2 py-0.5 text-[10px] rounded-full bg-muted text-muted-foreground">Vision Ready</span>
+                    <span class="text-[10px] font-mono text-muted-foreground">gemini-2.5-flash</span>
+                  </div>
+                  <div class="text-xs text-muted-foreground mt-0.5">
+                    pin.bbm.id.2@gmail.com · <span class="text-amber-400 font-medium">Siaga Otomatis Saat Kuota Utama Penuh</span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="px-2.5 py-1 text-xs border border-border/60 rounded-lg text-foreground hover:bg-muted">Tes Kuota</button>
+                <button class="px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 rounded-lg">Putuskan</button>
+              </div>
+            </div>
+
+            <!-- Node 3: CommandCode (@cmd) -->
+            <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 font-bold text-xs">
+                  CC
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm text-foreground">CommandCode (@cmd)</span>
+                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/25">Langganan Resmi</span>
+                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">Siap Melayani</span>
                     <span class="text-[10px] font-mono text-muted-foreground">claude-3-7-sonnet</span>
                   </div>
                   <div class="text-xs text-muted-foreground mt-0.5">
-                    sk-ant-•••••••••••• · <span class="text-emerald-400 font-medium">✓ Latency: 185ms</span>
+                    Sesi Browser Terhubung · <span class="text-emerald-400 font-medium">✓ Aktif</span>
                   </div>
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <button class="px-2.5 py-1 text-xs border border-border/60 rounded-lg text-foreground hover:bg-muted">Tes Latency</button>
+                <button class="px-2.5 py-1 text-xs border border-border/60 rounded-lg text-foreground hover:bg-muted">Tes Kuota</button>
                 <button class="px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 rounded-lg">Putuskan</button>
               </div>
             </div>
 
-            <!-- Node 3: DeepSeek -->
+            <!-- Node 4: DeepSeek BYOK -->
             <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 font-bold text-xs">
                   DS
                 </div>
                 <div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-semibold text-sm text-foreground">DeepSeek</span>
+                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-muted text-muted-foreground font-semibold border border-border">Kunci API (BYOK)</span>
                     <span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/30">Siap Melayani</span>
-                    <span class="px-2 py-0.5 text-[10px] rounded-full bg-muted text-muted-foreground">Teks Cepat</span>
                     <span class="text-[10px] font-mono text-muted-foreground">deepseek-chat</span>
                   </div>
                   <div class="text-xs text-muted-foreground mt-0.5">

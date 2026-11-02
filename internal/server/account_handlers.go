@@ -205,3 +205,16 @@ func (s *Server) handleProviderAccountUsage(w http.ResponseWriter, r *http.Reque
 	}
 	respondJSON(w, 200, agent.FetchAccountModelUsage(r.Context(), owner, id))
 }
+
+func (s *Server) handleDeleteProviderAccount(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	id := chi.URLParam(r, "accountID")
+	if err := agent.DeleteProviderAccount(owner, id); err != nil {
+		respondJSONError(w, 400, "Could not delete account: "+err.Error())
+		return
+	}
+	respondJSON(w, 200, map[string]any{"status": "deleted", "id": id})
+}

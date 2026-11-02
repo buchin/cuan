@@ -73,6 +73,7 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 		ar.Post("/{accountID}/auth-init", s.handleProviderAccountAuthInit)
 		ar.Post("/{accountID}/auth-code", s.handleProviderAccountAuthCode)
 		ar.Post("/{accountID}/verify", s.handleVerifyProviderAccount)
+		ar.Delete("/{accountID}", s.handleDeleteProviderAccount)
 		ar.Patch("/{accountID}/failover", s.handleProviderAccountFailover)
 		ar.Patch("/{accountID}/model-fallback", s.handleProviderAccountFailover)
 		ar.Get("/{accountID}/usage", s.handleProviderAccountUsage)

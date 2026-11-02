@@ -85,4 +85,8 @@ export const accountsApi = {
         { method: 'POST' },
       )
     ).account,
+  delete: async (id: string) =>
+    apiFetch<{ status: string; id: string }>(`${base}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
 }
