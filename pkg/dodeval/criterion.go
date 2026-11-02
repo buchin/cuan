@@ -98,6 +98,11 @@ func ParseChecklist(input string) []Criterion {
 	return items
 }
 
+// ParseAcceptanceCriteria is an alias to ParseChecklist for DoD and Acceptance Criteria extraction.
+func ParseAcceptanceCriteria(input string) []Criterion {
+	return ParseChecklist(input)
+}
+
 // cleanMarkdownFormatting strips bold, italic, code backticks, and trailing punctuation for matching.
 func cleanMarkdownFormatting(s string) string {
 	s = strings.ReplaceAll(s, "**", "")

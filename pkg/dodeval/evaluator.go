@@ -8,12 +8,18 @@ import (
 
 // Evidence holds all verified facts, test outputs, notes, and artifacts submitted for evaluation.
 type Evidence struct {
-	Assertions  []string       `json:"assertions,omitempty"`
-	Summary     string         `json:"summary,omitempty"`
-	Notes       string         `json:"notes,omitempty"`
-	Artifacts   []string       `json:"artifacts,omitempty"`
-	TestSummary string         `json:"test_summary,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	Assertions        []string       `json:"assertions,omitempty"`
+	Summary           string         `json:"summary,omitempty"`
+	Notes             string         `json:"notes,omitempty"`
+	CompleteNote      string         `json:"complete_note,omitempty"`
+	Artifacts         []string       `json:"artifacts,omitempty"`
+	TestSummary       string         `json:"test_summary,omitempty"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
+	CleanWorkingTree  bool           `json:"clean_working_tree"`
+	TargetedTestsPass bool           `json:"targeted_tests_pass"`
+	BuildZeroError    bool           `json:"build_zero_error"`
+	TestOutput        string         `json:"test_output,omitempty"`
+	CommitSHA         string         `json:"commit_sha,omitempty"`
 }
 
 // EvaluationResult contains the objective comparison between criteria and evidence.
@@ -142,13 +148,33 @@ func buildEvidenceCorpus(ev Evidence) string {
 	sb.WriteString(" ")
 	sb.WriteString(strings.ToLower(ev.Notes))
 	sb.WriteString(" ")
+	sb.WriteString(strings.ToLower(ev.CompleteNote))
+	sb.WriteString(" ")
 	sb.WriteString(strings.ToLower(ev.TestSummary))
+	sb.WriteString(" ")
+	sb.WriteString(strings.ToLower(ev.TestOutput))
+	sb.WriteString(" ")
+	sb.WriteString(strings.ToLower(ev.CommitSHA))
 	sb.WriteString(" ")
 	for _, art := range ev.Artifacts {
 		sb.WriteString(strings.ToLower(art))
 		sb.WriteString(" ")
 	}
+	if ev.CleanWorkingTree {
+		sb.WriteString(" working tree clean git clean status ")
+	}
+	if ev.TargetedTestsPass {
+		sb.WriteString(" targeted automated tests pass 100% unit tests pass test pass ")
+	}
+	if ev.BuildZeroError {
+		sb.WriteString(" build zero error kompilasi 0 error build pass ")
+	}
 	return sb.String()
+}
+
+// AnalyzeGaps evaluates criteria against evidence using the default Evaluator.
+func AnalyzeGaps(criteria []Criterion, evidence Evidence) *EvaluationResult {
+	return NewEvaluator().Evaluate(criteria, evidence)
 }
 
 // matchesEvidence checks if a criterion is satisfied by the evidence corpus.

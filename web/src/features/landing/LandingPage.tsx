@@ -22,6 +22,7 @@ import {
   Users,
   Calendar,
   Terminal,
+  Workflow,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -293,6 +294,11 @@ export function LandingPage() {
                 Icon: Sparkles,
                 title: 'SlideDrawer Progressive Disclosure.',
                 text: 'Tap task references directly inside chat bubbles to slide open rich task inspection on the right without interrupting or obscuring the conversation stream.',
+              },
+              {
+                Icon: Workflow,
+                title: 'Micro-modular task orchestration & DoD evaluator.',
+                text: 'Zero-dependency state machine engine (taskfsm) and automated markdown criteria evaluator (dodeval) enforce strict quality guardrails with lightning-fast execution (<10ms).',
               },
               {
                 Icon: CheckCircle2,
