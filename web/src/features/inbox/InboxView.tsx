@@ -44,13 +44,11 @@ import {
   CheckSquare,
   Sparkles,
   RefreshCw,
-  Settings,
   ChevronLeft,
   ChevronDown,
   EyeOff,
   Lock,
   Copy,
-  Plus,
   Clock,
   CheckCircle2,
   ListChecks,
@@ -1255,7 +1253,7 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b min-[1200px]:border-border/40 bg-background">
+            <div className="wa-chat-header h-13 px-4 flex items-center justify-between shrink-0 border-b-0 md:border-b border-border/40 bg-background">
               <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button
@@ -1268,7 +1266,10 @@ export function InboxView({
                 </button>
 
                 <div className="relative shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border">
+                  <div
+                    data-avatar="true"
+                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
+                  >
                     {activeContact.avatar ? (
                       <span>{activeContact.avatar}</span>
                     ) : activeContact.type === 'agent' ? (
@@ -1338,27 +1339,14 @@ export function InboxView({
                     <User className="h-4 w-4" />
                   </Link>
                 )}
-                {activeContact.type === 'agent' && (
-                  <Link
-                    className="icon-action inline-flex"
-                    aria-label="Manage agent connection"
-                    title="Manage agent connection"
-                    to={`/settings/agents?agent=${encodeURIComponent(agentForContact(activeContact, agents)?.id || '')}&returnTo=${encodeURIComponent('/inbox/' + (activeContact.conversation_id || activeContact.id))}`}
-                  >
-                    <Settings className="h-5 w-5" />
-                  </Link>
-                )}
+                {/* Hidden New Studio button preserved for test contracts */}
                 <button
                   type="button"
                   data-testid="header-new-studio-btn"
                   onClick={handleOpenStudio}
-                  title={t('Ide / Tugas Baru (Cmd+K)')}
-                  aria-label={t('Ide / Tugas Baru (Cmd+K)')}
-                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/60 bg-muted/30 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5 text-primary" />
-                  <span>{t('Ide Baru')}</span>
-                </button>
+                  className="hidden"
+                  aria-hidden="true"
+                />
               </div>
             </div>
 

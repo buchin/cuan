@@ -156,12 +156,24 @@ export function ConversationItem({
     run: () => archive.archive(id, !showArchived),
   }
 
+  const isSubjectRedundant =
+    !subject ||
+    subject === formattedAgent ||
+    subject === rawAgent ||
+    subject === contact.name ||
+    subject === t('Percakapan') ||
+    subject === t('Asisten AI')
+
   return (
     <ItemActions
       key={contact.id}
       label={contact.name}
       swipeAction={archiveAction}
-      className={cn('inbox-item-row border-b border-border/40', !isLast && 'has-divider')}
+      className={cn(
+        'inbox-item-row border-b border-border/40 transition-colors hover:bg-accent/40',
+        isSelected && 'bg-accent/70 text-accent-foreground font-medium',
+        !isLast && 'has-divider',
+      )}
       actions={[
         { label: 'Open conversation', run: openContact },
         { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
@@ -175,13 +187,16 @@ export function ConversationItem({
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
-          'inbox-contact-row flex items-start gap-3 w-full min-h-[4.5rem] p-3 text-left transition-all hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring border-0',
-          isSelected && 'bg-accent/70 text-accent-foreground font-medium shadow-none',
+          'inbox-contact-row flex items-start gap-3 w-full min-h-[4.5rem] p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring border-0 bg-transparent',
+          isSelected && 'text-accent-foreground font-medium shadow-none',
         )}
       >
-        {/* Avatar with Online Dot (inbox-app-01 style) */}
+        {/* Avatar with Online Dot (inbox-app-01 style with circular rounded-full avatar & dot) */}
         <div className="relative shrink-0 mt-0.5">
-          <div className="h-9 w-9 bg-secondary/80 flex items-center justify-center font-bold text-xs border border-border/50 text-foreground">
+          <div
+            data-avatar="true"
+            className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center font-bold text-xs border border-border/50 text-foreground overflow-hidden avatar"
+          >
             {contact.avatar ? (
               <span>{contact.avatar}</span>
             ) : contact.type === 'agent' ? (
@@ -192,7 +207,7 @@ export function ConversationItem({
           </div>
           {contact.is_online && (
             <span
-              className="absolute -bottom-0.5 -right-0.5 h-2 w-2 bg-emerald-500 border border-background"
+              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 rounded-full border-2 border-background status-dot"
               aria-label="Online"
               title="Online"
             />
@@ -219,9 +234,11 @@ export function ConversationItem({
             </span>
           </div>
 
-          <div className="text-xs font-medium text-foreground/80 truncate">
-            {subject}
-          </div>
+          {!isSubjectRedundant && (
+            <div className="text-xs font-medium text-foreground/80 truncate">
+              {subject}
+            </div>
+          )}
 
           <p className="text-xs text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
             {conversationPreview(contact.last_message)}
@@ -337,7 +354,6 @@ export function InboxSubPanel({
     else setInternalQuery(val)
   }
 
-  const agentCount = contacts.filter((c) => c.type === 'agent').length
   const customerCount = contacts.filter((c) => c.type === 'customer').length
   const activeCustomerCount = contacts.filter((c) => c.type === 'customer' && c.has_messages !== false).length
   const onlineVisitorCount = contacts.filter((c) => c.type === 'customer' && c.is_online).length
@@ -347,6 +363,18 @@ export function InboxSubPanel({
     (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
     0
   )
+  const agentUnreadCount = contacts
+    .filter((c) => c.type === 'agent')
+    .reduce(
+      (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
+      0
+    )
+  const customerUnreadCount = contacts
+    .filter((c) => c.type === 'customer')
+    .reduce(
+      (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
+      0
+    )
   const handleMarkAllRead = async () => {
     if (markingAll) return
     setMarkingAll(true)
@@ -401,11 +429,11 @@ export function InboxSubPanel({
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       {/* ── Single Unified Header (matching shadcn Mail h-13) ── */}
-      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/60 px-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold tracking-tight text-foreground">{t('Inbox')}</h1>
+      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/40 px-4">
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-sm font-semibold tracking-tight text-foreground">{t('Inbox')}</h1>
           {totalUnreadCount > 0 && (
-            <span className="rounded-full bg-primary/15 text-primary px-2 py-0.5 text-xs font-mono font-semibold">
+            <span className="font-mono text-xs text-muted-foreground font-normal">
               {totalUnreadCount}
             </span>
           )}
@@ -434,30 +462,31 @@ export function InboxSubPanel({
               <CheckCheck className="h-4 w-4 text-primary" />
             </button>
           )}
+          <ItemActions
+            label="Inbox"
+            actions={[
+              ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
+              { label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') },
+            ]}
+          >
+            <span className="sr-only">Actions</span>
+          </ItemActions>
         </div>
       </div>
 
       {/* ── Search & Filter Toolbar ── */}
       <div className="p-3 pb-2 space-y-2 border-b border-border/40">
-        <ItemActions
-          label="Inbox"
-          actions={[
-            ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
-            { label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') },
-          ]}
-        >
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => handleQueryChange(e.target.value)}
-              aria-label={t('Search conversations')}
-              placeholder="Search conversations…"
-              className="min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search w-full md:min-h-8 md:h-8 md:text-xs md:py-1 md:rounded-md border border-input bg-background/60 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-        </ItemActions>
+        <div className="relative w-full">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => handleQueryChange(e.target.value)}
+            aria-label={t('Search conversations')}
+            placeholder="Search conversations…"
+            className="min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search w-full md:min-h-8 md:h-8 md:text-xs md:py-1 md:rounded-none border border-input bg-background/60 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
 
         {/* Filter Categories: All, Agents, Customers, Archived */}
         <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Conversation filters')}>
@@ -485,14 +514,18 @@ export function InboxSubPanel({
               handleTabClick('agents')
             }}
             className={cn(
-              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
+              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
               activeTab === 'agents' && !showArchived
                 ? 'bg-secondary text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
             <span>{t('Agents')}</span>
-            <span className="font-mono text-[10px] text-muted-foreground">({agentCount})</span>
+            {agentUnreadCount > 0 && (
+              <span className="font-mono text-[10px] px-1.5 py-0.2 bg-primary text-primary-foreground font-bold">
+                {agentUnreadCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -502,7 +535,7 @@ export function InboxSubPanel({
               handleTabClick('customers')
             }}
             className={cn(
-              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
+              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
               activeTab === 'customers' && !showArchived
                 ? 'bg-secondary text-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -510,12 +543,16 @@ export function InboxSubPanel({
           >
             <span>{t('Customers')}</span>
             {onlineVisitorCount > 0 && (
-              <span className="relative flex h-1.5 w-1.5" title={`${onlineVisitorCount} ${t('online')}`}>
+              <span className="relative flex h-2 w-2" title={`${onlineVisitorCount} ${t('online')}`}>
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 status-dot"></span>
               </span>
             )}
-            <span className="font-mono text-[10px] text-muted-foreground">({customerCount})</span>
+            {customerUnreadCount > 0 && (
+              <span className="font-mono text-[10px] px-1.5 py-0.2 bg-primary text-primary-foreground font-bold">
+                {customerUnreadCount}
+              </span>
+            )}
           </button>
           <button
             type="button"

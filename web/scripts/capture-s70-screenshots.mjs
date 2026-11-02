@@ -70,13 +70,13 @@ function renderSidebar(activeTab = 'tasks') {
       <div class="flex flex-col">
         <!-- Brand Header (52px / h-13 matching shadcn Mail) -->
         <div class="h-13 px-3 flex items-center justify-between border-b border-border/40">
-          <div class="flex items-center gap-2">
-            <div class="h-5 w-5 rounded-md bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs">
+          <div class="flex items-center gap-2.5">
+            <div class="h-6 w-6 rounded-none bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs shrink-0">
               c
             </div>
-            <span class="text-sm font-semibold tracking-tight text-foreground">cuan</span>
+            <span class="text-base font-bold tracking-tight text-foreground">cuan</span>
           </div>
-          <button class="h-7 w-7 rounded-md border border-border/40 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+          <button class="h-7 w-7 rounded-none border border-border/40 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">
             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
           </button>
         </div>
@@ -569,71 +569,91 @@ function createDesktopInboxHtml() {
 
     <!-- Middle Pane: Conversation / Mail List SubPanel (shadcn Mail) -->
     <aside class="w-80 md:w-96 border-r border-border/40 flex flex-col shrink-0 bg-card/10">
-      <!-- Top header with Tabs -->
-      <div class="p-4 border-b border-border/40 space-y-3">
-        <div class="flex items-center justify-between">
-          <h1 class="text-xl font-bold tracking-tight text-foreground">Inbox</h1>
-          <div class="flex items-center rounded-lg bg-muted/60 p-1 text-xs">
-            <button class="px-3 py-1 rounded-md bg-background text-foreground font-semibold shadow-xs">All mail</button>
-            <button class="px-3 py-1 rounded-md text-muted-foreground hover:text-foreground">Unread</button>
-          </div>
+      <!-- Top header (52px continuous line) -->
+      <div class="h-13 px-4 border-b border-border/40 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-1.5">
+          <h1 class="text-sm font-semibold tracking-tight text-foreground">Inbox</h1>
+          <span class="font-mono text-xs text-muted-foreground font-normal">128</span>
         </div>
-
-        <!-- Search Bar -->
-        <div class="relative">
-          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">${icons.search}</span>
-          <input type="text" placeholder="Search conversations..." class="h-9 w-full rounded-lg border border-border/60 bg-card/60 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+        <div class="flex items-center gap-1">
+          <button class="h-7 px-2.5 text-xs font-semibold bg-secondary text-foreground">All</button>
+          <button class="h-7 px-2 text-xs font-medium text-muted-foreground">Agents</button>
+          <button class="h-7 px-2 text-xs font-medium text-muted-foreground">Customers</button>
         </div>
       </div>
 
-      <!-- Mail List Items (3-tier shadcn style) -->
-      <div class="flex-1 overflow-y-auto divide-y divide-border/20 p-2 space-y-1">
+      <!-- Search Bar (Full Width) -->
+      <div class="p-3 border-b border-border/40">
+        <div class="relative w-full">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground pointer-events-none">${icons.search}</span>
+          <input type="text" placeholder="Search conversations…" class="h-8 w-full border border-border/60 bg-background/60 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+        </div>
+      </div>
+
+      <!-- Mail List Items (3-tier shadcn style with edge-to-edge divide-y, circular avatars, and no redundant agent under title) -->
+      <div class="flex-1 overflow-y-auto divide-y divide-border/40">
         <!-- Item 1 (Selected) -->
-        <div class="p-3 rounded-xl bg-accent text-accent-foreground space-y-1.5 cursor-pointer shadow-xs border border-border/40">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-xs text-foreground">William Smith</span>
-              <span class="h-2 w-2 rounded-full bg-primary"></span>
+        <div class="p-3 bg-accent text-accent-foreground flex items-start gap-3 cursor-pointer">
+          <div class="relative shrink-0 mt-0.5">
+            <div class="h-9 w-9 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs border border-primary/30 avatar overflow-hidden">
+              WS
             </div>
-            <span class="text-[11px] font-mono text-muted-foreground">10m ago</span>
+            <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 rounded-full border-2 border-background status-dot"></span>
           </div>
-          <div class="text-xs font-semibold text-foreground">Meeting Schedule & Project Roadmap</div>
-          <p class="text-xs text-muted-foreground line-clamp-2">
-            Hi Buchin, regarding our discussion on the new sprint navigation overhaul, let's align on the roadmap...
-          </p>
-          <div class="flex items-center gap-1.5 pt-1">
-            <span class="px-2 py-0.5 rounded-md bg-muted/80 text-[10px] font-medium text-foreground">meeting</span>
-            <span class="px-2 py-0.5 rounded-md bg-muted/80 text-[10px] font-medium text-foreground">work</span>
+          <div class="flex-1 min-w-0 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-xs text-foreground truncate">William Smith</span>
+              <span class="text-[11px] font-mono text-muted-foreground shrink-0">10m ago</span>
+            </div>
+            <p class="text-xs text-muted-foreground line-clamp-2">
+              Hi Buchin, regarding our discussion on the new sprint navigation overhaul, let's align on the roadmap...
+            </p>
+            <div class="flex items-center gap-1.5 pt-1">
+              <span class="px-1.5 py-0.2 bg-muted/80 text-[10px] font-medium text-foreground">meeting</span>
+              <span class="px-1.5 py-0.2 bg-muted/80 text-[10px] font-medium text-foreground">work</span>
+            </div>
           </div>
         </div>
 
         <!-- Item 2 -->
-        <div class="p-3 rounded-xl hover:bg-muted/30 space-y-1.5 cursor-pointer transition-colors">
-          <div class="flex items-center justify-between">
-            <span class="font-semibold text-xs text-foreground">Alice Johnson</span>
-            <span class="text-[11px] font-mono text-muted-foreground">1d ago</span>
+        <div class="p-3 hover:bg-accent/40 flex items-start gap-3 cursor-pointer transition-colors">
+          <div class="relative shrink-0 mt-0.5">
+            <div class="h-9 w-9 rounded-full bg-secondary text-foreground font-bold flex items-center justify-center text-xs border border-border/50 avatar overflow-hidden">
+              AJ
+            </div>
           </div>
-          <div class="text-xs font-medium text-foreground">Re: Campaign Automation Feedback</div>
-          <p class="text-xs text-muted-foreground line-clamp-2">
-            The automated agent response is working flawlessly! Let's activate it for all incoming client leads.
-          </p>
-          <div class="flex items-center gap-1.5 pt-1">
-            <span class="px-2 py-0.5 rounded-md bg-muted/40 text-[10px] font-medium text-muted-foreground">marketing</span>
+          <div class="flex-1 min-w-0 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-xs text-foreground truncate">Alice Johnson</span>
+              <span class="text-[11px] font-mono text-muted-foreground shrink-0">1d ago</span>
+            </div>
+            <p class="text-xs text-muted-foreground line-clamp-2">
+              The automated agent response is working flawlessly! Let's activate it for all incoming client leads.
+            </p>
+            <div class="flex items-center gap-1.5 pt-1">
+              <span class="px-1.5 py-0.2 bg-muted/40 text-[10px] font-medium text-muted-foreground">marketing</span>
+            </div>
           </div>
         </div>
 
         <!-- Item 3 -->
-        <div class="p-3 rounded-xl hover:bg-muted/30 space-y-1.5 cursor-pointer transition-colors">
-          <div class="flex items-center justify-between">
-            <span class="font-semibold text-xs text-foreground">Bob Martinez</span>
-            <span class="text-[11px] font-mono text-muted-foreground">2d ago</span>
+        <div class="p-3 hover:bg-accent/40 flex items-start gap-3 cursor-pointer transition-colors">
+          <div class="relative shrink-0 mt-0.5">
+            <div class="h-9 w-9 rounded-full bg-secondary text-foreground font-bold flex items-center justify-center text-xs border border-border/50 avatar overflow-hidden">
+              BM
+            </div>
           </div>
-          <div class="text-xs font-medium text-foreground">Question about Resend Integration</div>
-          <p class="text-xs text-muted-foreground line-clamp-2">
-            Can we configure fallback SMTP credentials when the quota is exceeded?
-          </p>
-          <div class="flex items-center gap-1.5 pt-1">
-            <span class="px-2 py-0.5 rounded-md bg-muted/40 text-[10px] font-medium text-muted-foreground">support</span>
+          <div class="flex-1 min-w-0 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-xs text-foreground truncate">Bob Martinez</span>
+              <span class="text-[11px] font-mono text-muted-foreground shrink-0">2d ago</span>
+            </div>
+            <p class="text-xs text-muted-foreground line-clamp-2">
+              Can we configure fallback SMTP credentials when the quota is exceeded?
+            </p>
+            <div class="flex items-center gap-1.5 pt-1">
+              <span class="px-1.5 py-0.2 bg-muted/40 text-[10px] font-medium text-muted-foreground">support</span>
+            </div>
           </div>
         </div>
       </div>
@@ -641,11 +661,14 @@ function createDesktopInboxHtml() {
 
     <!-- Right Pane: Conversation Reader Canvas (Bear Notes / Things 3 Calm Style) -->
     <main class="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
-      <!-- Conversation Header (52px / h-13 continuous horizontal line) -->
+      <!-- Conversation Header (52px / h-13 continuous horizontal line aligning with Middle & Left header) -->
       <header class="h-13 border-b border-border/40 px-6 flex items-center justify-between shrink-0 bg-background">
         <div class="flex items-center gap-3">
-          <div class="h-9 w-9 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs border border-primary/30">
-            WS
+          <div class="relative shrink-0">
+            <div class="h-9 w-9 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs border border-primary/30 avatar overflow-hidden">
+              WS
+            </div>
+            <span class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 rounded-full border-2 border-background status-dot"></span>
           </div>
           <div>
             <div class="text-sm font-bold text-foreground">William Smith</div>
@@ -653,9 +676,9 @@ function createDesktopInboxHtml() {
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button class="h-8 px-3 rounded-lg border border-border/60 text-xs font-medium text-foreground hover:bg-muted/40">Reply</button>
-          <button class="h-8 px-3 rounded-lg border border-border/60 text-xs font-medium text-foreground hover:bg-muted/40">Forward</button>
-          <button class="h-8 w-8 rounded-lg border border-border/60 flex items-center justify-center text-muted-foreground hover:bg-muted/40">${icons.moreHorizontal}</button>
+          <button class="h-8 px-3 border border-border/60 text-xs font-medium text-foreground hover:bg-muted/40">Reply</button>
+          <button class="h-8 px-3 border border-border/60 text-xs font-medium text-foreground hover:bg-muted/40">Forward</button>
+          <button class="h-8 w-8 border border-border/60 flex items-center justify-center text-muted-foreground hover:bg-muted/40">${icons.moreHorizontal}</button>
         </div>
       </header>
 

@@ -311,10 +311,10 @@ export function AppShell({
           <Link
             to="/chat"
             aria-label={t('Go to Chat')}
-            className="inline-flex h-8 items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            className="inline-flex h-8 items-center gap-2.5 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
-            <CuanMark decorative className="h-5 w-5" />
-            <span className="nav-label text-sm font-semibold tracking-tight">
+            <CuanMark decorative className="h-6 w-6 shrink-0" />
+            <span className="nav-label text-base font-bold tracking-tight">
               cuan
             </span>
           </Link>

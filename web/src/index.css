@@ -402,7 +402,7 @@ body:has(.task-terminal-container),
   display: none !important;
 }
 
-/* Zero Border Radius Aesthetic (Precision Sharp / Brutalist Architecture) */
+/* Zero Border Radius Aesthetic (Precision Sharp Architecture, with circular avatars & status dots) */
 *,
 ::before,
 ::after {
@@ -416,8 +416,22 @@ body:has(.task-terminal-container),
 .rounded-xl,
 .rounded-2xl,
 .rounded-3xl,
-.rounded-full:not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot) {
+.rounded-full:not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar) {
   border-radius: 0px !important;
+}
+
+.avatar,
+[data-avatar],
+.user-avatar,
+.agent-avatar {
+  border-radius: 9999px !important;
+}
+
+.status-dot,
+[data-status-dot],
+.status-indicator,
+.avatar-dot {
+  border-radius: 9999px !important;
 }
 
 .wa-message-bubble,

@@ -70,7 +70,7 @@
   border-bottom: none;
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 768px) {
   .wa-chat-header,
   .calm-chat-header {
     border-bottom: 1px solid hsl(var(--border) / 0.35);
