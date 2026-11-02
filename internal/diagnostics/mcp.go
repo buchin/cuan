@@ -214,6 +214,33 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "update_task_status",
+		Description: "Update task status and execution notes (e.g. todo, in_progress, review, done, blocked, canceled).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": "Task ID",
+				},
+				"status": map[string]any{
+					"type":        "string",
+					"enum":        []string{"todo", "in_progress", "doing", "review", "done", "blocked", "canceled", "backlog"},
+					"description": "Target status",
+				},
+				"summary": map[string]any{
+					"type":        "string",
+					"description": "Summary of work done or planned",
+				},
+				"complete_note": map[string]any{
+					"type":        "string",
+					"description": "Verification notes, test evidence, or blocker explanation",
+				},
+			},
+			"required": []string{"task_id", "status"},
+		},
+	},
+	{
 		Name:        "list_inbox_conversations",
 		Description: "List customer chat conversations and project rooms in Cuan Inbox, including room ID, project ID, title, and topic.",
 		InputSchema: map[string]any{
@@ -246,6 +273,53 @@ var nativeMCPTools = []mcpToolDefinition{
 				},
 			},
 			"required": []string{"room_id"},
+		},
+	},
+	{
+		Name:        "create_inbox_conversation",
+		Description: "Create a new discussion room or agent conversation in Cuan Inbox, optionally bound to an agent (@sm, @dev, @support) and project.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"agent_id": map[string]any{
+					"type":        "string",
+					"description": "Agent persona ID or alias (@sm, @dev, @support, agent_sm, agent_dev). Default: agent_sm",
+				},
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID or name (default: default)",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Optional title for the conversation (default: 'New conversation')",
+				},
+			},
+		},
+	},
+	{
+		Name:        "send_inbox_message",
+		Description: "Send a user message to an inbox conversation or room in Cuan, with optional waiting for the agent's reply.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"room_id": map[string]any{
+					"type":        "string",
+					"description": "Conversation room UUID",
+				},
+				"message": map[string]any{
+					"type":        "string",
+					"description": "Message text to send to the conversation",
+				},
+				"wait_for_reply": map[string]any{
+					"type":        "boolean",
+					"description": "Whether to wait and poll for the assistant reply (default: true)",
+				},
+				"wait_seconds": map[string]any{
+					"type":        "integer",
+					"description": "Maximum seconds to wait for reply (default: 30, max: 120)",
+				},
+			},
+			"required": []string{"room_id", "message"},
 		},
 	},
 	{
@@ -496,6 +570,12 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		case "get_task":
 			taskID, _ := callParams.Arguments["task_id"].(string)
 			toolResult, toolErr = GetTask(ctx, taskID)
+		case "update_task_status":
+			taskID, _ := callParams.Arguments["task_id"].(string)
+			status, _ := callParams.Arguments["status"].(string)
+			summary, _ := callParams.Arguments["summary"].(string)
+			completeNote, _ := callParams.Arguments["complete_note"].(string)
+			toolResult, toolErr = UpdateTaskStatus(ctx, taskID, status, summary, completeNote)
 		case "create_task_draft":
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			title, _ := callParams.Arguments["title"].(string)
@@ -524,6 +604,23 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				limit = int(rawLimit)
 			}
 			toolResult, toolErr = GetInboxMessages(ctx, roomID, limit)
+		case "create_inbox_conversation":
+			agentID, _ := callParams.Arguments["agent_id"].(string)
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			title, _ := callParams.Arguments["title"].(string)
+			toolResult, toolErr = CreateInboxConversation(ctx, agentID, projectID, title)
+		case "send_inbox_message":
+			roomID, _ := callParams.Arguments["room_id"].(string)
+			message, _ := callParams.Arguments["message"].(string)
+			waitForReply := true
+			if rawWait, ok := callParams.Arguments["wait_for_reply"].(bool); ok {
+				waitForReply = rawWait
+			}
+			waitSeconds := 30
+			if rawSecs, ok := callParams.Arguments["wait_seconds"].(float64); ok {
+				waitSeconds = int(rawSecs)
+			}
+			toolResult, toolErr = SendInboxMessage(ctx, roomID, message, waitForReply, waitSeconds)
 		case "list_contacts":
 			query, _ := callParams.Arguments["query"].(string)
 			product, _ := callParams.Arguments["product"].(string)

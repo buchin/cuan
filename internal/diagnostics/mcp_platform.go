@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/mcp"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -87,6 +88,14 @@ func ListProjects(ctx context.Context, limit int) (any, error) {
 	}
 	db := getPlatformDB()
 	if db == nil {
+		if client := GetCuanClient(); client != nil && client.IsConfigured() {
+			if projects, err := client.ListProjects(ctx, limit); err == nil {
+				return map[string]any{
+					"projects": projects,
+					"total":    len(projects),
+				}, nil
+			}
+		}
 		return map[string]any{
 			"projects": []ProjectSummary{},
 			"total":    0,
@@ -129,6 +138,11 @@ func GetProject(ctx context.Context, projectID string) (any, error) {
 	}
 	db := getPlatformDB()
 	if db == nil {
+		if client := GetCuanClient(); client != nil && client.IsConfigured() {
+			if proj, err := client.GetProject(ctx, projectID); err == nil {
+				return proj, nil
+			}
+		}
 		return map[string]any{
 			"id":     projectID,
 			"status": "database_offline",
@@ -186,6 +200,14 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 	}
 	db := getPlatformDB()
 	if db == nil {
+		if client := GetCuanClient(); client != nil && client.IsConfigured() {
+			if tasks, err := client.ListTasks(ctx, projectID, status, limit); err == nil {
+				return map[string]any{
+					"tasks": tasks,
+					"total": len(tasks),
+				}, nil
+			}
+		}
 		return map[string]any{
 			"tasks":  []TaskSummary{},
 			"total":  0,
@@ -260,6 +282,11 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 	}
 	db := getPlatformDB()
 	if db == nil {
+		if client := GetCuanClient(); client != nil && client.IsConfigured() {
+			if t, err := client.GetTask(ctx, taskID); err == nil {
+				return t, nil
+			}
+		}
 		return map[string]any{
 			"id":     taskID,
 			"status": "database_offline",
@@ -405,6 +432,14 @@ func ListInboxConversations(ctx context.Context, projectID string, limit int) (a
 	}
 	db := getPlatformDB()
 	if db == nil {
+		if client := GetCuanClient(); client != nil && client.IsConfigured() {
+			if convs, err := client.ListConversations(ctx, projectID, limit); err == nil {
+				return map[string]any{
+					"conversations": convs,
+					"total":         len(convs),
+				}, nil
+			}
+		}
 		return map[string]any{
 			"conversations": []InboxConversation{},
 			"total":         0,
@@ -477,6 +512,15 @@ func GetInboxMessages(ctx context.Context, roomID string, limit int) (any, error
 	}
 	db := getPlatformDB()
 	if db == nil {
+		if client := GetCuanClient(); client != nil && client.IsConfigured() {
+			if msgs, err := client.GetConversationMessages(ctx, roomID, limit); err == nil {
+				return map[string]any{
+					"room_id":  roomID,
+					"messages": msgs,
+					"total":    len(msgs),
+				}, nil
+			}
+		}
 		return map[string]any{
 			"messages": []InboxMessage{},
 			"total":    0,
@@ -1084,5 +1128,160 @@ func ToggleAgentSkill(ctx context.Context, agentID, skillID string, enabled bool
 		"skill_id": skillID,
 		"enabled":  enabled,
 		"message":  fmt.Sprintf("Skill %s successfully %s for agent %s", skillID, statusStr, agentID),
+	}, nil
+}
+
+// CreateInboxConversation creates a new discussion room or agent topic conversation.
+func CreateInboxConversation(ctx context.Context, agentID, projectID, title string) (any, error) {
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.CreateConversation(ctx, agentID, projectID, title)
+	}
+
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("cuan client is not configured and database connection is unavailable")
+	}
+
+	agentID = NormalizeAgentAlias(agentID)
+	if projectID == "" {
+		projectID = "default"
+	}
+	if title == "" {
+		title = "New conversation"
+	}
+	roomID := dbPkg.GenerateUUID()
+	now := time.Now().UTC()
+
+	topic := "agent-topic:" + agentID
+	_, err := db.ExecContext(ctx, "INSERT INTO project_rooms (id, project_id, title, topic, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $5)",
+		roomID, projectID, title, topic, now)
+	if err != nil {
+		return nil, fmt.Errorf("create room in db: %w", err)
+	}
+
+	return map[string]any{
+		"id":              "topic_" + roomID,
+		"room_id":         roomID,
+		"conversation_id": roomID,
+		"agent_id":        agentID,
+		"project_id":      projectID,
+		"title":           title,
+		"topic":           topic,
+		"status":          "created",
+		"created_at":      now.Format(time.RFC3339),
+	}, nil
+}
+
+// SendInboxMessage sends a user message to an inbox conversation and optionally waits for the agent's reply.
+func SendInboxMessage(ctx context.Context, roomID, message string, waitForReply bool, waitSeconds int) (any, error) {
+	roomID = strings.TrimSpace(roomID)
+	if roomID == "" {
+		return nil, fmt.Errorf("room_id is required")
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return nil, fmt.Errorf("message is required")
+	}
+
+	client := GetCuanClient()
+	if client != nil && client.IsConfigured() {
+		sentTime := time.Now().UTC()
+		sendRes, err := client.SendMessage(ctx, roomID, message)
+		if err != nil {
+			return nil, err
+		}
+
+		if !waitForReply {
+			return sendRes, nil
+		}
+
+		if waitSeconds <= 0 {
+			waitSeconds = 30
+		}
+		if waitSeconds > 120 {
+			waitSeconds = 120
+		}
+
+		timeout := time.Duration(waitSeconds) * time.Second
+		reply, err := client.WaitForReply(ctx, roomID, sentTime, timeout)
+		if err != nil {
+			return map[string]any{
+				"send_result": sendRes,
+				"warning":     fmt.Sprintf("Sent message, but waiting for agent reply timed out after %ds: %v", waitSeconds, err),
+				"status":      "sent_waiting_timed_out",
+			}, nil
+		}
+
+		replyContent, _ := reply["content"].(string)
+		if replyContent == "" {
+			replyContent, _ = reply["message"].(string)
+		}
+
+		return map[string]any{
+			"status":     "replied",
+			"room_id":    roomID,
+			"reply":      replyContent,
+			"agent_name": reply["author_name"],
+			"agent_id":   reply["author_id"],
+			"message_id": reply["uuid"],
+			"created_at": reply["created_at"],
+		}, nil
+	}
+
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("cuan client is not configured and database connection is unavailable")
+	}
+
+	msgID := dbPkg.GenerateUUID()
+	now := time.Now().UTC()
+	_, err := db.ExecContext(ctx, "INSERT INTO project_messages (id, room_id, author_type, author_id, author_name, content, created_at, updated_at) VALUES ($1, $2, 'user', 'operator_user', 'Owner', $3, $4, $4)",
+		msgID, roomID, message, now)
+	if err != nil {
+		return nil, fmt.Errorf("insert message: %w", err)
+	}
+
+	return map[string]any{
+		"status":     "sent_to_db",
+		"message_id": msgID,
+		"room_id":    roomID,
+		"note":       "Message stored in database. To trigger active agent execution, configure CUAN_API_URL and CUAN_AUTH_TOKEN.",
+	}, nil
+}
+
+// UpdateTaskStatus updates status, summary, and verification evidence for a task.
+func UpdateTaskStatus(ctx context.Context, taskID, status, summary, completeNote string) (any, error) {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil, fmt.Errorf("task_id is required")
+	}
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return nil, fmt.Errorf("status is required")
+	}
+
+	client := GetCuanClient()
+	if client != nil && client.IsConfigured() {
+		return client.UpdateTask(ctx, taskID, status, summary, completeNote)
+	}
+
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("cuan client is not configured and database connection is unavailable")
+	}
+
+	_, err := db.ExecContext(ctx,
+		"UPDATE tasks SET status = $1, summary = CASE WHEN $2 <> '' THEN $2 ELSE summary END, complete_note = CASE WHEN $3 <> '' THEN $3 ELSE complete_note END, updated_at = NOW() WHERE id = $4",
+		status, summary, completeNote, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("update task: %w", err)
+	}
+
+	return map[string]any{
+		"task_id":       taskID,
+		"status":        status,
+		"summary":       summary,
+		"complete_note": completeNote,
+		"updated_at":    time.Now().UTC().Format(time.RFC3339),
 	}, nil
 }

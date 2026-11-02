@@ -31,7 +31,18 @@ func main() {
 		os.Exit(taskprocess.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "task" {
-		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+		hasCapability := os.Getenv("CUAN_TASK_CAPABILITY_FILE") != "" || os.Getenv("CUAN_TASK_CAPABILITY_JSON") != ""
+		isRunnerAction := len(os.Args) > 2 && (os.Args[2] == "report" || os.Args[2] == "push" || (os.Args[2] == "get" && len(os.Args) == 3))
+		if hasCapability && isRunnerAction {
+			os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+		}
+		os.Exit(diagnostics.RunTaskCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "chat" {
+		os.Exit(diagnostics.RunChatCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "config" {
+		os.Exit(diagnostics.RunConfigCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "repo" {
 		os.Exit(diagnostics.RunRepoCLI(os.Args[2:], os.Stdout, os.Stderr))
@@ -321,16 +332,20 @@ func printUsage() {
 
 Usage:
   cuan-server [flags]
+  cuan chat <subcommand> [flags]
+  cuan task <subcommand> [flags]
+  cuan config <subcommand> [flags]
   cuan repo <subcommand> [flags]
   cuan diag <subcommand> [flags]
-  cuan task <subcommand> [flags]
   cuan mcp
 
 Subcommands:
+  chat              Agent chat & inbox conversations (new, send, list, messages)
+  task              Task management (list, get, update, create) & runner reporting
+  config            CLI and MCP connection settings (show, set)
   repo              Read-only git repository inspection (status, log, diff-summary, branches)
   diag              Host system health & static diagnostics (health, df, free, tsc, deps)
-  task              Task execution and bound session reporting
-  mcp               Model Context Protocol (MCP) stdio server for Agent Chat function calling
+  mcp               Model Context Protocol (MCP) stdio server for Agent function calling
 
 Flags:
   --healthcheck     Perform local liveness health check (/healthz) (exits 0 on 200 OK)
