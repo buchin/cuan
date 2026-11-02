@@ -33,7 +33,7 @@
     --chart-3: 0.6212 0.1283 163.1147;
     --chart-4: 0.6402 0.1361 73.3684;
     --chart-5: 0.6224 0.1712 0.8378;
-    --radius: 1.25rem;
+    --radius: 0rem;
     --sidebar-background: 0.961 0.0029 264.5419;
     --sidebar-foreground: 0.2095 0.0019 286.2304;
     --sidebar-primary: 0.5334 0.2049 258.8101;
@@ -93,7 +93,7 @@
     --chart-3: 0.6212 0.1283 163.1147;
     --chart-4: 0.6699 0.1425 73.2269;
     --chart-5: 0.6224 0.1712 0.8378;
-    --radius: 1.25rem;
+    --radius: 0rem;
     --sidebar-background: 0.2807 0.0039 264.5029;
     --sidebar-foreground: 1 0 0;
     --sidebar-primary: 0.72 0.04 250;
@@ -401,3 +401,30 @@ body:has(.task-terminal-container),
 .inbox-item-row:last-child .inbox-item-divider {
   display: none !important;
 }
+
+/* Zero Border Radius Aesthetic (Precision Sharp / Brutalist Architecture) */
+*,
+::before,
+::after {
+  --radius: 0rem !important;
+}
+
+.rounded,
+.rounded-sm,
+.rounded-md,
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl,
+.rounded-full:not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot) {
+  border-radius: 0px !important;
+}
+
+.wa-message-bubble,
+.calm-message-bubble,
+.wa-input-capsule,
+.calm-input-capsule,
+[data-inbox-composer] {
+  border-radius: 0px !important;
+}
+

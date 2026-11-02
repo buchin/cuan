@@ -161,7 +161,7 @@ export function ConversationItem({
       key={contact.id}
       label={contact.name}
       swipeAction={archiveAction}
-      className={cn('inbox-item-row border-b border-border/40 md:border-b-0 md:mb-1.5', !isLast && 'has-divider')}
+      className={cn('inbox-item-row border-b border-border/40', !isLast && 'has-divider')}
       actions={[
         { label: 'Open conversation', run: openContact },
         { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
@@ -175,23 +175,41 @@ export function ConversationItem({
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
-          'inbox-contact-row flex flex-col items-start gap-1.5 w-full min-h-[4.5rem] rounded-lg border border-transparent md:border-border/30 md:bg-card/20 p-3 text-left transition-all hover:bg-accent/40 md:hover:border-border/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
-          isSelected && 'bg-accent/70 md:bg-muted border-border/50 md:border-border/80 text-accent-foreground font-medium shadow-xs',
+          'inbox-contact-row flex items-start gap-3 w-full min-h-[4.5rem] p-3 text-left transition-all hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring border-0',
+          isSelected && 'bg-accent/70 text-accent-foreground font-medium shadow-none',
         )}
       >
-        <div className="flex w-full flex-col gap-1">
+        {/* Avatar with Online Dot (inbox-app-01 style) */}
+        <div className="relative shrink-0 mt-0.5">
+          <div className="h-9 w-9 bg-secondary/80 flex items-center justify-center font-bold text-xs border border-border/50 text-foreground">
+            {contact.avatar ? (
+              <span>{contact.avatar}</span>
+            ) : contact.type === 'agent' ? (
+              <Bot className="h-4 w-4 text-primary" />
+            ) : (
+              <User className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+          {contact.is_online && (
+            <span
+              className="absolute -bottom-0.5 -right-0.5 h-2 w-2 bg-emerald-500 border border-background"
+              aria-label="Online"
+              title="Online"
+            />
+          )}
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={cn("text-xs truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
-              {contact.is_online && (
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-label="Online" title="Online" />
-              )}
               {unread > 0 && (
                 <span
                   aria-label={`${unread} unread messages`}
-                  className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
+                  className="h-2 w-2 shrink-0 bg-blue-500"
                   title={`${unread} unread`}
                 />
               )}
@@ -204,45 +222,51 @@ export function ConversationItem({
           <div className="text-xs font-medium text-foreground/80 truncate">
             {subject}
           </div>
-        </div>
 
-        <p className="text-xs text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
-          {conversationPreview(contact.last_message)}
-        </p>
-
-        <div className="flex items-center gap-1.5 pt-1">
-          {hasActiveWork && (
-            <span
-              data-testid="task-badge-active"
-              aria-label={`${activeTasks} active tasks`}
-              className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
-            >
-              <StatusDot status="working" size="xs" pulse />
-              <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
-            </span>
-          )}
-          {showAgentName ? (
-            <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              <Bot className="h-3 w-3 text-primary" />
-              <span>{contact.agent_name || 'agent'}</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              <User className="h-3 w-3 text-muted-foreground" />
-              <span>customer</span>
-            </span>
-          )}
-          {contact.product && (
-            <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
-              {contact.product}
-            </span>
-          )}
-        </div>
-
-        {isAgentConnectionIssue && (
-          <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
-            {status.label}
+          <p className="text-xs text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
+            {conversationPreview(contact.last_message)}
           </p>
+
+          <div className="flex items-center gap-1.5 pt-1">
+            {hasActiveWork && (
+              <span
+                data-testid="task-badge-active"
+                aria-label={`${activeTasks} active tasks`}
+                className="inline-flex items-center gap-1 border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
+              >
+                <StatusDot status="working" size="xs" pulse />
+                <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
+              </span>
+            )}
+            {showAgentName ? (
+              <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <Bot className="h-3 w-3 text-primary" />
+                <span>{contact.agent_name || 'agent'}</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <User className="h-3 w-3 text-muted-foreground" />
+                <span>customer</span>
+              </span>
+            )}
+            {contact.product && (
+              <span className="inline-flex items-center border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
+                {contact.product}
+              </span>
+            )}
+          </div>
+
+          {isAgentConnectionIssue && (
+            <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+              {status.label}
+            </p>
+          )}
+        </div>
+
+        {unread > 0 && (
+          <span className="shrink-0 bg-primary text-primary-foreground font-mono font-bold text-[10px] px-1.5 py-0.2">
+            {unread}
+          </span>
         )}
       </button>
       {!isLast && (
@@ -545,7 +569,7 @@ export function InboxSubPanel({
 
       {archive.error && <div role="alert" className="px-3 text-xs">{t(archive.error)} <button className="min-h-11 underline" onClick={() => void archive.refresh()}>{t('Try again')}</button></div>}
       {/* Contacts List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="flex-1 overflow-y-auto divide-y divide-border/40">
         {loading ? (
           <p role="status" className="p-4 text-sm">
             Loading conversations…

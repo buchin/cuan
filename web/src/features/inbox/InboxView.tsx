@@ -60,6 +60,7 @@ import {
   Terminal,
   Rocket,
   ShieldCheck,
+  Inbox as InboxIcon,
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
@@ -167,7 +168,7 @@ export function InboxView({
   const location = useLocation()
   const isChatRoute = location.pathname.startsWith('/chat')
   const [canvasMode, setCanvasMode] = useState<'chat' | 'studio'>(() => {
-    if (initialMode === 'studio' || isChatRoute || !activeContact) return 'studio'
+    if (initialMode === 'studio' || isChatRoute) return 'studio'
     return 'chat'
   })
 
@@ -176,8 +177,6 @@ export function InboxView({
       setCanvasMode('studio')
     } else if (activeContact) {
       setCanvasMode('chat')
-    } else if (!activeContact) {
-      setCanvasMode('studio')
     }
   }, [location.pathname, activeContact])
 
@@ -1219,9 +1218,9 @@ export function InboxView({
           mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
         )}
       >
-        {canvasMode === 'studio' || !activeContact ? (
+        {canvasMode === 'studio' ? (
           <div className="flex h-full flex-1 flex-col overflow-hidden">
-            <div className="wa-studio-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 bg-background">
+            <div className="wa-studio-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b min-[1200px]:border-border/40 bg-background">
               <span className="text-sm font-semibold text-foreground">
                 {t('Studio · New Idea')}
               </span>
@@ -1242,6 +1241,16 @@ export function InboxView({
                 />
               </div>
             </div>
+          </div>
+        ) : !activeContact ? (
+          <div className="flex h-full flex-1 flex-col items-center justify-center p-8 text-center bg-background select-none">
+            <div className="h-16 w-16 mb-4 flex items-center justify-center border border-border/60 bg-muted/20 text-muted-foreground">
+              <InboxIcon className="h-8 w-8 stroke-[1.25]" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-foreground">{t('Select a conversation')}</h3>
+            <p className="mt-1 text-sm text-muted-foreground max-w-sm">
+              {t('Choose a conversation from your inbox to read the full thread, view customer details, and reply.')}
+            </p>
           </div>
         ) : (
           <>

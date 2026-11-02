@@ -111,12 +111,12 @@ while read value; do :; done
 func TestS26RecreateAgentDoesNotCollideWithRetainedConnection(t *testing.T) {
 	s, token := setupTestChatServer(t)
 	repo := s.agentRepo
-	old := &db.AgentConnection{ID: "conn_agent_dev", UserID: "default", Provider: "mock", Status: db.ConnectionStatusActive}
+	old := &db.AgentConnection{ID: "conn_agent_s26dev", UserID: "default", Provider: "mock", Status: db.ConnectionStatusActive}
 	if err := repo.CreateConnection(context.Background(), old); err != nil {
 		t.Fatal(err)
 	}
 	create := func() string {
-		r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(`{"name":"@dev","handle":"@dev","provider":"mock"}`))
+		r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(`{"name":"@s26dev","handle":"@s26dev","provider":"mock"}`))
 		r.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		s.Router().ServeHTTP(w, r)
@@ -137,7 +137,7 @@ func TestS26RecreateAgentDoesNotCollideWithRetainedConnection(t *testing.T) {
 	if first == old.ID || !strings.HasPrefix(first, "conn_") {
 		t.Fatal("retained connection reused")
 	}
-	if err := repo.DeleteAgent(context.Background(), "agent_dev"); err != nil {
+	if err := repo.DeleteAgent(context.Background(), "agent_s26dev"); err != nil {
 		t.Fatal(err)
 	}
 	second := create()
