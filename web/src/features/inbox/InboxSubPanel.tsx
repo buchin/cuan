@@ -1,4 +1,3 @@
-import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { HairlineList } from '../../components/layout/HairlineList'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
@@ -125,7 +124,6 @@ export function ConversationItem({
   const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const hasActiveWork = activeTasks > 0
-  const isAgentDisabled = contact.type === 'agent' && (status.state === 'disabled' || status.state === 'inactive')
   const isAgentConnectionIssue =
     contact.type === 'agent' &&
     !hasActiveWork &&
