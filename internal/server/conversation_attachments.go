@@ -250,6 +250,12 @@ func (s *Server) handleUploadConversationAttachment(w http.ResponseWriter, r *ht
 	}
 	respondJSON(w, 201, a)
 }
+func isImageAttachmentNameOrType(name, mimeType string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	isImageExt := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".gif" || ext == ".svg" || ext == ".ico" || ext == ".bmp"
+	return strings.HasPrefix(mimeType, "image/") || isImageExt
+}
+
 func (s *Server) handleDownloadConversationAttachment(w http.ResponseWriter, r *http.Request) {
 	owner := s.accountOwner(w, r)
 	if owner == "" {

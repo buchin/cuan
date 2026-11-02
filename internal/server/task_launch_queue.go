@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -147,7 +148,24 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		Code  string `json:"code"`
 	}
 	json.Unmarshal(response.body.Bytes(), &problem)
-	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "repository_preparing" || problem.Code == "project_concurrency_busy" {
+	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "provider_vision_unsupported" {
+		needsVision := s.taskRequiresVision(ctx, job.OwnerID, detail, "", job.Revision)
+		if altAgent := s.findHealthyTaskAgentFailover(ctx, job.OwnerID, targetAgent, detail, needsVision); altAgent != nil {
+			log.Printf("[TaskLaunch] Auto-failover task %s from %s to alternative healthy agent %s (reason: %s)", job.TaskID, targetAgent, altAgent.ID, problem.Code)
+			newAgentID := altAgent.ID
+			if s.taskSvc != nil {
+				_, _ = s.taskSvc.UpdateTask(ctx, job.TaskID, "coordinator", task.UpdateTaskRequest{AssignedAgent: &newAgentID})
+			}
+			altResp := &delegationResponse{header: make(http.Header)}
+			altReq, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-queued-launch", nil)
+			s.runTaskAgent(altResp, altReq, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: newAgentID, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)
+			if altResp.code == 200 {
+				return finish("started", "")
+			}
+			json.Unmarshal(altResp.body.Bytes(), &problem)
+		}
+	}
+	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "provider_vision_unsupported" || problem.Code == "repository_preparing" || problem.Code == "project_concurrency_busy" {
 		if job.Checks >= 10 {
 			status := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, job.TaskID, "runner", task.UpdateTaskRequest{Status: &status})
@@ -229,4 +247,81 @@ func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaun
 	if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
 		s.publishInbox(job.RoomID)
 	}
+}
+
+func (s *Server) findHealthyTaskAgentFailover(ctx context.Context, ownerID, currentAgentID string, detail *task.TaskDetailResponse, needsVision bool) *db.Agent {
+	if s.agentRepo == nil {
+		return nil
+	}
+	agents, err := s.agentRepo.ListAgents(ctx, db.AgentFilter{})
+	if err != nil || len(agents) == 0 {
+		return nil
+	}
+	cleanCurrent := strings.TrimPrefix(strings.ToLower(currentAgentID), "@")
+	for _, a := range agents {
+		if !a.Enabled || (a.Status != db.AgentStatusActive && a.Status != "") {
+			continue
+		}
+		cleanA := strings.TrimPrefix(strings.ToLower(a.ID), "@")
+		if cleanA == cleanCurrent || strings.TrimPrefix(cleanA, "agent_") == cleanCurrent || cleanCurrent == "agent_"+cleanA {
+			continue
+		}
+		harness := a.Harness
+		if harness == "" {
+			harness = "agy"
+		}
+		if harness != "agy" && harness != "antigravity" && harness != "commandcode" && harness != "claude" {
+			continue
+		}
+		if needsVision && !agentEntitySupportsVision(&a) {
+			continue
+		}
+		if harness == "agy" || harness == "antigravity" {
+			if pa, _ := agent.ProviderAccountForConnection(ownerID, a.ID, a.ConnectionID); pa != nil {
+				if pa.State == "quota_limited" && (pa.QuotaRetryAt == nil || time.Now().Before(*pa.QuotaRetryAt)) {
+					continue
+				}
+				if pa.State == "login_required" || pa.State == "unavailable" {
+					continue
+				}
+			}
+		}
+		candidate := a
+		return &candidate
+	}
+	return nil
+}
+
+func agentEntitySupportsVision(a *db.Agent) bool {
+	if a == nil {
+		return false
+	}
+	harness := a.Harness
+	if harness == "" {
+		harness = "agy"
+	}
+	provider := a.Provider
+	if provider == "" {
+		provider = harness
+	}
+	modelID := a.ModelID
+	if idx := strings.Index(modelID, "#"); idx != -1 {
+		modelID = modelID[idx+1:]
+	}
+	if agent.IsModelVisionCapable(provider, modelID) || agent.IsModelVisionCapable(harness, modelID) {
+		return true
+	}
+	fallbackID := a.FallbackModelID
+	if idx := strings.Index(fallbackID, "#"); idx != -1 {
+		fallbackID = fallbackID[idx+1:]
+	}
+	if fallbackID != "" {
+		if agent.IsModelVisionCapable(provider, fallbackID) || agent.IsModelVisionCapable(harness, fallbackID) {
+			return true
+		}
+	}
+	if (harness == "agy" || harness == "antigravity") && (modelID == "" || modelID == "default" || strings.HasPrefix(modelID, "gemini")) {
+		return true
+	}
+	return false
 }

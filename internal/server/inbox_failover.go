@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -29,6 +30,15 @@ type inboxAccountRoute struct {
 // No native conversation is resumed under a different profile: the same durable
 // Cuan conversation context is supplied to a fresh CLI turn, with the same agent.
 func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, registered *db.Agent, prompt, home, workspace string, limited bool, step func(string, string), attachments ...string) (string, string) {
+	hasImageAttachment := false
+	for _, file := range attachments {
+		ext := strings.ToLower(filepath.Ext(file))
+		if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp" {
+			hasImageAttachment = true
+			break
+		}
+	}
+
 	if registered.Harness != "agy" && registered.Harness != "antigravity" {
 		execCtx := ctx
 		if registered.Harness == "commandcode" {
@@ -50,6 +60,17 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		modelID := registered.ModelID
 		if idx := strings.Index(modelID, "#"); idx != -1 {
 			modelID = modelID[idx+1:]
+		}
+		if hasImageAttachment && !agent.IsModelVisionCapable(registered.Harness, modelID) {
+			fallbackID := strings.TrimSpace(registered.FallbackModelID)
+			if idx := strings.Index(fallbackID, "#"); idx != -1 {
+				fallbackID = fallbackID[idx+1:]
+			}
+			if fallbackID != "" && agent.IsModelVisionCapable(registered.Harness, fallbackID) {
+				modelID = fallbackID
+			} else {
+				return "", fmt.Sprintf("Model %s does not support image input (vision). Remove image attachments or switch to a vision-capable model.", modelID)
+			}
 		}
 		if modelID != "" && !strings.HasPrefix(modelID, "conn_") && modelID != "commandcode-default" && modelID != "default" {
 			execCtx = context.WithValue(execCtx, inboxModelKey{}, modelID)
@@ -76,6 +97,15 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		return out, fail
 	}
 	routes := s.providerRoutes(ctx, owner, registered, home, limited)
+	if hasImageAttachment {
+		filtered := make([]inboxAccountRoute, 0, len(routes))
+		for _, r := range routes {
+			if r.model == "" || agent.IsModelVisionCapable("agy", r.model) {
+				filtered = append(filtered, r)
+			}
+		}
+		routes = filtered
+	}
 	attempts := 0
 	busyRoutes := 0
 	seen := map[string]bool{}
