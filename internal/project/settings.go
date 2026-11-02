@@ -70,7 +70,18 @@ func SettingsFromMetadata(raw json.RawMessage) Settings {
 	return metadata.Settings
 }
 
-const snapshotMarker = "\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\n"
+const snapshotMarker = "\n\nProject guidance snapshot:\n```cuan-project-context\n"
+const legacySnapshotMarker = "\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\n"
+
+func findSnapshotMarker(text string) (int, int) {
+	if at := strings.LastIndex(text, snapshotMarker); at >= 0 {
+		return at, len(snapshotMarker)
+	}
+	if at := strings.LastIndex(text, legacySnapshotMarker); at >= 0 {
+		return at, len(legacySnapshotMarker)
+	}
+	return -1, 0
+}
 
 // SnapshotProjectGuidance freezes guidance and repository identity at task
 // creation. Historical workspace paths never come from task text.
@@ -95,8 +106,8 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 		return nil, err
 	}
 	revision := "initial"
-	if start := strings.LastIndex(instructions, snapshotMarker); start >= 0 {
-		value := strings.TrimSuffix(instructions[start+len(snapshotMarker):], "\n```")
+	if start, markerLen := findSnapshotMarker(instructions); start >= 0 {
+		value := strings.TrimSuffix(instructions[start+markerLen:], "\n```")
 		var snapshot taskProjectSnapshot
 		if json.Unmarshal([]byte(value), &snapshot) != nil {
 			return nil, errors.New("Task project context is invalid")
@@ -317,12 +328,12 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 // coordinator revises task instructions. A project reassignment is handled by
 // TaskWorkspace using the snapshot's explicit project ID.
 func PreserveProjectGuidance(previous, next string) string {
-	start := strings.LastIndex(previous, snapshotMarker)
+	start, _ := findSnapshotMarker(previous)
 	if start < 0 {
 		return strings.TrimSpace(next)
 	}
 	saved := previous[start:]
-	if at := strings.LastIndex(next, snapshotMarker); at >= 0 {
+	if at, _ := findSnapshotMarker(next); at >= 0 {
 		next = next[:at]
 	}
 	return strings.TrimSpace(next) + saved

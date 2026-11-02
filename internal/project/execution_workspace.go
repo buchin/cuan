@@ -140,12 +140,12 @@ func (s *Service) TaskExecutionWorkspace(ctx context.Context, taskID, instructio
 	if p == nil {
 		return "", errors.New("Project workspace is unavailable")
 	}
-	at := strings.LastIndex(instructions, snapshotMarker)
+	at, markerLen := findSnapshotMarker(instructions)
 	if at < 0 {
 		return p.LocalPath, nil
 	}
 	var snapshot taskProjectSnapshot
-	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[at+len(snapshotMarker):], "\n```")), &snapshot) != nil {
+	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[at+markerLen:], "\n```")), &snapshot) != nil {
 		return "", errors.New("Task project context is invalid")
 	}
 	if !snapshot.IsolatedRepository {
