@@ -603,8 +603,8 @@ export function AgentMemoryView({
             <ArrowLeft className="h-4 w-4" />
             {t(
               resolvedReturnTo === '/chat' || resolvedReturnTo === '/studio'
-                ? '← Back to Chat'
-                : '← Back',
+                ? 'Back to Chat'
+                : 'Back',
             )}
           </Link>
         </div>

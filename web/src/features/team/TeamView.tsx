@@ -1,6 +1,6 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Bot,
   Plus,
@@ -22,6 +22,7 @@ import {
   Clock,
   UserX,
   ChevronLeft,
+  Cpu,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { teamApi, type TeamMember, type UserInvitation } from '../../api/team'
@@ -800,6 +801,20 @@ export function TeamView({
         .getElementById(`settings-agent-${focusAgentId}`)
         ?.scrollIntoView({ block: 'center' })
   }, [focusAgentId, loading])
+  const primaryAgent = agents.find((a) => a.id === 'agent_cuan' || a.name === '@cuan') || agents[0]
+  const primaryState = primaryAgent ? connectionStatus(primaryAgent, now) : null
+  const primaryAccount = primaryAgent
+    ? accounts.find(
+        (item) =>
+          !item.legacy &&
+          item.agent_id === primaryAgent.id &&
+          (primaryAgent.connection_id
+            ? item.connection_id === primaryAgent.connection_id
+            : true),
+      ) || accounts.find((item) => !item.legacy && item.agent_id === primaryAgent.id)
+    : null
+  const workerAgents = agents.filter((a) => a.id !== primaryAgent?.id)
+
   const hasCuan = agents.some((a) => a.id === 'agent_cuan' || a.name === '@cuan')
   const baseAgents = hasCuan
     ? agents.filter((a) => a.id !== 'agent_sm' && a.id !== 'agent_dev' && a.id !== 'agent_support')
@@ -883,12 +898,13 @@ export function TeamView({
   const primary =
     'inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50'
 
-  // Auto-select first agent on desktop (>=768px) if no agent is currently selected
+  // Focus specific agent if focusAgentId is specified in URL query
   useEffect(() => {
-    if (!activeDrawerAgent && visibleAgents.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
-      selectAgent(visibleAgents[0])
+    if (focusAgentId && agents.length > 0) {
+      const match = agents.find((a) => a.id === focusAgentId)
+      if (match) selectAgent(match)
     }
-  }, [visibleAgents, activeDrawerAgent, selectAgent])
+  }, [focusAgentId, agents, selectAgent])
 
   const renderAgentDetailContent = (
     a: Agent & { connection_state?: string },
@@ -1401,7 +1417,7 @@ export function TeamView({
             <Bot className="h-4 w-4" />
             <span>{t('Asisten AI')}</span>
             <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-mono">
-              {agents.length}
+              {primaryAgent ? 1 : 0}
             </span>
           </button>
           <button
@@ -1424,235 +1440,296 @@ export function TeamView({
         </div>
 
         {activeTab === 'agents' ? (
-          <div>
-            {/* Master-Detail Split Container */}
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              {/* Left Column: Master List */}
-              <div className={`w-full md:w-80 md:shrink-0 space-y-3 ${activeDrawerAgent ? 'hidden md:block' : 'block'}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    {showHeading && <h2 className="text-lg font-semibold">Agent</h2>}
-                    <p className="mt-1 text-sm text-muted-foreground hidden sm:block">
-                      {t(
-                        'Connection status, remaining quota and work progress are separate. A connected account can still have limited quota.',
-                      )}
-                    </p>
-                  </div>
-                  {showCreateAction && canManageAgents && (
-                    <button
-                      ref={addButton}
-                      onClick={() => begin()}
-                      className={`${primary} shrink-0`}
-                    >
-                      <Plus className="h-4 w-4" />
-                      {t('Add agent')}
-                    </button>
-                  )}
+          <div className="space-y-6 max-w-3xl">
+            {notice && (
+              <p role="status" className="text-sm">
+                {notice}
+              </p>
+            )}
+            {error && (
+              <div role="alert" className="text-sm text-destructive">
+                {error}{' '}
+                <button onClick={load} className="underline">
+                  {t('Try again')}
+                </button>
+              </div>
+            )}
+            {backupError && (
+              <div
+                role="alert"
+                className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{t(backupError)}</span>
                 </div>
-
-                {visibleAgents.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="relative min-w-0 flex-1">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        className="field-control pl-9 w-full text-sm"
-                        aria-label="Search agents"
-                        placeholder={t('Search by name or agent type')}
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                      />
-                    </div>
-                    {search.trim() && (
-                      <button className="action-secondary text-xs px-2.5 py-1.5" onClick={() => setSearch('')}>
-                        {t('Clear')}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {notice && (
-                  <p role="status" className="text-sm">
-                    {notice}
-                  </p>
-                )}
-                {error && (
-                  <div role="alert" className="text-sm text-destructive">
-                    {error}{' '}
-                    <button onClick={load} className="underline">
-                      Try again
-                    </button>
-                  </div>
-                )}
-                {backupError && (
-                  <div
-                    role="alert"
-                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center justify-between gap-2"
+                <div className="flex items-center gap-2 shrink-0">
+                  <button className="underline font-medium hover:opacity-80" onClick={() => void load()}>
+                    {t('Try again')}
+                  </button>
+                  <button
+                    className="text-muted-foreground hover:text-foreground p-0.5"
+                    onClick={() => setBackupError('')}
+                    aria-label="Dismiss error"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{t(backupError)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button className="underline font-medium hover:opacity-80" onClick={() => void load()}>
-                        {t('Try again')}
-                      </button>
-                      <button
-                        className="text-muted-foreground hover:text-foreground p-0.5"
-                        onClick={() => setBackupError('')}
-                        aria-label="Dismiss error"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {loading ? (
-                  <p role="status" className="text-sm text-muted-foreground">
-                    Loading agents…
-                  </p>
-                ) : visibleAgents.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border p-8 text-center">
-                    <Bot className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <h2 className="mt-3 font-medium">No agents yet</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Add your first agent, then connect a Google account.
-                    </p>
-                    {showCreateAction && canManageAgents && (
-                      <button onClick={() => begin()} className={`${primary} mt-4`}>
-                        Add your first agent
-                      </button>
-                    )}
-                  </div>
-                ) : filteredAgents.length === 0 ? (
-                  <div className="rounded-lg border p-5 text-center">
-                    <p>No matching agents.</p>
-                    <button
-                      className="action-secondary mt-3"
-                      onClick={() => setSearch('')}
-                    >
-                      Show all agents
-                    </button>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden transition-colors">
-                    <HairlineList role="list" aria-label="Agent list">
-                      {filteredAgents.map((agent) => {
-                        const state = connectionStatus(agent, now)
-                        const a = { ...agent, connection_state: state.state }
-                        const handle = getAgentHandle(a)
-                        const cleanName = a.name.replace(/^@/, '').toLowerCase().trim()
-                        const cleanHandle = handle.replace(/^@/, '').toLowerCase().trim()
-                        const isHandleSame = cleanName === cleanHandle || a.name.startsWith('@')
-                        const isSelected = activeDrawerAgent?.id === a.id
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-                        return (
-                          <HairlineListItem
-                            role="listitem"
-                            aria-label={`Agent ${a.name}`}
-                            key={a.id}
-                            id={`settings-agent-${a.id}`}
-                            interactive
-                            selected={isSelected}
+            {loading ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('Memuat asisten…')}
+              </p>
+            ) : !primaryAgent ? (
+              <div className="rounded-xl border border-dashed border-border p-8 text-center bg-card/20">
+                <Bot className="mx-auto h-8 w-8 text-muted-foreground" />
+                <h3 className="mt-3 font-medium text-foreground">{t('Belum Ada Asisten AI')}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('Hubungkan akun AI Anda di Penyedia AI untuk mengaktifkan asisten.')}
+                </p>
+                {showCreateAction && canManageAgents && (
+                  <button ref={addButton} onClick={() => begin()} className={`${primary} mt-4`}>
+                    <Plus className="h-4 w-4" />
+                    {t('Add agent')}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* 1. Profil Asisten Bisnis Tunggal (@cuan) */}
+                {(() => {
+                  const a = primaryAgent
+                  const account = primaryAccount
+                  const state = primaryState
+                  return (
+                    <div className="rounded-2xl border border-border/40 bg-card/30 p-5 sm:p-6 space-y-5 transition-colors">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="relative shrink-0">
+                            <div className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 text-2xl font-semibold">
+                              {a.avatar ? (
+                                <span>{a.avatar}</span>
+                              ) : (
+                                <Bot className="h-7 w-7" />
+                              )}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1">
+                              <StatusDot
+                                status={
+                                  state?.verified
+                                    ? 'healthy'
+                                    : state?.state === 'quota_limited'
+                                      ? 'warning'
+                                      : state?.state === 'login_required' || state?.state === 'unavailable'
+                                        ? 'exception'
+                                        : 'neutral'
+                                }
+                                size="md"
+                              />
+                            </div>
+                          </div>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">
+                                {a.name}
+                              </h3>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {getAgentHandle(a)}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
+                                  state?.verified
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                    : 'bg-muted text-muted-foreground border-border'
+                                }`}
+                              >
+                                {state?.verified && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                                <span>{state?.verified ? t('Aktif & Siap') : t('Menunggu Verifikasi')}</span>
+                              </span>
+                            </div>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              {a.role || t('Cuan Universal Assistant')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {canManageAgents && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingAgent(a)}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-xs sm:text-sm font-medium text-foreground hover:bg-muted active:scale-[0.98] transition-colors shrink-0"
+                            aria-label={`Edit ${a.name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span>{t('Edit Profil Asisten')}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Persona & Instruksi Kerja */}
+                      <div className="space-y-1.5 pt-2 border-t border-border/40">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                          {t('Peran & Instruksi Kerja')}
+                        </label>
+                        <div className="p-3.5 rounded-xl border border-border/30 bg-muted/20 text-xs sm:text-sm text-foreground/90 leading-relaxed">
+                          {a.system_prompt || a.role || t('Tidak ada instruksi khusus. Menggunakan persona asisten bisnis terpadu default.')}
+                        </div>
+                      </div>
+
+                      {/* Model AI & Status Mesin */}
+                      <div className="space-y-2 pt-2 border-t border-border/40">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">
+                            {t('Model AI & Konfigurasi')}
+                          </label>
+                          <button
+                            type="button"
                             onClick={() => setDrawerAgent(a)}
-                            leading={
-                              <div className="relative shrink-0">
-                                <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 text-base font-semibold">
-                                  {a.avatar ? (
-                                    <span>{a.avatar}</span>
-                                  ) : (
-                                    <Bot className="h-5 w-5" />
-                                  )}
-                                </div>
-                                <div className="absolute -bottom-0.5 -right-0.5">
-                                  <StatusDot
-                                    status={
-                                      state.verified
-                                        ? 'healthy'
-                                        : state.state === 'quota_limited'
-                                          ? 'warning'
-                                          : state.state === 'login_required' || state.state === 'unavailable'
-                                            ? 'exception'
-                                            : 'neutral'
-                                    }
-                                    size="sm"
-                                  />
-                                </div>
-                              </div>
-                            }
-                            title={
-                              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                <h3 className="break-words text-sm sm:text-base font-semibold text-foreground">
-                                  {a.name}
-                                </h3>
-                                {!isHandleSame && (
-                                  <span className="font-mono text-xs text-muted-foreground">
-                                    {handle}
-                                  </span>
-                                )}
-                              </div>
-                            }
-                            description={
-                              a.role || (a.system_prompt ? a.system_prompt.slice(0, 80) : '') || t('Asisten AI ruang kerja')
-                            }
-                            trailing={
-                              canManageAgents ? (
-                                <div className="flex items-center gap-1.5 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    type="button"
-                                    className="hidden sm:inline-flex min-h-11 min-w-11 sm:h-9 sm:w-9 sm:min-h-9 sm:min-w-9 items-center justify-center rounded-lg border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                    aria-label={`Edit ${a.name}`}
-                                    title={`Edit ${a.name}`}
-                                    onClick={() => setEditingAgent(a)}
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </button>
-                                  <AgentActions
-                                    name={a.name}
-                                    disabled={!!checking || !!removing || !!lifecycleBusy}
-                                    onEdit={() => setEditingAgent(a)}
-                                    onRemove={() => void remove(a.id)}
-                                  />
-                                </div>
-                              ) : undefined
-                            }
-                          />
-                        )
-                      })}
-                    </HairlineList>
-                  </div>
-                )}
-              </div>
+                            className="text-xs text-muted-foreground hover:text-foreground font-medium underline-offset-2 hover:underline"
+                          >
+                            {t('Detail Teknis & Kuota')} ›
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-xs font-medium border border-border/50">
+                            <span className="text-muted-foreground">Provider:</span>
+                            <span className="font-semibold text-foreground">
+                              {a.provider || account?.provider || 'Google'}
+                            </span>
+                          </span>
+                          {a.model_id && (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-xs font-medium border border-border/50">
+                              <span className="text-muted-foreground">Model:</span>
+                              <span className="font-semibold text-foreground">{a.model_id}</span>
+                              {isModelVisionCapable(a.model_id, a.provider) ? (
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  <Eye className="h-2.5 w-2.5" />
+                                  <span>Vision</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                                  <span>Text</span>
+                                </span>
+                              )}
+                            </span>
+                          )}
+                          {a.fallback_model_id && (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-xs font-medium border border-border/50">
+                              <span className="text-muted-foreground">Fallback:</span>
+                              <span className="font-semibold text-foreground">{a.fallback_model_id}</span>
+                              {isModelVisionCapable(a.fallback_model_id, a.provider) ? (
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  <Eye className="h-2.5 w-2.5" />
+                                  <span>Vision</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40">
+                                  <span>Text</span>
+                                </span>
+                              )}
+                            </span>
+                          )}
+                          {(a.verified_at || a.last_checked_at) && (
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2.5 py-1 text-xs font-medium border border-border/50">
+                              <span className="text-muted-foreground">Verified:</span>
+                              <span className="font-semibold text-foreground font-mono">
+                                {formatVerificationTime(a.verified_at || a.last_checked_at)}
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
 
-              {/* Right Column: Detail Canvas */}
-              <div className={`w-full flex-1 min-w-0 md:border-l md:border-border/40 md:pl-6 ${activeDrawerAgent ? 'block' : 'hidden md:block'}`}>
-                {activeDrawerAgent && activeDrawerA && activeDrawerState ? (
-                  <div className="space-y-4">
-                    <button
-                      type="button"
-                      onClick={() => selectAgent(null)}
-                      className="md:hidden inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-2"
-                    >
-                      <ChevronLeft className="h-4 w-4 shrink-0" />
-                      <span>{t('Back to agents')}</span>
-                    </button>
-                    <div className="rounded-xl border border-border/40 bg-card/30 p-4 sm:p-5">
-                      {renderAgentDetailContent(activeDrawerA, activeDrawerAccount, activeDrawerExpiry, activeDrawerState)}
+                {/* 2. Mesin Eksekusi Latar Belakang (Worker Pool) - Progressive Disclosure */}
+                <details className="group rounded-2xl border border-border/40 bg-card/20 p-4 sm:p-5 transition-colors">
+                  <summary className="flex min-h-11 cursor-pointer items-center justify-between text-sm font-medium text-foreground select-none">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-muted-foreground shrink-0">
+                        <Cpu className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-semibold text-foreground">
+                          {t('Mesin Eksekusi Latar Belakang (Worker Pool)')}
+                        </span>
+                        <p className="text-xs text-muted-foreground font-normal mt-0.5 truncate">
+                          {workerAgents.length > 0
+                            ? `${workerAgents.length} ${t('worker internal siap mengeksekusi tugas coding & vision otomatis')}`
+                            : t('Semua tugas dialirkan ke mesin AI default')}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground transition-transform group-open:rotate-90 shrink-0 ml-2">
+                      ▸
+                    </span>
+                  </summary>
+
+                  <div className="mt-4 pt-3 border-t border-border/40 space-y-3">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {t('Akun-akun worker internal ini digunakan secara otonom oleh @cuan di balik layar untuk mengeksekusi tugas khusus (coding, terminal, vision) dan auto-failover saat kuota menipis.')}
+                    </p>
+
+                    {workerAgents.length > 0 ? (
+                      <div className="rounded-xl border border-border/40 bg-card/40 overflow-hidden">
+                        <HairlineList role="list" aria-label="Worker pool list">
+                          {workerAgents.map((wa) => {
+                            const a = wa
+                            const waState = connectionStatus(a, now)
+                            return (
+                              <HairlineListItem
+                                role="listitem"
+                                aria-label={`Worker ${a.name}`}
+                                key={a.id}
+                                interactive
+                                onClick={() => setDrawerAgent(a)}
+                                leading={
+                                  <div className="relative shrink-0">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground font-semibold text-sm">
+                                      {a.avatar ? <span>{a.avatar}</span> : <Bot className="h-4 w-4" />}
+                                    </div>
+                                    <div className="absolute -bottom-0.5 -right-0.5">
+                                      <StatusDot status={waState.verified ? 'healthy' : 'neutral'} size="sm" />
+                                    </div>
+                                  </div>
+                                }
+                                title={
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-foreground text-sm">{a.name}</span>
+                                    <span className="font-mono text-xs text-muted-foreground">{getAgentHandle(a)}</span>
+                                  </div>
+                                }
+                                description={a.role || t('Worker Pool Engine')}
+                                trailing={
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <span>{a.provider || a.harness || 'engine'}</span>
+                                    <span>›</span>
+                                  </div>
+                                }
+                              />
+                            )
+                          })}
+                        </HairlineList>
+                      </div>
+                    ) : null}
+
+                    <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{t('Butuh menambah engine AI atau kuota baru?')}</span>
+                      <Link to="/settings/ai-providers" className="text-primary hover:underline font-medium">
+                        {t('Buka Penyedia AI')} →
+                      </Link>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex h-full min-h-[340px] flex-col items-center justify-center rounded-xl border border-dashed border-border/40 p-8 text-center text-muted-foreground bg-muted/5">
-                    <Bot className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                    <p className="text-sm font-medium text-foreground">{t('Select an AI assistant')}</p>
-                    <p className="mt-1 text-xs text-muted-foreground max-w-xs">
-                      {t('Select an agent from the list to view configuration details, connection status, and model routing.')}
-                    </p>
-                  </div>
-                )}
+                </details>
               </div>
-            </div>
+            )}
 
             {/* Progressive Disclosure SlideDrawer for Deep Technical Details & Actions */}
             <SlideDrawer
-              isOpen={false}
+              isOpen={!!activeDrawerAgent}
         onClose={() => {
           selectAgent(null)
           setReplaceAgentId('')
@@ -1728,26 +1805,39 @@ export function TeamView({
                   </p>
                 </div>
               </div>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border shrink-0 ${
-                  state.verified
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                    : state.state === 'quota_limited'
-                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                      : state.state === 'login_required' || state.state === 'unavailable'
-                        ? 'bg-destructive/10 text-destructive border-destructive/20'
-                        : 'bg-muted text-muted-foreground border-border'
-                }`}
-              >
-                {state.verified && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <div className="flex items-center gap-2 shrink-0">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${
+                    state.verified
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      : state.state === 'quota_limited'
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        : state.state === 'login_required' || state.state === 'unavailable'
+                          ? 'bg-destructive/10 text-destructive border-destructive/20'
+                          : 'bg-muted text-muted-foreground border-border'
+                  }`}
+                >
+                  {state.verified && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  )}
+                  {state.state === 'unknown'
+                    ? a.last_checked_at || a.verified_at
+                      ? t('Check needed')
+                      : t('Not checked')
+                    : t(state.label)}
+                </span>
+                {canManageAgents && (
+                  <AgentActions
+                    name={a.name}
+                    disabled={!!checking || !!removing || !!lifecycleBusy}
+                    onEdit={() => {
+                      setEditingAgent(a)
+                      selectAgent(null)
+                    }}
+                    onRemove={() => void remove(a.id)}
+                  />
                 )}
-                {state.state === 'unknown'
-                  ? a.last_checked_at || a.verified_at
-                    ? t('Check needed')
-                    : t('Not checked')
-                  : t(state.label)}
-              </span>
+              </div>
             </div>
 
             {/* 2. Metadata Chips: Clean, structured badges eliminating hanging dots */}

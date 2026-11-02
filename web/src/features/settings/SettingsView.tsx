@@ -172,7 +172,7 @@ export function SettingsView({
             >
               <ChevronLeft className="h-4 w-4 shrink-0" />
               <span>
-                {safeReturn
+                {(safeReturn
                   ? t(
                       safeReturn === '/chat' || safeReturn === '/studio'
                         ? '← Back to Chat'
@@ -180,7 +180,8 @@ export function SettingsView({
                     )
                   : isAccount
                     ? t('← Back to Account')
-                    : t('← Back to Settings')}
+                    : t('← Back to Settings')
+                ).replace(/^←\s*/, '')}
               </span>
             </Link>
           </div>

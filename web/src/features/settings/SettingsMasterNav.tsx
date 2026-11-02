@@ -200,8 +200,8 @@ export function SettingsMasterNav({
             <span>
               {t(
                 safeReturn === '/chat' || safeReturn === '/studio'
-                  ? '← Back to Chat'
-                  : '← Back to conversation',
+                  ? 'Back to Chat'
+                  : 'Back to conversation',
               )}
             </span>
           </Link>

@@ -823,7 +823,7 @@ export function App() {
           projectDetail ||
           (currentTab === 'inbox' && (!!subParam || isMobileChatActive)) ||
           (currentTab === 'contacts' && !!new URLSearchParams(location.search).get('contact')) ||
-          ((currentTab === 'settings' || currentTab === 'account') && subParam !== 'agents' && subParam !== 'contacts') ||
+          ((currentTab === 'settings' || currentTab === 'account') && subParam !== 'contacts') ||
           (currentTab === 'account' && subParam === 'contacts' && !!new URLSearchParams(location.search).get('contact'))
             ? undefined
             : {
@@ -836,9 +836,7 @@ export function App() {
                         ? 'New task'
                         : currentTab === 'projects'
                           ? 'New project'
-                          : subParam === 'agents'
-                            ? 'New agent'
-                            : 'New',
+                          : 'New',
                 onClick: () =>
                   openNew(
                     currentTab === 'inbox'
@@ -849,9 +847,7 @@ export function App() {
                           ? 'task'
                           : currentTab === 'projects'
                             ? 'project'
-                            : subParam === 'agents'
-                              ? 'agent'
-                              : 'menu',
+                            : 'menu',
                   ),
               }
         }
