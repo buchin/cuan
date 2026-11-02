@@ -1253,7 +1253,7 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <div className="wa-chat-header h-13 px-4 flex items-center justify-between shrink-0 border-b border-border/60 bg-background">
+            <div className="wa-chat-header h-13 px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b border-border bg-background box-border">
               <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button

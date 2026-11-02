@@ -313,6 +313,17 @@ body:has(.task-terminal-container),
 }
 .sidebar-brand {
   position: relative;
+  height: 52px;
+  min-height: 52px;
+  max-height: 52px;
+  box-sizing: border-box;
+}
+.h-13,
+[class*="h-13"] {
+  height: 52px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  box-sizing: border-box !important;
 }
 @media (min-width: 1200px) {
   .primary-navigation .sidebar-account .account-label {

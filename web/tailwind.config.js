@@ -12,6 +12,9 @@ export default {
         mono: ["var(--font-mono)"],
         serif: ["var(--font-serif)"],
       },
+      spacing: {
+        13: "52px",
+      },
       boxShadow: Object.fromEntries(["2xs", "xs", "sm", "md", "lg", "xl", "2xl"].map(size => [size, `var(--shadow-${size})`]).concat([["DEFAULT", "var(--shadow)"]])),
       colors: {
         background: "oklch(var(--background) / <alpha-value>)",

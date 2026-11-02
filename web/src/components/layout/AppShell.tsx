@@ -298,9 +298,9 @@ export function AppShell({
       <KeyboardShortcuts />
       <nav
         aria-label={t('Main navigation')}
-        className="primary-navigation hidden shrink-0 flex-col border-r border-border/60 bg-sidebar md:flex"
+        className="primary-navigation hidden shrink-0 flex-col border-r border-border bg-sidebar md:flex"
       >
-        <div className="sidebar-brand flex h-13 shrink-0 items-center justify-between border-b border-border/60 px-4">
+        <div className="sidebar-brand flex h-13 shrink-0 items-center justify-between border-b border-border px-4 box-border">
           <Link
             to="/chat"
             aria-label={t('Go to Chat')}
@@ -377,7 +377,7 @@ export function AppShell({
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header
           className={cn(
-            'flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-background px-3 md:px-5',
+            'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5 box-border',
             'app-page-header h-14 md:h-16 md:!h-13',
             sessionWorkspace || contentHeader || currentTab === 'inbox' || currentTab === 'chat'
               ? 'hidden'

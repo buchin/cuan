@@ -68,12 +68,20 @@
   background: var(--wa-header);
   color: var(--wa-text);
   border-bottom: none;
+  height: 52px;
+  min-height: 52px;
+  max-height: 52px;
+  box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
   .wa-chat-header,
   .calm-chat-header {
-    border-bottom: 1px solid oklch(var(--border) / 0.8);
+    border-bottom: 1px solid oklch(var(--border)) !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+    box-sizing: border-box !important;
   }
 }
 

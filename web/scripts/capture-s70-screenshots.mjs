@@ -69,7 +69,7 @@ function renderSidebar(activeTab = 'tasks') {
     <aside class="w-56 border-r border-border/40 bg-card/20 flex flex-col justify-between shrink-0">
       <div class="flex flex-col">
         <!-- Brand Header (52px / h-13 matching shadcn Mail) -->
-        <div class="h-13 px-3 flex items-center justify-between border-b border-border/40">
+        <div class="h-13 px-3 flex items-center justify-between border-b border-border box-border">
           <div class="flex items-center gap-2.5">
             <div class="h-6 w-6 rounded-none bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs shrink-0">
               c
@@ -203,7 +203,7 @@ function createDesktopTasksHtml() {
     <!-- Main Tasks Workspace Pane -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
       <!-- App Header (52px / h-13 aligning across all columns) -->
-      <header class="h-13 px-4 border-b border-border/40 flex items-center justify-between shrink-0 bg-background">
+      <header class="h-13 px-4 border-b border-border flex items-center justify-between shrink-0 bg-background box-border">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold tracking-tight text-foreground">Tasks</span>
         </div>
@@ -570,7 +570,7 @@ function createDesktopInboxHtml() {
     <!-- Middle Pane: Conversation / Mail List SubPanel (shadcn Mail) -->
     <aside class="w-80 md:w-96 border-r border-border/40 flex flex-col shrink-0 bg-card/10">
       <!-- Top header (52px continuous line) -->
-      <div class="h-13 px-4 border-b border-border/40 flex items-center justify-between shrink-0">
+      <div class="h-13 px-4 border-b border-border flex items-center justify-between shrink-0 box-border">
         <div class="flex items-center gap-1.5">
           <h1 class="text-sm font-semibold tracking-tight text-foreground">Inbox</h1>
           <span class="font-mono text-xs text-muted-foreground font-normal">128</span>
@@ -662,7 +662,7 @@ function createDesktopInboxHtml() {
     <!-- Right Pane: Conversation Reader Canvas (Bear Notes / Things 3 Calm Style) -->
     <main class="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
       <!-- Conversation Header (52px / h-13 continuous horizontal line aligning with Middle & Left header) -->
-      <header class="h-13 border-b border-border/40 px-6 flex items-center justify-between shrink-0 bg-background">
+      <header class="h-13 border-b border-border px-6 flex items-center justify-between shrink-0 bg-background box-border">
         <div class="flex items-center gap-3">
           <div class="relative shrink-0">
             <div class="h-9 w-9 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs border border-primary/30 avatar overflow-hidden">
