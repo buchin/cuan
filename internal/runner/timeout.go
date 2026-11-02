@@ -59,8 +59,8 @@ func CalculateAdaptiveTimeout(attemptNumber int) time.Duration {
 }
 
 // CalculateTaskTimeout returns execution timeout tailored to execution lane and task nature.
-// Investigation / Read-Only / RCA tasks receive 5m timeout to prevent hung/zombie agents.
-// Standard code tasks receive adaptive timeout (25m, 35m, 45m).
+// Investigation / Read-Only tasks receive 5m timeout to prevent hung/zombie agents.
+// Standard code tasks receive progressive adaptive timeout (25m, 35m, 45m).
 func CalculateTaskTimeout(lane string, attemptNumber int, titleAndPrompt ...string) time.Duration {
 	if v := os.Getenv("CUAN_TASK_TIMEOUT_OVERRIDE"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
@@ -68,25 +68,35 @@ func CalculateTaskTimeout(lane string, attemptNumber int, titleAndPrompt ...stri
 		}
 	}
 
-	combined := strings.ToLower(lane)
-	if len(titleAndPrompt) > 0 {
-		combined += " " + strings.ToLower(strings.Join(titleAndPrompt, " "))
-	}
+	normLane := strings.ToLower(strings.TrimSpace(lane))
 
-	if strings.Contains(combined, "readonly") ||
-		strings.Contains(combined, "read_only") ||
-		strings.Contains(combined, "investigasi") ||
-		strings.Contains(combined, "investigation") ||
-		strings.Contains(combined, "rca") ||
-		strings.Contains(combined, "root cause") ||
-		strings.Contains(combined, "analisis") ||
-		strings.Contains(combined, "analysis") {
+	// Explicit readonly lane gets 5m investigation timeout
+	if normLane == "readonly" || normLane == "read_only" {
 		if v := os.Getenv("CUAN_TASK_TIMEOUT_INVESTIGATION"); v != "" {
 			if d, err := time.ParseDuration(v); err == nil && d > 0 {
 				return d
 			}
 		}
 		return DefaultInvestigationTimeout
+	}
+
+	// For non-code lane (unspecified / ops), check if title explicitly indicates pure investigation/RCA
+	if normLane != "code" {
+		titleText := ""
+		if len(titleAndPrompt) > 0 {
+			titleText = strings.ToLower(titleAndPrompt[0])
+		}
+		if strings.Contains(titleText, "investigasi") ||
+			strings.Contains(titleText, "investigation") ||
+			strings.Contains(titleText, "rca") ||
+			strings.Contains(titleText, "root cause") {
+			if v := os.Getenv("CUAN_TASK_TIMEOUT_INVESTIGATION"); v != "" {
+				if d, err := time.ParseDuration(v); err == nil && d > 0 {
+					return d
+				}
+			}
+			return DefaultInvestigationTimeout
+		}
 	}
 
 	return CalculateAdaptiveTimeout(attemptNumber)

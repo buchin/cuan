@@ -99,12 +99,17 @@ func TestCalculateTaskTimeout_InvestigationPruning(t *testing.T) {
 		t.Fatalf("expected 5m for readonly lane, got %v", d)
 	}
 
-	// Investigation in title/prompt gets pruned to 5m (down from 20m)
-	if d := CalculateTaskTimeout("code", 1, "Investigasi error 500", "analisis root cause timeout"); d != 5*time.Minute {
+	// Code lane with analysis in prompt retains full adaptive timeout (25m) so builds/edits do not timeout
+	if d := CalculateTaskTimeout("code", 1, "tweakcn", "Menganalisis file styling global dan reset CSS"); d != 25*time.Minute {
+		t.Fatalf("expected 25m for code task with analysis in instructions, got %v", d)
+	}
+
+	// Non-code task with explicit RCA/investigation title gets pruned to 5m
+	if d := CalculateTaskTimeout("", 1, "Investigasi error 500", "analisis root cause timeout"); d != 5*time.Minute {
 		t.Fatalf("expected 5m for investigation task, got %v", d)
 	}
 
-	if d := CalculateTaskTimeout("", 1, "RCA payment gateway outage", "check provider status"); d != 5*time.Minute {
+	if d := CalculateTaskTimeout("ops", 1, "RCA payment gateway outage", "check provider status"); d != 5*time.Minute {
 		t.Fatalf("expected 5m for RCA task, got %v", d)
 	}
 }

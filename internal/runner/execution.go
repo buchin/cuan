@@ -296,6 +296,27 @@ func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace
 
 		pushErr := r.gitClient.PushTaskBranch(ctx, ws.Path, ws.BranchName, defaultBranch, token)
 		if pushErr != nil {
+			// Fallback: if runner host has no GH_TOKEN, request server push using project's encrypted token
+			if claim.TaskAgent != nil && claim.TaskAgent.API != "" && claim.TaskAgent.Token != "" {
+				pushEndpoint := strings.TrimRight(claim.TaskAgent.API, "/") + "/push"
+				pushReq, httpErr := http.NewRequestWithContext(ctx, http.MethodPost, pushEndpoint, nil)
+				if httpErr == nil {
+					pushReq.Header.Set("Authorization", "Bearer "+claim.TaskAgent.Token)
+					pushResp, doErr := r.httpClient.Do(pushReq)
+					if doErr == nil {
+						defer pushResp.Body.Close()
+						if pushResp.StatusCode == http.StatusOK {
+							pushErr = nil
+							r.streamLogLine(ctx, att.ID, "system", "Task branch pushed to GitHub via project connection.")
+						} else {
+							pushErr = fmt.Errorf("project push returned status %d", pushResp.StatusCode)
+						}
+					}
+				}
+			}
+		}
+
+		if pushErr != nil {
 			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan git push: %v", pushErr))
 		} else {
 			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Task branch '%s' pushed to GitHub.", ws.BranchName))

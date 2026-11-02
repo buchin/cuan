@@ -349,6 +349,9 @@ func (c *Client) PushTaskBranch(ctx context.Context, workspacePath, branchName, 
 	}
 
 	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "push", "-u", "origin", trimmedBranch)
+	if token != "" {
+		cmd.Env = repositoryEnvironment(token)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
