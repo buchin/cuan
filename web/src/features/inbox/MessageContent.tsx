@@ -89,6 +89,17 @@ export const MessageContent = memo(function MessageContent({
   const hasTaskAction = effectiveActions.some((a) => extractTaskId(a.href) || /^\/tasks\/[A-Za-z0-9_-]+$/.test(a.href.split(/[?#]/)[0]))
   const shouldHideTaskCard = Boolean(hideTaskActions || hasTaskAction)
 
+  const isBoilerplateLaunch =
+    effectiveBody.startsWith('Work started. I’ll report progress and the result here.') ||
+    effectiveBody.startsWith("Work started. I'll report progress and the result here.") ||
+    effectiveBody.startsWith('The work is saved, but could not start.') ||
+    effectiveBody.startsWith('The work is waiting for an available AI session.') ||
+    effectiveBody.startsWith('The work is queued waiting for the active project task') ||
+    effectiveBody.startsWith('The work is waiting to start. I’ll report progress here.') ||
+    effectiveBody.startsWith("The work is waiting to start. I'll report progress here.")
+
+  const shouldRenderBody = effectiveBody && !(isBoilerplateLaunch && hasTaskAction)
+
   return (
     <>
       {report ? (
@@ -107,7 +118,7 @@ export const MessageContent = memo(function MessageContent({
           )}
         </div>
       ) : (
-        effectiveBody ? (
+        shouldRenderBody ? (
           <div
             className={cn(
               'min-w-0 max-w-full',

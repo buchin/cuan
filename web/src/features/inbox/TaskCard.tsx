@@ -29,7 +29,6 @@ import {
   taskLiveActivityText,
   taskRef,
   relativeTime,
-  agentDisplayName,
 } from '../tasks/task-ui'
 import { isTaskActive, formatDuration } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
@@ -457,10 +456,6 @@ export const TaskCard = memo(function TaskCard({
     rawStatus === 'queued'
   const isNeedsAttention = status === 'Needs attention'
   const statusBadge = workStatusBadgeClass(status)
-  const agent =
-    currentTask.latest_attempt?.agent_name ||
-    currentTask.assignee_id ||
-    currentTask.assignee
 
   const envelopeResult = parseTaskReviewEnvelope(currentTask)
   const summary = envelopeResult.summary || taskSummaryText(currentTask)
@@ -511,25 +506,25 @@ export const TaskCard = memo(function TaskCard({
           {(isWorking || isQueued) && (
             <span
               data-testid="task-card-live-timer"
-              className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md"
+              className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground/80 font-medium"
               title={t('Durasi pengerjaan')}
             >
-              <Clock className="h-3 w-3 shrink-0 text-primary animate-pulse" />
+              <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" />
               <span>{formatDuration(elapsedSeconds)}</span>
             </span>
           )}
 
           {currentTask.project_name && (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium truncate max-w-[150px]">
-              <Folder className="h-3.5 w-3.5 shrink-0" />
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80 font-medium truncate max-w-[150px]">
+              <Folder className="h-3 w-3 shrink-0 opacity-70" />
               <span className="truncate">{currentTask.project_name}</span>
             </span>
           )}
-
-          <span className="font-mono text-xs text-muted-foreground">
-            {taskRef(currentTask.id)}
-          </span>
         </div>
+
+        <span className="font-mono text-xs text-muted-foreground/40 shrink-0">
+          {taskRef(currentTask.id)}
+        </span>
       </div>
 
       {/* Title & Description */}
@@ -581,8 +576,8 @@ export const TaskCard = memo(function TaskCard({
         </div>
       )}
 
-      {/* Collapsible Session & Attempt History Timeline */}
-      {attempts.length > 0 && (
+      {/* Collapsible Session & Attempt History Timeline (only rendered when there are multiple attempts/revisions) */}
+      {attempts.length > 1 && (
         <div
           data-testid="task-card-timeline-section"
           onClick={(e) => e.stopPropagation()}
@@ -729,8 +724,8 @@ export const TaskCard = memo(function TaskCard({
         </div>
       )}
 
-      {/* Secondary Technical Details link: parks details to SlideDrawer */}
-      <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 text-xs">
+      {/* Footer: Diagnostic Link, Timestamp, and Quick Action Button */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/30 text-xs">
         <button
           type="button"
           onClick={(e) => {
@@ -738,45 +733,20 @@ export const TaskCard = memo(function TaskCard({
             handleViewDetails(currentTask, 'details')
           }}
           data-testid="task-card-diagnostic-link"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors group cursor-pointer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
           <span>{t('Detail Diagnostik & Status Deploy →')}</span>
         </button>
 
-        <time
-          dateTime={currentTask.updated_at}
-          title={new Date(currentTask.updated_at).toLocaleString()}
-          className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
-        >
-          {t(relativeTime(currentTask.updated_at))}
-        </time>
-      </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <time
+            dateTime={currentTask.updated_at}
+            title={new Date(currentTask.updated_at).toLocaleString()}
+            className="text-[11px] text-muted-foreground/60 whitespace-nowrap"
+          >
+            {t(relativeTime(currentTask.updated_at))}
+          </time>
 
-      {/* Assignee snippet */}
-      {agent && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
-          <span className="text-muted-foreground/70">{t('Assignee')}:</span>
-          <span className="font-medium text-foreground">{agentDisplayName(agent)}</span>
-        </div>
-      )}
-
-      {/* Footer: Quick Action Buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
-        <button
-          type="button"
-          onClick={handleCopyLink}
-          aria-label={t('Copy link')}
-          className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          ) : (
-            <Copy className="h-3.5 w-3.5 shrink-0" />
-          )}
-          <span>{copied ? t('Copied') : t('Copy link')}</span>
-        </button>
-
-        <div className="flex items-center gap-2">
           {isNeedsAttention && (
             <button
               type="button"

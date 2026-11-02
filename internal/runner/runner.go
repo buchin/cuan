@@ -813,9 +813,6 @@ func (r *Runner) executeWithPTY(
 		"--prompt-interactive", prompt,
 		"--add-dir", workingDir,
 	}
-	if claim.Task != nil && claim.Task.AssignedAgent != "" && claim.Task.AssignedAgent != "agy" {
-		ptyArgs = append(ptyArgs, "--model", claim.Task.AssignedAgent)
-	}
 
 	ptyEnv := []string{
 		"SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22",
