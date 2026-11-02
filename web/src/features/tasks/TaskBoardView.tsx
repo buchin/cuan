@@ -348,7 +348,7 @@ export function TaskBoardView({
     )
   }
   const statusPicker = (t: Task) => (
-    <span className="relative inline-flex max-w-full items-center gap-1 rounded-md border border-border/40 bg-muted/20 px-1.5 text-xs hover:bg-muted/40 transition-colors">
+    <span className="relative inline-flex max-w-full items-center gap-1 rounded-md border-border/40 bg-muted/20 px-2 text-xs hover:bg-muted/40 transition-colors border">
       {statusIcon(t.status)}
       <select
         aria-label={`Change status for ${t.title}`}
@@ -776,7 +776,7 @@ export function TaskBoardView({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/30">
+              <tbody className="divide-y divide-border/40">
                 {rows.slice(0, limit).map((t) => (
                   <tr
                     key={t.id}
