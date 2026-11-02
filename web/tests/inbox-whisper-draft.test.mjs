@@ -46,14 +46,12 @@ test('3. InboxView renders ready-to-use customer draft reply card with Review & 
   )
 })
 
-test('4. InboxView renders quick whisper mention chips (@team, @sm, @dev) for customer chats', () => {
+test('4. InboxView renders clean single-agent whisper mode (@cuan) without clutter pills', () => {
   const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
-  assert.ok(inboxViewSrc.includes("@team"), 'Composer must provide @team chip')
-  assert.ok(inboxViewSrc.includes("@sm"), 'Composer must provide @sm chip')
-  assert.ok(inboxViewSrc.includes("@dev"), 'Composer must provide @dev chip')
+  assert.ok(inboxViewSrc.includes("@cuan"), 'Composer must provide @cuan whisper mode')
   assert.ok(
-    inboxViewSrc.includes("t('Whisper AI:')"),
-    'Composer must display Whisper AI label'
+    inboxViewSrc.includes("t('Whisper @cuan')"),
+    'Composer must display Whisper @cuan toggle'
   )
 })
 
