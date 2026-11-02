@@ -397,6 +397,9 @@ func TestCoordinatorInstructionProactiveExtension(t *testing.T) {
 		"proactive extension & tool creation protocol",
 		"genuine, ongoing value",
 		"approval action card",
+		"strict repository boundary enforcement",
+		"platform-level tools & cuan core mcp",
+		"project-level tools & automations",
 	} {
 		if !strings.Contains(strings.ToLower(inboxCoordinatorInstruction), required) {
 			t.Fatalf("inboxCoordinatorInstruction missing required directive %q", required)
