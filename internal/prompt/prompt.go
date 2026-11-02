@@ -4,6 +4,7 @@ package prompt
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,9 +69,9 @@ func GetRunnerPromptAdditions(dirs ...string) string {
 	return sb.String()
 }
 
-// BuildRunnerPrompt creates the unified task execution prompt for cuan-runner or local runner,
-// ensuring AGENTS.md and Scrum Rules are automatically injected alongside task instructions and title.
-func BuildRunnerPrompt(taskTitle, taskInstructions, agentPrompt string, dirs ...string) string {
+// BuildRunnerPromptWithDoD creates the unified task execution prompt for cuan-runner or local runner,
+// ensuring AGENTS.md, Definition of Done checklist, and task reporting requirements are explicitly injected.
+func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, dodChecklist []string, dirs ...string) string {
 	var sb strings.Builder
 
 	base := strings.TrimSpace(taskInstructions)
@@ -78,6 +79,21 @@ func BuildRunnerPrompt(taskTitle, taskInstructions, agentPrompt string, dirs ...
 		base = strings.TrimSpace(taskTitle)
 	}
 	sb.WriteString(base)
+
+	if len(dodChecklist) > 0 {
+		sb.WriteString("\n\n=== MANDATORY DEFINITION OF DONE & ACCEPTANCE CRITERIA ===\n")
+		sb.WriteString("You MUST systematically satisfy, test, and provide concrete verification evidence for every criterion below:\n")
+		for _, item := range dodChecklist {
+			trimmed := strings.TrimSpace(item)
+			if trimmed != "" {
+				sb.WriteString(fmt.Sprintf("- [ ] %s\n", trimmed))
+			}
+		}
+		sb.WriteString("\n=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===\n")
+		sb.WriteString("Before concluding, you MUST state your verification evidence (exact test outputs, commit SHA, and verified behavior).\n")
+		sb.WriteString("If using the cuan CLI in workspace, report completion using:\n")
+		sb.WriteString("  cuan task report --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")
+	}
 
 	if agentPrompt != "" {
 		sb.WriteString("\n\n")
@@ -91,6 +107,11 @@ func BuildRunnerPrompt(taskTitle, taskInstructions, agentPrompt string, dirs ...
 	}
 
 	return sb.String()
+}
+
+// BuildRunnerPrompt calls BuildRunnerPromptWithDoD with no explicit DoD checklist for backward compatibility.
+func BuildRunnerPrompt(taskTitle, taskInstructions, agentPrompt string, dirs ...string) string {
+	return BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt, nil, dirs...)
 }
 
 // BuildChatSystemPrompt combines base coordinator instructions with AGENTS.md and Scrum Rules.

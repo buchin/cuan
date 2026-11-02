@@ -527,8 +527,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Lane %s: menggunakan direktori operasional '%s' tanpa checkout git branch baru.", lane, workingDir))
 	}
 
-	// Prepare execution request with AGENTS.md guidance & Scrum rules injected
-	prompt := cuanPrompt.BuildRunnerPrompt(t.Title, t.Instructions, claim.AgentPrompt, workingDir)
+	// Prepare execution request with AGENTS.md guidance, DoD checklist, and Scrum rules injected
+	var dodTexts []string
+	for _, item := range t.DoDChecklist {
+		if strings.TrimSpace(item.Text) != "" {
+			dodTexts = append(dodTexts, item.Text)
+		}
+	}
+	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir)
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()

@@ -659,7 +659,16 @@ var (
 	dodNumberedRegex = regexp.MustCompile(`^\d+[\.\)]\s*(.+)`)
 	dodBulletRegex   = regexp.MustCompile(`^[\*\-\+]\s*(.+)`)
 	dodHeaderRegex   = regexp.MustCompile(`(?i)^(?:dod|acceptance criteria|kriteria penerimaan|kriteria|definition of done)\s*[:—\-]?\s*$`)
+	dodSectionHeaderRegex = regexp.MustCompile(`(?i)^(?:target area|pemeriksaan & eksekusi|pemeriksaan|eksekusi|kriteria selesai|kriteria|catatan|langkah|tahapan|scope|lingkup|catatan penting)\s*[:—\-]?$`)
 )
+
+func isDoDSectionHeader(text string) bool {
+	t := strings.TrimSpace(text)
+	if strings.HasSuffix(t, ":") {
+		return true
+	}
+	return dodSectionHeaderRegex.MatchString(t)
+}
 
 func extractDoDFromDescription(description string) []task.DoDItem {
 	var items []task.DoDItem
@@ -679,6 +688,9 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 		// 1. Markdown checkboxes (- [ ], * [x])
 		if m := dodCheckboxRegex.FindStringSubmatch(trimmed); len(m) > 2 {
 			text := strings.TrimSpace(m[2])
+			if isDoDSectionHeader(text) {
+				continue
+			}
 			completed := strings.ToLower(m[1]) == "x"
 			if text != "" && !seen[strings.ToLower(text)] {
 				items = append(items, task.DoDItem{Text: text, Completed: completed})
@@ -689,6 +701,9 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 		// 2. Numbered list items (1. Foo, 2) Bar)
 		if m := dodNumberedRegex.FindStringSubmatch(trimmed); len(m) > 1 {
 			text := strings.TrimSpace(m[1])
+			if isDoDSectionHeader(text) {
+				continue
+			}
 			if text != "" && !seen[strings.ToLower(text)] {
 				items = append(items, task.DoDItem{Text: text, Completed: false})
 				seen[strings.ToLower(text)] = true
@@ -699,6 +714,9 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 		if inDoDBlock {
 			if m := dodBulletRegex.FindStringSubmatch(trimmed); len(m) > 1 {
 				text := strings.TrimSpace(m[1])
+				if isDoDSectionHeader(text) {
+					continue
+				}
 				if text != "" && !seen[strings.ToLower(text)] {
 					items = append(items, task.DoDItem{Text: text, Completed: false})
 					seen[strings.ToLower(text)] = true
@@ -713,6 +731,9 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 			trimmed := strings.TrimSpace(line)
 			if m := dodBulletRegex.FindStringSubmatch(trimmed); len(m) > 1 {
 				text := strings.TrimSpace(m[1])
+				if isDoDSectionHeader(text) {
+					continue
+				}
 				if text != "" && !seen[strings.ToLower(text)] && len([]rune(text)) > 3 {
 					items = append(items, task.DoDItem{Text: text, Completed: false})
 					seen[strings.ToLower(text)] = true

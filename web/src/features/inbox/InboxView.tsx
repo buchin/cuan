@@ -256,6 +256,20 @@ export function InboxView({
     return linkedTasks.filter(isTaskActive)
   }, [linkedTasks])
 
+  // Map each referenced task ID to the latest message that references it in this room.
+  // This enforces a strict single-card policy: only the latest message renders a TaskCard.
+  const latestMessageIdPerTask = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const m of messages) {
+      const content = m.content || m.message || ''
+      const matches = content.matchAll(/\/tasks\/([A-Za-z0-9_-]+)/g)
+      for (const match of matches) {
+        map.set(match[1], m.uuid || m.id)
+      }
+    }
+    return map
+  }, [messages])
+
   // Track task completion transitions to trigger audio chime & background tab badge
   const prevActiveTasksRef = useRef<Set<string>>(new Set())
   useEffect(() => {
@@ -1459,12 +1473,13 @@ export function InboxView({
                 const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
                 const msgContent = msg.content || msg.message || ''
 
-                // Suppress internal system cues (e.g. cuan_work_review)
+                // Suppress internal system cues (e.g. cuan_work_review) and stale notices
                 if (
                   msg.author_id === 'cuan_work_review' ||
                   msgContent.startsWith('I’m checking the latest work update') ||
                   msgContent.startsWith("I'm checking the latest work update") ||
-                  msgContent.startsWith('Review the result for [')
+                  msgContent.startsWith('Review the result for [') ||
+                  msgContent.startsWith('This update is no longer current')
                 ) {
                   return null
                 }
@@ -1537,11 +1552,23 @@ export function InboxView({
                       const laterContent = m.content || m.message || ''
                       return laterContent.includes(`/tasks/${taskId}`)
                     })
-                    if (hasLaterTaskMessage) {
+                    const hasOtherTaskMessage = messages.some((m) => {
+                      if ((m.uuid || m.id) === (msg.uuid || msg.id)) return false
+                      const otherContent = m.content || m.message || ''
+                      return otherContent.includes(`/tasks/${taskId}`)
+                    })
+                    if (hasLaterTaskMessage || hasOtherTaskMessage) {
                       return null
                     }
                   }
                 }
+
+                const msgTaskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
+                const isSupersededTaskMessage = Boolean(
+                  msgTaskIdMatch &&
+                    latestMessageIdPerTask.get(msgTaskIdMatch[1]) &&
+                    latestMessageIdPerTask.get(msgTaskIdMatch[1]) !== (msg.uuid || msg.id),
+                )
 
                 const date = new Date(msg.created_at)
                 const showDate =
@@ -1684,7 +1711,7 @@ export function InboxView({
                       {isFormattedMessage ? (
                         <MessageContent
                           content={msg.content || msg.message}
-                          hideTaskActions={!!linkedTaskForMsg}
+                          hideTaskActions={Boolean(linkedTaskForMsg || isSupersededTaskMessage)}
                           receiptExtraction={msg.receipt_extraction}
                           onTaskClick={handleTaskDetailsClick}
                           onOpenTerminal={handleTaskTerminalClick}

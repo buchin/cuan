@@ -9,6 +9,7 @@ export interface CollapsibleChatTextProps {
   content: string
   maxLines?: number
   maxChars?: number
+  hideTaskCard?: boolean
   onTaskClick?: (task: Task) => void
   isCustomerRoom?: boolean
   className?: string
@@ -23,6 +24,7 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
   content,
   maxLines = 7,
   maxChars = 420,
+  hideTaskCard = false,
   onTaskClick,
   isCustomerRoom,
   className,
@@ -39,6 +41,7 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
       <div className={cn('min-w-0 max-w-full', className)}>
         <ChatMarkdown
           content={content}
+          hideTaskCard={hideTaskCard}
           onTaskClick={onTaskClick}
           isCustomerRoom={isCustomerRoom}
         />
@@ -56,6 +59,7 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
       >
         <ChatMarkdown
           content={content}
+          hideTaskCard={hideTaskCard}
           onTaskClick={onTaskClick}
           isCustomerRoom={isCustomerRoom}
         />

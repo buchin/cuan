@@ -86,6 +86,9 @@ export const MessageContent = memo(function MessageContent({
   const effectiveBody =
     displayBody || (!report && !extractedReceipt && effectiveActions.length === 0 ? content.trim() : '')
 
+  const hasTaskAction = effectiveActions.some((a) => extractTaskId(a.href) || /^\/tasks\/[A-Za-z0-9_-]+$/.test(a.href.split(/[?#]/)[0]))
+  const shouldHideTaskCard = Boolean(hideTaskActions || hasTaskAction)
+
   return (
     <>
       {report ? (
@@ -95,6 +98,7 @@ export const MessageContent = memo(function MessageContent({
             <div className="pt-1">
               <CollapsibleChatText
                 content={report.dodDetails.remainingText}
+                hideTaskCard={shouldHideTaskCard}
                 onTaskClick={onTaskClick}
                 isCustomerRoom={isCustomerRoom}
                 isOutgoing={isOutgoing}
@@ -113,6 +117,7 @@ export const MessageContent = memo(function MessageContent({
           >
             <CollapsibleChatText
               content={effectiveBody}
+              hideTaskCard={shouldHideTaskCard}
               onTaskClick={onTaskClick}
               isCustomerRoom={isCustomerRoom}
               isOutgoing={isOutgoing}

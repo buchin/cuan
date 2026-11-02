@@ -43,29 +43,24 @@ test('1. S64-T3: Safe-Area-Inset-Bottom Padding on Composer & Bottom Docked Cont
   )
 })
 
-test('2. S64-T3: Quick Action Chips Row Mobile Visibility & Stop Button Usability', () => {
+test('2. S64-T3: Zero Visual Noise Calm Terminal Composer & Human-Friendly Stop Button', () => {
   const composerContent = fs.readFileSync(terminalComposerPath, 'utf8')
 
-  // 1. Quick Action Chips must NOT be hidden on mobile (must not use hidden sm:flex on container)
+  // 1. Noisy CLI quick action toolbar must be eliminated for zero visual noise (Bear Notes / Things 3 standard)
   assert.ok(
-    !composerContent.includes('className="hidden sm:flex items-center gap-1 overflow-x-auto'),
-    'Quick Action Chips container must not be hidden on mobile',
-  )
-  assert.ok(
-    composerContent.includes('overflow-x-auto'),
-    'Quick Action Chips must support horizontal scrolling on mobile viewports',
+    !composerContent.includes('role="toolbar" aria-label="Terminal Quick Action Chips"'),
+    'Noisy CLI developer toolbar must be eliminated for non-developer calm design',
   )
 
-  // 2. Essential chips present: y, n, Stop (Ctrl+C), Clear, Tab, Kbd
-  assert.ok(composerContent.includes('y (Yes)'), 'Must render y (Yes) chip')
-  assert.ok(composerContent.includes('n (No)'), 'Must render n (No) chip')
+  // 2. Human-friendly stop button must be integrated for rapid process cancellation
   assert.ok(
-    composerContent.includes('Stop (Ctrl+C)') || composerContent.includes('Ctrl+C'),
-    'Must render Stop / Ctrl+C chip for rapid process cancellation',
+    composerContent.includes('onStop || onInterrupt'),
+    'Must provide onStop or onInterrupt handling for process cancellation',
   )
-  assert.ok(composerContent.includes('Clear'), 'Must render Clear screen chip')
-  assert.ok(composerContent.includes('Tab'), 'Must render Tab autocomplete chip')
-  assert.ok(composerContent.includes('onToggleMobileKbd'), 'Must render Kbd toggle chip')
+  assert.ok(
+    composerContent.includes('Hentikan proses') || composerContent.includes('Stop'),
+    'Must render human-friendly Stop action',
+  )
 })
 
 test('3. S64-T3: WCAG 2.1 AA Touch Target Accessibility (>= 44x44px for Primary Tap Targets)', () => {

@@ -69,6 +69,31 @@ func TestBuildRunnerPrompt(t *testing.T) {
 	}
 }
 
+func TestBuildRunnerPromptWithDoD(t *testing.T) {
+	title := "Integrate micro-packages"
+	instructions := "Wire pkg/taskfsm into runner"
+	agentPrompt := "Focus on backward compatibility."
+	dod := []string{
+		"Verifikasi unit test 100% pass",
+		"Build Go binary tanpa error",
+		"Verifikasi health check /healthz",
+	}
+
+	result := BuildRunnerPromptWithDoD(title, instructions, agentPrompt, dod)
+
+	if !strings.Contains(result, "=== MANDATORY DEFINITION OF DONE & ACCEPTANCE CRITERIA ===") {
+		t.Errorf("expected result to contain DoD header")
+	}
+	for _, item := range dod {
+		if !strings.Contains(result, "- [ ] "+item) {
+			t.Errorf("expected result to contain DoD item %q", item)
+		}
+	}
+	if !strings.Contains(result, "cuan task report --summary") {
+		t.Errorf("expected result to contain task reporting instructions")
+	}
+}
+
 func TestBuildChatSystemPrompt(t *testing.T) {
 	baseInst := "You coordinate work."
 	schema := `{"type": "object"}`

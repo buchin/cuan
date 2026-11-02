@@ -36,6 +36,7 @@ export type TerminalComposerProps = {
   onInterrupt: () => void
   onToggleMobileKbd?: () => void
   isMobileKbdActive?: boolean
+  showQuickActions?: boolean
   disabled?: boolean
   className?: string
 }
@@ -62,6 +63,7 @@ export function TerminalComposer({
   onInterrupt,
   onToggleMobileKbd,
   isMobileKbdActive = false,
+  showQuickActions = false,
   disabled = false,
   className = '',
 }: TerminalComposerProps) {
@@ -666,90 +668,91 @@ export function TerminalComposer({
         <p className="text-xs text-destructive px-1">{uploadError}</p>
       )}
 
-      {/* ── Quick Action Chips Row (Horizontal scroll on mobile with touch-friendly >= 44x44px targets) ── */}
-      <div
-        role="toolbar"
-        aria-label="Terminal Quick Action Chips"
-        className="flex items-center gap-1.5 overflow-x-auto select-none py-0.5 px-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-      >
-        {/* Mobile Accessory Keyboard Toggle */}
-        {onToggleMobileKbd && (
+      {/* ── Quick Action Chips Row (Hidden by default for non-developer zero visual noise) ── */}
+      {showQuickActions && (
+        <div
+          role="toolbar"
+          aria-label="Terminal Quick Action Chips"
+          className="flex items-center gap-1.5 overflow-x-auto select-none py-0.5 px-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
+          {onToggleMobileKbd && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onToggleMobileKbd}
+              className={`inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-mono font-semibold transition-colors disabled:opacity-40 cursor-pointer ${
+                isMobileKbdActive
+                  ? 'border-emerald-500 bg-emerald-600 text-white shadow-xs'
+                  : 'border-neutral-700 bg-neutral-800 text-emerald-400 hover:bg-neutral-700 active:bg-neutral-600'
+              }`}
+              title="Toggle extra virtual keys drawer (ESC, Arrows, CTRL, ALT)"
+              aria-label="Toggle extra virtual keys drawer"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+              <span>Kbd</span>
+            </button>
+          )}
+
           <button
             type="button"
             disabled={disabled}
-            onClick={onToggleMobileKbd}
-            className={`inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-mono font-semibold transition-colors disabled:opacity-40 cursor-pointer ${
-              isMobileKbdActive
-                ? 'border-emerald-500 bg-emerald-600 text-white shadow-xs'
-                : 'border-neutral-700 bg-neutral-800 text-emerald-400 hover:bg-neutral-700 active:bg-neutral-600'
-            }`}
-            title="Toggle extra virtual keys drawer (ESC, Arrows, CTRL, ALT)"
-            aria-label="Toggle extra virtual keys drawer"
+            onClick={() => handleSend('y')}
+            className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
+            title="Send 'y' (confirm Yes)"
+            aria-label="Send y (confirm Yes)"
           >
-            <Keyboard className="h-3.5 w-3.5" />
-            <span>Kbd</span>
+            <Check className="h-3 w-3 text-emerald-400" />
+            <span>y (Yes)</span>
           </button>
-        )}
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => handleSend('y')}
-          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
-          title="Send 'y' (confirm Yes)"
-          aria-label="Send y (confirm Yes)"
-        >
-          <Check className="h-3 w-3 text-emerald-400" />
-          <span>y (Yes)</span>
-        </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => handleSend('n')}
+            className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
+            title="Send 'n' (confirm No)"
+            aria-label="Send n (confirm No)"
+          >
+            <X className="h-3 w-3 text-rose-400" />
+            <span>n (No)</span>
+          </button>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => handleSend('n')}
-          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-200 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
-          title="Send 'n' (confirm No)"
-          aria-label="Send n (confirm No)"
-        >
-          <X className="h-3 w-3 text-rose-400" />
-          <span>n (No)</span>
-        </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onStop || onInterrupt}
+            className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-mono font-semibold text-rose-300 hover:bg-rose-500/20 active:bg-rose-500/30 transition-colors disabled:opacity-40 cursor-pointer"
+            title="Send SIGINT (Ctrl+C) to cancel process"
+            aria-label="Stop Process (Ctrl+C)"
+          >
+            <Ban className="h-3 w-3 text-rose-400" />
+            <span>Stop (Ctrl+C)</span>
+          </button>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onStop || onInterrupt}
-          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-mono font-semibold text-rose-300 hover:bg-rose-500/20 active:bg-rose-500/30 transition-colors disabled:opacity-40 cursor-pointer"
-          title="Send SIGINT (Ctrl+C) to cancel process"
-          aria-label="Stop Process (Ctrl+C)"
-        >
-          <Ban className="h-3 w-3 text-rose-400" />
-          <span>Stop (Ctrl+C)</span>
-        </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onClearScreen}
+            className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
+            title="Clear screen buffer"
+            aria-label="Clear screen buffer"
+          >
+            <Trash2 className="h-3 w-3 text-neutral-400" />
+            <span>Clear</span>
+          </button>
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onClearScreen}
-          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
-          title="Clear screen buffer"
-          aria-label="Clear screen buffer"
-        >
-          <Trash2 className="h-3 w-3 text-neutral-400" />
-          <span>Clear</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onSend('\t')}
-          className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
-          title="Send TAB (autocomplete)"
-          aria-label="Send Tab autocomplete"
-        >
-          <span>Tab</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onSend('\t')}
+            className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#333] bg-[#222] px-3 text-xs font-mono font-medium text-neutral-300 hover:bg-[#333] active:bg-neutral-700 transition-colors disabled:opacity-40 cursor-pointer"
+            title="Send TAB (autocomplete)"
+            aria-label="Send Tab autocomplete"
+          >
+            <span>Tab</span>
+          </button>
+        </div>
+      )}
 
       {/* ── Attachment Previews Strip (Inbox-style) ── */}
       {(uploadedFiles.length > 0 || uploading) && (
@@ -900,6 +903,20 @@ export function TerminalComposer({
             aria-label="Voice input"
           >
             {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          </button>
+        )}
+
+        {/* Stop / Cancel Process Button (Calm, human-friendly, visible when onStop/onInterrupt is provided) */}
+        {(onStop || onInterrupt) && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onStop || onInterrupt}
+            className="min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer shrink-0 mb-0.5"
+            title="Hentikan proses"
+            aria-label="Hentikan proses"
+          >
+            <Ban className="h-5 w-5" />
           </button>
         )}
 
