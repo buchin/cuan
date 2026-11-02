@@ -66,6 +66,8 @@ func TestPlatformMCPToolsList(t *testing.T) {
 		"list_apps",
 		"list_skills",
 		"toggle_agent_skill",
+		"probe_endpoint_health",
+		"inspect_deployment_status",
 	}
 
 	foundMap := make(map[string]bool)
@@ -109,6 +111,8 @@ func TestPlatformMCPToolsExecution(t *testing.T) {
 		{"list_apps", `{}`},
 		{"list_skills", `{}`},
 		{"toggle_agent_skill", `{"agent_id":"agent_sm","skill_id":"vision_receipt_extractor","enabled":true}`},
+		{"probe_endpoint_health", `{"url":"https://example.com"}`},
+		{"inspect_deployment_status", `{"project":"cuan"}`},
 	}
 
 	var reqs strings.Builder

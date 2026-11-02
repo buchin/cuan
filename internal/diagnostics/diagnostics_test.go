@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -380,5 +382,117 @@ func TestTimeoutHandling(t *testing.T) {
 	_, _, err := runBoundedCommand(ctx, 50*time.Millisecond, "", "sleep", "1")
 	if !errors.Is(err, ErrCommandTimedOut) && err != context.DeadlineExceeded {
 		t.Fatalf("expected timeout error, got: %v", err)
+	}
+}
+
+func TestProbeEndpointHealth(t *testing.T) {
+	// Mock server returning healthz JSON
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":     "healthy",
+			"app":        "cuan",
+			"version":    "0.1.0",
+			"commit_sha": "a1b2c3d4e5f6",
+			"timestamp":  "2026-11-03T01:00:00Z",
+		})
+	}))
+	defer srv.Close()
+
+	ctx := context.Background()
+
+	// 1. Success probe
+	res, err := ProbeEndpointHealth(ctx, srv.URL, 5)
+	if err != nil {
+		t.Fatalf("unexpected probe error: %v", err)
+	}
+	if !res.Healthy {
+		t.Errorf("expected healthy = true, got false")
+	}
+	if res.StatusCode != 200 {
+		t.Errorf("expected status code 200, got %d", res.StatusCode)
+	}
+	if res.CommitSHA != "a1b2c3d4e5f6" {
+		t.Errorf("expected commit sha a1b2c3d4e5f6, got %q", res.CommitSHA)
+	}
+	if res.Version != "0.1.0" {
+		t.Errorf("expected version 0.1.0, got %q", res.Version)
+	}
+
+	// 2. Unsupported scheme
+	if _, err := ProbeEndpointHealth(ctx, "ftp://example.com", 5); err == nil {
+		t.Errorf("expected error for ftp scheme, got nil")
+	}
+
+	// 3. Empty url
+	if _, err := ProbeEndpointHealth(ctx, "", 5); err == nil {
+		t.Errorf("expected error for empty url, got nil")
+	}
+
+	// 4. Unreachable server
+	unreachableRes, err := ProbeEndpointHealth(ctx, "http://127.0.0.1:54321/healthz", 1)
+	if err != nil {
+		t.Fatalf("expected graceful result for unreachable endpoint, got err: %v", err)
+	}
+	if unreachableRes.Healthy {
+		t.Errorf("expected healthy = false for unreachable endpoint")
+	}
+}
+
+func TestInspectDeploymentStatus(t *testing.T) {
+	repoDir := createTestGitRepo(t)
+	ctx := context.Background()
+
+	// Read HEAD commit of test repo
+	headOut, _, err := runBoundedCommand(ctx, 2*time.Second, repoDir, "git", "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatalf("failed to get test repo HEAD: %v", err)
+	}
+	headSHA := strings.TrimSpace(string(headOut))
+
+	// Mock server returning the same commit SHA -> Synced = true
+	srvSynced := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":     "healthy",
+			"app":        "cuan",
+			"version":    "0.1.0",
+			"commit_sha": headSHA,
+		})
+	}))
+	defer srvSynced.Close()
+
+	resSynced, err := InspectDeploymentStatus(ctx, "test-proj", repoDir, srvSynced.URL)
+	if err != nil {
+		t.Fatalf("unexpected error from InspectDeploymentStatus: %v", err)
+	}
+	if !resSynced.Synced {
+		t.Errorf("expected synced = true when live SHA matches local HEAD, got false")
+	}
+	if resSynced.PendingCommitsCount != 0 {
+		t.Errorf("expected 0 pending commits, got %d", resSynced.PendingCommitsCount)
+	}
+	if resSynced.LiveCommitSHA != headSHA {
+		t.Errorf("expected live SHA %q, got %q", headSHA, resSynced.LiveCommitSHA)
+	}
+
+	// Mock server returning an older/different commit SHA -> Synced = false
+	srvBehind := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":     "healthy",
+			"app":        "cuan",
+			"version":    "0.1.0",
+			"commit_sha": "0000000000000000000000000000000000000000",
+		})
+	}))
+	defer srvBehind.Close()
+
+	resBehind, err := InspectDeploymentStatus(ctx, "test-proj", repoDir, srvBehind.URL)
+	if err != nil {
+		t.Fatalf("unexpected error from InspectDeploymentStatus: %v", err)
+	}
+	if resBehind.Synced {
+		t.Errorf("expected synced = false when live SHA differs, got true")
 	}
 }

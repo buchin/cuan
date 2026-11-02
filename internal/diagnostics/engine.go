@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -661,5 +663,235 @@ func InspectDependencies(ctx context.Context, dir string) (*DepsResult, error) {
 	res.Tool = "none"
 	res.Success = true
 	res.Raw = "No package.json or go.mod found"
+	return res, nil
+}
+
+// ProbeEndpointHealth performs a safe, bounded HTTP GET request against a target URL.
+func ProbeEndpointHealth(ctx context.Context, rawURL string, timeoutSecs int) (*EndpointHealthResult, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, errors.New("url is required")
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return nil, fmt.Errorf("unsupported url scheme %q: only http and https are allowed", parsed.Scheme)
+	}
+
+	if timeoutSecs <= 0 {
+		timeoutSecs = 5
+	}
+	if timeoutSecs > 15 {
+		timeoutSecs = 15
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSecs)*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Cuan-Diagnostics-MCP/1.0")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+
+	client := &http.Client{
+		Timeout: time.Duration(timeoutSecs) * time.Second,
+	}
+
+	start := time.Now()
+	resp, err := client.Do(req)
+	latencyMs := time.Since(start).Milliseconds()
+
+	if err != nil {
+		return &EndpointHealthResult{
+			URL:            rawURL,
+			StatusCode:     0,
+			Status:         err.Error(),
+			Healthy:        false,
+			LatencyMs:      latencyMs,
+			RawBodyPreview: fmt.Sprintf("Request failed: %v", err),
+		}, nil
+	}
+	defer resp.Body.Close()
+
+	bodyReader := io.LimitReader(resp.Body, 64*1024)
+	bodyBytes, _ := io.ReadAll(bodyReader)
+
+	result := &EndpointHealthResult{
+		URL:         rawURL,
+		StatusCode:  resp.StatusCode,
+		Status:      resp.Status,
+		Healthy:     resp.StatusCode >= 200 && resp.StatusCode < 400,
+		LatencyMs:   latencyMs,
+		ContentType: resp.Header.Get("Content-Type"),
+		Server:      resp.Header.Get("Server"),
+	}
+
+	var jsonMap map[string]any
+	if err := json.Unmarshal(bodyBytes, &jsonMap); err == nil {
+		result.Body = jsonMap
+		if v, ok := jsonMap["commit_sha"].(string); ok && v != "" {
+			result.CommitSHA = v
+		} else if v, ok := jsonMap["commitSha"].(string); ok && v != "" {
+			result.CommitSHA = v
+		} else if v, ok := jsonMap["sha"].(string); ok && v != "" {
+			result.CommitSHA = v
+		} else if v, ok := jsonMap["revision"].(string); ok && v != "" {
+			result.CommitSHA = v
+		}
+
+		if v, ok := jsonMap["app"].(string); ok && v != "" {
+			result.App = v
+		}
+		if v, ok := jsonMap["version"].(string); ok && v != "" {
+			result.Version = v
+		}
+		if v, ok := jsonMap["timestamp"].(string); ok && v != "" {
+			result.Timestamp = v
+		}
+	} else {
+		previewLen := len(bodyBytes)
+		if previewLen > 512 {
+			previewLen = 512
+		}
+		result.RawBodyPreview = string(bodyBytes[:previewLen])
+	}
+
+	return result, nil
+}
+
+// InspectDeploymentStatus inspects live deployment status and compares it with local repository HEAD.
+func InspectDeploymentStatus(ctx context.Context, project, dir, healthURL string) (*DeploymentStatusResult, error) {
+	project = strings.TrimSpace(project)
+	if project == "" {
+		if envProj := os.Getenv("CUAN_PROJECT_NAME"); envProj != "" {
+			project = envProj
+		} else {
+			project = "cuan"
+		}
+	}
+
+	res := &DeploymentStatusResult{
+		Project:        project,
+		CheckedAt:      time.Now().UTC().Format(time.RFC3339),
+		PendingCommits: []string{},
+	}
+
+	cleanDir, dirErr := sanitizeRepoDir(dir)
+	if dirErr == nil {
+		headOut, _, err := runBoundedCommand(ctx, DefaultTimeout, cleanDir, "git", "rev-parse", "HEAD")
+		if err == nil {
+			fullSHA := strings.TrimSpace(string(headOut))
+			if len(fullSHA) >= 7 {
+				res.LocalHeadSHA = fullSHA
+				res.LocalShortSHA = fullSHA[:7]
+			}
+		}
+
+		branchOut, _, err := runBoundedCommand(ctx, DefaultTimeout, cleanDir, "git", "rev-parse", "--abbrev-ref", "HEAD")
+		if err == nil {
+			res.LocalBranch = strings.TrimSpace(string(branchOut))
+		}
+	}
+
+	probeURL := strings.TrimSpace(healthURL)
+	if probeURL == "" {
+		if project == "cuan" || project == "default" {
+			probeURL = "https://cuan.dojo.cc/healthz"
+		}
+	}
+
+	if probeURL != "" {
+		probeRes, probeErr := ProbeEndpointHealth(ctx, probeURL, 5)
+		if probeErr == nil && probeRes != nil {
+			res.EndpointHealth = probeRes
+			if probeRes.CommitSHA != "" {
+				res.LiveCommitSHA = probeRes.CommitSHA
+				if len(probeRes.CommitSHA) >= 7 {
+					res.LiveShortSHA = probeRes.CommitSHA[:7]
+				} else {
+					res.LiveShortSHA = probeRes.CommitSHA
+				}
+			}
+			if probeRes.Version != "" {
+				res.LiveVersion = probeRes.Version
+			}
+		}
+	}
+
+	for _, cand := range []string{
+		filepath.Join("/opt", project, "current"),
+		"/opt/cuan/current",
+	} {
+		if fi, err := os.Lstat(cand); err == nil {
+			res.ReleasePath = cand
+			if fi.Mode()&os.ModeSymlink != 0 {
+				if target, err := os.Readlink(cand); err == nil {
+					res.CurrentTarget = target
+				}
+			}
+			if res.LiveCommitSHA == "" {
+				for _, revFile := range []string{
+					filepath.Join(cand, "REVISION"),
+					filepath.Join(res.CurrentTarget, "REVISION"),
+				} {
+					if revBytes, err := os.ReadFile(revFile); err == nil {
+						rev := strings.TrimSpace(string(revBytes))
+						if rev != "" {
+							res.LiveCommitSHA = rev
+							if len(rev) >= 7 {
+								res.LiveShortSHA = rev[:7]
+							}
+							break
+						}
+					}
+				}
+			}
+			break
+		}
+	}
+
+	svcName := project + ".service"
+	if project == "default" {
+		svcName = "cuan.service"
+	}
+	svcOut, _, err := runBoundedCommand(ctx, 2*time.Second, "", "systemctl", "is-active", svcName)
+	if err == nil {
+		res.ServiceStatus = strings.TrimSpace(string(svcOut))
+	}
+
+	if res.LiveCommitSHA != "" && res.LocalHeadSHA != "" {
+		if strings.HasPrefix(res.LocalHeadSHA, res.LiveCommitSHA) ||
+			strings.HasPrefix(res.LiveCommitSHA, res.LocalHeadSHA) ||
+			res.LiveCommitSHA == res.LocalHeadSHA {
+			res.Synced = true
+			res.PendingCommitsCount = 0
+		} else {
+			res.Synced = false
+			if cleanDir != "" {
+				logOut, _, err := runBoundedCommand(ctx, DefaultTimeout, cleanDir, "git", "log", res.LiveCommitSHA+"..HEAD", "--oneline", "-n10")
+				if err == nil {
+					lines := strings.Split(strings.TrimSpace(string(logOut)), "\n")
+					var pending []string
+					for _, l := range lines {
+						l = strings.TrimSpace(l)
+						if l != "" {
+							pending = append(pending, l)
+						}
+					}
+					res.PendingCommits = pending
+					res.PendingCommitsCount = len(pending)
+				}
+			}
+		}
+	} else if res.LiveCommitSHA != "" || res.LocalHeadSHA != "" {
+		res.Synced = false
+	}
+
 	return res, nil
 }

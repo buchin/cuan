@@ -114,3 +114,39 @@ type DiagnosticEnvelope struct {
 	Error       string `json:"error,omitempty"`
 	Truncated   bool   `json:"truncated,omitempty"`
 }
+
+// EndpointHealthResult represents the HTTP endpoint probe result.
+type EndpointHealthResult struct {
+	URL            string         `json:"url"`
+	StatusCode     int            `json:"status_code"`
+	Status         string         `json:"status"`
+	Healthy        bool           `json:"healthy"`
+	LatencyMs      int64          `json:"latency_ms"`
+	CommitSHA      string         `json:"commit_sha,omitempty"`
+	App            string         `json:"app,omitempty"`
+	Version        string         `json:"version,omitempty"`
+	Timestamp      string         `json:"timestamp,omitempty"`
+	ContentType    string         `json:"content_type,omitempty"`
+	Server         string         `json:"server,omitempty"`
+	Body           map[string]any `json:"body,omitempty"`
+	RawBodyPreview string         `json:"raw_body_preview,omitempty"`
+}
+
+// DeploymentStatusResult represents the status of live deployment vs repository HEAD.
+type DeploymentStatusResult struct {
+	Project             string                `json:"project"`
+	LiveCommitSHA       string                `json:"live_commit_sha,omitempty"`
+	LiveShortSHA        string                `json:"live_short_sha,omitempty"`
+	LiveVersion         string                `json:"live_version,omitempty"`
+	LocalHeadSHA        string                `json:"local_head_sha,omitempty"`
+	LocalShortSHA       string                `json:"local_short_sha,omitempty"`
+	LocalBranch         string                `json:"local_branch,omitempty"`
+	Synced              bool                  `json:"synced"`
+	PendingCommitsCount int                   `json:"pending_commits_count"`
+	PendingCommits      []string              `json:"pending_commits,omitempty"`
+	ReleasePath         string                `json:"release_path,omitempty"`
+	CurrentTarget       string                `json:"current_target,omitempty"`
+	ServiceStatus       string                `json:"service_status,omitempty"`
+	EndpointHealth      *EndpointHealthResult `json:"endpoint_health,omitempty"`
+	CheckedAt           string                `json:"checked_at"`
+}

@@ -450,6 +450,45 @@ var nativeMCPTools = []mcpToolDefinition{
 			"required": []string{"agent_id", "skill_id", "enabled"},
 		},
 	},
+	{
+		Name:        "probe_endpoint_health",
+		Description: "Probe an HTTP/HTTPS health endpoint (e.g. https://cuan.dojo.cc/healthz or http://localhost:8080/healthz), measuring latency, HTTP status, and parsing version/commit_sha metadata in a strictly read-only manner.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"url": map[string]any{
+					"type":        "string",
+					"description": "HTTP or HTTPS target URL to probe (e.g. 'https://cuan.dojo.cc/healthz')",
+				},
+				"timeout_seconds": map[string]any{
+					"type":        "integer",
+					"description": "Probe timeout in seconds (default: 5, max: 15)",
+				},
+			},
+			"required": []string{"url"},
+		},
+	},
+	{
+		Name:        "inspect_deployment_status",
+		Description: "Inspect live deployment status, release directory metadata, systemd service status, and compare live running commit SHA against local repository HEAD to identify pending unmerged commits.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project": map[string]any{
+					"type":        "string",
+					"description": "Target project name (e.g. 'cuan', 'dojo', default: 'cuan')",
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Target local repository directory (default: current working directory)",
+				},
+				"health_url": map[string]any{
+					"type":        "string",
+					"description": "Optional live health endpoint URL (default: 'https://cuan.dojo.cc/healthz' for cuan)",
+				},
+			},
+		},
+	},
 }
 
 // RunMCP implements a Stdio MCP (Model Context Protocol) JSON-RPC 2.0 server.
@@ -673,6 +712,17 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			skillID, _ := callParams.Arguments["skill_id"].(string)
 			enabled, _ := callParams.Arguments["enabled"].(bool)
 			toolResult, toolErr = ToggleAgentSkill(ctx, agentID, skillID, enabled)
+		case "probe_endpoint_health":
+			rawURL, _ := callParams.Arguments["url"].(string)
+			timeout := 5
+			if rawTimeout, ok := callParams.Arguments["timeout_seconds"].(float64); ok {
+				timeout = int(rawTimeout)
+			}
+			toolResult, toolErr = ProbeEndpointHealth(ctx, rawURL, timeout)
+		case "inspect_deployment_status":
+			project, _ := callParams.Arguments["project"].(string)
+			healthURL, _ := callParams.Arguments["health_url"].(string)
+			toolResult, toolErr = InspectDeploymentStatus(ctx, project, pathVal, healthURL)
 		default:
 			resp.Error = &jsonRPCError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 			sendResponse(out, resp)
