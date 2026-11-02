@@ -183,6 +183,24 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	digest := sha256.Sum256([]byte(raw))
 	value, ok := s.taskAgentGrants.Load(digest)
+	if (!ok || raw == "") && raw != "" {
+		// Server restart resilience: if server restarted during an active task attempt,
+		// recover the grant if the requested task is currently in running state.
+		taskID := chi.URLParam(r, "id")
+		if taskID != "" && s.taskSvc != nil {
+			if latest, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && latest != nil && latest.LatestAttempt != nil && latest.LatestAttempt.Status == task.AttemptStatusRunning {
+				recovered := taskAgentGrant{
+					TaskID:    taskID,
+					AttemptID: latest.LatestAttempt.ID,
+					AgentID:   latest.LatestAttempt.AgentName,
+					Expires:   time.Now().Add(8 * time.Hour),
+				}
+				s.taskAgentGrants.Store(digest, recovered)
+				value = recovered
+				ok = true
+			}
+		}
+	}
 	if !ok || raw == "" {
 		respondJSONError(w, 401, "Task session access is unavailable")
 		return
