@@ -119,20 +119,24 @@ func GetCuanClient() *CuanClient {
 	return globalCuanClient
 }
 
-// NormalizeAgentAlias maps agent shortcuts (@sm, @dev, @support) to agent IDs.
+// NormalizeAgentAlias maps agent shortcuts (@cuan, @sm, @dev, @support) to agent IDs.
 func NormalizeAgentAlias(agent string) string {
 	a := strings.TrimSpace(strings.ToLower(agent))
 	switch a {
+	case "@cuan", "cuan", "agent_cuan":
+		return "agent_cuan"
 	case "@sm", "sm", "agent_sm", "scrum", "scrum_master":
-		return "agent_sm"
+		return "agent_cuan"
 	case "@dev", "dev", "agent_dev", "developer":
-		return "agent_dev"
+		return "agent_cuan"
 	case "@support", "support", "agent_support", "cs":
-		return "agent_support"
+		return "agent_cuan"
+	case "@team", "team":
+		return "agent_cuan"
 	case "@pin", "pin", "agent_pin":
 		return "agent_pin"
 	case "":
-		return "agent_sm"
+		return "agent_cuan"
 	default:
 		return strings.TrimPrefix(agent, "@")
 	}

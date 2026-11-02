@@ -26,6 +26,8 @@ const (
 	AgentStatusActive    = "active"
 	AgentStatusInactive  = "inactive"
 	AgentStatusArchived  = "archived"
+	AgentIDCuan          = "agent_cuan"
+	DefaultAgentHandle   = "@cuan"
 	DefaultAgentModelID  = "gemini-1.5-pro"
 	DefaultAgentProvider = "google"
 	DefaultAgentStatus   = "active"
@@ -767,6 +769,9 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			if id == "agent_sm" || id == "agent_dev" || id == "agent_support" {
+				return r.GetAgentByID(ctx, AgentIDCuan)
+			}
 			return nil, ErrAgentNotFound
 		}
 		return nil, fmt.Errorf("get agent by id: %w", err)
@@ -1401,6 +1406,11 @@ func (m *MemoryAgentRepository) GetAgentByID(_ context.Context, id string) (*Age
 
 	a, exists := m.agents[id]
 	if !exists {
+		if id == "agent_sm" || id == "agent_dev" || id == "agent_support" {
+			if cuan, existsCuan := m.agents[AgentIDCuan]; existsCuan {
+				return cuan.Clone(), nil
+			}
+		}
 		return nil, ErrAgentNotFound
 	}
 	return a.Clone(), nil
@@ -1725,12 +1735,15 @@ func (m *MemoryAgentRepository) CountConnections(_ context.Context, filter Agent
 	return count, nil
 }
 
-// EnsureBuiltinAgents checks and seeds the default builtin agents (@sm, @dev, @support)
+// EnsureBuiltinAgents checks and seeds the default builtin agents (@cuan, @sm, @dev, @support)
 // with sensible model configurations if they do not yet exist in the repository.
+// @cuan acts as the primary Single Agent Facade.
 func EnsureBuiltinAgents(ctx context.Context, repo AgentRepository) error {
 	if repo == nil {
 		return nil
 	}
+	defaultCuanTemp := 0.7
+	defaultCuanBudget := 8192
 	defaultSMTemp := 0.7
 	defaultSMBudget := 8192
 	defaultDevTemp := 0.2
@@ -1739,6 +1752,20 @@ func EnsureBuiltinAgents(ctx context.Context, repo AgentRepository) error {
 	defaultSupportBudget := 4096
 
 	builtins := []*Agent{
+		{
+			ID:              AgentIDCuan,
+			Name:            DefaultAgentHandle,
+			Role:            "Cuan Universal Assistant",
+			SystemPrompt:    "You are @cuan, the universal AI assistant for Cuan. You assist users with operations, customer support, task management, code implementation, and business automation. You communicate warmly, concisely, and effectively without technical jargon. You have full access to platform tools and orchestrate execution seamlessly across available engines.",
+			ModelID:         "gemini-1.5-pro",
+			FallbackModelID: "gemini-1.5-flash",
+			Temperature:     &defaultCuanTemp,
+			TokenBudget:     &defaultCuanBudget,
+			Harness:         "agy",
+			Provider:        "google",
+			Status:          AgentStatusActive,
+			Enabled:         true,
+		},
 		{
 			ID:              "agent_sm",
 			Name:            "@sm",
@@ -1785,8 +1812,8 @@ func EnsureBuiltinAgents(ctx context.Context, repo AgentRepository) error {
 
 	for _, b := range builtins {
 		existing, err := repo.GetAgentByID(ctx, b.ID)
-		if err != nil {
-			if errors.Is(err, ErrAgentNotFound) {
+		if err != nil || (existing != nil && existing.ID != b.ID) {
+			if errors.Is(err, ErrAgentNotFound) || (existing != nil && existing.ID != b.ID) {
 				_ = repo.CreateAgent(ctx, b)
 			}
 			continue

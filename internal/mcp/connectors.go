@@ -163,6 +163,7 @@ func NewVisionReceiptExtractorSkill() *Skill {
 			"vision_extract_receipt",
 		},
 		BoundAgents: []string{
+			"agent_cuan",
 			"agent_sm",
 			"agent_dev",
 			"agent_support",

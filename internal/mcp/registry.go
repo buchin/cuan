@@ -65,6 +65,7 @@ func NewRegistry() *Registry {
 			"google_sheets_read_sheet",
 		},
 		BoundAgents: []string{
+			"agent_cuan",
 			"agent_sm",
 			"agent_dev",
 			"agent_support",
@@ -75,7 +76,7 @@ func NewRegistry() *Registry {
 	r.skills[sheetsSkill.ID] = sheetsSkill
 
 	// 3. Register default bindings for known agents
-	knownAgents := []string{"agent_sm", "agent_dev", "agent_support"}
+	knownAgents := []string{"agent_cuan", "agent_sm", "agent_dev", "agent_support"}
 	for _, a := range knownAgents {
 		r.agentSkills[a] = map[string]bool{
 			SkillVisionReceiptExtractorID: true,
