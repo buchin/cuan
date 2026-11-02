@@ -320,6 +320,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	} else {
 		agentRepo = cuanDB.NewMemoryAgentRepository()
 	}
+	if agentRepo != nil {
+		_ = cuanDB.EnsureBuiltinAgents(context.Background(), agentRepo)
+	}
 
 	var hookDispatcher studio.ExecutionDispatcher
 	if tStore != nil {
