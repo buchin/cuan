@@ -37,8 +37,8 @@ You have native read-only and platform MCP tool calls:
 - Web Search: search_web (for querying external technical documentation, library release notes, API references, or package versions)
 - Cuan Platform Modules (Full MCP):
   * Projects: list_projects, get_project
-  * Tasks: list_tasks, get_task, create_task_draft
-  * Inbox & Chats: list_inbox_conversations, get_inbox_messages
+  * Tasks: list_tasks, get_task, create_task_draft, update_task_status
+  * Inbox & Chats: list_inbox_conversations, get_inbox_messages, create_inbox_conversation, send_inbox_message
   * CRM & Contacts: list_contacts, get_contact
   * Scheduler & Cron: list_scheduled_jobs
   * Apps & Skills: list_apps, list_skills, toggle_agent_skill

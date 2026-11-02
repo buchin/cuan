@@ -22,3 +22,20 @@ UI for connection, status, retry and cancellation. Use official APIs/SDKs where
 better suited; a CLI is not mandatory for every capability. Never reuse
 ambient developer credentials as Cuan user credentials.
 
+## Cuan Platform Operations & Agent Tooling
+Whenever inspecting or operating on Cuan (projects, tasks, inbox rooms, or talking with agents):
+- Use the official Cuan CLI `cuan` on PATH or MCP tools (`cuan-inspect` / `cuan mcp`).
+- NEVER write ad-hoc Python scripts or unauthenticated curl commands to interact with Cuan.
+- Subcommands available on PATH:
+  - `cuan chat new [--agent @sm] [--title "..."]`
+  - `cuan chat send <room-id> "<message>" [--wait]`
+  - `cuan chat list [--limit 20]`
+  - `cuan chat messages <room-id>`
+  - `cuan task list [--status doing]`
+  - `cuan task get <task-id>`
+  - `cuan task update <task-id> --status done [--complete-note "..."]`
+  - `cuan mcp` (stdio MCP server)
+  - `cuan config show` / `cuan config set <key> <val>`
+- See [cuan-agent SKILL](docs/skills/cuan-agent/SKILL.md) for complete reference.
+
+
