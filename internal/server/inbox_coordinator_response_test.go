@@ -392,6 +392,21 @@ func TestCoordinatorInstructionFullPlatformMCP(t *testing.T) {
 	}
 }
 
+func TestCoordinatorInstructionProactiveExtension(t *testing.T) {
+	for _, required := range []string{
+		"proactive extension & tool creation protocol",
+		"genuine, ongoing value",
+		"approval action card",
+		"strict repository boundary enforcement",
+		"platform-level tools & cuan core mcp",
+		"project-level tools & automations",
+	} {
+		if !strings.Contains(strings.ToLower(inboxCoordinatorInstruction), required) {
+			t.Fatalf("inboxCoordinatorInstruction missing required directive %q", required)
+		}
+	}
+}
+
 func TestRecoverCoordinatorReply_FormattingResilience(t *testing.T) {
 	t.Run("embedded_json_in_markdown_with_preceding_prose", func(t *testing.T) {
 		raw := `Tentu! Berikut analisis sistemnya:
