@@ -142,7 +142,7 @@ export function NavUser({
             role="region"
             aria-label={t('Account menu')}
             className={cn(
-              'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border shadow-md p-1.5 rounded-lg max-h-[calc(100dvh-5rem)] overflow-y-auto',
+              'absolute z-50 min-w-56 bg-popover text-popover-foreground border border-border/40 shadow-lg p-1.5 rounded-xl max-h-[calc(100dvh-5rem)] overflow-y-auto',
               dropdownPosition === 'top-right'
                 ? 'bottom-full right-2 mb-2 w-64 max-w-[calc(100vw-1rem)]'
                 : dropdownPosition === 'bottom-right'
@@ -211,7 +211,7 @@ export function NavUser({
               <span>{t('Profile & password')}</span>
             </button>
 
-            <div className="h-px bg-border my-1" />
+            <div className="h-px bg-border/40 my-1" />
 
             {/* Preferences Group */}
             <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -259,7 +259,7 @@ export function NavUser({
               </button>
             )}
 
-            <div className="h-px bg-border my-1" />
+            <div className="h-px bg-border/40 my-1" />
 
             <ReloadButton
               variant="menu-item"

@@ -10,6 +10,7 @@ import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
 import { SlideDrawer } from './SlideDrawer'
+import { ReloadButton } from '../ui/ReloadButton'
 import {
   Inbox,
   CheckSquare,
@@ -21,6 +22,8 @@ import {
   MoreVertical,
   Bot,
   Clock,
+  Globe,
+  Keyboard,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -120,7 +123,7 @@ export function AppShell({
   breadcrumbs = [],
   hideSearch,
 }: AppShellProps) {
-  const { t } = useLanguage()
+  const { t, language, setPreference } = useLanguage()
   const { isOwner, user } = useAuth()
   const effectiveInboxUnread = inboxUnreadCount ?? inboxUnread
 
@@ -490,8 +493,21 @@ export function AppShell({
                 <div
                   data-testid="header-more-menu"
                   role="menu"
-                  className="absolute right-0 top-full mt-1.5 z-50 min-w-44 bg-popover text-popover-foreground border border-border/40 shadow-md p-1.5 rounded-lg text-sm"
+                  className="absolute right-0 top-full mt-1.5 z-50 min-w-52 bg-popover text-popover-foreground border border-border/40 shadow-lg p-1.5 rounded-xl text-sm"
                 >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="more-menu-settings"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      routerNavigate('/settings')
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
+                  >
+                    <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Settings')}</span>
+                  </button>
                   <button
                     type="button"
                     role="menuitem"
@@ -500,7 +516,7 @@ export function AppShell({
                       setMoreMenuOpen(false)
                       routerNavigate('/agents')
                     }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
                   >
                     <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span>{t('Agents')}</span>
@@ -513,24 +529,51 @@ export function AppShell({
                       setMoreMenuOpen(false)
                       routerNavigate('/schedules')
                     }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
                   >
                     <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span>{t('Schedules')}</span>
                   </button>
+
+                  <div className="h-px bg-border/40 my-1" />
+
                   <button
                     type="button"
                     role="menuitem"
-                    data-testid="more-menu-settings"
+                    data-testid="more-menu-language-toggle"
+                    onClick={() => {
+                      const next = language === 'id' ? 'en' : 'id'
+                      setPreference(next)
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
+                  >
+                    <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Language')}</span>
+                    <span className="ml-auto text-xs font-mono font-medium text-muted-foreground">
+                      {language === 'id' ? 'Bahasa Indonesia' : 'English'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="hidden sm:flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-lg transition-colors text-left"
                     onClick={() => {
                       setMoreMenuOpen(false)
-                      routerNavigate('/settings')
+                      window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))
                     }}
-                    className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground/90 hover:bg-muted/50 rounded-md transition-colors text-left"
                   >
-                    <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span>{t('Settings')}</span>
+                    <Keyboard className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span>{t('Keyboard shortcuts')}</span>
+                    <kbd className="ml-auto text-xs text-muted-foreground font-mono">?</kbd>
                   </button>
+
+                  <div className="h-px bg-border/40 my-1" />
+
+                  <ReloadButton
+                    variant="menu-item"
+                    label={t('Reload app')}
+                  />
                 </div>
               )}
             </div>
