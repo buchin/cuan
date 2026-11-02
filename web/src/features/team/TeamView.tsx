@@ -800,8 +800,12 @@ export function TeamView({
         .getElementById(`settings-agent-${focusAgentId}`)
         ?.scrollIntoView({ block: 'center' })
   }, [focusAgentId, loading])
+  const hasCuan = agents.some((a) => a.id === 'agent_cuan' || a.name === '@cuan')
+  const baseAgents = hasCuan
+    ? agents.filter((a) => a.id !== 'agent_sm' && a.id !== 'agent_dev' && a.id !== 'agent_support')
+    : agents
   const visibleAgents =
-    selectedRole === 'human' || selectedRole === 'product_owner' ? [] : agents
+    selectedRole === 'human' || selectedRole === 'product_owner' ? [] : baseAgents
   const filteredAgents = visibleAgents.filter((a) =>
     [a.name, a.harness]
       .join(' ')
