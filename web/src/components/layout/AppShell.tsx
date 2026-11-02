@@ -13,11 +13,11 @@ import { SlideDrawer } from './SlideDrawer'
 import {
   Inbox,
   CheckSquare,
+  MessageSquare,
   FolderGit2,
   PanelLeft,
   Users,
   Settings,
-  MessageSquare,
   Calendar,
   Bot,
   Building2,

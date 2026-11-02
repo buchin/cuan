@@ -8,6 +8,7 @@ import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CuanMark } from '../../components/brand/CuanMark'
 import { ChatContact } from '../../api/chat'
 import { Search, Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -429,14 +430,25 @@ export function InboxSubPanel({
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       {/* ── Single Unified Header (matching shadcn Mail h-13) ── */}
-      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/40 px-4">
-        <div className="flex items-center gap-1.5">
-          <h1 className="text-sm font-semibold tracking-tight text-foreground">{t('Inbox')}</h1>
-          {totalUnreadCount > 0 && (
-            <span className="font-mono text-xs text-muted-foreground font-normal">
-              {totalUnreadCount}
-            </span>
-          )}
+      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border/40 px-3 md:px-4">
+        <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+          <Link
+            to="/chat"
+            aria-label={t('Go to Chat')}
+            className="icon-action md:hidden shrink-0 inline-flex items-center justify-center -ml-1"
+          >
+            <CuanMark decorative className="h-6 w-6 shrink-0" />
+          </Link>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h1 className="page-title text-base md:text-sm font-semibold tracking-tight text-foreground truncate">
+              {t('Inbox')}
+            </h1>
+            {totalUnreadCount > 0 && (
+              <span className="font-mono text-xs text-muted-foreground font-normal">
+                {totalUnreadCount}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1">
           {onNewMessage && (

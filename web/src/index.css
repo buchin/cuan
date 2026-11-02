@@ -213,7 +213,7 @@ body:has(.task-terminal-container),
     @apply mx-auto w-full max-w-6xl;
   }
   .page-title {
-    @apply text-xl font-semibold leading-tight min-[1200px]:text-2xl;
+    @apply text-base font-semibold tracking-tight;
   }
 }
 .primary-navigation {

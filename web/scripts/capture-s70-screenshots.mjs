@@ -447,15 +447,15 @@ function createMobileTasksHtml() {
 <body class="bg-background text-foreground antialiased font-sans">
   <div class="flex flex-col h-screen w-screen overflow-hidden bg-background">
     <!-- Mobile Top Header -->
-    <header class="h-14 border-b border-border/40 px-4 flex items-center justify-between shrink-0 bg-card/30">
-      <div class="flex items-center gap-3">
-        <button class="p-1 rounded-lg text-muted-foreground hover:bg-muted/40">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-        </button>
-        <span class="font-bold text-foreground text-sm">Tasks</span>
+    <header class="h-13 border-b border-border/40 px-3 flex items-center justify-between shrink-0 bg-background">
+      <div class="flex items-center gap-2">
+        <div class="h-6 w-6 rounded-none bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs shrink-0">
+          c
+        </div>
+        <span class="font-semibold text-foreground text-base tracking-tight">Tasks</span>
       </div>
-      <button class="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold">
-        + New
+      <button class="inline-flex h-8 w-8 items-center justify-center bg-primary text-primary-foreground text-xs font-semibold">
+        +
       </button>
     </header>
 
@@ -735,16 +735,20 @@ function createMobileInboxHtml() {
 <body class="bg-background text-foreground antialiased font-sans">
   <div class="flex flex-col h-screen w-screen overflow-hidden bg-background">
     <!-- Mobile Top Header -->
-    <header class="h-14 border-b border-border/40 px-4 flex items-center justify-between shrink-0 bg-card/30">
-      <div class="flex items-center gap-3">
-        <button class="p-1 rounded-lg text-muted-foreground hover:bg-muted/40">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-        </button>
-        <span class="font-bold text-foreground text-sm">Inbox</span>
+    <header class="h-13 border-b border-border/40 px-3 flex items-center justify-between shrink-0 bg-background">
+      <div class="flex items-center gap-2">
+        <div class="h-6 w-6 rounded-none bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs shrink-0">
+          c
+        </div>
+        <span class="font-semibold text-foreground text-base tracking-tight">Inbox</span>
       </div>
-      <div class="flex items-center rounded-lg bg-muted/60 p-0.5 text-[11px]">
-        <button class="px-2.5 py-1 rounded-md bg-background text-foreground font-semibold">All</button>
-        <button class="px-2.5 py-1 rounded-md text-muted-foreground">Unread</button>
+      <div class="flex items-center gap-1">
+        <button class="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        </button>
+        <button class="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
+          ${icons.moreHorizontal}
+        </button>
       </div>
     </header>
 
