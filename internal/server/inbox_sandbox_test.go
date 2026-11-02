@@ -91,6 +91,28 @@ echo BOUNDARY_OK
 	}
 }
 
+func TestInboxExternalSandboxMountsUserLocalBin(t *testing.T) {
+	home := t.TempDir()
+	userBin := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(userBin, 0700); err != nil {
+		t.Fatal(err)
+	}
+	args, err := inboxSandboxArgs("/bin/sh", home, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for i := 0; i < len(args)-2; i++ {
+		if args[i] == "--ro-bind" && args[i+1] == userBin && args[i+2] == userBin {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected --ro-bind %s %s in sandbox args, got: %v", userBin, userBin, args)
+	}
+}
+
 func TestInboxExternalSandboxRejectsBroadWorkspace(t *testing.T) {
 	home := t.TempDir()
 	for _, workspace := range []string{"/", "/etc", home} {

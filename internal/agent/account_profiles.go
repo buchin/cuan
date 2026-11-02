@@ -281,10 +281,39 @@ func ResolveHealthyAccountProfile(owner string) (string, *ProviderAccount, error
 // cloud secrets, keyrings and fallback to another user's account. Never os.Setenv HOME.
 func AntigravityProfileEnvironment(home string) []string {
 	env := []string{}
+	hasPath := false
 	for _, key := range []string{"PATH", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR", "LD_LIBRARY_PATH", "TMPDIR"} {
 		if value, ok := os.LookupEnv(key); ok {
+			if key == "PATH" {
+				hasPath = true
+				paths := filepath.SplitList(value)
+				pathSet := make(map[string]bool)
+				for _, p := range paths {
+					pathSet[p] = true
+				}
+				candidates := []string{}
+				if home != "" {
+					candidates = append(candidates, filepath.Join(home, ".local", "bin"))
+				}
+				candidates = append(candidates, "/usr/local/bin", "/opt/cuan/bin", "/usr/bin", "/bin")
+				for _, cand := range candidates {
+					if !pathSet[cand] {
+						paths = append([]string{cand}, paths...)
+						pathSet[cand] = true
+					}
+				}
+				value = strings.Join(paths, string(filepath.ListSeparator))
+			}
 			env = append(env, key+"="+value)
 		}
+	}
+	if !hasPath {
+		defaultPaths := []string{}
+		if home != "" {
+			defaultPaths = append(defaultPaths, filepath.Join(home, ".local", "bin"))
+		}
+		defaultPaths = append(defaultPaths, "/usr/local/bin", "/opt/cuan/bin", "/usr/bin", "/bin")
+		env = append(env, "PATH="+strings.Join(defaultPaths, string(filepath.ListSeparator)))
 	}
 	legacy := home == ""
 	if legacy {

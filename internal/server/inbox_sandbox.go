@@ -29,14 +29,22 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 		return nil, err
 	}
 	args := []string{"--die-with-parent", "--new-session", "--unshare-pid", "--unshare-ipc", "--unshare-uts", "--cap-drop", "ALL", "--clearenv"}
-	for _, path := range []string{"/usr", "/bin", "/lib", "/lib64", "/opt/cuan/bin", "/opt/cuan/current", "/opt/cuan/releases"} {
+	mounted := make(map[string]bool)
+	bindRO := func(src, dst string) {
+		if mounted[dst] {
+			return
+		}
+		mounted[dst] = true
+		args = append(args, "--ro-bind", src, dst)
+	}
+	for _, path := range []string{"/usr", "/bin", "/lib", "/lib64", "/usr/local/bin", "/opt/cuan/bin", "/opt/cuan/current", "/opt/cuan/releases"} {
 		if _, err := os.Stat(path); err == nil {
-			args = append(args, "--ro-bind", path, path)
+			bindRO(path, path)
 		}
 	}
 	for _, path := range []string{"/etc/ssl", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/passwd", "/etc/group", "/etc/localtime"} {
 		if _, err := os.Stat(path); err == nil {
-			args = append(args, "--ro-bind", path, path)
+			bindRO(path, path)
 		}
 	}
 	args = append(args, "--proc", "/proc", "--remount-ro", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", home)
@@ -54,14 +62,32 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 	geminiConfig := filepath.Join(home, ".gemini", "config")
 	if info, err := os.Stat(geminiConfig); err == nil && info.IsDir() {
 		if resolved, e := absolute(geminiConfig); e == nil && resolved == geminiConfig {
-			args = append(args, "--ro-bind", geminiConfig, geminiConfig)
+			bindRO(geminiConfig, geminiConfig)
+		}
+	}
+	// Mount user local bin so installed agent CLI tools (e.g. cuan on ~/.local/bin) are accessible
+	userLocalBin := filepath.Join(home, ".local", "bin")
+	if info, err := os.Stat(userLocalBin); err == nil && info.IsDir() {
+		if resolved, e := absolute(userLocalBin); e == nil {
+			bindRO(resolved, userLocalBin)
+		}
+	}
+	// Mount cuan binary directory if located outside standard paths
+	if cuanPath, err := exec.LookPath("cuan"); err == nil {
+		if resolved, e := absolute(cuanPath); e == nil {
+			cuanDir := filepath.Dir(resolved)
+			if cuanDir != "/" && cuanDir != "/usr" && cuanDir != "/bin" {
+				if info, err := os.Stat(cuanDir); err == nil && info.IsDir() {
+					bindRO(cuanDir, cuanDir)
+				}
+			}
 		}
 	}
 	// Mount local PostgreSQL socket if available
 	for _, sockDir := range []string{"/run/postgresql", "/var/run/postgresql"} {
 		if info, err := os.Stat(sockDir); err == nil && info.IsDir() {
 			if resolved, e := absolute(sockDir); e == nil {
-				args = append(args, "--ro-bind", resolved, sockDir)
+				bindRO(resolved, sockDir)
 				break
 			}
 		}

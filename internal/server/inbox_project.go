@@ -475,7 +475,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 	defer integrityCancel()
 	integrity := inspectGitIntegrity(integrityCtx, dir, rel)
 	b.WriteString(integrity.Summary())
-	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-8", "--format=%h %s"), 3000) + "\n")
+	b.WriteString("Recent commits (local snapshot, not fetched from GitHub):\n" + truncateProjectText(gitRead("log", "-10", "--format=%h (%an, %ar) %s"), 3000) + "\n")
 	diffstat := gitRead("show", "--stat", "--oneline", "-n", "1", "HEAD")
 	if !strings.Contains(diffstat, "Git is unavailable") && !strings.Contains(diffstat, "timed out") && strings.TrimSpace(diffstat) != "" {
 		b.WriteString("Recent changes (HEAD diffstat):\n" + truncateProjectText(diffstat, 2000) + "\n")
