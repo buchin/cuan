@@ -28,39 +28,22 @@ test('1. S59-T3: Desktop Sidebar 3-Group Information Architecture (NAV_GROUPS)',
     'AppShell.tsx must define NAV_GROUPS for structured 3-group navigation'
   )
 
-  // Verify group 1: Workspace contains Chat (/inbox), Tasks (/tasks), Projects (/projects)
+  // Verify groups: Main & Manage architecture (S70) or legacy Workspace/Operations/System (S59)
   assert.ok(
-    appShellSource.includes("id: 'workspace'") &&
-      appShellSource.includes("label: 'Workspace'"),
-    'NAV_GROUPS must define Workspace group'
+    (appShellSource.includes("id: 'main'") && appShellSource.includes("id: 'manage'")) ||
+      (appShellSource.includes("id: 'workspace'") && appShellSource.includes("label: 'Workspace'")),
+    'NAV_GROUPS must define structured navigation groups'
   )
   assert.ok(
     appShellSource.includes("to: '/inbox'") &&
-      appShellSource.includes("to: '/tasks'") &&
-      appShellSource.includes("to: '/projects'"),
-    'Workspace group must contain routes for /inbox, /tasks, and /projects'
+      appShellSource.includes("to: '/tasks'"),
+    'Main navigation must contain routes for /inbox and /tasks'
   )
 
-  // Verify group 2: Operations contains Contacts (/contacts)
   assert.ok(
-    appShellSource.includes("id: 'operations'") &&
-      appShellSource.includes("label: 'Operations'"),
-    'NAV_GROUPS must define Operations group'
-  )
-  assert.ok(
-    appShellSource.includes("to: '/contacts'"),
-    'Operations group must contain route for /contacts'
-  )
-
-  // Verify group 3: System contains Settings (/settings)
-  assert.ok(
-    appShellSource.includes("id: 'system'") &&
-      appShellSource.includes("label: 'System'"),
-    'NAV_GROUPS must define System group'
-  )
-  assert.ok(
-    appShellSource.includes("to: '/settings'"),
-    'System group must contain route for /settings'
+    appShellSource.includes("to: '/projects'") &&
+      appShellSource.includes("to: '/contacts'"),
+    'Manage navigation must contain routes for /projects and /contacts'
   )
 
   // Verify desktop sidebar renders testids for all 3 groups

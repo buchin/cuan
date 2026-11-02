@@ -12,6 +12,13 @@ import {
   Clock,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  PlusCircle,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
 } from 'lucide-react'
 import type { Task, TaskStatus, Project } from '../../api/types'
 import { agentsApi, type Agent } from '../../api/agents'
@@ -63,7 +70,24 @@ export function TaskBoardView({
     [saving, setSaving] = useState(''),
     [actionError, setActionError] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
+    [selectedRows, setSelectedRows] = useState<Set<string>>(new Set()),
     [limit, setLimit] = useState(100)
+  const toggleSelectAll = (totalRows: Task[]) => {
+    if (selectedRows.size === totalRows.length) {
+      setSelectedRows(new Set())
+    } else {
+      setSelectedRows(new Set(totalRows.map((r) => r.id)))
+    }
+  }
+  const toggleSelectRow = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   const query = params.get('q') || '',
     status = params.get('status') || 'all',
     project = activeProject?.id || params.get('project') || 'all',
@@ -437,8 +461,16 @@ export function TaskBoardView({
       className="flex h-full min-h-0 flex-col gap-3"
       aria-label="Task list"
     >
+      <div className="hidden sm:flex items-center justify-between pb-1">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">{t('Tasks')}</h2>
+          <p className="text-muted-foreground text-xs sm:text-sm">
+            {t("Here's a list of your tasks for this workspace!")}
+          </p>
+        </div>
+      </div>
       <div className="flex items-center gap-2">
-        <label className="relative min-w-0 flex-1 sm:max-w-sm lg:max-w-md">
+        <label className="relative min-w-0 flex-1 sm:max-w-xs lg:max-w-sm">
           <Search
             aria-hidden
             className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground"
@@ -448,9 +480,41 @@ export function TaskBoardView({
             placeholder="Search tasks…"
             value={query}
             onChange={(e) => update('q', e.target.value)}
-            className="field-control pl-9"
+            className="field-control pl-9 text-xs"
           />
         </label>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          className={cn(
+            "hidden sm:inline-flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 text-xs font-medium hover:bg-accent/50 transition-colors",
+            status !== 'all' && "border-solid bg-accent/40 text-foreground"
+          )}
+        >
+          <PlusCircle className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>Status</span>
+          {status !== 'all' && (
+            <span className="rounded bg-secondary px-1 font-mono text-[10px] text-secondary-foreground font-semibold">
+              {status}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          className={cn(
+            "hidden sm:inline-flex h-11 items-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 text-xs font-medium hover:bg-accent/50 transition-colors",
+            priority !== 'all' && "border-solid bg-accent/40 text-foreground"
+          )}
+        >
+          <PlusCircle className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>Priority</span>
+          {priority !== 'all' && (
+            <span className="rounded bg-secondary px-1 font-mono text-[10px] text-secondary-foreground font-semibold">
+              {priority}
+            </span>
+          )}
+        </button>
         <button
           className="action-secondary ml-auto h-11 px-3"
           onClick={() => setFiltersOpen(true)}
@@ -678,71 +742,101 @@ export function TaskBoardView({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="hidden overflow-hidden rounded-xl border border-border/40 bg-card/30 lg:block">
+          <div className="hidden overflow-hidden rounded-md border border-border/40 bg-card/30 lg:block shadow-2xs">
             <table className="w-full table-fixed text-left text-sm">
               <thead className="sticky top-0 z-10 bg-muted/40 text-xs font-medium text-muted-foreground border-b border-border/40">
                 <tr>
-                  <th className="w-[48%] px-4 py-3">Task</th>
-                  <th className="w-[14%] px-3 py-3">Status</th>
-                  <th className="w-[10%] px-3 py-3">Priority</th>
-                  <th className="w-[17%] px-3 py-3">Agent</th>
-                  <th className="w-[11%] px-3 py-3 text-right">Updated</th>
+                  <th className="w-[40px] px-3 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all tasks"
+                      checked={rows.length > 0 && selectedRows.size === rows.length}
+                      onChange={() => toggleSelectAll(rows)}
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                    />
+                  </th>
+                  <th className="w-[90px] px-3 py-3 font-mono text-xs font-medium">Task</th>
+                  <th className="w-[32%] px-3 py-3 font-medium">Title</th>
+                  <th className="w-[15%] px-3 py-3 font-medium">Status</th>
+                  <th className="w-[11%] px-3 py-3 font-medium">Priority</th>
+                  <th className="w-[16%] px-3 py-3 font-medium">Agent</th>
+                  <th className="w-[11%] px-3 py-3 text-right font-medium">Updated</th>
+                  <th className="w-[48px] px-2 py-3 text-center">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {rows.slice(0, limit).map((t) => (
                   <tr
                     key={t.id}
-                    className="group cursor-pointer transition-colors hover:bg-muted/30"
+                    className={cn(
+                      "group cursor-pointer transition-colors hover:bg-muted/30",
+                      selectedRows.has(t.id) && "bg-muted/40"
+                    )}
                     onClick={() => onSelectTask(t)}
                   >
-                    <td className="px-4 py-3">
-                      <button
-                        className="block w-full text-left font-medium leading-5 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelectTask(t)
-                        }}
-                      >
-                        <span
-                          className="line-clamp-1 break-words"
-                          title={t.title}
+                    <td className="w-[40px] px-3 py-3 text-center" onClick={(e) => toggleSelectRow(t.id, e)}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select task ${t.title}`}
+                        checked={selectedRows.has(t.id)}
+                        onChange={() => {}}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                      />
+                    </td>
+                    <td className="px-3 py-3 font-mono text-xs text-muted-foreground font-medium">
+                      {taskRef(t.id)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-2 max-w-full">
+                        {!activeProject && projectName(t) !== 'No project' && (
+                          <span className="inline-flex shrink-0 items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground truncate max-w-[120px]">
+                            {projectName(t)}
+                          </span>
+                        )}
+                        <button
+                          className="block text-left font-medium leading-5 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring truncate"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onSelectTask(t)
+                          }}
                         >
-                          {t.title}
-                        </span>
-                      </button>
+                          <span className="truncate" title={t.title}>
+                            {t.title}
+                          </span>
+                        </button>
+                      </div>
                       {requestPreview(t) && (
                         <p
                           className="mt-1 truncate text-xs text-muted-foreground"
                           title={requestPreview(t)}
                         >
-                          <span className="font-medium">Request:</span>{' '}
-                          {requestPreview(t)}
+                          <span className="font-medium">Request:</span> {requestPreview(t)}
                         </p>
                       )}
-                      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                        <span className="shrink-0 font-mono">
-                          {taskRef(t.id)}
-                        </span>
-                        {!activeProject && projectName(t) !== 'No project' && (
-                          <>
-                            <span>·</span>
-                            <span className="truncate">{projectName(t)}</span>
-                          </>
-                        )}
-                      </div>
                     </td>
                     <td className="px-3 py-2">{statusPicker(t)}</td>
                     <td className="px-3 py-2">
-                      <span
-                        className={cn(
-                          'text-xs capitalize',
-                          t.priority === 'urgent' &&
-                            'font-semibold text-destructive',
-                          t.priority === 'high' && 'font-semibold',
+                      <span className="inline-flex items-center gap-1.5 text-xs">
+                        {t.priority === 'urgent' || t.priority === 'high' ? (
+                          <ArrowUp className="h-3.5 w-3.5 text-destructive" />
+                        ) : t.priority === 'low' ? (
+                          <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : (
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                         )}
-                      >
-                        {t.priority}
+                        <span
+                          className={cn(
+                            'capitalize',
+                            t.priority === 'urgent' && 'font-semibold text-destructive',
+                            t.priority === 'high' && 'font-semibold text-foreground',
+                            t.priority === 'normal' && 'text-muted-foreground',
+                            t.priority === 'low' && 'text-muted-foreground',
+                          )}
+                        >
+                          {t.priority}
+                        </span>
                       </span>
                     </td>
                     <td className="break-words px-3 py-3 text-xs text-muted-foreground">
@@ -806,10 +900,53 @@ export function TaskBoardView({
                         {relativeTime(t.updated_at)}
                       </time>
                     </td>
+                    <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center">
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label={`Actions for ${t.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onSelectTask(t)
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="hidden lg:flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-xs text-muted-foreground bg-muted/10">
+              <div className="flex-1">
+                {selectedRows.size > 0
+                  ? `${selectedRows.size} of ${rows.length} row(s) selected.`
+                  : `${rows.length} ${rows.length === 1 ? 'task' : 'tasks'} found.`}
+              </div>
+              <div className="flex items-center gap-4">
+                <span>{t('Page 1 of 1')}</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           <HairlineList className="lg:hidden">
             {(() => {

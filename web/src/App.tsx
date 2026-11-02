@@ -520,6 +520,12 @@ export function App() {
       navigate('/settings/schedules')
     } else if (tab === 'contacts') {
       navigate('/contacts')
+    } else if (tab === 'agents') {
+      navigate('/settings/agent')
+    } else if (tab === 'team') {
+      navigate('/settings/team')
+    } else if (tab === 'skills') {
+      navigate('/settings/apps-skills')
     } else if (tab === 'settings') {
       navigate('/settings')
     } else if (tab === 'account') {

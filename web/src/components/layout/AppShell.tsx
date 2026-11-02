@@ -18,6 +18,10 @@ import {
   Users,
   Settings,
   MessageSquare,
+  Calendar,
+  Bot,
+  Building2,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -30,6 +34,9 @@ export type AppTab =
   | 'schedules'
   | 'projects'
   | 'contacts'
+  | 'agents'
+  | 'team'
+  | 'skills'
   | 'settings'
   | 'account'
 interface AppShellProps {
@@ -67,33 +74,30 @@ export interface NavItemConfig {
 }
 
 export interface NavGroupConfig {
-  id: 'workspace' | 'operations' | 'system'
-  label: string
+  id: 'main' | 'manage' | 'workspace' | 'operations' | 'system'
+  label?: string
   items: NavItemConfig[]
 }
 
 export const NAV_GROUPS: NavGroupConfig[] = [
   {
-    id: 'workspace',
-    label: 'Workspace',
+    id: 'main',
+    label: '',
     items: [
-      { id: 'inbox', label: 'Chat', icon: MessageSquare, to: '/inbox', description: 'Unified Studio & Inbox' },
+      { id: 'inbox', label: 'Inbox', icon: Inbox, to: '/inbox', description: 'Chat & pesan masuk' },
       { id: 'tasks', label: 'Tasks', icon: CheckSquare, to: '/tasks', description: 'Papan tiket agen' },
+    ],
+  },
+  {
+    id: 'manage',
+    label: 'Manage',
+    items: [
       { id: 'projects', label: 'Projects', icon: FolderGit2, to: '/projects', description: 'Workspaces & repo' },
-    ],
-  },
-  {
-    id: 'operations',
-    label: 'Operations',
-    items: [
       { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
-    ],
-  },
-  {
-    id: 'system',
-    label: 'System',
-    items: [
-      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Profil, asisten & otak AI, tim' },
+      { id: 'schedules', label: 'Schedules', icon: Calendar, to: '/settings/schedules', description: 'Otomasi jadwal rutin' },
+      { id: 'agents', label: 'Agents', icon: Bot, to: '/settings/agent', description: 'Asisten & model AI' },
+      { id: 'team', label: 'Team', icon: Building2, to: '/settings/team', description: 'Anggota tim staf manusia' },
+      { id: 'skills', label: 'Apps & Skills', icon: Sparkles, to: '/settings/apps-skills', description: 'Integrasi tool & skill' },
     ],
   },
 ]
@@ -182,6 +186,33 @@ export function AppShell({
         currentTab === 'inbox' ||
         currentTab === 'chat' ||
         (currentTab as string) === 'studio'
+      )
+    }
+    if (id === 'agents') {
+      return location.pathname.startsWith('/settings/agent')
+    }
+    if (id === 'team') {
+      return location.pathname.startsWith('/settings/team')
+    }
+    if (id === 'skills') {
+      return (
+        location.pathname.startsWith('/settings/apps-skills') ||
+        location.pathname.startsWith('/settings/skills')
+      )
+    }
+    if (id === 'schedules') {
+      return (
+        currentTab === 'schedules' ||
+        location.pathname.startsWith('/settings/schedules')
+      )
+    }
+    if (id === 'settings') {
+      return (
+        currentTab === 'settings' &&
+        !location.pathname.startsWith('/settings/agent') &&
+        !location.pathname.startsWith('/settings/team') &&
+        !location.pathname.startsWith('/settings/apps-skills') &&
+        !location.pathname.startsWith('/settings/schedules')
       )
     }
     return currentTab === id
@@ -309,9 +340,13 @@ export function AppShell({
               className="space-y-1"
             >
               {!effectiveCollapsed ? (
-                <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  {t(group.label)}
-                </div>
+                group.label ? (
+                  <div className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {t(group.label)}
+                  </div>
+                ) : index > 0 ? (
+                  <div className="my-1.5 h-px bg-border/40" />
+                ) : null
               ) : (
                 index > 0 && <div className="my-1.5 h-px bg-border/40" />
               )}

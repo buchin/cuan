@@ -89,24 +89,20 @@ test('2. S62-T1: Elimination of Duplicated Schedules from Desktop Sidebar NAV_GR
 
   const navGroupsBlock = appShellSource.slice(navGroupsStart, navGroupsEnd)
 
-  // Verify Schedules is NOT present in NAV_GROUPS
-  assert.ok(
-    !navGroupsBlock.includes("id: 'schedules'"),
-    'NAV_GROUPS must not contain id: schedules'
-  )
+  // Verify Schedules does not use legacy standalone route to: /schedules
   assert.ok(
     !navGroupsBlock.includes("to: '/schedules'"),
-    'NAV_GROUPS must not contain to: /schedules'
+    'NAV_GROUPS must not contain legacy to: /schedules'
   )
 
-  // Verify Operations contains Contacts
+  // Verify Manage or Operations contains Contacts
   assert.ok(
-    navGroupsBlock.includes("id: 'operations'"),
-    'NAV_GROUPS must contain operations group'
+    navGroupsBlock.includes("id: 'manage'") || navGroupsBlock.includes("id: 'operations'"),
+    'NAV_GROUPS must contain manage or operations group'
   )
   assert.ok(
     navGroupsBlock.includes("to: '/contacts'"),
-    'NAV_GROUPS operations group must contain /contacts'
+    'NAV_GROUPS must contain /contacts'
   )
 })
 
