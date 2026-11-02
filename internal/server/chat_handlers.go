@@ -709,8 +709,19 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		// Include any agents from s.agentRepo that are active and not already included
 		if s.agentRepo != nil {
 			if dbAgents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{Status: db.AgentStatusActive}); err == nil {
+				hasCuanAgent := false
+				for _, a := range dbAgents {
+					if a.Enabled && (a.ID == db.AgentIDCuan || a.Name == db.DefaultAgentHandle) {
+						hasCuanAgent = true
+						break
+					}
+				}
 				for _, a := range dbAgents {
 					if !a.Enabled {
+						continue
+					}
+					// Single Agent Facade: when @cuan is active, hide internal legacy agents from contacts list
+					if hasCuanAgent && (a.ID == "agent_sm" || a.ID == "agent_dev" || a.ID == "agent_support") {
 						continue
 					}
 					roomID := ""
@@ -1064,18 +1075,38 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if mention != "" {
 		if s.agentRepo != nil {
 			if ags, err := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); err == nil {
+				var cuanAgent *db.Agent
 				for _, a := range ags {
-					if strings.EqualFold(a.Name, mention) || strings.EqualFold("@"+strings.TrimPrefix(a.Name, "@"), mention) {
-						result.TargetAgentID = a.ID
-						result.TargetAgentName = a.Name
-						result.TargetHarness = a.Harness
-						result.IsAgent = true
+					if a.Enabled && (a.ID == db.AgentIDCuan || strings.EqualFold(a.Name, db.DefaultAgentHandle)) {
+						cuanCopy := a
+						cuanAgent = &cuanCopy
 						break
 					}
 				}
-				// Special reserved handles: @team or @sm (Scrum Master) or @dev (Developer)
+
+				mLower := strings.ToLower(mention)
+				// If cuanAgent is active, legacy team/bot handles map to cuanAgent
+				if cuanAgent != nil && (mLower == "@cuan" || mLower == "cuan" || mLower == "@team" || mLower == "@sm" || mLower == "@dev" || mLower == "@support") {
+					result.TargetAgentID = cuanAgent.ID
+					result.TargetAgentName = cuanAgent.Name
+					result.TargetHarness = cuanAgent.Harness
+					result.IsAgent = true
+				}
+
 				if !result.IsAgent {
-					mLower := strings.ToLower(mention)
+					for _, a := range ags {
+						if strings.EqualFold(a.Name, mention) || strings.EqualFold("@"+strings.TrimPrefix(a.Name, "@"), mention) {
+							result.TargetAgentID = a.ID
+							result.TargetAgentName = a.Name
+							result.TargetHarness = a.Harness
+							result.IsAgent = true
+							break
+						}
+					}
+				}
+
+				// Special reserved handles: @team or @sm (Scrum Master) or @dev (Developer) when cuanAgent is not present
+				if !result.IsAgent {
 					if mLower == "@team" || mLower == "@sm" {
 						for _, a := range ags {
 							roleLower := strings.ToLower(a.Role)
@@ -1128,22 +1159,22 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 				}
 			}
 		}
-		// Fallback for default Scrum Master if not yet registered in agentRepo
+		// Fallback for default @cuan or Scrum Master if not yet registered in agentRepo
 		if !result.IsAgent {
 			mLower := strings.ToLower(mention)
-			if mLower == "@team" || mLower == "@sm" {
-				result.TargetAgentID = "agent_sm"
-				result.TargetAgentName = "Scrum Master"
+			if mLower == "@cuan" || mLower == "cuan" || mLower == "@team" || mLower == "@sm" {
+				result.TargetAgentID = db.AgentIDCuan
+				result.TargetAgentName = db.DefaultAgentHandle
 				result.TargetHarness = "agy"
 				result.IsAgent = true
 			} else if mLower == "@dev" {
-				result.TargetAgentID = "agent_dev"
-				result.TargetAgentName = "Dev Worker"
+				result.TargetAgentID = db.AgentIDCuan
+				result.TargetAgentName = db.DefaultAgentHandle
 				result.TargetHarness = "agy"
 				result.IsAgent = true
 			} else if mLower == "@support" {
-				result.TargetAgentID = "agent_support"
-				result.TargetAgentName = "Support Agent"
+				result.TargetAgentID = db.AgentIDCuan
+				result.TargetAgentName = db.DefaultAgentHandle
 				result.TargetHarness = "agy"
 				result.IsAgent = true
 			}

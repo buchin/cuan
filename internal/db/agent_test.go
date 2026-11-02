@@ -455,9 +455,17 @@ func TestAgent_ModelConfigAndBuiltins(t *testing.T) {
 	ctx := context.Background()
 	repo := NewMemoryAgentRepository()
 
-	// 1. Test EnsureBuiltinAgents seeds @sm, @dev, @support with model configs
+	// 1. Test EnsureBuiltinAgents seeds @cuan, @sm, @dev, @support with model configs
 	if err := EnsureBuiltinAgents(ctx, repo); err != nil {
 		t.Fatalf("EnsureBuiltinAgents failed: %v", err)
+	}
+
+	cuan, err := repo.GetAgentByID(ctx, "agent_cuan")
+	if err != nil {
+		t.Fatalf("failed to get agent_cuan: %v", err)
+	}
+	if cuan.Name != "@cuan" || cuan.ModelID != "gemini-1.5-pro" || cuan.Role != "Cuan Universal Assistant" {
+		t.Errorf("unexpected agent_cuan config: %+v", cuan)
 	}
 
 	sm, err := repo.GetAgentByID(ctx, "agent_sm")
@@ -551,6 +559,65 @@ func TestAgent_ModelConfigAndBuiltins(t *testing.T) {
 	badBudgetInput := UpdateAgentInput{TokenBudget: &negativeBudget}
 	if err := badBudgetInput.Validate(); err == nil {
 		t.Errorf("expected error for negative token budget, got nil")
+	}
+}
+
+func TestAgent_CuanFacadeAndBackwardCompatibility(t *testing.T) {
+	ctx := context.Background()
+	repo := NewMemoryAgentRepository()
+
+	// Seed only @cuan
+	cuanAgent := &Agent{
+		ID:           AgentIDCuan,
+		Name:         DefaultAgentHandle,
+		Role:         "Cuan Universal Assistant",
+		SystemPrompt: "Universal Assistant",
+		Status:       AgentStatusActive,
+		Enabled:      true,
+	}
+	if err := repo.CreateAgent(ctx, cuanAgent); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+
+	// 1. Verify resolving @cuan
+	cuan, err := repo.GetAgentByID(ctx, AgentIDCuan)
+	if err != nil || cuan.Name != "@cuan" {
+		t.Fatalf("expected @cuan, got %v, err: %v", cuan, err)
+	}
+
+	// 2. Verify backward-compatibility fallback: legacy agent_sm, agent_dev, agent_support resolve to @cuan
+	for _, legacyID := range []string{"agent_sm", "agent_dev", "agent_support"} {
+		resolved, err := repo.GetAgentByID(ctx, legacyID)
+		if err != nil {
+			t.Fatalf("expected fallback for %s, got error: %v", legacyID, err)
+		}
+		if resolved.ID != AgentIDCuan || resolved.Name != "@cuan" {
+			t.Errorf("expected %s to resolve to agent_cuan, got %+v", legacyID, resolved)
+		}
+	}
+
+	// 3. Test Custom Handle / Nickname customization on @cuan (e.g. rename to @maya)
+	customHandle := "@maya"
+	customRole := "Asisten Pribadi Maya"
+	customAvatar := "https://example.com/maya.png"
+	patch := UpdateAgentInput{
+		Name:   &customHandle,
+		Role:   &customRole,
+		Avatar: &customAvatar,
+	}
+	if err := patch.ApplyTo(cuan); err != nil {
+		t.Fatalf("ApplyTo failed: %v", err)
+	}
+	if err := repo.UpdateAgent(ctx, cuan); err != nil {
+		t.Fatalf("UpdateAgent failed: %v", err)
+	}
+
+	updated, err := repo.GetAgentByID(ctx, AgentIDCuan)
+	if err != nil {
+		t.Fatalf("GetAgentByID failed: %v", err)
+	}
+	if updated.Name != "@maya" || updated.Role != "Asisten Pribadi Maya" || updated.Avatar != "https://example.com/maya.png" {
+		t.Errorf("customization failed: %+v", updated)
 	}
 }
 

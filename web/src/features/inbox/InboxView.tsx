@@ -513,20 +513,17 @@ export function InboxView({
   const [showCannedManageModal, setShowCannedManageModal] = useState(false)
   const [isMultiline, setIsMultiline] = useState(false)
   const [whisperMode, setWhisperMode] = useState(false)
-  const [whisperHandle, setWhisperHandle] = useState<'@team' | '@sm' | '@dev'>('@team')
+  const [whisperHandle, setWhisperHandle] = useState<string>('@cuan')
 
   useEffect(() => {
     if (activeContact?.type === 'customer') {
       const trimmed = inputMessage.trim().toLowerCase()
-      if (trimmed.startsWith('@team')) {
+      if (trimmed.startsWith('@cuan')) {
         setWhisperMode(true)
-        setWhisperHandle('@team')
-      } else if (trimmed.startsWith('@sm')) {
+        setWhisperHandle('@cuan')
+      } else if (trimmed.startsWith('@team') || trimmed.startsWith('@sm') || trimmed.startsWith('@dev')) {
         setWhisperMode(true)
-        setWhisperHandle('@sm')
-      } else if (trimmed.startsWith('@dev')) {
-        setWhisperMode(true)
-        setWhisperHandle('@dev')
+        setWhisperHandle('@cuan')
       }
     }
   }, [inputMessage, activeContact?.type])
@@ -1647,13 +1644,13 @@ export function InboxView({
                       { label: 'Quote message', run: quoteMessage },
                       { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(activeContact.conversation_id || activeContact.id) + (msg.uuid ? '?message=' + encodeURIComponent(msg.uuid) : '')) },
                       ...(activeContact.type === 'customer' ? [{
-                        label: t('Whisper to @team'),
+                        label: t('Whisper to @cuan'),
                         run: () => {
                           const body = msg.content || msg.message || ''
                           const snippet = body.length > 80 ? body.slice(0, 77) + '…' : body
                           setWhisperMode(true)
-                          setWhisperHandle('@team')
-                          setInputMessage(`@team regarding "${snippet}": `)
+                          setWhisperHandle('@cuan')
+                          setInputMessage(`@cuan regarding "${snippet}": `)
                           textareaRef.current?.focus()
                           if (textareaRef.current) autoResizeTextarea(textareaRef.current)
                         },
@@ -2111,11 +2108,11 @@ export function InboxView({
                           onClick={() => {
                             setWhisperMode(false)
                             if (inputMessage.trim().startsWith('@')) {
-                              setInputMessage(inputMessage.replace(/^@(team|sm|dev)\s*/i, ''))
+                              setInputMessage(inputMessage.replace(/^@(cuan|team|sm|dev)\s*/i, ''))
                             }
                           }}
                           className={cn(
-                            'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer',
+                            'rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer',
                             !whisperMode
                               ? 'bg-background text-foreground font-semibold shadow-xs'
                               : 'text-muted-foreground hover:text-foreground'
@@ -2125,51 +2122,27 @@ export function InboxView({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setWhisperMode(true)}
+                          onClick={() => {
+                            setWhisperMode(true)
+                            setWhisperHandle('@cuan')
+                            const trimmed = inputMessage.trim()
+                            if (!trimmed.startsWith('@')) {
+                              setInputMessage(trimmed ? `@cuan ${trimmed}` : '@cuan ')
+                            }
+                            textareaRef.current?.focus()
+                            if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                          }}
                           className={cn(
-                            'flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors cursor-pointer',
+                            'flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer',
                             whisperMode
                               ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold shadow-xs'
                               : 'text-muted-foreground hover:text-foreground'
                           )}
                         >
                           <Lock className="h-3 w-3 text-amber-500" />
-                          <span>{t('Whisper AI:')}</span>
+                          <span>{t('Whisper @cuan')}</span>
                         </button>
                       </div>
-
-                      {[
-                        { handle: '@team' as const, label: '@team (Auto)' },
-                        { handle: '@sm' as const, label: '@sm (Scrum Master)' },
-                        { handle: '@dev' as const, label: '@dev (Developer)' },
-                      ].map((item) => {
-                        const isSelected = (whisperMode && whisperHandle === item.handle) || inputMessage.toLowerCase().startsWith(item.handle)
-                        return (
-                          <button
-                            key={item.handle}
-                            type="button"
-                            onClick={() => {
-                              setWhisperMode(true)
-                              setWhisperHandle(item.handle)
-                              const trimmed = inputMessage.trim()
-                              const next = trimmed
-                                ? `${item.handle} ${trimmed.replace(/^@(team|sm|dev)\s*/i, '')}`
-                                : `${item.handle} `
-                              setInputMessage(next)
-                              textareaRef.current?.focus()
-                              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-                            }}
-                            className={cn(
-                              'rounded-full px-2 py-0.5 text-[11px] font-medium border transition-colors cursor-pointer',
-                              isSelected
-                                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-semibold shadow-xs'
-                                : 'bg-muted/60 text-muted-foreground hover:text-foreground border-border/60 hover:bg-muted'
-                            )}
-                          >
-                            {item.label}
-                          </button>
-                        )
-                      })}
                     </div>
                     {(whisperMode || inputMessage.trim().startsWith('@')) && (
                       <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold inline-flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
@@ -2211,8 +2184,8 @@ export function InboxView({
                       activeContact.type === 'agent'
                         ? t('Write a message…')
                         : whisperMode || inputMessage.trim().startsWith('@')
-                        ? t('Whisper to AI team (invisible to visitor)…')
-                        : `Reply to ${activeContact.name} or type @team to whisper AI…`
+                        ? t('Whisper to @cuan (invisible to visitor)…')
+                        : `Reply to ${activeContact.name} or type @cuan to whisper AI…`
                     }
                     className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug pl-1.5 pr-2 sm:pl-2 sm:pr-2.5"
                   />
