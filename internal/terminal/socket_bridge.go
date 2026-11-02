@@ -218,3 +218,18 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 
 	<-done
 }
+
+// SendSocketInput connects to the Unix domain socket for a task or attempt and delivers raw input bytes.
+func SendSocketInput(taskOrAttemptID, input string) error {
+	sockPath := SocketPath(taskOrAttemptID)
+	conn, err := net.DialTimeout("unix", sockPath, 2*time.Second)
+	if err != nil {
+		return fmt.Errorf("dial terminal socket %s: %w", sockPath, err)
+	}
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte(input)); err != nil {
+		return fmt.Errorf("write to terminal socket %s: %w", sockPath, err)
+	}
+	return nil
+}

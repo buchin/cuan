@@ -29,6 +29,9 @@ type Config struct {
 	RunnerServerURL           string
 	RunnerLeaseDuration       time.Duration
 	RunnerMaxLogLines         int
+	RunnerDetachedWorkers     bool
+	RunnerWorkerRegistryDir   string
+	RunnerBinPath             string
 	AuthSecret                string
 	GitAuthorName             string
 	GitAuthorEmail            string
@@ -143,6 +146,10 @@ func Load() *Config {
 
 	autoMigrate := getEnv("CUAN_AUTO_MIGRATE", "true") != "false"
 
+	runnerDetachedWorkers := getEnv("CUAN_RUNNER_DETACHED_WORKERS", "true") != "false"
+	runnerWorkerRegistryDir := getEnv("CUAN_WORKER_REGISTRY_DIR", "/tmp/cuan-workers")
+	runnerBinPath := getEnv("CUAN_RUNNER_BIN", "/opt/cuan/current/bin/cuan-runner")
+
 	return &Config{
 		Environment:               env,
 		ServerPort:                port,
@@ -159,6 +166,9 @@ func Load() *Config {
 		RunnerServerURL:           serverURL,
 		RunnerLeaseDuration:       time.Duration(leaseSec) * time.Second,
 		RunnerMaxLogLines:         maxLogLines,
+		RunnerDetachedWorkers:     runnerDetachedWorkers,
+		RunnerWorkerRegistryDir:   runnerWorkerRegistryDir,
+		RunnerBinPath:             runnerBinPath,
 		AuthSecret:                authSecret,
 		GitAuthorName:             gitAuthorName,
 		GitAuthorEmail:            gitAuthorEmail,
