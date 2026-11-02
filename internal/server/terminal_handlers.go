@@ -319,11 +319,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	var projID string
 	taskCategory := task.ExecutionCategoryCode
+	var tDetail *task.TaskDetailResponse
 	if s.taskSvc != nil {
-		if tDetail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && tDetail != nil {
-			projID = tDetail.ProjectID
-			if tDetail.ExecutionCategory != "" {
-				taskCategory = tDetail.ExecutionCategory
+		if td, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && td != nil {
+			tDetail = td
+			projID = td.ProjectID
+			if td.ExecutionCategory != "" {
+				taskCategory = td.ExecutionCategory
 			}
 		}
 	}
@@ -423,12 +425,45 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			routeRelease()
 		}
 	}()
+	needsVision := s.taskRequiresVision(r.Context(), ownerID, tDetail, payload.Prompt, payload.Revision)
+	if !needsVision && tDetail != nil && tDetail.SourceRoomID != "" && tDetail.SourceMessageID != "" && s.projectStudioRepo != nil {
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			if requests, e := store.ListInboxRequests(r.Context(), tDetail.SourceRoomID); e == nil {
+				for _, q := range requests {
+					if q.MessageID == tDetail.SourceMessageID && q.OwnerID == ownerID {
+						for _, p := range s.inboxAttachmentPaths(r.Context(), q) {
+							if isImageAttachmentNameOrType(p, "") {
+								needsVision = true
+								break
+							}
+						}
+						break
+					}
+				}
+			}
+		}
+	}
 	if expectedBinary == "agy" {
 		primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
 		limited := primary != nil && primary.State == "quota_limited"
 		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
+		if needsVision {
+			visionRoutes := make([]inboxAccountRoute, 0, len(routes))
+			for _, r := range routes {
+				if r.model == "" || agent.IsModelVisionCapable("agy", r.model) {
+					visionRoutes = append(visionRoutes, r)
+				}
+			}
+			routes = visionRoutes
+		}
 		if len(routes) == 0 {
-			respondJSON(w, 409, map[string]string{"error": "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started.", "code": "provider_unavailable"})
+			msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
+			code := "provider_unavailable"
+			if needsVision {
+				msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
+				code = "provider_vision_unsupported"
+			}
+			respondJSON(w, 409, map[string]string{"error": msg, "code": code})
 			return
 		}
 		for i := range routes {
@@ -475,6 +510,23 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		selectedModel = registeredAgent.ModelID
 		if idx := strings.Index(selectedModel, "#"); idx != -1 {
 			selectedModel = selectedModel[idx+1:]
+		}
+	}
+	if expectedBinary != "agy" && needsVision {
+		if !agent.IsModelVisionCapable(expectedBinary, selectedModel) {
+			fallbackID := strings.TrimSpace(registeredAgent.FallbackModelID)
+			if idx := strings.Index(fallbackID, "#"); idx != -1 {
+				fallbackID = fallbackID[idx+1:]
+			}
+			if fallbackID != "" && agent.IsModelVisionCapable(expectedBinary, fallbackID) {
+				selectedModel = fallbackID
+			} else {
+				respondJSON(w, 409, map[string]string{
+					"error": fmt.Sprintf("Task requires image/visual inspection, but agent %s (%s) does not support vision.", registeredAgent.Name, selectedModel),
+					"code":  "provider_vision_unsupported",
+				})
+				return
+			}
 		}
 	}
 	agentName := registeredAgent.Name
@@ -1001,4 +1053,62 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 		"live_session": live,
 		"count":        len(history),
 	})
+}
+
+func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail *task.TaskDetailResponse, prompt, revision string) bool {
+	checkText := func(text string) bool {
+		if text == "" {
+			return false
+		}
+		if strings.Contains(text, "Images require visual inspection") {
+			return true
+		}
+		lower := strings.ToLower(text)
+		for _, ext := range []string{".png", ".jpg", ".jpeg", ".webp", ".gif"} {
+			if strings.Contains(lower, ext) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if checkText(prompt) || checkText(revision) {
+		return true
+	}
+
+	if detail != nil {
+		if checkText(detail.Instructions) || checkText(detail.Title) {
+			return true
+		}
+		for _, att := range detail.Attachments {
+			if ca, ok := att.(conversationAttachment); ok {
+				if isImageAttachmentNameOrType(ca.Name, ca.Type) {
+					return true
+				}
+			} else if m, ok := att.(map[string]any); ok {
+				name, _ := m["name"].(string)
+				mime, _ := m["type"].(string)
+				if isImageAttachmentNameOrType(name, mime) {
+					return true
+				}
+			}
+		}
+		if s.projectStudioRepo != nil && detail.SourceRoomID != "" && detail.SourceMessageID != "" {
+			if msg, err := s.projectStudioRepo.GetMessageByID(ctx, detail.SourceMessageID); err == nil && msg != nil {
+				_, attIDs := decodeAttachmentMessage(msg.Content)
+				for _, aid := range attIDs {
+					if a, _, err := loadAttachment(ownerID, aid); err == nil {
+						if isImageAttachmentNameOrType(a.Name, a.Type) {
+							return true
+						}
+					} else if a, _, err := findAttachmentAcrossOwners(aid); err == nil {
+						if isImageAttachmentNameOrType(a.Name, a.Type) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
 }

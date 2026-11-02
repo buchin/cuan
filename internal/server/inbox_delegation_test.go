@@ -25,6 +25,11 @@ func TestInboxDelegationProtocol(t *testing.T) {
 	if err != nil || dTrailing == nil || !strings.Contains(textWithTrailing, "trailing") {
 		t.Fatal("valid trailing prose rejected", textWithTrailing, dTrailing, err)
 	}
+	validWithAgent := "Plan\n```cuan-delegate\n{\"title\":\"Audit\",\"description\":\"Approved audit\",\"project_id\":\"p1\",\"authorization_message_id\":\"user-id\",\"agent_id\":\"@dev2\"}\n```"
+	_, dAgent, err := parseInboxDelegation(validWithAgent)
+	if err != nil || dAgent == nil || dAgent.AgentID != "@dev2" {
+		t.Fatal("agent_id in delegation rejected", dAgent, err)
+	}
 	for _, bad := range []string{valid + valid, strings.Replace(valid, "\"p1\"", "\"\"", 1), strings.Replace(valid, "\"title\":", "\"shell\":\"dangerous\",\"title\":", 1), strings.Replace(valid, "}\n```", "} {}\n```", 1), valid + "\n```cuan-task\n{}\n```"} {
 		if _, _, err := parseInboxDelegation(bad); err == nil {
 			t.Fatal("invalid action accepted", bad)

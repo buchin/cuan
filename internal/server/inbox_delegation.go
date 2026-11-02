@@ -41,6 +41,7 @@ type inboxDelegation struct {
 	AuthorizationID string `json:"authorization_message_id"`
 	TaskID          string `json:"task_id,omitempty"`
 	Revision        string `json:"revision,omitempty"`
+	AgentID         string `json:"agent_id,omitempty"`
 }
 
 func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
@@ -326,7 +327,32 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		room.ProjectID = d.ProjectID
 		_ = s.projectStudioRepo.UpdateRoom(ctx, room)
 	}
+	targetAgent := q.AgentID
+	if strings.TrimSpace(d.AgentID) != "" {
+		cleanAgent := strings.TrimSpace(d.AgentID)
+		if s.agentRepo != nil {
+			cleanID := strings.TrimPrefix(cleanAgent, "@")
+			if ag, e := s.agentRepo.GetAgentByID(ctx, cleanAgent); e == nil && ag != nil {
+				targetAgent = ag.ID
+			} else if ag, e := s.agentRepo.GetAgentByID(ctx, "agent_"+cleanID); e == nil && ag != nil {
+				targetAgent = ag.ID
+			} else if ags, e := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); e == nil {
+				for _, a := range ags {
+					if strings.EqualFold(a.ID, cleanAgent) || strings.EqualFold(a.ID, "agent_"+cleanID) || strings.EqualFold(a.Name, cleanAgent) || strings.EqualFold(strings.TrimPrefix(a.Name, "@"), cleanID) {
+						targetAgent = a.ID
+						break
+					}
+				}
+			}
+		} else {
+			targetAgent = cleanAgent
+		}
+	}
 	if d.TaskID != "" {
+		if targetAgent != "" && targetAgent != t.AssignedAgent {
+			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{AssignedAgent: &targetAgent})
+			t.AssignedAgent = targetAgent
+		}
 		isOriginalApproval := strings.Contains(t.Instructions, "Approval message: "+d.AuthorizationID)
 		if !s.taskContinuationAfterCancel(ctx, q, t) {
 			return fail("the work was cancelled; a new user instruction is required to continue")
@@ -401,7 +427,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			ProjectID:     d.ProjectID,
 			Title:         d.Title,
 			Instructions:  instructions,
-			AssignedAgent: q.AgentID,
+			AssignedAgent: targetAgent,
 			DoDChecklist:  dodChecklist,
 		})
 		if e != nil {

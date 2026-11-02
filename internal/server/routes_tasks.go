@@ -28,6 +28,7 @@ func (s *Server) registerTaskRoutes(pr chi.Router) {
 	pr.Post("/tasks", s.handleCreateTask)
 	pr.Get("/tasks/{id}", s.handleGetTask)
 	pr.Put("/tasks/{id}", s.handleUpdateTask)
+	pr.Patch("/tasks/{id}", s.handleUpdateTask)
 	pr.Delete("/tasks/{id}", s.handleDeleteTask)
 	pr.Post("/tasks/{id}/comments", s.handleAddComment)
 	pr.Post("/tasks/{id}/attempts", s.handleCreateAttempt)
