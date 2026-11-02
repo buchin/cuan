@@ -128,7 +128,6 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 
 func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 	cleanExplanation := raw
-	// If raw is wrapped in JSON, extract explanation to avoid leaking raw JSON envelope into chat
 	trimmed := strings.TrimSpace(raw)
 	if strings.HasPrefix(trimmed, "```json") {
 		if start := strings.Index(trimmed, "\n"); start >= 0 {
@@ -137,19 +136,44 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 			}
 		}
 	}
-	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
+
+	var extractedExp string
+	var extractedRev string
+	var extractedDec string
+	dec := json.NewDecoder(strings.NewReader(trimmed))
+	for {
+		var jsonObj map[string]any
+		if err := dec.Decode(&jsonObj); err != nil {
+			break
+		}
+		if exp, ok := jsonObj["explanation"].(string); ok && strings.TrimSpace(exp) != "" && extractedExp == "" {
+			extractedExp = strings.TrimSpace(exp)
+		}
+		if rev, ok := jsonObj["revision"].(string); ok && strings.TrimSpace(rev) != "" && extractedRev == "" {
+			extractedRev = strings.TrimSpace(rev)
+		}
+		if d, ok := jsonObj["decision"].(string); ok && strings.TrimSpace(d) != "" && extractedDec == "" {
+			extractedDec = strings.ToLower(strings.TrimSpace(d))
+		}
+	}
+
+	if extractedExp != "" {
+		cleanExplanation = extractedExp
+	} else if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
 		var jsonObj map[string]any
 		if err := json.Unmarshal([]byte(trimmed), &jsonObj); err == nil {
 			if exp, ok := jsonObj["explanation"].(string); ok && strings.TrimSpace(exp) != "" {
-				cleanExplanation = exp
+				cleanExplanation = strings.TrimSpace(exp)
 			}
 		}
 	}
 
 	upper := strings.ToUpper(raw)
-	if strings.Contains(upper, "BELUM LULUS") || strings.Contains(upper, "TIDAK LULUS") || strings.Contains(upper, "PERLU REVISI") {
+	if extractedDec == "revise" || strings.Contains(upper, "BELUM LULUS") || strings.Contains(upper, "TIDAK LULUS") || strings.Contains(upper, "PERLU REVISI") {
 		revision := "Lengkapi kriteria Definition of Done yang belum terpenuhi sesuai evaluasi."
-		if idx := strings.Index(cleanExplanation, "Gap yang Perlu Diperbaiki"); idx != -1 {
+		if extractedRev != "" {
+			revision = extractedRev
+		} else if idx := strings.Index(cleanExplanation, "Gap yang Perlu Diperbaiki"); idx != -1 {
 			gapText := strings.TrimSpace(cleanExplanation[idx:])
 			if len(gapText) > 20 {
 				revision = truncateProjectText(gapText, 1000)
@@ -161,7 +185,7 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 			Revision:    revision,
 		}, nil
 	}
-	if strings.Contains(upper, "LULUS") && !strings.Contains(upper, "BELUM") && !strings.Contains(upper, "TIDAK") {
+	if extractedDec == "pass" || (strings.Contains(upper, "LULUS") && !strings.Contains(upper, "BELUM") && !strings.Contains(upper, "TIDAK")) {
 		return inboxReviewEvaluation{
 			Decision:    "pass",
 			Explanation: truncateProjectText(cleanExplanation, 6000),
@@ -258,6 +282,20 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		}
 	}
 	if decision.Decision == "revise" {
+		// Guardrail: if task has failed multiple times or repeatedly timed out,
+		// do not auto-delegate into an infinite loop. Ask user to review or adjust.
+		hasRepeatedTimeout := d.LatestAttempt != nil && (strings.Contains(d.LatestAttempt.ErrorMessage, "timeout") || (d.LatestAttempt.ExitCode != nil && *d.LatestAttempt.ExitCode == 124)) && len(d.Attempts) >= 2
+		if hasRepeatedTimeout || len(d.Attempts) >= 3 {
+			review := task.TaskStatusReview
+			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review})
+			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
+			msg := decision.Explanation
+			if !strings.Contains(msg, "/tasks/"+d.ID) {
+				msg += taskLink
+			}
+			return msg
+		}
+
 		delegation := inboxDelegation{TaskID: d.ID, ProjectID: d.ProjectID, AuthorizationID: d.SourceMessageID, Revision: decision.Revision}
 		payload, _ := json.Marshal(delegation)
 		output := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(payload)+"\n```")

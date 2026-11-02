@@ -640,3 +640,23 @@ func TestApplyInboxReviewEvaluation_FallbackTextReview(t *testing.T) {
 		t.Fatalf("expected task status to be %s, got: %s", task.TaskStatusDone, updatedTask.Status)
 	}
 }
+
+func TestParseFallbackTextReview_NoRawJSONLeak(t *testing.T) {
+	// Simulated raw output that contains two JSONs with minor difference
+	raw := "{\n  \"decision\": \"revise\",\n  \"explanation\": \"### Evaluasi Kriteria Selesai\\n**Status:** BELUM LULUS\\n- [ ] Gap 1\",\n  \"revision\": \"Fix gap 1\"\n}\n{\"decision\":\"revise\",\"explanation\":\"### Evaluasi Kriteria Selesai\\n**Status:** BELUM LULUS,\\n- [ ] Gap 1\",\"revision\":\"Fix gap 1\"}"
+
+	eval, err := parseFallbackTextReview(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if eval.Decision != "revise" {
+		t.Errorf("expected decision revise, got %s", eval.Decision)
+	}
+	// Verify raw JSON envelope is NOT present in Explanation
+	if strings.HasPrefix(eval.Explanation, "{") || strings.Contains(eval.Explanation, `"decision":`) || strings.Contains(eval.Explanation, `"explanation":`) {
+		t.Errorf("expected clean explanation without raw JSON envelopes, got: %s", eval.Explanation)
+	}
+	if !strings.Contains(eval.Explanation, "Evaluasi Kriteria Selesai") {
+		t.Errorf("expected explanation to contain markdown text, got: %s", eval.Explanation)
+	}
+}
