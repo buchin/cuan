@@ -8,9 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/taskprocess"
 )
 
 var (
@@ -77,6 +80,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	if workspacesBase == "" {
 		workspacesBase = filepath.Join("data", "workspaces")
 	}
+
+	// Proactively prune stale and excess workspaces to prevent disk space exhaustion
+	_, _ = c.PruneStaleWorkspaces(workspacesBase, 24*time.Hour, cfg.TaskID, 5)
 
 	workspacePath := filepath.Join(workspacesBase, cfg.TaskID)
 
@@ -406,3 +412,103 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 
 	return "No file modifications recorded in diff.", nil
 }
+
+// PruneStaleWorkspaces scans workspacesBase and cleans up stale or excess task workspaces.
+// It skips the current activeTaskID, hidden directories (such as .task-execution-locks),
+// and any workspace whose task execution lock is actively held.
+//
+// 1. Workspaces with modification time older than maxAge are removed.
+// 2. If the remaining count of workspaces still exceeds maxWorkspaces,
+// the oldest workspaces by modification time are pruned until count <= maxWorkspaces.
+//
+// Returns the number of workspaces pruned and any error encountered while reading the directory.
+func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duration, activeTaskID string, maxWorkspaces int) (int, error) {
+	if workspacesBase == "" {
+		return 0, nil
+	}
+
+	entries, err := os.ReadDir(workspacesBase)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("read workspaces base dir: %w", err)
+	}
+
+	locksDir := filepath.Join(workspacesBase, ".task-execution-locks")
+
+	type candidate struct {
+		taskID  string
+		path    string
+		modTime time.Time
+	}
+
+	var remaining []candidate
+	prunedCount := 0
+
+	for _, entry := range entries {
+		name := entry.Name()
+		// Skip files and hidden directories (e.g. .task-execution-locks)
+		if !entry.IsDir() || strings.HasPrefix(name, ".") {
+			continue
+		}
+
+		// Never prune the currently active task
+		if activeTaskID != "" && name == activeTaskID {
+			continue
+		}
+
+		// Check if the task has an active OS execution lock
+		lockFile := filepath.Join(locksDir, name+".lock")
+		if active, aErr := taskprocess.Active(lockFile); aErr == nil && active {
+			continue
+		}
+
+		wsPath := filepath.Join(workspacesBase, name)
+		info, iErr := entry.Info()
+		if iErr != nil {
+			statInfo, sErr := os.Stat(wsPath)
+			if sErr != nil {
+				continue
+			}
+			info = statInfo
+		}
+
+		cand := candidate{
+			taskID:  name,
+			path:    wsPath,
+			modTime: info.ModTime(),
+		}
+
+		// Phase 1: Prune if older than maxAge
+		if maxAge > 0 && time.Since(cand.modTime) > maxAge {
+			if rErr := os.RemoveAll(cand.path); rErr == nil {
+				prunedCount++
+				_ = os.Remove(lockFile)
+			}
+			continue
+		}
+
+		remaining = append(remaining, cand)
+	}
+
+	// Phase 2: FIFO rotation if count exceeds maxWorkspaces
+	if maxWorkspaces > 0 && len(remaining) > maxWorkspaces {
+		// Sort remaining ascending by modTime (oldest first)
+		sort.Slice(remaining, func(i, j int) bool {
+			return remaining[i].modTime.Before(remaining[j].modTime)
+		})
+
+		excess := len(remaining) - maxWorkspaces
+		for i := 0; i < excess; i++ {
+			if rErr := os.RemoveAll(remaining[i].path); rErr == nil {
+				prunedCount++
+				lockFile := filepath.Join(locksDir, remaining[i].taskID+".lock")
+				_ = os.Remove(lockFile)
+			}
+		}
+	}
+
+	return prunedCount, nil
+}
+

@@ -193,6 +193,13 @@ func (r *Runner) Start(ctx context.Context) error {
 	log.Printf("[Runner %s] Started on host '%s' with agent '%s' (ver: %s)", r.cfg.RunnerID, hostname, r.adapter.Name(), version)
 	log.Printf("[Runner %s] Outbound server URL: %s, poll interval: %v", r.cfg.RunnerID, r.baseURL, r.cfg.RunnerInterval)
 
+	// Initial workspace GC on runner startup to clean up leftover checkouts from prior crashes or restarts
+	if r.gitClient != nil && r.cfg.WorkspacesDir != "" {
+		if pruned, _ := r.gitClient.PruneStaleWorkspaces(r.cfg.WorkspacesDir, 24*time.Hour, "", 5); pruned > 0 {
+			log.Printf("[Runner %s] Startup GC: pruned %d stale workspace(s)", r.cfg.RunnerID, pruned)
+		}
+	}
+
 	// Start background drain flag monitor
 	if r.drainCoord != nil {
 		go r.drainCoord.StartMonitor(ctx, 1*time.Second)
@@ -712,6 +719,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/complete", att.ID)
 	_, _ = r.doRequest(context.Background(), http.MethodPost, urlPath, compReq)
 	log.Printf("[Runner %s] Attempt %s finalized with status '%s' (exit %d)", r.cfg.RunnerID, att.ID, compReq.Status, compReq.ExitCode)
+
+	// Clean up stale or excess workspaces post-execution
+	if r.gitClient != nil && r.cfg.WorkspacesDir != "" {
+		if pruned, _ := r.gitClient.PruneStaleWorkspaces(r.cfg.WorkspacesDir, 24*time.Hour, "", 5); pruned > 0 {
+			log.Printf("[Runner %s] Post-execution GC: pruned %d stale workspace(s)", r.cfg.RunnerID, pruned)
+		}
+	}
 }
 
 func (r *Runner) cancelCurrentExecution() {

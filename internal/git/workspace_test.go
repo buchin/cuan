@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func createTestBaseRepo(t *testing.T, dir string) {
@@ -295,3 +297,157 @@ func TestWorkspaceRevisionResume(t *testing.T) {
 		t.Fatalf("diff summary should contain both files, got:\n%s", diffSummary)
 	}
 }
+
+func TestPruneStaleWorkspaces(t *testing.T) {
+	tempDir := t.TempDir()
+	workspacesDir := filepath.Join(tempDir, "workspaces")
+	if err := os.MkdirAll(workspacesDir, 0755); err != nil {
+		t.Fatalf("mkdir workspaces: %v", err)
+	}
+
+	locksDir := filepath.Join(workspacesDir, ".task-execution-locks")
+	if err := os.MkdirAll(locksDir, 0700); err != nil {
+		t.Fatalf("mkdir locks dir: %v", err)
+	}
+
+	now := time.Now()
+
+	createWs := func(name string, modTime time.Time) string {
+		p := filepath.Join(workspacesDir, name)
+		if err := os.MkdirAll(p, 0755); err != nil {
+			t.Fatalf("mkdir ws %s: %v", name, err)
+		}
+		testFile := filepath.Join(p, "file.txt")
+		_ = os.WriteFile(testFile, []byte("data"), 0644)
+		_ = os.Chtimes(p, modTime, modTime)
+		return p
+	}
+
+	// 1. Workspaces older than 24h
+	oldWs1 := createWs("ws_old_1", now.Add(-48*time.Hour))
+	oldWs2 := createWs("ws_old_2", now.Add(-36*time.Hour))
+
+	// 2. Recent workspaces (< 24h)
+	recentWs1 := createWs("ws_recent_1", now.Add(-3*time.Hour))
+	recentWs2 := createWs("ws_recent_2", now.Add(-2*time.Hour))
+	recentWs3 := createWs("ws_recent_3", now.Add(-1*time.Hour))
+
+	// 3. Locked workspace (older than 24h, but locked with OS flock)
+	lockedWs := createWs("ws_locked", now.Add(-50*time.Hour))
+	lockFile := filepath.Join(locksDir, "ws_locked.lock")
+	f, err := os.OpenFile(lockFile, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatalf("open lock file: %v", err)
+	}
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatalf("flock error: %v", err)
+	}
+	defer func() {
+		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		_ = f.Close()
+	}()
+
+	// 4. Active task workspace (older than 24h, but matches activeTaskID)
+	activeWs := createWs("ws_active", now.Add(-50*time.Hour))
+
+	// 5. Non-directory regular file inside workspacesDir
+	regularFile := filepath.Join(workspacesDir, "info.txt")
+	_ = os.WriteFile(regularFile, []byte("standalone file"), 0644)
+
+	client := NewClient()
+
+	// Prune with maxAge=24h, activeTaskID="ws_active", maxWorkspaces=2
+	// Expected:
+	// - ws_old_1 and ws_old_2 pruned (older than 24h)
+	// - ws_locked kept (lock held)
+	// - ws_active kept (active task)
+	// - Among recent: ws_recent_1, ws_recent_2, ws_recent_3 (3 items) with quota 2 -> oldest (ws_recent_1) pruned
+	// Total pruned: 3 (ws_old_1, ws_old_2, ws_recent_1)
+	pruned, err := client.PruneStaleWorkspaces(workspacesDir, 24*time.Hour, "ws_active", 2)
+	if err != nil {
+		t.Fatalf("PruneStaleWorkspaces failed: %v", err)
+	}
+
+	if pruned != 3 {
+		t.Fatalf("expected 3 pruned workspaces, got %d", pruned)
+	}
+
+	// Verify old workspaces deleted
+	if _, err := os.Stat(oldWs1); !os.IsNotExist(err) {
+		t.Errorf("expected ws_old_1 to be pruned, but still exists")
+	}
+	if _, err := os.Stat(oldWs2); !os.IsNotExist(err) {
+		t.Errorf("expected ws_old_2 to be pruned, but still exists")
+	}
+
+	// Verify excess recent workspace deleted
+	if _, err := os.Stat(recentWs1); !os.IsNotExist(err) {
+		t.Errorf("expected ws_recent_1 to be pruned by quota, but still exists")
+	}
+
+	// Verify kept recent workspaces
+	if _, err := os.Stat(recentWs2); err != nil {
+		t.Errorf("expected ws_recent_2 to exist, got err: %v", err)
+	}
+	if _, err := os.Stat(recentWs3); err != nil {
+		t.Errorf("expected ws_recent_3 to exist, got err: %v", err)
+	}
+
+	// Verify locked workspace kept
+	if _, err := os.Stat(lockedWs); err != nil {
+		t.Errorf("expected ws_locked to be preserved due to active lock, got err: %v", err)
+	}
+
+	// Verify active workspace kept
+	if _, err := os.Stat(activeWs); err != nil {
+		t.Errorf("expected ws_active to be preserved, got err: %v", err)
+	}
+
+	// Verify hidden directory and regular file preserved
+	if _, err := os.Stat(locksDir); err != nil {
+		t.Errorf("expected .task-execution-locks directory to be preserved, got err: %v", err)
+	}
+	if _, err := os.Stat(regularFile); err != nil {
+		t.Errorf("expected regularFile to be preserved, got err: %v", err)
+	}
+}
+
+func TestPrepareTaskWorkspace_AutomaticPruning(t *testing.T) {
+	tempDir := t.TempDir()
+	baseRepoDir := filepath.Join(tempDir, "base_repo")
+	workspacesDir := filepath.Join(tempDir, "workspaces")
+
+	createTestBaseRepo(t, baseRepoDir)
+
+	client := NewClient()
+	ctx := context.Background()
+
+	// Pre-create an old workspace that should be pruned
+	oldWsDir := filepath.Join(workspacesDir, "old_abandoned_task")
+	_ = os.MkdirAll(oldWsDir, 0755)
+	oldTime := time.Now().Add(-48 * time.Hour)
+	_ = os.Chtimes(oldWsDir, oldTime, oldTime)
+
+	// Now call PrepareTaskWorkspace for a new task
+	ws, err := client.PrepareTaskWorkspace(ctx, WorkspaceConfig{
+		TaskID:            "new_task_001",
+		BaseRepoDir:       baseRepoDir,
+		WorkspacesBaseDir: workspacesDir,
+		AuthorName:        "Buchin",
+		AuthorEmail:       "buchin@dropsugar.com",
+	})
+	if err != nil {
+		t.Fatalf("PrepareTaskWorkspace failed: %v", err)
+	}
+
+	// The old workspace should have been pruned automatically
+	if _, err := os.Stat(oldWsDir); !os.IsNotExist(err) {
+		t.Errorf("old_abandoned_task should have been automatically pruned by PrepareTaskWorkspace")
+	}
+
+	// The new workspace must exist
+	if _, err := os.Stat(ws.Path); err != nil {
+		t.Errorf("new workspace path %s does not exist: %v", ws.Path, err)
+	}
+}
+
