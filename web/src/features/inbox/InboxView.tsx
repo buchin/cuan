@@ -256,20 +256,6 @@ export function InboxView({
     return linkedTasks.filter(isTaskActive)
   }, [linkedTasks])
 
-  // Map each referenced task ID to the latest message that references it in this room.
-  // This enforces a strict single-card policy: only the latest message renders a TaskCard.
-  const latestMessageIdPerTask = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const m of messages) {
-      const content = m.content || m.message || ''
-      const matches = content.matchAll(/\/tasks\/([A-Za-z0-9_-]+)/g)
-      for (const match of matches) {
-        map.set(match[1], m.uuid || m.id)
-      }
-    }
-    return map
-  }, [messages])
-
   // Track task completion transitions to trigger audio chime & background tab badge
   const prevActiveTasksRef = useRef<Set<string>>(new Set())
   useEffect(() => {
@@ -443,6 +429,20 @@ export function InboxView({
     olderAnchor.current = null
   }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
+
+  // Map each referenced task ID to the latest message that references it in this room.
+  // This enforces a strict single-card policy: only the latest message renders a TaskCard.
+  const latestMessageIdPerTask = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const m of messages) {
+      const content = m.content || m.message || ''
+      const matches = content.matchAll(/\/tasks\/([A-Za-z0-9_-]+)/g)
+      for (const match of matches) {
+        map.set(match[1], m.uuid || String(m.id))
+      }
+    }
+    return map
+  }, [messages])
   const unattachedCompletedTasks = useMemo(() => {
     const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
     const messageContents = messages.map((m) => m.content || m.message || '').join(' ')

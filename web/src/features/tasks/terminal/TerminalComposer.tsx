@@ -907,7 +907,7 @@ export function TerminalComposer({
         )}
 
         {/* Stop / Cancel Process Button (Calm, human-friendly, visible when onStop/onInterrupt is provided) */}
-        {(onStop || onInterrupt) && (
+        {(Boolean(onStop) || typeof onInterrupt === 'function') && (
           <button
             type="button"
             disabled={disabled}
