@@ -95,16 +95,27 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		// Workspace exists -> resume cycle
 		// Ensure checked out to task branch
 		checkoutCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
-		if out, err := checkoutCmd.CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("checkout existing task branch %s: %s", branchName, string(out))
+		if _, err := checkoutCmd.CombinedOutput(); err != nil {
+			// Self-heal: reset hard and clean untracked files in case of dirty workspace conflict
+			_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "reset", "--hard").Run()
+			_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "clean", "-fd").Run()
+			retryCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
+			if _, retryErr := retryCmd.CombinedOutput(); retryErr != nil {
+				// Corrupted workspace that cannot be recovered -> remove it to trigger fresh clone below
+				_ = os.RemoveAll(workspacePath)
+			} else {
+				_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
+				_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
+				c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
+				return ws, nil
+			}
+		} else {
+			// Re-ensure git config and pre-push hook
+			_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
+			_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
+			c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
+			return ws, nil
 		}
-
-		// Re-ensure git config and pre-push hook
-		_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
-		_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
-		c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
-
-		return ws, nil
 	}
 
 	// New workspace -> Create parent directory

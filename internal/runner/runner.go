@@ -476,6 +476,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	// Prepare isolated workspace per task
 	var ws *git.TaskWorkspace
+	var err error
 	workingDir := ""
 	if r.gitClient != nil && lane == task.ExecutionCategoryCode {
 		branchName := t.BranchName
@@ -504,7 +505,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			RemoteURL:         claim.RepoURL,
 		})
 		if wsErr != nil {
-			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan persiapan workspace: %v", wsErr))
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Gagal menyiapkan workspace: %v", wsErr))
+			err = fmt.Errorf("prepare task workspace: %w", wsErr)
 		} else if ws != nil {
 			workingDir = ws.Path
 			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Workspace terisolasi siap di '%s' pada branch '%s'.", ws.Path, ws.BranchName))
@@ -543,46 +545,47 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	var liveStreamedCount int64
 	var result *agent.ExecutionResult
-	var err error
 
-	// If using the official agy adapter on a host where agy binary is present,
-	// execute inside a native OS pseudo-terminal (creack/pty) and expose a live
-	// Unix domain socket bridge for zero-downtime streaming.
-	if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
-		if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
-			result, err = r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
-		}
-	}
-
-	// Fallback to standard adapter execution (used by mock adapters in test suite)
-	if result == nil && err == nil {
-		req := agent.ExecutionRequest{
-			TaskID:       t.ID,
-			Prompt:       prompt,
-			WorkingDir:   workingDir,
-			Env:          env,
-			Timeout:      timeoutDuration,
-			OutputFormat: "stream-json",
-			OnLog: func(stream, line string) {
-				atomic.AddInt64(&liveStreamedCount, 1)
-				r.streamLogLine(ctx, att.ID, stream, line)
-			},
-			RegisterSteer: func(steerFn func(prompt string) error) {
-				r.mu.Lock()
-				if act, ok := r.activeAttempts[att.ID]; ok {
-					act.steerFunc = steerFn
-				}
-				r.mu.Unlock()
-			},
+	if err == nil {
+		// If using the official agy adapter on a host where agy binary is present,
+		// execute inside a native OS pseudo-terminal (creack/pty) and expose a live
+		// Unix domain socket bridge for zero-downtime streaming.
+		if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
+			if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
+				result, err = r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
+			}
 		}
 
-		r.mu.Lock()
-		if act, ok := r.activeAttempts[att.ID]; ok {
-			req.SteerChan = act.steerChan
-		}
-		r.mu.Unlock()
+		// Fallback to standard adapter execution (used by mock adapters in test suite)
+		if result == nil && err == nil {
+			req := agent.ExecutionRequest{
+				TaskID:       t.ID,
+				Prompt:       prompt,
+				WorkingDir:   workingDir,
+				Env:          env,
+				Timeout:      timeoutDuration,
+				OutputFormat: "stream-json",
+				OnLog: func(stream, line string) {
+					atomic.AddInt64(&liveStreamedCount, 1)
+					r.streamLogLine(ctx, att.ID, stream, line)
+				},
+				RegisterSteer: func(steerFn func(prompt string) error) {
+					r.mu.Lock()
+					if act, ok := r.activeAttempts[att.ID]; ok {
+						act.steerFunc = steerFn
+					}
+					r.mu.Unlock()
+				},
+			}
 
-		result, err = r.adapter.Execute(ctx, req)
+			r.mu.Lock()
+			if act, ok := r.activeAttempts[att.ID]; ok {
+				req.SteerChan = act.steerChan
+			}
+			r.mu.Unlock()
+
+			result, err = r.adapter.Execute(ctx, req)
+		}
 	}
 	duration := time.Since(startTime)
 
