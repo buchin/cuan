@@ -66,24 +66,26 @@ const icons = {
 
 function renderSidebar(activeTab = 'tasks') {
   return `
-    <aside class="w-64 border-r border-border/40 bg-card/20 flex flex-col justify-between shrink-0">
-      <div class="p-4 space-y-6">
-        <!-- Workspace Switcher Header -->
-        <div class="flex items-center gap-3 px-2 py-1.5 rounded-xl border border-border/40 bg-card/40">
-          <div class="h-8 w-8 rounded-lg bg-primary/20 text-primary font-bold flex items-center justify-center text-sm border border-primary/30">
-            C
+    <aside class="w-56 border-r border-border/40 bg-card/20 flex flex-col justify-between shrink-0">
+      <div class="flex flex-col">
+        <!-- Brand Header (52px / h-13 matching shadcn Mail) -->
+        <div class="h-13 px-3 flex items-center justify-between border-b border-border/40">
+          <div class="flex items-center gap-2">
+            <div class="h-5 w-5 rounded-md bg-primary text-primary-foreground font-bold flex items-center justify-center text-xs">
+              c
+            </div>
+            <span class="text-sm font-semibold tracking-tight text-foreground">cuan</span>
           </div>
-          <div class="min-w-0 flex-1">
-            <div class="text-sm font-bold text-foreground truncate">Cuan Workspace</div>
-            <div class="text-[11px] text-muted-foreground truncate">Dojo Enterprise</div>
-          </div>
+          <button class="h-7 w-7 rounded-md border border-border/40 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+          </button>
         </div>
 
         <!-- Navigation Groups -->
-        <nav class="space-y-5">
+        <nav class="p-2 space-y-3">
           <!-- MAIN GROUP (Inbox & Tasks) -->
-          <div class="space-y-1">
-            <a href="#" class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+          <div class="space-y-0.5">
+            <a href="#" class="h-9 flex items-center justify-between px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'inbox'
                 ? 'bg-accent text-accent-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -92,14 +94,14 @@ function renderSidebar(activeTab = 'tasks') {
                 ${icons.inbox}
                 <span>Inbox</span>
               </div>
-              <span class="text-xs font-mono px-2 py-0.5 rounded-full ${
+              <span class="text-xs font-mono tabular-nums ${
                 activeTab === 'inbox'
-                  ? 'bg-primary/20 text-primary font-bold'
-                  : 'bg-muted text-muted-foreground'
+                  ? 'text-foreground font-bold'
+                  : 'text-muted-foreground'
               }">128</span>
             </a>
 
-            <a href="#" class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+            <a href="#" class="h-9 flex items-center justify-between px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'tasks'
                 ? 'bg-accent text-accent-foreground font-semibold shadow-xs'
                 : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
@@ -108,56 +110,56 @@ function renderSidebar(activeTab = 'tasks') {
                 ${icons.tasks}
                 <span>Tasks</span>
               </div>
-              <span class="text-xs font-mono px-2 py-0.5 rounded-full ${
+              <span class="text-xs font-mono tabular-nums ${
                 activeTab === 'tasks'
-                  ? 'bg-primary/20 text-primary font-bold'
-                  : 'bg-muted text-muted-foreground'
+                  ? 'text-foreground font-bold'
+                  : 'text-muted-foreground'
               }">9</span>
             </a>
           </div>
 
           <!-- MANAGE GROUP DIVIDER & ITEMS -->
-          <div class="space-y-1 pt-2 border-t border-border/30">
-            <div class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          <div class="space-y-0.5 pt-1.5 border-t border-border/30">
+            <div class="px-3 pt-1 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
               Manage
             </div>
 
-            <a href="#" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
+            <a href="#" class="h-9 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
               activeTab === 'projects' ? 'bg-accent text-accent-foreground font-semibold' : ''
             }">
               ${icons.projects}
               <span>Projects</span>
             </a>
 
-            <a href="#" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
+            <a href="#" class="h-9 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
               activeTab === 'contacts' ? 'bg-accent text-accent-foreground font-semibold' : ''
             }">
               ${icons.contacts}
               <span>Contacts</span>
             </a>
 
-            <a href="#" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
+            <a href="#" class="h-9 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
               activeTab === 'schedules' ? 'bg-accent text-accent-foreground font-semibold' : ''
             }">
               ${icons.schedules}
               <span>Schedules</span>
             </a>
 
-            <a href="#" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
+            <a href="#" class="h-9 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
               activeTab === 'agents' ? 'bg-accent text-accent-foreground font-semibold' : ''
             }">
               ${icons.agents}
               <span>Agents</span>
             </a>
 
-            <a href="#" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
+            <a href="#" class="h-9 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
               activeTab === 'team' ? 'bg-accent text-accent-foreground font-semibold' : ''
             }">
               ${icons.team}
               <span>Team</span>
             </a>
 
-            <a href="#" class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
+            <a href="#" class="h-9 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors ${
               activeTab === 'skills' ? 'bg-accent text-accent-foreground font-semibold' : ''
             }">
               ${icons.skills}
@@ -168,15 +170,15 @@ function renderSidebar(activeTab = 'tasks') {
       </div>
 
       <!-- User Profile at bottom -->
-      <div class="p-3 border-t border-border/40">
-        <div class="flex items-center gap-3 p-2 rounded-xl bg-card/40 border border-border/30">
-          <div class="h-8 w-8 rounded-full bg-primary/20 text-primary font-mono font-bold flex items-center justify-center text-xs border border-primary/30">
+      <div class="p-2 border-t border-border/40">
+        <div class="flex items-center gap-2.5 p-1.5 rounded-md hover:bg-muted/40 cursor-pointer transition-colors">
+          <div class="h-6 w-6 rounded-full bg-primary/20 text-primary font-mono font-bold flex items-center justify-center text-[10px] border border-primary/30">
             BU
           </div>
           <div class="min-w-0 flex-1">
-            <div class="font-bold text-xs text-foreground flex items-center gap-1.5">
+            <div class="font-semibold text-xs text-foreground flex items-center gap-1.5">
               <span>Buchin</span>
-              <span class="text-[9px] font-mono px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded uppercase">Owner</span>
+              <span class="text-[9px] font-mono px-1 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded uppercase">Owner</span>
             </div>
             <div class="text-[10px] text-muted-foreground truncate">buchin@dropsugar.com</div>
           </div>
@@ -200,197 +202,229 @@ function createDesktopTasksHtml() {
 
     <!-- Main Tasks Workspace Pane -->
     <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+      <!-- App Header (52px / h-13 aligning across all columns) -->
+      <header class="h-13 px-4 border-b border-border/40 flex items-center justify-between shrink-0 bg-background">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold tracking-tight text-foreground">Tasks</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="inline-flex h-8 items-center gap-1.5 px-3 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
+            + New Task
+          </button>
+        </div>
+      </header>
+
       <!-- Content Area with shadcn Tasks Layout -->
-      <div class="flex-1 overflow-y-auto p-8 space-y-6 max-w-7xl w-full mx-auto">
-        
-        <!-- Page Header -->
-        <div class="flex items-center justify-between">
-          <div class="space-y-1">
-            <h2 class="text-2xl font-bold tracking-tight text-foreground">Tasks</h2>
-            <p class="text-sm text-muted-foreground">
-              Here&apos;s a list of your tasks for this month!
-            </p>
-          </div>
-          <div class="flex items-center gap-2">
-            <button class="inline-flex min-h-11 items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 shadow-sm transition-colors">
-              + New Task
-            </button>
-          </div>
+      <div class="flex-1 overflow-y-auto p-6 space-y-4 max-w-7xl w-full mx-auto">
+        <!-- Page Title & Subtitle -->
+        <div class="space-y-0.5">
+          <h2 class="text-2xl font-bold tracking-tight text-foreground">Tasks</h2>
+          <p class="text-xs text-muted-foreground">
+            Here&apos;s a list of your tasks for this workspace!
+          </p>
         </div>
 
-        <!-- Faceted Filters Toolbar -->
-        <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Faceted Filters Toolbar (h-8 compact controls matching shadcn tasks) -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex flex-1 flex-wrap items-center gap-2">
-            <div class="relative w-64 max-w-sm">
-              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">${icons.search}</span>
-              <input type="text" placeholder="Filter tasks..." class="h-9 w-full rounded-lg border border-border/60 bg-card/60 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+            <div class="relative w-[220px]">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-muted-foreground">${icons.search}</span>
+              <input type="text" placeholder="Search tasks…" class="h-8 w-full rounded-md border border-input bg-transparent pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
 
             <!-- Status Faceted Filter Button -->
-            <button class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+            <button class="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium text-foreground hover:bg-accent/50 transition-colors">
               ${icons.plusCircle}
               <span>Status</span>
-              <span class="ml-1 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">3</span>
+              <span class="ml-0.5 rounded bg-secondary px-1 font-mono text-[10px] font-semibold text-secondary-foreground">3</span>
             </button>
 
             <!-- Priority Faceted Filter Button -->
-            <button class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-dashed border-border/80 px-3 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+            <button class="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium text-foreground hover:bg-accent/50 transition-colors">
               ${icons.plusCircle}
               <span>Priority</span>
-              <span class="ml-1 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">2</span>
+              <span class="ml-0.5 rounded bg-secondary px-1 font-mono text-[10px] font-semibold text-secondary-foreground">2</span>
+            </button>
+
+            <!-- Reset Button -->
+            <button class="inline-flex h-8 items-center gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <span>Reset</span>
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
 
           <div class="flex items-center gap-2">
-            <button class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border/60 px-3 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+            <button class="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
               ${icons.sliders}
               <span>View</span>
             </button>
           </div>
         </div>
 
+        <!-- Category Filter Tabs (h-7 rounded-md) -->
+        <div class="flex items-center gap-1 overflow-x-auto py-0.5">
+          <button class="inline-flex h-7 items-center gap-1 rounded-md bg-secondary text-secondary-foreground px-2.5 text-xs font-semibold shadow-xs">
+            <span>All</span>
+            <span class="font-mono text-[10px]">(4)</span>
+          </button>
+          <button class="inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+            <span>Doing</span>
+            <span class="font-mono text-[10px]">(1)</span>
+          </button>
+          <button class="inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+            <span>Todo</span>
+            <span class="font-mono text-[10px]">(2)</span>
+          </button>
+          <button class="inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+            <span>Done</span>
+            <span class="font-mono text-[10px]">(1)</span>
+          </button>
+        </div>
+
         <!-- shadcn/ui Tasks Data Table -->
-        <div class="rounded-xl border border-border/60 bg-card/40 overflow-hidden shadow-xs">
-          <table class="w-full text-left text-sm">
-            <thead class="border-b border-border/40 bg-muted/30 text-xs font-medium text-muted-foreground">
+        <div class="rounded-md border border-border/40 bg-card/30 overflow-hidden shadow-2xs">
+          <table class="w-full text-left text-xs table-fixed">
+            <thead class="border-b border-border/40 bg-muted/40 text-xs font-medium text-muted-foreground">
               <tr>
-                <th class="w-10 px-4 py-3 text-center"><input type="checkbox" class="rounded border-border/80" /></th>
-                <th class="w-28 px-4 py-3 font-semibold">Task</th>
-                <th class="px-4 py-3 font-semibold">Title</th>
-                <th class="w-36 px-4 py-3 font-semibold">Status</th>
-                <th class="w-32 px-4 py-3 font-semibold">Priority</th>
-                <th class="w-32 px-4 py-3 font-semibold">Assignee</th>
-                <th class="w-32 px-4 py-3 font-semibold">Updated</th>
-                <th class="w-12 px-4 py-3 text-right"></th>
+                <th class="w-[40px] px-2 py-2 text-center"><input type="checkbox" class="h-3.5 w-3.5 rounded border-border" /></th>
+                <th class="w-[85px] px-2 py-2 font-mono text-xs font-medium">Task</th>
+                <th class="w-[34%] px-2 py-2 font-medium">Title</th>
+                <th class="w-[14%] px-2 py-2 font-medium">Status</th>
+                <th class="w-[11%] px-2 py-2 font-medium">Priority</th>
+                <th class="w-[15%] px-2 py-2 font-medium">Agent</th>
+                <th class="w-[11%] px-2 py-2 text-right font-medium">Updated</th>
+                <th class="w-[40px] px-1 py-2 text-center"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-border/30">
               <!-- Row 1 -->
-              <tr class="hover:bg-muted/20 transition-colors">
-                <td class="px-4 py-3.5 text-center"><input type="checkbox" class="rounded border-border/80" /></td>
-                <td class="px-4 py-3.5 font-mono text-xs text-muted-foreground font-semibold">TSK-8782</td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Documentation</span>
-                    <span class="font-medium text-foreground">You can't compress the program without quantifying the open-source SSD pixel!</span>
+              <tr class="h-10 hover:bg-muted/30 transition-colors">
+                <td class="w-[40px] px-2 py-1.5 text-center"><input type="checkbox" class="h-3.5 w-3.5 rounded border-border" /></td>
+                <td class="px-2 py-1.5 font-mono text-xs text-muted-foreground font-medium">#TSK-8782</td>
+                <td class="px-2 py-1.5">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <span class="inline-flex shrink-0 items-center rounded border border-border/50 bg-muted/40 px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground truncate max-w-[110px]">Documentation</span>
+                    <span class="font-medium text-foreground text-xs truncate">Quantify open-source SSD pixel performance metrics</span>
                   </div>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2 text-xs font-medium text-blue-400">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 rounded-md border border-border/40 bg-muted/20 px-1.5 py-0.5 text-xs text-blue-400">
                     ${icons.inProgress}
-                    <span>In Progress</span>
-                  </div>
+                    <span>Doing</span>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     ${icons.arrowRight}
-                    <span>Medium</span>
-                  </div>
+                    <span>Normal</span>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5 text-xs text-foreground/80">Buchin</td>
-                <td class="px-4 py-3.5 text-xs text-muted-foreground font-mono">10m ago</td>
-                <td class="px-4 py-3.5 text-right text-muted-foreground">${icons.moreHorizontal}</td>
+                <td class="px-2 py-1 text-xs text-muted-foreground">Buchin</td>
+                <td class="px-2 py-1 text-right text-[11px] text-muted-foreground font-mono">10m ago</td>
+                <td class="px-1 py-1 text-center text-muted-foreground">
+                  <button class="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-muted">${icons.moreHorizontal}</button>
+                </td>
               </tr>
 
               <!-- Row 2 -->
-              <tr class="hover:bg-muted/20 transition-colors">
-                <td class="px-4 py-3.5 text-center"><input type="checkbox" class="rounded border-border/80" /></td>
-                <td class="px-4 py-3.5 font-mono text-xs text-muted-foreground font-semibold">TSK-7878</td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Bug</span>
-                    <span class="font-medium text-foreground">Try to calculate the EXE feed, maybe it will index the multi-byte pixel!</span>
+              <tr class="h-10 hover:bg-muted/30 transition-colors">
+                <td class="w-[40px] px-2 py-1.5 text-center"><input type="checkbox" class="h-3.5 w-3.5 rounded border-border" /></td>
+                <td class="px-2 py-1.5 font-mono text-xs text-muted-foreground font-medium">#TSK-7878</td>
+                <td class="px-2 py-1.5">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <span class="inline-flex shrink-0 items-center rounded border border-border/50 bg-muted/40 px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground truncate max-w-[110px]">Bug</span>
+                    <span class="font-medium text-foreground text-xs truncate">Index multi-byte pixel buffer in worker executor</span>
                   </div>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 rounded-md border border-border/40 bg-muted/20 px-1.5 py-0.5 text-xs text-muted-foreground">
                     ${icons.todo}
                     <span>Todo</span>
-                  </div>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-1.5 text-xs text-rose-400 font-medium">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 text-xs text-destructive font-semibold">
                     ${icons.arrowUp}
                     <span>High</span>
-                  </div>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5 text-xs text-foreground/80">Agent @sm</td>
-                <td class="px-4 py-3.5 text-xs text-muted-foreground font-mono">2h ago</td>
-                <td class="px-4 py-3.5 text-right text-muted-foreground">${icons.moreHorizontal}</td>
+                <td class="px-2 py-1 text-xs text-muted-foreground">@sm</td>
+                <td class="px-2 py-1 text-right text-[11px] text-muted-foreground font-mono">2h ago</td>
+                <td class="px-1 py-1 text-center text-muted-foreground">
+                  <button class="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-muted">${icons.moreHorizontal}</button>
+                </td>
               </tr>
 
               <!-- Row 3 -->
-              <tr class="hover:bg-muted/20 transition-colors">
-                <td class="px-4 py-3.5 text-center"><input type="checkbox" class="rounded border-border/80" /></td>
-                <td class="px-4 py-3.5 font-mono text-xs text-muted-foreground font-semibold">TSK-7839</td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Feature</span>
-                    <span class="font-medium text-foreground">We need to bypass the neural TCP card to synchronize the database!</span>
+              <tr class="h-10 hover:bg-muted/30 transition-colors">
+                <td class="w-[40px] px-2 py-1.5 text-center"><input type="checkbox" class="h-3.5 w-3.5 rounded border-border" /></td>
+                <td class="px-2 py-1.5 font-mono text-xs text-muted-foreground font-medium">#TSK-7839</td>
+                <td class="px-2 py-1.5">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <span class="inline-flex shrink-0 items-center rounded border border-border/50 bg-muted/40 px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground truncate max-w-[110px]">Feature</span>
+                    <span class="font-medium text-foreground text-xs truncate">Synchronize database runner with TCP neural channel</span>
                   </div>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2 text-xs font-medium text-emerald-400">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 rounded-md border border-border/40 bg-muted/20 px-1.5 py-0.5 text-xs text-emerald-400 font-medium">
                     ${icons.done}
                     <span>Done</span>
-                  </div>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-1.5 text-xs text-blue-400">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     ${icons.arrowDown}
                     <span>Low</span>
-                  </div>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5 text-xs text-foreground/80">Buchin</td>
-                <td class="px-4 py-3.5 text-xs text-muted-foreground font-mono">1d ago</td>
-                <td class="px-4 py-3.5 text-right text-muted-foreground">${icons.moreHorizontal}</td>
+                <td class="px-2 py-1 text-xs text-muted-foreground">Buchin</td>
+                <td class="px-2 py-1 text-right text-[11px] text-muted-foreground font-mono">1d ago</td>
+                <td class="px-1 py-1 text-center text-muted-foreground">
+                  <button class="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-muted">${icons.moreHorizontal}</button>
+                </td>
               </tr>
 
               <!-- Row 4 -->
-              <tr class="hover:bg-muted/20 transition-colors">
-                <td class="px-4 py-3.5 text-center"><input type="checkbox" class="rounded border-border/80" /></td>
-                <td class="px-4 py-3.5 font-mono text-xs text-muted-foreground font-semibold">TSK-5562</td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Feature</span>
-                    <span class="font-medium text-foreground">The SAS interface is down, bypass the open-source sensor so we can back up!</span>
+              <tr class="h-10 hover:bg-muted/30 transition-colors">
+                <td class="w-[40px] px-2 py-1.5 text-center"><input type="checkbox" class="h-3.5 w-3.5 rounded border-border" /></td>
+                <td class="px-2 py-1.5 font-mono text-xs text-muted-foreground font-medium">#TSK-5562</td>
+                <td class="px-2 py-1.5">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <span class="inline-flex shrink-0 items-center rounded border border-border/50 bg-muted/40 px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground truncate max-w-[110px]">Backlog</span>
+                    <span class="font-medium text-foreground text-xs truncate">Bypass SAS sensor to allow graceful backup fallback</span>
                   </div>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 rounded-md border border-border/40 bg-muted/20 px-1.5 py-0.5 text-xs text-muted-foreground">
                     ${icons.todo}
                     <span>Todo</span>
-                  </div>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5">
-                  <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <td class="px-2 py-1">
+                  <span class="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     ${icons.arrowRight}
-                    <span>Medium</span>
-                  </div>
+                    <span>Normal</span>
+                  </span>
                 </td>
-                <td class="px-4 py-3.5 text-xs text-foreground/80">Dojo Ops</td>
-                <td class="px-4 py-3.5 text-xs text-muted-foreground font-mono">3d ago</td>
-                <td class="px-4 py-3.5 text-right text-muted-foreground">${icons.moreHorizontal}</td>
+                <td class="px-2 py-1 text-xs text-muted-foreground">@dev2</td>
+                <td class="px-2 py-1 text-right text-[11px] text-muted-foreground font-mono">3d ago</td>
+                <td class="px-1 py-1 text-center text-muted-foreground">
+                  <button class="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-muted">${icons.moreHorizontal}</button>
+                </td>
               </tr>
             </tbody>
           </table>
 
           <!-- Table Footer Pagination -->
-          <div class="flex items-center justify-between px-4 py-3 border-t border-border/40 text-xs text-muted-foreground">
+          <div class="hidden lg:flex items-center justify-between border-t border-border/40 px-3 py-2 text-xs text-muted-foreground bg-muted/10">
             <div>
               0 of 4 row(s) selected.
             </div>
-            <div class="flex items-center gap-6">
-              <div class="flex items-center gap-2">
-                <span>Rows per page</span>
-                <span class="rounded border border-border/60 px-2 py-1 bg-muted/40 font-mono text-foreground">10</span>
-              </div>
-              <div class="font-mono">Page 1 of 1</div>
+            <div class="flex items-center gap-3">
+              <span>Page 1 of 1</span>
               <div class="flex items-center gap-1">
-                <button class="h-7 w-7 rounded border border-border/60 flex items-center justify-center hover:bg-muted/50 disabled:opacity-30" disabled>&lt;&lt;</button>
-                <button class="h-7 w-7 rounded border border-border/60 flex items-center justify-center hover:bg-muted/50 disabled:opacity-30" disabled>&lt;</button>
-                <button class="h-7 w-7 rounded border border-border/60 flex items-center justify-center hover:bg-muted/50 disabled:opacity-30" disabled>&gt;</button>
-                <button class="h-7 w-7 rounded border border-border/60 flex items-center justify-center hover:bg-muted/50 disabled:opacity-30" disabled>&gt;&gt;</button>
+                <button class="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed" disabled>&lt;</button>
+                <button class="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground opacity-50 cursor-not-allowed" disabled>&gt;</button>
               </div>
             </div>
           </div>
