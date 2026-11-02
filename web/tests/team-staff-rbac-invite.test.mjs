@@ -104,27 +104,23 @@ test('4. Role-based Presentation Guards: AI Providers & Agent Management', async
   const ownerCats = getSettingsNavCategories(false, 'owner')
   const ownerAiCat = ownerCats.find((c) => c.id === 'ai-memory')
   assert.ok(
-    ownerAiCat?.items.some((i) => i.id === 'ai-providers'),
-    'Owner must see ai-providers in SettingsMasterNav'
+    ownerAiCat?.items.some((i) => i.id === 'agent' || i.id === 'ai-providers'),
+    'Owner must see agent/ai-providers in SettingsMasterNav'
   )
 
-  const memberCats = getSettingsNavCategories(false, 'member')
-  const memberAiCat = memberCats.find((c) => c.id === 'ai-memory')
+  // 2. AgentSettingsView & TeamMembersView RBAC guards
+  const agentSettingsPath = path.join(webDir, 'src/features/agents/AgentSettingsView.tsx')
+  const agentSettingsSrc = fs.readFileSync(agentSettingsPath, 'utf-8')
   assert.ok(
-    !memberAiCat?.items.some((i) => i.id === 'ai-providers'),
-    'Member must NOT see ai-providers in SettingsMasterNav'
+    agentSettingsSrc.includes('isOwner'),
+    'AgentSettingsView must check isOwner for adding/removing brains'
   )
 
-  // 2. SettingsView guard
-  const settingsViewPath = path.join(webDir, 'src/features/settings/SettingsView.tsx')
-  const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf-8')
+  const teamMembersPath = path.join(webDir, 'src/features/team/TeamMembersView.tsx')
+  const teamMembersSrc = fs.readFileSync(teamMembersPath, 'utf-8')
   assert.ok(
-    settingsViewSrc.includes("!isOwner"),
-    'SettingsView must check isOwner for access guards'
-  )
-  assert.ok(
-    settingsViewSrc.includes("Akses Dibatasi"),
-    'SettingsView must display restricted access notice when member accesses ai-providers'
+    teamMembersSrc.includes('isOwner'),
+    'TeamMembersView must check isOwner for inviting/removing staff'
   )
 
   // 3. TeamView agent create & edit guards

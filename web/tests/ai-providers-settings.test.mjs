@@ -92,21 +92,20 @@ test('2. UI Component: AIProvidersView.tsx Dual-Mode & Zero-Friction Architectur
   assert.ok(viewSrc.includes('min-h-11'), 'Must adhere to WCAG min-h-11 touch target standard')
 })
 
-test('3. Settings Navigation & Routing Integration', () => {
+test('3. Settings Navigation & Routing Integration (Unified in Agent & Brain Cluster)', () => {
   const masterNavSrc = fs.readFileSync(settingsMasterNavPath, 'utf8')
   const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf8')
   const appSrc = fs.readFileSync(appPath, 'utf8')
 
-  // Master Sidebar navigation category
-  assert.ok(masterNavSrc.includes("id: 'ai-providers'"), 'SettingsMasterNav must register ai-providers item')
-  assert.ok(masterNavSrc.includes("to: isAccount ? '/account/ai-providers' : '/settings/ai-providers'"), 'SettingsMasterNav must link to /settings/ai-providers')
+  // Master Sidebar navigation category integrates AI providers into agent with backward compatibility
+  assert.ok(masterNavSrc.includes("id: 'agent'"), 'SettingsMasterNav must register agent item')
+  assert.ok(masterNavSrc.includes("aliasIds: ['agents', 'ai-providers']"), 'SettingsMasterNav must alias ai-providers to agent')
 
-  // SettingsView detail pane route
-  assert.ok(settingsViewSrc.includes("['ai-providers', t('AI Providers')]"), 'SettingsView must include ai-providers in accessible navigation list')
-  assert.ok(settingsViewSrc.includes("<AIProvidersView />"), 'SettingsView must render AIProvidersView for section === ai-providers')
+  // SettingsView detail pane route renders AgentSettingsView for AI brain cluster
+  assert.ok(settingsViewSrc.includes('<AgentSettingsView'), 'SettingsView must render AgentSettingsView for AI brain cluster')
 
   // App.tsx header titles
-  assert.ok(appSrc.includes("'ai-providers': 'AI Providers'"), 'App.tsx settingTitles must include ai-providers')
+  assert.ok(appSrc.includes("'ai-providers': 'Assistant & AI Brain'"), 'App.tsx settingTitles must include ai-providers')
 })
 
 test('4. EditAgentModal: Per-Agent Provider & Model Selection with Store Default', () => {

@@ -93,7 +93,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     id: 'system',
     label: 'System',
     items: [
-      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Profil, AI providers, team' },
+      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Profil, asisten & otak AI, tim' },
     ],
   },
 ]
@@ -138,7 +138,9 @@ export function AppShell({
     currentTab === 'settings' ||
     currentTab === 'account' ||
     location.pathname.startsWith('/account/contacts') ||
-    location.pathname.startsWith('/settings/agents')
+    location.pathname.startsWith('/settings/agents') ||
+    location.pathname.startsWith('/settings/agent') ||
+    location.pathname.startsWith('/settings/team')
 
   const shouldHideSearch = hideSearch ?? hasInternalSearch
   const shell = useRef<HTMLDivElement>(null)
@@ -683,7 +685,7 @@ export function AppShell({
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-foreground">{t('Settings')}</div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {t('Profil, AI providers, team')}
+                        {t('Profil, asisten & otak AI, tim')}
                       </div>
                     </div>
                   </button>

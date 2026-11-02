@@ -12,13 +12,12 @@ import {
   type LanguagePreference,
 } from '../../context/LanguageContext'
 import { useEffect } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
-import { useAuth } from '../../context/AuthContext'
 import { AppsSkillsView } from './AppsSkillsView'
-import { AIProvidersView } from './AIProvidersView'
-import { TeamView } from '../team/TeamView'
+import { AgentSettingsView } from '../agents/AgentSettingsView'
+import { TeamMembersView } from '../team/TeamMembersView'
 import { AgentMemoryView } from './AgentMemoryView'
 import { SettingsMasterNav } from './SettingsMasterNav'
 import { GroupedSection, GroupedRow } from '../../components/layout/GroupedSection'
@@ -36,19 +35,17 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({
-  createAgentRequested = false,
-  onCreateAgentHandled,
+  createAgentRequested: _createAgentRequested = false,
+  onCreateAgentHandled: _onCreateAgentHandled,
   activeProject,
   embeddedProject = false,
   projects = [],
-  onAgentAdded,
+  onAgentAdded: _onAgentAdded,
   onDeleteProject,
   onProjectUpdated,
 }: SettingsViewProps) {
   const { t, preference, setPreference } = useLanguage()
-  const { isOwner } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
 
   const rawSubSection = location.pathname.split('/')[2]
@@ -91,18 +88,17 @@ export function SettingsView({
       >
         {[
           ['general', t('General')],
-          ['ai-providers', t('AI Providers')],
+          ['team', t('Team')],
+          ['agent', t('Assistant & AI Brain')],
           ['memory', t('Agent Memory')],
           ['schedules', t('Schedules')],
           ['profile', t('Profile & password')],
           ['contacts', t('Contacts')],
-          ['agents', t('Agents')],
           ['apps-skills', t('Apps & Skills')],
           ['integrations', t('Integrations')],
           ['appearance', t('Appearance')],
           ['notifications', t('Notifications')],
         ]
-          .filter(([id]) => (id === 'ai-providers' ? isOwner : true))
           .map(([id, label]) => {
           const isAccount = location.pathname.startsWith('/account')
           const to = isAccount
@@ -192,16 +188,16 @@ export function SettingsView({
                 {t(
                   section === 'general'
                     ? 'General'
-                    : section === 'ai-providers'
-                      ? 'AI Providers'
-                      : section === 'memory'
-                        ? 'Agent Memory'
-                      : section === 'schedules'
-                        ? 'Schedules'
-                        : section === 'profile'
-                          ? 'Profile & password'
-                          : section === 'agents'
-                            ? 'Agents'
+                    : section === 'team'
+                      ? 'Anggota Tim'
+                      : section === 'agent' || section === 'agents' || section === 'ai-providers'
+                        ? 'Asisten & Otak AI'
+                        : section === 'memory'
+                          ? 'Agent Memory'
+                        : section === 'schedules'
+                          ? 'Schedules'
+                          : section === 'profile'
+                            ? 'Profile & password'
                             : section === 'apps-skills'
                               ? 'Apps & Skills'
                               : section === 'integrations'
@@ -215,21 +211,23 @@ export function SettingsView({
               </h2>
               <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
                 {t(
-                  section === 'ai-providers'
-                    ? 'Pilih dan atur penyedia AI ruang kerja Anda, langganan resmi, dan kunci API hemat.'
-                    : section === 'apps-skills'
-                    ? 'Connect 1-click external business apps and discover modular AI intelligence capabilities.'
-                    : section === 'integrations'
-                      ? 'Connect the services your projects need.'
-                      : section === 'memory'
-                      ? 'Review learned brand guidelines, copywriting style, and workflow preferences.'
-                      : section === 'schedules'
-                        ? 'Automated recurring background routines.'
-                        : section === 'appearance'
-                          ? 'Theme modes, interface language, and display.'
-                          : section === 'notifications'
-                            ? 'Notification preferences and alerts'
-                            : 'Manage your workspace and agent connections.',
+                  section === 'team'
+                    ? 'Kelola staf manusia, anggota, dan kolaborator ruang kerja.'
+                    : section === 'agent' || section === 'agents' || section === 'ai-providers'
+                      ? 'Atur identitas asisten dan kumpulan akun AI yang melayani tugas.'
+                      : section === 'apps-skills'
+                      ? 'Connect 1-click external business apps and discover modular AI intelligence capabilities.'
+                      : section === 'integrations'
+                        ? 'Connect the services your projects need.'
+                        : section === 'memory'
+                        ? 'Review learned brand guidelines, copywriting style, and workflow preferences.'
+                        : section === 'schedules'
+                          ? 'Automated recurring background routines.'
+                          : section === 'appearance'
+                            ? 'Theme modes, interface language, and display.'
+                            : section === 'notifications'
+                              ? 'Notification preferences and alerts'
+                              : 'Manage your workspace and assistant connections.',
                 )}
               </p>
             </header>
@@ -237,44 +235,16 @@ export function SettingsView({
 
           {section === 'profile' ? (
             <ProfileSettings />
-          ) : section === 'ai-providers' ? (
-            !isOwner ? (
-              <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-center space-y-3">
-                <h3 className="font-semibold text-destructive">{t('Akses Dibatasi')}</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  {t('Pengaturan penyedia AI hanya dapat diakses oleh Pemilik (Owner) ruang kerja.')}
-                </p>
-                <div>
-                  <Link to={isAccount ? '/account' : '/settings'} className="action-secondary text-xs inline-flex items-center">
-                    {t('Kembali ke Pengaturan')}
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <AIProvidersView />
-            )
+          ) : section === 'team' ? (
+            <TeamMembersView showHeading={false} />
+          ) : section === 'agent' || section === 'agents' || section === 'ai-providers' ? (
+            <AgentSettingsView showHeading={false} />
           ) : section === 'memory' ? (
             <AgentMemoryView />
           ) : section === 'schedules' ? (
             <SchedulesView embedded />
           ) : section === 'notifications' ? (
             <NotificationSettings />
-          ) : section === 'agents' ? (
-            <div className="space-y-4">
-              <TeamView
-                showHeading={false}
-                showCreateAction={false}
-                createRequested={createAgentRequested}
-                onCreateHandled={onCreateAgentHandled}
-                focusAgentId={query.get('agent') || undefined}
-                onAgentAdded={onAgentAdded}
-                onAgentConnected={() => {
-                  if (safeReturn === '/chat' || safeReturn === '/studio') {
-                    navigate('/chat')
-                  }
-                }}
-              />
-            </div>
           ) : section === 'apps-skills' || section === 'integrations' ? (
             <AppsSkillsView />
           ) : section === 'appearance' ? (

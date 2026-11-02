@@ -6,11 +6,11 @@ import {
   CalendarClock,
   Brain,
   Bot,
-  Cpu,
   Plug,
   Boxes,
   Contact,
   User,
+  Users,
   Palette,
   Bell,
   ChevronRight,
@@ -36,9 +36,7 @@ export interface SettingsNavCategory {
   items: SettingsNavItem[]
 }
 
-export function getSettingsNavCategories(isAccount = false, userRole?: string): SettingsNavCategory[] {
-  const isMember = userRole === 'member'
-
+export function getSettingsNavCategories(isAccount = false, _userRole?: string): SettingsNavCategory[] {
   // Backward-compatibility and route references:
   // ['/settings/general', '/settings/schedules', '/settings/memory', '/settings/agents', '/settings/integrations', '/account/contacts', '/settings/profile', '/settings/appearance', '/settings/notifications']
   // ['/account/general', '/account/schedules', '/account/memory', '/account/agents', '/account/integrations', '/account/profile', '/account/appearance', '/account/notifications']
@@ -98,6 +96,15 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
           icon: Sliders,
         },
         {
+          id: 'team',
+          labelKey: 'Team',
+          labelFallback: 'Anggota Tim',
+          subtitleKey: 'Manage human staff, members, and collaborators',
+          subtitleFallback: 'Kelola staf manusia, anggota, dan kolaborator',
+          to: isAccount ? '/account/team' : '/settings/team',
+          icon: Users,
+        },
+        {
           id: 'schedules',
           labelKey: 'Schedules',
           labelFallback: 'Jadwal Rutin',
@@ -113,15 +120,16 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
       titleKey: 'AI Intelligence & Memory',
       titleFallback: 'Kecerdasan AI & Memori',
       items: [
-        ...(isMember ? [] : [{
-          id: 'ai-providers',
-          labelKey: 'AI Providers',
-          labelFallback: 'Penyedia AI & Mesin',
-          subtitleKey: 'AI engines, subscriptions, and BYOK credentials',
-          subtitleFallback: 'Mesin AI, langganan resmi, dan API key hemat',
-          to: isAccount ? '/account/ai-providers' : '/settings/ai-providers',
-          icon: Cpu,
-        }]),
+        {
+          id: 'agent',
+          labelKey: 'Assistant & AI Brain',
+          labelFallback: 'Asisten & Otak AI',
+          subtitleKey: 'Unified AI assistant and connected brain cluster',
+          subtitleFallback: 'Nama asisten dan cluster otak komputasi AI',
+          to: isAccount ? '/account/agent' : '/settings/agent',
+          icon: Bot,
+          aliasIds: ['agents', 'ai-providers'],
+        },
         {
           id: 'memory',
           labelKey: 'Agent Memory',
@@ -130,15 +138,6 @@ export function getSettingsNavCategories(isAccount = false, userRole?: string): 
           subtitleFallback: 'Panduan gaya bahasa, tone merek, dan preferensi rasa',
           to: isAccount ? '/account/memory' : '/settings/memory',
           icon: Brain,
-        },
-        {
-          id: 'agents',
-          labelKey: 'Agents',
-          labelFallback: 'Agen & Tim',
-          subtitleKey: 'Digital agents and team members',
-          subtitleFallback: 'Agen AI dan manajemen kolaborasi tim',
-          to: isAccount ? '/account/agents' : '/settings/agents',
-          icon: Bot,
         },
       ],
     },

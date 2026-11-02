@@ -181,7 +181,7 @@ export function App() {
   const [contactsError, setContactsError] = useState('')
   useEffect(() => {
     if (rootSegment === 'team')
-      navigate('/settings/agents' + location.search, { replace: true })
+      navigate('/settings/team' + location.search, { replace: true })
   }, [rootSegment, location.search, navigate])
 
   // Active selections
@@ -210,7 +210,7 @@ export function App() {
     else if (kind === 'task') setIsCreateTaskOpen(true)
     else if (kind === 'project') setIsCreateProjectOpen(true)
     else if (kind === 'agent') {
-      navigate('/settings/agents')
+      navigate('/settings/agent')
       setAgentCreateRequested(true)
     } else setNewFlow(kind)
   }
@@ -467,8 +467,8 @@ export function App() {
         state: location.state,
       })
     }
-    if (rootSegment === 'agents') {
-      navigate('/settings/agents' + location.search + location.hash, {
+    if (rootSegment === 'agents' || rootSegment === 'agent') {
+      navigate('/settings/agent' + location.search + location.hash, {
         replace: true,
         state: location.state,
       })
@@ -492,7 +492,7 @@ export function App() {
         state: location.state,
       })
     }
-    if (rootSegment === 'account' && ['general', 'ai-providers', 'memory', 'agents', 'apps-skills', 'integrations'].includes(subParam)) {
+    if (rootSegment === 'account' && ['general', 'team', 'ai-providers', 'memory', 'agent', 'agents', 'apps-skills', 'integrations'].includes(subParam)) {
       navigate('/settings/' + encodeURIComponent(subParam) + location.search + location.hash, {
         replace: true,
         state: location.state,
@@ -729,8 +729,10 @@ export function App() {
   const projectDetail = currentTab === 'projects' && !!subParam
   const projectSettings = projectDetail && pathSegments[2] !== 'tasks'
   const settingTitles: Record<string, string> = {
-    agents: 'Agents',
-    'ai-providers': 'AI Providers',
+    agent: 'Assistant & AI Brain',
+    team: 'Team',
+    agents: 'Assistant & AI Brain',
+    'ai-providers': 'Assistant & AI Brain',
     memory: 'Agent Memory',
     integrations: 'Integrations',
     appearance: 'Appearance',

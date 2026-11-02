@@ -76,8 +76,8 @@ test('2. Categorization: 4 semantic categories with Lucide icons, active state, 
     'Agent Memory setting must be within AI Intelligence & Memory',
   )
   assert.ok(
-    masterNavSrc.includes("id: 'agents'"),
-    'Agents setting must be within AI Intelligence & Memory',
+    masterNavSrc.includes("id: 'agent'") || masterNavSrc.includes("id: 'agents'"),
+    'Assistant/Agent setting must be within AI Intelligence & Memory',
   )
 
   // Category 3: Konektivitas & Relasi (integrations, contacts)
