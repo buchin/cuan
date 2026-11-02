@@ -50,6 +50,8 @@ import {
   Lock,
   Copy,
   Clock,
+  Star,
+  X,
   CheckCircle2,
   ListChecks,
   GitBranch,
@@ -365,10 +367,12 @@ export function InboxView({
   )
 
   const [copiedEmail, setCopiedEmail] = useState(false)
+  const [isStarred, setIsStarred] = useState(false)
   const copyEmailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     setCopiedEmail(false)
+    setIsStarred(false)
     if (copyEmailTimeoutRef.current) {
       clearTimeout(copyEmailTimeoutRef.current)
       copyEmailTimeoutRef.current = null
@@ -1253,14 +1257,14 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <div className="wa-chat-header h-13 px-4 flex items-center justify-between shrink-0 border-b-0 md:border-b border-border/40 bg-background">
+            <div className="wa-chat-header h-13 px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b border-border/40 bg-background">
               <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button
                   type="button"
                   onClick={handleBackToContacts}
                   title="Back to conversations"
-                  className="min-[1200px]:hidden inline-flex h-11 w-11 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-colors shrink-0"
+                  className="min-[1200px]:hidden inline-flex h-11 w-11 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-none transition-colors shrink-0"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
@@ -1282,7 +1286,7 @@ export function InboxView({
 
                 <div className="min-w-0 flex flex-col justify-center">
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
-                    <h2 className="truncate text-base font-semibold leading-tight">
+                    <h2 className="truncate text-base font-semibold leading-tight text-foreground">
                       {contactDisplayName || activeContact.name}
                     </h2>
                     {activeContact.type === 'customer' && activeContact.email && (
@@ -1328,10 +1332,10 @@ export function InboxView({
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
                 {activeContact.type === 'customer' && (
                   <Link
-                    className="icon-action text-muted-foreground hover:text-foreground"
+                    className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-none"
                     aria-label="View contact details"
                     title={t('View contact details & memory')}
                     to={`/contacts?contact=${encodeURIComponent(activeContact.id)}`}
@@ -1339,6 +1343,54 @@ export function InboxView({
                     <User className="h-4 w-4" />
                   </Link>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setIsStarred((prev) => !prev)}
+                  title={isStarred ? t('Unstar conversation') : t('Star conversation')}
+                  aria-label={isStarred ? t('Unstar conversation') : t('Star conversation')}
+                  className={cn(
+                    "inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-none",
+                    isStarred && "text-amber-500 hover:text-amber-600"
+                  )}
+                >
+                  <Star className={cn("h-4 w-4", isStarred && "fill-amber-500")} />
+                </button>
+                <button
+                  type="button"
+                  title={t('Remind later')}
+                  aria-label={t('Remind later')}
+                  className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-none"
+                >
+                  <Clock className="h-4 w-4" />
+                </button>
+                <ItemActions
+                  label="Conversation actions"
+                  actions={[
+                    {
+                      label: t('Copy conversation link'),
+                      run: () => copyItemLink(`/inbox/${encodeURIComponent(activeContact.id)}`),
+                    },
+                    ...(activeContact.type === 'customer' ? [{
+                      label: t('View contact details'),
+                      run: () => navigate(`/contacts?contact=${encodeURIComponent(activeContact.id)}`),
+                    }] : []),
+                    {
+                      label: t('Close conversation'),
+                      run: handleBackToContacts,
+                    },
+                  ]}
+                >
+                  <span className="sr-only">{t('Actions')}</span>
+                </ItemActions>
+                <button
+                  type="button"
+                  onClick={handleBackToContacts}
+                  title={t('Close conversation')}
+                  aria-label={t('Close conversation')}
+                  className="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors rounded-none"
+                >
+                  <X className="h-4 w-4" />
+                </button>
                 {/* Hidden New Studio button preserved for test contracts */}
                 <button
                   type="button"

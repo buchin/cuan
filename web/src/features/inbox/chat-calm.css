@@ -62,7 +62,7 @@
   border-color: transparent !important;
 }
 
-/* Header: Seamless flow into chat canvas without 1px dividing border cut */
+/* Header: Clean calm header background and text with desktop hairline divider */
 .wa-chat-header,
 .calm-chat-header {
   background: var(--wa-header);
@@ -70,10 +70,10 @@
   border-bottom: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
   .wa-chat-header,
   .calm-chat-header {
-    border-bottom: 1px solid hsl(var(--border) / 0.35);
+    border-bottom: 1px solid oklch(var(--border) / 0.4);
   }
 }
 

@@ -245,34 +245,31 @@ export function ConversationItem({
             {conversationPreview(contact.last_message)}
           </p>
 
-          <div className="flex items-center gap-1.5 pt-1">
-            {hasActiveWork && (
-              <span
-                data-testid="task-badge-active"
-                aria-label={`${activeTasks} active tasks`}
-                className="inline-flex items-center gap-1 border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
-              >
-                <StatusDot status="working" size="xs" pulse />
-                <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
-              </span>
-            )}
-            {showAgentName ? (
-              <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                <Bot className="h-3 w-3 text-primary" />
-                <span>{contact.agent_name || 'agent'}</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                <User className="h-3 w-3 text-muted-foreground" />
-                <span>customer</span>
-              </span>
-            )}
-            {contact.product && (
-              <span className="inline-flex items-center border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
-                {contact.product}
-              </span>
-            )}
-          </div>
+          {(hasActiveWork || (showAgentName && contact.type === 'agent') || (contact.type === 'customer' && contact.product)) && (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              {hasActiveWork && (
+                <span
+                  data-testid="task-badge-active"
+                  aria-label={`${activeTasks} active tasks`}
+                  className="inline-flex items-center gap-1 border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
+                >
+                  <StatusDot status="working" size="xs" pulse />
+                  <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
+                </span>
+              )}
+              {showAgentName && contact.type === 'agent' && (
+                <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  <Bot className="h-3 w-3 text-primary" />
+                  <span>{contact.agent_name || 'agent'}</span>
+                </span>
+              )}
+              {contact.product && (
+                <span className="inline-flex items-center border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
+                  {contact.product}
+                </span>
+              )}
+            </div>
+          )}
 
           {isAgentConnectionIssue && (
             <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">

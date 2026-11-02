@@ -454,8 +454,8 @@ function createMobileTasksHtml() {
         </div>
         <span class="font-semibold text-foreground text-base tracking-tight">Tasks</span>
       </div>
-      <button class="inline-flex h-8 w-8 items-center justify-center bg-primary text-primary-foreground text-xs font-semibold">
-        +
+      <button class="inline-flex h-8 w-8 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       </button>
     </header>
 
@@ -675,10 +675,17 @@ function createDesktopInboxHtml() {
             <div class="text-xs text-muted-foreground">wsmith@example.com</div>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button class="h-8 px-3 border border-border/60 text-xs font-medium text-foreground hover:bg-muted/40">Reply</button>
-          <button class="h-8 px-3 border border-border/60 text-xs font-medium text-foreground hover:bg-muted/40">Forward</button>
-          <button class="h-8 w-8 border border-border/60 flex items-center justify-center text-muted-foreground hover:bg-muted/40">${icons.moreHorizontal}</button>
+        <div class="flex items-center gap-1">
+          <button class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+          </button>
+          <button class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6l4 2"/></svg>
+          </button>
+          <button class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">${icons.moreHorizontal}</button>
+          <button class="h-8 w-8 flex items-center justify-center text-muted-foreground hover:bg-muted/40 hover:text-foreground">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </div>
       </header>
 

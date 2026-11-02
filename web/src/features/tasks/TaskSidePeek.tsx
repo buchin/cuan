@@ -480,8 +480,8 @@ function TaskDetailView({
       )}
     >
       <GitHubPrerequisite task={detail} />
-      <header className="shrink-0 border-b px-3.5 pb-3 pt-2.5 sm:px-6 sm:pt-3.5 sm:pb-3.5">
-        <div className="flex min-h-11 items-center justify-between gap-2">
+      <header className="px-3.5 pb-3 pt-2.5 sm:px-6 min-[1200px]:h-13 min-[1200px]:py-0 shrink-0 border-b border-border/40 flex items-center justify-between gap-2 bg-background">
+        <div className="flex w-full items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             <span className="shrink-0 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-muted/80 text-foreground border border-border/60">{taskRef(detail.id)}</span>
             {selectedProject && (

@@ -384,8 +384,8 @@ export function AppShell({
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header
           className={cn(
-            'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5',
-            'app-page-header h-14 md:h-16 min-[1200px]:h-13',
+            'flex shrink-0 items-center justify-between gap-2 border-b border-border/40 bg-background px-3 md:px-5',
+            'app-page-header h-14 md:h-16 md:!h-13',
             sessionWorkspace || contentHeader || currentTab === 'inbox' || currentTab === 'chat'
               ? 'hidden'
               : hideBottomNav && 'hidden md:flex',
