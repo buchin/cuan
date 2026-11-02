@@ -11,6 +11,7 @@ import (
 )
 
 func TestTaskToolUsesOnlyPrivateCapability(t *testing.T) {
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
 	const token = "opaque-test-capability"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token || r.URL.RawQuery != "" {
@@ -47,6 +48,7 @@ func TestTaskToolUsesOnlyPrivateCapability(t *testing.T) {
 }
 
 func TestTaskPushUsesBoundCapabilityEndpoint(t *testing.T) {
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
 	called := false
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -90,6 +92,7 @@ func TestTaskToolAcceptsRunnerInlineCapability(t *testing.T) {
 }
 
 func TestTaskReportSendsRepeatedArtifactPaths(t *testing.T) {
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data map[string]any
 		json.NewDecoder(r.Body).Decode(&data)

@@ -296,3 +296,46 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 		t.Fatalf("expected clear follow-up options in review message, got:\n%s", capturedReviewMsg)
 	}
 }
+
+func TestRunnerService_ValidateTaskTransition_StateMachineIntegration(t *testing.T) {
+	svc := NewService(nil, nil)
+
+	// Valid transitions
+	validPairs := [][2]string{
+		{task.TaskStatusBacklog, task.TaskStatusQueued},
+		{task.TaskStatusQueued, task.TaskStatusDoing},
+		{task.TaskStatusDoing, task.TaskStatusReview},
+		{task.TaskStatusDoing, task.TaskStatusDone},
+		{task.TaskStatusReview, task.TaskStatusDone},
+		{task.TaskStatusReview, task.TaskStatusQueued},
+		{task.TaskStatusReview, task.TaskStatusDoing},
+		{task.TaskStatusDoing, task.TaskStatusBlocked},
+		{task.TaskStatusBlocked, task.TaskStatusDoing},
+		{task.TaskStatusBacklog, task.TaskStatusFailed},
+		{task.TaskStatusQueued, task.TaskStatusFailed},
+		{task.TaskStatusDoing, task.TaskStatusFailed},
+	}
+
+	for _, pair := range validPairs {
+		if err := svc.ValidateTaskTransition(pair[0], pair[1]); err != nil {
+			t.Errorf("expected transition %s -> %s to be valid, got error: %v", pair[0], pair[1], err)
+		}
+	}
+
+	// Illegal transitions guarded by state machine
+	invalidPairs := [][2]string{
+		{task.TaskStatusBacklog, task.TaskStatusDoing}, // cannot skip queued/approved
+		{task.TaskStatusBacklog, task.TaskStatusDone},  // cannot skip to done
+		{task.TaskStatusDone, task.TaskStatusDoing},     // terminal cannot transition
+		{task.TaskStatusDone, task.TaskStatusQueued},    // terminal cannot transition
+		{task.TaskStatusFailed, task.TaskStatusDoing},  // terminal cannot transition
+		{"unknown_status", task.TaskStatusDoing},        // invalid source
+		{task.TaskStatusDoing, "unknown_status"},        // invalid destination
+	}
+
+	for _, pair := range invalidPairs {
+		if err := svc.ValidateTaskTransition(pair[0], pair[1]); err == nil {
+			t.Errorf("expected transition %s -> %s to be rejected as illegal, got nil error", pair[0], pair[1])
+		}
+	}
+}
