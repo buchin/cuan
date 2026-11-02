@@ -395,7 +395,7 @@ export function TaskBoardView({
       </select>
       <ChevronDown
         aria-hidden
-        className="pointer-events-none absolute right-1.5 h-3 w-3 text-muted-foreground"
+        className="pointer-events-none absolute right-1.5 h-3 w-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity"
       />
     </span>
   )
@@ -458,13 +458,13 @@ export function TaskBoardView({
   )
   return (
     <section
-      className="flex h-full min-h-0 flex-col gap-3"
+      className="flex h-full min-h-0 flex-col gap-2.5"
       aria-label="Task list"
     >
-      <div className="hidden sm:flex items-center justify-between pb-1">
+      <div className="hidden sm:flex items-center justify-between pb-0.5">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">{t('Tasks')}</h2>
-          <p className="text-muted-foreground text-xs sm:text-sm">
+          <h2 className="sr-only">{t('Tasks')}</h2>
+          <p className="text-muted-foreground text-xs">
             {t("Here's a list of your tasks for this workspace!")}
           </p>
         </div>
@@ -812,19 +812,14 @@ export function TaskBoardView({
                             onSelectTask(t)
                           }}
                         >
-                          <span className="truncate" title={t.title}>
+                          <span
+                            className="truncate"
+                            title={requestPreview(t) ? `${t.title} — Request: ${requestPreview(t)}` : t.title}
+                          >
                             {t.title}
                           </span>
                         </button>
                       </div>
-                      {requestPreview(t) && (
-                        <p
-                          className="mt-0.5 truncate text-[11px] text-muted-foreground"
-                          title={requestPreview(t)}
-                        >
-                          <span className="font-medium">Request:</span> {requestPreview(t)}
-                        </p>
-                      )}
                     </td>
                     <td className="px-2 py-1">{statusPicker(t)}</td>
                     <td className="px-2 py-1">
@@ -898,7 +893,7 @@ export function TaskBoardView({
                         </select>
                         <ChevronDown
                           aria-hidden
-                          className="pointer-events-none absolute right-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground"
+                          className="pointer-events-none absolute right-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity"
                         />
                       </div>
                     </td>

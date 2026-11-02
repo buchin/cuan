@@ -479,7 +479,7 @@ export const TaskCard = memo(function TaskCard({
       role="button"
       tabIndex={0}
       className={cn(
-        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer select-none space-y-3 min-h-[44px]',
+        'group relative w-full max-w-full min-w-0 rounded-lg border border-border/40 bg-card/40 p-3 text-card-foreground transition-all hover:border-border/70 cursor-pointer select-none space-y-2 min-h-[44px]',
         className
       )}
     >

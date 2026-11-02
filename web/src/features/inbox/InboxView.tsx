@@ -466,7 +466,9 @@ export function InboxView({
         (t.status || '').toLowerCase().trim() === 'review'
       if (isCompleted) return false
       if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
-      if (messageContents.includes(`/tasks/${t.id}`)) return false
+      const shortRef = t.id ? '#' + t.id.slice(0, 7) : ''
+      if (messageContents.includes(`/tasks/${t.id}`) || messageContents.includes(t.id)) return false
+      if (shortRef && messageContents.includes(shortRef)) return false
       return true
     })
   }, [linkedTasks, messages])
@@ -1244,7 +1246,7 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 bg-background">
+            <div className="wa-chat-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b min-[1200px]:border-border/40 bg-background">
               <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <button

@@ -216,9 +216,8 @@ function createDesktopTasksHtml() {
 
       <!-- Content Area with shadcn Tasks Layout -->
       <div class="flex-1 overflow-y-auto p-6 space-y-4 max-w-7xl w-full mx-auto">
-        <!-- Page Title & Subtitle -->
+        <!-- Page Subtitle (No duplicate giant Tasks title) -->
         <div class="space-y-0.5">
-          <h2 class="text-2xl font-bold tracking-tight text-foreground">Tasks</h2>
           <p class="text-xs text-muted-foreground">
             Here&apos;s a list of your tasks for this workspace!
           </p>
@@ -642,8 +641,8 @@ function createDesktopInboxHtml() {
 
     <!-- Right Pane: Conversation Reader Canvas (Bear Notes / Things 3 Calm Style) -->
     <main class="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
-      <!-- Conversation Header -->
-      <header class="h-16 border-b border-border/40 px-6 flex items-center justify-between shrink-0 bg-card/10">
+      <!-- Conversation Header (52px / h-13 continuous horizontal line) -->
+      <header class="h-13 border-b border-border/40 px-6 flex items-center justify-between shrink-0 bg-background">
         <div class="flex items-center gap-3">
           <div class="h-9 w-9 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center text-xs border border-primary/30">
             WS

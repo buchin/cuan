@@ -70,6 +70,13 @@
   border-bottom: none;
 }
 
+@media (min-width: 1200px) {
+  .wa-chat-header,
+  .calm-chat-header {
+    border-bottom: 1px solid hsl(var(--border) / 0.35);
+  }
+}
+
 /* Conversation Stream: Pure, flat canvas without dot-pattern wallpaper */
 .wa-conversation,
 .calm-conversation {

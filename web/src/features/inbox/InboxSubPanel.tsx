@@ -161,7 +161,7 @@ export function ConversationItem({
       key={contact.id}
       label={contact.name}
       swipeAction={archiveAction}
-      className={cn('inbox-item-row border-b border-border/40', !isLast && 'has-divider')}
+      className={cn('inbox-item-row border-b border-border/40 md:border-b-0 md:mb-1.5', !isLast && 'has-divider')}
       actions={[
         { label: 'Open conversation', run: openContact },
         { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
@@ -175,8 +175,8 @@ export function ConversationItem({
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
-          'inbox-contact-row flex flex-col items-start gap-1 w-full min-h-[4.5rem] rounded-lg border border-transparent p-3 text-left transition-all hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
-          isSelected && 'bg-accent/70 border-border/50 text-accent-foreground font-medium shadow-xs',
+          'inbox-contact-row flex flex-col items-start gap-1.5 w-full min-h-[4.5rem] rounded-lg border border-transparent md:border-border/30 md:bg-card/20 p-3 text-left transition-all hover:bg-accent/40 md:hover:border-border/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
+          isSelected && 'bg-accent/70 md:bg-muted border-border/50 md:border-border/80 text-accent-foreground font-medium shadow-xs',
         )}
       >
         <div className="flex w-full flex-col gap-1">
@@ -430,7 +430,7 @@ export function InboxSubPanel({
               onChange={(e) => handleQueryChange(e.target.value)}
               aria-label={t('Search conversations')}
               placeholder="Search conversations…"
-              className="min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search w-full border border-input bg-background/60 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search w-full md:min-h-8 md:h-8 md:text-xs md:py-1 md:rounded-md border border-input bg-background/60 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
         </ItemActions>
