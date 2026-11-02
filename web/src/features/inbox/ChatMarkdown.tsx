@@ -10,6 +10,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
   type ReactNode,
 } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
@@ -231,6 +232,62 @@ export const ChatMarkdown = memo(function ChatMarkdown({
 }) {
   const extensionRevision = useExtensionRevision()
   const preparedContent = prepareChatMarkdown(content)
+
+  const components = useMemo<any>(
+    () => ({
+      pre: ({ children }: any) => <CodeBlock>{children}</CodeBlock>,
+      blockquote: ({ children }: any) => (
+        <blockquote
+          className="chat-reply-quote"
+          role="region"
+          aria-label="Kutipan pesan"
+        >
+          <div className="chat-reply-body">{children}</div>
+        </blockquote>
+      ),
+      a: ({ href, children }: any) => {
+        if (!href) return <span>{children}</span>
+        const taskMatch = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
+        const taskId = taskMatch ? taskMatch[1] : extractTaskId(href)
+        if (taskId) {
+          return <TaskCard taskId={taskId} className="my-2" onClick={onTaskClick} isCustomerRoom={isCustomerRoom} />
+        }
+        const inboxMatch = href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
+        const chatMatch = href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)
+        const roomId = inboxMatch ? inboxMatch[1] : chatMatch ? chatMatch[1] : extractConversationRoomId(href)
+        if (roomId) {
+          return <RoomCard roomId={roomId} className="my-2" />
+        }
+        return (
+          <a
+            href={href}
+            target={/^https?:/i.test(href) ? '_blank' : undefined}
+            rel="noopener noreferrer"
+          >
+            {children}
+          </a>
+        )
+      },
+      // Avoid loading arbitrary remote images/tracking pixels from agent output.
+      img: ({ alt }: any) => (
+        <span className="text-muted-foreground">
+          {alt ? `[Image: ${alt}]` : '[Image]'}
+        </span>
+      ),
+      table: ({ children }: any) => (
+        <div
+          className="chat-table"
+          role="region"
+          aria-label="Message table"
+          tabIndex={0}
+        >
+          <table>{children}</table>
+        </div>
+      ),
+    }),
+    [onTaskClick, isCustomerRoom]
+  )
+
   return (
     <div
       className={
@@ -249,57 +306,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
           remarkPlugins={[remarkGfm, ...markdownParsers()]}
           skipHtml
           urlTransform={safeLinkUrl}
-          components={{
-            pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-            blockquote: ({ children }) => (
-              <blockquote
-                className="chat-reply-quote"
-                role="region"
-                aria-label="Kutipan pesan"
-              >
-                <div className="chat-reply-body">{children}</div>
-              </blockquote>
-            ),
-            a: ({ href, children }) => {
-              if (!href) return <span>{children}</span>
-              const taskMatch = href.split(/[?#]/)[0].match(/^\/tasks\/([A-Za-z0-9_-]+)$/)
-              const taskId = taskMatch ? taskMatch[1] : extractTaskId(href)
-              if (taskId) {
-                return <TaskCard taskId={taskId} className="my-2" onClick={onTaskClick} isCustomerRoom={isCustomerRoom} />
-              }
-              const inboxMatch = href.split(/[?#]/)[0].match(/^\/inbox\/([A-Za-z0-9_-]+)$/)
-              const chatMatch = href.split(/[?#]/)[0].match(/^\/chat\/([A-Za-z0-9_-]+)$/)
-              const roomId = inboxMatch ? inboxMatch[1] : chatMatch ? chatMatch[1] : extractConversationRoomId(href)
-              if (roomId) {
-                return <RoomCard roomId={roomId} className="my-2" />
-              }
-              return (
-                <a
-                  href={href}
-                  target={/^https?:/i.test(href) ? '_blank' : undefined}
-                  rel="noopener noreferrer"
-                >
-                  {children}
-                </a>
-              )
-            },
-            // Avoid loading arbitrary remote images/tracking pixels from agent output.
-            img: ({ alt }) => (
-              <span className="text-muted-foreground">
-                {alt ? `[Image: ${alt}]` : '[Image]'}
-              </span>
-            ),
-            table: ({ children }) => (
-              <div
-                className="chat-table"
-                role="region"
-                aria-label="Message table"
-                tabIndex={0}
-              >
-                <table>{children}</table>
-              </div>
-            ),
-          }}
+          components={components}
         >
           {preparedContent}
         </ReactMarkdown>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   MessageSquare,
@@ -36,7 +36,22 @@ export interface RoomCardProps {
   className?: string
 }
 
-export function RoomCard({
+// Global in-memory cache for room contacts to eliminate layout shifts
+const roomMemoryCache = new Map<string, ChatContact>()
+
+export function cacheRoom(roomId: string, contact: ChatContact) {
+  if (roomId && contact) {
+    roomMemoryCache.set(roomId, contact)
+    if (contact.id) roomMemoryCache.set(contact.id, contact)
+    if (contact.conversation_id) roomMemoryCache.set(contact.conversation_id, contact)
+  }
+}
+
+export function getCachedRoom(roomId: string): ChatContact | undefined {
+  return roomMemoryCache.get(roomId)
+}
+
+export const RoomCard = memo(function RoomCard({
   roomId,
   initialContact,
   onNavigate,
@@ -46,22 +61,30 @@ export function RoomCard({
   const { t } = useLanguage()
   const navigate = useNavigate()
 
-  const [contact, setContact] = useState<ChatContact | null>(initialContact || null)
-  const [loading, setLoading] = useState(!initialContact)
+  const cached = initialContact || getCachedRoom(roomId)
+  const [contact, setContact] = useState<ChatContact | null>(cached || null)
+  const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (initialContact) {
+      cacheRoom(roomId, initialContact)
       setContact(initialContact)
       setLoading(false)
       return
+    }
+    const memoryContact = getCachedRoom(roomId)
+    if (memoryContact) {
+      setContact(memoryContact)
+      setLoading(false)
     }
     let active = true
     chatApi
       .getConversation(roomId)
       .then((detail) => {
         if (active && detail?.contact) {
+          cacheRoom(roomId, detail.contact)
           setContact(detail.contact)
           setError(false)
         }
@@ -77,15 +100,16 @@ export function RoomCard({
                   (c) => c.id === roomId || c.conversation_id === roomId,
                 )
                 if (found) {
+                  cacheRoom(roomId, found)
                   setContact(found)
                   setError(false)
-                } else {
+                } else if (!memoryContact) {
                   setError(true)
                 }
               }
             })
             .catch(() => {
-              if (active) setError(true)
+              if (active && !memoryContact) setError(true)
             })
         }
       })
@@ -144,16 +168,27 @@ export function RoomCard({
       <div
         data-card="room-card"
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs animate-pulse min-h-[44px]',
+          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground select-none space-y-2.5 min-h-[44px]',
           className
         )}
       >
-        <div className="flex items-center gap-2 mb-2">
-          <div className="h-4 w-20 bg-muted rounded-full" />
-          <div className="h-4 w-24 bg-muted rounded" />
+        <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60" />
+            </span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {roomId.slice(0, 8)}
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground/70 font-sans">
+            {t('Loading…')}
+          </span>
         </div>
-        <div className="h-5 w-3/4 bg-muted rounded mb-3" />
-        <div className="h-4 w-1/2 bg-muted rounded" />
+        <div className="space-y-1.5 py-0.5">
+          <div className="h-4 w-2/3 bg-muted/40 rounded-sm" />
+          <div className="h-3 w-1/3 bg-muted/30 rounded-sm" />
+        </div>
       </div>
     )
   }
@@ -311,7 +346,7 @@ export function RoomCard({
       </div>
     </div>
   )
-}
+})
 
 export const ChatPreviewCard = RoomCard
 export type ChatPreviewCardProps = RoomCardProps

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Folder,
@@ -47,7 +47,28 @@ export interface TaskCardProps {
   isCustomerRoom?: boolean
 }
 
-export function TaskCard({
+// Global in-memory cache for tasks to eliminate Cumulative Layout Shift (CLS)
+// and prevent skeleton flicker when messages re-render or during conversation polling.
+const taskMemoryCache = new Map<string, Task>()
+
+export function cacheTask(task: Task) {
+  if (task?.id) {
+    taskMemoryCache.set(task.id, task)
+  }
+}
+
+export function cacheTasks(tasks: Task[]) {
+  if (!Array.isArray(tasks)) return
+  for (const t of tasks) {
+    if (t?.id) taskMemoryCache.set(t.id, t)
+  }
+}
+
+export function getCachedTask(taskId: string): Task | undefined {
+  return taskMemoryCache.get(taskId)
+}
+
+export const TaskCard = memo(function TaskCard({
   taskId,
   initialTask,
   onNavigate,
@@ -64,8 +85,9 @@ export function TaskCard({
   const { t } = useLanguage()
   const navigate = useNavigate()
 
-  const [currentTask, setCurrentTask] = useState<Task | null>(initialTask || null)
-  const [loading, setLoading] = useState(!initialTask)
+  const cached = initialTask || getCachedTask(taskId)
+  const [currentTask, setCurrentTask] = useState<Task | null>(cached || null)
+  const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -73,21 +95,28 @@ export function TaskCard({
 
   useEffect(() => {
     if (initialTask) {
+      cacheTask(initialTask)
       setCurrentTask(initialTask)
       setLoading(false)
       return
+    }
+    const memoryTask = getCachedTask(taskId)
+    if (memoryTask) {
+      setCurrentTask(memoryTask)
+      setLoading(false)
     }
     let active = true
     tasksApi
       .get(taskId)
       .then((data) => {
         if (active && data) {
+          cacheTask(data)
           setCurrentTask(data)
           setError(false)
         }
       })
       .catch(() => {
-        if (active) setError(true)
+        if (active && !memoryTask) setError(true)
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -105,6 +134,7 @@ export function TaskCard({
       try {
         const updated = await tasksApi.get(taskId)
         if (active && updated) {
+          cacheTask(updated)
           setCurrentTask(updated)
         }
       } catch {
@@ -272,7 +302,10 @@ export function TaskCard({
           agent_id: agentId,
         })
         const updated = await tasksApi.get(currentTask.id)
-        if (updated) setCurrentTask(updated)
+        if (updated) {
+          cacheTask(updated)
+          setCurrentTask(updated)
+        }
       }
       onNavigate?.()
     } catch {
@@ -308,16 +341,27 @@ export function TaskCard({
       <div
         data-card="task-card"
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground animate-pulse min-h-[44px]',
+          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground select-none space-y-2.5 min-h-[44px]',
           className
         )}
       >
-        <div className="flex items-center gap-2 mb-2">
-          <div className="h-4 w-20 bg-muted rounded-full" />
-          <div className="h-4 w-24 bg-muted rounded" />
+        <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60" />
+            </span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {taskRef(taskId)}
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground/70 font-sans">
+            {t('Memuat tugas…')}
+          </span>
         </div>
-        <div className="h-5 w-3/4 bg-muted rounded mb-3" />
-        <div className="h-4 w-1/2 bg-muted rounded" />
+        <div className="space-y-1.5 py-0.5">
+          <div className="h-4 w-2/3 bg-muted/40 rounded-sm" />
+          <div className="h-3 w-1/3 bg-muted/30 rounded-sm" />
+        </div>
       </div>
     )
   }
@@ -608,4 +652,4 @@ export function TaskCard({
       </div>
     </div>
   )
-}
+})

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { ChatMarkdown } from './ChatMarkdown'
@@ -15,7 +15,11 @@ export interface CollapsibleChatTextProps {
   isOutgoing?: boolean
 }
 
-export function CollapsibleChatText({
+export function CollapsibleChatText(props: CollapsibleChatTextProps) {
+  return <MemoizedCollapsibleChatText {...props} />
+}
+
+const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
   content,
   maxLines = 7,
   maxChars = 420,
@@ -81,4 +85,4 @@ export function CollapsibleChatText({
       </button>
     </div>
   )
-}
+})

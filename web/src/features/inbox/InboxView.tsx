@@ -83,7 +83,7 @@ import {
 } from '../tasks/task-ui'
 import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
-import { TaskCard } from './TaskCard'
+import { TaskCard, cacheTasks } from './TaskCard'
 import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
@@ -305,6 +305,16 @@ export function InboxView({
       }
     },
     [linkedTasks]
+  )
+
+  const handleTaskDetailsClick = useCallback(
+    (task: Task) => handleOpenTaskDrawer(task, 'details'),
+    [handleOpenTaskDrawer]
+  )
+
+  const handleTaskTerminalClick = useCallback(
+    (task: Task) => handleOpenTaskDrawer(task, 'terminal'),
+    [handleOpenTaskDrawer]
   )
 
   const handleUseDraft = useCallback((draftText: string) => {
@@ -536,11 +546,35 @@ export function InboxView({
         )
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
-        setMessages(data.messages || [])
+        setMessages((prev) => {
+          const next = data.messages || []
+          if (prev.length === next.length) {
+            let unchanged = true
+            for (let i = 0; i < prev.length; i++) {
+              const a = prev[i]
+              const b = next[i]
+              if (
+                (a.uuid || a.id) !== (b.uuid || b.id) ||
+                a.content !== b.content ||
+                a.message !== b.message ||
+                a.created_at !== b.created_at ||
+                a.reply_draft !== b.reply_draft ||
+                a.plan_deferred !== b.plan_deferred ||
+                a.approval_accepted !== b.approval_accepted
+              ) {
+                unchanged = false
+                break
+              }
+            }
+            if (unchanged) return prev
+          }
+          return next
+        })
         setHasMoreOlder(!!data.has_more)
         markConversationSeen(convId, data.messages || [])
         setRequests(data.requests || [])
         setLinkedTasks(data.tasks || [])
+        if (data.tasks) cacheTasks(data.tasks)
         if (activeContact && data.tasks) {
           const at = data.tasks.filter((t) => {
             const s = (t.status || '').toLowerCase().trim()
@@ -749,6 +783,7 @@ export function InboxView({
         markConversationSeen(convId, data.messages || [])
           setRequests(data.requests || [])
           setLinkedTasks(data.tasks || [])
+          if (data.tasks) cacheTasks(data.tasks)
           const pending = pendingRef.current
           if (
             pending?.convId === convId &&
@@ -1625,8 +1660,8 @@ export function InboxView({
                           content={msg.content || msg.message}
                           hideTaskActions={!!linkedTaskForMsg}
                           receiptExtraction={msg.receipt_extraction}
-                          onTaskClick={(task) => handleOpenTaskDrawer(task, 'details')}
-                          onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
+                          onTaskClick={handleTaskDetailsClick}
+                          onOpenTerminal={handleTaskTerminalClick}
                           onUseDraft={handleUseDraft}
                           onRetry={handleTaskRetry}
                           onContinueChat={handleUseDraft}
@@ -1844,8 +1879,8 @@ export function InboxView({
                       taskId={t.id}
                       initialTask={t}
                       returnTo={`/inbox/${encodeURIComponent(activeContact.conversation_id || activeContact.id)}`}
-                      onClick={(task: Task) => handleOpenTaskDrawer(task, 'details')}
-                      onOpenTerminal={(task: Task) => handleOpenTaskDrawer(task, 'terminal')}
+                      onClick={handleTaskDetailsClick}
+                      onOpenTerminal={handleTaskTerminalClick}
                       onUseDraft={handleUseDraft}
                       onRetry={handleTaskRetry}
                       onContinueChat={handleUseDraft}

@@ -316,6 +316,8 @@
   "Auto Deploy": "Auto Deploy",
   "Otomatis deploy ke lingkungan live setelah task selesai diverifikasi.": "Otomatis deploy ke lingkungan live setelah task selesai diverifikasi.",
   "Loading…": "Memuat…",
+  "Loading task…": "Memuat tugas…",
+  "Memuat tugas…": "Memuat tugas…",
   "Could not save the message ID. Enable browser storage and try again.": "ID pesan tidak dapat disimpan. Aktifkan penyimpanan browser lalu coba lagi.",
   "Delivery is not confirmed. Your message may have been received. Refresh or check again using the same ID to avoid a duplicate run.": "Pengiriman belum terkonfirmasi. Pesan mungkin sudah diterima. Segarkan atau periksa dengan ID yang sama agar tidak dijalankan dua kali.",
   "Your previous message is not confirmed. Refresh or check again using the same ID.": "Pesan sebelumnya belum terkonfirmasi. Segarkan atau periksa dengan ID yang sama.",

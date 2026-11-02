@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckSquare, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -35,7 +36,7 @@ export function messageNavigation(content: string) {
   return { body: boundary >= 0 ? content.slice(0, boundary).trimEnd() : '', actions: actions.filter((action) => action !== null) }
 }
 
-export function MessageContent({
+export const MessageContent = memo(function MessageContent({
   content,
   hideTaskActions = false,
   receiptExtraction,
@@ -174,4 +175,4 @@ export function MessageContent({
       )}
     </>
   )
-}
+})

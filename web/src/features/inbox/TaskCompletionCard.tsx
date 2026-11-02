@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
@@ -34,7 +34,7 @@ export interface TaskCompletionCardProps {
   isCustomerRoom?: boolean
 }
 
-export function TaskCompletionCard({
+export const TaskCompletionCard = memo(function TaskCompletionCard({
   task,
   conversationId,
   onContinueChat,
@@ -50,6 +50,10 @@ export function TaskCompletionCard({
 
   const [currentTask, setCurrentTask] = useState<Task>(task)
   const [retrying, setRetrying] = useState(false)
+
+  useEffect(() => {
+    setCurrentTask(task)
+  }, [task])
 
   const isDone = (currentTask.status || '').toLowerCase().trim() === 'done'
 
@@ -354,4 +358,4 @@ export function TaskCompletionCard({
       </div>
     </div>
   )
-}
+})
