@@ -1517,6 +1517,32 @@ export function InboxView({
                   }
                 }
 
+                // Suppress duplicate/obsolete boilerplate launch progress messages ("Work started...", "The work is saved, but could not start...")
+                // if a later message in the room already references the same task.
+                // This eliminates redundant stacked task cards in the chat stream.
+                const isBoilerplateLaunchMessage =
+                  msgContent.startsWith('Work started. I’ll report progress and the result here.') ||
+                  msgContent.startsWith("Work started. I'll report progress and the result here.") ||
+                  msgContent.startsWith('The work is saved, but could not start.') ||
+                  msgContent.startsWith('The work is waiting for an available AI session.') ||
+                  msgContent.startsWith('The work is queued waiting for the active project task') ||
+                  msgContent.startsWith('The work is waiting to start. I’ll report progress here.') ||
+                  msgContent.startsWith("The work is waiting to start. I'll report progress here.")
+
+                if (isBoilerplateLaunchMessage) {
+                  const taskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
+                  if (taskIdMatch) {
+                    const taskId = taskIdMatch[1]
+                    const hasLaterTaskMessage = messages.slice(index + 1).some((m) => {
+                      const laterContent = m.content || m.message || ''
+                      return laterContent.includes(`/tasks/${taskId}`)
+                    })
+                    if (hasLaterTaskMessage) {
+                      return null
+                    }
+                  }
+                }
+
                 const date = new Date(msg.created_at)
                 const showDate =
                   Number.isFinite(date.getTime()) &&

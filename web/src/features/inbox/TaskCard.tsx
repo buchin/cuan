@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Folder,
@@ -11,8 +11,11 @@ import {
   Clock,
   Send,
   Sparkles,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
-import type { Task } from '../../api/types'
+import type { Task, TaskDetail, TaskAttempt } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
@@ -86,12 +89,28 @@ export const TaskCard = memo(function TaskCard({
   const navigate = useNavigate()
 
   const cached = initialTask || getCachedTask(taskId)
-  const [currentTask, setCurrentTask] = useState<Task | null>(cached || null)
+  const [currentTask, setCurrentTask] = useState<(Task & Partial<TaskDetail>) | null>(cached || null)
   const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
+  const [showTimeline, setShowTimeline] = useState(false)
+
+  const attempts = useMemo<TaskAttempt[]>(() => {
+    const list: TaskAttempt[] = [...((currentTask as any)?.attempts || [])]
+    if (list.length === 0 && currentTask?.latest_attempt) {
+      list.push(currentTask.latest_attempt as TaskAttempt)
+    }
+    return list.sort((a, b) => {
+      const numA = a.attempt_number ?? 0
+      const numB = b.attempt_number ?? 0
+      if (numA !== numB) return numB - numA
+      const timeA = new Date(a.created_at || a.started_at || 0).getTime()
+      const timeB = new Date(b.created_at || b.started_at || 0).getTime()
+      return timeB - timeA
+    })
+  }, [currentTask])
 
   useEffect(() => {
     if (initialTask) {
@@ -559,6 +578,154 @@ export const TaskCard = memo(function TaskCard({
           <p className="text-xs text-foreground/90 italic border-l-2 border-primary/40 pl-3 py-1 whitespace-pre-wrap leading-relaxed break-words">
             "{envelopeResult.draft}"
           </p>
+        </div>
+      )}
+
+      {/* Collapsible Session & Attempt History Timeline */}
+      {attempts.length > 0 && (
+        <div
+          data-testid="task-card-timeline-section"
+          onClick={(e) => e.stopPropagation()}
+          className="border-t border-border/30 pt-2 space-y-2 cursor-default"
+        >
+          <button
+            type="button"
+            onClick={() => setShowTimeline((prev) => !prev)}
+            data-testid="task-card-timeline-toggle"
+            aria-expanded={showTimeline}
+            className="w-full flex items-center justify-between py-1 px-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors select-none min-h-[36px] cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <History className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+              <span className="truncate">{t('Riwayat Sesi')} ({attempts.length})</span>
+              {attempts.some((a) => a.status === 'failed') && (
+                <span className="text-[10px] text-destructive/90 bg-destructive/10 px-1.5 py-0.2 rounded font-sans shrink-0">
+                  {t('Gagal')}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/60 shrink-0">
+              <span>{showTimeline ? t('Sembunyikan') : t('Lihat')}</span>
+              {showTimeline ? (
+                <ChevronUp className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+              )}
+            </div>
+          </button>
+
+          {showTimeline && (
+            <div
+              data-testid="task-card-timeline-content"
+              className="space-y-3 pt-1 pb-1 px-1 text-xs select-text animate-in fade-in-50 duration-150"
+            >
+              {attempts.map((att, idx) => {
+                const isRunning = att.status === 'running'
+                const isQueued = att.status === 'queued'
+                const isFailed =
+                  att.status === 'failed' ||
+                  att.status === 'canceled' ||
+                  att.status === 'interrupted'
+                const isDone = att.status === 'succeeded'
+                const attemptNum = att.attempt_number ?? (attempts.length - idx)
+
+                let durationText = ''
+                if (att.started_at && att.finished_at) {
+                  const diffSec = Math.round(
+                    (new Date(att.finished_at).getTime() -
+                      new Date(att.started_at).getTime()) /
+                      1000
+                  )
+                  if (diffSec > 0) durationText = formatDuration(diffSec)
+                }
+
+                return (
+                  <div
+                    key={att.id || `att-${idx}`}
+                    data-testid={`task-attempt-row-${attemptNum}`}
+                    className="relative pl-5 text-xs select-text"
+                  >
+                    {/* Vertical timeline connector */}
+                    {idx < attempts.length - 1 && (
+                      <div className="absolute left-[7px] top-3.5 bottom-0 w-[1px] bg-border/40 pointer-events-none" />
+                    )}
+
+                    {/* Status dot */}
+                    <div className="absolute left-1 top-1.5 h-2 w-2 rounded-full border border-card flex items-center justify-center">
+                      {isRunning ? (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
+                        </span>
+                      ) : isQueued ? (
+                        <span className="inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
+                      ) : isFailed ? (
+                        <span className="inline-flex rounded-full h-2 w-2 bg-destructive/70" />
+                      ) : isDone ? (
+                        <span className="inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                      ) : (
+                        <span className="inline-flex rounded-full h-2 w-2 bg-muted-foreground/50" />
+                      )}
+                    </div>
+
+                    {/* Attempt header */}
+                    <div className="flex flex-wrap items-center justify-between gap-1 leading-snug">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-semibold text-foreground">
+                          {t('Sesi')} #{attemptNum}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-[10px] px-1.5 py-0.2 rounded-full font-medium',
+                            isRunning &&
+                              'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                            isQueued &&
+                              'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+                            isFailed && 'bg-destructive/10 text-destructive',
+                            isDone &&
+                              'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+                            !isRunning &&
+                              !isQueued &&
+                              !isFailed &&
+                              !isDone &&
+                              'bg-muted text-muted-foreground'
+                          )}
+                        >
+                          {t(att.status || 'unknown')}
+                        </span>
+                        {durationText && (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            ({durationText})
+                          </span>
+                        )}
+                      </div>
+
+                      {(att.started_at || att.created_at) && (
+                        <time
+                          dateTime={att.started_at || att.created_at}
+                          className="text-[10px] text-muted-foreground/60 font-mono"
+                        >
+                          {new Date(
+                            att.started_at || att.created_at
+                          ).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </time>
+                      )}
+                    </div>
+
+                    {/* Detailed error or progress message */}
+                    {att.error_message && (
+                      <p className="mt-1 text-[11px] text-muted-foreground/90 bg-muted/40 border border-border/30 rounded px-2 py-1 font-mono break-words leading-relaxed">
+                        {att.error_message}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

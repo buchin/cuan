@@ -81,7 +81,7 @@ function createChatLayoutHtml() {
           <p class="leading-relaxed">Work started. I'll report progress and the result here.</p>
         </div>
 
-        <!-- Stable Loaded Task Card (Zero CLS, Calm Hairline, 44px touch targets) -->
+        <!-- Stable Loaded Task Card with Collapsible Lifecycle Timeline (Things 3 Standard) -->
         <div class="w-full max-w-xl">
           <div data-card="task-card" class="rounded-xl border border-border/40 bg-card/40 p-4 text-card-foreground select-none space-y-3 min-h-[44px]">
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 pb-2.5">
@@ -91,7 +91,7 @@ function createChatLayoutHtml() {
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400"></span>
                   </span>
-                  <span>Working</span>
+                  <span>Sedang berjalan</span>
                 </span>
                 <span data-testid="task-card-live-timer" class="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
                   ⏱ 02:45
@@ -107,8 +107,82 @@ function createChatLayoutHtml() {
                 Sesi Baru: Integrasi taskfsm & dodeval serta Live Deployment
               </h4>
               <p class="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                Running build and unit verification...
+                Mengintegrasikan modul taskfsm dan menyiapkan pengujian terarah...
               </p>
+            </div>
+
+            <!-- Collapsible Session History Timeline (Expanded View) -->
+            <div data-testid="task-card-timeline-section" class="border-t border-border/30 pt-2 space-y-2">
+              <button class="w-full flex items-center justify-between py-1 px-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors select-none min-h-[36px]">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="text-xs">📜</span>
+                  <span class="font-semibold text-foreground">Riwayat Sesi (3)</span>
+                  <span class="text-[10px] text-destructive/90 bg-destructive/10 px-1.5 py-0.2 rounded font-sans">
+                    1 Gagal
+                  </span>
+                </div>
+                <div class="flex items-center gap-1 text-[11px] text-muted-foreground/60">
+                  <span>Sembunyikan</span>
+                  <span>▲</span>
+                </div>
+              </button>
+
+              <div data-testid="task-card-timeline-content" class="space-y-3 pt-1 pb-1 px-1 text-xs select-text">
+                <!-- Attempt 3: Currently Running -->
+                <div class="relative pl-5 text-xs select-text">
+                  <div class="absolute left-[7px] top-3.5 bottom-0 w-[1px] bg-border/40 pointer-events-none"></div>
+                  <div class="absolute left-1 top-1.5 h-2 w-2 rounded-full border border-card flex items-center justify-center">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400"></span>
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-1 leading-snug">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-semibold text-foreground">Sesi #3</span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">Sedang berjalan</span>
+                      <span class="text-[10px] text-muted-foreground font-mono">(02:45)</span>
+                    </div>
+                    <span class="text-[10px] text-muted-foreground/60 font-mono">10:20</span>
+                  </div>
+                </div>
+
+                <!-- Attempt 2: Requeued / Conflict -->
+                <div class="relative pl-5 text-xs select-text">
+                  <div class="absolute left-[7px] top-3.5 bottom-0 w-[1px] bg-border/40 pointer-events-none"></div>
+                  <div class="absolute left-1 top-1.5 h-2 w-2 rounded-full border border-card flex items-center justify-center">
+                    <span class="inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400"></span>
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-1 leading-snug">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-semibold text-foreground">Sesi #2</span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded-full font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400">Antrean</span>
+                    </div>
+                    <span class="text-[10px] text-muted-foreground/60 font-mono">09:54</span>
+                  </div>
+                  <p class="mt-1 text-[11px] text-muted-foreground/90 bg-muted/40 border border-border/30 rounded px-2 py-1 font-mono break-words leading-relaxed">
+                    Sesi aktif sedang berjalan di runner-01. Menunggu penyelesaian sesi sebelumnya.
+                  </p>
+                </div>
+
+                <!-- Attempt 1: Failed / Timeout -->
+                <div class="relative pl-5 text-xs select-text">
+                  <div class="absolute left-1 top-1.5 h-2 w-2 rounded-full border border-card flex items-center justify-center">
+                    <span class="inline-flex rounded-full h-2 w-2 bg-destructive/70"></span>
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-1 leading-snug">
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-semibold text-foreground">Sesi #1</span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded-full font-medium bg-destructive/10 text-destructive">Gagal</span>
+                      <span class="text-[10px] text-muted-foreground font-mono">(20m00s)</span>
+                    </div>
+                    <span class="text-[10px] text-muted-foreground/60 font-mono">09:47</span>
+                  </div>
+                  <p class="mt-1 text-[11px] text-muted-foreground/90 bg-muted/40 border border-border/30 rounded px-2 py-1 font-mono break-words leading-relaxed">
+                    Task runner exceeded hard execution timeout (20m0s).
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div class="pt-2 flex items-center justify-between gap-2 border-t border-border/30 text-xs">
