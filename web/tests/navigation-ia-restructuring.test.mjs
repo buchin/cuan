@@ -159,8 +159,8 @@ test('4. S59-T3: Lifting Schedules and Contacts out of NavUser.tsx popover', () 
 
   // Verify NavUser retains essential profile, settings, shortcuts, and logout actions
   assert.ok(
-    navUserSource.includes("navigate('/settings/profile')"),
-    'NavUser.tsx must retain Profile & password action'
+    !navUserSource.includes("navigate('/settings/profile')"),
+    'Profile & password belongs under Settings'
   )
   assert.ok(
     navUserSource.includes("navigate('/account')"),
