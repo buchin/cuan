@@ -65,3 +65,20 @@ project environment mechanism applies the saved configuration to new tasks;
 existing tasks keep their original project guidance snapshot. Values use the
 same storage and access model as the UI; masking output does not add encryption
 or change which project agents receive them.
+
+## Project Goal and Instructions
+
+Use the same owner-authenticated settings API through the CLI:
+
+```sh
+cuan project guidance show PROJECT_ID
+cuan project guidance set PROJECT_ID --goal 'Desired project outcome'
+cuan project guidance set PROJECT_ID --instructions 'Standing working rules'
+```
+
+Only explicitly supplied guidance fields change; an explicit empty string clears
+that field. Environment, repository, deployment preferences, and the other guidance
+field are preserved. Updates carry the project's current revision and reject
+concurrent changes. Output includes only goal/instructions and no environment.
+New tasks capture both values in their project snapshot. Existing tasks and
+retries retain the original snapshot; bound Inbox context reads current settings.
