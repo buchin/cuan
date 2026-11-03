@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -24,6 +26,8 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "cancel", "stop":
+		return runTaskCancel(ctx, extraArgs, out, errOut)
 	case "list", "ls":
 		return runTaskList(ctx, extraArgs, out, errOut)
 	case "get", "show", "inspect":
@@ -44,6 +48,7 @@ func printTaskHelp(out io.Writer) {
 Usage:
   cuan task list [--project default] [--status doing] [--limit 20] [--json]
   cuan task get <task-id> [--json]
+  cuan task cancel <task-id>
   cuan task update <task-id> --status doing [--summary "Plan"] [--complete-note "Evidence"] [--json]
   cuan task create --title "Title" --instructions "Scope" [--priority normal] [--project default] [--json]
 
@@ -310,5 +315,31 @@ func runTaskCreate(ctx context.Context, args []string, out, errOut io.Writer) in
 	fmt.Fprintf(out, "  Title:    %v\n", resMap["title"])
 	fmt.Fprintf(out, "  Project:  %v\n", resMap["project_id"])
 	fmt.Fprintf(out, "  Status:   %v\n", resMap["status"])
+	return 0
+}
+
+// Cancellation is an execution request; never report that the worker has already
+// stopped until its durable attempt confirms the terminal state.
+func runTaskCancel(ctx context.Context, args []string, out, errOut io.Writer) int {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(errOut, "Usage: cuan task cancel <task-id>")
+		return 2
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "Configure the Cuan connection first.")
+		return 1
+	}
+	response, err := client.doRequest(ctx, http.MethodPost, "/api/v1/tasks/"+url.PathEscape(args[0])+"/cancel", nil)
+	if err != nil {
+		fmt.Fprintln(errOut, "Could not confirm cancellation. Check task status before retrying.")
+		return 1
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		fmt.Fprintf(errOut, "Cancellation was not confirmed (HTTP %d). Check task status.\n", response.StatusCode)
+		return 1
+	}
+	fmt.Fprintln(out, "Cancellation requested. Check the task to confirm the worker stopped.")
 	return 0
 }

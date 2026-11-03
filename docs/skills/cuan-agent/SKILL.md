@@ -117,3 +117,11 @@ Use `cuan account list` to read owned AI account status, routing permissions and
 Read-only MCP equivalents: `list_provider_accounts` and `get_provider_account_usage {account_id}`.
 
 `cuan chat messages ROOM_ID --json` preserves request state/recovery metadata and task count, not only message text. Inspect the same request after a wait timeout; do not blindly resend. See [routing recovery](../../guides/agent-routing-recovery.md).
+
+### Cancel active task execution
+
+`cuan task cancel TASK_ID` requests cancellation through the authenticated Cuan
+API. This does not prove the worker has stopped: inspect the same task with
+`cuan task get TASK_ID --json` until its attempt reaches a terminal state.
+Failures do not retry automatically or echo response bodies. Saved task scope
+and conversation remain available for a scoped resume.
