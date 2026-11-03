@@ -300,5 +300,18 @@ func runChatMessages(ctx context.Context, args []string, out, errOut io.Writer) 
 		}
 		fmt.Fprintf(out, "--- [%s] at %s ---\n%s\n\n", author, timeStr, content)
 	}
+	if requests, ok := resMap["requests"].([]map[string]any); ok {
+		for _, request := range requests {
+			state, _ := request["state"].(string)
+			if state == "queued" || state == "running" || state == "failed" || state == "interrupted" {
+				fmt.Fprintf(out, "Request %v: %s", request["request_id"], state)
+				if reason, _ := request["safe_error"].(string); reason != "" && state != "running" {
+					fmt.Fprintf(out, " — %s", reason)
+				}
+				fmt.Fprintln(out)
+			}
+		}
+	}
+
 	return 0
 }

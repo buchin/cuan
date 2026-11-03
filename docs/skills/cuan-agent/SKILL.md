@@ -107,3 +107,13 @@ MCP equivalents: `get_project_environment {project_id, reveal?}` and
 `from_env` for secrets; writes always return redacted values. Saved configuration
 applies to new tasks; existing tasks retain their environment snapshot.
 See [project environment guide](../../guides/project-environment-cli.md).
+
+## Account readiness diagnostics
+
+Use `cuan account list` to read owned AI account status, routing permissions and cooldown metadata; `cuan account usage ACCOUNT_ID` reads provider capacity evidence. These commands return JSON without credential contents or native profile paths. Capacity evidence does not prove successful runtime execution.
+
+`cuan account verify ACCOUNT_ID` probes an existing sign-in and updates readiness, without accepting provider terms or changing the selected model/fallback permissions. Prefer this over asking users to sign in again after a transient provider outage. Verification does not override provider quota limits.
+
+Read-only MCP equivalents: `list_provider_accounts` and `get_provider_account_usage {account_id}`.
+
+`cuan chat messages ROOM_ID --json` preserves request state/recovery metadata and task count, not only message text. Inspect the same request after a wait timeout; do not blindly resend. See [routing recovery](../../guides/agent-routing-recovery.md).

@@ -522,22 +522,12 @@ func GetInboxMessages(ctx context.Context, roomID string, limit int) (any, error
 	if limit <= 0 || limit > 100 {
 		limit = 30
 	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.GetConversationSnapshot(ctx, roomID, limit)
+	}
 	db := getPlatformDB()
 	if db == nil {
-		if client := GetCuanClient(); client != nil && client.IsConfigured() {
-			if msgs, err := client.GetConversationMessages(ctx, roomID, limit); err == nil {
-				return map[string]any{
-					"room_id":  roomID,
-					"messages": msgs,
-					"total":    len(msgs),
-				}, nil
-			}
-		}
-		return map[string]any{
-			"messages": []InboxMessage{},
-			"total":    0,
-			"status":   "database_offline",
-		}, nil
+		return nil, fmt.Errorf("configure the Cuan API to read conversation state")
 	}
 
 	rows, err := db.QueryContext(ctx,

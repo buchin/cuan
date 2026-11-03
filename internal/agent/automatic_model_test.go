@@ -71,3 +71,49 @@ func TestAutomaticModelRanksUnknownBelowKnownQuota(t *testing.T) {
 		t.Fatal("known cooldown ignored", best, ok)
 	}
 }
+
+func TestVerificationTimeoutIsUnknownRatherThanPermanentUnavailable(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nsleep 0.15\nprintf CUAN_AUTH_OK\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	a, err := CreateProviderAccount("owner", "Fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := ProviderAccountHome("owner", a.ID)
+	os.MkdirAll(AntigravityConfigDirPath(home), 0700)
+	os.WriteFile(AntigravityCredentialsFilePath(home), []byte("fixture-credentials"), 0600)
+	a.Email = "fixture@example.invalid"
+	a.State = "unavailable"
+	if err := saveProviderAccount(a); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	checked, err := VerifyProviderAccount(ctx, "owner", a.ID)
+	if err != nil || checked.State != "unknown" || checked.VerifiedAt != nil || !checked.CredentialsPresent {
+		t.Fatal("probe timeout falsely excluded saved sign-in", checked, err)
+	}
+	if checked.AllowModelFallback || checked.AllowFailover {
+		t.Fatal("probe changed routing permissions")
+	}
+	persisted, _ := GetProviderAccount("owner", a.ID)
+	if persisted.State != "unknown" {
+		t.Fatal("unknown readiness was not persisted")
+	}
+	retry := time.Now().Add(time.Hour)
+	persisted.State = "quota_limited"
+	persisted.QuotaRetryAt = &retry
+	if err := saveProviderAccount(persisted); err != nil {
+		t.Fatal(err)
+	}
+	quotaCtx, quotaCancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer quotaCancel()
+	limited, err := VerifyProviderAccount(quotaCtx, "owner", a.ID)
+	if err != nil || limited.State != "quota_limited" || limited.QuotaRetryAt == nil || !limited.QuotaRetryAt.Equal(retry) {
+		t.Fatal("timed out probe erased runtime quota evidence", limited, err)
+	}
+}

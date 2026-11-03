@@ -475,7 +475,11 @@ func VerifyAntigravityProfile(ctx context.Context, home string, models ...string
 	out, err := cmd.Output()
 	if err != nil || !strings.Contains(string(out), "CUAN_AUTH_OK") {
 		combined := strings.TrimSpace(stderr.String() + "\n" + string(out))
-		return antigravityProbeError(combined)
+		classified := antigravityProbeError(combined)
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) && !strings.Contains(strings.ToLower(classified.Error()), "quota") {
+			return fmt.Errorf("Provider readiness check timed out; saved sign-in is retained: %w", context.DeadlineExceeded)
+		}
+		return classified
 	}
 	return nil
 }

@@ -185,6 +185,7 @@ func (s *Server) ownedAgentProfileHome(ctx context.Context, owner string, a *db.
 		return "", errors.New("agent is nil")
 	}
 	if a.ID == db.AgentIDCuan || a.Name == db.DefaultAgentHandle || a.Name == "@cuan" {
+		agent.RecheckUnavailableBrain(ctx, owner)
 		if !strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 			if home, _, err := agent.ResolveHealthyAccountProfile(owner); err == nil && home != "" {
 				return home, nil

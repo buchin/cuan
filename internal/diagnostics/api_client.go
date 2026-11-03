@@ -23,8 +23,8 @@ type CuanAPIConfig struct {
 }
 
 var (
-	globalCuanClient     *CuanClient
-	cachedCuanConfig     *CuanAPIConfig
+	globalCuanClient *CuanClient
+	cachedCuanConfig *CuanAPIConfig
 )
 
 // GetCuanConfig retrieves Cuan API configuration from env, ~/.cuan/config.json, or .env.
@@ -320,6 +320,14 @@ func (c *CuanClient) WaitForReply(ctx context.Context, roomID string, sentTime t
 
 // GetConversationMessages retrieves recent messages from a conversation room.
 func (c *CuanClient) GetConversationMessages(ctx context.Context, roomID string, limit int) ([]map[string]any, error) {
+	snapshot, err := c.GetConversationSnapshot(ctx, roomID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot["messages"].([]map[string]any), nil
+}
+
+func (c *CuanClient) GetConversationSnapshot(ctx context.Context, roomID string, limit int) (map[string]any, error) {
 	roomID = strings.TrimSpace(roomID)
 	if roomID == "" {
 		return nil, fmt.Errorf("room_id is required")
@@ -341,7 +349,9 @@ func (c *CuanClient) GetConversationMessages(ctx context.Context, roomID string,
 	}
 
 	var data struct {
-		Messages []map[string]any `json:"messages"`
+		Messages  []map[string]any `json:"messages"`
+		Requests  []map[string]any `json:"requests"`
+		TaskCount int              `json:"task_count"`
 	}
 	if err := json.Unmarshal(bodyBytes, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal messages: %w", err)
@@ -350,7 +360,7 @@ func (c *CuanClient) GetConversationMessages(ctx context.Context, roomID string,
 	if data.Messages == nil {
 		data.Messages = []map[string]any{}
 	}
-	return data.Messages, nil
+	return map[string]any{"room_id": roomID, "messages": data.Messages, "total": len(data.Messages), "requests": data.Requests, "task_count": data.TaskCount}, nil
 }
 
 // ListConversations returns available inbox conversations and contacts.

@@ -783,8 +783,28 @@ func inboxCapacityWaiting(q db.InboxRequest, now time.Time) bool {
 	}
 	for i := len(q.Steps) - 1; i >= 0; i-- {
 		if q.Steps[i].Kind == "finished" {
-			return now.Sub(q.Steps[i].At) < 30*time.Second
+			return now.Sub(q.Steps[i].At) < inboxCapacityRetryDelay(q.Steps)
 		}
 	}
 	return false
+}
+
+// Bounded exponential backoff avoids repeatedly probing an exhausted pool.
+// A new durable request still starts immediately; uncertain work is never replayed.
+func inboxCapacityRetryDelay(steps []db.InboxStep) time.Duration {
+	delay := 30 * time.Second
+	attempts := 0
+	for _, step := range steps {
+		if step.Kind != "finished" {
+			continue
+		}
+		attempts++
+		if attempts > 1 {
+			delay *= 2
+		}
+		if delay >= 5*time.Minute {
+			return 5 * time.Minute
+		}
+	}
+	return delay
 }

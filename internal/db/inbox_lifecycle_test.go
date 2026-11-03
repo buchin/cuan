@@ -134,3 +134,18 @@ func TestInboxFinalTimestampSurvivesFullTimeline(t *testing.T) {
 		t.Fatal("duplicate final timestamp")
 	}
 }
+
+func TestInboxClaimClearsPreviousCapacityReason(t *testing.T) {
+	ctx := context.Background()
+	r := NewMemoryProjectStudioRepository()
+	now := time.Now()
+	q := InboxRequest{RoomID: GenerateUUID(), RequestID: GenerateUUID(), MessageID: GenerateUUID(), ReplyID: GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour), SafeError: "Waiting for available AI capacity."}
+	_, _, err := r.AcceptInboxRequest(ctx, q, &ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, CreatedAt: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, ok, err := r.ClaimInboxRequest(ctx, q.RoomID, q.RequestID)
+	if err != nil || !ok || claimed.SafeError != "" {
+		t.Fatal("running request retains stale wait reason", claimed, err)
+	}
+}

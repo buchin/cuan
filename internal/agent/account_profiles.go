@@ -404,6 +404,10 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		a.Message = probeErr.Error()
 		if !a.CredentialsPresent {
 			a.State = "login_required"
+		} else if errors.Is(probeErr, context.DeadlineExceeded) {
+			// A bounded readiness probe is not proof that saved credentials or
+			// the provider are unavailable. Let an actual work attempt decide.
+			a.State = "unknown"
 		} else if strings.Contains(strings.ToLower(a.Message), "quota") {
 			a.State = "quota_limited"
 		}
@@ -424,6 +428,10 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 			return nil, readErr
 		}
 		// A probe must not overwrite a concurrent preference edit or newer runtime cooldown.
+		if errors.Is(probeErr, context.DeadlineExceeded) && current.State == "quota_limited" && (current.QuotaRetryAt == nil || time.Now().Before(*current.QuotaRetryAt)) {
+			accountProfileMu.Unlock()
+			return current, nil
+		}
 		a.Label, a.ModelID = current.Label, current.ModelID
 		a.AllowFailover = current.AllowFailover
 		a.AllowModelFallback = current.AllowModelFallback

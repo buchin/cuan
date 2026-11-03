@@ -37,6 +37,8 @@ type mcpToolDefinition struct {
 
 // Registered tools available over MCP
 var nativeMCPTools = []mcpToolDefinition{
+	{Name: "list_provider_accounts", Description: "Read connected AI account readiness, cooldown and fallback policy through the authenticated Cuan API; no credential contents or native paths.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}}},
+	{Name: "get_provider_account_usage", Description: "Read provider model capacity evidence for an owned account without changing routing policy.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"account_id": map[string]any{"type": "string"}}, "required": []string{"account_id"}}},
 	{
 		Name:        "inspect_git_status",
 		Description: "Inspect current git working tree status, staged/unstaged changes, and branch tracking in a strictly read-only manner.",
@@ -624,6 +626,11 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			toolResult, toolErr = GetCuanClient().GetProjectEnvironment(ctx, projectID, reveal)
 		case "update_project_environment":
 			toolResult, toolErr = updateEnvironmentMCP(ctx, callParams.Arguments)
+		case "list_provider_accounts":
+			toolResult, toolErr = GetCuanClient().ListProviderAccounts(ctx)
+		case "get_provider_account_usage":
+			id, _ := callParams.Arguments["account_id"].(string)
+			toolResult, toolErr = GetCuanClient().GetProviderAccountUsage(ctx, id)
 		case "list_projects":
 			limit := 20
 			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
