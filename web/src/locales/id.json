@@ -1632,5 +1632,19 @@
   "Setup needed": "Perlu pengaturan",
   "Set up GitHub": "Atur GitHub",
   "This AI account is in use. Wait for its active work to finish, then disconnect.": "Akun AI sedang dipakai. Tunggu pekerjaan aktif selesai, lalu putuskan koneksinya.",
-  "Write whatever is on your mind…": "Tulis aja yang lagi kepikiran…"
+  "Write whatever is on your mind…": "Tulis aja yang lagi kepikiran…",
+  "Response details": "Detail respons",
+  "Cancel queued reply": "Batalkan antrean",
+  "Stop reply": "Hentikan respons",
+  "Saved selection": "Pilihan tersimpan",
+  "Connect this account before choosing a model.": "Hubungkan akun ini sebelum memilih model.",
+  "Loading models…": "Memuat model…",
+  "Could not load models. Your saved selection is preserved.": "Model belum bisa dimuat. Pilihan tersimpan tetap dipertahankan.",
+  "Auto lets the provider choose. Model availability depends on this connection.": "Otomatis mengikuti pilihan penyedia. Ketersediaan model bergantung pada koneksi ini.",
+  "Usage": "Kuota",
+  "Refresh usage": "Perbarui kuota",
+  "Checking usage…": "Memeriksa kuota…",
+  "Usage is unavailable. Remaining quota is unknown.": "Data kuota belum tersedia. Sisa kuota belum diketahui.",
+  "Unknown": "Belum diketahui",
+  "Provider-reported quota. Available quota does not guarantee a successful connection.": "Kuota berdasarkan laporan penyedia. Sisa kuota belum menjamin koneksi berhasil."
 }

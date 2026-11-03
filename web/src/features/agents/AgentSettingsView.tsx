@@ -9,6 +9,8 @@ import { aiProvidersApi, type AIProviderDTO } from '../../api/aiProviders'
 import { accountsApi, type ProviderAccount } from '../../api/accounts'
 import { agentsApi, type Agent } from '../../api/agents'
 import { AddBrainModal } from './AddBrainModal'
+import { AccountModelPicker } from './AccountModelPicker'
+import { AccountUsageDetails } from './AccountUsageDetails'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { GroupedSection } from '../../components/layout/GroupedSection'
 
@@ -182,15 +184,16 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     </section>
     <SlideDrawer isOpen={!!selected} onClose={closeDrawer} title={t('Brain settings')} description={selected?.label} size="md">
       {selected && <div className="space-y-6">
-        <form onSubmit={saveBrain} className="space-y-5">
-          {selected.account ? (<div className="space-y-2"><label htmlFor="brain-label" className="text-sm font-medium">{t('Display name')}</label><input id="brain-label" className="field-control" maxLength={100} required value={label} disabled={busy || !isOwner || !selected.account || selected.account.legacy} onChange={event => setLabel(event.target.value)} /></div>) : <p className="text-sm font-medium">{selected.label}</p>}
-          <div className="space-y-2"><label htmlFor="brain-model" className="text-sm font-medium">{t('Preferred model')}</label><input id="brain-model" className="field-control" maxLength={200} value={model} placeholder="Auto" disabled={busy || !isOwner || selected.account?.legacy} onChange={event => setModel(event.target.value)} /><p className="text-xs leading-5 text-muted-foreground">{t('Leave empty for Auto. Model availability depends on this connection.')}</p></div>
-          {drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}{drawerNotice && <p role="status" className="text-sm text-muted-foreground">{drawerNotice}</p>}
-          {isOwner && !selected.account?.legacy && <button className="action-primary" disabled={busy || !dirty || !label.trim()}>{t(busy ? 'Saving…' : 'Save changes')}</button>}
-        </form>
         <div className="space-y-3 border-t border-border/40 pt-5"><h3 className="text-sm font-medium">{t('Connection')}</h3><p className="text-sm text-muted-foreground">{statusText(selected.state)}</p>{selected.account && <div className="space-y-1 text-sm"><p className="break-all">{selected.account.email || t('Email identity unavailable')}</p><p className="text-xs leading-5 text-muted-foreground">{t('Subscription account. Check the connection to refresh its email identity.')}</p></div>}{selected.account?.message && <p className="break-words text-xs leading-6 text-muted-foreground">{selected.account.message}</p>}{selected.account?.quota_retry_at && <p className="text-xs text-muted-foreground">{t('Next capacity check')}: {new Date(selected.account.quota_retry_at).toLocaleString()}</p>}{selected.byok?.api_key_masked && <p className="text-xs font-mono text-muted-foreground">{selected.byok.api_key_masked}</p>}
           <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy} onClick={() => void checkBrain()}><RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />{t(checking ? 'Checking…' : 'Check connection')}</button>
         </div>
+        <form onSubmit={saveBrain} className="space-y-5">
+          {selected.account ? (<div className="space-y-2"><label htmlFor="brain-label" className="text-sm font-medium">{t('Display name')}</label><input id="brain-label" className="field-control" maxLength={100} required value={label} disabled={busy || !isOwner || !selected.account || selected.account.legacy} onChange={event => setLabel(event.target.value)} /></div>) : <p className="text-sm font-medium">{selected.label}</p>}
+          <AccountModelPicker account={selected.account} provider={selected.byok?.id} value={model} onChange={setModel} disabled={busy || !isOwner || selected.account?.legacy} />
+          {drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}{drawerNotice && <p role="status" className="text-sm text-muted-foreground">{drawerNotice}</p>}
+          {isOwner && !selected.account?.legacy && <button className="action-primary" disabled={busy || !dirty || !label.trim()}>{t(busy ? 'Saving…' : 'Save changes')}</button>}
+        </form>
+        {selected.account && <AccountUsageDetails key={selected.id} account={selected.account} />}
         {isOwner && <div className="border-t border-border/40 pt-5"><button type="button" className="min-h-11 text-sm text-muted-foreground hover:text-destructive" disabled={busy || checking} onClick={() => setDisconnectOpen(true)}>{t('Disconnect brain')}</button></div>}
       </div>}
     </SlideDrawer>

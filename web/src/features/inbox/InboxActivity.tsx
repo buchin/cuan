@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircle2,
-  ChevronDown,
+  ChevronRight,
   CircleAlert,
   Clock3,
   LoaderCircle,
@@ -11,6 +11,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { InboxRequest } from '../../api/chat'
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
 
 export function evaluateInboxQuotaStatus(q: {
   steps?: { seq: number; kind: string; text: string; at: string }[]
@@ -228,12 +229,9 @@ export function InboxActivity({
           )}
         </div>
       )}
-      <div className={bubble || compact ? "relative min-w-0" : "flex items-start gap-2"}>
-        <details
-          className={bubble || compact ? "group/response block min-w-0 w-full" : "group/response min-w-0 flex-1"}
-          onToggle={(event) => setExpanded(event.currentTarget.open)}
-        >
-          <summary
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <button type="button" aria-expanded={expanded} onClick={() => setExpanded(true)}
             className={
               compact
                 ? 'inline-flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-xs text-muted-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
@@ -274,15 +272,15 @@ export function InboxActivity({
                 <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
                   {t('Detail')}
                 </span>
-                <ChevronDown
-                  className="h-4 w-4 shrink-0 transition-transform group-open/response:rotate-180"
+                <ChevronRight
+                  className="h-4 w-4 shrink-0"
                   aria-hidden="true"
                 />
               </>
             )}
-          </summary>
-          {expanded && (
-            <div className="mt-1 w-full min-w-0 space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
+          </button>
+          <SlideDrawer isOpen={expanded} onClose={() => setExpanded(false)} title={t('Response details')} description={t(label)} size="md">
+            <div className="w-full min-w-0 space-y-5 text-sm">
               <p className="font-medium">
                 {q.state === 'completed'
                   ? q.agent_id
@@ -311,7 +309,7 @@ export function InboxActivity({
                   </ol>
                 </details>
               )}
-              {q.safe_error && (
+              {q.safe_error && !(q.state === 'queued' && q.safe_error.startsWith('AI capacity is temporarily full.')) && (
                 <p className="text-muted-foreground">{q.safe_error}</p>
               )}
               {processSteps.length ? (
@@ -457,13 +455,13 @@ export function InboxActivity({
                 </p>
               </details>
             </div>
-          )}
-        </details>
+          </SlideDrawer>
+        </div>
         {(q.state === 'queued' || q.state === 'running') && (
           <button
             type="button"
             disabled={cancelling}
-            className="absolute right-0 top-0 inline-flex min-h-11 shrink-0 items-center justify-self-start gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
             onClick={async () => {
               setCancelling(true)
               setError('')
@@ -479,7 +477,7 @@ export function InboxActivity({
             }}
           >
             <Square className="h-3 w-3" />
-            {t('Cancel')}
+            {t(cancelling ? 'Cancelling…' : q.state === 'queued' ? 'Cancel queued reply' : 'Stop reply')}
           </button>
         )}
       </div>
