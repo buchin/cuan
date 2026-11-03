@@ -570,17 +570,26 @@ export function TaskTerminal({
 
       ws.onclose = async (event) => {
         if (disposed) return
-        interactive.current = false
-        setInput(false)
-        if (term.current) term.current.options.disableStdin = true
+        const retainInput = interactive.current && isTaskActiveRef.current && event.code !== 1000
+        if (!retainInput) {
+          interactive.current = false
+          setInput(false)
+          if (term.current) term.current.options.disableStdin = true
+        } else {
+          setNotice(t('Reconnecting. Unsent input will wait for this terminal session.'))
+        }
 
         if (isTaskActiveRef.current) {
           // Check if interactive endpoint returned 404 (decoupled runner daemon)
           const httpStatus = await probeTerminalAvailability()
+          if (disposed || socket.current !== ws) return
           if (httpStatus === 404) {
+            interactive.current = false
+            setInput(false)
+            if (term.current) term.current.options.disableStdin = true
             // Decoupled runner daemon: quiet live log stream fallback without panicky reconnect loop
             setConnection('streaming')
-            setNotice('')
+            setNotice(t('Terminal session unavailable. Reconnect before entering more input.'))
             setError('')
             isReconnecting.current = false
             retryCount.current = 0
@@ -613,8 +622,8 @@ export function TaskTerminal({
             return
           }
 
-          setConnection('streaming')
-          setNotice('')
+          setConnection(retainInput ? 'disconnected' : 'streaming')
+          setNotice(retainInput ? t('Connection paused. Reconnect to send pending input to this session.') : '')
         } else {
           setConnection('saved')
           if (refreshTimer.current) clearTimeout(refreshTimer.current)

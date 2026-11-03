@@ -246,5 +246,8 @@
   "Studio": "Studio",
   "Go to Studio": "Go to Studio",
   "Write whatever is on your mind…": "Write whatever is on your mind…",
-  "Send": "Send"
+  "Send": "Send",
+  "Reconnecting. Unsent input will wait for this terminal session.": "Reconnecting. Unsent input will wait for this terminal session.",
+  "Terminal session unavailable. Reconnect before entering more input.": "Terminal session unavailable. Reconnect before entering more input.",
+  "Connection paused. Reconnect to send pending input to this session.": "Connection paused. Reconnect to send pending input to this session."
 }

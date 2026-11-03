@@ -92,13 +92,18 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
   task.status=status;task.latest_attempt.status=attemptStatus;delete task.latest_attempt.error_message;if(status==='done'){task.latest_attempt.error_message='Lease expired after accepted result';task.summary='Guide delivered and accepted.'}
   for(const width of [390,1440]){await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room');const card=page.locator('[data-card="task-card"]');await card.waitFor();assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0);if(status==='done'){assert(await card.getByText('Guide delivered and accepted.',{exact:true}).isVisible());assert.equal(await card.getByText('Lease expired after accepted result',{exact:true}).count(),0)}await card.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/task-card-'+status+'-'+width+'.png'})}
  }
- task.status='doing';task.latest_attempt.status='running';const terminalInput=[]
- await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive'}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='stdin')terminalInput.push(data.data)})})
+ task.status='doing';task.latest_attempt.status='running';const terminalInput=[];let terminalSocket,terminalConnections=0
+ await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{terminalSocket=ws;terminalConnections++;ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive'}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='stdin')terminalInput.push(data.data)})})
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room')
   const card=page.locator('[data-card="task-card"]');await card.getByRole('button',{name:'Terminal',exact:true}).click()
   const drawer=page.getByTestId('inbox-task-drawer');await drawer.waitFor();await drawer.locator('.xterm-screen').waitFor()
-  const input=drawer.locator('.xterm-helper-textarea');await input.focus();await page.keyboard.type('x');await page.waitForFunction(()=>true)
+  const input=drawer.locator('.xterm-helper-textarea');await input.focus();await page.keyboard.type('x');await page.waitForTimeout(100)
+  const connectionsBefore=terminalConnections, deliveredBefore=terminalInput.length
+  await terminalSocket.close({code:1012,reason:'fixture reconnect'})
+  await page.waitForTimeout(100);await input.focus();await input.press('Control+l')
+  for(let n=0;n<40&&(terminalConnections===connectionsBefore||terminalInput.length===deliveredBefore);n++)await page.waitForTimeout(100)
+  assert(terminalConnections>connectionsBefore,'same-attempt reconnect must occur');assert.equal(terminalInput.slice(deliveredBefore).join(''),'\u000c','only unsent offline input should flush once')
   await page.screenshot({path:out+'/task-terminal-'+width+'.png'});await drawer.getByRole('button',{name:'Close drawer',exact:true}).click()
   await card.getByRole('button',{name:'Detail',exact:true}).click();await drawer.waitFor();assert.equal(await drawer.locator('.xterm-screen').count(),0);await drawer.getByRole('button',{name:'Close drawer',exact:true}).click()
  }

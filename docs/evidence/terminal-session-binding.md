@@ -347,3 +347,25 @@ Studio-origin completion or the full goal achieved.
 Rendered fixture now additionally verifies that an accepted result summary remains
 visible despite a cleanup error in latest_attempt. Screenshots390/1440 inspected at
 `/home/dev/reports/cuan-accepted-result-card/`; browser checks passed.
+
+## Studio acceptance and reconnect verification
+
+The same Studio-origin room 2a35dcdd-93a5-4cb2-aeff-73cad784c2b7 now
+contains the delivered checklist and coordinator acceptance. Snapshot129 in
+`/home/dev/reports/cuan-chat-e2e/129-studio-accepted.json` confirms task
+msg_734e0ee4-1269-4bb9-ad4b-1ae5012fe753 done and its attempt succeeded.
+The official CLI downloaded attachment f7c3fb43-1711-4971-ac53-f2500aca432e;
+independent reading confirmed 109 Indonesian words and all five agreed points.
+SHA256: d53de6c3ef070bdbd6bad79e3d88888d4daf6f27af911a855bbf6b7ee42a0c66.
+Production attachment previews inspected at390/1440 show all content without
+horizontal overflow. No duplicate work was created for this verification.
+
+Unexpected disconnect now retains unsent input for the active interactive session.
+Stale availability callbacks cannot change a replacement socket; confirmed missing
+sessions disable further typing, and retry exhaustion explains pending input.
+The browser fixture forces1012 closure, types Ctrl-L offline, reconnects to the
+same attempt and asserts exactly one flush without replaying prior input at both
+390/1440. Screenshots inspected in `/home/dev/reports/cuan-terminal-reconnect/`.
+This is controlled reconnect evidence, not a production provider-disconnect test.
+The separate production PTY evidence above proves real stdin/output.
+Frontend419 tests passed; frontend build and browser harness passed.
