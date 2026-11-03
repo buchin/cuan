@@ -246,6 +246,7 @@ export function AppShell({
     return (
       <button
         key={id}
+        data-nav-tone={id}
         title={t(text)}
         aria-label={t(text)}
         aria-current={active ? 'page' : undefined}
@@ -489,6 +490,7 @@ export function AppShell({
           >
             <button
               type="button"
+              data-nav-tone="studio"
               data-testid="bottom-nav-studio"
               aria-label={t('Studio')}
               aria-current={currentTab === 'studio' ? 'page' : undefined}
@@ -501,6 +503,7 @@ export function AppShell({
             {/* Inbox */}
             <button
               key="chat"
+              data-nav-tone="inbox"
               data-testid="bottom-nav-inbox"
               aria-label={t('Inbox')}
               aria-current={isTabActive('inbox') ? 'page' : undefined}
@@ -533,6 +536,7 @@ export function AppShell({
             {/* Pillar 2: Tasks */}
             <button
               key="tasks"
+              data-nav-tone="tasks"
               data-testid="bottom-nav-tasks"
               aria-label={t('Tasks')}
               aria-current={currentTab === 'tasks' ? 'page' : undefined}
@@ -554,6 +558,7 @@ export function AppShell({
             {/* Pillar 3: Projects */}
             <button
               key="projects"
+              data-nav-tone="projects"
               data-testid="bottom-nav-projects"
               aria-label={t('Projects')}
               aria-current={currentTab === 'projects' ? 'page' : undefined}
@@ -713,13 +718,13 @@ export function AppShell({
                       navigate('account')
                     }}
                     className={cn(
-                      'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
+                      'flex min-h-14 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                       currentTab === 'account'
                         ? 'bg-primary/10 text-primary font-semibold'
                         : 'text-foreground/90 hover:bg-muted/50',
                     )}
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-mono font-bold text-xs">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-mono font-bold text-xs">
                       {user?.display_name ? user.display_name.slice(0, 2).toUpperCase() : 'CU'}
                     </div>
                     <div className="min-w-0 flex-1">

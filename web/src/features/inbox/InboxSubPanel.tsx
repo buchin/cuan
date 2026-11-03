@@ -209,10 +209,10 @@ export function ConversationItem({
               </span>
 
             </div>
-            <span className={cn("text-[11px] shrink-0 font-mono tabular-nums", unread > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
+            <span className={cn("text-xs shrink-0 tabular-nums", unread > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
               {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
             </span>
-            {unread > 0 && <span aria-label={`${unread} unread messages`} className="shrink-0 min-w-5 text-center text-xs font-semibold tabular-nums text-foreground">{unread > 99 ? '99+' : unread}</span>}
+            {unread > 0 && <span aria-label={`${unread} unread messages`} className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-foreground">{unread > 99 ? '99+' : unread}</span>}
           </div>
 
           {subject && (
@@ -231,13 +231,13 @@ export function ConversationItem({
                 <span
                   data-testid="task-badge-active"
                   aria-label={`${activeTasks} active tasks`}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
                 >
                   <StatusDot status="working" size="xs" pulse />
                   <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
                 </span>
               )}
-              {reviewTasks > 0 && <span data-testid="task-badge-review" className="text-[11px] text-muted-foreground">{reviewTasks} {t('meninjau hasil')}</span>}
+              {reviewTasks > 0 && <span data-testid="task-badge-review" className="text-xs text-muted-foreground">{reviewTasks} {t('meninjau hasil')}</span>}
 
             </div>
           )}
@@ -448,7 +448,7 @@ export function InboxSubPanel({
               )}
             >
               <span>{t('Chats')}</span>
-              <span className="text-[10px] tabular-nums font-mono">({activeCustomerCount})</span>
+              <span className="text-xs tabular-nums">({activeCustomerCount})</span>
             </button>
             <button
               type="button"
@@ -461,7 +461,7 @@ export function InboxSubPanel({
               )}
             >
               <span>{t('Online')}</span>
-              <span className="text-[10px] tabular-nums font-mono">({onlineVisitorCount})</span>
+              <span className="text-xs tabular-nums">({onlineVisitorCount})</span>
             </button>
           </div>
         )}

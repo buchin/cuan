@@ -286,3 +286,16 @@ Scrum Master dan Development Team **WAJIB** mengevaluasi hasil render secara men
 1. Render aplikasi dan ambil tangkapan layar nyata (*real screenshot*) pada mobile viewport (390px) dan desktop.
 2. Ajukan pertanyaan evaluasi kunci: *"Apakah layar ini terasa tenang, bersahabat, dan memanjakan mata saat dipakai berjam-jam seperti Bear Notes & Things 3, atau masih menyisakan kebisingan visual?"*
 3. **Jika belum mencapai standar kenyamanan ini, tim WAJIB merevisi dan memperbaiki desainnya kembali hingga benar-benar memuaskan sebelum dinyatakan selesai atau di-deploy.**
+
+### 7.6. Aksen navigasi dan skala baca
+
+Arah yang disetujui: calm tidak harus seluruhnya abu-abu. Gunakan aksen warna
+lembut dan konsisten pada ikon navigasi serta indikator status; permukaan card,
+background, dan teks utama tetap netral. Token navigasi dan status di `index.css`
+memiliki pasangan light/dark dengan chroma rendah. Warna tidak menjadi satu-satunya
+penanda: label, ikon, dan status teks tetap tersedia.
+
+Pertahankan Geist untuk UI, dengan monospace untuk terminal, kode dan identifier
+teknis. Header halaman bersama menggunakan20px mobile/24px desktop, judul menu dan
+task14px medium, isi chat15–16px, metadata12px. Identitas akun: avatar36px pada
+trigger/40px pada menu, nama14px medium, email12px muted, target klik minimal56px.

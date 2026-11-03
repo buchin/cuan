@@ -151,3 +151,25 @@ decisions bind to the current digest. Legacy snapshot recovery is retained. The
 review prompt distinguishes board state from acceptance and does not require
 publication unless the approved task requires it. Targeted server Inbox review,
 review binding and delegation tests passed, plus new evidence-revision tests.
+
+## Accepted native result and account/navigation follow-up
+
+Release34b31a59cacaafed58722ac0025f3be0706ebaa6 deployed successfully with matching
+health SHA (`/home/dev/reports/cuan-rereview-deploy.log`). After re-reviewing restored
+evidence, automatic Inbox request10c73583-32a5-4acf-afb6-884e95c899e3 completed;
+message22 reported acceptance and snapshot89 confirms task done, using the same
+third attempt. This is acceptance of the native Inbox-created documentation task,
+not proof of the full production Studio UI entry or native terminal intervention.
+
+Approved UI follow-up: account trigger avatar36px and menu avatar40px, name14px
+medium/email12px, minimum56px trigger. Shared page headings20/24px and Inbox metadata
+12px sans-serif. Unread count gets a muted filled badge. Navigation icons and
+normal status dots use shared low-chroma light/dark tokens; labels/surfaces remain
+neutral. No new theme-selection preference added.
+
+Build and419 frontend tests pass. Browser fixture verifies36px avatar/minimum56px
+trigger, menu opening, no viewport overflow and existing Inbox/terminal interactions.
+Screenshots390/1440 in light/dark rendered and inspected at
+`/home/dev/reports/cuan-wayfinding-type/account-menu-{light-,}{390,1440}.png`.
+This is a shared-component refinement; no claim that every legacy10px label in
+all application pages was audited or removed.

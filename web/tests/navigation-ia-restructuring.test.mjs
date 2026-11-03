@@ -137,7 +137,7 @@ test('3. S59-T3: Mobile Menu Drawer with Operations, System, and Account Links',
   )
 
   // Verify WCAG touch target compliance (min-h-12 / 48px >= 44px)
-  const minHeightMatches = appShellSource.match(/min-h-12/g)
+  const minHeightMatches = appShellSource.match(/min-h-(?:12|14)/g)
   assert.ok(
     minHeightMatches && minHeightMatches.length >= 4,
     'All drawer navigation buttons must satisfy touch target >= 44px (min-h-12)'

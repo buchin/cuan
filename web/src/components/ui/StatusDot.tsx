@@ -67,6 +67,7 @@ export const StatusDot = React.forwardRef<HTMLSpanElement, StatusDotProps>(
     const dot = (
       <span
         ref={ref}
+        data-status-dot={status}
         title={title || defaultTitle}
         aria-label={props["aria-label"] || (typeof label === "string" ? label : status)}
         className={cn(

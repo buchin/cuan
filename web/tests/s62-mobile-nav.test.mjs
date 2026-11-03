@@ -144,10 +144,10 @@ test('3. S62-T1: Clean Mobile Drawer Menu without Schedules Duplication', () => 
   )
 
   // Verify touch target compliance on drawer items (min-h-12 / 48px >= 44px)
-  const minH12Matches = drawerSection.match(/min-h-12/g)
+  const minH12Matches = drawerSection.match(/min-h-(?:12|14)/g)
   assert.ok(
     minH12Matches && minH12Matches.length >= 4,
-    'All drawer navigation buttons must satisfy min-h-12 touch targets'
+    'All drawer navigation buttons must satisfy 48px or larger touch targets'
   )
 })
 

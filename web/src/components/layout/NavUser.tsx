@@ -90,7 +90,7 @@ export function NavUser({
           onClick={() => setMenuOpen(!menuOpen)}
           className={cn(
             'flex w-full items-center gap-2 text-left transition-colors rounded-md',
-            sidebar ? 'h-9 px-2 py-1 text-xs' : 'min-h-11 p-2 text-sm',
+            sidebar ? 'min-h-14 px-2 py-2 text-sm' : 'min-h-11 p-2 text-sm',
             !bottomNavigation && 'hover:bg-accent hover:text-accent-foreground',
             compact && 'justify-center p-1',
             sidebar && 'sidebar-account',
@@ -108,8 +108,8 @@ export function NavUser({
           <div data-avatar="true"
             className={cn(
               'flex shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold rounded-full',
-              sidebar ? 'h-6 w-6 text-[10px]' : 'h-7 w-7 text-xs',
-              bottomNavigation && 'h-5 w-5 text-[9px]',
+              'h-9 w-9 text-xs',
+              
               bottomNavigation && !active && 'bg-muted text-muted-foreground',
             )}
           >
@@ -120,10 +120,10 @@ export function NavUser({
 
           {!compact && !bottomNavigation && (
             <div className="account-label grid min-w-0 flex-1 text-left leading-tight truncate">
-              <span className="truncate font-semibold text-xs text-foreground">
+              <span className="truncate font-medium text-sm text-foreground">
                 {username}
               </span>
-              <span className="truncate text-[10px] text-muted-foreground">
+              <span className="truncate text-xs text-muted-foreground">
                 {email}
               </span>
             </div>
@@ -157,10 +157,10 @@ export function NavUser({
             <button
               type="button"
               onClick={() => { setMenuOpen(false); navigate('/account') }}
-              className="mb-1 flex min-h-11 w-full items-center gap-3 border-b border-border/40 p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mb-1 flex min-h-14 w-full items-center gap-3 border-b border-border/40 p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title={t('Account overview')}
             >
-              <div data-avatar="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+              <div data-avatar="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                 {initials}
               </div>
               <div className="grid min-w-0 flex-1 gap-0.5">
