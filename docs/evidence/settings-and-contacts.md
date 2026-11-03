@@ -25,3 +25,16 @@ local built frontend; API writes were stubbed. Selected fixture screenshots and
 logs are in `/home/dev/reports/cuan-settings-flows`; full page screenshots are in
 `/home/dev/reports/cuan-settings-unified`. These are UI/fixture evidence, not a
 claim that a fresh provider authorization completed end to end.
+
+Follow-up: project Goal was saved through the official guidance CLI and read
+back. The existing create-task service snapshots Goal and Instructions together;
+its preservation test passed. The older database-backed MCP draft creation path
+now also snapshots the project's guidance rather than bypassing it. A real,
+isolated PostgreSQL fixture verified initial guidance, immutable historical task
+context, and updated guidance in a subsequent MCP draft. Evidence:
+`/home/dev/reports/cuan-project-guidance-sql.log`; fixture cluster stopped afterward.
+
+AgentRunner v0.2.0 was published after owner approval. Cuan imports its process
+cleanup primitives through adapters. Targeted consumer tests (including actual
+process descendants and lifecycle/account regressions) passed. No UI or private
+account execution adapter was replaced during this dependency adoption.

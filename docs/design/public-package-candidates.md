@@ -7,7 +7,7 @@ package published as part of the Settings release.
 | --- | --- | --- |
 | [taskfsm](https://github.com/buchin/taskfsm) | Imported in runner/service.go; pinned Go pseudo-version | Public, MIT; tests in repository; no tags or Actions workflows returned |
 | [dodeval](https://github.com/buchin/dodeval) | Imported in runner/dod_evaluator.go; pinned Go pseudo-version | Public, MIT; tests in repository; no tags or Actions workflows returned |
-| [agentrunner](https://github.com/buchin/agentrunner) | Not imported in Cuan go.mod | Public, MIT; tags v0.1.0–v0.1.2; supervisor/executor/timeout/workspace/secret tests; no Actions workflows returned |
+| [agentrunner](https://github.com/buchin/agentrunner) | v0.2.0; process cleanup adapters in internal/agent/process_tree.go | Public, MIT; hardening merged and v0.2.0 released; Go checks workflow added |
 
 Prioritize these packages before extracting more. Add CI and tested consumer
 examples, publish intentional version tags, and update Cuan through explicit
@@ -43,3 +43,7 @@ contracts, configurable provider arguments, and cancellation/version-probe limit
 before using its executor in Cuan. Tags and existing tests alone do not establish
 that it meets the current account-isolation/lifecycle requirements. No external
 package test suite was executed during this read-only review.
+
+## Implemented after approval
+
+AgentRunner hardening is merged at 294b661 and released as v0.2.0. The CLI adapter now uses an explicit environment allowlist, bounded streams with truncation signals, request/version timeouts, opt-in permission bypass, and provider argument overrides. Truncated output is excluded from structured evidence. Local package tests and vet pass. GitHub-hosted jobs could not start because of an account billing lock; no hosted success is claimed. Cuan imports v0.2.0 through three stable process helper wrappers. Its descendant-process and lifecycle/account regression checks pass. Runner task orchestration and private account routing remain Cuan-owned.

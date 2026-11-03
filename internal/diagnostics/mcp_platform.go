@@ -13,6 +13,7 @@ import (
 
 	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/mcp"
+	"github.com/buchin/cuan/internal/project"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -382,8 +383,18 @@ func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priori
 	db := getPlatformDB()
 	var realProjectID string
 	if db != nil {
-		// Resolve project by ID or Name
-		_ = db.QueryRowContext(ctx, "SELECT id FROM projects WHERE id = $1 OR LOWER(name) = LOWER($1) LIMIT 1", projectID).Scan(&realProjectID)
+		var p project.ProjectResponse
+		var metadata []byte
+		err := db.QueryRowContext(ctx, "SELECT id, name, COALESCE(repo_url,''), COALESCE(default_branch,''), COALESCE(metadata,'{}'::jsonb) FROM projects WHERE id = $1 OR LOWER(name) = LOWER($1) LIMIT 1", projectID).Scan(&p.ID, &p.Name, &p.RepoURL, &p.DefaultBranch, &metadata)
+		if err != nil {
+			return nil, fmt.Errorf("project guidance is unavailable; draft was not created")
+		}
+		p.Metadata = metadata
+		realProjectID = p.ID
+		instructions = project.SnapshotProjectGuidance(instructions, &p)
+		if len([]rune(instructions)) > 24000 {
+			return nil, fmt.Errorf("instructions and project guidance exceed 24000 characters")
+		}
 	}
 	if realProjectID == "" {
 		realProjectID = projectID
