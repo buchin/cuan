@@ -458,14 +458,7 @@ export function InboxSubPanel({
               <CheckCheck className="h-4 w-4 text-primary" />
             </IconButton>
           )}
-          <ItemActions
-            label="Inbox"
-            actions={[
-              ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
-            ]}
-          >
-            <span className="sr-only">Actions</span>
-          </ItemActions>
+
         </div>
       </PageHeader>
 

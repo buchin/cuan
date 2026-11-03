@@ -802,7 +802,7 @@ export function TerminalComposer({
       <div
         role="group"
         aria-label="Terminal input composer"
-        className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
+        className="wa-input-capsule flex flex-wrap sm:flex-nowrap min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
       >
         {/* Attachment Picker Button (WCAG >= 44x44px touch target on mobile) */}
         <button
@@ -821,7 +821,7 @@ export function TerminalComposer({
         </button>
 
         {/* Multiline Command / Text Input (Auto-expanding like Inbox with min-h-[44px] on mobile) */}
-        <div className="relative flex-1 min-w-0 flex items-center">
+        <div className="relative order-first w-full flex-none min-w-0 flex items-center sm:order-none sm:w-auto sm:flex-1">
           <textarea
             ref={textareaRef}
             rows={1}
@@ -845,7 +845,7 @@ export function TerminalComposer({
             data-form-type="other"
             data-lpignore="true"
             data-1p-ignore="true"
-            className="wa-input w-full min-w-0 min-h-[44px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2.5 px-3 pr-8 text-xs sm:text-sm font-mono leading-relaxed"
+            className="wa-input w-full min-w-0 min-h-[44px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2.5 px-3 pr-8 text-base sm:text-sm font-mono leading-relaxed"
           />
           {text && (
             <button
@@ -922,7 +922,7 @@ export function TerminalComposer({
           type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
           onClick={() => handleSend()}
-          className={`wa-send min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5 ${
+          className={`wa-send ml-auto sm:ml-0 min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5 ${
             !text.trim() && uploadedFiles.length === 0 ? 'hidden sm:flex' : 'flex'
           }`}
           title="Kirim ke terminal (Enter)"
