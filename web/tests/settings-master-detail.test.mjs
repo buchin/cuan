@@ -133,8 +133,8 @@ test('2. Categorization: 4 semantic categories with Lucide icons, active state, 
 
   // Verify Active State styling
   assert.ok(
-    masterNavSrc.includes('bg-accent text-primary'),
-    'Active navigation item must feature bg-accent and text-primary styling',
+    masterNavSrc.includes('bg-accent text-foreground'),
+    'Active navigation item must use a quiet accent surface and readable foreground',
   )
 
   // Verify Touch Accessibility (min-h-11 for WCAG 2.1 AA)

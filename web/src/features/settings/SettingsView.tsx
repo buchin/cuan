@@ -122,17 +122,6 @@ export function SettingsView({
         className={hasExplicitSection ? 'hidden' : 'block p-4 md:p-6'}
       >
         <div className="space-y-6">
-          <header className="space-y-1">
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              {t(isAccount ? 'Account' : 'Settings')}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {t(isAccount
-                ? 'Personal profile, preferences, and relations.'
-                : 'Manage your workspace, AI intelligence, and personal account.')}
-            </p>
-          </header>
-
           <SettingsMasterNav
             currentSection={hasExplicitSection ? section : ''}
             isAccount={isAccount}

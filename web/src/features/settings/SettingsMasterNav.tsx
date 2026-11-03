@@ -209,7 +209,7 @@ export function SettingsMasterNav({
 
       {categories.map((category) => (
         <div key={category.id} className="space-y-1.5">
-          <h3 className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+          <h3 className="px-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
             {t(category.titleKey)}
           </h3>
           <div className="space-y-1">
@@ -228,17 +228,17 @@ export function SettingsMasterNav({
                   to={targetUrl}
                   onClick={() => onSelectSection?.(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-all min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
+                  className={`group flex min-h-[4.5rem] items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
                     isActive
-                      ? 'bg-accent text-primary font-medium shadow-sm'
+                      ? 'bg-accent text-foreground font-medium'
                       : 'text-foreground/80 hover:bg-accent/50 hover:text-foreground'
                   }`}
                 >
                   <div
-                    className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors ${
                       isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground group-hover:text-foreground'
+                        ? 'bg-muted/50 text-foreground'
+                        : 'bg-muted/30 text-muted-foreground group-hover:text-foreground'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -261,7 +261,7 @@ export function SettingsMasterNav({
                       />
                     </div>
                     <p
-                      className={`mt-1 text-xs leading-normal line-clamp-1 ${
+                      className={`mt-1 text-xs leading-normal line-clamp-2 ${
                         isActive ? 'text-primary/75' : 'text-muted-foreground'
                       }`}
                     >
