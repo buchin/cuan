@@ -700,3 +700,99 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"rep
 		}
 	})
 }
+
+func TestFacadeRunsNewBrainWithoutCreatingPersona(t *testing.T) {
+	s, _, _, p, b, _, _ := setupFailoverFixture(t)
+	owner := p.OwnerID
+	if err := agent.DeleteProviderAccount(owner, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := agent.DeleteProviderAccount(owner, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	create := func(label string) (*agent.ProviderAccount, string) {
+		a, err := agent.CreateProviderAccount(owner, label)
+		if err != nil {
+			t.Fatal(err)
+		}
+		home, _ := agent.ProviderAccountHome(owner, a.ID)
+		if err := os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte("fixture-credential"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		// Persist native verification evidence without registering another persona.
+		file := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", a.ID, "account.json")
+		data, _ := os.ReadFile(file)
+		var meta map[string]any
+		json.Unmarshal(data, &meta)
+		meta["state"] = "unknown"
+		data, _ = json.Marshal(meta)
+		os.WriteFile(file, data, 0600)
+		a, _ = agent.GetProviderAccount(owner, a.ID)
+		return a, home
+	}
+	first, home := create("Fresh sign-in")
+	second, secondHome := create("Second sign-in")
+	facade := &db.Agent{ID: db.AgentIDCuan, Name: "@cuan", Provider: "agy", Harness: "agy", Enabled: true}
+	oldFetch := fetchInboxModelUsage
+	defer func() { fetchInboxModelUsage = oldFetch }()
+	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage { return agent.AccountModelUsage{} }
+	routes := s.providerRoutes(context.Background(), owner, facade, "", false)
+	if len(routes) != 2 {
+		t.Fatalf("unbound brains excluded: %+v", routes)
+	}
+	for _, route := range routes {
+		release, err := s.leaseProviderRoute(context.Background(), owner, facade, route)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release()
+		wrong := route
+		wrong.home = t.TempDir()
+		if release, err := s.leaseProviderRoute(context.Background(), owner, facade, wrong); err == nil {
+			release()
+			t.Fatal("profile path substitution accepted")
+		}
+		if release, err := s.leaseProviderRoute(context.Background(), "another-owner", facade, route); err == nil {
+			release()
+			t.Fatal("other owner's brain accepted")
+		}
+	}
+	// The same direct profile is forbidden to historical personas and impostor names.
+	ordinary := &db.Agent{ID: "agent_other", Name: "@cuan", Provider: "agy", Harness: "agy"}
+	if _, err := s.inboxAccountProfileHome(context.Background(), owner, ordinary, first); err == nil {
+		t.Fatal("display name granted facade privileges")
+	}
+	partial := *first
+	partial.AgentID = "missing_agent"
+	if _, err := s.inboxAccountProfileHome(context.Background(), owner, facade, &partial); err == nil {
+		t.Fatal("partial binding bypassed")
+	}
+	bad := *first
+	bad.Provider = "commandcode"
+	if _, err := s.inboxAccountProfileHome(context.Background(), owner, facade, &bad); err == nil {
+		t.Fatal("provider mismatch bypassed")
+	}
+	bad = *first
+	bad.State = "unavailable"
+	if _, err := s.inboxAccountProfileHome(context.Background(), owner, facade, &bad); err == nil {
+		t.Fatal("unavailable brain selected")
+	}
+	out, failure := s.executeInboxWithFailover(context.Background(), owner, facade, "Analyze", "", t.TempDir(), false, nil)
+	if out == "" || failure != "" {
+		t.Fatal(out, failure)
+	}
+	firstCalls, _ := os.ReadFile(filepath.Join(home, "calls"))
+	secondCalls, _ := os.ReadFile(filepath.Join(secondHome, "calls"))
+	if len(firstCalls)+len(secondCalls) != 1 {
+		t.Fatal("expected exactly one provider execution")
+	}
+	for _, id := range []string{first.ID, second.ID} {
+		current, _ := agent.GetProviderAccount(owner, id)
+		if current.AgentID != "" || current.ConnectionID != "" || current.AllowModelFallback || current.AllowFailover {
+			t.Fatal("routing altered user settings", current)
+		}
+	}
+}

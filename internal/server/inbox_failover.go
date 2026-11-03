@@ -317,29 +317,13 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			break
 		}
 		isEligible := candidate.AllowFailover || isCuanFacade
-		if candidate.Legacy || !isEligible || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
+		if candidate.Legacy || !isEligible || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || (!isCuanFacade && (candidate.AgentID == "" || candidate.ConnectionID == "")) || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
 			continue
 		}
 		if candidate.State == "quota_limited" && (candidate.QuotaRetryAt == nil || time.Now().Before(*candidate.QuotaRetryAt)) {
 			continue
 		}
-		bound, err := s.agentRepo.GetAgentByID(ctx, candidate.AgentID)
-		if (err != nil || bound == nil) && s.agentRepo != nil {
-			cleanID := strings.TrimPrefix(candidate.AgentID, "@")
-			if ag, e := s.agentRepo.GetAgentByID(ctx, "agent_"+cleanID); e == nil && ag != nil {
-				bound = ag
-				err = nil
-			}
-		}
-		boundHarness := ""
-		if bound != nil {
-			boundHarness = db.NormalizeHarness(bound.Harness, bound.Provider)
-		}
-		isRunnable := bound != nil && (bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "")
-		if err != nil || !isRunnable || (bound.ConnectionID != "" && candidate.ConnectionID != "" && bound.ConnectionID != candidate.ConnectionID) || (boundHarness != "agy" && boundHarness != "antigravity" && boundHarness != "") {
-			continue
-		}
-		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
+		candidateHome, err := s.inboxAccountProfileHome(ctx, owner, registered, candidate)
 		if err == nil && candidateHome != "" {
 			_ = agent.PrepareAntigravitySettings(candidateHome)
 			_ = agent.PrepareAntigravityReadOnlyPermissions(candidateHome)
@@ -499,31 +483,42 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 		allowed = false
 	}
 	if allowed {
-		bound, e := s.agentRepo.GetAgentByID(ctx, profile.AgentID)
-		if (e != nil || bound == nil) && s.agentRepo != nil {
-			cleanID := strings.TrimPrefix(profile.AgentID, "@")
-			if ag, err := s.agentRepo.GetAgentByID(ctx, "agent_"+cleanID); err == nil && ag != nil {
-				bound = ag
-				e = nil
-			}
-		}
-		boundHarness := ""
-		if bound != nil {
-			boundHarness = db.NormalizeHarness(bound.Harness, bound.Provider)
-		}
-		isRunnable := bound != nil && (bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "")
-		if e != nil || !isRunnable || (bound.ConnectionID != "" && profile.ConnectionID != "" && bound.ConnectionID != profile.ConnectionID) || (boundHarness != "agy" && boundHarness != "antigravity" && boundHarness != "") {
-			allowed = false
-		} else {
-			home, e := s.ownedAgentProfileHome(ctx, owner, bound)
-			if e != nil || home != route.home {
-				allowed = false
-			}
-		}
+		home, e := s.inboxAccountProfileHome(ctx, owner, registered, profile)
+		allowed = e == nil && home == route.home
 	}
+
 	if !allowed {
 		release()
 		return nil, fmt.Errorf("Provider route is no longer allowed")
 	}
 	return release, nil
+}
+
+// New account onboarding connects a brain to the assistant, without creating a
+// public persona. Legacy bound accounts still obey their agent enablement and
+// binding checks; partially bound metadata must never bypass those checks.
+func (s *Server) inboxAccountProfileHome(ctx context.Context, owner string, registered *db.Agent, profile *agent.ProviderAccount) (string, error) {
+	if profile == nil || profile.Legacy || !profile.CredentialsPresent || (profile.Provider != "agy" && profile.Provider != "antigravity") || profile.State == "login_required" || profile.State == "unavailable" || profile.State == "setup_incomplete" {
+		return "", errors.New("Account is not ready for this provider")
+	}
+	isFacade := registered.ID == db.AgentIDCuan
+	if isFacade && profile.AgentID == "" && profile.ConnectionID == "" {
+		return agent.ProviderAccountHome(owner, profile.ID)
+	}
+	if s.agentRepo == nil || profile.AgentID == "" || profile.ConnectionID == "" {
+		return "", errors.New("Account binding is incomplete")
+	}
+	bound, err := s.agentRepo.GetAgentByID(ctx, profile.AgentID)
+	if err != nil || bound == nil {
+		cleanID := strings.TrimPrefix(profile.AgentID, "@")
+		bound, err = s.agentRepo.GetAgentByID(ctx, "agent_"+cleanID)
+	}
+	if err != nil || bound == nil || !(bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "") || (bound.ConnectionID != "" && bound.ConnectionID != profile.ConnectionID) {
+		return "", errors.New("Account binding is not runnable")
+	}
+	harness := db.NormalizeHarness(bound.Harness, bound.Provider)
+	if harness != "agy" && harness != "antigravity" && harness != "" {
+		return "", errors.New("Account provider does not match its binding")
+	}
+	return s.ownedAgentProfileHome(ctx, owner, bound)
 }

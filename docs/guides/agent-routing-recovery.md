@@ -42,3 +42,12 @@ Discovery does not run inference or establish remaining quota. A quota-limited
 account can still return its catalog. Catalog reads use the existing bounded
 profile lease and cache, so they do not interrupt active work. A failed read
 must leave a previously saved model selection intact in the consuming UI.
+
+## Newly connected brains
+
+The canonical Cuan assistant can use a signed-in private Antigravity account
+without a legacy persona/connection binding. This matches account onboarding in
+Settings: connecting a brain does not create another public agent. Historical
+bound accounts still obey binding and enablement checks; partially bound records
+fail closed. Routing revalidates owner, provider, readiness, cooldown and exact
+profile home under the execution lease. Model/fallback preferences are preserved.
