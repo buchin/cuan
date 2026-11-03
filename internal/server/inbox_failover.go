@@ -39,9 +39,10 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		}
 	}
 
-	if registered.Harness != "agy" && registered.Harness != "antigravity" {
+	normHarness := db.NormalizeHarness(registered.Harness, registered.Provider)
+	if normHarness != "agy" && normHarness != "antigravity" {
 		execCtx := ctx
-		if registered.Harness == "commandcode" {
+		if normHarness == "commandcode" {
 			var conn *db.AgentConnection
 			if registered.ConnectionID != "" {
 				conn, _ = s.agentRepo.GetConnectionByID(ctx, registered.ConnectionID)
@@ -61,12 +62,12 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		if idx := strings.Index(modelID, "#"); idx != -1 {
 			modelID = modelID[idx+1:]
 		}
-		if hasImageAttachment && !agent.IsModelVisionCapable(registered.Harness, modelID) {
+		if hasImageAttachment && !agent.IsModelVisionCapable(normHarness, modelID) {
 			fallbackID := strings.TrimSpace(registered.FallbackModelID)
 			if idx := strings.Index(fallbackID, "#"); idx != -1 {
 				fallbackID = fallbackID[idx+1:]
 			}
-			if fallbackID != "" && agent.IsModelVisionCapable(registered.Harness, fallbackID) {
+			if fallbackID != "" && agent.IsModelVisionCapable(normHarness, fallbackID) {
 				modelID = fallbackID
 			} else {
 				return "", fmt.Sprintf("Model %s does not support image input (vision). Remove image attachments or switch to a vision-capable model.", modelID)
@@ -75,7 +76,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		if modelID != "" && !strings.HasPrefix(modelID, "conn_") && modelID != "commandcode-default" && modelID != "default" {
 			execCtx = context.WithValue(execCtx, inboxModelKey{}, modelID)
 		}
-		out, fail := s.executeInboxCLI(execCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
+		out, fail := s.executeInboxCLI(execCtx, registered.Name, normHarness, prompt, home, workspace, step, attachments...)
 		if out != "" {
 			return out, ""
 		}
@@ -88,7 +89,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 				step("model_fallback", fmt.Sprintf("Primary model %s encountered limit or error. Routing to fallback model %s.", modelID, fallbackID))
 			}
 			fbCtx := context.WithValue(execCtx, inboxModelKey{}, fallbackID)
-			fbOut, fbFail := s.executeInboxCLI(fbCtx, registered.Name, registered.Harness, prompt, home, workspace, step, attachments...)
+			fbOut, fbFail := s.executeInboxCLI(fbCtx, registered.Name, normHarness, prompt, home, workspace, step, attachments...)
 			if fbOut != "" {
 				return fbOut, ""
 			}
@@ -163,7 +164,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 				}
 				_ = agent.PrepareAntigravityReadOnlyPermissions(route.home)
 			}
-			return s.executeInboxCLIWithSafety(attemptCtx, registered.Name, registered.Harness, prompt, route.home, workspace, step, &safe, attachments...)
+			return s.executeInboxCLIWithSafety(attemptCtx, registered.Name, normHarness, prompt, route.home, workspace, step, &safe, attachments...)
 		}()
 		if output != "" {
 			if step != nil && (!route.primary || attempts > 1) {
@@ -279,6 +280,27 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		profiles = nil
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].ID < profiles[j].ID })
+
+	isCuanFacade := registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan"
+	if primary == nil && isCuanFacade {
+		if _, healthyAcct, err := agent.ResolveHealthyAccountProfile(owner); err == nil && healthyAcct != nil {
+			primary = healthyAcct
+			if home == "" {
+				home, _ = agent.ProviderAccountHome(owner, primary.ID)
+			}
+		} else {
+			for _, p := range profiles {
+				if !p.Legacy && p.CredentialsPresent && p.State != "login_required" && p.State != "unavailable" && p.State != "setup_incomplete" {
+					primary = p
+					if home == "" {
+						home, _ = agent.ProviderAccountHome(owner, primary.ID)
+					}
+					break
+				}
+			}
+		}
+	}
+
 	type candidateRoute struct {
 		profile *agent.ProviderAccount
 		home    string
@@ -289,7 +311,8 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		if len(candidates) >= 8 {
 			break
 		}
-		if candidate.Legacy || !candidate.AllowFailover || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
+		isEligible := candidate.AllowFailover || isCuanFacade
+		if candidate.Legacy || !isEligible || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || candidate.AgentID == "" || candidate.ConnectionID == "" || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
 			continue
 		}
 		if candidate.State == "quota_limited" && (candidate.QuotaRetryAt == nil || time.Now().Before(*candidate.QuotaRetryAt)) {
@@ -303,8 +326,12 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 				err = nil
 			}
 		}
+		boundHarness := ""
+		if bound != nil {
+			boundHarness = db.NormalizeHarness(bound.Harness, bound.Provider)
+		}
 		isRunnable := bound != nil && (bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "")
-		if err != nil || !isRunnable || (bound.ConnectionID != "" && candidate.ConnectionID != "" && bound.ConnectionID != candidate.ConnectionID) || (bound.Harness != "agy" && bound.Harness != "antigravity" && bound.Harness != "") {
+		if err != nil || !isRunnable || (bound.ConnectionID != "" && candidate.ConnectionID != "" && bound.ConnectionID != candidate.ConnectionID) || (boundHarness != "agy" && boundHarness != "antigravity" && boundHarness != "") {
 			continue
 		}
 		candidateHome, err := s.ownedAgentProfileHome(ctx, owner, bound)
@@ -452,7 +479,8 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 		return release, nil
 	}
 	profile, err := agent.GetProviderAccount(owner, route.accountID)
-	allowed := err == nil && profile.CredentialsPresent && ((route.primary && profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || (!route.primary && profile.AllowFailover))
+	isCuanFacade := registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan"
+	allowed := err == nil && profile.CredentialsPresent && ((route.primary && ((profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || isCuanFacade)) || (!route.primary && (profile.AllowFailover || isCuanFacade)))
 	if allowed && route.model != "" && route.model != registered.ModelID && route.model != registered.FallbackModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
 		allowed = false
 	}
@@ -471,8 +499,12 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 				e = nil
 			}
 		}
+		boundHarness := ""
+		if bound != nil {
+			boundHarness = db.NormalizeHarness(bound.Harness, bound.Provider)
+		}
 		isRunnable := bound != nil && (bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "")
-		if e != nil || !isRunnable || (bound.ConnectionID != "" && profile.ConnectionID != "" && bound.ConnectionID != profile.ConnectionID) || (bound.Harness != "agy" && bound.Harness != "antigravity" && bound.Harness != "") {
+		if e != nil || !isRunnable || (bound.ConnectionID != "" && profile.ConnectionID != "" && bound.ConnectionID != profile.ConnectionID) || (boundHarness != "agy" && boundHarness != "antigravity" && boundHarness != "") {
 			allowed = false
 		} else {
 			home, e := s.ownedAgentProfileHome(ctx, owner, bound)

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/db"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/workflow"
 )
@@ -86,12 +87,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if retrySafe != nil {
 		*retrySafe = false
 	}
+	normHarness := db.NormalizeHarness(harness, "")
 	for _, file := range attachmentPaths {
 		ext := strings.ToLower(filepath.Ext(file))
 		isImage := ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp"
 		if isImage {
 			model, _ := ctx.Value(inboxModelKey{}).(string)
-			binary := harness
+			binary := normHarness
 			if binary == "" {
 				binary = "agy"
 			}
@@ -135,7 +137,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
 		if err != nil {
-			if alreadyRepaired || harness == "commandcode" {
+			if alreadyRepaired || normHarness == "commandcode" {
 				return recoverCoordinatorReply(reply, analysisRecovery)
 			}
 			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
@@ -144,7 +146,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	binary := "agy"
 	var args []string
-	switch harness {
+	switch normHarness {
 	case "claude":
 		binary = "claude"
 		args = []string{"-p", "--permission-mode", "plan", "--allowedTools", "Read,Glob,Grep", "--tools", "Read,Glob,Grep", "--output-format", "text", system}

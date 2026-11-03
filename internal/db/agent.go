@@ -53,6 +53,31 @@ func NormalizeAgentStatus(status string) (string, error) {
 	}
 }
 
+// NormalizeHarness normalizes an agent CLI harness or provider name to a canonical runner name:
+// "agy", "claude", "codex", or "commandcode".
+// Provider aliases like "google", "antigravity", "cuan", "gemini" normalize to "agy".
+// Provider aliases like "anthropic" normalize to "claude".
+// Provider aliases like "openai" normalize to "codex".
+func NormalizeHarness(harness, provider string) string {
+	h := strings.ToLower(strings.TrimSpace(harness))
+	p := strings.ToLower(strings.TrimSpace(provider))
+	if h == "" {
+		h = p
+	}
+	switch h {
+	case "google", "agy", "antigravity", "cuan", "gemini", "":
+		return "agy"
+	case "anthropic", "claude":
+		return "claude"
+	case "openai", "codex":
+		return "codex"
+	case "commandcode", "command_code":
+		return "commandcode"
+	default:
+		return h
+	}
+}
+
 // NormalizeConnectionStatus validates and returns lowercase connection status.
 func NormalizeConnectionStatus(status string) (string, error) {
 	norm := strings.ToLower(strings.TrimSpace(status))
@@ -120,7 +145,7 @@ func (a *Agent) Clone() *Agent {
 	return &Agent{
 		ID:              a.ID,
 		Name:            a.Name,
-		Harness:         a.Harness,
+		Harness:         NormalizeHarness(a.Harness, a.Provider),
 		ConnectionID:    connID,
 		Enabled:         a.Enabled,
 		Avatar:          a.Avatar,
@@ -161,13 +186,7 @@ type AgentDTO struct {
 
 // ToDTO converts an Agent entity to its public AgentDTO representation.
 func (a *Agent) ToDTO() AgentDTO {
-	harness := strings.TrimSpace(a.Harness)
-	if harness == "" {
-		harness = strings.TrimSpace(a.Provider)
-	}
-	if harness == "" {
-		harness = "agy"
-	}
+	harness := NormalizeHarness(a.Harness, a.Provider)
 	connID := strings.TrimSpace(a.ConnectionID)
 	modelID := a.ModelID
 	if strings.HasPrefix(a.ModelID, "conn_") {
@@ -675,19 +694,9 @@ func (r *SQLAgentRepository) CreateAgent(ctx context.Context, agent *Agent) erro
 	if strings.TrimSpace(agent.ID) == "" {
 		agent.ID = GenerateUUID()
 	}
+	agent.Harness = NormalizeHarness(agent.Harness, agent.Provider)
 	if strings.TrimSpace(agent.Provider) == "" {
-		if strings.TrimSpace(agent.Harness) != "" {
-			agent.Provider = agent.Harness
-		} else {
-			agent.Provider = DefaultAgentProvider
-		}
-	}
-	if strings.TrimSpace(agent.Harness) == "" {
-		if agent.Provider != DefaultAgentProvider {
-			agent.Harness = agent.Provider
-		} else {
-			agent.Harness = "agy"
-		}
+		agent.Provider = agent.Harness
 	}
 	if strings.TrimSpace(agent.ConnectionID) != "" {
 		if agent.ModelID != "" && agent.ModelID != agent.ConnectionID && !strings.HasPrefix(agent.ModelID, "conn_") {
@@ -787,9 +796,7 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 		budget := int(tokenBudget.Int64)
 		a.TokenBudget = &budget
 	}
-	if a.Harness == "" {
-		a.Harness = a.Provider
-	}
+	a.Harness = NormalizeHarness(a.Harness, a.Provider)
 	if strings.HasPrefix(a.ModelID, "conn_") {
 		if idx := strings.Index(a.ModelID, "#"); idx != -1 {
 			if a.ConnectionID == "" {
@@ -896,9 +903,7 @@ func (r *SQLAgentRepository) ListAgents(ctx context.Context, filter AgentFilter)
 			budget := int(tokenBudget.Int64)
 			a.TokenBudget = &budget
 		}
-		if a.Harness == "" {
-			a.Harness = a.Provider
-		}
+		a.Harness = NormalizeHarness(a.Harness, a.Provider)
 		if strings.HasPrefix(a.ModelID, "conn_") {
 			if idx := strings.Index(a.ModelID, "#"); idx != -1 {
 				if a.ConnectionID == "" {
@@ -927,6 +932,7 @@ func (r *SQLAgentRepository) UpdateAgent(ctx context.Context, agent *Agent) erro
 	if strings.TrimSpace(agent.Name) == "" {
 		return ErrEmptyAgentName
 	}
+	agent.Harness = NormalizeHarness(agent.Harness, agent.Provider)
 	if strings.TrimSpace(agent.Harness) != "" {
 		agent.Provider = agent.Harness
 	}

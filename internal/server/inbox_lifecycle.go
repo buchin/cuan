@@ -240,6 +240,10 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							status = profile.State
 						}
 					}
+				} else if registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan" {
+					if _, healthy, err := agent.ResolveHealthyAccountProfile(q.OwnerID); err == nil && healthy != nil {
+						status = healthy.State
+					}
 				}
 				home, err := s.ownedAgentProfileHome(ctx, q.OwnerID, registered)
 				if err != nil {

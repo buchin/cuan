@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/config"
 	cuanDB "github.com/buchin/cuan/internal/db"
@@ -1121,6 +1124,9 @@ func TestChat_SingleAgentCuanMentionAndContacts(t *testing.T) {
 	if !resCuan.IsAgent || resCuan.TargetAgentID != cuanDB.AgentIDCuan {
 		t.Fatalf("expected mention @cuan to resolve to agent_cuan, got %+v", resCuan)
 	}
+	if resCuan.TargetHarness != "agy" {
+		t.Fatalf("expected TargetHarness 'agy', got %q", resCuan.TargetHarness)
+	}
 
 	// 3. Test legacy alias mentions (@team, @sm, @dev, @support) resolve to agent_cuan
 	for _, mention := range []string{"@team halo", "@sm sprint", "@dev build", "@support help"} {
@@ -1128,5 +1134,87 @@ func TestChat_SingleAgentCuanMentionAndContacts(t *testing.T) {
 		if !resLegacy.IsAgent || resLegacy.TargetAgentID != cuanDB.AgentIDCuan {
 			t.Fatalf("expected legacy mention %q to resolve to agent_cuan, got %+v", mention, resLegacy)
 		}
+		if resLegacy.TargetHarness != "agy" {
+			t.Fatalf("expected legacy mention %q TargetHarness 'agy', got %q", mention, resLegacy.TargetHarness)
+		}
+	}
+}
+
+func TestCuanAgent_LoadBalancerRouting(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, token := setupTestChatServer(t)
+	repo := cuanDB.NewMemoryAgentRepository()
+	srv.SetAgentRepository(repo)
+
+	if err := cuanDB.EnsureBuiltinAgents(context.Background(), repo); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify @cuan has normalized harness "agy" even if provider is "google"
+	cuanAgent, err := repo.GetAgentByID(context.Background(), cuanDB.AgentIDCuan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cuanAgent.Harness != "agy" {
+		t.Fatalf("expected @cuan Harness to be 'agy', got %q", cuanAgent.Harness)
+	}
+
+	// Create an active provider account owned by the user
+	ctx := context.Background()
+	owner, err := srv.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	acct, err := agent.CreateProviderAccount(owner.ID, "Google Workspace (@sm)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := agent.ProviderAccountHome(owner.ID, acct.ID)
+	_ = os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700)
+	_ = os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte("fixture-credential"), 0600)
+
+	body := `{"name":"@primary","handle":"@primary","provider":"agy","account_id":"` + acct.ID + `"}`
+	r := httptest.NewRequest("POST", "/api/v1/agents/connect-cli", strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, r)
+	if w.Code != 201 && w.Code != 200 {
+		t.Fatalf("connect-cli failed: %d %s", w.Code, w.Body.String())
+	}
+
+	metaPath := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", acct.ID, "account.json")
+	metaData, _ := os.ReadFile(metaPath)
+	var meta map[string]any
+	_ = json.Unmarshal(metaData, &meta)
+	meta["state"] = "verified"
+	metaData, _ = json.Marshal(meta)
+	_ = os.WriteFile(metaPath, metaData, 0600)
+
+	// Test providerRoutes for @cuan facade: it MUST discover and route to the active connected account
+	routes := srv.providerRoutes(ctx, owner.ID, cuanAgent, "", false)
+	if len(routes) == 0 {
+		t.Fatalf("expected @cuan to route through active provider account in load balancer pool, got 0 routes")
+	}
+
+	// Verify route properties
+	foundSMRoute := false
+	for _, r := range routes {
+		if r.accountID == acct.ID {
+			foundSMRoute = true
+			break
+		}
+	}
+	if !foundSMRoute {
+		t.Fatalf("expected routes to contain account %s, got: %+v", acct.ID, routes)
+	}
+
+	// Test leaseProviderRoute: @cuan must be allowed to lease this route
+	release, err := srv.leaseProviderRoute(ctx, owner.ID, cuanAgent, routes[0])
+	if err != nil {
+		t.Fatalf("expected leaseProviderRoute to succeed for @cuan facade, got error: %v", err)
+	}
+	if release != nil {
+		release()
 	}
 }

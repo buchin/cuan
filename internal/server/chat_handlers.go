@@ -1043,7 +1043,8 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 			}
 			result.RoomID = foundRoomID
 		}
-		return result
+		result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
+	return result
 	}
 
 	// 5. If convID is a room UUID in projectStudioRepo
@@ -1063,7 +1064,8 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 					}
 				}
 				if _, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil {
-					return result
+					result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
+	return result
 				}
 				result.IsAgent = false
 			}
@@ -1211,6 +1213,7 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 		}
 	}
 
+	result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
 	return result
 }
 

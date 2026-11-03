@@ -266,10 +266,7 @@ func (s *Server) findHealthyTaskAgentFailover(ctx context.Context, ownerID, curr
 		if cleanA == cleanCurrent || strings.TrimPrefix(cleanA, "agent_") == cleanCurrent || cleanCurrent == "agent_"+cleanA {
 			continue
 		}
-		harness := a.Harness
-		if harness == "" {
-			harness = "agy"
-		}
+		harness := db.NormalizeHarness(a.Harness, a.Provider)
 		if harness != "agy" && harness != "antigravity" && harness != "commandcode" && harness != "claude" {
 			continue
 		}
@@ -296,10 +293,7 @@ func agentEntitySupportsVision(a *db.Agent) bool {
 	if a == nil {
 		return false
 	}
-	harness := a.Harness
-	if harness == "" {
-		harness = "agy"
-	}
+	harness := db.NormalizeHarness(a.Harness, a.Provider)
 	provider := a.Provider
 	if provider == "" {
 		provider = harness

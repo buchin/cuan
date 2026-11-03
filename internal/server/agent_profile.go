@@ -19,7 +19,8 @@ func (s *Server) agentProfileHome(ctx context.Context, a *db.Agent) (string, err
 	if !strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 		return "", nil
 	}
-	if a.Harness != "agy" && a.Harness != "antigravity" && a.Harness != "commandcode" {
+	harness := db.NormalizeHarness(a.Harness, a.Provider)
+	if harness != "agy" && harness != "antigravity" && harness != "commandcode" {
 		return "", errors.New("Agent type does not match its connection")
 	}
 	conn, err := s.agentRepo.GetConnectionByID(ctx, a.ConnectionID)
@@ -53,11 +54,12 @@ func (s *Server) handleVerifyAgentProfile(w http.ResponseWriter, r *http.Request
 		respondJSONError(w, 404, "Agent not found")
 		return
 	}
-	if a.Harness != "agy" && a.Provider != "agy" && a.Provider != "antigravity" && a.Harness != "commandcode" && a.Provider != "commandcode" {
+	harness := db.NormalizeHarness(a.Harness, a.Provider)
+	if harness != "agy" && harness != "antigravity" && harness != "commandcode" {
 		respondJSONError(w, 409, "Connection checks are not available for this agent type")
 		return
 	}
-	if a.Harness == "commandcode" || a.Provider == "commandcode" {
+	if harness == "commandcode" {
 		conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
 		if (err != nil || conn == nil || conn.CredentialsEncrypted == "") && owner != "" {
 			if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), owner, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
@@ -179,6 +181,27 @@ func (s *Server) rollbackAgentRegistration(agentID, connectionID string, connect
 // Execution must bind the profile to the authenticated request owner as well as
 // the registered agent. Stored connection metadata is not itself authorization.
 func (s *Server) ownedAgentProfileHome(ctx context.Context, owner string, a *db.Agent) (string, error) {
+	if a == nil {
+		return "", errors.New("agent is nil")
+	}
+	if a.ID == db.AgentIDCuan || a.Name == db.DefaultAgentHandle || a.Name == "@cuan" {
+		if !strings.HasPrefix(a.ConnectionID, "conn_profile_") {
+			if home, _, err := agent.ResolveHealthyAccountProfile(owner); err == nil && home != "" {
+				return home, nil
+			}
+			if profiles, err := agent.ListProviderAccounts(owner); err == nil {
+				for _, p := range profiles {
+					if !p.Legacy && p.CredentialsPresent && p.State != "login_required" && p.State != "unavailable" && p.State != "setup_incomplete" {
+						if bound, err := s.agentRepo.GetAgentByID(ctx, p.AgentID); err == nil && bound != nil {
+							if h, err := s.agentProfileHome(ctx, bound); err == nil && h != "" {
+								return h, nil
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 		conn, e := s.agentRepo.GetConnectionByID(ctx, a.ConnectionID)
 		if e != nil || conn == nil || conn.UserID != owner {

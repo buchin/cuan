@@ -397,7 +397,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	expectedBinary := "agy"
-	switch registeredAgent.Harness {
+	harness := db.NormalizeHarness(registeredAgent.Harness, registeredAgent.Provider)
+	switch harness {
 	case "claude":
 		expectedBinary = "claude"
 	case "codex":
