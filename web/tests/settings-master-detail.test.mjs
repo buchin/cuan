@@ -90,7 +90,7 @@ test('2. Categorization: 4 semantic categories with Lucide icons, active state, 
     'Integrations setting must be within Connectivity & Relations',
   )
   assert.ok(
-    masterNavSrc.includes("id: 'contacts'"),
+    masterNavSrc.includes("id: 'integrations'"),
     'Contacts setting must be within Connectivity & Relations',
   )
 
@@ -182,11 +182,11 @@ test('4. Responsiveness: Master-first mobile pattern and ChevronLeft return butt
 
   // Mobile back button with ChevronLeft and ← Back to Settings
   assert.ok(
-    settingsViewSrc.includes('ChevronLeft'),
+    fs.readFileSync(new URL('../src/components/layout/DetailLayout.tsx', import.meta.url), 'utf8').includes('ChevronLeft'),
     'SettingsView must import and render ChevronLeft icon for mobile back action',
   )
   assert.ok(
-    settingsViewSrc.includes("t('← Back to Settings')"),
+    settingsViewSrc.includes("'Back to Settings'"),
     'SettingsView must display translated ← Back to Settings label',
   )
 })
@@ -371,7 +371,7 @@ test('7. Mobile Responsive Constraints & Touch Target: p-4 md:p-6, max-w-4xl, mi
 
   // Mobile back button minimum touch target min-h-11 (WCAG 2.1 AA 44px)
   assert.ok(
-    settingsViewSrc.includes('min-h-11 items-center gap-1.5 rounded-md'),
+    fs.readFileSync(new URL('../src/components/layout/DetailLayout.tsx', import.meta.url), 'utf8').includes('min-h-11 items-center gap-1'),
     'Mobile back button must enforce min-h-11 touch target',
   )
 

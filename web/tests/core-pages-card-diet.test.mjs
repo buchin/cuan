@@ -85,9 +85,9 @@ test('4. S59-T4 SettingsView: Apple & Things 3 Inset Grouped Rows', () => {
 
   // Semantic grouping
   assert.match(content, /title=\{t\('Interface & Language'\)\}/, 'SettingsView must group appearance settings')
-  assert.match(content, /title=\{t\('AI Intelligence'\)\}/, 'SettingsView must group AI intelligence settings')
-  assert.match(content, /title=\{t\('Productivity & Shortcuts'\)\}/, 'SettingsView must group shortcuts settings')
-  assert.match(content, /title=\{t\('Project settings'\)\}/, 'SettingsView must group project settings')
+  assert.match(content, /<GeneralSettings/, 'General settings must delegate to its shared component')
+  assert.match(fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8'), /Productivity & Shortcuts/, 'General settings retains shortcuts')
+  assert.ok(!content.includes("title={t('Project settings')}"), 'Project settings must stay in the project workspace')
 
   // Zero nested cards
   assert.ok(!content.includes('CardContent'), 'SettingsView must not use CardContent')

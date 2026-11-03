@@ -54,7 +54,7 @@ test('2. Settings Apps & Skills View: Sub-tabs, 1-Click Connect/Disconnect, and 
   // Sub-tabs
   assert.ok(viewSrc.includes("data-testid=\"subtab-apps\""), 'AppsSkillsView must render subtab-apps button')
   assert.ok(viewSrc.includes("data-testid=\"subtab-skills\""), 'AppsSkillsView must render subtab-skills button')
-  assert.ok(viewSrc.includes("role=\"tab\""), 'Sub-tab switcher must use accessible role="tab"')
+  assert.ok(viewSrc.includes('<ListTab selected='), 'Sub-tab switcher must use accessible role="tab"')
 
   // 1-Click Connect & Disconnect buttons
   assert.ok(viewSrc.includes('data-testid={`connect-btn-${app.id}`}'), 'Must render 1-click connect button')
@@ -97,7 +97,7 @@ test('3. Navigation Integration: SettingsMasterNav and SettingsView route mappin
     'SettingsView must handle apps-skills route section',
   )
   assert.ok(
-    settingsViewSrc.includes("<AppsSkillsView />"),
+    settingsViewSrc.includes("<AppsSkillsView showHeading={false} />"),
     'SettingsView must render <AppsSkillsView />',
   )
 })

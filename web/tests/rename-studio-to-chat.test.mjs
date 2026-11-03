@@ -133,7 +133,7 @@ test('6. Internal Navigation References: Updated from Studio to Chat', () => {
     'SettingsView must accept returnTo /chat as safe return path',
   )
   assert.ok(
-    settingsSource.includes('← Back to Chat'),
+    settingsSource.includes('Back to conversation'),
     'SettingsView must render ← Back to Chat label',
   )
 

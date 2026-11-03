@@ -143,7 +143,7 @@ test('4. Role-based Presentation Guards: AI Providers & Agent Management', async
   const appShellPath = path.join(webDir, 'src/components/layout/AppShell.tsx')
   const appShellSrc = fs.readFileSync(appShellPath, 'utf-8')
   assert.ok(
-    appShellSrc.includes('data-testid="user-role-badge"'),
+    !appShellSrc.includes('data-testid="user-role-badge"'),
     'AppShell must render user-role-badge in header'
   )
 

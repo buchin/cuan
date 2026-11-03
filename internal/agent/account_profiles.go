@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -124,6 +125,20 @@ func extractAccountEmail(home string) string {
 			Email   string `json:"email"`
 		}
 		if json.Unmarshal(raw, &root) == nil {
+			var nested struct {
+				Token struct {
+					Email   string `json:"email"`
+					IDToken string `json:"id_token"`
+				} `json:"token"`
+			}
+			if json.Unmarshal(raw, &nested) == nil {
+				if root.Email == "" {
+					root.Email = nested.Token.Email
+				}
+				if root.IDToken == "" {
+					root.IDToken = nested.Token.IDToken
+				}
+			}
 			if root.Email != "" && strings.Contains(root.Email, "@") {
 				return root.Email
 			}
@@ -190,12 +205,6 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 
 func ListProviderAccounts(owner string) ([]*ProviderAccount, error) {
 	result := []*ProviderAccount{}
-	if IsAntigravityLoggedIn() {
-		a, _ := GetProviderAccount(owner, "legacy")
-		if a != nil {
-			result = append(result, a)
-		}
-	}
 	entries, err := os.ReadDir(accountRoot())
 	if os.IsNotExist(err) {
 		return result, nil
@@ -230,6 +239,27 @@ func ProviderAccountHome(owner, id string) (string, error) {
 func DeleteProviderAccount(owner, id string) error {
 	if id == "" || id == "legacy" {
 		return errors.New("cannot delete legacy server account")
+	}
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	if _, err := GetProviderAccount(owner, id); err != nil {
+		return err
+	}
+	release, err := TryLeaseProviderAccountRefresh(owner, id)
+	if err != nil {
+		return fmt.Errorf("account cannot be disconnected while in use: %w", ErrAccountBusy)
+	}
+	defer release()
+	authSessionsMu.Lock()
+	var sessions []string
+	for key, session := range authSessions {
+		if session.OwnerID == owner && session.AccountID == id {
+			sessions = append(sessions, key)
+		}
+	}
+	authSessionsMu.Unlock()
+	for _, session := range sessions {
+		CancelAntigravityAuthSession(session)
 	}
 	dir, err := accountDirectory(id)
 	if err != nil {
@@ -355,6 +385,9 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	a.CredentialsPresent = IsAntigravityLoggedInInDir(home)
 	if a.Email == "" {
 		a.Email = extractAccountEmail(home)
+		if a.Email == "" && !a.Legacy {
+			a.Email = lookupGoogleAccountEmail(ctx, home, http.DefaultClient)
+		}
 	}
 	if a.Legacy {
 		a.CredentialsPresent = IsAntigravityLoggedIn()
@@ -391,6 +424,7 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 			return nil, readErr
 		}
 		// A probe must not overwrite a concurrent preference edit or newer runtime cooldown.
+		a.Label, a.ModelID = current.Label, current.ModelID
 		a.AllowFailover = current.AllowFailover
 		a.AllowModelFallback = current.AllowModelFallback
 		a.ModelCooldowns = current.ModelCooldowns

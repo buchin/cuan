@@ -14,16 +14,13 @@ export function IntegrationsView() {
       className="min-w-0 max-w-3xl space-y-5"
       aria-label="Live Chat integration"
     >
-      <Link to="/settings/integrations" className="action-secondary">
-        ← Integrations
-      </Link>
       <header>
         <p className="mt-2 text-sm text-muted-foreground">
           Add live chat to your website. Visitors appear in Contacts when they
           open the widget.
         </p>
       </header>
-      <section className="min-w-0 space-y-3 rounded-lg border bg-card p-5">
+      <section className="min-w-0 space-y-3 border-b border-border/40 pb-5">
         <h2 className="text-base font-semibold">1. Install the widget</h2>
         <p className="text-sm text-muted-foreground">
           Paste this code before your website's closing body tag. Replace
@@ -53,7 +50,7 @@ export function IntegrationsView() {
           </p>
         )}
       </section>
-      <section className="min-w-0 space-y-3 rounded-lg border bg-card p-5">
+      <section className="min-w-0 space-y-3 border-b border-border/40 pb-5">
         <h2 className="text-base font-semibold">
           2. Customer identity (optional)
         </h2>
@@ -70,7 +67,7 @@ export function IntegrationsView() {
           authentication or to separate accounts on shared browsers.
         </p>
       </section>
-      <section className="space-y-3 rounded-lg border bg-card p-5">
+      <section className="space-y-3 border-b border-border/40 pb-5">
         <h2 className="text-base font-semibold">3. Check your installation</h2>
         <ol className="list-decimal space-y-2 pl-5 text-sm">
           <li>Open your website and select Live Chat.</li>

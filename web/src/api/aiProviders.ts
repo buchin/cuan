@@ -37,6 +37,7 @@ export interface AIProviderDTO {
 }
 
 export interface SaveAIProviderRequest {
+  clear_api_key?: boolean
   provider: string
   id?: string
   mode?: 'subscription' | 'byok' | string

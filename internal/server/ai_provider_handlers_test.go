@@ -361,3 +361,28 @@ func TestAIProviderHandlers_AgentProviderBinding(t *testing.T) {
 		t.Errorf("expected updated model_id 'deepseek-chat', got %q", getResp.ModelID)
 	}
 }
+
+func TestAIProviderHandlers_ExplicitDisconnectAndAutoModel(t *testing.T) {
+	srv, _, dir, _ := setupAIProviderTestServer(t)
+	defer os.RemoveAll(dir)
+	post := func(body string) *httptest.ResponseRecorder {
+		t.Helper()
+		w := httptest.NewRecorder()
+		srv.Router().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/ai/providers", strings.NewReader(body)))
+		if w.Code != 200 {
+			t.Fatalf("save failed: %d", w.Code)
+		}
+		return w
+	}
+	post(`{"provider":"deepseek","api_key":"fixture-key","default_model":"custom","enabled":true}`)
+	post(`{"provider":"deepseek","default_model":""}`)
+	cfg := srv.AIProviderStore().GetConfig("deepseek")
+	if cfg.DefaultModel != "" || cfg.EncryptedAPIKey == "" {
+		t.Fatal("Auto model reset must preserve saved key")
+	}
+	post(`{"provider":"deepseek","clear_api_key":true,"enabled":false}`)
+	cfg = srv.AIProviderStore().GetConfig("deepseek")
+	if cfg.EncryptedAPIKey != "" || cfg.Enabled {
+		t.Fatal("Disconnect must remove retained key and disable provider")
+	}
+}

@@ -191,7 +191,7 @@ export function AppUpdateCard() {
             />
           </div>
 
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex flex-col items-start gap-2 pt-1 sm:flex-row sm:items-center">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />
               <span>{t('Execution window:')}</span>
@@ -200,7 +200,7 @@ export function AppUpdateCard() {
               value={info?.auto_update_time || '03:00'}
               onChange={(e) => handleTimeChange(e.target.value)}
               disabled={!(info?.auto_update_enabled ?? true)}
-              className="field-control text-xs py-1 px-2.5 h-8 w-auto rounded-lg border border-border/40"
+              className="field-control min-h-11 max-w-full text-sm sm:w-auto"
             >
               <option value="01:00">01:00 WIB (Midnight)</option>
               <option value="02:00">02:00 WIB</option>

@@ -41,7 +41,6 @@ export function GitHubIntegration() {
   return () => { stopped = true; clearTimeout(timer); controller.abort() }
  }, [device?.id, pendingLogin(device)])
  return <section className="mx-auto w-full max-w-2xl space-y-5" aria-label="GitHub integration">
-  <Link to="/settings/integrations" className="action-secondary">← Integrations</Link>
   <p className="text-sm text-muted-foreground">Connect repositories so Cuan can work on your project files. Projects can also work without GitHub.</p>
   {!connection && !error && <p role="status">Loading GitHub connection…</p>}
   {connection?.connected && <section className="space-y-3 rounded-lg border bg-card p-4">

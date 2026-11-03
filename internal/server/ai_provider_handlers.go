@@ -34,13 +34,14 @@ func (s *Server) handleSaveAIProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		Provider     string `json:"provider"`
-		ID           string `json:"id"`
-		Mode         string `json:"mode"`
-		APIKey       string `json:"api_key"`
-		BaseURL      string `json:"base_url"`
-		DefaultModel string `json:"default_model"`
-		Enabled      *bool  `json:"enabled"`
+		Provider     string  `json:"provider"`
+		ID           string  `json:"id"`
+		Mode         string  `json:"mode"`
+		APIKey       string  `json:"api_key"`
+		BaseURL      string  `json:"base_url"`
+		DefaultModel *string `json:"default_model"`
+		ClearAPIKey  bool    `json:"clear_api_key"`
+		Enabled      *bool   `json:"enabled"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -70,6 +71,13 @@ func (s *Server) handleSaveAIProvider(w http.ResponseWriter, r *http.Request) {
 
 	encryptedKey := existing.EncryptedAPIKey
 	rawKey := strings.TrimSpace(input.APIKey)
+	if input.ClearAPIKey {
+		if rawKey != "" {
+			respondJSONError(w, http.StatusBadRequest, "Choose either a replacement key or disconnect")
+			return
+		}
+		encryptedKey = ""
+	}
 	if rawKey != "" {
 		enc, err := agent.EncryptCredential(rawKey)
 		if err != nil {
@@ -84,9 +92,9 @@ func (s *Server) handleSaveAIProvider(w http.ResponseWriter, r *http.Request) {
 		baseURL = existing.BaseURL
 	}
 
-	defaultModel := strings.TrimSpace(input.DefaultModel)
-	if defaultModel == "" {
-		defaultModel = existing.DefaultModel
+	defaultModel := existing.DefaultModel
+	if input.DefaultModel != nil {
+		defaultModel = strings.TrimSpace(*input.DefaultModel)
 	}
 
 	enabled := true

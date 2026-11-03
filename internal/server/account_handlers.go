@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -213,7 +214,13 @@ func (s *Server) handleDeleteProviderAccount(w http.ResponseWriter, r *http.Requ
 	}
 	id := chi.URLParam(r, "accountID")
 	if err := agent.DeleteProviderAccount(owner, id); err != nil {
-		respondJSONError(w, 400, "Could not delete account: "+err.Error())
+		if errors.Is(err, agent.ErrAccountBusy) {
+			respondJSONError(w, http.StatusConflict, "This AI account is in use. Wait for its active work to finish, then disconnect.")
+		} else if errors.Is(err, agent.ErrAccountNotFound) {
+			respondJSONError(w, http.StatusNotFound, "AI account not found")
+		} else {
+			respondJSONError(w, http.StatusBadRequest, "Could not disconnect this account. Try again.")
+		}
 		return
 	}
 	respondJSON(w, 200, map[string]any{"status": "deleted", "id": id})

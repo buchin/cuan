@@ -163,7 +163,7 @@ test('3. Settings & Chat Integration: Navigation tabs, route titles and quick ac
     'SettingsView must render AgentMemoryView when section === "memory"',
   )
   assert.ok(
-    settingsSource.includes('to="/settings/memory"'),
+    fs.readFileSync(new URL('../src/features/settings/SettingsMasterNav.tsx', import.meta.url), 'utf8').includes("to: isAccount ? '/account/memory' : '/settings/memory'"),
     'SettingsView must link to /settings/memory in General settings card',
   )
 

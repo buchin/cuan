@@ -737,10 +737,11 @@ export function App() {
   const projectDetail = currentTab === 'projects' && !!subParam
   const projectSettings = projectDetail && pathSegments[2] !== 'tasks'
   const settingTitles: Record<string, string> = {
-    agent: 'Assistant & AI Brain',
+    agent: 'Assistant & AI brains',
+    'apps-skills': 'Apps & Skills',
     team: 'Team',
-    agents: 'Assistant & AI Brain',
-    'ai-providers': 'Assistant & AI Brain',
+    agents: 'Assistant & AI brains',
+    'ai-providers': 'Assistant & AI brains',
     memory: 'Agent Memory',
     integrations: 'Integrations',
     appearance: 'Appearance',
@@ -759,7 +760,7 @@ export function App() {
     : settingsDetail
       ? pathSegments[2] === 'live-chat'
         ? 'Live Chat'
-        : pathSegments[2] === 'github' ? 'GitHub' : settingTitles[subParam]
+        : pathSegments[2] === 'github' ? 'GitHub' : pathSegments[2] === 'resend' ? 'Resend Email' : settingTitles[subParam]
       : currentTab === 'account'
         ? 'Account'
         : currentTab === 'studio'

@@ -125,11 +125,11 @@ test('4. Keyboard shortcuts is conditional (hidden on mobile / touch viewports)'
     'utf-8',
   )
   assert.ok(
-    settingsViewContent.includes("cuan:keyboard-shortcuts"),
+    fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes("cuan:keyboard-shortcuts"),
     'SettingsView must provide a trigger for keyboard shortcuts',
   )
   assert.ok(
-    settingsViewContent.includes("t('View shortcuts')"),
+    fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes("t('View shortcuts')"),
     'SettingsView must include View shortcuts action',
   )
 })

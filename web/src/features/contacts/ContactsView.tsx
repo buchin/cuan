@@ -1,3 +1,4 @@
+import { BackAction } from '../../components/layout/DetailLayout'
 import { ListSearch, ListRowContent } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
@@ -11,8 +12,6 @@ import {
   SlidersHorizontal,
   Users,
   MessageSquare,
-  RefreshCw,
-  ChevronLeft,
   X,
   FileText,
   Tag,
@@ -159,21 +158,26 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
         t.toLowerCase().includes(tagInput.trim().toLowerCase()),
     )
     .slice(0, 8)
-  async function load() {
-    setLoading(true)
-    setError('')
+  async function load(silent = false) {
+    if (!silent) { setLoading(true); setError('') }
     try {
       const data = await apiFetch<{ contacts: Contact[] }>('/api/v1/contacts')
       setContacts(data.contacts)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load contacts')
+      if (!silent) setError(e instanceof Error ? e.message : 'Could not load contacts')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
   useEffect(() => {
     void load()
   }, [refreshKey])
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible' && !saving && !noteDirty.current) void load(true) }
+    const timer = setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh) }
+  }, [saving])
   useEffect(() => {
     setTagInput('')
     setSaveError('')
@@ -274,7 +278,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
           <ListCreateAction label="New contact" kind="contacts" onClick={onNewContact} />
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <ListSearch aria-label={t('Search contacts and notes')} placeholder={t('Search contacts…')} value={query} onChange={event=>setQuery(event.target.value)} />
+              <ListSearch trailing={loading ? undefined : <span role="status" aria-label={t('Contacts')}>{filtered.length}</span>} aria-label={t('Search contacts and notes')} placeholder={t('Search contacts…')} value={query} onChange={event=>setQuery(event.target.value)} />
               <IconButton
                 type="button"
                 className="relative"
@@ -301,6 +305,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
               >
                 <Archive className="h-4 w-4" aria-hidden="true" />
               </IconButton>
+              <ItemActions persistent label="Contacts" actions={[{ label: 'Reload contacts', disabled: loading || saving, run: async () => { await load(); setSearchOffset(0); setSearchRevision(value => value + 1) } }]}><span className="sr-only">{t('Contact list actions')}</span></ItemActions>
             </div>
 
             {(tag || product) && !filtersOpen && (
@@ -391,33 +396,6 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
             </div>
           ) : (
             <div className="min-w-0">
-              <div className="mb-1 px-2.5 py-1.5 flex items-center justify-between gap-2 border-b border-border/30">
-                <p className="text-[11px] font-mono text-muted-foreground" role="status">
-                  {filteredActive
-                    ? t('{shown} of {total} contacts')
-                        .replace('{shown}', String(filtered.length))
-                        .replace('{total}', String(contacts.length))
-                    : t(
-                        contacts.length === 1
-                          ? '{count} contact'
-                          : '{count} contacts',
-                      ).replace('{count}', String(contacts.length))}
-                </p>
-                <button
-                  type="button"
-                  className="icon-action h-7 w-7"
-                  aria-label={t('Reload contacts')}
-                  onClick={() => {
-                    void load()
-                    setSearchOffset(0)
-                    setSearchRevision((value) => value + 1)
-                  }}
-                  disabled={loading || saving}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
               {query.trim() && searching && (
                 <p role="status" className="py-2 text-center text-xs text-muted-foreground">
                   {t('Searching…')}
@@ -505,7 +483,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
 
       {/* Right Detail: Serene Bear Note Pad Canvas (65-80ch Typographic Constraint, Zero Nested Cards) */}
       <div
-        className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-8 bg-background ${
+        className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-6 bg-background ${
           selectedId ? '' : 'hidden min-[1200px]:block'
         }`}
       >
@@ -516,26 +494,19 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
             aria-label={t('Contact details')}
             className="mx-auto min-w-0 w-full max-w-[75ch] outline-none space-y-6"
           >
-            <button
-              className="action-secondary mb-4 min-[1200px]:hidden inline-flex items-center gap-1.5 text-xs"
-              disabled={saving}
-              onClick={() => select('')}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span>{t('Back to contacts')}</span>
-            </button>
+            <BackAction className="min-[1200px]:hidden" disabled={saving} onClick={() => select('')}>{t('Back to contacts')}</BackAction>
 
             {selected ? (
-              <article className="space-y-6">
+              <article className="space-y-5">
                 {/* Bear Note Header: Serene Title & Understated Metadata */}
                 <header className="border-b border-border/40 pb-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1 space-y-1.5">
-                      <h2 className="break-words text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans">
+                      <h2 className="break-words text-lg sm:text-xl font-semibold tracking-tight text-foreground font-sans">
                         {label(selected)}
                       </h2>
                       {selected.email && (
-                        <p className="break-all text-sm text-muted-foreground font-mono">
+                        <p className="break-all text-sm text-muted-foreground">
                           {selected.email}
                         </p>
                       )}

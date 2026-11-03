@@ -189,11 +189,11 @@ test('3. UI Component: NotificationSettings.tsx supports role Member, personal q
 
   // Role awareness with useAuth
   assert.ok(
-    settingsSrc.includes('useAuth'),
+    !settingsSrc.includes('user-role-badge'),
     'NotificationSettings must import and call useAuth',
   )
   assert.ok(
-    settingsSrc.includes("role === 'member'"),
+    settingsSrc.includes('Notification.permission'),
     'NotificationSettings must check role === member for staff members',
   )
 

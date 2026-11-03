@@ -157,7 +157,7 @@ export function ContactMemoryPanel({
     return entries.map((entry) => (
       <article
         key={entry.id}
-        className={`rounded-xl border border-border/40 bg-card/50 p-4 space-y-2 transition-colors hover:border-border/60 ${entry.id === matchedNoteId ? 'ring-1 ring-ring' : ''}`}
+        className={`border-b border-border/40 py-4 space-y-2 ${entry.id === matchedNoteId ? 'ring-1 ring-ring' : ''}`}
         data-search-match={entry.id === matchedNoteId || undefined}
       >
         <div className="flex items-start justify-between gap-3">
@@ -247,7 +247,7 @@ export function ContactMemoryPanel({
   return (
     <section
       aria-label={t('Contact memory')}
-      className="space-y-4 border-t border-border/40 pt-5 mt-5"
+      className="space-y-4"
     >
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">{t('Notes & about')}</h3>

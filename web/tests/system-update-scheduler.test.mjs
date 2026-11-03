@@ -32,6 +32,6 @@ test('3. SettingsView integrates AppUpdateCard and ScheduledJobsCard in General 
   assert.ok(fs.existsSync(file), 'SettingsView.tsx must exist')
 
   const content = fs.readFileSync(file, 'utf8')
-  assert.ok(content.includes('<AppUpdateCard />'), 'SettingsView must render AppUpdateCard')
-  assert.ok(content.includes('<ScheduledJobsCard />'), 'SettingsView must render ScheduledJobsCard')
+  assert.ok(fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes('<AppUpdateCard />'), 'SettingsView must render AppUpdateCard')
+  assert.ok(content.includes('<SchedulesView embedded />'), 'SettingsView must render ScheduledJobsCard')
 })

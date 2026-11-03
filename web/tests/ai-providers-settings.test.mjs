@@ -105,7 +105,7 @@ test('3. Settings Navigation & Routing Integration (Unified in Agent & Brain Clu
   assert.ok(settingsViewSrc.includes('<AgentSettingsView'), 'SettingsView must render AgentSettingsView for AI brain cluster')
 
   // App.tsx header titles
-  assert.ok(appSrc.includes("'ai-providers': 'Assistant & AI Brain'"), 'App.tsx settingTitles must include ai-providers')
+  assert.ok(appSrc.includes("'ai-providers': 'Assistant & AI brains'"), 'App.tsx settingTitles must include ai-providers')
 })
 
 test('4. EditAgentModal: Per-Agent Provider & Model Selection with Store Default', () => {

@@ -1,3 +1,5 @@
+import { ListTabs, ListTab } from '../../components/layout/ListControls'
+import { IconButton } from '../../components/ui/IconButton'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -24,10 +26,11 @@ import { GroupedSection } from '../../components/layout/GroupedSection'
 import { StatusDot } from '../../components/layout/StatusDot'
 
 export interface AppsSkillsViewProps {
+  showHeading?: boolean
   initialTab?: 'apps' | 'skills'
 }
 
-export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
+export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: AppsSkillsViewProps) {
   const { t } = useLanguage()
 
   const [activeTab, setActiveTab] = useState<'apps' | 'skills'>(initialTab)
@@ -137,8 +140,8 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
   return (
     <div className="space-y-6" data-testid="apps-skills-view">
       {/* Header & Description */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/50">
-        <div>
+      <div className={showHeading ? "flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/50" : "hidden"}>
+        {showHeading && <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Boxes className="h-5 w-5 text-primary" />
             <span>{t('Apps & Skills')}</span>
@@ -148,61 +151,14 @@ export function AppsSkillsView({ initialTab = 'apps' }: AppsSkillsViewProps) {
               'Connect 1-click external business apps and discover modular AI intelligence capabilities.'
             )}
           </p>
-        </div>
+        </div>}
 
-        <button
-          type="button"
-          onClick={() => loadData(true)}
-          disabled={loading || refreshing}
-          className="inline-flex min-h-11 sm:min-h-9 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground active:scale-[0.98] transition-colors disabled:opacity-50 shrink-0"
-          title={t('Refresh catalog')}
-          aria-label={t('Refresh catalog')}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 text-primary ${refreshing ? 'animate-spin' : ''}`} />
-          <span>{refreshing ? t('Refreshing...') : t('Refresh')}</span>
-        </button>
+        <IconButton label={t('Refresh catalog')} disabled={loading || refreshing} onClick={() => loadData(true)}><RefreshCw className={refreshing ? 'animate-spin' : ''} /></IconButton>
       </div>
-
-      {/* Sub-tab Switcher: Apps vs Skills */}
-      <div className="flex items-center gap-2 border-b border-border">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'apps'}
-          onClick={() => setActiveTab('apps')}
-          className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-xs sm:text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring cursor-pointer ${
-            activeTab === 'apps'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-          data-testid="subtab-apps"
-        >
-          <Plug className="h-4 w-4" />
-          <span>{t('Connected Apps')}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
-            {apps.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'skills'}
-          onClick={() => setActiveTab('skills')}
-          className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-xs sm:text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring cursor-pointer ${
-            activeTab === 'skills'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-          data-testid="subtab-skills"
-        >
-          <Sparkles className="h-4 w-4" />
-          <span>{t('Skills Catalog')}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
-            {skills.length}
-          </span>
-        </button>
-      </div>
+      <ListTabs aria-label={t('Apps & Skills')}>
+        <ListTab selected={activeTab === 'apps'} count={apps.length} onClick={() => setActiveTab('apps')} data-testid="subtab-apps">{t('Connected Apps')}</ListTab>
+        <ListTab selected={activeTab === 'skills'} count={skills.length} onClick={() => setActiveTab('skills')} data-testid="subtab-skills">{t('Skills Catalog')}</ListTab>
+      </ListTabs>
 
       {/* Action Notification Banner */}
       {actionFeedback && (

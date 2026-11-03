@@ -186,7 +186,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
     <div className={`space-y-5 ${embedded ? '' : 'p-4 sm:p-6 max-w-4xl mx-auto'}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        {!embedded && <div>
           <div className="flex items-center gap-2.5">
             <CalendarClock className="h-5 w-5 text-primary" />
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
@@ -196,12 +196,12 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             {t('Automated recurring routines that agents execute without requiring manual prompts.')}
           </p>
-        </div>
+        </div>}
 
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="action-primary inline-flex items-center gap-2 shrink-0 self-start sm:self-center text-xs sm:text-sm min-h-[40px]"
+          className="action-primary inline-flex items-center gap-2 shrink-0 self-start sm:self-center text-xs sm:text-sm min-h-11"
         >
           <Plus className="h-4 w-4" />
           <span>{t('New Schedule')}</span>

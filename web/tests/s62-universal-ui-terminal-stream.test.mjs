@@ -128,8 +128,8 @@ test('3. S62-T3: Projects & Contacts View Things 3 & Bear Notes Audit', () => {
     'ContactsView search input container must use rounded-xl border-border/40 bg-muted/20',
   )
   assert.ok(
-    memoryPanelSource.includes('rounded-xl border border-border/40 bg-card/50'),
-    'ContactMemoryPanel note cards must use rounded-xl border-border/40 bg-card/50',
+    memoryPanelSource.includes('border-b border-border/40 py-4 space-y-2'),
+    'Contact notes use flat rows with hairline dividers',
   )
   assert.ok(
     !memoryPanelSource.includes('className="rounded-lg border p-3 space-y-2"'),

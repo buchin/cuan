@@ -112,7 +112,7 @@ export const GroupedRow = React.forwardRef<HTMLDivElement, GroupedRowProps>(
             : undefined
         }
         className={cn(
-          "flex items-center justify-between gap-3 px-3.5 py-3 sm:px-4 sm:py-3.5 min-h-[44px] text-sm transition-colors",
+          "flex flex-col items-stretch justify-between gap-3 px-3.5 sm:flex-row sm:items-center py-3 sm:px-4 sm:py-3.5 min-h-[44px] text-sm transition-colors",
           isInteractive &&
             "cursor-pointer hover:bg-muted/40 active:bg-muted/60 focus-visible:outline-none focus-visible:bg-muted/40",
           destructive && "text-destructive",
@@ -138,14 +138,14 @@ export const GroupedRow = React.forwardRef<HTMLDivElement, GroupedRowProps>(
               <div className="min-w-0 flex-1">
                 <div
                   className={cn(
-                    "text-sm font-medium leading-none text-foreground truncate",
+                    "text-sm font-medium leading-snug text-foreground",
                     destructive && "text-destructive"
                   )}
                 >
                   {label}
                 </div>
                 {description && (
-                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                  <p className="text-xs leading-5 text-muted-foreground mt-1">
                     {description}
                   </p>
                 )}
@@ -153,7 +153,7 @@ export const GroupedRow = React.forwardRef<HTMLDivElement, GroupedRowProps>(
             </div>
 
             {control && (
-              <div className="flex shrink-0 items-center gap-2 pl-2">
+              <div className="flex w-full max-w-full flex-wrap shrink-0 items-center gap-2 sm:w-auto">
                 {control}
               </div>
             )}

@@ -6,8 +6,8 @@ import { MoreHorizontal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
 export type ItemAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; previewLabel?: string }
-export function ItemActions({ label, actions, swipeAction, children, subtle = false, className }: {
-  label: string; actions: ItemAction[]; swipeAction?: ItemAction; children: ReactNode; subtle?: boolean; className?: string
+export function ItemActions({ label, actions, swipeAction, children, subtle = false, persistent = false, className }: {
+  label: string; actions: ItemAction[]; swipeAction?: ItemAction; children: ReactNode; subtle?: boolean; persistent?: boolean; className?: string
 }) {
   const { t } = useLanguage()
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
@@ -98,7 +98,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
       {!!offset && swipeAction && <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end rounded-md bg-muted pr-3 text-xs font-medium">{t(swipeAction.previewLabel || swipeAction.label)}</div>}
       <div className={`item-action-row relative flex min-w-0 ${subtle ? "items-start" : "items-center bg-transparent"}`} style={{ transform: offset ? `translateX(${offset}px)` : undefined }}>
         <div className="min-w-0 flex-1">{children}</div>
-        <IconButton ref={trigger} data-item-menu type="button" disabled={busy} className={`${subtle ? "message-menu-trigger absolute right-0 top-0 z-10 opacity-0 pointer-events-none focus-visible:opacity-100 focus-visible:pointer-events-auto" : ""} bg-transparent text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground`} label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
+        <IconButton ref={trigger} data-item-menu style={persistent ? { opacity: 1 } : undefined} type="button" disabled={busy} className={`${subtle ? "message-menu-trigger absolute right-0 top-0 z-10 opacity-0 pointer-events-none focus-visible:opacity-100 focus-visible:pointer-events-auto" : ""} bg-transparent text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground`} label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
           onClick={event => { event.stopPropagation(); if (menu) close(); else { const r = event.currentTarget.getBoundingClientRect(); open(r.right - 232, r.bottom) } }}>
           <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
         </IconButton>

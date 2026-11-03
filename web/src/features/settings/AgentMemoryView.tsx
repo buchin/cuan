@@ -1,3 +1,4 @@
+import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
@@ -8,7 +9,6 @@ import {
   Pencil,
   Trash2,
   RotateCcw,
-  Search,
   Check,
   AlertTriangle,
   Info,
@@ -16,7 +16,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ShieldCheck,
-  Layers,
   FileText,
   Clock,
   Sliders,
@@ -35,11 +34,13 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Badge } from '../../components/ui/badge'
 
 export interface AgentMemoryViewProps {
+  showHeading?: boolean
   embedded?: boolean
   returnTo?: string
 }
 
 export function AgentMemoryView({
+  showHeading = true,
   embedded = false,
   returnTo,
 }: AgentMemoryViewProps) {
@@ -669,9 +670,9 @@ export function AgentMemoryView({
       )}
 
       {/* Header and Hero Overview */}
-      <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <section className="space-y-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3.5">
+          {showHeading && <div className="flex items-start gap-3.5">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Brain className="h-6 w-6" />
             </div>
@@ -690,7 +691,7 @@ export function AgentMemoryView({
                 )}
               </p>
             </div>
-          </div>
+          </div>}
 
           {/* Quick Header Actions */}
           <div className="flex flex-wrap items-center gap-2.5 sm:self-center">
@@ -702,6 +703,14 @@ export function AgentMemoryView({
               <Plus className="h-4 w-4" />
               <span>{t('Add Preference')}</span>
             </button>
+       </div>
+        </div>
+
+      </section>
+
+      <details className="border-y border-border/40 py-2">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm text-muted-foreground">{t('Learning rules and memory capacity')}</summary>
+        <div className="space-y-6 py-4">
             <button
               type="button"
               onClick={() => setResetModalOpen(true)}
@@ -711,11 +720,9 @@ export function AgentMemoryView({
               <RotateCcw className="h-4 w-4" />
               <span>{t('Reset All Memory')}</span>
             </button>
-          </div>
-        </div>
 
         {/* Quick Summary Pill Bar */}
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-4 border-t border-border/60 pt-4 text-xs">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 border-t border-border/60 pt-4 text-xs">
           <div className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2.5">
             <Sparkles className="h-4 w-4 text-purple-500 shrink-0" />
             <div>
@@ -772,13 +779,12 @@ export function AgentMemoryView({
             </div>
           </button>
         </div>
-      </section>
 
       {/* Hermes-Style Memory Quota Meter (Sprint 45 S45-T3) */}
       <section
         data-testid="hermes-quota-meter"
         aria-label={t('Hermes Memory Quota Meter')}
-        className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4"
+        className="border-b border-border/40 pb-5 space-y-4"
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
           <div className="flex items-center gap-2.5">
@@ -981,7 +987,7 @@ export function AgentMemoryView({
       <section
         data-testid="auto-approve-controls"
         aria-label={t('Auto-Approval Controls')}
-        className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4"
+        className="border-b border-border/40 pb-5 space-y-4"
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -1113,6 +1119,9 @@ export function AgentMemoryView({
         )}
       </section>
 
+        </div>
+      </details>
+
       {/* Global Toast / Feedback Alert */}
       {feedback && (
         <div
@@ -1144,56 +1153,10 @@ export function AgentMemoryView({
       )}
 
       {/* Primary Sub-Navigation Tabs: Active Memory vs Suggested Taste */}
-      <div
-        role="tablist"
-        aria-label={t('Memory view mode')}
-        className="flex items-center gap-2 border-b border-border/80 pb-px"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeView === 'active'}
-          onClick={() => setActiveView('active')}
-          className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors ${
-            activeView === 'active'
-              ? 'border-primary text-primary font-semibold'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Brain className="h-4 w-4" />
-          <span>{t('Active Memory')}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-mono font-semibold text-foreground">
-            {totalCount}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeView === 'suggested'}
-          onClick={() => setActiveView('suggested')}
-          className={`inline-flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors ${
-            activeView === 'suggested'
-              ? 'border-amber-600 text-amber-600 dark:text-amber-400 font-semibold'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          <Sparkles className="h-4 w-4 text-amber-500" />
-          <span>{t('Suggested Taste / Pending Reflection')}</span>
-          {pendingCount > 0 ? (
-            <span
-              data-testid="suggested-tab-counter"
-              className="rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-2 py-0.5 text-xs font-mono font-semibold"
-            >
-              {pendingCount}
-            </span>
-          ) : (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground">
-              0
-            </span>
-          )}
-        </button>
-      </div>
+      <ListTabs aria-label={t('Memory view mode')}>
+        <ListTab selected={activeView === 'active'} count={totalCount} onClick={() => setActiveView('active')}>{t('Active Memory')}</ListTab>
+        <ListTab selected={activeView === 'suggested'} count={pendingCount} onClick={() => setActiveView('suggested')}><span data-testid="suggested-tab-counter">{t('Suggested preferences')}</span></ListTab>
+      </ListTabs>
 
       {/* Suggested Taste Prompt Banner when in Active view */}
       {activeView === 'active' && pendingCount > 0 && (
@@ -1261,94 +1224,13 @@ export function AgentMemoryView({
         </section>
       )}
 
-      {/* Filter Chips & Search Bar */}
-      <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Category Tabs */}
-        <div
-          role="tablist"
-          aria-label={t('Filter memory categories')}
-          className="flex flex-wrap gap-2"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={selectedCategory === 'all'}
-            onClick={() => setSelectedCategory('all')}
-            className={`min-h-11 inline-flex items-center gap-1.5 rounded-lg px-3.5 text-xs font-medium transition-colors ${
-              selectedCategory === 'all'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>{t('All Memory')}</span>
-            <span className="ml-1 rounded-full bg-primary-foreground/20 px-1.5 py-0.2 text-[10px] font-mono">
-              {activeView === 'active' ? totalCount : candidates.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={selectedCategory === 'brand'}
-            onClick={() => setSelectedCategory('brand')}
-            className={`min-h-11 inline-flex items-center gap-1.5 rounded-lg px-3.5 text-xs font-medium transition-colors ${
-              selectedCategory === 'brand'
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>{t('Brand Voice & Persona')}</span>
-            <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-mono">
-              {activeView === 'active'
-                ? brandCount
-                : candidates.filter((c) => c.category === 'brand').length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={selectedCategory === 'technical'}
-            onClick={() => setSelectedCategory('technical')}
-            className={`min-h-11 inline-flex items-center gap-1.5 rounded-lg px-3.5 text-xs font-medium transition-colors ${
-              selectedCategory === 'technical'
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            <Terminal className="h-3.5 w-3.5" />
-            <span>{t('Technical & Workflows')}</span>
-            <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-mono">
-              {activeView === 'active'
-                ? technicalCount
-                : candidates.filter((c) => c.category === 'technical').length}
-            </span>
-          </button>
-        </div>
-
-        {/* Search Input */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('Search preferences…')}
-            className="field-control min-h-11 w-full pl-9 pr-8 text-xs"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={t('Clear search')}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+      <section className="space-y-3">
+        <ListSearch aria-label={t('Search memory')} placeholder={t('Search memory…')} value={searchQuery} onChange={event => setSearchQuery(event.target.value)} />
+        <ListTabs aria-label={t('Filter memory categories')}>
+          <ListTab selected={selectedCategory === 'all'} onClick={() => setSelectedCategory('all')}>{t('All Memory')}</ListTab>
+          <ListTab selected={selectedCategory === 'brand'} onClick={() => setSelectedCategory('brand')}>{t('Brand & Voice')}</ListTab>
+          <ListTab selected={selectedCategory === 'technical'} onClick={() => setSelectedCategory('technical')}>{t('Technical & Workflows')}</ListTab>
+        </ListTabs>
       </section>
 
       {/* ======================= ACTIVE MEMORY VIEW ======================= */}
@@ -1422,14 +1304,14 @@ export function AgentMemoryView({
 
           {/* Active Preference Cards Grid */}
           {!loading && !error && filteredItems.length > 0 && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="divide-y divide-border/40">
               {filteredItems.map((item) => {
                 const isBrand = item.category === 'brand'
                 return (
                   <article
                     key={item.id}
                     data-testid={`active-taste-card-${item.id}`}
-                    className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-border/80 hover:shadow-sm"
+                    className="group relative flex flex-col justify-between py-5"
                   >
                     <div>
                       {/* Category Header & Topic */}
@@ -1438,8 +1320,8 @@ export function AgentMemoryView({
                           <span
                             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
                               isBrand
-                                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
-                                : 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30'
+                                ? 'bg-transparent text-muted-foreground dark:text-muted-foreground border border-transparent'
+                                : 'bg-transparent text-muted-foreground dark:text-muted-foreground border border-transparent'
                             }`}
                           >
                             {isBrand ? (
@@ -1458,10 +1340,10 @@ export function AgentMemoryView({
                           {item.auto_approved && (
                             <span
                               data-testid={`auto-approved-badge-${item.id}`}
-                              className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold"
+                              className="inline-flex items-center gap-1 rounded-full bg-transparent text-muted-foreground dark:text-muted-foreground border border-transparent px-2 py-0.5 text-[10px] font-semibold"
                               title={t('Preferensi ini otomatis disetujui oleh Smart Auto-Approval')}
                             >
-                              <Sparkles className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <Sparkles className="h-2.5 w-2.5 text-muted-foreground dark:text-muted-foreground shrink-0" />
                               <span>{t('Otomatis Disetujui')}</span>
                             </span>
                           )}

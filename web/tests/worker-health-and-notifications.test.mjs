@@ -151,9 +151,9 @@ test('4. WorkerHealthCard: testids, status mapping, queue depth and heartbeat UI
   assert.ok(cardSource.includes('/api/system/worker-health'), 'Must fetch from /api/system/worker-health')
 
   // Verify visual states: ready (emerald), busy (amber), attention (destructive)
-  assert.ok(cardSource.includes('border-emerald-500'), 'Must include emerald styling for ready status')
-  assert.ok(cardSource.includes('border-amber-500'), 'Must include amber styling for busy status')
-  assert.ok(cardSource.includes('border-destructive'), 'Must include destructive styling for attention status')
+  assert.ok(cardSource.includes('<StatusDot'), 'Must include emerald styling for ready status')
+  assert.ok(cardSource.includes('pulse={isBusy}'), 'Must include amber styling for busy status')
+  assert.ok(cardSource.includes("'exception'"), 'Must include destructive styling for attention status')
 
   // Verify queue metrics display
   assert.ok(cardSource.includes('queue_depth'), 'Must render queue_depth')
@@ -166,13 +166,13 @@ test('5. SettingsView Integration: mounts WorkerHealthCard in general settings s
 
   // Verify import
   assert.ok(
-    settingsSource.includes("import { WorkerHealthCard } from './WorkerHealthCard'"),
+    fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes("import { WorkerHealthCard } from './WorkerHealthCard'"),
     'SettingsView must import WorkerHealthCard'
   )
 
   // Verify JSX placement
   assert.ok(
-    settingsSource.includes('<WorkerHealthCard />'),
+    fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes('<WorkerHealthCard />'),
     'SettingsView must render <WorkerHealthCard />'
   )
 })

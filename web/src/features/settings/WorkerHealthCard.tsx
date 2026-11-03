@@ -1,3 +1,4 @@
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -20,6 +21,7 @@ export interface WorkerHealthInfo {
 
 export function WorkerHealthCard() {
   const { t } = useLanguage()
+  const [showDetails, setShowDetails] = useState(false)
   const [health, setHealth] = useState<WorkerHealthInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,76 +72,21 @@ export function WorkerHealthCard() {
     return t(`${mins} menit yang lalu`)
   }
 
-  return (
-    <GroupedSection
-      data-testid="worker-health-card"
-      title={t('Kesehatan Worker & Antrean')}
-      description={t('Status daemon cuan-runner, kedalaman antrean tugas ruang kerja, dan detak jantung terakhir.')}
-      className="mb-4"
-    >
-      {error && (
-        <div className="px-3.5 py-2 text-xs text-destructive bg-destructive/10 border-b border-border/30">
-          {error}
+  return <>
+    <GroupedSection data-testid="worker-health-card" title={t('Application status')}>
+      <div className="flex min-h-11 items-center gap-3 px-4 py-4">
+        <StatusDot status={!health ? 'warning' : isReady ? 'healthy' : isBusy ? 'healthy' : 'exception'} size="md" pulse={isBusy} />
+        <div className="min-w-0 flex-1"><p data-testid="worker-health-status" className="text-sm font-medium">{!health ? t(loading ? 'Loading…' : 'Status unavailable') : t(isReady ? 'Ready for work' : isBusy ? 'Working on your tasks' : 'Connection needs attention')}</p>
+          <p data-testid="worker-queue-depth" className="mt-1 text-xs text-muted-foreground">{health ? health.running_count + ' ' + t('running') + ' · ' + health.queued_count + ' ' + t('waiting') : ''}</p>
         </div>
-      )}
-
-      {/* Single calm status row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3.5 py-3 sm:px-4 sm:py-3.5 min-h-[44px] text-sm">
-        {/* Left: StatusDot + Details in one calm line */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <StatusDot
-            status={isReady ? 'healthy' : isBusy ? 'warning' : 'exception'}
-            size="md"
-            pulse={isBusy}
-            title={isReady ? t('Aktif / Siap') : isBusy ? t('Sibuk / Memproses') : t('Perhatian / Tidak Aktif')}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">
-                cuan-runner
-              </span>
-              <span
-                data-testid="worker-health-status"
-                className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border ${
-                  isReady
-                    ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                    : isBusy
-                    ? 'border-amber-500/30 text-amber-600 dark:text-amber-400'
-                    : 'border-destructive/30 text-destructive'
-                }`}
-              >
-                {isReady ? t('Aktif / Siap') : isBusy ? t('Sibuk / Memproses') : t('Perhatian / Tidak Aktif')}
-              </span>
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-              <span data-testid="worker-queue-depth">
-                {t('Antrean')}: <strong className="font-semibold text-foreground">{health?.queue_depth ?? 0}</strong>{' '}
-                ({t('Menunggu')}: {health?.queued_count ?? 0}, {t('Berjalan')}: {health?.running_count ?? 0})
-              </span>
-              <span>•</span>
-              <span data-testid="worker-heartbeat" className="truncate">
-                {t('Detak Jantung')}: {formattedHeartbeat()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Refresh button */}
-        <div className="flex shrink-0 items-center self-end sm:self-center">
-          <button
-            type="button"
-            data-testid="worker-refresh-btn"
-            onClick={() => void fetchWorkerHealth(true)}
-            disabled={loading}
-            className="action-secondary min-h-11 sm:min-h-8 inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium"
-            title={t('Periksa Status')}
-            aria-label={t('Periksa Status')}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>{loading ? t('Memeriksa...') : t('Periksa Status')}</span>
-          </button>
-        </div>
+        <button type="button" className="min-h-11 text-sm text-muted-foreground hover:text-foreground" onClick={() => setShowDetails(true)}>{t('Details')}</button>
       </div>
+      {error && <p role="alert" className="px-4 pb-3 text-sm text-destructive">{t(error)}</p>}
     </GroupedSection>
-  )
+    <SlideDrawer isOpen={showDetails} onClose={() => setShowDetails(false)} title={t('Application status')} size="md">
+      <div className="space-y-5 text-sm"><p className="text-muted-foreground">cuan-runner · {health?.runner_name || health?.runner_id || t('Loading…')}</p><p data-testid="worker-heartbeat">{t('Last checked')}: {formattedHeartbeat()}</p>
+        <button type="button" data-testid="worker-refresh-btn" onClick={() => void fetchWorkerHealth(true)} disabled={loading} className="action-secondary min-h-11 inline-flex items-center gap-2" aria-label={t('Periksa Status')}><RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />{t(loading ? 'Memeriksa...' : 'Periksa Status')}</button>
+      </div>
+    </SlideDrawer>
+  </>
 }

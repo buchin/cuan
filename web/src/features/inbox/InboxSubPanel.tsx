@@ -10,7 +10,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
 import { Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -333,7 +333,8 @@ export function InboxSubPanel({
   searchQuery = '',
   onSearchChange,
 }: InboxSubPanelProps) {
-  const navigate = useNavigate()
+  const location = useLocation()
+  const liveChatSettings = '/settings/integrations/live-chat?returnTo=' + encodeURIComponent(location.pathname + location.search)
   const archive = useArchivedItems('conversation')
   const [showArchived, setShowArchived] = useState(false)
   const clock = useConnectionClock(agents)
@@ -461,7 +462,6 @@ export function InboxSubPanel({
             label="Inbox"
             actions={[
               ...(totalUnreadCount > 0 ? [{ label: t('Mark all as read'), run: handleMarkAllRead }] : []),
-              { label: 'Live Chat settings', run: () => navigate('/settings/integrations/live-chat') },
             ]}
           >
             <span className="sr-only">Actions</span>
@@ -540,7 +540,7 @@ export function InboxSubPanel({
             {!query.trim() && !showArchived && customerCount === 0 && activeTab !== 'agents' && (
               <div className="mt-3 space-y-2">
                 <p>{t('Add live chat to your website to receive messages here.')}</p>
-                <Link className="action-secondary inline-flex" to="/settings/integrations/live-chat">
+                <Link className="action-secondary inline-flex" to={liveChatSettings}>
                   {t('Connect Live Chat')}
                 </Link>
               </div>

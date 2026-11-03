@@ -154,9 +154,9 @@ export function getSettingsNavCategories(isAccount = false, _userRole?: string):
           subtitleFallback: 'Koneksi 1-klik aplikasi eksternal dan kapabilitas AI',
           to: isAccount ? '/account/apps-skills' : '/settings/apps-skills',
           icon: Boxes || Plug || Contact,
-          aliasIds: ['integrations'],
+
         },
-        // Backward compatibility routes: id: 'integrations', id: 'contacts'
+        { id: 'integrations', labelKey: 'Integrations', labelFallback: 'Integrasi', subtitleKey: 'Connect the services your projects need.', subtitleFallback: 'Koneksi GitHub, chat website, dan pengiriman email', to: '/settings/integrations', icon: Plug },
       ],
     },
   ]

@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
 import { usePWA } from '../../context/PWAContext'
-import { useAuth } from '../../context/AuthContext'
 import { Bell, AlertCircle } from 'lucide-react'
-import { ResendSettingsCard } from './ResendSettingsCard'
+import { Link } from 'react-router-dom'
 
 interface Preferences {
   approval: boolean
@@ -20,8 +19,6 @@ interface Preferences {
 export function NotificationSettings() {
   const { t } = useLanguage()
   const { installed } = usePWA()
-  const { role } = useAuth()
-  const isMember = role === 'member'
 
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [busy, setBusy] = useState(false)
@@ -179,14 +176,14 @@ export function NotificationSettings() {
       )}
 
       {/* Main Push Settings Card */}
-      <section className="space-y-4 rounded-xl border border-border/40 bg-card/50 p-5">
+      <section className="space-y-4 border-b border-border/40 pb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Bell className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
+              <h2 className="text-sm font-semibold text-foreground">
                 {t('Push notifications')}
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -209,9 +206,7 @@ export function NotificationSettings() {
               />
               {t(connected ? 'Active on this device' : 'Inactive on this device')}
             </span>
-            <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              {t(isMember ? 'Staff Member' : 'Owner')}
-            </span>
+
           </div>
         </div>
 
@@ -275,7 +270,7 @@ export function NotificationSettings() {
       {/* Notification Preferences & Quiet Hours Form */}
       {prefs ? (
         <form
-          className="space-y-5 rounded-xl border border-border/40 bg-card/50 p-5"
+          className="space-y-5"
           onSubmit={async (e) => {
             e.preventDefault()
             if (!dirty || busy) return
@@ -314,7 +309,7 @@ export function NotificationSettings() {
               (kind) => (
                 <label
                   key={kind}
-                  className="flex min-h-11 items-center gap-3 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-sm text-foreground hover:bg-muted/30 transition-colors cursor-pointer select-none"
+                  className="flex min-h-11 items-center gap-3 border-b border-border/30 py-3 text-sm text-foreground hover:bg-muted/30 transition-colors cursor-pointer select-none"
                 >
                   <input
                     type="checkbox"
@@ -421,7 +416,7 @@ export function NotificationSettings() {
 
       {/* Resend Email Integration & Chat Idle Notification */}
       <div className="pt-2">
-        <ResendSettingsCard />
+        <Link to="/settings/integrations/resend" className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">{t('Manage email delivery in Integrations')}</Link>
       </div>
     </div>
   )

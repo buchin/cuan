@@ -2,11 +2,12 @@ import { forwardRef, type InputHTMLAttributes, type HTMLAttributes, type ButtonH
 import { Search } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
-export const ListSearch = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { containerClassName?: string }>(
-  ({ containerClassName, className, type = 'search', ...props }, ref) => (
+export const ListSearch = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { containerClassName?: string; trailing?: ReactNode }>(
+  ({ containerClassName, trailing, className, type = 'search', ...props }, ref) => (
     <label data-list-search className={cn('flex h-11 min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-3 focus-within:ring-2 focus-within:ring-ring', containerClassName)}>
       <Search aria-hidden="true" className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
       <input ref={ref} type={type} maxLength={200} className={cn('h-full w-full min-w-0 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground md:text-sm', className)} {...props} />
+      {trailing && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{trailing}</span>}
     </label>
   ),
 )

@@ -36,7 +36,7 @@ test('2. IntegrationOverview: displays Resend Email integration card linking to 
   const content = fs.readFileSync(filePath, 'utf-8')
 
   assert.match(content, /Resend Email/, 'Must show Resend Email integration card')
-  assert.match(content, /\/settings\/notifications/, 'Must link to /settings/notifications for setup')
+  assert.match(content, /\/settings\/integrations\/resend/, 'Must link to /settings/notifications for setup')
   assert.match(content, /Transkrip obrolan otomatis/, 'Must describe auto transcript capability')
 })
 
@@ -45,8 +45,8 @@ test('3. NotificationSettings: embeds ResendSettingsCard', () => {
   assert.ok(fs.existsSync(filePath), 'NotificationSettings.tsx must exist')
   const content = fs.readFileSync(filePath, 'utf-8')
 
-  assert.match(content, /import.*ResendSettingsCard/, 'Must import ResendSettingsCard')
-  assert.match(content, /<ResendSettingsCard \/>/, 'Must render ResendSettingsCard in notification settings')
+  assert.ok(!content.includes('import { ResendSettingsCard }'), 'Notifications must link to canonical integration instead of duplicating its form')
+  assert.match(content, /settings\/integrations\/resend/, 'Notifications must link to email integration')
 })
 
 test('4. LandingPage: promotes Resend email alerts and idle chat transcripts capability', () => {
