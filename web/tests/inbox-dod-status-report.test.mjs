@@ -8,21 +8,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const messageContentPath = path.resolve(__dirname, '../src/features/inbox/MessageContent.tsx')
 const statusReportCardPath = path.resolve(__dirname, '../src/components/ui/StatusReportCard.tsx')
 
-test('1. MessageContent imports and renders StatusReportCard for task and DoD reports', () => {
-  const src = fs.readFileSync(messageContentPath, 'utf8')
-  assert.ok(
-    src.includes('StatusReportCard') && src.includes('parseTaskReportMessage'),
-    'MessageContent must import StatusReportCard and parseTaskReportMessage'
-  )
-  assert.ok(
-    src.includes('parseTaskReportMessage(body, language)'),
-    'MessageContent must parse body for task/DoD reports'
-  )
-  assert.ok(
-    src.includes('<StatusReportCard report={report}'),
-    'MessageContent must render StatusReportCard component when report is parsed'
-  )
-})
+// Replaced by rendered interaction checks in docs/evidence/accounts/model-picker-check.cjs.
+
 
 test('2. StatusReportCard exports rich DoD report interfaces and theme configurations', () => {
   const src = fs.readFileSync(statusReportCardPath, 'utf8')

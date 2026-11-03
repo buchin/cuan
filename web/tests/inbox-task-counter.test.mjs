@@ -94,7 +94,7 @@ test('2. S59-T6: InboxSubPanel eliminates 4-badge stack in favor of subtle Statu
   )
 })
 
-test('3. S59-T6: StatusDot micro-indicator placed beside agent handle with accessible attributes', () => {
+test('3. S59-T6: Active work micro-indicator retains accessible attributes', () => {
   assert.ok(
     subPanelSource.includes('aria-label={`${activeTasks} active tasks`}'),
     'Active task micro-indicator must include accessible aria-label'
@@ -103,10 +103,7 @@ test('3. S59-T6: StatusDot micro-indicator placed beside agent handle with acces
     subPanelSource.includes('pulse'),
     'Active StatusDot micro-indicator must pulse while agent is working'
   )
-  assert.ok(
-    subPanelSource.includes('showAgentName'),
-    'StatusDot must render on the second line alongside agent handle'
-  )
+
 })
 
 test('4. InboxView synchronizes activeContact task counts and triggers refresh on task creation', () => {

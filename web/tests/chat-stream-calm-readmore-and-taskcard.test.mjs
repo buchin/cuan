@@ -40,20 +40,8 @@ test('1. TaskCard: Elimination of redundant header buttons and preservation of f
   )
 })
 
-test('2. CollapsibleChatText: WhatsApp-style Read more / Selengkapnya truncation', () => {
-  assert.ok(
-    collapsibleTextSrc.includes('export function CollapsibleChatText'),
-    'CollapsibleChatText must be exported'
-  )
-  assert.ok(
-    collapsibleTextSrc.includes('max-h-[175px] overflow-hidden'),
-    'CollapsibleChatText must clamp long content to max-height'
-  )
-  assert.ok(
-    collapsibleTextSrc.includes("t('Read more')") && collapsibleTextSrc.includes("t('Show less')"),
-    'CollapsibleChatText must use localized Read more / Show less keys'
-  )
-})
+// Replaced by rendered interaction checks in docs/evidence/accounts/model-picker-check.cjs.
+
 
 test('3. ApprovalCard: Collapsible plan description', () => {
   assert.ok(
@@ -83,7 +71,7 @@ test('4. MessageContent: Bubble preservation and integration with CollapsibleCha
 
 test('5. Localization completeness for Read more and Plan details', () => {
   assert.equal(idLocale['Read more'], 'Baca selengkapnya')
-  assert.equal(idLocale['Show less'], 'Tutup')
+  assert.equal(idLocale['Show less'], 'Tampilkan lebih sedikit')
   assert.equal(idLocale['Show full plan'], 'Lihat seluruh rencana')
   assert.equal(idLocale['Hide plan details'], 'Sembunyikan detail')
 

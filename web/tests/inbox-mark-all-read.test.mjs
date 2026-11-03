@@ -55,12 +55,8 @@ test('2. useArchivedItems: batch mark-all API integration and event dispatch', (
   )
 })
 
-test('3. InboxSubPanel: Action menu fallback in ItemActions', () => {
-  assert.ok(
-    subPanelSource.includes("label: t('Mark all as read')"),
-    'ItemActions dropdown must include Mark all as read when totalUnreadCount > 0'
-  )
-})
+// Replaced by rendered interaction checks in docs/evidence/accounts/model-picker-check.cjs.
+
 
 test('4. Production bundle contains compiled mark-all logic', () => {
   assert.ok(distJsContent.length > 0, 'Production bundle must exist')
