@@ -75,7 +75,10 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
 		}
 		if state == "started" {
-			text = "Work started. I’ll report progress and the result here." + link
+			text = "Work queued. I’ll report progress and the result here." + link
+			if current, err := s.taskSvc.GetTaskDetail(save, job.TaskID); err == nil && current.LatestAttempt != nil && current.LatestAttempt.Status != task.AttemptStatusQueued {
+				text = "Work started. I’ll report progress and the result here." + link
+			}
 		}
 		if background && state != "queued" {
 			s.publishTaskLaunchOutcome(save, job, state, text)

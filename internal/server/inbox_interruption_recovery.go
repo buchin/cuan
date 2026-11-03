@@ -68,7 +68,7 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
 		s.publishInbox(d.SourceRoomID)
 	}
-	return strings.Contains(output, "Work started") || strings.Contains(output, "already handled") || strings.Contains(output, "waiting") || strings.Contains(output, "pending launch")
+	return strings.Contains(output, "Work queued") || strings.Contains(output, "Work started") || strings.Contains(output, "already handled") || strings.Contains(output, "waiting") || strings.Contains(output, "pending launch")
 }
 
 // Cancellation already requires a fresh authenticated user instruction. It is

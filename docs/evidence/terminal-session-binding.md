@@ -216,3 +216,23 @@ status has a small semantic icon or working StatusDot in a muted badge. Backend
 regression with a real PTY/socket verifies queued/finished rejection and current
 running session recognition. Build and browser fixture pass. Queued/completed
 screenshots390/1440 inspected at `/home/dev/reports/cuan-terminal-availability-final/`.
+
+## Studio delegation accepted and queue diagnosis
+
+Approval request cd7af092 completed, creating exactly one task
+msg_734e0ee4-1269-4bb9-ad4b-1ae5012fe753 in Cuan project
+proj_4978b0b914eaaf0d588df037977fb652. Attempt
+att_b8dd61816a77b4a3c4d039191a67f96a is queued; no replacement requested.
+Snapshots103/104/106 confirm binding and lack of execution start.
+
+Official MCP read-only database diagnostics107/108 show runner-01 busy with an
+existing running attempt in another project; heartbeat/lease are renewed. That
+other task reports done but its attempt has not finished. It was not canceled or
+restarted to make room for this test. Queue waiting is therefore backed by current
+capacity evidence, not an assumed worker outage.
+
+Launch confirmation now distinguishes a queued attempt (Work queued) from a
+started attempt (Work started) after the launch was accepted. The interruption
+recovery success recognizer and chat boilerplate suppression recognize the queued
+confirmation. Targeted server delegation/launch tests passed. This wording follow-
+up is not deployed yet. Full Studio-origin execution/artifact/acceptance pending.

@@ -95,6 +95,7 @@ export const MessageContent = memo(function MessageContent({
   const shouldHideTaskCard = Boolean(hideTaskActions || hasTaskAction)
 
   const isBoilerplateLaunch =
+    effectiveBody.startsWith('Work queued. I’ll report progress and the result here.') ||
     effectiveBody.startsWith('Work started. I’ll report progress and the result here.') ||
     effectiveBody.startsWith("Work started. I'll report progress and the result here.") ||
     effectiveBody.startsWith('The work is saved, but could not start.') ||
