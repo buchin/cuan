@@ -99,7 +99,7 @@ export function InboxTaskAction({
   if (!draft && !existing) return null
   if (existing) {
     const state = workStatus(existing)
-    const update = existing.latest_attempt?.error_message || existing.summary
+    const update = state === 'Completed' ? existing.summary : existing.latest_attempt?.error_message || existing.summary
     const project = existing.project_name || existing.project_names?.join(', ')
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
     const StateIcon = state === 'Completed' ? Check : state === 'Queued' ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle

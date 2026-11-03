@@ -382,6 +382,22 @@ func (m *MemoryStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAt
 		}
 		for _, a := range attempts {
 			if a.Status == task.AttemptStatusRunning && a.LeaseExpiresAt != nil && a.LeaseExpiresAt.Before(now) {
+				if t.Status == task.TaskStatusDone {
+					if retire, ok := m.taskStore.(task.AcceptedAttemptRetirer); ok {
+						retired, err := retire.RetireExpiredAcceptedAttempt(ctx, a.ID, a.RunnerID)
+						if err != nil {
+							return nil, err
+						}
+						if retired {
+							a.Status = task.AttemptStatusInterrupted
+							a.ErrorMessage = task.AcceptedTaskLeaseCleanup
+							a.FinishedAt = &now
+							a.InterruptedAt = &now
+							interrupted = append(interrupted, a)
+						}
+					}
+					continue
+				}
 				// Expired lease! Mark interrupted and recoverable
 				a.Status = task.AttemptStatusInterrupted
 				a.FinishedAt = &now

@@ -297,3 +297,24 @@ deadline when work actually starts. Regression checks cover aged queued attempts
 legacy queued deadlines and actual running deadline expiry. Targeted tests passed.
 This queued-deadline fix is committed separately after production7b7eef5 and is
 not deployed yet. Full Studio-origin result verification remains pending.
+
+## Expired lease on an already accepted task held runner capacity
+
+Official MCP diagnostics116 showed runner idle;117 found no competing active Cuan
+project task/launch. Diagnostic118 found a remaining running attempt assigned to
+runner-01 with both lease and execution deadline expired, on a task already done.
+The ordinary CompleteExecution fence correctly rejects changing a final task, but
+lease cleanup reused that path and silently retained the running attempt forever.
+Its code-lane count therefore prevented new claims despite the idle heartbeat.
+
+Added an atomic narrow cleanup for expired running attempts on done tasks only.
+It fences runner ID, lease renewal, cancellation and attempt status; preserves the
+task status, timestamp, summary and verification; records an explicit lease-cleanup
+activity. Memory and PostgreSQL stores use it before ordinary expired-lease flow.
+Coordinator review ignores this bookkeeping-only interruption of accepted work;
+the completed preview retains its accepted summary. No success exit is fabricated.
+
+Behavior tests prove expired accepted lease cleanup, renewal/wrong-runner/active-
+task refusal, idempotence and actual next queued code-lane claim without reopening
+the accepted task. Targeted tests pass. PostgreSQL production path still needs
+release/observed recovery verification; no direct database edits were made.

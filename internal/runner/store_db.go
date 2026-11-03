@@ -503,13 +503,26 @@ func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttemp
 	errMsg := "Runner heartbeat lost and lease expired; marked interrupted and recoverable without auto-rerun."
 
 	for _, a := range expired {
+		tasks := task.NewDBStore(s.db)
+		if saved, err := tasks.GetTask(ctx, a.TaskID); err == nil && saved.Status == task.TaskStatusDone {
+			retired, err := tasks.RetireExpiredAcceptedAttempt(ctx, a.ID, a.RunnerID)
+			if err != nil {
+				return nil, err
+			}
+			if retired {
+				a.Status = task.AttemptStatusInterrupted
+				a.ErrorMessage = task.AcceptedTaskLeaseCleanup
+				a.FinishedAt = &now
+				a.InterruptedAt = &now
+			}
+			continue
+		}
 		a.Status = task.AttemptStatusInterrupted
 		a.FinishedAt = &now
 		a.InterruptedAt = &now
 		a.ExitCode = &exitCode
 		a.ErrorMessage = errMsg
 
-		tasks := task.NewDBStore(s.db)
 		t, err := tasks.GetTask(ctx, a.TaskID)
 		if err != nil {
 			continue
