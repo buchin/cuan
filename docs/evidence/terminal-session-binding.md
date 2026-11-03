@@ -236,3 +236,21 @@ started attempt (Work started) after the launch was accepted. The interruption
 recovery success recognizer and chat boilerplate suppression recognize the queued
 confirmation. Targeted server delegation/launch tests passed. This wording follow-
 up is not deployed yet. Full Studio-origin execution/artifact/acceptance pending.
+
+## Report confirmation across server restart
+
+A code-level recovery gap was reproduced: report confirmation depended only on an
+agent capability kept in server memory. An HTTP401/403 after server restart made
+confirmation return false even when the bound worker report was stored. Added a
+read-only runner-authenticated report endpoint scoped to task, latest running
+attempt, assigned runner, unexpired lease and non-cancellation. It returns only
+summary, verification note, checklist and same-attempt report activity metadata;
+no instructions/environment/token or replacement write grant.
+
+Runner confirmation falls back to this endpoint only on capability401/403 and
+only with configured runner credentials. A progress-only report does not become
+completion. Tests cover grant-loss recovery, preservation of evidence, runner
+mismatch, unauthenticated access, finished attempts and omitted private scope.
+Targeted server+runner tests pass. This is a reproduced reliability defect, not
+proof that it is the sole production queue cause. Existing older detached workers
+are not hot-patched or canceled by this change.

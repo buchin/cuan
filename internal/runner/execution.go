@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,7 +68,7 @@ func runProjectVerification(parent context.Context, workingDir string, defaultBr
 }
 
 func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {
-	if claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" || claim.Attempt == nil {
+	if claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" || claim.Attempt == nil || claim.Task == nil {
 		return false
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, claim.TaskAgent.API, nil)
@@ -78,6 +79,16 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 	response, err := r.httpClient.Do(request)
 	if err != nil {
 		return false
+	}
+	if (response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden) && r.cfg.RunnerToken != "" {
+		// A restarted server can lose its ephemeral agent grant. The worker may
+		// read only its active attempt report through the existing runner identity.
+		response.Body.Close()
+		query := url.Values{"task_id": {claim.Task.ID}, "runner_id": {r.cfg.RunnerID}}
+		response, err = r.doRequest(ctx, http.MethodGet, "/api/v1/runner/attempts/"+url.PathEscape(claim.Attempt.ID)+"/report?"+query.Encode(), nil)
+		if err != nil {
+			return false
+		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
