@@ -135,28 +135,11 @@ test('4. InboxView Integration: clean chat layout (no redundant TaskProgressBann
   )
 })
 
-test('5. InboxTaskAction Integration: renders TaskCompletionCard when done or review', () => {
-  const actionSource = fs.readFileSync(inboxTaskActionPath, 'utf8')
-
-  // Verify TaskCompletionCard import
-  assert.ok(
-    actionSource.includes("import { TaskCompletionCard } from './TaskCompletionCard'"),
-    'InboxTaskAction must import TaskCompletionCard'
-  )
-
-  // Verify completion card rendering condition
-  assert.ok(
-    actionSource.includes("existing.status || '').toLowerCase().trim() === 'done' ||"),
-    'InboxTaskAction must check for done status'
-  )
-  assert.ok(
-    actionSource.includes("existing.status || '').toLowerCase().trim() === 'review'"),
-    'InboxTaskAction must check for review status'
-  )
-  assert.ok(
-    actionSource.includes('<TaskCompletionCard'),
-    'InboxTaskAction must render TaskCompletionCard when task is finished/review'
-  )
+test('5. Inbox task references show current status and open detail without nested completion cards', () => {
+  const source=fs.readFileSync(inboxTaskActionPath,'utf8')
+  assert.ok(source.includes('workStatus(existing)'), 'Reference must show current task state')
+  assert.ok(source.includes('onClick={() => onViewTask(existing)}'), 'Reference opens the existing task detail')
+  assert.ok(!source.includes('<TaskCompletionCard') && !source.includes('<TaskCard'), 'Speech references must not embed full work-management cards')
 })
 
 test('6. Localization: id.json and en.json contain all Task Progress and Completion Card strings', () => {

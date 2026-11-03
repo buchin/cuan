@@ -126,8 +126,8 @@ test('4. Flow propagation: InboxView, InboxTaskAction, MessageContent, ChatMarkd
     'InboxView must pass isCustomerRoom based on activeContact.type'
   )
   assert.ok(
-    inboxTaskActionSrc.includes('isCustomerRoom={isCustomerRoom}'),
-    'InboxTaskAction must forward isCustomerRoom to TaskCard / TaskCompletionCard'
+    !inboxTaskActionSrc.includes('<TaskCard') && !inboxTaskActionSrc.includes('<TaskCompletionCard') && inboxTaskActionSrc.includes('onViewTask(existing)'),
+    'Compact task references must expose navigation without direct execution controls'
   )
   assert.ok(
     messageContentSrc.includes('isCustomerRoom={isCustomerRoom}'),
