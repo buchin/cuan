@@ -150,8 +150,8 @@ test('4. Role-based Presentation Guards: AI Providers & Agent Management', async
   const navUserPath = path.join(webDir, 'src/components/layout/NavUser.tsx')
   const navUserSrc = fs.readFileSync(navUserPath, 'utf-8')
   assert.ok(
-    navUserSrc.includes('data-testid="navuser-role-badge"'),
-    'NavUser must render dynamic role badge in dropdown'
+    !navUserSrc.includes('data-testid="navuser-role-badge"'),
+    'NavUser keeps role details out of the routine menu'
   )
 
   const profilePath = path.join(webDir, 'src/features/settings/ProfileSettings.tsx')

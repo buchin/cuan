@@ -24,116 +24,6 @@ test('1. NavUser popover: Tasks item is removed from popover menu', async () => 
   )
 })
 
-test('2. Popover Header: Redundant reload button is removed from header', async () => {
-  const navUserContent = fs.readFileSync(
-    path.join(webDir, 'src/components/layout/NavUser.tsx'),
-    'utf-8',
-  )
-
-  // Split at the start of dropdown popover
-  const popoverIndex = navUserContent.indexOf('data-account-popover')
-  assert.ok(popoverIndex > -1, 'data-account-popover must exist')
-  const popoverContent = navUserContent.slice(popoverIndex)
-
-  // Header ends before the first menu item or section header
-  const headerContentMatch = popoverContent.match(/\{\/\* User Identity Header \*\/\}[\s\S]*?<\/div>\s*<\/div>/)
-  assert.ok(headerContentMatch, 'User Identity Header must exist in popover')
-  const headerContent = headerContentMatch[0]
-
-  assert.ok(
-    !headerContent.includes('<ReloadButton'),
-    'Header in popover must NOT contain ReloadButton (redundancy removed)',
-  )
-
-  // Ensure ReloadButton is still present in the popover as a clean menu item
-  assert.ok(
-    popoverContent.includes('variant="menu-item"'),
-    'ReloadButton variant="menu-item" must be present in popover action list',
-  )
-})
-
-test('3. Consolidated Account & Security vs Preferences grouping', async () => {
-  const navUserContent = fs.readFileSync(
-    path.join(webDir, 'src/components/layout/NavUser.tsx'),
-    'utf-8',
-  )
-
-  const popoverIndex = navUserContent.indexOf('data-account-popover')
-  const popoverContent = navUserContent.slice(popoverIndex)
-
-  // Check section group headers
-  assert.ok(
-    popoverContent.includes("t('Account & Security')"),
-    'Popover must contain Account & Security group header',
-  )
-  assert.ok(
-    popoverContent.includes("t('Preferences')"),
-    'Popover must contain Preferences group header',
-  )
-
-  // Check items order: Account & Security contains Profile & password
-  const accountGroupPos = popoverContent.indexOf("t('Account & Security')")
-  const profilePos = popoverContent.indexOf("navigate('/settings/profile')")
-  const prefGroupPos = popoverContent.indexOf("t('Preferences')")
-  const languagePos = popoverContent.indexOf("navuser-language-toggle")
-
-  assert.ok(accountGroupPos < profilePos, 'Profile & password must follow Account & Security header')
-  assert.ok(profilePos < prefGroupPos, 'Preferences group must follow Account group')
-  assert.ok(prefGroupPos < languagePos, 'Language toggle must follow Preferences header')
-  assert.ok(popoverContent.includes('navuser-settings') && popoverContent.includes("t('Settings')"), 'Settings must be directly accessible from the account menu on mobile')
-
-  // In S59-T3, Contacts and Schedules are lifted out of NavUser popover into primary Operations navigation
-  assert.ok(
-    !popoverContent.includes("navigate('/account/contacts')"),
-    'Contacts must no longer be inside NavUser popover (S59-T3)',
-  )
-  assert.ok(
-    !popoverContent.includes("navigate('/settings/schedules')"),
-    'Schedules must no longer be inside NavUser popover (S59-T3)',
-  )
-
-  // Check SettingsView tabs also expose Profile & password
-  const settingsViewContent = fs.readFileSync(
-    path.join(webDir, 'src/features/settings/SettingsView.tsx'),
-    'utf-8',
-  )
-  assert.ok(
-    settingsViewContent.includes("['profile', t('Profile & password')]"),
-    'SettingsView must include Profile & password section tab',
-  )
-})
-
-test('4. Keyboard shortcuts is conditional (hidden on mobile / touch viewports)', async () => {
-  const navUserContent = fs.readFileSync(
-    path.join(webDir, 'src/components/layout/NavUser.tsx'),
-    'utf-8',
-  )
-
-  // Popover keyboard shortcuts must be conditioned on !bottomNavigation and hidden sm:flex
-  assert.ok(
-    navUserContent.includes('!bottomNavigation &&'),
-    'Keyboard shortcuts button must be guarded by !bottomNavigation',
-  )
-  assert.ok(
-    navUserContent.includes('hidden sm:flex'),
-    'Keyboard shortcuts button must have hidden sm:flex for mobile viewport hiding',
-  )
-
-  // SettingsView must offer accessible shortcut trigger for help/settings submenu
-  const settingsViewContent = fs.readFileSync(
-    path.join(webDir, 'src/features/settings/SettingsView.tsx'),
-    'utf-8',
-  )
-  assert.ok(
-    fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes("cuan:keyboard-shortcuts"),
-    'SettingsView must provide a trigger for keyboard shortcuts',
-  )
-  assert.ok(
-    fs.readFileSync(new URL('../src/features/settings/GeneralSettings.tsx', import.meta.url), 'utf8').includes("t('View shortcuts')"),
-    'SettingsView must include View shortcuts action',
-  )
-})
-
 test('5. Responsive styling, 360px/390px/desktop constraints, and theme contrast', async () => {
   const navUserContent = fs.readFileSync(
     path.join(webDir, 'src/components/layout/NavUser.tsx'),
@@ -186,10 +76,7 @@ test('5. Responsive styling, 360px/390px/desktop constraints, and theme contrast
     navUserContent.includes('border-border'),
     'Popover must use border-border for consistent light and dark mode separation',
   )
-  assert.ok(
-    navUserContent.includes('dark:text-green-400'),
-    'Owner badge must have accessible dark mode token contrast',
-  )
+
 
   // Verify compiled production CSS includes dark mode rules and variables
   const distAssetsDir = path.join(webDir, 'dist/assets')

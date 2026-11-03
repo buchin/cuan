@@ -161,6 +161,11 @@ export function getSettingsNavCategories(isAccount = false, _userRole?: string):
     },
   ]
 
+  // Personal preferences are reachable from Settings as well as the account page.
+  categories.push(...getSettingsNavCategories(true).map((category) => ({
+    ...category,
+    items: category.items.map((item) => ({ ...item, to: item.to.replace('/account/', '/settings/') })),
+  })))
   return categories
 }
 

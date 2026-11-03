@@ -129,24 +129,24 @@ test('3. S63-T3: Compact NavUser Profile Popover (Account, Password, Language, R
 
   // Profile & password action
   assert.ok(
-    navUserSource.includes("navigate('/settings/profile')"),
-    'NavUser must provide Profile & password navigation to /settings/profile'
+    !navUserSource.includes("navigate('/settings/profile')"),
+    'Profile settings belong under Settings'
   )
 
   // Language toggle action
   assert.ok(
-    navUserSource.includes('data-testid="navuser-language-toggle"'),
-    'NavUser must provide language toggle with data-testid="navuser-language-toggle"'
+    !navUserSource.includes('data-testid="navuser-language-toggle"'),
+    'Language belongs under Appearance settings'
   )
   assert.ok(
-    navUserSource.includes('setPreference'),
-    'NavUser language toggle must call setPreference'
+    !navUserSource.includes('setPreference'),
+    'Language changes belong in Settings'
   )
 
   // Reload button
   assert.ok(
-    navUserSource.includes('<ReloadButton'),
-    'NavUser must render ReloadButton'
+    !navUserSource.includes('<ReloadButton'),
+    'Routine menu must not expose reload'
   )
 
   // Logout action

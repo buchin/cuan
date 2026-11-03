@@ -382,6 +382,15 @@ const writes = [],
   await page.waitForURL(u=>u.pathname.startsWith('/inbox/topic_'));
   await page.goto(base+'/inbox');await page.getByRole('button',{name:'New message',exact:true}).click();await page.waitForURL(u=>u.pathname==='/studio');
   await goal.waitFor();assert.equal(await goal.inputValue(),'');
+  const accountTrigger=page.locator('button[aria-label="Account menu"]:visible');
+  await accountTrigger.click();
+  const menu=page.locator('[data-account-popover]');await menu.waitFor();
+  assert.equal(await menu.getByRole('button').count(),4);
+  assert.deepEqual((await menu.getByRole('button').allTextContents()).slice(1),['Settings','Contacts','Sign out']);
+  assert((await menu.boundingBox()).height<260);
+  for(const button of await menu.getByRole('button').all())assert((await button.boundingBox()).height>=44);
+  await page.screenshot({path:out+'/account-menu-'+theme+'-'+width+'.png'});
+  await page.keyboard.press('Escape');assert.equal(await menu.count(),0);assert(await accountTrigger.evaluate(el=>el===document.activeElement));
   checks.push({width,theme,studioRoute:true,draftRetained:true,inboxNewToStudio:true,noSelectors:true,noOverflow:true});
  }
  await page.setViewportSize({width:390,height:844});
@@ -395,6 +404,8 @@ const writes = [],
  await page.screenshot({path:out+'/contacts-mobile.png'});
  await page.getByTestId('bottom-nav-user-button').click();await page.getByTestId('navuser-settings').click();await page.waitForURL(u=>u.pathname==='/settings');await page.getByRole('heading',{name:'Settings',exact:true}).first().waitFor();
  await page.screenshot({path:out+'/settings-mobile.png'});
+ await page.getByRole('navigation',{name:'Settings navigation',exact:true}).locator('a[href="/settings/appearance"]').click();await page.getByRole('combobox',{name:'Language',exact:true}).waitFor();
+ await page.goto(base+'/settings');await page.getByRole('navigation',{name:'Settings navigation',exact:true}).locator('a[href="/settings/profile"]').click();await page.getByRole('heading',{name:'Profile',exact:true}).first().waitFor();
  await page.goto(base+'/studio');await page.getByRole('textbox',{name:'Your goal',exact:true}).waitFor();await page.evaluate(()=>localStorage.setItem('cuan-language','id'));await page.reload();await page.getByPlaceholder('Tulis aja yang lagi kepikiran…').waitFor();await page.screenshot({path:out+'/studio-empty-id-mobile.png'});
  assert.deepEqual(errors,[]);assert.deepEqual(unknown,[]);assert.equal(launches.length,0);
  fs.writeFileSync(out+'/browser.json',JSON.stringify({fixture:true,checks,idempotentGoalRetry:true,providerInvocations:0,errors,unknown},null,2)+'\n');console.log('PASS Studio responsive navigation, drafts, retry and accepted conversation');

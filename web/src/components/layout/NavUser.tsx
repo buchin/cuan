@@ -2,14 +2,10 @@ import { useLanguage } from '../../context/LanguageContext'
 import { useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { ReloadButton } from '../ui/ReloadButton'
 import {
   Users,
-  Keyboard,
   LogOut,
-  KeyRound,
   MoreHorizontal,
-  Globe,
   Settings,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -34,11 +30,11 @@ export function NavUser({
   bottomNavigation = false,
   active = false,
 }: NavUserProps) {
-  const { t, language, setPreference } = useLanguage()
+  const { t } = useLanguage()
 
   const navigate = useNavigate()
   const compact = isCollapsed || (sidebar && collapsed)
-  const { user, logout, isOwner } = useAuth()
+  const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -158,45 +154,20 @@ export function NavUser({
             )}
           >
             {/* User Identity Header */}
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                setMenuOpen(false)
-                navigate('/account')
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  setMenuOpen(false)
-                  navigate('/account')
-                }
-              }}
-              className="flex items-center gap-3 p-2 border-b border-border mb-1 rounded-md hover:bg-accent cursor-pointer transition-colors"
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); navigate('/account') }}
+              className="mb-1 flex min-h-11 w-full items-center gap-3 border-b border-border/40 p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title={t('Account overview')}
             >
-              <div data-avatar="true" className="flex h-8 w-8 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full">
+              <div data-avatar="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                 {initials}
               </div>
-              <div className="grid flex-1 text-left leading-tight truncate">
-                <span className="truncate font-bold text-xs text-foreground flex items-center gap-1.5">
-                  {username}
-                  <span
-                    data-testid="navuser-role-badge"
-                    className={cn(
-                      'inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase rounded border',
-                      !isOwner
-                        ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                        : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                    )}
-                  >
-                    {!isOwner ? 'MEMBER' : 'OWNER'}
-                  </span>
-                </span>
-                <span className="truncate text-[10px] text-muted-foreground">
-                  {email}
-                </span>
+              <div className="grid min-w-0 flex-1 gap-0.5">
+                <span className="truncate text-sm font-medium text-foreground">{username}</span>
+                <span className="truncate text-xs text-muted-foreground">{email}</span>
               </div>
-            </div>
+            </button>
 
             <button
               type="button"
@@ -212,79 +183,20 @@ export function NavUser({
               <span>{t('Settings')}</span>
             </button>
 
-            {bottomNavigation && (
-              <button type="button" onClick={() => { setMenuOpen(false); navigate('/contacts') }} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground">
-                <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span>{t('Contacts')}</span>
-              </button>
-            )}
-
-            {/* Account & Security Group */}
-            <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {t('Account & Security')}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                navigate('/settings/profile')
-              }}
-              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors text-left rounded-md"
-            >
-              <KeyRound className="h-4 w-4 text-primary shrink-0" />
-              <span>{t('Profile & password')}</span>
+            <button type="button" onClick={() => { setMenuOpen(false); navigate('/contacts') }} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground">
+              <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>{t('Contacts')}</span>
             </button>
 
-            <div className="h-px bg-border/40 my-1" />
-
-            {/* Preferences Group */}
-            <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-              {t('Preferences')}
-            </div>
-            <button
-              type="button"
-              data-testid="navuser-language-toggle"
-              onClick={() => {
-                const next = language === 'id' ? 'en' : 'id'
-                setPreference(next)
-              }}
-              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span>{t('Language')}</span>
-              <span className="ml-auto text-xs font-mono font-medium text-muted-foreground">
-                {language === 'id' ? 'Bahasa Indonesia' : 'English'}
-              </span>
-            </button>
-            {!bottomNavigation && (
-              <button
-                type="button"
-                className="hidden sm:flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground transition-colors"
-                onClick={() => {
-                  setMenuOpen(false)
-                  window.dispatchEvent(new Event('cuan:keyboard-shortcuts'))
-                }}
-              >
-                <Keyboard className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span>{t('Keyboard shortcuts')}</span>
-                <kbd className="ml-auto text-xs text-muted-foreground font-mono">?</kbd>
-              </button>
-            )}
-
-            <div className="h-px bg-border/40 my-1" />
-
-            <ReloadButton
-              variant="menu-item"
-              label={t('Reload app')}
-            />
+            <div className="my-1 h-px bg-border/40" />
 
             <button
               type="button"
               onClick={handleLogout}
-              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors text-left rounded-md"
+              className="flex min-h-11 w-full items-center gap-2 px-2.5 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors text-left rounded-md"
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">{t('Sign out')}</span>
+              <span>{t('Sign out')}</span>
             </button>
           </div>
         )}

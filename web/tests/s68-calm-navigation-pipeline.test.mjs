@@ -68,14 +68,14 @@ test('3. S68-T3: NavUser Profile Popover & Preferences Alignment', () => {
 
   // Profile & password to /settings/profile
   assert.ok(
-    navUserSource.includes("navigate('/settings/profile')"),
-    'NavUser must provide Profile & password link'
+    !navUserSource.includes("navigate('/settings/profile')"),
+    'Profile settings belong under Settings'
   )
 
   // Language toggle
   assert.ok(
-    navUserSource.includes('data-testid="navuser-language-toggle"'),
-    'NavUser must provide language toggle'
+    !navUserSource.includes('data-testid="navuser-language-toggle"'),
+    'Language belongs in Settings'
   )
 
   // Hairline dividers
