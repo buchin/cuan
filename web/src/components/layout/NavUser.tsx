@@ -109,7 +109,7 @@ export function NavUser({
           title={compact ? `${username} · ${t('Account')}` : undefined}
         >
           {/* Avatar */}
-          <div
+          <div data-avatar="true"
             className={cn(
               'flex shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold rounded-full',
               sidebar ? 'h-6 w-6 text-[10px]' : 'h-7 w-7 text-xs',
@@ -174,7 +174,7 @@ export function NavUser({
               className="flex items-center gap-3 p-2 border-b border-border mb-1 rounded-md hover:bg-accent cursor-pointer transition-colors"
               title={t('Account overview')}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full">
+              <div data-avatar="true" className="flex h-8 w-8 shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold text-xs rounded-full">
                 {initials}
               </div>
               <div className="grid flex-1 text-left leading-tight truncate">

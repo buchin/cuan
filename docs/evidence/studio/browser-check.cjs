@@ -373,6 +373,7 @@ const writes = [],
   const goal=page.getByRole('textbox',{name:'Your goal',exact:true});const submit=page.getByRole('button',{name:'Send',exact:true});await goal.waitFor();
   assert(await submit.isDisabled());assert.equal(await page.getByRole('combobox').count(),0);
   assert.equal(await goal.evaluate(el=>getComputedStyle(el).fontSize),'16px');
+  for(const avatar of await page.locator('[data-avatar]:visible').all())assert.equal(await avatar.evaluate(el=>getComputedStyle(el).borderRadius),'9999px');
   const text='Organize a useful goal '+width+' '+theme;await goal.fill(text);await page.reload();await goal.waitFor();assert.equal(await goal.inputValue(),text);
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(width===390){const nav=page.getByRole('navigation',{name:'Bottom navigation'});assert.deepEqual(await nav.locator(':scope > button, :scope > div').allTextContents(),['Studio','Inbox','Tasks','Projects','FIAccount']);assert.equal(await nav.locator('[aria-current=page]').getAttribute('data-testid'),'bottom-nav-studio');}
   assert.equal(await page.locator('[data-studio-goal-panel] aside').count(),0);
@@ -381,13 +382,15 @@ const writes = [],
   await page.waitForURL(u=>u.pathname.startsWith('/inbox/topic_'));
   await page.goto(base+'/inbox');await page.getByRole('button',{name:'New message',exact:true}).click();await page.waitForURL(u=>u.pathname==='/studio');
   await goal.waitFor();assert.equal(await goal.inputValue(),'');
-  checks.push({width,theme,defaultStudio:true,draftRetained:true,inboxNewToStudio:true,noSelectors:true,noOverflow:true});
+  checks.push({width,theme,studioRoute:true,draftRetained:true,inboxNewToStudio:true,noSelectors:true,noOverflow:true});
  }
  await page.setViewportSize({width:390,height:844});
  await page.goto(base+'/tasks');await page.locator('[data-page-header]').first().waitFor();
  assert.equal(await page.locator('[data-page-header] .lucide-square-check-big').count(),1);
  await page.screenshot({path:out+'/tasks-mobile.png'});
  await page.getByTestId('bottom-nav-user-button').click();
+ for(const avatar of await page.locator('[data-account-popover] [data-avatar]').all())assert.equal(await avatar.evaluate(el=>getComputedStyle(el).borderRadius),'9999px');
+ await page.screenshot({path:out+'/account-menu-mobile.png'});
  await page.getByRole('button',{name:'Contacts',exact:true}).click();await page.waitForURL(u=>u.pathname==='/contacts');
  await page.screenshot({path:out+'/contacts-mobile.png'});
  await page.getByTestId('bottom-nav-user-button').click();await page.getByTestId('navuser-settings').click();await page.waitForURL(u=>u.pathname==='/settings');await page.getByRole('heading',{name:'Settings',exact:true}).first().waitFor();
