@@ -183,7 +183,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	digest := sha256.Sum256([]byte(raw))
 	value, ok := s.taskAgentGrants.Load(digest)
-	if (!ok || raw == "") && raw != "" {
+	if (!ok || raw == "") && len(raw) == 64 {
 		// Server restart resilience: if server restarted during an active task attempt,
 		// recover the grant if the requested task is currently in running state.
 		taskID := chi.URLParam(r, "id")

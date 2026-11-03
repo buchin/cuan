@@ -388,3 +388,79 @@ esac
 		t.Fatal("missing response_recovery step in request steps")
 	}
 }
+
+func TestInboxActiveProjectAndTaskContext(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	// 1. Create a project with environment and settings
+	meta, _ := json.Marshal(map[string]any{
+		"cuan_settings": project.Settings{
+			Goal:         "E-commerce portal",
+			Instructions: "Laravel 11 backend",
+			Environment:  "DB_HOST=127.0.0.1\nSTRIPE_SECRET=sk_live_12345\nDOJO_URL=https://dojo.cc",
+		},
+	})
+	projID := "proj_dojo_store"
+	err := s.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:            projID,
+		Name:          "Dojo Store",
+		RepoURL:       "git@github.com:example/dojo.git",
+		DefaultBranch: "main",
+		Metadata:      meta,
+	})
+	if err != nil {
+		t.Fatalf("failed to create project: %v", err)
+	}
+
+	// 2. Create a room bound to that project
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: projID,
+		Title:     "General Chat",
+	}
+	if err := s.projectStudioRepo.CreateRoom(ctx, room); err != nil {
+		t.Fatalf("failed to create room: %v", err)
+	}
+
+	// 3. Create a recent task in that room with DoD
+	tCreated, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		SourceRoomID: room.ID,
+		Title:        "Implementasi MCP Payment",
+		Instructions: "Buat tool pembayaran",
+		DoDChecklist: []task.DoDItem{
+			{Text: "Lolos unit test", Completed: true},
+			{Text: "CLI artisan fallback php artisan pay", Completed: false},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	q := db.InboxRequest{
+		RoomID:    room.ID,
+		MessageID: "msg_target",
+	}
+
+	out := s.inboxActiveProjectAndTaskContext(ctx, q)
+
+	if !strings.Contains(out, "Bound Project Context (Active Room Project)") {
+		t.Fatalf("expected bound project context header, got: %s", out)
+	}
+	if !strings.Contains(out, "Dojo Store") {
+		t.Fatalf("expected project name in context, got: %s", out)
+	}
+	if !strings.Contains(out, "DB_HOST, STRIPE_SECRET, DOJO_URL") {
+		t.Fatalf("expected extracted env keys in context, got: %s", out)
+	}
+	if strings.Contains(out, "sk_live_12345") {
+		t.Fatalf("secret env values must NEVER be leaked in prompt context!")
+	}
+	if !strings.Contains(out, tCreated.ID) || !strings.Contains(out, "Implementasi MCP Payment") {
+		t.Fatalf("expected recent task in context, got: %s", out)
+	}
+	if !strings.Contains(out, "CLI artisan fallback php artisan pay") {
+		t.Fatalf("expected unfulfilled DoD in context, got: %s", out)
+	}
+}

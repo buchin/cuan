@@ -405,7 +405,7 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 			return err
 		}
 		var withdrawn bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_launches j JOIN tasks t ON t.id=j.task_id WHERE j.attempt_id=$1 AND (j.state<>'claimed' OR j.lease_until IS NULL OR j.lease_until<=NOW() OR j.project_id<>COALESCE(t.project_id,'') OR j.agent_id<>$2 OR j.instructions_hash<>encode(digest(t.instructions,'sha256'),'hex')))`, a.ID, a.AgentName).Scan(&withdrawn); err != nil {
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_launches j JOIN tasks t ON t.id=j.task_id WHERE j.attempt_id=$1 AND (j.state<>'claimed' OR j.lease_until IS NULL OR j.lease_until<=NOW() OR j.project_id<>COALESCE(t.project_id,'') OR (j.agent_id<>$2 AND t.assigned_agent<>$2) OR j.instructions_hash<>encode(digest(t.instructions,'sha256'),'hex')))`, a.ID, a.AgentName).Scan(&withdrawn); err != nil {
 			return err
 		}
 		if withdrawn {

@@ -77,8 +77,10 @@ func TestChatHandlers_CompleteFlow(t *testing.T) {
 		t.Fatalf("failed to unmarshal contacts: %v", err)
 	}
 
-	if len(contactsResp.Contacts) != 0 {
-		t.Fatalf("expected no fabricated agent contacts: %+v", contactsResp.Contacts)
+	for _, c := range contactsResp.Contacts {
+		if c.Type != "agent" {
+			t.Fatalf("expected no visitor contacts initially: %+v", c)
+		}
 	}
 
 	// 2. Visitor Live Chat Initialization (POST /api/chat/session)

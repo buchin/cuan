@@ -14,6 +14,7 @@ import (
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/go-chi/chi/v5"
 )
@@ -517,10 +518,118 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, e
 			}
 		}
 	}
+	b.WriteString(s.inboxActiveProjectAndTaskContext(ctx, q))
 	b.WriteString(s.inboxContactMemoryContext(ctx, q, selected))
 	b.WriteString(attachmentContext(q.OwnerID, s.inboxAttachmentIDs(ctx, q)))
 	fmt.Fprintf(&b, "\nTarget message ID: %s", q.MessageID)
 	return b.String(), nil
+}
+
+func extractEnvKeys(envContent string) []string {
+	lines := strings.Split(envContent, "\n")
+	var keys []string
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		if l == "" || strings.HasPrefix(l, "#") {
+			continue
+		}
+		parts := strings.SplitN(l, "=", 2)
+		if len(parts) > 0 {
+			key := strings.TrimSpace(parts[0])
+			if key != "" {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
+}
+
+func (s *Server) inboxActiveProjectAndTaskContext(ctx context.Context, q db.InboxRequest) string {
+	if s.projectStudioRepo == nil {
+		return ""
+	}
+	room, err := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)
+	if err != nil || room == nil {
+		return ""
+	}
+	var b strings.Builder
+	var boundProjectID string
+	if room.ProjectID != "" && room.ProjectID != "default" {
+		boundProjectID = room.ProjectID
+	}
+	if boundProjectID != "" && s.projectSvc != nil {
+		if p, err := s.projectSvc.Get(ctx, boundProjectID); err == nil && p != nil {
+			settings := project.SettingsFromMetadata(p.Metadata)
+			b.WriteString("\n## Bound Project Context (Active Room Project)\n")
+			b.WriteString(fmt.Sprintf("- Project: %s (ID: %s)\n", p.Name, p.ID))
+			if p.RepoURL != "" {
+				b.WriteString(fmt.Sprintf("- Repository: %s (Default Branch: %s)\n", p.RepoURL, p.DefaultBranch))
+			}
+			if p.LocalPath != "" {
+				b.WriteString(fmt.Sprintf("- Local Workspace: %s\n", p.LocalPath))
+			}
+			if settings.Goal != "" {
+				b.WriteString(fmt.Sprintf("- Standing Goal: %s\n", settings.Goal))
+			}
+			if settings.Instructions != "" {
+				b.WriteString(fmt.Sprintf("- Standing Project Instructions: %s\n", settings.Instructions))
+			}
+			if env := strings.TrimSpace(settings.Environment); env != "" {
+				keys := extractEnvKeys(env)
+				if len(keys) > 0 {
+					b.WriteString(fmt.Sprintf("- Environment (.env): Injected and active in workspace (configured keys: %s)\n", strings.Join(keys, ", ")))
+				} else {
+					b.WriteString("- Environment (.env): Injected and active in workspace\n")
+				}
+			}
+		}
+	}
+
+	if s.taskSvc != nil {
+		var tasks []*task.TaskItemResponse
+		if tasksResp, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID}); err == nil {
+			tasks = tasksResp
+		}
+		if len(tasks) == 0 && boundProjectID != "" {
+			if tasksResp, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: boundProjectID}); err == nil {
+				tasks = tasksResp
+			}
+		}
+		if len(tasks) > 0 {
+			sort.SliceStable(tasks, func(i, j int) bool {
+				return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
+			})
+			b.WriteString("\n## Recent Tasks in this Room / Project\n")
+			limit := 3
+			if len(tasks) < limit {
+				limit = len(tasks)
+			}
+			for i := 0; i < limit; i++ {
+				t := tasks[i]
+				b.WriteString(fmt.Sprintf("- Task ID: %s | Status: %s | Title: %s\n", t.ID, t.Status, t.Title))
+				if t.LatestProgress != "" {
+					b.WriteString(fmt.Sprintf("  Latest progress: %s\n", truncateProjectText(t.LatestProgress, 200)))
+				}
+				if t.CompleteNote != "" {
+					b.WriteString(fmt.Sprintf("  Outcome note: %s\n", truncateProjectText(t.CompleteNote, 200)))
+				}
+				var unfulfilledDoD []string
+				for _, dod := range t.DoDChecklist {
+					if !dod.Completed && strings.TrimSpace(dod.Text) != "" {
+						unfulfilledDoD = append(unfulfilledDoD, dod.Text)
+					}
+				}
+				if len(unfulfilledDoD) > 0 {
+					b.WriteString("  Unfulfilled Definition of Done (DoD gaps to address):\n")
+					for _, dod := range unfulfilledDoD {
+						b.WriteString(fmt.Sprintf("    * %s\n", truncateProjectText(dod, 150)))
+					}
+				}
+			}
+		}
+	}
+
+	return b.String()
 }
 
 func (s *Server) handleCancelInboxRequest(w http.ResponseWriter, r *http.Request) {

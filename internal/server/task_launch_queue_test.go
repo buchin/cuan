@@ -56,6 +56,7 @@ func runQueuedLaunchScenario(t *testing.T, scenario string, database *sql.DB) {
 		reg.ModelID = "claude-sonnet-test"
 		_ = s.agentRepo.UpdateAgent(ctx, reg)
 	}
+	_ = s.agentRepo.DeleteAgent(ctx, "agent_lifecycle")
 	metaPath := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", account.ID, "account.json")
 	raw, _ := os.ReadFile(metaPath)
 	var meta map[string]any

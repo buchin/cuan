@@ -36,6 +36,7 @@ func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
 		{"task_draft", InboxTaskDraft{Title: "Draft calculator", Description: "Draft only", ProjectID: "default"}, "cuan-task"},
 		{"task_cancel", inboxTaskCancelAction{TaskID: "task-123", Reason: "User decided to cancel"}, "cuan-task-cancel"},
 		{"task_reopen", inboxTaskReopenAction{TaskID: "task-123", Reason: "User wants to retry"}, "cuan-task-reopen"},
+		{"prompt_choices", InboxPromptChoices{Question: "Langkah selanjutnya?", Options: []InboxPromptOption{{ID: "done", Label: "Selesai (Done)", Variant: "primary"}, {ID: "revisit", Label: "Revisi Dulu", Variant: "outline"}}}, "cuan-prompt"},
 	}
 	for _, c := range cases {
 		t.Run(c.kind+c.marker, func(t *testing.T) {

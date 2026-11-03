@@ -56,6 +56,18 @@ export interface ApprovalPlan {
   project_name?: string
 }
 
+export interface PromptOption {
+  id: string
+  label: string
+  variant?: 'primary' | 'outline' | 'ghost'
+}
+
+export interface PromptChoices {
+  question?: string
+  options: PromptOption[]
+  allow_other?: boolean
+}
+
 export interface ChatMessage {
   plan_deferred?: boolean
   plan_defer_request_id?: string
@@ -63,6 +75,7 @@ export interface ChatMessage {
   approval_request_id?: string
   approval_title?: string
   approval_plan?: ApprovalPlan
+  prompt_choices?: PromptChoices
   attachments?: import('../features/inbox/Attachments').Attachment[]
   task_draft?: InboxTaskDraft
   id: number

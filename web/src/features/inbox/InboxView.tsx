@@ -68,6 +68,7 @@ import { MessageContent } from './MessageContent'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
+import { PromptChoiceChips } from './PromptChoiceChips'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { ChatMarkdown } from './ChatMarkdown'
@@ -1004,11 +1005,11 @@ export function InboxView({
     }
   }, [])
 
-  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer') => {
+  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string) => {
     if (!activeContact || sending || uploads.busy || retryCount >= 3) return
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current
-    let text = pending?.convId === convId ? pending.text : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
+    let text = pending?.convId === convId ? pending.text : overrideText ? overrideText : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
     if (!approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
       text = `${whisperHandle} ${text}`
     }
@@ -1774,6 +1775,14 @@ export function InboxView({
                             textareaRef.current?.focus()
                           }}
                           onDefer={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}
+                        />
+                      )}
+
+                      {isAgentMessage && msg.prompt_choices && (
+                        <PromptChoiceChips
+                          prompt={msg.prompt_choices}
+                          disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
+                          onSelect={(option) => handleSendMessage(undefined, undefined, undefined, option.label)}
                         />
                       )}
 

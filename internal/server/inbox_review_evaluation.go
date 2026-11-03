@@ -413,7 +413,7 @@ func (s *Server) detectNextMultiPhase(ctx context.Context, d *task.TaskDetailRes
 		}
 	}
 	if currentPhase == 0 {
-		currentPhase = 1
+		return nil, false
 	}
 
 	nextNum := currentPhase + 1
@@ -497,10 +497,10 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 		}
 	}
 
-	link := ""
-	if nextTaskID != "" {
-		link = fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
+	if nextTaskID == "" {
+		return explanation
 	}
+	link := fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
 	return fmt.Sprintf("%s\n\nPhase %d verified complete. Automatically advancing to **%s** without stopping.%s", explanation, target.CurrentPhase, nextTitle, link)
 }
 

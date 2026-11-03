@@ -71,6 +71,7 @@ type ChatMessageDTO struct {
 	ApprovalAccepted   bool                     `json:"approval_accepted,omitempty"`
 	ApprovalPlan       *inboxApprovalPlan       `json:"approval_plan,omitempty"`
 	ApprovalTitle      string                   `json:"approval_title,omitempty"`
+	PromptChoices      *InboxPromptChoices      `json:"prompt_choices,omitempty"`
 	Attachments        []conversationAttachment `json:"attachments,omitempty"`
 	ID                 int64                    `json:"id"`
 	UUID               string                   `json:"uuid,omitempty"`
@@ -1841,6 +1842,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		var actionCard *AgentActionCard
 		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
 		content, approvalTitle := splitInboxApproval(m.AuthorType, content)
+		content, promptChoices := splitInboxPromptChoices(m.AuthorType, content)
 		var approvalPlan *inboxApprovalPlan
 		approvalRequestID := ""
 		if m.AuthorType == "agent" {
@@ -1924,6 +1926,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			ReplyDraft:      replyDraft,
 			ApprovalTitle:   approvalTitle,
 			ApprovalPlan:    approvalPlan,
+			PromptChoices:   promptChoices,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
 			GroundingTastes:  groundingTastes,

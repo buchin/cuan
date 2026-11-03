@@ -10,7 +10,7 @@ import (
 
 // This is a transport contract, not a grant of authority. The existing owner,
 // persisted approval, project, cancellation and task launch checks still apply.
-const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval","delegation","memory","memory_search","task_draft","task_cancel","task_reopen"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
+const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval","delegation","memory","memory_search","task_draft","task_cancel","task_reopen","prompt_choices"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
 const inboxAnalysisRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","maxLength":0},"action":{"type":"null"}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
@@ -65,13 +65,13 @@ If a technical request or code inspection requires deep investigation beyond rea
 - If the user authorized work or investigation (e.g. 'gas', 'lanjut', 'investigasi', 'cek kenapa...', etc.), emit a delegation action immediately for the autonomous analysis session with a clear DoD checklist.
 - If recommending deep analysis or seeking PO confirmation, emit an approval action with a concrete title (e.g. 'Sesi Analisis Mandiri: Investigasi Komponen UI/Navbar') and DoD so the PO can approve with one click ('gas').
 
-MANDATORY APPROVAL ACTION: When recommending next steps, proposing a code change, or asking for user confirmation/consent (such as asking 'Setuju?', 'Apakah Anda setuju?', 'Lanjut?'), you MUST emit an approval action. FORBIDDEN: Ending your reply with a confirmation question in plain text without emitting an approval action card. The UI renders interactive approval buttons from this action.
-AFFIRMATIVE TRIGGERS & PROACTIVE WORK FORMULATION (ZERO DEFLECTION):
+MANDATORY APPROVAL & PROMPT CHOICES ACTION: When recommending next steps, proposing a code change, or asking for user confirmation/consent (such as asking 'Setuju?', 'Apakah Anda setuju?', 'Lanjut?', or choosing between options), you MUST emit either an 'approval' action (for task proposals) or a 'prompt_choices' action (for interactive choice chips e.g. [{"id":"done","label":"Selesai (Done)"},{"id":"revise","label":"Lanjut Revisi"}]). FORBIDDEN: Ending your reply with a confirmation question or choice options in plain text without emitting an action card. The UI renders interactive 1-tap buttons from these actions.
+AFFIRMATIVE TRIGGERS & PROACTIVE WORK FORMULATION (ZERO DEFLECTION & ZERO CLUE DEPENDENCY):
 When the user authorizes work using affirmative triggers or slang (e.g. 'gas', 'lanjut', 'proceed', 'go ahead', 'yes', 'gass', 'gaskeun', 'gas pol', 'oke gas', 'siap', 'jalan') or reminds you of your role (e.g. 'kan ente sm', 'kan kamu sm', 'ente yang bikin', 'lu yang bikin'):
-- FORBIDDEN: Asking '"Gas" ke mana?', questioning the user's intent, claiming there is no concrete work/scope agreed, or deflecting with 'Mau mulai dari mana?'. Cuan is built for non-developer users; Scrum Masters do not ask the user to design the tasks.
-- PROACTIVE SYNTHESIS: Proactively synthesize and connect the user's authorization to the topics, proposed improvements, needed tools, bug investigations, or features discussed in the recent conversation turns.
+- FORBIDDEN: Asking '"Gas" ke mana?', questioning the user's intent, asking the user for technical clues or credentials, or deflecting with 'Mau mulai dari mana?'. Cuan is built for non-developer users; Scrum Masters do not ask the user to design tasks or provide technical parameters.
+- PROACTIVE CONTEXT LOOKUP & SYNTHESIS: Proactively inspect the Bound Project Context (.env readiness, repository path) and Recent Tasks / DoD Gaps in this room. Proactively synthesize and connect the user's authorization to the topics discussed or recent task gaps without deflecting. If a recent task was in review, failed, or has unfulfilled DoD items, connect the user's affirmative trigger directly to continuing that task and emit a delegation action (or prompt_choices) immediately.
 - Formulate a concrete proposed plan (Problem Statement, Scope, Definition of Done checklist, and target project) and emit an approval action (or delegation action if scope is already unambiguous) so the UI renders interactive choice buttons or auto-approves.
-- Never leave the user in an empty conversational loop. If proposing tooling needs, architectural options, or improvements in chat, ALWAYS accompany actionable proposals with an approval action card.
+- Never leave the user in an empty conversational loop. If proposing tooling needs, architectural options, or improvements in chat, ALWAYS accompany actionable proposals with an approval or prompt_choices action card.
 
 PROACTIVE EXTENSION & TOOL CREATION PROTOCOL:
 When a requested capability, operational shortcut, external integration, or automation tool does not exist yet:
@@ -313,6 +313,8 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 			marker, payload = "cuan-task-cancel", &inboxTaskCancelAction{}
 		case "task_reopen":
 			marker, payload = "cuan-task-reopen", &inboxTaskReopenAction{}
+		case "prompt_choices":
+			marker, payload = "cuan-prompt", &InboxPromptChoices{}
 		default:
 			return "", bad
 		}
@@ -344,6 +346,10 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 			}
 		case "task_reopen":
 			if _, reopenAction, err := parseInboxTaskReopen(output); err != nil || reopenAction == nil {
+				return "", bad
+			}
+		case "prompt_choices":
+			if _, prompt := splitInboxPromptChoices("agent", output); prompt == nil {
 				return "", bad
 			}
 		}

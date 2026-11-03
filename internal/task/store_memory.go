@@ -227,7 +227,7 @@ func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	for _, j := range m.launches {
 		if attemptRequestID(j.TaskID, j.RequestID) == a.ID {
 			t := m.tasks[a.TaskID]
-			if j.State != "claimed" || j.LeaseUntil == nil || !j.LeaseUntil.After(time.Now()) || t == nil || j.ProjectID != t.ProjectID || j.AgentID != a.AgentName || j.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
+			if j.State != "claimed" || j.LeaseUntil == nil || !j.LeaseUntil.After(time.Now()) || t == nil || j.ProjectID != t.ProjectID || (j.AgentID != a.AgentName && t.AssignedAgent != a.AgentName) || j.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 				return ErrInvalidTaskInput
 			}
 		}

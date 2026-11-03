@@ -126,6 +126,15 @@ func TestDetectNextMultiPhase(t *testing.T) {
 	if target.CurrentPhase != 2 || target.NextPhase != 3 || target.NextTitle != "Web UI" {
 		t.Fatalf("unexpected target: %+v", target)
 	}
+
+	// Single task that happens to mention bullet point phases in instructions without active phase tag
+	bulletPhaseTask := &task.TaskDetailResponse{
+		Title:        "Implementasi Tool MCP GrantUserAccess dan CLI di Project Dojo",
+		Instructions: "Scope:\n- Phase 1: Tambahkan Tool\n- Phase 2: Sediakan CLI\n- Phase 3: Deploy",
+	}
+	if _, ok = s.detectNextMultiPhase(ctx, bulletPhaseTask); ok {
+		t.Fatal("expected ok=false for single task with untagged bullet phases")
+	}
 }
 
 func TestApplyInboxReviewEvaluationMultiPhaseAutoAdvancement(t *testing.T) {
