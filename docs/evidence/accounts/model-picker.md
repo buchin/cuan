@@ -72,3 +72,22 @@ Browser390/1440 fixtures include two messages for the same task and confirm one
 reference outside both speech bubbles, with Cancelled instead of Needs attention.
 Rendered mobile/desktop screenshots were inspected. Build and targeted drawer/
 in-flight card tests pass. Deployment is deferred while native attempt2 runs.
+
+## Informative task preview and real terminal actions
+
+Task previews retain project, title, current state and latest reported update/error,
+with separate Detail and Terminal buttons (44px touch targets). Terminal invokes
+the actual TaskTerminal/xterm surface, not the detail/log tab. Browser fixtures
+verify two distinct buttons, terminal mounting, and stdin frames across390/1440;
+these are not production runner evidence. Native PTY/socket bridge integration
+tests separately pass, using a real subprocess with controlled test CLI.
+
+Activity details use a vertical hairline/tiny dots, with a calm pulse only for the
+latest active event. Rendered screenshots were inspected. A stopped launch can
+no longer masquerade as Queued merely because of the board status.
+
+Read-only Fural comparison found retained terminal hosts/reconnect to the same
+session, scrollback seeds and heartbeat policy. Cuan already spawns the actual
+interactive AGY CLI in a PTY and exposes task/attempt Unix socket bridges. Further
+production verification must bind the browser to that native process, rather
+than treating xterm UI or saved logs as proof of a live terminal.

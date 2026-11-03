@@ -5,8 +5,8 @@ import { apiFetch } from '../../api/client'
 import { InboxTaskDraft } from '../../api/chat'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { ChevronRight, CheckSquare } from 'lucide-react'
-import { workStatus, taskDetailUrl } from '../tasks/task-ui'
+import { FileText, Terminal } from 'lucide-react'
+import { workStatus, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
 
 
 export function InboxTaskAction({
@@ -15,6 +15,7 @@ export function InboxTaskAction({
   draft,
   linkedTask,
   onViewTask,
+  onOpenTerminal,
 }: {
   conversationId: string
   messageId: string
@@ -80,10 +81,20 @@ export function InboxTaskAction({
 
   if (!draft && !existing) return null
   if (existing) {
-    const content = <><CheckSquare aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 space-y-1"><span className="block text-sm font-medium leading-5 line-clamp-2">{existing.title}</span><span className="block text-xs text-muted-foreground">{t(workStatus(existing))}</span></span><ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" /></>
-    const classes = "mt-2.5 flex min-h-16 w-full max-w-xl items-center gap-3 rounded-xl bg-muted/30 px-4 py-3 text-left hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-    return onViewTask ? <button type="button" data-card="task-card" aria-label={t('Open task') + ': ' + existing.title} className={classes} onClick={() => onViewTask(existing)}>{content}</button>
-      : <Link data-card="task-card" aria-label={t('Open task') + ': ' + existing.title} className={classes} to={taskDetailUrl(existing)}>{content}</Link>
+    const state = workStatus(existing)
+    const update = existing.latest_attempt?.error_message || existing.summary
+    const project = existing.project_name || existing.project_names?.join(', ')
+    return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="mt-2.5 w-full max-w-xl space-y-3 rounded-xl bg-muted/30 px-4 py-3">
+      <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground"><span className="min-w-0 truncate">{project || t('Task')}</span><span className="shrink-0">{t(state)}</span></div>
+      <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
+      {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
+      <div className="flex items-center gap-4">
+        {onViewTask ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
+          : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
+        {onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
+          : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>}
+      </div>
+    </section>
   }
   return (
     <form

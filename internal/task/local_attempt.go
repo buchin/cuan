@@ -65,10 +65,20 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 			}
 		}
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board); e != nil {
+	result, e := tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board)
+	if e != nil {
 		return e
 	}
-	if _, e = tx.ExecContext(ctx, `UPDATE task_launches SET state='stopped',lease_token='',lease_until=NULL,updated_at=NOW() WHERE task_id=$1 AND state IN ('queued','claimed','started')`, taskID); e != nil {
+	changed, e := result.RowsAffected()
+	if e != nil {
+		return e
+	}
+	if changed == 0 {
+		return tx.Commit()
+	}
+	// A terminal callback must not stop a newer authorized launch awaiting its
+	// own attempt. Match the memory store's board guard and chronological bound.
+	if _, e = tx.ExecContext(ctx, `UPDATE task_launches SET state='stopped',lease_token='',lease_until=NULL,updated_at=NOW() WHERE task_id=$1 AND state IN ('queued','claimed','started') AND created_at <= (SELECT created_at FROM task_attempts WHERE id=$2)`, taskID, attemptID); e != nil {
 		return e
 	}
 	return tx.Commit()
@@ -95,7 +105,7 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	t.UpdatedAt = time.Now().UTC()
 	t.Status = TaskStatusBlocked
 	for _, l := range s.launches {
-		if l.TaskID == taskID && (l.State == "queued" || l.State == "claimed" || l.State == "started") {
+		if l.TaskID == taskID && !l.CreatedAt.After(latest.CreatedAt) && (l.State == "queued" || l.State == "claimed" || l.State == "started") {
 			l.State = "stopped"
 			l.LeaseToken = ""
 			l.LeaseUntil = nil

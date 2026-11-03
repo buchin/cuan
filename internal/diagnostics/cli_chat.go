@@ -24,6 +24,8 @@ func RunChatCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "download":
+		return runChatDownload(ctx, extraArgs, out, errOut)
 	case "new", "create":
 		return runChatNew(ctx, extraArgs, out, errOut)
 	case "send":
@@ -46,6 +48,7 @@ Usage:
   cuan chat send <room-id> "<message>" [--wait] [--timeout 30] [--json]
   cuan chat list [--project default] [--limit 20] [--json]
   cuan chat messages <room-id> [--limit 30] [--json]
+  cuan chat download <attachment-id> --output PATH
 
 Subcommands:
   new       Create a new agent conversation room in Inbox

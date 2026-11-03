@@ -2347,7 +2347,7 @@ export function InboxView({
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                       </span>
-                      <span className="font-medium text-foreground">Streaming live logs… (xterm.js ANSI stream)</span>
+                      <span className="font-medium text-foreground">{t('Interactive terminal')}</span>
                     </span>
                     <Link
                       to={taskTerminalUrl(peekTask)}

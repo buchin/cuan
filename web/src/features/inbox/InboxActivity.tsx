@@ -315,10 +315,11 @@ export function InboxActivity({
               {processSteps.length ? (
                 <ol
                   aria-label="Response timeline"
-                  className="space-y-3 border-l border-border pl-3"
+                  className="ml-1 space-y-0 border-l border-border/40 pl-5"
                 >
-                  {processSteps.map((step) => (
-                    <li key={step.seq} className="space-y-1">
+                  {processSteps.map((step, index) => (
+                    <li key={step.seq} className="relative space-y-1 pb-5 last:pb-0">
+                      <span aria-hidden className={`absolute -left-[25px] top-1.5 h-2 w-2 rounded-full ${active && index === processSteps.length - 1 ? 'bg-sky-400/70 animate-pulse' : 'bg-muted-foreground/50'}`} />
                       {step.kind.startsWith('runtime_tool_') && (
                         <span
                           className={`text-xs font-medium ${step.kind === 'runtime_tool_failed' ? 'text-destructive' : 'text-muted-foreground'}`}

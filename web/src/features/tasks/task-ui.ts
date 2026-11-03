@@ -78,10 +78,10 @@ export function workStatus(task: Task) {
   const attempt = task.latest_attempt?.status || task.execution_status
   if (attempt === 'running') return 'Working'
   if (attempt === 'queued') return 'Queued'
-  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Queued'
   if (task.status === 'done') return 'Completed'
   if (task.launch?.state === 'stopped') return 'Needs attention'
   if (task.launch?.state === 'cancelled') return 'Cancelled'
+  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Queued'
   if (attempt === 'canceled' || attempt === 'cancelled') return 'Cancelled'
   if (task.status === 'blocked' || ['failed', 'interrupted'].includes(attempt || '')) return 'Needs attention'
   if (task.status === 'review') return task.result_kind === 'answer' && ['succeeded', 'completed'].includes(attempt || '') ? 'Answered' : 'Ready for review'

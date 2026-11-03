@@ -125,3 +125,10 @@ API. This does not prove the worker has stopped: inspect the same task with
 `cuan task get TASK_ID --json` until its attempt reaches a terminal state.
 Failures do not retry automatically or echo response bodies. Saved task scope
 and conversation remain available for a scoped resume.
+
+### Download delivered files
+
+`cuan chat download ATTACHMENT_ID --output PATH` downloads an owner-authorized
+Inbox attachment to a new private local file. Obtain IDs from conversation
+messages; invalid IDs, failed responses, partial/oversized downloads and existing
+output paths are rejected. Read the resulting file to verify the actual artifact.

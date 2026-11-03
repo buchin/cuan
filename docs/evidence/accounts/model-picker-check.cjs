@@ -3,7 +3,7 @@ const {chromium}=require('/home/dev/.local/lib/node_modules/playwright')
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('node:assert/strict')
 const out=process.env.CUAN_VISUAL_OUTPUT||'/home/dev/reports/cuan-account-models'
 let browser,server,fail=false,catalogCalls=0
-const task={id:'msg_reply',title:'Prepare the Studio guide',status:'blocked',source_message_id:'reply',project_id:'project',created_at:new Date().toISOString(),updated_at:new Date().toISOString(),latest_attempt:{id:'attempt',status:'canceled',error_message:'Cancelled'}}
+const task={id:'msg_reply',title:'Prepare the Studio guide',status:'blocked',source_message_id:'reply',project_id:'project',project_name:'Cuan fixture',summary:'Guide is ready for verification.',created_at:new Date().toISOString(),updated_at:new Date().toISOString(),latest_attempt:{id:'attempt',status:'canceled',error_message:'Cancelled'}}
 const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials_present:true,state:'quota_limited',model_id:'saved-model',email:'owner@example.invalid'}, {id:'unsigned',label:'Not connected',provider:'agy',credentials_present:false,state:'login_required',model_id:''}]
 ;(async()=>{
  fs.mkdirSync(out,{recursive:true})
@@ -48,7 +48,7 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
  }
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room')
-  const trigger=page.getByRole('button',{name:'Detail',exact:true});await trigger.waitFor();const before=await trigger.boundingBox()
+  const trigger=page.getByLabel('Response status',{exact:true}).getByRole('button',{name:'Detail',exact:true});await trigger.waitFor();const before=await trigger.boundingBox()
   await trigger.click();const drawer=page.getByRole('dialog',{name:'Response details',exact:true});await drawer.waitFor()
   const rect=await drawer.boundingBox();assert.equal(Math.round(rect.width),width===390?390:480)
   await drawer.getByRole('list',{name:'Response timeline'}).waitFor();assert.equal(await drawer.locator('ol[aria-label="Response timeline"] > li').count(),100)
@@ -65,9 +65,20 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
   await nav.getByRole('link',{name:'Appearance',exact:true}).click();await page.getByRole('button',{name:'Dark',exact:true}).click()
   assert.equal(await nav.isVisible(),width===1440);assert.equal(new URL(page.url()).pathname,'/settings/appearance');if(width===1440)assert.equal(await nav.getByRole('link').count(),10);await page.screenshot({path:out+'/settings-detail-'+width+'.png'})
   await page.goto('http://127.0.0.1:4182/inbox/fixture-room');const mixed=page.locator('.wa-incoming').filter({hasText:'I will prepare the agreed guide'}).last();await mixed.waitFor()
-  assert.equal(await mixed.locator('[data-testid="task-completion-card"], [data-card="task-card"]').count(),0);assert.equal(await page.locator('[data-card="task-card"]').count(),1);const row=mixed.locator('xpath=ancestor::*[@data-message-id][1]');assert(await row.locator('[data-testid="task-completion-card"], [data-card="task-card"]').count()>0);assert.equal(await row.getByText('Needs attention',{exact:true}).count(),0);assert(await row.getByText('Cancelled',{exact:true}).count()>0)
+  assert.equal(await mixed.locator('[data-testid="task-completion-card"], [data-card="task-card"]').count(),0);assert.equal(await page.locator('[data-card="task-card"]').count(),1);const row=mixed.locator('xpath=ancestor::*[@data-message-id][1]');assert(await row.locator('[data-testid="task-completion-card"], [data-card="task-card"]').count()>0);assert.equal(await row.getByText('Needs attention',{exact:true}).count(),0);assert(await row.getByText('Cancelled',{exact:true}).count()>0);const card=row.locator('[data-card="task-card"]');assert(await card.getByText('Cuan fixture',{exact:true}).isVisible());assert.equal(await card.getByRole('button',{name:'Detail',exact:true}).count(),1);assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),1)
   const style=await mixed.evaluate(el=>({bg:getComputedStyle(el).backgroundColor,padding:parseFloat(getComputedStyle(el).paddingLeft)}));assert.notEqual(style.bg,'rgba(0, 0, 0, 0)');assert(style.padding>=12)
   await page.screenshot({path:out+'/chat-bubble-dark-'+width+'.png'});assert.equal(await page.getByText(/1\/1 Terpenuhi/).count(),0);await page.screenshot({path:out+'/review-evidence-'+width+'.png'});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
  }
+ task.status='doing';task.latest_attempt.status='running';const terminalInput=[]
+ await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive'}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='stdin')terminalInput.push(data.data)})})
+ for(const width of [390,1440]){
+  await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room')
+  const card=page.locator('[data-card="task-card"]');await card.getByRole('button',{name:'Terminal',exact:true}).click()
+  const drawer=page.getByTestId('inbox-task-drawer');await drawer.waitFor();await drawer.locator('.xterm-screen').waitFor()
+  const input=drawer.locator('.xterm-helper-textarea');await input.focus();await page.keyboard.type('x');await page.waitForFunction(()=>true)
+  await page.screenshot({path:out+'/task-terminal-'+width+'.png'});await drawer.getByRole('button',{name:'Close drawer',exact:true}).click()
+  await card.getByRole('button',{name:'Detail',exact:true}).click();await drawer.waitFor();assert.equal(await drawer.locator('.xterm-screen').count(),0);await drawer.getByRole('button',{name:'Close drawer',exact:true}).click()
+ }
+ assert(terminalInput.length>=2,'Terminal must transmit real stdin frames in the fixture')
  assert.deepEqual(errors,[]);fs.writeFileSync(out+'/result.json',JSON.stringify({passed:true,viewports:[390,1440],catalogCalls},null,2));console.log('PASS model picker browser checks: '+out)
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})
