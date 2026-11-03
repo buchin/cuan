@@ -118,3 +118,20 @@ of a StatusReportCard nested in the message bubble. Historical summaries direct
 readers to the task card for current status rather than claiming an old evaluation
 is current. Build and browser fixtures passed; mobile390 and desktop1440 summary
 and drawer screenshots rendered and inspected in `/home/dev/reports/cuan-review-summary/`.
+
+## Deployment and footer spacing follow-up
+
+Release ee60f86f867f5d1a058fb58b7e15f5739d015cb7 deployed successfully. Healthz
+matched the release; both active server and runner /proc/MainPID/exe paths matched
+its release directory. Deployment frontend gate passed419 tests. Evidence:
+`/home/dev/reports/cuan-inbox-refinement-deploy-retry.log`.
+
+Restored the native E2E report with independent artifact observations in the task
+complete_note, leaving task status blocked. Same-room review request
+bb4529d3-2669-4832-99c8-d3ae2e957bec was running at snapshot84, with explicit no new
+attempt, no recreation and no external-effects instructions. No acceptance claimed.
+
+Approved footer spacing follow-up removes compounded card bottom padding, keeps
+12px content spacing and uses4px footer vertical padding with44px action targets.
+Build and rendered browser fixture passed,390/1440 screenshots inspected at
+`/home/dev/reports/cuan-footer-spacing/`. This spacing follow-up is not yet deployed.

@@ -84,11 +84,11 @@ export function InboxTaskAction({
     const state = workStatus(existing)
     const update = existing.latest_attempt?.error_message || existing.summary
     const project = existing.project_name || existing.project_names?.join(', ')
-    return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="mt-2.5 w-full max-w-xl space-y-3 rounded-xl bg-muted/30 px-4 py-3">
+    return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="mt-2.5 w-full max-w-xl space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground"><span className="min-w-0 truncate">{project || t('Task')}</span><span className="shrink-0">{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
-      <footer className="flex items-center gap-4 border-t border-border/30 pt-1">
+      <footer className="-mx-4 flex items-center gap-4 border-t border-border/30 px-4 py-1">
         {onViewTask ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
         {onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
