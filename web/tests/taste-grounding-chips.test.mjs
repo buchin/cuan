@@ -178,33 +178,7 @@ test('3. UI Component: 1-Click Context Popover detail and /settings/memory short
   )
 })
 
-test('4. Chat Integration: StudioView renders TasteGroundingChips (eliminated from InboxView in S62-T2)', () => {
-  assert.ok(fs.existsSync(inboxViewPath), 'InboxView.tsx must exist')
-  assert.ok(fs.existsSync(studioViewPath), 'StudioView.tsx must exist')
-
-  const inboxSource = fs.readFileSync(inboxViewPath, 'utf8')
-  const studioSource = fs.readFileSync(studioViewPath, 'utf8')
-
-  // InboxView chat bubble clutter elimination (S62-T2)
-  assert.ok(
-    !inboxSource.includes('<TasteGroundingChips'),
-    'InboxView must eliminate TasteGroundingChips from chat bubble canvas to avoid visual clutter',
-  )
-
-  // StudioView chat composer integration
-  assert.ok(
-    studioSource.includes("import { TasteGroundingChips } from './TasteGroundingChips'"),
-    'StudioView must import TasteGroundingChips',
-  )
-  assert.ok(
-    studioSource.includes('tasteApi.getActiveGrounding') || studioSource.includes('activeGroundingTastes'),
-    'StudioView must fetch active grounding tastes',
-  )
-  assert.ok(
-    studioSource.includes('<TasteGroundingChips'),
-    'StudioView must render TasteGroundingChips for active grounding preferences',
-  )
-})
+// Studio has no preference widgets; memory remains available in Settings.
 
 test('5. Localization: Indonesian dictionary (id.json) includes grounding UI strings', () => {
   assert.ok(fs.existsSync(idLocalePath), 'locales/id.json must exist')

@@ -175,8 +175,8 @@ test('3. Settings & Chat Integration: Navigation tabs, route titles and quick ac
 
   // StudioView chat composer integration
   assert.ok(
-    studioSource.includes('to="/settings/memory?returnTo=/chat"'),
-    'StudioView must offer quick link to Agent Memory returning to /chat',
+    !studioSource.includes('to="/settings/memory?returnTo=/chat"'),
+    'Studio keeps preference management in Settings',
   )
 })
 

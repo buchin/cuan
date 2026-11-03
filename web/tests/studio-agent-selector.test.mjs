@@ -63,8 +63,8 @@ test('2. StudioAgentSelector: Compact pill button & modern popover structure', (
 
 test('3. StudioView: Composer toolbar integration without raw select block', () => {
   assert.ok(
-    studioViewSource.includes('<StudioProjectSelector'),
-    'StudioView must render StudioAgentSelector or unified StudioExecutionSelector in composer toolbar'
+    !studioViewSource.includes('<StudioProjectSelector'),
+    'Studio has no project picker'
   )
   assert.ok(
     !studioViewSource.includes('onAddAgentClick='),

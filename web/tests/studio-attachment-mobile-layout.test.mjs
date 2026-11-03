@@ -16,7 +16,7 @@ test('1. StudioView renders AttachmentPreviews in dedicated preview row above to
     'StudioView must render AttachmentPreviews in dedicated preview container'
   )
   const previewsIdx = src.indexOf('<AttachmentPreviews')
-  const toolbarIdx = src.indexOf('<StudioProjectSelector')
+  const toolbarIdx = src.indexOf('<AttachmentPicker')
   assert.ok(
     previewsIdx !== -1 && previewsIdx < toolbarIdx,
     'AttachmentPreviews must be rendered ABOVE the bottom toolbar'

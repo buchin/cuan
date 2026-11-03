@@ -20,16 +20,16 @@ test('1. S62-T1: 4-Pillar Mobile Bottom Navigation with Contacts as Core Pillar'
 
   // Pillar 1: Chat (/inbox)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-chat"'),
-    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-chat"'
+    appShellSource.includes('data-testid="bottom-nav-inbox"'),
+    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-inbox"'
   )
   assert.ok(
     appShellSource.includes("navigate('inbox')"),
     'Pillar 1 Chat must navigate to inbox tab'
   )
   assert.ok(
-    appShellSource.includes('MessageSquare'),
-    'Pillar 1 Chat must render MessageSquare icon'
+    appShellSource.includes('Inbox'),
+    'Pillar 1 Chat must render Inbox icon'
   )
 
   // Pillar 2: Tasks (/tasks)
@@ -48,19 +48,19 @@ test('1. S62-T1: 4-Pillar Mobile Bottom Navigation with Contacts as Core Pillar'
 
   // Pillar 3: Contacts (/contacts) - Core S62 requirement
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-contacts"'),
-    'Bottom navigation must render Pillar 3: Contacts with data-testid="bottom-nav-contacts"'
+    appShellSource.includes('data-testid="bottom-nav-studio"'),
+    'Bottom navigation must render Pillar 3: Contacts with data-testid="bottom-nav-studio"'
   )
   assert.ok(
-    appShellSource.includes("navigate('contacts')"),
+    appShellSource.includes("navigate('studio')"),
     'Pillar 3 Contacts must navigate to contacts tab'
   )
   assert.ok(
-    appShellSource.includes('<Users className="h-5 w-5" />'),
+    appShellSource.includes('<CuanMark decorative className="h-5 w-5" />'),
     'Pillar 3 Contacts must render Users icon'
   )
   assert.ok(
-    appShellSource.includes("currentTab === 'contacts' ? 'page' : undefined"),
+    appShellSource.includes("currentTab === 'studio' ? 'page' : undefined"),
     'Pillar 3 Contacts must properly indicate active page state via aria-current'
   )
 

@@ -48,25 +48,9 @@ test('1. StudioProjectSelector: Compact pill button & modern popover structure',
   )
 })
 
-test('2. StudioView: Composer toolbar integration with StudioProjectSelector', () => {
-  assert.ok(
-    studioViewSource.includes('<StudioProjectSelector') || studioViewSource.includes('<StudioExecutionSelector'),
-    'StudioView must render StudioProjectSelector or unified StudioExecutionSelector in composer toolbar'
-  )
-  assert.ok(
-    studioViewSource.includes('onConnectProjectClick={onCreateProject}'),
-    'StudioView must wire onConnectProjectClick to trigger onCreateProject'
-  )
-  assert.ok(
-    studioViewSource.includes('projectsApi.list()'),
-    'StudioView must fetch connected projects using projectsApi.list()'
-  )
-  assert.ok(
-    studioViewSource.includes('selectedProjectId'),
-    'StudioView must manage selectedProjectId state'
-  )
-  assert.ok(
-    studioViewSource.includes('project_id: selectedProjectId'),
-    'StudioView must include project_id in the /api/v1/studio/goals request when selected'
-  )
+test('2. Studio retains explicit project context without asking users to choose a project', () => {
+  assert.ok(!studioViewSource.includes('<StudioProjectSelector'))
+  assert.ok(!studioViewSource.includes('projectsApi.list()'))
+  assert.ok(studioViewSource.includes("searchParams.get('project')"))
+  assert.ok(studioViewSource.includes('project_id: selectedProjectId'))
 })

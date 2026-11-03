@@ -64,8 +64,8 @@ test('2. S59-T3: 4-Pillar Mobile Bottom Navigation (Chat, Tasks, Projects, Menu)
 
   // Pillar 1: Chat (/inbox)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-chat"'),
-    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-chat"'
+    appShellSource.includes('data-testid="bottom-nav-inbox"'),
+    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-inbox"'
   )
   assert.ok(
     appShellSource.includes('navigate(\'inbox\')'),

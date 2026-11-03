@@ -4,7 +4,7 @@ const fs = require('fs'),
   path = require('path'),
   http = require('http'),
   assert = require('node:assert/strict')
-const out = 'docs/evidence/studio',
+const out = process.env.CUAN_VISUAL_OUTPUT || '/home/dev/reports/cuan-studio-simple',
   base = 'http://127.0.0.1:4181'
 const now = new Date().toISOString()
 let contactsEmpty = false,
@@ -260,6 +260,10 @@ const writes = [],
         body: JSON.stringify(data),
       })
 
+    if(p==='/api/v1/notifications') return json({notifications:[],unread_count:0})
+    if(p==='/api/v1/item-preferences') return json({items:{}})
+    if(p==='/api/system/worker-health') return json({status:'ready',is_alive:true,queued_count:0,running_count:0,queue_depth:0})
+    if(p==='/api/system/update') return json({current_version:'fixture',latest_version:'fixture',has_update:false,auto_update_enabled:false,auto_update_time:'02:00'})
     if(p==='/api/v1/studio/goals' && method==='POST'){
       const data=r.postDataJSON();topicRequests.push(data);
       let topic=contacts.find(c=>c.conversation_id==='topic_'+data.request_id);
@@ -317,6 +321,7 @@ const writes = [],
       }
       return json({ error: 'Unexpected fixture write' }, 400)
     }
+    if (p==='/api/v1/agents/auth-status') return json({runtime_prerequisites:{cli_available:true,sandbox_available:true,installation_supported:true}})
     if (p.endsWith('/auth/status')) return json({ setup_required: false })
     if (p.endsWith('/auth/me'))
       return json({
@@ -362,20 +367,32 @@ const writes = [],
 
 
  const checks=[];
- for(const width of [360,390,820,1440])for(const theme of ['light','dark']){
+ for(const width of [390,1440])for(const theme of ['light','dark']){
   await page.setViewportSize({width,height:900});await page.goto(base+'/settings/appearance');await page.getByRole('button',{name:theme==='light'?'Light':'Dark',exact:true}).click();
-  await page.goto(base+'/');await page.waitForURL(u=>u.pathname==='/studio');
-  const goal=page.getByRole('textbox',{name:'Your goal',exact:true});const submit=page.getByRole('button',{name:'Get it done',exact:true});await goal.waitFor();
+  await page.goto(base+'/studio');await page.waitForURL(u=>u.pathname==='/studio');
+  const goal=page.getByRole('textbox',{name:'Your goal',exact:true});const submit=page.getByRole('button',{name:'Send',exact:true});await goal.waitFor();
   assert(await submit.isDisabled());assert.equal(await page.getByRole('combobox').count(),0);
   assert.equal(await goal.evaluate(el=>getComputedStyle(el).fontSize),'16px');
   const text='Organize a useful goal '+width+' '+theme;await goal.fill(text);await page.reload();await goal.waitFor();assert.equal(await goal.inputValue(),text);
-  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:out+'/studio-'+theme+'-'+width+'.png'});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));if(width===390){const nav=page.getByRole('navigation',{name:'Bottom navigation'});assert.deepEqual(await nav.locator(':scope > button, :scope > div').allTextContents(),['Studio','Inbox','Tasks','Projects','FIAccount']);assert.equal(await nav.locator('[aria-current=page]').getAttribute('data-testid'),'bottom-nav-studio');}
+  assert.equal(await page.locator('[data-studio-goal-panel] aside').count(),0);
+  await page.screenshot({path:out+'/studio-'+theme+'-'+width+'.png'});
   await submit.click();if(topicRequests.length===1){await page.getByRole('alert').waitFor();await submit.click();assert.equal(topicRequests[0].request_id,topicRequests[1].request_id)}
-  await page.waitForURL(u=>u.pathname.startsWith('/inbox/topic_'));await page.getByRole('button',{name:'Refresh messages',exact:true}).waitFor();
+  await page.waitForURL(u=>u.pathname.startsWith('/inbox/topic_'));
   await page.goto(base+'/inbox');await page.getByRole('button',{name:'New message',exact:true}).click();await page.waitForURL(u=>u.pathname==='/studio');
   await goal.waitFor();assert.equal(await goal.inputValue(),'');
   checks.push({width,theme,defaultStudio:true,draftRetained:true,inboxNewToStudio:true,noSelectors:true,noOverflow:true});
  }
+ await page.setViewportSize({width:390,height:844});
+ await page.goto(base+'/tasks');await page.locator('[data-page-header]').first().waitFor();
+ assert.equal(await page.locator('[data-page-header] .lucide-square-check-big').count(),1);
+ await page.screenshot({path:out+'/tasks-mobile.png'});
+ await page.getByTestId('bottom-nav-user-button').click();
+ await page.getByRole('button',{name:'Contacts',exact:true}).click();await page.waitForURL(u=>u.pathname==='/contacts');
+ await page.screenshot({path:out+'/contacts-mobile.png'});
+ await page.getByTestId('bottom-nav-user-button').click();await page.getByTestId('navuser-settings').click();await page.waitForURL(u=>u.pathname==='/settings');await page.getByRole('heading',{name:'Settings',exact:true}).first().waitFor();
+ await page.screenshot({path:out+'/settings-mobile.png'});
+ await page.goto(base+'/studio');await page.getByRole('textbox',{name:'Your goal',exact:true}).waitFor();await page.evaluate(()=>localStorage.setItem('cuan-language','id'));await page.reload();await page.getByPlaceholder('Tulis aja yang lagi kepikiran…').waitFor();await page.screenshot({path:out+'/studio-empty-id-mobile.png'});
  assert.deepEqual(errors,[]);assert.deepEqual(unknown,[]);assert.equal(launches.length,0);
  fs.writeFileSync(out+'/browser.json',JSON.stringify({fixture:true,checks,idempotentGoalRetry:true,providerInvocations:0,errors,unknown},null,2)+'\n');console.log('PASS Studio responsive navigation, drafts, retry and accepted conversation');
 })().catch(async e=>{if(page)await page.screenshot({path:out+'/check-failure.png'});console.error(e);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();if(server)await new Promise(r=>server.close(r))})

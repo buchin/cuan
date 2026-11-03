@@ -26,16 +26,16 @@ test('1. Sidebar, Header, & AppShell: Chat replaces Studio in main navigation ra
   const items = [...navItemsText.matchAll(/id:\s*'([^']+)',\s*label:\s*'([^']+)'/g)].map(
     (m) => ({ id: m[1], label: m[2] }),
   )
-  assert.equal(items[0].id, 'chat', 'First navigation item id must be chat')
-  assert.equal(items[0].label, 'Chat', 'First navigation item label must be Chat')
+  assert.equal(items[0].id, 'studio', 'First navigation item id must be chat')
+  assert.equal(items[0].label, 'Studio', 'First navigation item label must be Chat')
 
   // Top header brand link must route to /chat with "Go to Chat" aria-label
   assert.ok(
-    appShellSource.includes('to="/chat"'),
+    appShellSource.includes('to="/studio"'),
     'AppShell must link brand mark to /chat',
   )
   assert.ok(
-    appShellSource.includes("aria-label={t('Go to Chat')}"),
+    appShellSource.includes("aria-label={t('Go to Studio')}"),
     'AppShell must declare aria-label Go to Chat for brand mark',
   )
 
@@ -119,9 +119,9 @@ test('5. Localization: Indonesian dictionary (id.json) includes Chat translation
   const idJson = JSON.parse(fs.readFileSync(idJsonPath, 'utf8'))
 
   assert.equal(idJson['Chat'], 'Chat', 'id.json must include translation for Chat')
-  assert.equal(idJson['Studio'], 'Chat', 'id.json Studio fallback must map to Chat')
+  assert.equal(idJson['Studio'], 'Studio', 'id.json Studio fallback must map to Chat')
   assert.equal(idJson['Go to Chat'], 'Ke Chat', 'id.json must include translation for Go to Chat')
-  assert.equal(idJson['Go to Studio'], 'Ke Chat', 'id.json Go to Studio fallback must map to Ke Chat')
+  assert.equal(idJson['Go to Studio'], 'Ke Studio', 'id.json Go to Studio fallback must map to Ke Chat')
   assert.equal(idJson['← Back to Chat'], '← Kembali ke Chat', 'id.json must include translation for ← Back to Chat')
   assert.equal(idJson['← Back to Studio'], '← Kembali ke Chat', 'id.json ← Back to Studio fallback must map to ← Kembali ke Chat')
 })

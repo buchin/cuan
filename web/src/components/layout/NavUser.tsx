@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { ReloadButton } from '../ui/ReloadButton'
 import {
+  Users,
   Keyboard,
   LogOut,
   KeyRound,
@@ -210,6 +211,13 @@ export function NavUser({
               <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span>{t('Settings')}</span>
             </button>
+
+            {bottomNavigation && (
+              <button type="button" onClick={() => { setMenuOpen(false); navigate('/contacts') }} className="flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-accent hover:text-accent-foreground">
+                <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span>{t('Contacts')}</span>
+              </button>
+            )}
 
             {/* Account & Security Group */}
             <div className="px-2.5 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">

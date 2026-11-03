@@ -1,0 +1,7 @@
+# Studio simplification and mobile navigation
+
+Studio preserves the existing heading and composer while removing the return link, agent label, project picker, preference banners, memory link and grounding chips. Text, attachment controls, setup/error recovery and draft persistence remain. Project deep links still pass their context without an extra choice.
+
+Studio is a distinct main navigation destination. Mobile uses Studio, Inbox, Tasks, Projects and Account; the account popover provides Contacts and Settings. Shared mobile headers show the section icon rather than a brand shortcut. Detail back buttons and conversation identity remain intact; desktop headers do not repeat section icons.
+
+Validation: production frontend build, existing affected source checks updated to the approved behavior, and `node docs/evidence/studio/browser-check.cjs`. The browser harness serves the built assets with fixture APIs, never production writes/provider execution. It checks 390px and 1440px in light/dark, reload draft retention, empty send disabled, response-loss retry with the same request ID, accepted conversation navigation, Inbox new-message return to Studio, mobile active navigation, Contacts/Settings access and Indonesian placeholder. Screenshots are written under `/home/dev/reports/cuan-studio-simple` (override `CUAN_VISUAL_OUTPUT`). Real screenshots inspected for whitespace, typography, low visual noise and overflow. This is not a live AI conversation E2E test.

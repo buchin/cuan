@@ -88,13 +88,11 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
 - **Aturan Utama:** Mengklik referensi tugas dari gelembung percakapan (atau kartu aksi tugas) meluncurkan laci samping kanan (`SlideDrawer` / `TaskSidePeek`), bukan mengganti kanvas obrolan (*zero canvas disruption*).
 - **Hasil Pengalaman Pengguna:** Aliran percakapan di sebelah kiri tetap utuh, terlihat, dan aktif, sehingga pengguna dapat memeriksa detail teknis tugas tanpa kehilangan konteks diskusi dengan asisten AI.
 
-### 2.10. 4 Pilar Mobile Bottom Navigation & Ergonomi Jempol (Thumb Zone Ergonomics)
-- **Aturan Utama:** Navigasi bawah mobile (`AppShell.tsx`) murni terdiri dari 4 pilar utama simetris dan lapang:
-  1. **Chat (`/inbox`, MessageSquare):** Aliran percakapan pelanggan dan asisten AI.
-  2. **Tasks (`/tasks`, CheckSquare):** Pusat penugasan dan antrean kerja otomatis.
-  3. **Contacts (`/contacts`, Users):** Direktori pelanggan, rekanan, dan asisten digital.
-  4. **Menu (Aksi Drawer, Menu):** Membuka SlideDrawer menu untuk navigasi sekunder (Projects, Settings, Account).
-- **Hasil Pengalaman Pengguna:** Memberikan akses 1-tap instan ke kontak pelanggan harian tanpa harus masuk ke sub-drawer menu berkali-kali. Target sentuh dijaga $\ge$ 44x44px (`min-h-14` / 56px) untuk kenyamanan jempol saat bepergian.
+### 2.10. Studio, Inbox & Mobile Navigation
+- Studio (`/studio`) is the quiet entry point for an idea. Preserve the existing heading and writing canvas; keep only text, attachments and Send. No agent/project pickers, preference banners, memory chips or redundant return links.
+- A successful submission opens its Inbox conversation. Drafts survive reload and failed delivery; retries reuse the saved request identifier. Explicit `?project=` context remains supported without a picker.
+- Desktop sidebar includes Studio, Inbox, Tasks and the existing management links. Mobile bottom navigation is Studio, Inbox, Tasks, Projects and Account; Contacts and Settings remain available through the account menu. Keep touch targets at least 44px.
+- Mobile page headers show the current section icon beside the title, using the same icon as navigation. Studio has no extra header; detail views prioritize back navigation and object identity. Desktop headers need no duplicate section icon.
 
 ### 2.11. Konsolidasi Rute Otomasi Jadwal ke Settings (/settings/schedules)
 - **Aturan Utama:** Menghilangkan link / item menu redundan `Schedules` dari sidebar desktop dan drawer mobile. Seluruh akses manajemen jadwal/rutinitas otomatis dikonsolidasikan ke `SettingsView.tsx` (`/settings/schedules`).

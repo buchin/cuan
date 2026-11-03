@@ -157,27 +157,7 @@ test('3. Review Controls: Human-in-the-Loop Accept, Edit & Save, and Dismiss con
   )
 })
 
-test('4. Chat Integration: StudioView suggested taste notification banner and counter badge', () => {
-  assert.ok(fs.existsSync(studioViewPath), 'StudioView.tsx must exist')
-  const source = fs.readFileSync(studioViewPath, 'utf8')
-
-  assert.ok(
-    source.includes('pendingTasteCount'),
-    'StudioView must track pendingTasteCount state',
-  )
-  assert.ok(
-    source.includes('suggested-taste-banner'),
-    'StudioView must render data-testid="suggested-taste-banner" when pending candidates exist',
-  )
-  assert.ok(
-    source.includes('suggested-taste-badge'),
-    'StudioView must render data-testid="suggested-taste-badge" on Agent Memory link',
-  )
-  assert.ok(
-    source.includes('/settings/memory?tab=suggested&returnTo=/chat'),
-    'StudioView must link directly to suggested tab with returnTo=/chat',
-  )
-})
+// Studio has no preference widgets; memory remains available in Settings.
 
 test('5. Localization: Indonesian dictionary contains all Suggested Taste & Review strings', () => {
   const localeSource = fs.readFileSync(idLocalePath, 'utf8')

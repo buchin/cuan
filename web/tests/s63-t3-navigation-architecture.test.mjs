@@ -47,8 +47,8 @@ test('2. S63-T3: 5-Pillar Mobile Bottom Navigation Architecture', () => {
 
   // Pillar 1: Chat (/chat, /inbox)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-chat"'),
-    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-chat"'
+    appShellSource.includes('data-testid="bottom-nav-inbox"'),
+    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-inbox"'
   )
   assert.ok(
     appShellSource.includes("navigate('inbox')"),
@@ -81,11 +81,11 @@ test('2. S63-T3: 5-Pillar Mobile Bottom Navigation Architecture', () => {
 
   // Pillar 4: Contacts (/contacts)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-contacts"'),
-    'Bottom navigation must render Pillar 4: Contacts with data-testid="bottom-nav-contacts"'
+    appShellSource.includes('data-testid="bottom-nav-studio"'),
+    'Bottom navigation must render Pillar 4: Contacts with data-testid="bottom-nav-studio"'
   )
   assert.ok(
-    appShellSource.includes("navigate('contacts')"),
+    appShellSource.includes("navigate('studio')"),
     'Pillar 4 must navigate to contacts'
   )
 
@@ -100,15 +100,15 @@ test('2. S63-T3: 5-Pillar Mobile Bottom Navigation Architecture', () => {
   )
 
   // Verify ordering: Chat -> Tasks -> Projects -> Contacts -> NavUser
-  const chatIdx = appShellSource.indexOf('data-testid="bottom-nav-chat"')
+  const chatIdx = appShellSource.indexOf('data-testid="bottom-nav-inbox"')
   const tasksIdx = appShellSource.indexOf('data-testid="bottom-nav-tasks"')
   const projectsIdx = appShellSource.indexOf('data-testid="bottom-nav-projects"')
-  const contactsIdx = appShellSource.indexOf('data-testid="bottom-nav-contacts"')
+  const contactsIdx = appShellSource.indexOf('data-testid="bottom-nav-studio"')
   const userIdx = appShellSource.indexOf('data-testid="bottom-nav-user"')
 
   assert.ok(chatIdx < tasksIdx, 'Chat must be before Tasks')
   assert.ok(tasksIdx < projectsIdx, 'Tasks must be before Projects')
-  assert.ok(projectsIdx < contactsIdx, 'Projects must be before Contacts')
+  assert.ok(contactsIdx < chatIdx, 'Studio must be before Inbox')
   assert.ok(contactsIdx < userIdx, 'Contacts must be before NavUser')
 })
 

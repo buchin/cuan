@@ -241,23 +241,7 @@ test('4. UI Component: Smart Auto-Approval Controls & 1-Click Undo Notification'
   )
 })
 
-test('5. Chat Integration: StudioView Auto-Approve Banner and 1-Click Undo', () => {
-  assert.ok(fs.existsSync(studioViewPath), 'StudioView.tsx must exist')
-  const source = fs.readFileSync(studioViewPath, 'utf8')
-
-  assert.ok(
-    source.includes('data-testid="auto-approve-banner"'),
-    'StudioView must render auto-approve-banner when an auto-approved preference is detected',
-  )
-  assert.ok(
-    source.includes('data-testid="undo-auto-approve-studio-btn"'),
-    'StudioView must provide 1-click Undo action button in auto-approve banner',
-  )
-  assert.ok(
-    source.includes('tasteApi.undoCandidate'),
-    'StudioView must call tasteApi.undoCandidate on 1-click undo action',
-  )
-})
+// Studio has no preference widgets; memory remains available in Settings.
 
 test('6. Localization: Indonesian dictionary contains all Quota, Confidence, and Auto-Approve strings', () => {
   assert.ok(fs.existsSync(idLocalePath), 'src/locales/id.json must exist')

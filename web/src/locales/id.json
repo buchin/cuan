@@ -151,7 +151,7 @@
   "Load older messages": "Muat pesan sebelumnya",
   "Back": "Kembali",
   "Chat": "Chat",
-  "Studio": "Chat",
+  "Studio": "Studio",
   "Inbox": "Inbox",
   "Select a conversation": "Pilih percakapan",
   "Choose a conversation from your inbox to read the full thread, view customer details, and reply.": "Pilih percakapan dari kotak masuk Anda untuk membaca seluruh percakapan, melihat detail pelanggan, dan membalas.",
@@ -653,7 +653,7 @@
   "Retry search": "Ulangi pencarian",
   "Search is temporarily unavailable for this category.": "Pencarian kategori ini sedang tidak tersedia.",
   "Go to Chat": "Ke Chat",
-  "Go to Studio": "Ke Chat",
+  "Go to Studio": "Ke Studio",
   "↑↓ Navigate · Enter Open · Esc Close": "↑↓ Pilih · Enter Buka · Esc Tutup",
   "Trying again…": "Mencoba lagi…",
   "Check status": "Periksa status",
@@ -1631,5 +1631,6 @@
   "Set up Live Chat": "Atur Live Chat",
   "Setup needed": "Perlu pengaturan",
   "Set up GitHub": "Atur GitHub",
-  "This AI account is in use. Wait for its active work to finish, then disconnect.": "Akun AI sedang dipakai. Tunggu pekerjaan aktif selesai, lalu putuskan koneksinya."
+  "This AI account is in use. Wait for its active work to finish, then disconnect.": "Akun AI sedang dipakai. Tunggu pekerjaan aktif selesai, lalu putuskan koneksinya.",
+  "Write whatever is on your mind…": "Tulis aja yang lagi kepikiran…"
 }

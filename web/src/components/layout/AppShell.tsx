@@ -15,7 +15,6 @@ import { SlideDrawer } from './SlideDrawer'
 import {
   Inbox,
   CheckSquare,
-  MessageSquare,
   FolderGit2,
   PanelLeft,
   Users,
@@ -57,7 +56,7 @@ interface AppShellProps {
   hideSearch?: boolean
 }
 const NAV_ITEMS = [
-  { id: 'chat', label: 'Chat', icon: CuanMark },
+  { id: 'studio', label: 'Studio', icon: CuanMark },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
@@ -82,6 +81,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     id: 'main',
     label: '',
     items: [
+      { id: 'studio', label: 'Studio', icon: CuanMark, to: '/studio', description: 'Start with an idea' },
       { id: 'inbox', label: 'Inbox', icon: Inbox, to: '/inbox', description: 'Chat & pesan masuk' },
       { id: 'tasks', label: 'Tasks', icon: CheckSquare, to: '/tasks', description: 'Papan tiket agen' },
     ],
@@ -179,8 +179,7 @@ export function AppShell({
     if (id === 'inbox' || id === 'chat') {
       return (
         currentTab === 'inbox' ||
-        currentTab === 'chat' ||
-        (currentTab as string) === 'studio'
+        currentTab === 'chat'
       )
     }
     if (id === 'agents') {
@@ -202,13 +201,7 @@ export function AppShell({
       )
     }
     if (id === 'settings') {
-      return (
-        currentTab === 'settings' &&
-        !location.pathname.startsWith('/settings/agent') &&
-        !location.pathname.startsWith('/settings/team') &&
-        !location.pathname.startsWith('/settings/apps-skills') &&
-        !location.pathname.startsWith('/settings/schedules')
-      )
+      return currentTab === 'settings'
     }
     return currentTab === id
   }
@@ -228,8 +221,10 @@ export function AppShell({
                 ? t('Schedules')
                 : currentTab === 'projects'
                   ? t('Projects')
-                  : currentTab === 'inbox' || currentTab === 'chat' || (currentTab as string) === 'studio'
-                    ? t('Chat')
+                  : currentTab === 'studio'
+                    ? t('Studio')
+                    : currentTab === 'inbox' || currentTab === 'chat'
+                    ? t('Inbox')
                     : (NAV_ITEMS as readonly { id: string; label: string }[]).find((n) => n.id === (currentTab as string))?.label
 
   useEffect(() => {
@@ -304,8 +299,8 @@ export function AppShell({
       >
         <div className="sidebar-brand flex h-13 shrink-0 items-center justify-between border-b border-border px-4 box-border">
           <Link
-            to="/chat"
-            aria-label={t('Go to Chat')}
+            to="/studio"
+            aria-label={t('Go to Studio')}
             className="inline-flex h-8 items-center gap-2 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <CuanMark decorative className="h-7 w-7 shrink-0 text-foreground" />
@@ -379,7 +374,7 @@ export function AppShell({
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <PageHeader
           className={cn(
-            sessionWorkspace || contentHeader || currentTab === 'inbox' || currentTab === 'chat'
+            currentTab === 'studio' || sessionWorkspace || contentHeader || currentTab === 'inbox' || currentTab === 'chat'
               ? 'hidden'
               : hideBottomNav && 'hidden md:flex',
           )}
@@ -486,11 +481,22 @@ export function AppShell({
             aria-label={t('Bottom navigation')}
             className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
           >
-            {/* Pillar 1: Chat */}
+            <button
+              type="button"
+              data-testid="bottom-nav-studio"
+              aria-label={t('Studio')}
+              aria-current={currentTab === 'studio' ? 'page' : undefined}
+              onClick={() => navigate('studio')}
+              className={cn('flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs', currentTab === 'studio' ? 'font-semibold text-primary' : 'text-muted-foreground')}
+            >
+              <CuanMark decorative className="h-5 w-5" />
+              <span>{t('Studio')}</span>
+            </button>
+            {/* Inbox */}
             <button
               key="chat"
-              data-testid="bottom-nav-chat"
-              aria-label={t('Chat')}
+              data-testid="bottom-nav-inbox"
+              aria-label={t('Inbox')}
               aria-current={isTabActive('inbox') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -504,7 +510,7 @@ export function AppShell({
               )}
             >
               <span className="relative">
-                <MessageSquare className="h-5 w-5" />
+                <Inbox className="h-5 w-5" />
                 {effectiveInboxUnread > 0 && (
                   <span
                     data-testid="inbox-unread-badge-bottom"
@@ -515,7 +521,7 @@ export function AppShell({
                   </span>
                 )}
               </span>
-              <span>{t('Chat')}</span>
+              <span>{t('Inbox')}</span>
             </button>
 
             {/* Pillar 2: Tasks */}
@@ -558,27 +564,6 @@ export function AppShell({
             >
               <FolderGit2 className="h-5 w-5" />
               <span>{t('Projects')}</span>
-            </button>
-
-            {/* Pillar 4: Contacts */}
-            <button
-              key="contacts"
-              data-testid="bottom-nav-contacts"
-              aria-label={t('Contacts')}
-              aria-current={currentTab === 'contacts' ? 'page' : undefined}
-              onClick={() => {
-                setMobileMenuOpen(false)
-                navigate('contacts')
-              }}
-              className={cn(
-                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
-                currentTab === 'contacts'
-                  ? 'font-semibold text-primary'
-                  : 'text-muted-foreground',
-              )}
-            >
-              <Users className="h-5 w-5" />
-              <span>{t('Contacts')}</span>
             </button>
 
             {/* Pillar 5: Avatar Profil Pengguna (NavUser compact) */}

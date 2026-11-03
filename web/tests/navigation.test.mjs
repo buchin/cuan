@@ -28,7 +28,7 @@ test('Navigation menu order: Chat, Inbox, Tasks, Project, Account', async (t) =>
   // 4. Projects (Project)
   assert.deepEqual(
     items.map((i) => i.id),
-    ['chat', 'inbox', 'tasks', 'projects'],
+    ['studio', 'inbox', 'tasks', 'projects'],
     'Main rail items must be chat, inbox, tasks, projects in exact order',
   )
 
