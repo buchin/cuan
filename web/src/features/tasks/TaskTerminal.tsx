@@ -187,12 +187,8 @@ export function TaskTerminal({
       const textToSend = promptText.trim()
       if (!textToSend) return
 
-      // 1. Send direct to terminal PTY if WebSocket is connected
-      if (socket.current?.readyState === WebSocket.OPEN) {
-        sendKey(textToSend + '\n')
-      }
-
-      // 2. Inject to task & runner steering endpoint via /api/v1/tasks/:id/steer
+      // 1. Deliver to task & runner steering API endpoint (/api/v1/tasks/:id/steer)
+      // Note: Direct PTY keystrokes are handled by onSend in TerminalComposer.
       if (isTaskActiveRef.current) {
         const steerTarget = taskId || attempt?.id
         if (steerTarget) {
@@ -522,9 +518,13 @@ export function TaskTerminal({
           } else if (data.type === 'error') {
             setError(data.message || 'Terminal request failed.')
           }
+          // Control frames (stdin echo, pong, etc.) are consumed without writing to terminal canvas
         } catch {
-          // Non-JSON string data: direct raw string output over terminal stream
-          term.current?.write(String(event.data))
+          // Non-JSON string data: direct raw string output over terminal stream (filter out any leaked stdin JSON control text)
+          const raw = String(event.data)
+          if (!raw.includes('"type":"stdin"') && !raw.includes('"type": "stdin"')) {
+            term.current?.write(raw)
+          }
         }
       }
 

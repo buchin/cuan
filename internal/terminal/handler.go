@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -355,40 +356,58 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		if messageType == websocket.TextMessage {
 			// Check if payload is JSON control message
-			var msg TerminalMessage
-			if err := json.Unmarshal(payload, &msg); err == nil && msg.Type != "" {
-				switch msg.Type {
-				case "resize":
-					if msg.Cols > 0 && msg.Rows > 0 {
-						_ = session.Resize(msg.Cols, msg.Rows)
+			if len(payload) > 0 && payload[0] == '{' {
+				dec := json.NewDecoder(bytes.NewReader(payload))
+				handledCount := 0
+				for {
+					var msg TerminalMessage
+					if err := dec.Decode(&msg); err != nil {
+						break
 					}
-				case "stdin", "input":
-					if msg.Data != "" {
-						if _, err := session.WriteInput(subID, []byte(msg.Data)); err != nil {
+					if msg.Type != "" {
+						handledCount++
+						switch msg.Type {
+						case "resize":
+							if msg.Cols > 0 && msg.Rows > 0 {
+								_ = session.Resize(msg.Cols, msg.Rows)
+							}
+						case "stdin", "input":
+							if msg.Data != "" {
+								if _, err := session.WriteInput(subID, []byte(msg.Data)); err != nil {
+									_ = writeJSON(TerminalMessage{
+										Type:    "error",
+										Message: err.Error(),
+									})
+								}
+							}
+						case "mode":
+							newMode := ModeInteractive
+							if strings.ToLower(msg.Mode) == "watch" {
+								newMode = ModeWatch
+							}
+							_ = session.SetSubscriberMode(subID, newMode)
 							_ = writeJSON(TerminalMessage{
-								Type:    "error",
-								Message: err.Error(),
+								Type: "status",
+								Mode: string(newMode),
 							})
+						case "takeover":
+							_ = session.SetSubscriberMode(subID, ModeInteractive)
+							_ = writeJSON(TerminalMessage{
+								Type: "status",
+								Mode: string(ModeInteractive),
+							})
+						case "ping":
+							_ = writeJSON(TerminalMessage{Type: "pong"})
 						}
 					}
-				case "mode":
-					newMode := ModeInteractive
-					if strings.ToLower(msg.Mode) == "watch" {
-						newMode = ModeWatch
+				}
+				if handledCount == 0 && !bytes.HasPrefix(payload, []byte(`{"type":`)) {
+					if _, err := session.WriteInput(subID, payload); err != nil {
+						_ = writeJSON(TerminalMessage{
+							Type:    "error",
+							Message: err.Error(),
+						})
 					}
-					_ = session.SetSubscriberMode(subID, newMode)
-					_ = writeJSON(TerminalMessage{
-						Type: "status",
-						Mode: string(newMode),
-					})
-				case "takeover":
-					_ = session.SetSubscriberMode(subID, ModeInteractive)
-					_ = writeJSON(TerminalMessage{
-						Type: "status",
-						Mode: string(ModeInteractive),
-					})
-				case "ping":
-					_ = writeJSON(TerminalMessage{Type: "pong"})
 				}
 			} else {
 				// Not a JSON control message -> treat as direct raw text stdin input (e.g. from xterm.js)
@@ -399,6 +418,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					})
 				}
 			}
+			continue
 		}
 	}
 
@@ -481,7 +501,7 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 			Cols: cols,
 			Rows: rows,
 		})
-		_, _ = unixConn.Write(resizePayload)
+		_, _ = unixConn.Write(append(resizePayload, '\n'))
 	}
 
 	var writeMu sync.Mutex
@@ -558,7 +578,11 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 			break
 		}
 		if msgType == websocket.TextMessage || msgType == websocket.BinaryMessage {
-			if _, wErr := unixConn.Write(data); wErr != nil {
+			toWrite := data
+			if len(data) > 0 && data[0] == '{' && !bytes.HasSuffix(data, []byte("\n")) {
+				toWrite = append(data, '\n')
+			}
+			if _, wErr := unixConn.Write(toWrite); wErr != nil {
 				break
 			}
 		}

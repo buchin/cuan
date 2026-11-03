@@ -156,3 +156,40 @@ test('8. Pin Terminal Toggle & Auto-Close Prevention in TaskSessionPage', () => 
   assert.match(content, /Terminal pinned · Work finished/, 'Must render pinned banner with status and saved output')
 })
 
+test('9. Mobile input breathing room and anti-JSON leak guards in TaskTerminal and Composer', () => {
+  const composerPath = path.join(
+    rootDir,
+    'src/features/tasks/terminal/TerminalComposer.tsx',
+  )
+  const terminalPath = path.join(
+    rootDir,
+    'src/features/tasks/TaskTerminal.tsx',
+  )
+  const composerContent = fs.readFileSync(composerPath, 'utf8')
+  const terminalContent = fs.readFileSync(terminalPath, 'utf8')
+
+  // When typing, mobile accessories must yield space to textarea
+  assert.match(
+    composerContent,
+    /onToggleMobileKbd\s*&&\s*!text\.trim\(\)/,
+    'Mobile keyboard toggle must hide when typing to prevent input squishing',
+  )
+  assert.match(
+    composerContent,
+    /speechSupported\s*&&\s*!text\.trim\(\)/,
+    'Mic button must hide when typing so Send button takes precedence',
+  )
+  assert.match(
+    composerContent,
+    /onSend\(toSend \+ '\\n'\)/,
+    'handleSend must deliver input atomically with newline',
+  )
+
+  // Anti-JSON leak filter in xterm stream
+  assert.match(
+    terminalContent,
+    /!raw\.includes\('"type":"stdin"'\)/,
+    'TaskTerminal must filter out leaked stdin JSON control frame echoes from terminal canvas',
+  )
+})
+

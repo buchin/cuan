@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -189,19 +190,40 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 			data := buf[:n]
 
 			// Check if message is a JSON control frame
-			var msg TerminalMessage
-			if data[0] == '{' && json.Unmarshal(data, &msg) == nil && msg.Type != "" {
-				switch msg.Type {
-				case "resize":
-					if msg.Cols > 0 && msg.Rows > 0 {
-						_ = sb.session.Resize(msg.Cols, msg.Rows)
+			if data[0] == '{' {
+				dec := json.NewDecoder(bytes.NewReader(data))
+				handledCount := 0
+				for {
+					var msg TerminalMessage
+					if err := dec.Decode(&msg); err != nil {
+						break
 					}
-				case "stdin", "input":
-					if msg.Data != "" {
-						_, _ = sb.session.WriteInput(subID, []byte(msg.Data))
+					if msg.Type != "" {
+						handledCount++
+						switch msg.Type {
+						case "resize":
+							if msg.Cols > 0 && msg.Rows > 0 {
+								_ = sb.session.Resize(msg.Cols, msg.Rows)
+							}
+						case "stdin", "input":
+							if msg.Data != "" {
+								_, _ = sb.session.WriteInput(subID, []byte(msg.Data))
+							}
+						case "ping":
+							_, _ = conn.Write([]byte("{\"type\":\"pong\"}\n"))
+						}
 					}
-				case "ping":
-					_, _ = conn.Write([]byte("{\"type\":\"pong\"}\n"))
+				}
+				offset := int(dec.InputOffset())
+				if offset < len(data) {
+					remainder := bytes.TrimSpace(data[offset:])
+					if len(remainder) > 0 && !bytes.HasPrefix(remainder, []byte(`{"type":`)) {
+						_, _ = sb.session.WriteInput(subID, data[offset:])
+					}
+				}
+				if handledCount == 0 && !bytes.HasPrefix(data, []byte(`{"type":`)) {
+					// Fallback to raw bytes ONLY if it was not an attempt at sending a JSON control frame
+					_, _ = sb.session.WriteInput(subID, data)
 				}
 			} else {
 				// Raw terminal bytes (direct keystrokes or data)

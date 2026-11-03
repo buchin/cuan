@@ -141,3 +141,77 @@ func TestSocketBridge_LifecycleAndStreaming(t *testing.T) {
 		t.Errorf("expected socket file to be deleted after bridge close")
 	}
 }
+
+func TestSocketBridge_ConcatenatedControlFrames(t *testing.T) {
+	tmpDir := t.TempDir()
+	taskID := "task-concat-frames-test"
+	sockPath := filepath.Join(tmpDir, "concat.sock")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	proc, err := SpawnPTY(ctx, PTYConfig{
+		TaskID:      taskID,
+		WorkDir:     tmpDir,
+		Shell:       "/bin/sh",
+		InitialCols: 80,
+		InitialRows: 24,
+	})
+	if err != nil {
+		t.Fatalf("spawn pty: %v", err)
+	}
+	defer proc.Close()
+
+	sess := NewSession("sess-concat", taskID, proc, ModeInteractive)
+	defer sess.Close()
+
+	bridge, err := NewSocketBridge(sess, sockPath)
+	if err != nil {
+		t.Fatalf("new socket bridge: %v", err)
+	}
+	defer bridge.Close()
+
+	conn, err := net.Dial("unix", sockPath)
+	if err != nil {
+		t.Fatalf("dial socket: %v", err)
+	}
+	defer conn.Close()
+
+	// Send two concatenated JSON control frames in a single write buffer
+	concatFrames := `{"type":"stdin","data":"echo HELLO_"}{"type":"stdin","data":"WORLD\n"}`
+	if _, err := conn.Write([]byte(concatFrames)); err != nil {
+		t.Fatalf("write concat frames: %v", err)
+	}
+
+	buf := make([]byte, 2048)
+	foundTarget := false
+	leakedJSON := false
+	deadline := time.Now().Add(2 * time.Second)
+
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		n, rErr := conn.Read(buf)
+		if n > 0 {
+			out := string(buf[:n])
+			if strings.Contains(out, "HELLO_WORLD") {
+				foundTarget = true
+			}
+			if strings.Contains(out, `{"type":"stdin"`) {
+				leakedJSON = true
+			}
+			if foundTarget {
+				break
+			}
+		}
+		if rErr != nil && !strings.Contains(rErr.Error(), "timeout") {
+			break
+		}
+	}
+
+	if !foundTarget {
+		t.Errorf("expected to read HELLO_WORLD from cat through concatenated stdin frames")
+	}
+	if leakedJSON {
+		t.Errorf("raw JSON frame string leaked into terminal PTY stream!")
+	}
+}

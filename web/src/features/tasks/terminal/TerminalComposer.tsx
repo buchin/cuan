@@ -365,13 +365,10 @@ export function TerminalComposer({
     }
 
     addToHistory(toSend)
-    onSend(toSend)
+    onSend(toSend + '\n')
     if (onSteer) {
       void onSteer(toSend)
     }
-    setTimeout(() => {
-      onSend('\r')
-    }, 40)
     setText('')
     setShowSlashPopup(false)
     try {
@@ -870,8 +867,8 @@ export function TerminalComposer({
           )}
         </div>
 
-        {/* Mobile Terminal Keys Toggle (Right side before send button, >= 44x44px touch target) */}
-        {onToggleMobileKbd && (
+        {/* Mobile Terminal Keys Toggle (Right side before send button; hidden when typing to give input maximum width) */}
+        {onToggleMobileKbd && !text.trim() && (
           <button
             type="button"
             disabled={disabled}
@@ -888,8 +885,8 @@ export function TerminalComposer({
           </button>
         )}
 
-        {/* Voice Dictation (Speech-to-Text) Button (>= 44x44px touch target) */}
-        {speechSupported && (
+        {/* Voice Dictation (Speech-to-Text) Button (Shown when not typing; replaces send on empty text) */}
+        {speechSupported && !text.trim() && (
           <button
             type="button"
             disabled={disabled}
@@ -906,13 +903,13 @@ export function TerminalComposer({
           </button>
         )}
 
-        {/* Stop / Cancel Process Button (Calm, human-friendly, visible when onStop/onInterrupt is provided) */}
+        {/* Stop / Cancel Process Button (Desktop only; on mobile, header already provides prominent red stop button) */}
         {(Boolean(onStop) || typeof onInterrupt === 'function') && (
           <button
             type="button"
             disabled={disabled}
             onClick={onStop || onInterrupt}
-            className="min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer shrink-0 mb-0.5"
+            className="hidden sm:flex min-h-[44px] min-w-[44px] sm:h-10 sm:w-10 rounded-full items-center justify-center text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer shrink-0 mb-0.5"
             title="Hentikan proses"
             aria-label="Hentikan proses"
           >
@@ -925,7 +922,9 @@ export function TerminalComposer({
           type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
           onClick={() => handleSend()}
-          className="wa-send min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5"
+          className={`wa-send min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5 ${
+            !text.trim() && uploadedFiles.length === 0 ? 'hidden sm:flex' : 'flex'
+          }`}
           title="Kirim ke terminal (Enter)"
           aria-label="Send input"
         >
