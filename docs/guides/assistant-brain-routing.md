@@ -72,6 +72,11 @@ creating a duplicate.
 
 ## Verification, rollout and rollback
 
+On mobile, open **Akun → Pengaturan → Assistant & AI Brain** to manage the
+assistant and its brains. The settings shortcut is directly below your identity
+in the account menu, marked with a gear icon. It is also available from the
+desktop account menu and the Settings sidebar entry.
+
 Targeted Go tests cover ownership, pool leases and cooldowns, quota classification,
 continuation of the same workspace, cancellation, durable Inbox capacity waiting,
 review counts, assistant renaming, brain metadata editing and slow clones. The
