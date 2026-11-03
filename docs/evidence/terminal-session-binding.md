@@ -93,3 +93,19 @@ Frontend build, targeted runner/CLI tests and browser fixture checks passed.
 Screenshots at 390/1440px were rendered and inspected in
 `/home/dev/reports/cuan-inbox-refinement/`. This fixture is not production Studio
 entry or a native production terminal intervention/reconnect test.
+
+## Final-acceptance ordering regression
+
+Later production state (snapshot 80) contradicted the initial success: the Inbox
+coordinator changed the task to blocked at 01:56:18 +08, after the runner had
+announced completion at 01:50:40. The runner had replaced the original detailed
+native report with the non-code evaluator's generic note. The guide is delivered,
+but end-to-end acceptance is therefore not achieved.
+
+Inbox-sourced successful execution now remains in review until the coordinator
+accepts it, suppresses the premature runner completion announcement and preserves
+an existing native verification note. Standalone completion keeps its prior flow.
+Regression checks cover concurrent duplicate completion (one transition, no early
+announcement), preservation of native evidence, and succeeded attempt versus task
+review state. Targeted runner and Inbox review tests pass. This fixes ordering and
+evidence loss; the existing production task is not manually relabeled as passed.

@@ -97,7 +97,7 @@ func TestExecutionCompletionConcurrentDuplicateCommitsOnce(t *testing.T) {
 	}
 	wg.Wait()
 	after, _ := store.GetTask(ctx, item.ID)
-	if accepted.Load() != 1 || notifications.Load() != 1 || after.Status != task.TaskStatusDone {
+	if accepted.Load() != 1 || notifications.Load() != 0 || after.Status != task.TaskStatusReview {
 		t.Fatalf("accepted=%d notified=%d status=%s", accepted.Load(), notifications.Load(), after.Status)
 	}
 }
@@ -155,5 +155,23 @@ func TestExecutionAssignmentReleaseDoesNotClearNewerClaim(t *testing.T) {
 	saved, _ := svc.store.GetRunner(ctx, att.RunnerID)
 	if saved.CurrentAttemptID != "newer-attempt" || saved.Status != StatusBusy {
 		t.Fatal("late release cleared newer assignment")
+	}
+}
+
+func TestInboxCompletionPreservesOriginalEvidenceUntilCoordinatorAcceptance(t *testing.T) {
+	ctx := context.Background()
+	svc, store, item, att := lifecycleFixture(t)
+	original := item.CompleteNote
+	req := lifecycleResult()
+	req.DoDValidation.Details = "Generic evaluator result must not replace native evidence"
+	notified := false
+	svc.SetChatNotifier(NewDefaultBusinessChatNotifier(func(context.Context, string, string) error { notified = true; return nil }))
+	if _, err := svc.Complete(ctx, att.ID, req); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := store.GetTask(ctx, item.ID)
+	execution, _ := store.GetAttempt(ctx, att.ID)
+	if saved.CompleteNote != original || saved.Status != task.TaskStatusReview || execution.Status != task.AttemptStatusSucceeded || notified {
+		t.Fatalf("premature acceptance or lost evidence: status=%s notified=%v note=%s", saved.Status, notified, saved.CompleteNote)
 	}
 }

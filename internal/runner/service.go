@@ -438,11 +438,16 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			if dodVal != nil && dodVal.Passed {
 				// Lolos 100%: Otomatis ubah status task menjadi 'done' dan catat verifikasi
 				t.Status = task.TaskStatusDone
-				if dodVal.Details != "" {
+				if dodVal.Details != "" && strings.TrimSpace(t.CompleteNote) == "" {
 					t.CompleteNote = dodVal.Details
 				}
+				// Inbox owns final acceptance and the final result announcement.
+				// A successful worker report is ready for review, not yet accepted.
+				if t.SourceRoomID != "" {
+					t.Status = task.TaskStatusReview
+				}
 				// Proactive messenger di Chat/Inbox: lapor tugas tuntas dalam bahasa bisnis ramah
-				if s.chatNotifier != nil {
+				if s.chatNotifier != nil && t.SourceRoomID == "" {
 					pName := ""
 					if s.projectFinder != nil && t.ProjectID != "" {
 						if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
