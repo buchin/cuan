@@ -96,7 +96,7 @@ export function NavUser({
             sidebar && 'sidebar-account',
             sidebar &&
               active &&
-              'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
+              'text-sidebar-accent-foreground font-medium',
             bottomNavigation &&
               'min-h-14 flex-col justify-center gap-1 rounded-none p-0 text-xs',
             bottomNavigation &&

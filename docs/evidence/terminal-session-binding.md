@@ -173,3 +173,24 @@ Screenshots390/1440 in light/dark rendered and inspected at
 `/home/dev/reports/cuan-wayfinding-type/account-menu-{light-,}{390,1440}.png`.
 This is a shared-component refinement; no claim that every legacy10px label in
 all application pages was audited or removed.
+
+## Production Studio UI entry verified
+
+Production browser UI submitted the distinct checklist idea from Studio and
+navigated to Inbox room2a35dcdd-93a5-4cb2-aeff-73cad784c2b7. Initial UI attempts
+were gated by setup loading and did not submit; the successful run waited for the
+actual Send button to enable and clicked it. Receipt and390/1440 screenshots are
+stored privately in `/home/dev/reports/cuan-chat-e2e/production-studio-*` and
+`studio-native-receipt.json`. No duplicate task or conversation was created by retry.
+
+Request97aba364-5a3d-4383-85ac-e230ef23fcc3 completed with two clarification topics:
+reader and preferred checklist format. Task count remained0. Requirements supplied
+in the same room: nontechnical reader,5 practical points, Indonesian<=200words,
+one Markdown file in existing Cuan project, attach result; no code/config/test,
+push/deploy/external messages. Explicitly requested a plan before approval.
+This second Studio-origin scenario is still in progress.
+
+Approved spacing follow-up keeps8px sidebar inset, removes permanent account-active
+background, sets composer gutters12px mobile/16px desktop and reduces Inbox search
+vertical spacing. Build and browser fixtures passed;390/1440 screenshots rendered
+and inspected under `/home/dev/reports/cuan-gutters/`. Not deployed yet.

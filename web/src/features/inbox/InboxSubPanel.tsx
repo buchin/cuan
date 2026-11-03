@@ -425,7 +425,7 @@ export function InboxSubPanel({
       </PageHeader>
 
       {/* ── Search & Filter Toolbar ── */}
-      <div className="p-4 pb-0 space-y-3 border-b border-border/40">
+      <div className="px-4 pt-3 space-y-2 border-b border-border/40">
         <ListSearch aria-label={t('Search conversations')} placeholder={t('Search conversations…')} value={query} onChange={event=>handleQueryChange(event.target.value)} />
         <ListTabs aria-label={t('Conversation filters')} className="border-b-0">
           <ListTab selected={activeTab==='all'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('all')}}>{t('All')}</ListTab>
