@@ -7,6 +7,7 @@ const fs = require('fs'),
 const out = process.env.CUAN_VISUAL_OUTPUT || '/home/dev/reports/cuan-studio-simple',
   base = 'http://127.0.0.1:4181'
 const now = new Date().toISOString()
+let schedules = []
 let contactsEmpty = false,
   taskSaveFail = true
 const crm = [
@@ -260,6 +261,10 @@ const writes = [],
         body: JSON.stringify(data),
       })
 
+    if(p==='/api/system/scheduler/tasks') return json({tasks:schedules})
+    if(p==='/api/v1/integrations/github') return json({connected:false})
+    if(p==='/api/v1/integrations/github/oauth') return json({configured:true})
+    if(p==='/api/v1/settings/resend') return json({status:'ok',settings:{has_api_key:false,masked_api_key:'',from_name:'Cuan',from_email:'',notification_email:'',idle_threshold_minutes:5,enabled:false,validation_status:'untested'}})
     if(p==='/api/v1/notifications') return json({notifications:[],unread_count:0})
     if(p==='/api/v1/item-preferences') return json({items:{}})
     if(p==='/api/system/worker-health') return json({status:'ready',is_alive:true,queued_count:0,running_count:0,queue_depth:0})
@@ -406,6 +411,23 @@ const writes = [],
  await page.screenshot({path:out+'/settings-mobile.png'});
  await page.getByRole('navigation',{name:'Settings navigation',exact:true}).locator('a[href="/settings/appearance"]').click();await page.getByRole('combobox',{name:'Language',exact:true}).waitFor();
  await page.goto(base+'/settings');await page.getByRole('navigation',{name:'Settings navigation',exact:true}).locator('a[href="/settings/profile"]').click();await page.getByRole('heading',{name:'Profile',exact:true}).first().waitFor();
+ for(const width of [390,1440])for(const theme of ['light','dark']){
+  await page.setViewportSize({width,height:900});await page.goto(base+'/settings/appearance');await page.getByRole('button',{name:theme==='light'?'Light':'Dark',exact:true}).click();
+  await page.goto(base+'/settings/schedules');await page.getByRole('button',{name:'Create Schedule',exact:true}).waitFor();
+  const back=page.locator('[data-page-header] [data-settings-back]');assert.equal(await back.getAttribute('href'),'/settings');assert.equal(await page.getByRole('button',{name:'New Schedule',exact:true}).count(),0);assert.equal(await page.locator('[data-detail-layout] a').filter({hasText:/Back to/}).count(),0);
+  await page.screenshot({path:out+'/schedules-empty-'+theme+'-'+width+'.png'});
+  await page.getByRole('button',{name:'Create Schedule',exact:true}).click();await page.getByRole('heading',{name:'New Scheduled Routine',exact:true}).waitFor();await page.keyboard.press('Escape');
+  await page.goto(base+'/settings/integrations/github?return_to=%2Ftasks%2Ftask_one');await page.getByRole('heading',{name:'GitHub',exact:true}).first().waitFor();assert.equal(await back.getAttribute('href'),'/settings/integrations?return_to=%2Ftasks%2Ftask_one');
+  await page.screenshot({path:out+'/github-'+theme+'-'+width+'.png'});
+  await back.click();await page.waitForURL(u=>u.pathname==='/settings/integrations');await page.getByRole('heading',{name:'Integrations',exact:true}).first().waitFor();assert.equal(await back.getAttribute('href'),'/settings?return_to=%2Ftasks%2Ftask_one');
+  assert((await page.locator('a[href^="/settings/integrations/github"]').getAttribute('href')).includes('return_to='));
+  await back.click();await page.waitForURL(u=>u.pathname==='/settings');await page.getByRole('heading',{name:'Settings',exact:true}).first().waitFor();assert.equal(await back.getAttribute('href'),'/tasks/task_one');
+  for(const child of ['live-chat','resend']){await page.goto(base+'/settings/integrations/'+child);assert.equal(await back.getAttribute('href'),'/settings/integrations');await back.click();await page.waitForURL(u=>u.pathname==='/settings/integrations');}
+  await page.goto(base+'/account/appearance');await page.getByRole('combobox',{name:'Language',exact:true}).waitFor();assert.equal(await back.getAttribute('href'),'/account');await back.click();await page.waitForURL(u=>u.pathname==='/account');await page.getByRole('heading',{name:'Account',exact:true}).first().waitFor();assert.equal(await back.count(),0);
+  await page.goto(base+'/settings?return_to=https%3A%2F%2Fexample.invalid');await page.getByRole('heading',{name:'Settings',exact:true}).first().waitFor();assert.equal(await back.count(),0);
+ }
+ schedules=[{id:'schedule-fixture',title:'Weekly report',prompt:'Prepare a weekly report',schedule_type:'weekly',time_of_day:'09:00',day_of_week:1,enabled:true,created_at:now,last_status:'idle'}];
+ await page.goto(base+'/settings/schedules');await page.getByRole('button',{name:'New Schedule',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Create Schedule',exact:true}).count(),0);
  await page.goto(base+'/studio');await page.getByRole('textbox',{name:'Your goal',exact:true}).waitFor();await page.evaluate(()=>localStorage.setItem('cuan-language','id'));await page.reload();await page.getByPlaceholder('Tulis aja yang lagi kepikiran…').waitFor();await page.screenshot({path:out+'/studio-empty-id-mobile.png'});
  assert.deepEqual(errors,[]);assert.deepEqual(unknown,[]);assert.equal(launches.length,0);
  fs.writeFileSync(out+'/browser.json',JSON.stringify({fixture:true,checks,idempotentGoalRetry:true,providerInvocations:0,errors,unknown},null,2)+'\n');console.log('PASS Studio responsive navigation, drafts, retry and accepted conversation');

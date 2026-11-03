@@ -185,7 +185,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
   return (
     <div className={`space-y-5 ${embedded ? '' : 'p-4 sm:p-6 max-w-4xl mx-auto'}`}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {(!embedded || tasks.length > 0) && <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {!embedded && <div>
           <div className="flex items-center gap-2.5">
             <CalendarClock className="h-5 w-5 text-primary" />
@@ -198,6 +198,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           </p>
         </div>}
 
+        {tasks.length > 0 && (
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
@@ -206,7 +207,8 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           <Plus className="h-4 w-4" />
           <span>{t('New Schedule')}</span>
         </button>
-      </div>
+        )}
+      </div>}
 
       {actionFeedback && (
         <div className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
@@ -222,7 +224,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           <span>{t('Loading schedules...')}</span>
         </div>
       ) : tasks.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/60 p-8 sm:p-12 text-center bg-muted/10">
+        <div className="py-10 sm:py-14 px-4 text-center">
           <div className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
             <Repeat className="h-5 w-5" />
           </div>

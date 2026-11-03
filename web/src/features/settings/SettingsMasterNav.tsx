@@ -14,7 +14,6 @@ import {
   Palette,
   Bell,
   ChevronRight,
-  ChevronLeft,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -172,7 +171,6 @@ export function getSettingsNavCategories(isAccount = false, _userRole?: string):
 export interface SettingsMasterNavProps {
   currentSection: string
   isAccount?: boolean
-  safeReturn?: string
   className?: string
   onSelectSection?: (id: string) => void
 }
@@ -180,7 +178,6 @@ export interface SettingsMasterNavProps {
 export function SettingsMasterNav({
   currentSection,
   isAccount = false,
-  safeReturn = '',
   className = '',
   onSelectSection,
 }: SettingsMasterNavProps) {
@@ -194,24 +191,6 @@ export function SettingsMasterNav({
       aria-label={t('Settings navigation')}
       className={`space-y-6 ${className}`}
     >
-      {safeReturn && (
-        <div className="mb-2">
-          <Link
-            to={safeReturn}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4 shrink-0" />
-            <span>
-              {t(
-                safeReturn === '/chat' || safeReturn === '/studio'
-                  ? 'Back to Chat'
-                  : 'Back to conversation',
-              )}
-            </span>
-          </Link>
-        </div>
-      )}
-
       {categories.map((category) => (
         <div key={category.id} className="space-y-1.5">
           <h3 className="px-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">

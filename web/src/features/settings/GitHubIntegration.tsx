@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { ApiError, apiFetch } from '../../api/client'
 type DeviceLogin = { id: string; state: 'preparing' | 'starting' | 'awaiting_authorization' | 'connected' | 'failed' | 'expired' | 'cancelled'; user_code?: string; expires_at: string; error?: string }
 const pendingLogin = (job?: DeviceLogin) => !!job && ['preparing', 'starting', 'awaiting_authorization'].includes(job.state)
@@ -45,7 +45,6 @@ export function GitHubIntegration() {
   {!connection && !error && <p role="status">Loading GitHub connection…</p>}
   {connection?.connected && <section className="space-y-3 rounded-lg border bg-card p-4">
    <p className="text-sm">Connected as <strong>{connection.account?.login}</strong></p>
-   {returnTo && <Link className="action-primary" to={returnTo}>Back to task</Link>}
    <button className="action-secondary" disabled={busy} onClick={async () => {
     if (!confirm('Disconnect GitHub? Future repository access may require reconnecting. This does not revoke the token on GitHub.')) return
     setBusy(true); setError('')

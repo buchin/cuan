@@ -127,7 +127,7 @@ test('5. Localization: Indonesian dictionary (id.json) includes Chat translation
 })
 
 test('6. Internal Navigation References: Updated from Studio to Chat', () => {
-  const settingsSource = fs.readFileSync(settingsPath, 'utf8')
+  const settingsSource = fs.readFileSync(new URL('../src/lib/settings-navigation.ts', import.meta.url), 'utf8')
   assert.ok(
     settingsSource.includes("returnTo === '/chat' || returnTo === '/studio'"),
     'SettingsView must accept returnTo /chat as safe return path',

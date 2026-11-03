@@ -10,9 +10,9 @@ export function BackAction({ to, onClick, children, className, disabled }: { to?
 }
 
 // The app header owns the page title; the detail canvas supplies context once.
-export function DetailLayout({ back, description, children }: { back: ReactNode; description?: ReactNode; children: ReactNode }) {
+export function DetailLayout({ back, description, children }: { back?: ReactNode; description?: ReactNode; children: ReactNode }) {
   return <div data-detail-layout className="mx-auto w-full max-w-3xl space-y-6 pb-8">
-    <div className="space-y-2">{back}{description && <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{description}</p>}</div>
+    {(back || description) && <div className="space-y-2">{back}{description && <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{description}</p>}</div>}
     {children}
   </div>
 }

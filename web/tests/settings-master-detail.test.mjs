@@ -18,6 +18,7 @@ const settingsViewPath = path.join(
 const idLocalePath = path.join(webDir, 'src/locales/id.json')
 const appPath = path.join(webDir, 'src/App.tsx')
 
+const navigationSource = fs.readFileSync(new URL('../src/lib/settings-navigation.ts', import.meta.url), 'utf8')
 test('1. Architecture: SettingsMasterNav component exists and exports category definitions', () => {
   assert.ok(
     fs.existsSync(settingsMasterNavPath),
@@ -186,7 +187,7 @@ test('4. Responsiveness: Master-first mobile pattern and ChevronLeft return butt
     'SettingsView must import and render ChevronLeft icon for mobile back action',
   )
   assert.ok(
-    settingsViewSrc.includes("'Back to Settings'"),
+    navigationSource.includes("'Back to Settings'"),
     'SettingsView must display translated ← Back to Settings label',
   )
 })
@@ -204,7 +205,7 @@ test('5. Deep Linking & Routing: Backward compatibility and safeReturn preservat
 
   // safeReturn handling
   assert.ok(
-    settingsViewSrc.includes("returnTo === '/chat' || returnTo === '/studio'"),
+    navigationSource.includes("returnTo === '/chat' || returnTo === '/studio'"),
     'SettingsView must preserve safeReturn for chat and studio',
   )
 
@@ -377,8 +378,8 @@ test('7. Mobile Responsive Constraints & Touch Target: p-4 md:p-6, max-w-4xl, mi
 
   // Query parameter preservation when navigating back
   assert.ok(
-    settingsViewSrc.includes('location.search') &&
-      settingsViewSrc.includes('isAccount ?'),
+    navigationSource.includes('parent + search') &&
+      navigationSource.includes("parts[0] === 'account'"),
     'Mobile back action must support account and settings roots with query preservation',
   )
 })

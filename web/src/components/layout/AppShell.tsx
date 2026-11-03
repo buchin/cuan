@@ -1,4 +1,5 @@
 import { PageHeader, PageHeaderBrand, PageTitle } from './PageHeader'
+import { getSettingsBackTarget } from '../../lib/settings-navigation'
 import { IconButton } from '../ui/IconButton'
 import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { UniversalSearch } from './UniversalSearch'
@@ -122,6 +123,7 @@ export function AppShell({
 
   const routerNavigate = useNavigate()
   const location = useLocation()
+  const settingsBack = getSettingsBackTarget(location.pathname, location.search)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -380,7 +382,11 @@ export function AppShell({
           )}
         >
           <div className="flex min-w-0 items-center gap-2">
-            {currentTab === 'notifications' ? (
+            {settingsBack ? (
+              <Link to={settingsBack.to} aria-label={t(settingsBack.label)} title={t(settingsBack.label)} className="icon-action shrink-0" data-settings-back>
+                <ArrowLeft aria-hidden="true" />
+              </Link>
+            ) : currentTab === 'notifications' ? (
               <button
                 type="button"
                 className="icon-action shrink-0"
@@ -403,7 +409,7 @@ export function AppShell({
             ) : (
               <PageHeaderBrand />
             )}
-            {breadcrumbs.length > 0 && (
+            {!settingsBack && breadcrumbs.length > 0 && (
               <nav
                 aria-label={t('Breadcrumbs')}
                 className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground md:flex"

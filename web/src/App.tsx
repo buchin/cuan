@@ -784,7 +784,7 @@ export function App() {
             label: currentTab === 'account' ? 'Account' : 'Settings',
             to: currentTab === 'account' ? '/account' : '/settings',
           },
-          ...(['live-chat', 'github'].includes(pathSegments[2])
+          ...(['live-chat', 'github', 'resend'].includes(pathSegments[2])
             ? [{ label: 'Integrations', to: '/settings/integrations' }]
             : []),
         ]

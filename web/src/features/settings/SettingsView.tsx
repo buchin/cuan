@@ -1,4 +1,4 @@
-import { BackAction, DetailLayout } from '../../components/layout/DetailLayout'
+import { DetailLayout } from '../../components/layout/DetailLayout'
 import { GeneralSettings } from './GeneralSettings'
 import { IntegrationOverview } from './IntegrationOverview'
 import { GitHubIntegration } from './GitHubIntegration'
@@ -62,12 +62,6 @@ export function SettingsView({
     }
   }, [location.hash, section])
 
-  const query = new URLSearchParams(location.search)
-  const returnTo = query.get('returnTo') || query.get('return_to') || ''
-  const safeReturn =
-    returnTo === '/chat' || returnTo === '/studio' || /^\/inbox(?:\/[A-Za-z0-9_-]+)?(?:\?[^#]*)?$/.test(returnTo) || /^\/tasks\/[A-Za-z0-9_-]+(?:\/sessions\/[A-Za-z0-9_-]+)?$/.test(returnTo)
-      ? (returnTo === '/studio' ? '/chat' : returnTo) : ''
-
   if (activeProject) {
     return (
       <ProjectSettings
@@ -126,7 +120,6 @@ export function SettingsView({
           <SettingsMasterNav
             currentSection={hasExplicitSection ? section : ''}
             isAccount={isAccount}
-            safeReturn={safeReturn}
           />
         </div>
       </section>
@@ -137,7 +130,7 @@ export function SettingsView({
           !hasExplicitSection ? 'hidden' : 'block'
         }`}
       >
-        <DetailLayout back={<BackAction to={safeReturn || ((section === 'integrations' && location.pathname.split('/')[3] ? '/settings/integrations' : isAccount ? '/account' : '/settings') + location.search)}>{t(safeReturn ? (safeReturn.startsWith('/tasks/') ? 'Back to task' : 'Back to conversation') : section === 'integrations' && location.pathname.split('/')[3] ? 'Back to integrations' : isAccount ? 'Back to Account' : 'Back to Settings')}</BackAction>}
+        <DetailLayout
           description={t(({ general: 'Application status, updates, and installation.', agent: 'One assistant, with AI accounts managed here.', agents: 'One assistant, with AI accounts managed here.', 'ai-providers': 'One assistant, with AI accounts managed here.', memory: 'Review learned brand guidelines, copywriting style, and workflow preferences.', schedules: 'Automated recurring background routines.', appearance: 'Theme modes, interface language, and display.', notifications: 'Choose which updates reach you and when.', profile: 'Manage your profile and sign-in details.', team: 'Manage human staff, members, and collaborators', integrations: 'Connect the services your projects need.', 'apps-skills': 'Apps and capabilities available to your assistant.' } as Record<string,string>)[section] || '')}>
           {section === 'profile' ? (
             <ProfileSettings />

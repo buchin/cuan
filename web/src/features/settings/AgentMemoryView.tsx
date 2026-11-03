@@ -595,7 +595,7 @@ export function AgentMemoryView({
   return (
     <div className={embedded ? 'space-y-4' : 'space-y-6'}>
       {/* Return Navigation if coming from Chat */}
-      {resolvedReturnTo && (
+      {showHeading && resolvedReturnTo && (
         <div>
           <Link
             to={resolvedReturnTo}
