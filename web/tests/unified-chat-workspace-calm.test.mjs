@@ -59,12 +59,13 @@ test('1. S59-T2: Total elimination of chat-whatsapp.css and legacy WhatsApp styl
     )
   }
 
-  // Zero clip-path property declarations for bubble tails
-  assert.equal(
-    /clip-path\s*:/i.test(calmCssContent),
-    false,
-    'chat-calm.css must not declare clip-path property for bubble tails'
-  )
+  // The approved speech-tail treatment is opt-in; previews must never inherit it.
+  const tailRules = [...calmCssContent.matchAll(/([^{}]+)\{[^{}]*clip-path\s*:[^{}]*\}/gi)]
+  assert.ok(tailRules.length > 0, 'Approved speech tails must render')
+  for (const rule of tailRules) {
+    assert.match(rule[1], /\[data-bubble-tail="(?:incoming|outgoing)"\]::before/,
+      'Tail geometry must target explicitly grouped speech, not all bubbles or cards')
+  }
 
   // Zero dot wallpaper pattern
   assert.equal(
