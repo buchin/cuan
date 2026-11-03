@@ -30,3 +30,15 @@ Conversation JSON now preserves `requests` (including state, safe error and reco
 Production investigation in room23026ea3-26a0-4c4b-99a0-201807f4fb1b found stale unavailable accounts with positive provider usage evidence. Reverification restored one account; a real request then returned three relevant requirement questions after about116 seconds. A later scope turn used read-only file tools, encountered failures, and exhausted its permitted provider route before producing a plan. No task or final artifact was created at that checkpoint.
 
 The complete acceptance remains: Studio idea → Inbox requirement discovery → approved scope → existing/new project resolution → delegated task → independently checked artifact → report to the same conversation. These changes alone do not prove that full goal. Native E2E evidence and targeted test logs are retained under `/home/dev/reports/cuan-chat-e2e` in the working environment.
+# Account model discovery
+
+`GET /api/v1/provider-accounts/{accountID}/models` returns the installed
+provider CLI's model IDs for the signed-in owner's private account profile.
+It requires saved account credentials and excludes the legacy server profile.
+At present this endpoint supports Antigravity accounts; unsupported providers
+return an actionable error instead of a fallback catalog.
+
+Discovery does not run inference or establish remaining quota. A quota-limited
+account can still return its catalog. Catalog reads use the existing bounded
+profile lease and cache, so they do not interrupt active work. A failed read
+must leave a previously saved model selection intact in the consuming UI.

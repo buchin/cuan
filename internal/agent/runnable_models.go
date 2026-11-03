@@ -27,6 +27,35 @@ type catalogOutput struct {
 	overflow bool
 }
 
+// ProviderAccountModels returns the installed provider's catalog for this
+// signed-in account. Catalog membership is not a promise of available quota.
+func ProviderAccountModels(ctx context.Context, owner, id string) ([]ModelInfo, error) {
+	account, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if account.Legacy || !account.CredentialsPresent {
+		return nil, errors.New("Connect this account before choosing a model")
+	}
+	if account.Provider != "agy" {
+		return nil, errors.New("Model discovery is not available for this provider yet")
+	}
+	catalog, ok := nativeAccountModelCatalog(ctx, owner, id)
+	if !ok {
+		return nil, errors.New("Could not load models. Try again when the account is idle")
+	}
+	ids := make([]string, 0, len(catalog))
+	for model := range catalog {
+		ids = append(ids, model)
+	}
+	sort.Strings(ids)
+	models := make([]ModelInfo, 0, len(ids))
+	for _, model := range ids {
+		models = append(models, ModelInfo{ID: model, Name: model, Provider: account.Provider})
+	}
+	return models, nil
+}
+
 func (b *catalogOutput) Write(p []byte) (int, error) {
 	n := len(p)
 	remaining := 65536 - len(b.data)

@@ -78,6 +78,7 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 		ar.Patch("/{accountID}/failover", s.handleProviderAccountFailover)
 		ar.Patch("/{accountID}/model-fallback", s.handleProviderAccountFailover)
 		ar.Get("/{accountID}/usage", s.handleProviderAccountUsage)
+		ar.Get("/{accountID}/models", s.handleProviderAccountModels)
 	})
 
 	r.Route("/agents", func(ar chi.Router) {

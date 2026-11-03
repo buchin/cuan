@@ -207,6 +207,24 @@ func (s *Server) handleProviderAccountUsage(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, 200, agent.FetchAccountModelUsage(r.Context(), owner, id))
 }
 
+func (s *Server) handleProviderAccountModels(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	id := chi.URLParam(r, "accountID")
+	if _, err := agent.GetProviderAccount(owner, id); err != nil {
+		respondJSONError(w, http.StatusNotFound, "Account not found")
+		return
+	}
+	models, err := agent.ProviderAccountModels(r.Context(), owner, id)
+	if err != nil {
+		respondJSONError(w, http.StatusConflict, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"models": models})
+}
+
 func (s *Server) handleDeleteProviderAccount(w http.ResponseWriter, r *http.Request) {
 	owner := s.accountOwner(w, r)
 	if owner == "" {

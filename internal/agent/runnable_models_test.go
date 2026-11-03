@@ -94,3 +94,40 @@ func TestNativeCatalogRejectsFailureAndOverflow(t *testing.T) {
 		})
 	}
 }
+
+func TestProviderAccountModelsRequiresOwnedSignInAndIgnoresQuota(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\n[ \"$1\" = models ] || exit 1\nprintf 'gemini-current\\nclaude-sonnet-current\\n'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	a, err := CreateProviderAccount("owner", "Catalog fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ProviderAccountModels(context.Background(), "owner", a.ID); err == nil {
+		t.Fatal("model selection available before sign-in")
+	}
+	home, _ := ProviderAccountHome("owner", a.ID)
+	if err := os.MkdirAll(AntigravityConfigDirPath(home), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(AntigravityCredentialsFilePath(home), []byte(`{"access_token":"fixture-only"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.State = "quota_limited"
+	if err := saveProviderAccount(a); err != nil {
+		t.Fatal(err)
+	}
+	models, err := ProviderAccountModels(context.Background(), "owner", a.ID)
+	if err != nil || len(models) != 2 || models[0].ID != "claude-sonnet-current" || models[1].Provider != "agy" {
+		t.Fatalf("catalog unavailable during quota wait: %+v, %v", models, err)
+	}
+	if _, err := ProviderAccountModels(context.Background(), "other", a.ID); err == nil {
+		t.Fatal("cross-owner catalog exposed")
+	}
+	if _, err := ProviderAccountModels(context.Background(), "owner", "legacy"); err == nil {
+		t.Fatal("ambient service catalog exposed")
+	}
+}

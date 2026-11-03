@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { HarnessAuth } from './agents'
+import type { HarnessAuth, ModelInfo } from './agents'
 
 export interface ProviderAccount {
   agent_id?: string
@@ -33,6 +33,8 @@ export interface AccountUsage {
 }
 const base = '/api/v1/provider-accounts'
 export const accountsApi = {
+  models: async (id: string): Promise<ModelInfo[]> =>
+    (await apiFetch<{ models: ModelInfo[] }>(`${base}/${encodeURIComponent(id)}/models`)).models,
   update: async (id: string, data: { label: string; model_id: string }) => (await apiFetch<{ account: ProviderAccount }>(`${base}/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) })).account,
   usage: (id: string) =>
     apiFetch<AccountUsage>(`${base}/${encodeURIComponent(id)}/usage`),
