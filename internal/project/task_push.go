@@ -5,12 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"path/filepath"
 )
 
 var ErrGitHubConnectionRequired = errors.New("Connect GitHub in Settings to save this task branch")
 
 func (s *Service) PushTaskBranch(ctx context.Context, taskID, projectID, instructions string) (string, error) {
+	if executionpolicy.FromInstructions(instructions).DenyPush {
+		return "", errors.New("This task scope forbids pushing. Local work is preserved")
+	}
 	p, err := s.TaskWorkspace(ctx, projectID, instructions)
 	if err != nil {
 		return "", err

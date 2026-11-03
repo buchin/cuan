@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"io"
 	"net/http"
 	"os"
@@ -111,6 +112,7 @@ this reporting tool. If the tool fails, report its actual error as a blocker.
 The built-in command is "$CUAN_TASK_EXECUTABLE" task.
 Run task get only when additional task context is needed. Metadata and checklists
 are optional; keep simple requests simple. Use task --help for supported flags.
+Task-specific prohibitions on push or deployment override the generic delivery defaults below. If publication is forbidden, retain and report the local artifact instead.
 For repository implementation, commit only your scoped changes. Save the task
 branch with "$CUAN_TASK_EXECUTABLE" task push before reporting delivery. This
 pushes only the bound branch; it does not commit files, merge or deploy. A failed
@@ -215,6 +217,10 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/push") {
+		if executionpolicy.FromInstructions(latest.Instructions).DenyPush {
+			respondJSONError(w, 403, "This task scope forbids pushing. Local work is preserved.")
+			return
+		}
 		if s.projectSvc == nil {
 			respondJSONError(w, 503, "Project access is unavailable")
 			return
@@ -309,7 +315,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			if latest, err := s.taskSvc.GetTaskDetail(context.Background(), g.TaskID); err == nil && latest != nil {
 				if proj, err := s.projectSvc.Get(context.Background(), latest.ProjectID); err == nil && proj != nil {
 					settings := project.SettingsFromMetadata(proj.Metadata)
-					if settings.IsAutoDeployEnabled() {
+					if settings.IsAutoDeployEnabled() && !executionpolicy.FromInstructions(latest.Instructions).DenyDeploy {
 						go s.autoApplyAndDeployTask(context.Background(), g.TaskID, latest.ProjectID)
 					}
 				}

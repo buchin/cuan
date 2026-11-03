@@ -896,3 +896,23 @@ func TestRunner_Daemon_ParallelLanesExecution(t *testing.T) {
 	}
 	t.Log("✓ Both lanes cleanly finished and released mutexes")
 }
+
+func TestRunner_TaskNoDeployOverridesProjectCompletionGate(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	finder := &mockProjectFinder{projects: map[string]*project.ProjectResponse{"project": {ID: "project", Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true}}`)}}}
+	svc := NewService(NewMemoryStore(store), store, finder)
+	item := &task.Task{ID: "local-guide", ProjectID: "project", Title: "Create a local guide", Instructions: "Only one documentation file. Jangan push atau deploy.", ExecutionCategory: task.ExecutionCategoryCode, Status: task.TaskStatusDoing}
+	if err := store.CreateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	attempt := &task.TaskAttempt{ID: "local-attempt", TaskID: item.ID, RunnerID: "runner", Status: task.AttemptStatusRunning}
+	if err := store.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	changed, requires := true, true
+	result, err := svc.Complete(ctx, attempt.ID, CompleteAttemptRequest{RunnerID: "runner", Status: task.AttemptStatusSucceeded, AgentReportRequired: true, AgentReportConfirmed: true, HasCodeChanges: &changed, RequiresDeploy: &requires, DiffSummary: "one local doc file"})
+	if err != nil || result.Status != task.AttemptStatusSucceeded {
+		t.Fatalf("local scoped delivery required forbidden deployment: %+v %v", result, err)
+	}
+}

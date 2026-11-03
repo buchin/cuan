@@ -341,3 +341,32 @@ func TestTaskAgentUnknownCapabilityCannotRecoverByLength(t *testing.T) {
 		t.Fatalf("unknown capability was reconstructed: %d", out.Code)
 	}
 }
+
+func TestTaskAgentPushHonorsTaskPublicationLimit(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	created := workspaceTask(t, call)
+	ctx := context.Background()
+	instructions := "Create one local guide. Jangan push atau deploy."
+	if _, err := s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Instructions: &instructions}); err != nil {
+		t.Fatal(err)
+	}
+	a, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "agent_lifecycle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, token, cleanup, err := s.issueTaskAgent(ctx, created.ID, a.ID, "agent_lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	r := httptest.NewRequest("POST", "/api/v1/task-agent/"+created.ID+"/push", nil)
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, r)
+	if w.Code != 403 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+}

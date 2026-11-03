@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"log"
 	"net/http"
 	"strings"
@@ -35,6 +36,9 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if executionpolicy.FromInstructions(taskDetail.Instructions).DenyDeploy {
+		return
+	}
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
 		respondJSONError(w, http.StatusBadRequest, "This task has no pull request or task branch to apply")
 		return
@@ -140,6 +144,9 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID string) {
 	taskDetail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
 	if err != nil || taskDetail == nil {
+		return
+	}
+	if executionpolicy.FromInstructions(taskDetail.Instructions).DenyDeploy {
 		return
 	}
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {

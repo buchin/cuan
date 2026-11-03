@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"io"
 	"log"
 	"net/http"
@@ -774,7 +775,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			dodTexts = append(dodTexts, item.Text)
 		}
 	}
-	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir)
+	policy := executionpolicy.FromInstructions(t.Instructions)
+	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
+	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir) + policy.Prompt()
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()
