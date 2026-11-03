@@ -332,7 +332,7 @@ export function App() {
       if (document.visibilityState !== 'visible' || refreshing) return
       refreshing = true
       try {
-        await refreshTasks()
+        await Promise.allSettled([refreshTasks(), ...(currentTab === 'projects' ? [refreshProjects()] : [])])
       } finally {
         refreshing = false
       }
@@ -347,7 +347,7 @@ export function App() {
       window.removeEventListener('focus', resume)
       document.removeEventListener('visibilitychange', resume)
     }
-  }, [isAuthenticated, currentTab, isTerminalSession, refreshTasks])
+  }, [isAuthenticated, currentTab, isTerminalSession, refreshTasks, refreshProjects])
 
   // Read the visible conversation directly from the URL. Back/forward and
   // responsive list mode cannot race against an effect restoring old selection.

@@ -28,7 +28,13 @@ type Project struct {
 	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
+type TaskProgress struct {
+	Total int `json:"total"`
+	Done  int `json:"done"`
+}
+
 type ProjectResponse struct {
+	TaskProgress   *TaskProgress   `json:"task_progress,omitempty"`
 	ID             string          `json:"id"`
 	Name           string          `json:"name"`
 	RepoURL        string          `json:"repo_url"`

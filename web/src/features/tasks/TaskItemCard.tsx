@@ -333,7 +333,7 @@ export function TaskItemCard({
             ) : status === 'Ready for review' ? (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
             ) : status === 'Completed' || status === 'Answered' ? (
-              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <CheckCircle2 className="h-3 w-3 shrink-0 text-[color:var(--status-success)]" />
             ) : status === 'Cancelled' ? (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-zinc-500 dark:bg-zinc-400 shrink-0" />
             ) : status === 'Needs attention' ? (

@@ -2,6 +2,7 @@ import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListContr
 import { IconButton } from '../../components/ui/IconButton'
 import { PageHeader, PageHeaderBrand, PageTitle } from '../../components/layout/PageHeader'
 import { HairlineList } from '../../components/layout/HairlineList'
+import { TaskProgress } from '../../components/ui/TaskProgress'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
@@ -204,6 +205,7 @@ export function ConversationItem({
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
+              <TaskProgress total={contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0)} done={contact.done_tasks} />
               <span className={cn("text-sm truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>

@@ -502,6 +502,8 @@ export const TaskCard = memo(function TaskCard({
                 <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
               </span>
+            ) : isDone ? (
+              <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" />
             ) : isNeedsAttention ? (
               <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
             ) : (

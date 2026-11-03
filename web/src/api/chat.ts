@@ -32,6 +32,7 @@ export interface ChatContact {
   review_tasks?: number
   queued_tasks?: number
   done_tasks?: number
+  canceled_tasks?: number
   failed_tasks?: number
 }
 
@@ -244,6 +245,7 @@ export const chatApi = {
       review_tasks: Number(c.review_tasks) || 0,
       queued_tasks: typeof c.queued_tasks === 'number' ? c.queued_tasks : Number(c.queued_tasks) || 0,
       done_tasks: typeof c.done_tasks === 'number' ? c.done_tasks : Number(c.done_tasks) || 0,
+      canceled_tasks: Number(c.canceled_tasks) || 0,
       failed_tasks: typeof c.failed_tasks === 'number' ? c.failed_tasks : Number(c.failed_tasks) || 0,
     }))
   },

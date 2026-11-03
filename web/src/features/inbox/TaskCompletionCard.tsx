@@ -180,7 +180,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             )}
           >
             {isDone ? (
-              <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)] shrink-0" />
             ) : (
               <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             )}

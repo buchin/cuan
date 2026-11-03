@@ -1,3 +1,4 @@
+import { TaskProgress } from '../../components/ui/TaskProgress'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -297,6 +298,7 @@ export function ProjectsView({
                   }
                   title={
                     <div className="flex items-center gap-2 min-w-0">
+                      <TaskProgress {...project.task_progress} />
                       <span className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
                         {project.name}
                       </span>

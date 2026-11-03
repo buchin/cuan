@@ -299,3 +299,19 @@ Pertahankan Geist untuk UI, dengan monospace untuk terminal, kode dan identifier
 teknis. Header halaman bersama menggunakan20px mobile/24px desktop, judul menu dan
 task14px medium, isi chat15–16px, metadata12px. Identitas akun: avatar36px pada
 trigger/40px pada menu, nama14px medium, email12px muted, target klik minimal56px.
+
+### 7.7. Progres pekerjaan dan ekor bubble
+
+Persetujuan terbaru: gunakan centang `--status-success` hijau lembut untuk tugas
+selesai, dengan label dan permukaan netral. Komponen bersama `TaskProgress`
+menampilkan pie16px di samping judul Inbox/nama project; hanya `done` mengisi pie,
+`review` belum selesai, canceled dikecualikan. Semua selesai menjadi centang;
+tanpa tugas/data tidak menampilkan indikator. Jumlah tepat tersedia lewat judul
+indikator dan nama aksesibel. Ringkasan server mencakup seluruh task, bukan jumlah
+yang kebetulan sedang dimuat pada halaman.
+
+Ekor bubble kecil diperbolehkan sesuai persetujuan user: hanya bubble ucapan
+pertama per rangkaian pengirim yang sama; warna mengikuti permukaan, tanpa garis
+atau bayangan tambahan. Pergantian hari/pengirim, visibilitas internal, atau jeda
+lima menit memulai rangkaian baru. Preview task/file bukan bubble ucapan dan tidak
+mendapat ekor. Bentuk umum komponen mengikuti tema yang sudah ada.

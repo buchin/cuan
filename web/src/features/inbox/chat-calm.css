@@ -100,7 +100,7 @@
   width: 100%;
 }
 
-/* Chat Message Bubbles: Symmetrical, calm, soft rounded rectangles. No clip-path tails! */
+/* Calm speech surfaces; only the first bubble in a speaker group gets a small tail. */
 .wa-message-bubble,
 .calm-message-bubble {
   max-width: calc(100% - 32px);
@@ -135,18 +135,29 @@
   border-color: transparent;
 }
 
-/* Strictly ELIMINATE the legacy WhatsApp speech bubble tail clip-path */
+/* Preview cards use the same layout classes, so tails require an explicit speech marker. */
 .wa-message-bubble::before,
 .calm-message-bubble::before {
-  display: none !important;
-  content: none !important;
+  display: none;
+  content: none;
 }
-.wa-incoming::before,
-.calm-incoming::before,
-.wa-outgoing::before,
-.calm-outgoing::before {
-  display: none !important;
-  content: none !important;
+.wa-message-bubble[data-bubble-tail]::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -1px;
+  width: 8px;
+  height: 9px;
+  background: inherit;
+  pointer-events: none;
+}
+.wa-message-bubble[data-bubble-tail="incoming"]::before {
+  left: -7px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+.wa-message-bubble[data-bubble-tail="outgoing"]::before {
+  right: -7px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
 }
 
 /* Typography & Metadata - Bear Notes Inspired (relaxed leading and breathing room) */

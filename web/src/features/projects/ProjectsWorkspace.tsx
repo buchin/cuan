@@ -9,6 +9,7 @@ import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
 import { workStatus } from '../tasks/task-ui'
 import { useLanguage } from '../../context/LanguageContext'
+import { TaskProgress } from '../../components/ui/TaskProgress'
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
 
@@ -207,7 +208,7 @@ export function ProjectsWorkspace({
               aria-current={project?.id === item.id ? 'page' : undefined}
               className={`project-list-row group flex rounded-lg min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
-              <ListRowContent leading={<ProjectIcon repoUrl={item.repo_url} />} title={item.name} description={String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))} />
+              <ListRowContent leading={<ProjectIcon repoUrl={item.repo_url} />} title={<span className="flex min-w-0 items-center gap-2"><TaskProgress {...item.task_progress} /><span className="truncate">{item.name}</span></span>} description={String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))} />
             </Link>
             </ItemActions>
           ))}
@@ -256,6 +257,7 @@ export function ProjectsWorkspace({
                 ) : (
                   <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
+                <TaskProgress {...project.task_progress} />
                 <h2 className="truncate text-sm font-semibold">
                   {project.name}
                 </h2>

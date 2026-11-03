@@ -249,5 +249,6 @@
   "Send": "Send",
   "Reconnecting. Unsent input will wait for this terminal session.": "Reconnecting. Unsent input will wait for this terminal session.",
   "Terminal session unavailable. Reconnect before entering more input.": "Terminal session unavailable. Reconnect before entering more input.",
-  "Connection paused. Reconnect to send pending input to this session.": "Connection paused. Reconnect to send pending input to this session."
+  "Connection paused. Reconnect to send pending input to this session.": "Connection paused. Reconnect to send pending input to this session.",
+  "{{done}} of {{total}} tasks completed": "{{done}} of {{total}} tasks completed"
 }

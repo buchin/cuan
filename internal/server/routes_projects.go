@@ -69,6 +69,16 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		projects = []*project.ProjectResponse{}
 	}
 
+	counts, err := s.readTaskCounts(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not load project task progress. Try again.")
+		return
+	}
+	for _, p := range projects {
+		c := counts.Projects[p.ID]
+		p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done}
+	}
+
 	archivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("archived")))
 	includeArchivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("include_archived")))
 	statusParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
@@ -212,6 +222,13 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get project: %v", err))
 		return
 	}
+	counts, err := s.readTaskCounts(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not load project task progress. Try again.")
+		return
+	}
+	c := counts.Projects[p.ID]
+	p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done}
 	respondJSON(w, http.StatusOK, p)
 }
 

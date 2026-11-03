@@ -52,6 +52,7 @@ type ChatContact struct {
 	QueuedTasks    int       `json:"queued_tasks"`
 	DoneTasks      int       `json:"done_tasks"`
 	FailedTasks    int       `json:"failed_tasks"`
+	CanceledTasks  int       `json:"canceled_tasks"`
 }
 
 // AgentActionCard represents an interactive 1-click execution card in an agent bubble.
@@ -637,81 +638,18 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	contacts := make([]ChatContact, 0)
 
 	// Count active tasks and total tasks per conversation room
-	taskCountByRoom := make(map[string]int)
-	activeTasksByRoom := make(map[string]int)
-	reviewTasksByRoom := make(map[string]int)
-	queuedTasksByRoom := make(map[string]int)
-	doneTasksByRoom := make(map[string]int)
-	failedTasksByRoom := make(map[string]int)
-
-	if s.taskSvc != nil {
-		if allTasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{}); err == nil {
-			for _, t := range allTasks {
-				if t.SourceRoomID != "" {
-					taskCountByRoom[t.SourceRoomID]++
-					st := strings.ToLower(strings.TrimSpace(t.Status))
-					if st == "done" {
-						doneTasksByRoom[t.SourceRoomID]++
-					} else if st == "blocked" || st == "failed" {
-						failedTasksByRoom[t.SourceRoomID]++
-					} else if st == "queued" || st == "pending" {
-						queuedTasksByRoom[t.SourceRoomID]++
-					} else if st == "review" {
-						reviewTasksByRoom[t.SourceRoomID]++
-					} else if inboxTaskIsWorking(st) {
-						activeTasksByRoom[t.SourceRoomID]++
-					}
-				}
-			}
-		}
+	counts, err := s.readTaskCounts(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not load conversation task progress. Try again.")
+		return
 	}
-	if s.projectStudioRepo != nil {
-		if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-			for _, rm := range allRooms {
-				pTasks, err := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
-				if err == nil && len(pTasks) > 0 {
-					if len(pTasks) > taskCountByRoom[rm.ID] {
-						taskCountByRoom[rm.ID] = len(pTasks)
-						active := 0
-						queued := 0
-						done := 0
-						failed := 0
-						review := 0
-						for _, pt := range pTasks {
-							st := strings.ToLower(strings.TrimSpace(pt.Status))
-							if st == "done" {
-								done++
-							} else if st == "blocked" || st == "failed" {
-								failed++
-							} else if st == "queued" || st == "pending" {
-								queued++
-							} else if st == "review" {
-								review++
-							} else if inboxTaskIsWorking(st) {
-								active++
-							}
-						}
-						activeTasksByRoom[rm.ID] = active
-						reviewTasksByRoom[rm.ID] = review
-						queuedTasksByRoom[rm.ID] = queued
-						doneTasksByRoom[rm.ID] = done
-						failedTasksByRoom[rm.ID] = failed
-					}
-				}
-			}
-		}
-	}
-
-	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int, int) {
+	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int, int, int) {
 		for _, id := range ids {
-			if id == "" {
-				continue
-			}
-			if tc := taskCountByRoom[id]; tc > 0 {
-				return tc, activeTasksByRoom[id], queuedTasksByRoom[id], doneTasksByRoom[id], failedTasksByRoom[id], reviewTasksByRoom[id]
+			if c, ok := counts.Rooms[id]; ok {
+				return c.Total, c.Active, c.Queued, c.Done, c.Failed, c.Review, c.Canceled
 			}
 		}
-		return 0, 0, 0, 0, 0, 0
+		return 0, 0, 0, 0, 0, 0, 0
 	}
 
 	if typeFilter != "customers" {
@@ -767,7 +705,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							})
 						}
 					}
-					tc, at, qt, dt, ft, rt := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
+					tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
 					c := ChatContact{
 						ID:      "contact_" + a.ID,
 						AgentID: a.ID, AgentName: a.Name,
@@ -788,6 +726,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						QueuedTasks:    qt,
 						DoneTasks:      dt,
 						FailedTasks:    ft,
+						CanceledTasks:  ct,
 						ReviewTasks:    rt,
 					}
 					contacts = append(contacts, c)
@@ -814,8 +753,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt})
+				tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt, canceledCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt, CanceledTasks: canceledCnt})
 			}
 		}
 	}
@@ -912,7 +851,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
-			tc, at, qt, dt, ft, rt := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			contactEmail := sess.Email
 			if contactEmail == "" && liveSess != nil && liveSess.Email != "" {
 				contactEmail = liveSess.Email
@@ -947,6 +886,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				QueuedTasks:    qt,
 				DoneTasks:      dt,
 				FailedTasks:    ft,
+				CanceledTasks:  ct,
 				ReviewTasks:    rt,
 			}
 			contacts = append(contacts, custContact)
@@ -1406,10 +1346,13 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	queuedTasks := 0
 	doneTasks := 0
 	failedTasks := 0
+	canceledTasks := 0
 	for _, t := range linked {
 		st := strings.ToLower(strings.TrimSpace(t.Status))
 		if st == task.TaskStatusDone {
 			doneTasks++
+		} else if st == "canceled" || st == "cancelled" {
+			canceledTasks++
 		} else if st == task.TaskStatusBlocked || st == "failed" {
 			failedTasks++
 		} else if st == task.TaskStatusQueued || st == task.TaskStatusPending {
@@ -1426,6 +1369,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	contact.QueuedTasks = queuedTasks
 	contact.DoneTasks = doneTasks
 	contact.FailedTasks = failedTasks
+	contact.CanceledTasks = canceledTasks
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,

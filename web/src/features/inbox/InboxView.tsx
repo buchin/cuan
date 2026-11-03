@@ -1,3 +1,4 @@
+import { startsMessageGroup } from './message-group'
 import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
 import { IconButton } from '../../components/ui/IconButton'
 import { updateItemPreference } from '../../hooks/useArchivedItems'
@@ -599,9 +600,10 @@ export function InboxView({
             return s === 'queued' || s === 'pending'
           }).length
           const dt = data.tasks.filter((t) => (t.status || '').toLowerCase().trim() === 'done').length
+          const ct = data.tasks.filter((t) => ['canceled', 'cancelled'].includes((t.status || '').toLowerCase().trim())).length
           const ft = data.tasks.filter((t) => {
             const s = (t.status || '').toLowerCase().trim()
-            return s === 'blocked' || s === 'failed' || s === 'canceled' || s === 'cancelled'
+            return s === 'blocked' || s === 'failed'
           }).length
           const changed =
             activeContact.task_count !== data.tasks.length ||
@@ -609,12 +611,14 @@ export function InboxView({
             activeContact.review_tasks !== rt ||
             activeContact.queued_tasks !== qt ||
             activeContact.done_tasks !== dt ||
+            activeContact.canceled_tasks !== ct ||
             activeContact.failed_tasks !== ft
           activeContact.task_count = data.tasks.length
           activeContact.active_tasks = at
           activeContact.review_tasks = rt
           activeContact.queued_tasks = qt
           activeContact.done_tasks = dt
+          activeContact.canceled_tasks = ct
           activeContact.failed_tasks = ft
           if (changed) {
             onContactUpdated?.()
@@ -1188,6 +1192,8 @@ export function InboxView({
       olderAnchor.current = null
     }
   }, [messages.length])
+  let previousBubbleMessage: ChatMessage | undefined
+
   return (
     <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
       {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
@@ -1605,6 +1611,9 @@ export function InboxView({
                   )
                   textareaRef.current?.focus()
                 }
+                const groupStart = startsMessageGroup(msg, previousBubbleMessage)
+                previousBubbleMessage = msg
+                const hasSpeech = msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim().length > 0
                 const metadata = (
                   <span className="wa-message-meta">
                     <time dateTime={msg.created_at}>
@@ -1662,6 +1671,7 @@ export function InboxView({
                       }] : []),
                     ]}>
                     <div
+                      data-bubble-tail={groupStart && hasSpeech ? (isOutgoing ? 'outgoing' : 'incoming') : undefined}
                       className={cn(
                         'wa-message-bubble relative min-w-0',
                         msg.uuid === requestedMessageId && 'ring-2 ring-ring',
