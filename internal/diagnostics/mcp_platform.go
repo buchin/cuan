@@ -91,7 +91,7 @@ func ListProjects(ctx context.Context, limit int) (any, error) {
 		if client := GetCuanClient(); client != nil && client.IsConfigured() {
 			if projects, err := client.ListProjects(ctx, limit); err == nil {
 				return map[string]any{
-					"projects": projects,
+					"projects": redactProjectEnvironments(projects),
 					"total":    len(projects),
 				}, nil
 			}
@@ -140,6 +140,7 @@ func GetProject(ctx context.Context, projectID string) (any, error) {
 	if db == nil {
 		if client := GetCuanClient(); client != nil && client.IsConfigured() {
 			if proj, err := client.GetProject(ctx, projectID); err == nil {
+				redactProjectEnvironment(proj)
 				return proj, nil
 			}
 		}

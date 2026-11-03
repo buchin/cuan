@@ -17,9 +17,9 @@ type jsonRPCRequest struct {
 }
 
 type jsonRPCResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      any         `json:"id,omitempty"`
-	Result  any         `json:"result,omitempty"`
+	JSONRPC string        `json:"jsonrpc"`
+	ID      any           `json:"id,omitempty"`
+	Result  any           `json:"result,omitempty"`
 	Error   *jsonRPCError `json:"error,omitempty"`
 }
 
@@ -118,6 +118,24 @@ var nativeMCPTools = []mcpToolDefinition{
 				},
 			},
 		},
+	},
+	{
+		Name:        "get_project_environment",
+		Description: "Read project environment from authenticated production settings. Values are redacted by default; reveal=true explicitly discloses secrets.",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{
+			"project_id": map[string]any{"type": "string"},
+			"reveal":     map[string]any{"type": "boolean", "default": false},
+		}, "required": []string{"project_id"}},
+	},
+	{
+		Name:        "update_project_environment",
+		Description: "Merge project environment values or unset selected keys using owner-authenticated settings API with conflict protection. Prefer from_env to import named process variables without including secret values in tool arguments. Output always redacted. Existing tasks retain their snapshot.",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{
+			"project_id": map[string]any{"type": "string"},
+			"values":     map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}},
+			"from_env":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"unset":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+		}, "required": []string{"project_id"}},
 	},
 	{
 		Name:        "list_projects",
@@ -600,6 +618,12 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			toolResult, toolErr = InspectSystemHealth(ctx, pathVal)
 		case "inspect_typecheck":
 			toolResult, toolErr = InspectTypecheck(ctx, pathVal)
+		case "get_project_environment":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			reveal, _ := callParams.Arguments["reveal"].(bool)
+			toolResult, toolErr = GetCuanClient().GetProjectEnvironment(ctx, projectID, reveal)
+		case "update_project_environment":
+			toolResult, toolErr = updateEnvironmentMCP(ctx, callParams.Arguments)
 		case "list_projects":
 			limit := 20
 			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {

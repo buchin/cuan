@@ -85,3 +85,25 @@ Configured in `~/.gemini/antigravity-cli/mcp_config.json`:
 - `list_projects`, `get_project`: Project repositories
 - `inspect_git_status`, `inspect_git_log`, `inspect_git_diff`, `inspect_git_branches`: Read-only git tools
 - `inspect_system_health`, `inspect_database_schema`, `inspect_database_query`, `inspect_app_logs`: Platform diagnostics
+
+## Project environments
+
+Use the official CLI to manage **Project settings → Environment**:
+
+```bash
+cuan project env list PROJECT_ID
+cuan project env set PROJECT_ID --from-env NAME --from-env OTHER_NAME
+cuan project env set PROJECT_ID --file - < /private/path/project.env
+cuan project env unset PROJECT_ID --key NAME
+```
+
+Values are redacted by default. Import secrets from named process variables or
+private stdin/file input, never literal secret arguments. List with `--reveal`
+only when explicitly necessary. Set merges selected keys and preserves other
+project settings, with concurrency protection. Use exact project IDs.
+
+MCP equivalents: `get_project_environment {project_id, reveal?}` and
+`update_project_environment {project_id, from_env?, values?, unset?}`. Prefer
+`from_env` for secrets; writes always return redacted values. Saved configuration
+applies to new tasks; existing tasks retain their environment snapshot.
+See [project environment guide](../../guides/project-environment-cli.md).

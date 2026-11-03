@@ -44,6 +44,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "config" {
 		os.Exit(diagnostics.RunConfigCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "project" {
+		os.Exit(diagnostics.RunProjectCLI(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "repo" {
 		os.Exit(diagnostics.RunRepoCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
@@ -335,6 +338,7 @@ Usage:
   cuan chat <subcommand> [flags]
   cuan task <subcommand> [flags]
   cuan config <subcommand> [flags]
+  cuan project env <list|set|unset> PROJECT_ID [flags]
   cuan repo <subcommand> [flags]
   cuan diag <subcommand> [flags]
   cuan mcp
@@ -343,6 +347,7 @@ Subcommands:
   chat              Agent chat & inbox conversations (new, send, list, messages)
   task              Task management (list, get, update, create) & runner reporting
   config            CLI and MCP connection settings (show, set)
+  project           Project environments (list, set, unset; values redacted by default)
   repo              Read-only git repository inspection (status, log, diff-summary, branches)
   diag              Host system health & static diagnostics (health, df, free, tsc, deps)
   mcp               Model Context Protocol (MCP) stdio server for Agent function calling

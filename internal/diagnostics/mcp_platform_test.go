@@ -48,6 +48,8 @@ func TestPlatformMCPToolsList(t *testing.T) {
 		"inspect_typecheck",
 		"list_projects",
 		"get_project",
+		"get_project_environment",
+		"update_project_environment",
 		"list_tasks",
 		"get_task",
 		"update_task_status",
