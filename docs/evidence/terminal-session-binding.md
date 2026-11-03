@@ -43,3 +43,12 @@ existing Mark all as read button, and it was empty with no unread conversations.
 The existing button remains conditionally visible when there are unread messages.
 The fixture checks assert the redundant Inbox menu is absent. Conversation row
 menus remain available.
+
+## Contacts toolbar cleanup
+
+Removed the list-level Contacts overflow menu and its sole Reload contacts action.
+The existing visible-page 30-second refresh, window-focus refresh, post-change
+refreshKey and error-state Try again remain. Per-contact action menus remain.
+Build and browser fixture passed; screenshots at 390/1440px were inspected at
+`/home/dev/reports/cuan-contacts-cleanup/contacts-clean-{390,1440}.png`.
+This change is not deployed yet.

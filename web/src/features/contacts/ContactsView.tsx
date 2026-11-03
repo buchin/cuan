@@ -305,7 +305,6 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
               >
                 <Archive className="h-4 w-4" aria-hidden="true" />
               </IconButton>
-              <ItemActions persistent label="Contacts" actions={[{ label: 'Reload contacts', disabled: loading || saving, run: async () => { await load(); setSearchOffset(0); setSearchRevision(value => value + 1) } }]}><span className="sr-only">{t('Contact list actions')}</span></ItemActions>
             </div>
 
             {(tag || product) && !filtersOpen && (

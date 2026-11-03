@@ -16,6 +16,7 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
  if(p==='/api/system/worker-health')return json({status:'ready',is_alive:true,running_count:0,queued_count:0})
  if(p==='/api/system/update')return json({current_version:'fixture',latest_version:'fixture',has_update:false,auto_update_enabled:false,auto_update_time:'02:00'})
  if(p==='/api/v1/tasks/msg_reply')return json({...task,attempts:[task.latest_attempt],activities:[]})
+ if(p==='/api/v1/contacts')return json({contacts:[]})
  if(p==='/api/v1/projects')return json({projects:[]})
  if(p==='/api/v1/item-preferences')return json({items:{}})
  if(p.endsWith('/auth/status'))return json({setup_required:false})
@@ -68,6 +69,9 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
   assert.equal(await mixed.locator('[data-testid="task-completion-card"], [data-card="task-card"]').count(),0);assert.equal(await page.locator('[data-card="task-card"]').count(),1);const row=mixed.locator('xpath=ancestor::*[@data-message-id][1]');assert(await row.locator('[data-testid="task-completion-card"], [data-card="task-card"]').count()>0);assert.equal(await row.getByText('Needs attention',{exact:true}).count(),0);assert(await row.getByText('Cancelled',{exact:true}).count()>0);const card=row.locator('[data-card="task-card"]');assert(await card.getByText('Cuan fixture',{exact:true}).isVisible());assert.equal(await card.getByRole('button',{name:'Detail',exact:true}).count(),1);assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),1)
   const style=await mixed.evaluate(el=>({bg:getComputedStyle(el).backgroundColor,padding:parseFloat(getComputedStyle(el).paddingLeft)}));assert.notEqual(style.bg,'rgba(0, 0, 0, 0)');assert(style.padding>=12)
   assert.equal(await page.getByRole('button',{name:'Actions for Inbox',exact:true}).count(),0);await page.screenshot({path:out+'/chat-bubble-dark-'+width+'.png'});assert.equal(await page.getByText(/1\/1 Terpenuhi/).count(),0);await page.screenshot({path:out+'/review-evidence-'+width+'.png'});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+ }
+ for(const width of [390,1440]){
+  await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/contacts');await page.getByPlaceholder('Search contacts…').waitFor();assert.equal(await page.getByRole('button',{name:'Actions for Contacts',exact:true}).count(),0);await page.screenshot({path:out+'/contacts-clean-'+width+'.png'})
  }
  task.status='doing';task.latest_attempt.status='running';const terminalInput=[]
  await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive'}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='stdin')terminalInput.push(data.data)})})
