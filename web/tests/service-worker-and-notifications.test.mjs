@@ -273,7 +273,7 @@ test('4. Routing & Master-Detail Integration: Accessible nav tabs, category navi
     'SettingsView must render NotificationSettings component',
   )
   assert.ok(
-    settingsViewSrc.includes("['notifications', t('Notifications')]"),
+    fs.readFileSync(settingsMasterNavPath, 'utf8').includes("id: 'notifications'"),
     'SettingsView accessible nav list must include notifications',
   )
   assert.ok(

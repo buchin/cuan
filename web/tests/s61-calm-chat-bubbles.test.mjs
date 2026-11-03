@@ -124,8 +124,8 @@ test('4. S61-T2: Streamlined Agent Process Card & Assigned to Task Badge', () =>
 
   // chat-calm.css must define borderless containment for agent progress
   assert.ok(
-    chatCalmCss.includes('[aria-label="Agent response progress"]'),
-    'chat-calm.css must include borderless containment selector for agent response progress'
+    !chatCalmCss.includes('[aria-label="Agent response progress"] .wa-message-bubble'),
+    'Progress descendants must not erase mixed message boundaries'
   )
 })
 

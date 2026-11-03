@@ -120,7 +120,7 @@ test('1. Mobile Viewport Responsiveness (360px - 390px) & Safe Padding across al
   assert(inboxSubPanelSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'Inbox view must use overflow-x-auto without scrollbar blowout')
   assert(projectsViewSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'Projects view must use overflow-x-auto without scrollbar blowout')
   assert(projectWorkViewSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'ProjectWorkView must use overflow-x-auto without scrollbar blowout')
-  assert(settingsViewSrc.includes('overflow-x-auto'), 'Settings view nav must support horizontal scrolling')
+  assert(settingsViewSrc.includes('lg:grid-cols-[256px_minmax(0,1fr)]'), 'Settings navigation must use bounded responsive columns')
 })
 
 // -----------------------------------------------------------------------------
@@ -191,7 +191,7 @@ test('2. Touch Target Compliance (min 44x44px WCAG 2.1 AA) on Primary & Secondar
 
   // E. Settings: Navigation Tabs & Controls
   assert(
-    settingsViewSrc.includes('inline-flex min-h-11 shrink-0 items-center border-b-2 px-3'),
+    fs.readFileSync(path.join(rootDir, 'src/features/settings/SettingsMasterNav.tsx'), 'utf8').includes('min-h-11'),
     'SettingsView navigation tabs must satisfy min-h-11 touch target'
   )
 

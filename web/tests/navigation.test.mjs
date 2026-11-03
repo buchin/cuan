@@ -75,23 +75,11 @@ test('Contacts is promoted to Operations navigation group in AppShell (S59-T3)',
     'NavUser identity header must navigate to /account',
   )
 
-  // Verify SettingsView includes Contacts tab and section when under /account
-  const settingsContent = fs.readFileSync(
-    path.join(webDir, 'src/features/settings/SettingsView.tsx'),
-    'utf-8',
-  )
-  assert.ok(
-    settingsContent.includes("['contacts', t('Contacts')]"),
-    'SettingsView must include contacts tab item',
-  )
-  assert.ok(
-    settingsContent.includes("to = isAccount\n            ? `/account/${id}`"),
-    'SettingsView must route to /account/<tab> when in account view',
-  )
-  assert.ok(
-    settingsContent.includes('/account/contacts'),
-    'SettingsView must provide link to /account/contacts',
-  )
+  // Contacts belongs in primary navigation, not a duplicate hidden settings tab.
+  const settingsContent = fs.readFileSync(path.join(webDir, 'src/features/settings/SettingsView.tsx'),'utf8')
+  assert.ok(settingsContent.includes('<SettingsMasterNav'), 'Settings must retain the shared category navigation')
+  assert.ok(!settingsContent.includes("['contacts', t('Contacts')]"), 'Contacts must not be duplicated as a hidden settings tab')
+
 })
 
 test('App.tsx routing for /account, /account/contacts, and backward compatibility', async (t) => {

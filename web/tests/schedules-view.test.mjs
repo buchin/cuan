@@ -36,7 +36,7 @@ test('3. SettingsView includes Schedules tab item', () => {
   assert.ok(fs.existsSync(file), 'SettingsView.tsx must exist')
 
   const content = fs.readFileSync(file, 'utf8')
-  assert.ok(content.includes("['schedules', t('Schedules')]"), 'Must include schedules tab')
+  assert.ok(fs.readFileSync(path.join(webSrcDir, 'features/settings/SettingsMasterNav.tsx'), 'utf8').includes("id: 'schedules'"), 'Must include schedules tab')
   assert.ok(content.includes('<SchedulesView'), 'Must render SchedulesView component')
 })
 

@@ -51,46 +51,11 @@ test('2. S60-T4: Seamless Borderless Artifacts in chat-calm.css and InboxView.ts
   const css = fs.readFileSync(chatCalmCssPath, 'utf8')
   const inboxView = fs.readFileSync(inboxViewPath, 'utf8')
 
-  // Borderless artifact selectors in chat-calm.css
-  assert.ok(
-    css.includes('.wa-message-bubble:has(.approval-card)') &&
-      css.includes('.calm-message-bubble:has(.approval-card)'),
-    'chat-calm.css must define borderless containment for .approval-card'
-  )
-  assert.ok(
-    css.includes('.wa-message-bubble:has(.status-report-card)') &&
-      css.includes('.calm-message-bubble:has(.status-report-card)'),
-    'chat-calm.css must define borderless containment for .status-report-card'
-  )
-  assert.ok(
-    css.includes('.wa-message-bubble:has([data-card="task-card"])') &&
-      css.includes('.calm-message-bubble:has([data-card="task-card"])'),
-    'chat-calm.css must define borderless containment for task-card'
-  )
-  assert.ok(
-    css.includes('.wa-message-bubble:has([data-testid="task-completion-card"])') &&
-      css.includes('.calm-message-bubble:has([data-testid="task-completion-card"])'),
-    'chat-calm.css must define borderless containment for task-completion-card'
-  )
-
-  // Background and border elimination for artifacts
-  const artifactBlock = css.substring(
-    css.indexOf('/* Seamless Borderless Artifacts'),
-    css.indexOf('/* Conversation list surfaces')
-  )
-  assert.ok(
-    artifactBlock.includes('background: transparent !important'),
-    'Artifact bubble containers must have transparent background'
-  )
-  assert.ok(
-    artifactBlock.includes('border-color: transparent !important'),
-    'Artifact bubble containers must have transparent border'
-  )
-  assert.ok(
-    artifactBlock.includes('padding: 0 !important'),
-    'Artifact bubble containers must eliminate duplicate outer padding'
-  )
-
+  // Mixed text/card messages keep their normal message boundary. Browser
+  // evidence checks computed background and padding with a real task card.
+  assert.ok(css.includes('background: var(--wa-incoming)'), 'Incoming messages need their soft surface')
+  assert.ok(!css.includes('.wa-message-bubble:has([data-card="task-card"])'), 'Descendant task cards must not erase an entire message bubble')
+  assert.ok(css.includes('padding: 8px 14px 8px'), 'Messages retain readable padding')
   // Standalone completed tasks in InboxView eliminates duplicate borders
   assert.ok(
     inboxView.includes('!bg-transparent !border-0 !shadow-none !p-0'),

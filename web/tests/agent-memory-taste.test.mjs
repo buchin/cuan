@@ -154,7 +154,7 @@ test('3. Settings & Chat Integration: Navigation tabs, route titles and quick ac
 
   // SettingsView tab navigation
   assert.ok(
-    settingsSource.includes("['memory', t('Agent Memory')]"),
+    fs.readFileSync(new URL('../src/features/settings/SettingsMasterNav.tsx', import.meta.url), 'utf8').includes("id: 'memory'"),
     'SettingsView must include memory in navigation tabs',
   )
   assert.ok(
