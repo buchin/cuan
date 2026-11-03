@@ -945,7 +945,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
 			if compReq.Status == task.AttemptStatusSucceeded {
-				verification := runProjectVerification(ctx, workingDir)
+				verification := runProjectVerification(ctx, workingDir, claim.DefaultBranch)
 				compReq.TestSummary = verification.Summary
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed

@@ -24,7 +24,12 @@ type verificationResult struct {
 
 // runProjectVerification uses only repository-local, fixed commands. It never
 // executes a command supplied by the agent or task text.
-func runProjectVerification(parent context.Context, workingDir string) verificationResult {
+func runProjectVerification(parent context.Context, workingDir string, defaultBranch ...string) verificationResult {
+	if len(defaultBranch) > 0 {
+		if result := verifyDocumentationChanges(parent, workingDir, defaultBranch[0]); result != nil {
+			return *result
+		}
+	}
 	if workingDir == "" {
 		return verificationResult{Passed: true, Summary: "No workspace was assigned; no project verifier available."}
 	}

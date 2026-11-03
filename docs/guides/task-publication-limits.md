@@ -23,3 +23,14 @@ English negative clauses, unchanged ordinary deployment, exclusion of project
 snapshots, denied capability push and successful local completion under a
 project with auto-deploy enabled. Resume the same canceled task after this fix;
 do not create a duplicate or silently widen the approved scope.
+
+## Verification for documentation-only work
+
+The runner checks committed, staged/unstaged and untracked changes against the
+project's known default-branch commit. When every changed path is Markdown,
+verification checks readable nonempty UTF-8 text within the workspace instead of
+running unrelated application tests. Symlinks and oversized/invalid text fail.
+Mixed changes, missing baselines, failed git inspection or unknown state use the
+normal project verifier. This does not establish task-specific word limits,
+content correctness or delivery: those still require acceptance evidence and
+accessible artifacts in the task report.
