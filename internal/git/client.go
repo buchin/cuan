@@ -223,7 +223,10 @@ func (c *Client) FetchRemoteBranches(ctx context.Context, owner, repo, token str
 func (c *Client) lsRemote(ctx context.Context, owner, repo, token string) ([]string, string, error) {
 	authURL := BuildAuthURL(owner, repo, token)
 
-	cmd := exec.CommandContext(ctx, c.gitBinary, "ls-remote", "--heads", "--symref", authURL)
+	lsCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(lsCtx, c.gitBinary, "ls-remote", "--heads", "--symref", authURL)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -237,6 +240,9 @@ func (c *Client) lsRemote(ctx context.Context, owner, repo, token string) ([]str
 	cleanStderr := agent.MaskSecrets(stderr.String(), secretsToMask)
 
 	if runErr != nil {
+		if errors.Is(lsCtx.Err(), context.DeadlineExceeded) || errors.Is(runErr, context.DeadlineExceeded) {
+			return nil, "", fmt.Errorf("git ls-remote timed out: %w", context.DeadlineExceeded)
+		}
 		lowerErr := strings.ToLower(cleanStderr)
 		if strings.Contains(lowerErr, "not found") || strings.Contains(lowerErr, "repository not found") {
 			return nil, "", ErrRepoNotFound

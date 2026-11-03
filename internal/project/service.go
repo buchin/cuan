@@ -150,7 +150,9 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 
 	// Persist identity before network I/O so a slow clone cannot lose the project.
 	p.CloneStatus = "connected"
-	if err := s.store.CreateProject(ctx, p); err != nil {
+	dbCreateCtx, cancelCreate := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancelCreate()
+	if err := s.store.CreateProject(dbCreateCtx, p); err != nil {
 		return nil, err
 	}
 	cloneBudget := 45 * time.Second
@@ -159,21 +161,28 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 			cloneBudget = remaining
 		}
 	}
-	cloneCtx, cancelClone := context.WithTimeout(ctx, cloneBudget)
-	cloneErr := s.gitClient.CloneOrFetch(cloneCtx, owner, repo, token, localPath)
-	cloneTimedOut := cloneCtx.Err() != nil
-	cancelClone()
-	if cloneErr != nil {
+	if cloneBudget <= 0 {
 		p.CloneStatus = "failed"
-		p.LastError = cloneErr.Error()
-		if cloneTimedOut {
-			p.LastError = "Repository download took too long. Your project is saved. Retry synchronization to continue."
-		}
+		p.LastError = "Repository download took too long. Your project is saved. Retry synchronization to continue."
 	} else {
-		p.CloneStatus = "synced"
+		cloneCtx, cancelClone := context.WithTimeout(ctx, cloneBudget)
+		cloneErr := s.gitClient.CloneOrFetch(cloneCtx, owner, repo, token, localPath)
+		cloneTimedOut := cloneCtx.Err() != nil
+		cancelClone()
+		if cloneErr != nil {
+			p.CloneStatus = "failed"
+			p.LastError = cloneErr.Error()
+			if cloneTimedOut || errors.Is(cloneErr, context.DeadlineExceeded) {
+				p.LastError = "Repository download took too long. Your project is saved. Retry synchronization to continue."
+			}
+		} else {
+			p.CloneStatus = "synced"
+		}
 	}
 	p.UpdatedAt = time.Now().UTC()
-	if err := s.store.UpdateProject(ctx, p); err != nil {
+	dbUpdateCtx, cancelUpdate := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancelUpdate()
+	if err := s.store.UpdateProject(dbUpdateCtx, p); err != nil {
 		return nil, fmt.Errorf("project saved, but synchronization status could not be updated: %w", err)
 	}
 

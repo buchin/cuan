@@ -190,6 +190,10 @@ func (s *Server) handleConnectProject(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusConflict, "This GitHub repository is already connected to a Cuan project.")
 			return
 		}
+		if errors.Is(err, context.DeadlineExceeded) || strings.Contains(strings.ToLower(err.Error()), "deadline exceeded") {
+			respondJSONError(w, http.StatusGatewayTimeout, "Connecting to GitHub timed out. Please check your repository access and try again.")
+			return
+		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Could not connect repository: %v", err))
 		return
 	}

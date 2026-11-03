@@ -50,3 +50,26 @@ func TestConnectPersistsProjectBeforeCloneTimeout(t *testing.T) {
 		t.Fatal("clone consumed persistence time budget")
 	}
 }
+
+func TestConnectWithExpiredBudgetSavesProjectGracefully(t *testing.T) {
+	_, client := setupMockGitHub(t)
+	dir := t.TempDir()
+	store := NewMemoryStore()
+	service := NewService(store, client, "fixture-secret", dir)
+
+	// Context with very small remaining budget (< 5s)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	result, err := service.Connect(ctx, ConnectProjectRequest{Name: "Tight deadline project", RepoURL: "https://github.com/buchin/cuan", Token: "fixture-token"})
+	if err != nil {
+		t.Fatal("connect failed despite project persistence guarantee:", err)
+	}
+	if result.CloneStatus != "failed" {
+		t.Fatalf("expected clone_status failed, got %q", result.CloneStatus)
+	}
+	saved, err := store.GetProject(context.Background(), result.ID)
+	if err != nil || saved == nil {
+		t.Fatal("expected project to be persisted in store")
+	}
+}

@@ -47,6 +47,10 @@ test('1. ChatContact & InboxThreadItem interfaces define task counters including
     'InboxThreadItem must define optional active_tasks'
   )
   assert.ok(
+    inboxApiSource.includes('review_tasks?: number'),
+    'InboxThreadItem must define optional review_tasks'
+  )
+  assert.ok(
     inboxApiSource.includes('queued_tasks?: number'),
     'InboxThreadItem must define optional queued_tasks'
   )
@@ -109,6 +113,10 @@ test('4. InboxView synchronizes activeContact task counts and triggers refresh o
   assert.ok(
     inboxViewSource.includes('activeContact.task_count = data.tasks.length'),
     'InboxView must sync task_count onto activeContact when loading conversation'
+  )
+  assert.ok(
+    inboxViewSource.includes('activeContact.review_tasks = rt'),
+    'InboxView must sync review_tasks onto activeContact'
   )
   assert.ok(
     inboxViewSource.includes('activeContact.queued_tasks = qt'),
