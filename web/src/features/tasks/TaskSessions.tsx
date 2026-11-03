@@ -44,8 +44,7 @@ export function TaskSessions({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              {agents.find((agent) => agent.id === a.agent_name)?.name ||
-                a.agent_name}{' '}
+              {agents.find((agent) => agent.id === 'agent_cuan')?.name || '@cuan'}{' '}
               · {relativeTime(a.started_at || a.created_at)}
               {a.status === 'failed' && ' · Failed'}
             </p>

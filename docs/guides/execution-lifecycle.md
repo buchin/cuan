@@ -67,3 +67,8 @@ must be run only after newer workers have stopped.
 Use `fural-agent repos ship RPcd484fc4229ae192d17a0f01` for a release. Verify health
 reports the released revision, the runner is active, and migration 32 is present.
 Do not repair historical failures by relabeling them complete.
+
+The assistant name is editable in **Settings → Agent**. `@cuan` is only the
+default. Task guidance, session identity, and retry flows read the saved public
+name while routing through the stable internal public-assistant ID. Historical
+private assignees are not reused as the target of a new retry or follow-up.

@@ -157,7 +157,7 @@ function TaskDetailView({
       'run' | 'approve' | 'delete' | 'cancel' | null
     >(null),
     [agentId, setAgentId] = useState(
-      initial.assignee_id || initial.assignee || '',
+      'agent_cuan',
     ),
     [feedback, setFeedback] = useState(''),
     [approvalNote, setApprovalNote] = useState(''),
@@ -189,6 +189,7 @@ function TaskDetailView({
     checklist = (detail.dod_checklist || []).map((i) =>
       typeof i === 'string' ? { text: i, completed: false } : i,
     )
+  const assistantName = agents.find((a) => a.id === 'agent_cuan')?.name || '@cuan'
   const hasReviewEvidence = Boolean(detail.summary?.trim() && detail.complete_note?.trim() &&
     checklist.every((item) => item.completed && 'evidence' in item && String(item.evidence || '').trim()))
   const publicStatus = id ? ({ backlog: 'Rencana', todo: 'Siap dikerjakan', queued: 'Dalam antrean', doing: 'Dikerjakan', review: 'Perlu ditinjau', done: 'Selesai', blocked: 'Terhambat' } as Record<string, string>)[detail.status] || statusLabel(detail.status) : statusLabel(detail.status)
@@ -251,7 +252,7 @@ function TaskDetailView({
       .then((list) => {
         if (active) {
           setAgents(list)
-          const assistant = list.find((a) => a.enabled !== false && a.status !== 'inactive')
+          const assistant = list.find((a) => a.id === 'agent_cuan' && a.enabled !== false && a.status !== 'inactive')
           if (assistant) setAgentId(assistant.id)
         }
       })
@@ -414,7 +415,7 @@ function TaskDetailView({
     )
   }, [agentId, detail.status, launch, loaded, launching, params, pending, running])
   const openRun = () => {
-    setAgentId(detail.assignee_id || detail.assignee || '')
+    setAgentId('agent_cuan')
     setFeedback('')
     setModal('run')
     setError('')
@@ -432,7 +433,7 @@ function TaskDetailView({
       openSession(detail.latest_attempt?.id || '')
     } else openRun()
   }
-  const authorName = (_id: string) => agents.find((a) => a.enabled !== false)?.name || '@cuan'
+  const authorName = (_id: string) => assistantName
   const field = (key: keyof Draft, value: string) =>
     setDraft((d) => ({ ...d, [key]: value }))
   function renderChecklistText(text: string) {
@@ -692,7 +693,7 @@ function TaskDetailView({
             {!editing && (
               <section aria-label={id ? 'Langkah berikutnya' : 'Next step'} className="space-y-1">
                 <h3 className="text-sm font-medium">{running
-                  ? (id ? '@cuan sedang mengerjakan tugas ini' : '@cuan is working on this task')
+                  ? (id ? `${assistantName} sedang mengerjakan tugas ini` : `${assistantName} is working on this task`)
                   : detail.status === 'done' ? (id ? 'Tugas selesai' : 'Task completed')
                   : detail.status === 'review' ? (id ? 'Perlu ditinjau' : 'Ready for review')
                   : detail.status === 'blocked' ? (id ? 'Pekerjaan terhenti' : 'Work is blocked')
@@ -700,9 +701,9 @@ function TaskDetailView({
                 <p className="text-sm leading-relaxed text-muted-foreground">{running
                   ? (id ? 'Anda bisa meninggalkan halaman ini. Perkembangan akan tersimpan di sini.' : 'You can leave this page. Progress is saved here.')
                   : detail.status === 'done' ? (id ? 'Lihat hasil dan bukti penyelesaiannya di bawah.' : 'See the result and verification below.')
-                  : detail.status === 'review' ? (id ? (hasReviewEvidence ? 'Periksa ringkasan dan bukti sebelum menyetujui. Jika belum sesuai, minta perbaikan.' : 'Bukti penyelesaian belum lengkap. Minta perbaikan agar @cuan melengkapi hasilnya.') : 'Check the summary and evidence before approving, or request changes.')
+                  : detail.status === 'review' ? (id ? (hasReviewEvidence ? 'Periksa ringkasan dan bukti sebelum menyetujui. Jika belum sesuai, minta perbaikan.' : `Bukti penyelesaian belum lengkap. Minta perbaikan agar ${assistantName} melengkapi hasilnya.`) : 'Check the summary and evidence before approving, or request changes.')
                   : detail.status === 'blocked' ? (id ? 'Periksa ringkasan kendala. Tambahkan arahan lalu coba lagi saat kendala sudah teratasi.' : 'Check the blocker summary. Add guidance and retry when it is resolved.')
-                  : (id ? 'Periksa instruksi, lalu mulai agar @cuan mengerjakannya.' : 'Check the instructions, then start the task with @cuan.')}</p>
+                  : (id ? `Periksa instruksi, lalu mulai agar ${assistantName} mengerjakannya.` : `Check the instructions, then start the task with ${assistantName}.`)}</p>
               </section>
             )}
             {editing ? (
@@ -755,33 +756,6 @@ function TaskDetailView({
                       {['urgent', 'high', 'normal', 'low'].map((p) => (
                         <option key={p} value={p}>
                           {p[0].toUpperCase() + p.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-sm">
-                    Assignee
-                    <select
-                      className="field-control"
-                      value={draft.assignee}
-                      onChange={(e) => field('assignee', e.target.value)}
-                      disabled={busy}
-                    >
-                      <option value="">Unassigned</option>
-                      {draft.assignee &&
-                        !agents.some((a) => a.id === draft.assignee) && (
-                          <option value={draft.assignee}>
-                            {draft.assignee} (unavailable)
-                          </option>
-                        )}
-                      {agents.map((a) => (
-                        <option
-                          key={a.id}
-                          value={a.id}
-                          disabled={a.enabled === false}
-                        >
-                          {a.name}
-                          {a.enabled === false ? ' (disabled)' : ''}
                         </option>
                       ))}
                     </select>
@@ -1496,7 +1470,7 @@ function TaskDetailView({
           }}
         >
           <p className="text-sm text-muted-foreground">
-            {id ? '@cuan melanjutkan dari instruksi yang tersimpan. Riwayat pekerjaan sebelumnya tetap tersedia.' : '@cuan uses the saved instructions. Previous work remains available.'}
+            {id ? `${assistantName} melanjutkan dari instruksi yang tersimpan. Riwayat pekerjaan sebelumnya tetap tersedia.` : `${assistantName} uses the saved instructions. Previous work remains available.`}
           </p>
           <label className="grid gap-1 text-sm">
             {detail.status === 'review'

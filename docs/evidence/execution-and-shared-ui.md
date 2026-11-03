@@ -33,3 +33,11 @@ Local raw evidence: `/home/dev/reports/cuan-shared-ui/`,
 failed work was rerun or completed. Reported criterion evidence still requires
 independent verification; this release does not claim a new deployment-proof
 attestation system.
+
+A browser fixture changed only the read response for the public assistant name
+to `@nara`: task guidance displayed that configured name at desktop and 390px,
+and the technical account selector was absent. Production settings were not
+changed. Start/retry/follow-up target the public assistant ID, including old tasks.
+The initial release was safely rolled back after the deployment gate still
+expected schema 31; the gate now expects 32 and a regression compares that value
+with repository migrations. Native redeploy and public health/readiness passed.

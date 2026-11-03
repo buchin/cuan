@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
-import { agentsApi, type Agent } from '../../api/agents'
+import { agentsApi } from '../../api/agents'
 import { TaskReadyPage } from './TaskReadyPage'
 const TaskTerminal = lazy(() =>
   import('./TaskTerminal').then((m) => ({
@@ -35,7 +35,7 @@ const TaskTerminal = lazy(() =>
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { AttachmentFile } from '../inbox/Attachments'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
-import { attemptLabel, taskRef, workStatus, agentDisplayName, relativeTime, workStatusBadgeClass } from './task-ui'
+import { attemptLabel, taskRef, workStatus, relativeTime, workStatusBadgeClass } from './task-ui'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -68,30 +68,16 @@ export function TaskSessionPage({
     [acceptNote, setAcceptNote] = useState(''),
     [applying, setApplying] = useState(false),
     [applied, setApplied] = useState(false),
-    [availableAgents, setAvailableAgents] = useState<Agent[]>([]),
-    [selectedAgentId, setSelectedAgentId] = useState<string>(''),
-    [agentNotice, setAgentNotice] = useState('')
+    [assistantName, setAssistantName] = useState('@cuan')
 
   useEffect(() => {
     let alive = true
-    agentsApi
-      .list()
-      .then((list) => {
-        if (!alive) return
-        const eligible = list.filter((a) => a.enabled !== false && a.status !== 'inactive')
-        setAvailableAgents(eligible)
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
+    agentsApi.list().then(list => {
+      const assistant = list.find(a => a.id === 'agent_cuan')
+      if (alive && assistant) setAssistantName(assistant.name)
+    }).catch(() => {})
+    return () => { alive = false }
   }, [])
-
-  useEffect(() => {
-    if (detail) {
-      setSelectedAgentId((prev) => prev || detail.assignee_id || detail.latest_attempt?.agent_name || '')
-    }
-  }, [detail])
 
   const handleApply = async () => {
     if (applying || applied || !detail) return
@@ -490,13 +476,13 @@ export function TaskSessionPage({
                   <span className="truncate">{detail.branch_name}</span>
                 </span>
               )}
-              {(attempt?.agent_name || selectedAgentId || detail.assignee_id) && (
+              {(assistantName) && (
                 <span
                   className="hidden xs:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary shrink-0 border border-primary/20 max-w-[110px] truncate"
-                  title={`Agent: ${agentDisplayName(attempt?.agent_name || selectedAgentId || detail.assignee_id || '')}`}
+                  title={`Agent: ${assistantName}`}
                 >
                   <Bot className="h-2.5 w-2.5 shrink-0" />
-                  <span className="truncate">{agentDisplayName(attempt?.agent_name || selectedAgentId || detail.assignee_id || '')}</span>
+                  <span className="truncate">{assistantName}</span>
                 </span>
               )}
             </div>
@@ -614,7 +600,7 @@ export function TaskSessionPage({
             <section aria-label="Session result">
               <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Bot className="h-4 w-4" aria-hidden="true" />
-                <span className="font-medium text-foreground">{agentDisplayName(attempt.agent_name)}</span>
+                <span className="font-medium text-foreground">{assistantName}</span>
                 <time dateTime={final?.created_at || attempt.finished_at || attempt.created_at}>{relativeTime(final?.created_at || attempt.finished_at || attempt.created_at)}</time>
               </div>
               {result ? (
@@ -803,8 +789,7 @@ export function TaskSessionPage({
               if (!followup.trim() || busy || following.current) return
               following.current = true
               setBusy(true)
-              const agentToUse =
-                selectedAgentId || detail.assignee_id || availableAgents[0]?.id || 'agy'
+              const agentToUse = 'agent_cuan'
               const request = {
                 request_id: crypto.randomUUID(),
                 agent_id: agentToUse,
@@ -1010,56 +995,6 @@ export function TaskSessionPage({
               </p>
             </div>
           )}
-
-          {/* Assigned Agent Selector */}
-          <div className="space-y-1.5 rounded-xl border bg-muted/20 p-3">
-            <div className="flex items-center justify-between">
-              <label htmlFor="task-assignee-select" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <Bot className="h-3.5 w-3.5 text-primary" />
-                <span>{t('Assigned Agent')}</span>
-              </label>
-              {(selectedAgentId || detail.assignee_id) && (
-                <span className="text-[11px] text-muted-foreground">
-                  {agentDisplayName(selectedAgentId || detail.assignee_id || '')}
-                </span>
-              )}
-            </div>
-            <select
-              id="task-assignee-select"
-              aria-label={t('Assigned Agent')}
-              className="field-control text-xs"
-              value={selectedAgentId || detail.assignee_id || ''}
-              disabled={busy}
-              onChange={async (e) => {
-                const newAgent = e.target.value
-                setSelectedAgentId(newAgent)
-                setBusy(true)
-                try {
-                  await tasksApi.update(taskId, {
-                    assignee_id: newAgent,
-                    expected_updated_at: detail.updated_at,
-                  })
-                  await refresh()
-                  setAgentNotice(t('Agent updated'))
-                  setTimeout(() => setAgentNotice(''), 3000)
-                } catch (err: any) {
-                  setError(err?.message || 'Failed to update agent')
-                } finally {
-                  setBusy(false)
-                }
-              }}
-            >
-              <option value="">{t('No agent assigned')}</option>
-              {availableAgents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.harness || a.provider || 'agent'})
-                </option>
-              ))}
-            </select>
-            {agentNotice && (
-              <p className="text-[11px] text-emerald-500 font-medium">{agentNotice}</p>
-            )}
-          </div>
 
           {latest && checklist.length > 0 && (
             <details className="rounded-lg border p-3">
