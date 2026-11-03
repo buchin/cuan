@@ -318,3 +318,32 @@ Behavior tests prove expired accepted lease cleanup, renewal/wrong-runner/active
 task refusal, idempotence and actual next queued code-lane claim without reopening
 the accepted task. Targeted tests pass. PostgreSQL production path still needs
 release/observed recovery verification; no direct database edits were made.
+
+## Verified capacity recovery in production and real terminal input
+
+Released24530aac7a352aeb8e0bd52f60a2d215dc7a784b successfully (health SHA matched;
+log `/home/dev/reports/cuan-accepted-lease-cleanup-deploy.log`). Snapshot120 confirms
+the old expired accepted-task attempt interrupted with the cleanup marker while its
+task remained done. Snapshot119 confirms Studio attempt att_443069f started at
+03:22:25 +08, proving the stale lease had held the runner lane and the deployed
+PostgreSQL cleanup released it without a manual database mutation.
+
+Actual authenticated production terminal opened through the task card at390/1440.
+Handshake session matched att_443069f2d613c0df324134fb110fab5d. Initial probe pressed
+Ctrl-L before readiness and did not transmit; it is not passing input evidence.
+Second probe waited for the connected handshake, then transmitted Ctrl-L through
+stdin and received additional PTY output in both viewports. Results:
+`production-native-terminal-ready-result.json`; real screenshots inspected at
+`production-native-terminal-{390,1440}.png` in the private E2E directory.
+Only a redraw control was sent, no new work instruction or shell command.
+
+This proves real live PTY interaction, not lossless disconnected input. Code audit
+still shows onclose disables stdin, so the unsent-input buffer alone is insufficient
+to prove input retention across disconnect. Native UI resize/reconnect stability
+needs further verification. Terminal showed a failed report command; snapshot123
+still running with progress, and124 has no delivered checklist yet. Do not mark
+Studio-origin completion or the full goal achieved.
+
+Rendered fixture now additionally verifies that an accepted result summary remains
+visible despite a cleanup error in latest_attempt. Screenshots390/1440 inspected at
+`/home/dev/reports/cuan-accepted-result-card/`; browser checks passed.

@@ -89,8 +89,8 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
  }
  longMessage=false
  for(const [status,attemptStatus] of [['queued','queued'],['done','succeeded']]){
-  task.status=status;task.latest_attempt.status=attemptStatus;delete task.latest_attempt.error_message;
-  for(const width of [390,1440]){await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room');const card=page.locator('[data-card="task-card"]');await card.waitFor();assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0);await card.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/task-card-'+status+'-'+width+'.png'})}
+  task.status=status;task.latest_attempt.status=attemptStatus;delete task.latest_attempt.error_message;if(status==='done'){task.latest_attempt.error_message='Lease expired after accepted result';task.summary='Guide delivered and accepted.'}
+  for(const width of [390,1440]){await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room');const card=page.locator('[data-card="task-card"]');await card.waitFor();assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0);if(status==='done'){assert(await card.getByText('Guide delivered and accepted.',{exact:true}).isVisible());assert.equal(await card.getByText('Lease expired after accepted result',{exact:true}).count(),0)}await card.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/task-card-'+status+'-'+width+'.png'})}
  }
  task.status='doing';task.latest_attempt.status='running';const terminalInput=[]
  await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive'}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='stdin')terminalInput.push(data.data)})})
