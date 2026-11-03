@@ -180,6 +180,7 @@ PY
 if [[ "$is_local" == 1 ]]; then
   echo "==> Deploying release payload locally to /opt/cuan/releases/$release_sha..."
   sudo -n mkdir -p "/opt/cuan/releases/$release_sha"
+  sudo -n chown -R "$(id -u):$(id -g)" /opt/cuan/releases 2>/dev/null || true
   if [[ "$release_dir" != "$HOME/.local/share/cuan-releases/"* ]]; then
     mkdir -p "$HOME/.local/share/cuan-releases"
     cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
@@ -187,7 +188,7 @@ if [[ "$is_local" == 1 ]]; then
   sudo -n rsync -a --delete "$release_dir/" "/opt/cuan/releases/$release_sha/"
   sudo -n CUAN_DEPLOY_ALLOW_RESUME="${CUAN_DEPLOY_ALLOW_RESUME:-1}" CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha"
 else
-  sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha"
+  sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
   sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
