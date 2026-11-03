@@ -100,12 +100,21 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 	if isNonCodeOrInvestigation {
 		res.Passed = true
 		res.Action = "mark_done"
-		res.Details = fmt.Sprintf("### Evaluasi Definition of Done (DoD) Otonom\n" +
-			"**Status:** LULUS (Tugas Investigasi / Non-Kode)\n\n" +
-			"**Bukti yang Terverifikasi:**\n" +
-			"- [x] Ringkasan analisa dan RCA teknis lengkap\n" +
-			"- [x] Solusi dan draf balasan untuk pengguna siap\n" +
-			"- [x] Bebas modifikasi repositori (zero unwanted side-effects)\n")
+		// This branch checks recorded acceptance evidence, not workspace side effects
+		// or the semantic correctness of every reported result.
+		res.CleanWorkingTree = false
+		res.TargetedTestsPass = false
+		res.BuildZeroError = false
+		res.LeanStandardPass = false
+		res.DocsAndLPPass = false
+		var details strings.Builder
+		details.WriteString("### Pemeriksaan laporan hasil\n\nLaporan memenuhi pemeriksaan kelengkapan bukti penerimaan.\n\n")
+		for _, item := range req.Checklist {
+			details.WriteString(fmt.Sprintf("- %s: %s\n", item.Text, item.Evidence))
+		}
+		details.WriteString("\nPemeriksaan ini tidak membuktikan kebenaran isi artefak, hasil build/test, atau ketiadaan perubahan repositori secara independen.")
+		res.Details = details.String()
+		res.Duration = time.Since(start)
 		return res, nil
 	}
 

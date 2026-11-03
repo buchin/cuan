@@ -82,31 +82,18 @@ func FormatBusinessFriendlyMessage(title, summary string, projectName ...string)
 	}
 	if cleanSummary == "" {
 		if isShop {
-			cleanSummary = "Pekerjaan sistem telah kami selesaikan dan diverifikasi dengan baik agar toko Anda dapat beroperasi lebih lancar."
+			cleanSummary = "Pekerjaan telah selesai. Ringkasan hasil belum tersedia."
 		} else {
-			cleanSummary = fmt.Sprintf("Pekerjaan sistem telah kami selesaikan dan diverifikasi dengan baik agar %s dapat beroperasi lebih lancar.", contextName)
+			cleanSummary = "Pekerjaan telah selesai. Ringkasan hasil belum tersedia."
 		}
 	}
 
-	// Determine 1-2 strategic next steps based on task context and project
-	nextSteps := determineStrategicNextSteps(title, summary, projectName...)
-
+	// Completion reports stay within the agreed work; no generated marketing advice.
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Halo! Kabar baik untuk %s, pekerjaan berikut telah berhasil diselesaikan dengan rapi:\n\n", contextName))
-	sb.WriteString(fmt.Sprintf("**%s**\n", cleanTitle))
-	sb.WriteString(fmt.Sprintf("%s\n\n", cleanSummary))
-
-	if len(nextSteps) > 0 {
-		sb.WriteString("**Saran Langkah Strategis Berikutnya:**\n")
-		for i, step := range nextSteps {
-			sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, step))
-		}
-		sb.WriteString("\n")
-	}
-
-	sb.WriteString("Silakan tinjau hasilnya di aplikasi Cuan kapan saja. Jika ada hal lain yang ingin dikerjakan, cukup beri tahu kami di sini!")
-
-	return sb.String(), nextSteps
+	sb.WriteString(fmt.Sprintf("Halo! Kabar baik untuk %s, pekerjaan berikut telah selesai:\n\n", contextName))
+	sb.WriteString(fmt.Sprintf("**%s**\n%s\n\n", cleanTitle, cleanSummary))
+	sb.WriteString("Jika hasilnya perlu disesuaikan, sampaikan revisinya di percakapan ini.")
+	return sb.String(), nil
 }
 
 // FormatBusinessFriendlyReviewMessage formats a warm, transparent, zero-jargon business message

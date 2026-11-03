@@ -88,12 +88,12 @@ export function InboxTaskAction({
       <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground"><span className="min-w-0 truncate">{project || t('Task')}</span><span className="shrink-0">{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
-      <div className="flex items-center gap-4">
+      <footer className="flex items-center gap-4 border-t border-border/30 pt-1">
         {onViewTask ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
         {onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>}
-      </div>
+      </footer>
     </section>
   }
   return (

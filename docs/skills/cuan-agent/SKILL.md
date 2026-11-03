@@ -132,3 +132,11 @@ and conversation remain available for a scoped resume.
 Inbox attachment to a new private local file. Obtain IDs from conversation
 messages; invalid IDs, failed responses, partial/oversized downloads and existing
 output paths are rejected. Read the resulting file to verify the actual artifact.
+
+### Inspect one execution attempt
+
+`cuan task logs TASK_ID ATTEMPT_ID --after-id 0 --limit 100 --json` reads bounded
+saved output from an explicit attempt (limit 1–1000). Use the highest returned
+record ID as the next cursor. Logs are diagnostic evidence, not proof of successful
+completion, and may contain private task content; save privately and inspect only
+necessary excerpts. This is saved output, not an interactive terminal.

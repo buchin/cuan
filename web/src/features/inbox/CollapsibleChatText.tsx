@@ -1,4 +1,4 @@
-import { useState, memo } from 'react'
+import { useState, useEffect, useRef, useId, memo } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { ChatMarkdown } from './ChatMarkdown'
@@ -22,63 +22,65 @@ export function CollapsibleChatText(props: CollapsibleChatTextProps) {
 
 const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
   content,
-  maxLines = 7,
-  maxChars = 420,
+  maxLines = 9,
   hideTaskCard = false,
   onTaskClick,
   isCustomerRoom,
   className,
-  isOutgoing = false,
+
 }: CollapsibleChatTextProps) {
   const { t } = useLanguage()
   const [expanded, setExpanded] = useState(false)
 
-  const lineCount = content.split('\n').filter(Boolean).length
-  const isLong = content.length > maxChars || lineCount > maxLines
-
-  if (!isLong) {
-    return (
-      <div className={cn('min-w-0 max-w-full', className)}>
-        <ChatMarkdown
-          content={content}
-          hideTaskCard={hideTaskCard}
-          onTaskClick={onTaskClick}
-          isCustomerRoom={isCustomerRoom}
-        />
-      </div>
-    )
-  }
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const regionId = useId()
+  const [limit, setLimit] = useState(216)
+  const [isLong, setIsLong] = useState(false)
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!body) return
+    let disposed = false
+    const measure = () => {
+      if (disposed) return
+      const paragraph = body.querySelector('p, li') || body
+      const lineHeight = parseFloat(getComputedStyle(paragraph).lineHeight) || 24
+      const nextLimit = Math.max(1, maxLines) * lineHeight
+      setLimit(nextLimit)
+      // Legacy embedded cards must remain visible; normal attachments are siblings.
+      setIsLong(!body.querySelector('[data-card]') && body.scrollHeight > nextLimit + 1)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(body)
+    measure()
+    void document.fonts?.ready.then(measure)
+    return () => { disposed = true; observer.disconnect() }
+  }, [content, maxLines])
 
   return (
     <div className={cn('min-w-0 max-w-full', className)}>
       <div
         className={cn(
-          'relative transition-all duration-200',
-          !expanded && 'max-h-[175px] overflow-hidden',
+          'relative',
+          isLong && !expanded && 'overflow-hidden',
         )}
+        id={regionId}
+        style={isLong && !expanded ? { maxHeight: limit } : undefined}
       >
+        <div ref={bodyRef}>
         <ChatMarkdown
           content={content}
           hideTaskCard={hideTaskCard}
           onTaskClick={onTaskClick}
           isCustomerRoom={isCustomerRoom}
         />
-        {!expanded && (
-          <div
-            className={cn(
-              'absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t pointer-events-none',
-              isOutgoing
-                ? 'from-[#25272c] via-[#25272c]/80 to-transparent'
-                : 'from-[#1b1c1f] via-[#1b1c1f]/80 to-transparent',
-            )}
-          />
-        )}
+        </div>
       </div>
-      <button
+      {isLong && <button
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+        aria-controls={regionId}
+        className="mt-1 min-h-11 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
       >
         <span>{expanded ? t('Show less') : t('Read more')}</span>
         {expanded ? (
@@ -86,7 +88,7 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
         ) : (
           <ChevronDown className="h-3 w-3" />
         )}
-      </button>
+      </button>}
     </div>
   )
 })

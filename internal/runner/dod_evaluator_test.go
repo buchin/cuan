@@ -208,3 +208,26 @@ func TestDoDEvaluator_AttachToEventBus(t *testing.T) {
 		t.Fatalf("expected action mark_done, got %s", capturedRes.Action)
 	}
 }
+
+func TestDoDEvaluator_NonCodeDoesNotFabricateVerification(t *testing.T) {
+	e := NewDoDEvaluator()
+	e.CustomCommandRunner = func(context.Context, string, string, ...string) ([]byte, error) {
+		t.Fatal("non-code branch must not pretend command checks ran")
+		return nil, nil
+	}
+	result, err := e.EvaluateDoD(context.Background(), DoDValidationRequest{ExecutionLane: "read_only", TaskTitle: "Investigasi dokumen", Summary: "Laporan tersedia", CompleteNote: "Bukti penerimaan tercatat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, invented := range []string{"RCA teknis lengkap", "zero unwanted", "draf balasan untuk pengguna siap"} {
+		if strings.Contains(result.Details, invented) {
+			t.Fatal("fabricated evidence", result.Details)
+		}
+	}
+	if result.CleanWorkingTree || result.TargetedTestsPass || result.BuildZeroError {
+		t.Fatal("unexecuted checks reported as passing")
+	}
+	if !strings.Contains(result.Details, "secara independen") {
+		t.Fatal("verification limits missing")
+	}
+}

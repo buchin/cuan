@@ -52,3 +52,44 @@ refreshKey and error-state Try again remain. Per-contact action menus remain.
 Build and browser fixture passed; screenshots at 390/1440px were inspected at
 `/home/dev/reports/cuan-contacts-cleanup/contacts-clean-{390,1440}.png`.
 This change is not deployed yet.
+
+## Native E2E result and reporting corrections
+
+The third attempt succeeded at 2026-11-04 01:50:40 +08. Inbox message 17 delivered
+`studio-to-result-id.md`, attachment `e783e6d7-ed93-4444-a085-6801b5dbe03c`;
+message 18 reported completion in the same conversation. Downloaded via official
+CLI and read independently: 2952 bytes, 406 whitespace-delimited words, all six
+requested stages, weekly sales recap example, Indonesian nontechnical prose.
+SHA256: `aa9ca0299d66719ad5322423f68c18a8211dafe15c2f9667b830bed21635f52a`.
+Stored privately in `/home/dev/reports/cuan-chat-e2e/verified-studio-to-result-id.md`.
+The runner reports a Markdown-only single-file diff. That report alone is not an
+independent audit of no push/deploy/external effects or all guide UI claims.
+
+The non-code evaluator previously fabricated fixed RCA, reply-draft and no-side-
+effect evidence. It now lists recorded checklist evidence, identifies this as an
+acceptance-evidence completeness check and states the independent-verification
+limits. Unrun workspace checks are no longer marked true in this branch. This does
+not add a semantic artifact verifier; that broader goal remains incomplete.
+Completion messages preserve the result, offer revision in the same conversation,
+and no longer append generated promotional recommendations or invent verification
+when a summary is missing. Existing production messages are not rewritten.
+
+Added official `cuan task logs TASK_ID ATTEMPT_ID` with explicit session selection,
+authenticated request, cursor, bounded record count/body and no error-body output.
+Targeted authenticated, invalid-range and failure-response tests pass.
+
+## Approved Inbox refinements
+
+Conversation rows remove repeated agent badges, generic `general` subjects and
+agent presence dots (connection readiness is not presence). Titles stay one line,
+previews two lines; unread uses one count and selected backgrounds are softer.
+Known launch-error boilerplate uses a human-readable saved-work preview. Task-card
+actions have a footer with a muted divider and 44px touch targets. Long messages
+collapse based on measured rendered height (nine text line-heights), recalculate
+on resize/font load, and have an accessible expand/collapse control without a fade.
+Sibling task cards remain visible. Legacy embedded cards prevent text collapsing.
+
+Frontend build, targeted runner/CLI tests and browser fixture checks passed.
+Screenshots at 390/1440px were rendered and inspected in
+`/home/dev/reports/cuan-inbox-refinement/`. This fixture is not production Studio
+entry or a native production terminal intervention/reconnect test.

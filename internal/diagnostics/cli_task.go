@@ -26,6 +26,8 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "logs":
+		return runTaskLogs(ctx, extraArgs, out, errOut)
 	case "cancel", "stop":
 		return runTaskCancel(ctx, extraArgs, out, errOut)
 	case "list", "ls":
@@ -48,6 +50,7 @@ func printTaskHelp(out io.Writer) {
 Usage:
   cuan task list [--project default] [--status doing] [--limit 20] [--json]
   cuan task get <task-id> [--json]
+  cuan task logs <task-id> <attempt-id> [--after-id 0] [--limit 100] [--json]
   cuan task cancel <task-id>
   cuan task update <task-id> --status doing [--summary "Plan"] [--complete-note "Evidence"] [--json]
   cuan task create --title "Title" --instructions "Scope" [--priority normal] [--project default] [--json]

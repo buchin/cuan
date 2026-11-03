@@ -447,7 +447,7 @@ func (r *Runner) processCompletionEventAndDoD(ctx context.Context, ws *git.TaskW
 		if err == nil && evalRes != nil {
 			compReq.DoDValidation = evalRes
 			if evalRes.Passed {
-				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Autonomous DoD Evaluator: LULUS 100%% (%v). Clean tree: %t, Tests: %t, Build: %t, Lean: %t, Docs/LP: %t.",
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Acceptance evidence gate passed (%v). Workspace checks (false may mean not checked): clean tree: %t, Tests: %t, Build: %t, Lean: %t, Docs/LP: %t.",
 					evalRes.Duration.Round(time.Millisecond), evalRes.CleanWorkingTree, evalRes.TargetedTestsPass, evalRes.BuildZeroError, evalRes.LeanStandardPass, evalRes.DocsAndLPPass))
 			} else {
 				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Autonomous DoD Evaluator: Ditemukan %d gap. Tindakan: %s.",

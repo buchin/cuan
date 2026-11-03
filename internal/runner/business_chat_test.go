@@ -25,8 +25,8 @@ func TestFormatBusinessFriendlyMessage_PurgesJargon(t *testing.T) {
 	if !strings.Contains(msg, "Halo! Kabar baik untuk toko Anda") {
 		t.Fatalf("expected warm greeting in message, got:\n%s", msg)
 	}
-	if len(nextSteps) < 1 || len(nextSteps) > 2 {
-		t.Fatalf("expected 1-2 strategic next steps, got %d: %v", len(nextSteps), nextSteps)
+	if len(nextSteps) != 0 {
+		t.Fatalf("expected no unsolicited next steps, got %d: %v", len(nextSteps), nextSteps)
 	}
 }
 
@@ -36,15 +36,11 @@ func TestFormatBusinessFriendlyMessage_CatalogTaskRecommendations(t *testing.T) 
 
 	msg, nextSteps := FormatBusinessFriendlyMessage(title, summary)
 
-	if len(nextSteps) != 2 {
-		t.Fatalf("expected 2 recommendations, got %d", len(nextSteps))
+	if len(nextSteps) != 0 || strings.Contains(msg, "Saran Langkah Strategis") || strings.Contains(strings.ToLower(msg), "whatsapp") {
+		t.Fatalf("completion must not invent promotional follow-ups: %s", msg)
 	}
-	combined := strings.ToLower(nextSteps[0] + " " + nextSteps[1])
-	if !strings.Contains(combined, "etalase") && !strings.Contains(combined, "whatsapp") {
-		t.Fatalf("expected catalog-related strategic next steps, got: %v", nextSteps)
-	}
-	if !strings.Contains(msg, "Saran Langkah Strategis Berikutnya") {
-		t.Fatalf("expected next steps header in message, got:\n%s", msg)
+	if !strings.Contains(msg, summary) || !strings.Contains(msg, "percakapan ini") {
+		t.Fatalf("completion must preserve the result and same-chat revision path: %s", msg)
 	}
 }
 

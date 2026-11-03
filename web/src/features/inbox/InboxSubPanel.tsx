@@ -19,6 +19,7 @@ import './chat-calm.css'
 export function conversationPreview(message?: string) {
   if (!message?.trim()) return 'No messages yet.'
   let text = message.trim()
+  if (/the work is saved, but could not start|create attempt:|invalid task status/i.test(text)) return 'Pekerjaan tersimpan, tetapi belum bisa dimulai.'
 
   // Clean raw JSON strings (e.g. {"decision": "revise", ...}) to friendly summary text
   try {
@@ -133,21 +134,9 @@ export function ConversationItem({
     !hasActiveWork &&
     ['login_required', 'quota_limited', 'unavailable'].includes(status.state)
 
-  const rawAgent = contact.agent_name || ''
-  const formattedAgent = rawAgent
-    ? (rawAgent.startsWith('@')
-        ? rawAgent
-        : (rawAgent.startsWith('agent_')
-            ? '@' + rawAgent.slice(6)
-            : '@' + rawAgent))
-    : ''
-  const showAgentName = Boolean(formattedAgent && contact.name !== formattedAgent && contact.name !== rawAgent)
-
-  const subject =
-    contact.product ||
-    (showAgentName ? formattedAgent : null) ||
-    contact.page_title ||
-    (contact.type === 'agent' ? (formattedAgent || t('Asisten AI')) : t('Percakapan'))
+  const subject = [contact.product, contact.page_title].find(value =>
+    value && value.toLowerCase() !== 'general' && value !== contact.name,
+  )
 
   const openContact = () => {
     onSelectContact(contact)
@@ -160,13 +149,6 @@ export function ConversationItem({
     run: () => archive.archive(id, !showArchived),
   }
 
-  const isSubjectRedundant =
-    !subject ||
-    subject === formattedAgent ||
-    subject === rawAgent ||
-    subject === contact.name ||
-    subject === t('Percakapan') ||
-    subject === t('Asisten AI')
 
   return (
     <ItemActions
@@ -175,7 +157,7 @@ export function ConversationItem({
       swipeAction={archiveAction}
       className={cn(
         'inbox-item-row border-b border-border/40 transition-colors hover:bg-accent/40',
-        isSelected && 'bg-accent/70 text-accent-foreground font-medium',
+        isSelected && 'bg-accent/35 text-accent-foreground',
         !isLast && 'has-divider',
       )}
       actions={[
@@ -209,7 +191,7 @@ export function ConversationItem({
               <User className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
-          {contact.is_online && (
+          {contact.type === 'customer' && contact.is_online === true && (
             <span
               className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 rounded-full border-2 border-background status-dot"
               aria-label="Online"
@@ -225,20 +207,15 @@ export function ConversationItem({
               <span className={cn("text-sm truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
-              {unread > 0 && (
-                <span
-                  aria-label={`${unread} unread messages`}
-                  className="h-2 w-2 shrink-0 bg-blue-500"
-                  title={`${unread} unread`}
-                />
-              )}
+
             </div>
             <span className={cn("text-[11px] shrink-0 font-mono tabular-nums", unread > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
               {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
             </span>
+            {unread > 0 && <span aria-label={`${unread} unread messages`} className="shrink-0 min-w-5 text-center text-xs font-semibold tabular-nums text-foreground">{unread > 99 ? '99+' : unread}</span>}
           </div>
 
-          {!isSubjectRedundant && (
+          {subject && (
             <div className="text-sm font-medium text-foreground/80 truncate">
               {subject}
             </div>
@@ -248,7 +225,7 @@ export function ConversationItem({
             {conversationPreview(contact.last_message)}
           </p>
 
-          {(hasActiveWork || reviewTasks > 0 || (showAgentName && contact.type === 'agent') || (contact.type === 'customer' && contact.product)) && (
+          {(hasActiveWork || reviewTasks > 0) && (
             <div className="flex items-center gap-1.5 pt-0.5">
               {hasActiveWork && (
                 <span
@@ -261,17 +238,7 @@ export function ConversationItem({
                 </span>
               )}
               {reviewTasks > 0 && <span data-testid="task-badge-review" className="text-[11px] text-muted-foreground">{reviewTasks} {t('meninjau hasil')}</span>}
-              {showAgentName && contact.type === 'agent' && (
-                <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  <Bot className="h-3 w-3 text-primary" />
-                  <span>{contact.agent_name || 'agent'}</span>
-                </span>
-              )}
-              {contact.product && (
-                <span className="inline-flex items-center border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
-                  {contact.product}
-                </span>
-              )}
+
             </div>
           )}
 
@@ -282,11 +249,6 @@ export function ConversationItem({
           )}
         </div>
 
-        {unread > 0 && (
-          <span className="shrink-0 bg-primary text-primary-foreground font-mono font-bold text-[10px] px-1.5 py-0.2">
-            {unread}
-          </span>
-        )}
       </button>
       {!isLast && (
         <div
