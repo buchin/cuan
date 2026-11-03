@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
 import { InboxTaskDraft } from '../../api/chat'
+import { tasksApi } from '../../api/tasks'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { FileText, Terminal } from 'lucide-react'
+import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, AlertCircle, Circle, X } from 'lucide-react'
+import { StatusDot } from '../../components/ui/StatusDot'
 import { workStatus, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
 
 
@@ -41,6 +43,21 @@ export function InboxTaskAction({
   const [created, setCreated] = useState<Task | null>(null)
   const [retry, setRetry] = useState(0)
   const existing = linkedTask || created
+  const attemptId = existing?.latest_attempt?.id || ''
+  const working = existing?.latest_attempt?.status === 'running' && workStatus(existing) === 'Working'
+  const [terminalAttempt, setTerminalAttempt] = useState('')
+  useEffect(() => {
+    if (!working || !existing?.id || !attemptId) { setTerminalAttempt(''); return }
+    let active = true
+    const check = () => tasksApi.runtime(existing.id).then(runtime => {
+      if (active) setTerminalAttempt(runtime.live_session?.attempt_id === attemptId ? attemptId : '')
+    }).catch(() => { if (active) setTerminalAttempt('') })
+    void check()
+    const timer = setInterval(check, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [existing?.id, attemptId, working])
+  const hasLiveTerminal = Boolean(attemptId) && working && terminalAttempt === attemptId
+
   useEffect(() => {
     if (!draft || existing) return
     let live = true
@@ -84,15 +101,18 @@ export function InboxTaskAction({
     const state = workStatus(existing)
     const update = existing.latest_attempt?.error_message || existing.summary
     const project = existing.project_name || existing.project_names?.join(', ')
+    const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
+    const StateIcon = state === 'Completed' ? Check : state === 'Queued' ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
+
     return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="mt-2.5 w-full max-w-xl space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
-      <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground"><span className="min-w-0 truncate">{project || t('Task')}</span><span className="shrink-0">{t(state)}</span></div>
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5"><ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">{state === 'Working' ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className="h-3 w-3" />}{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
       <footer className="-mx-4 flex items-center gap-4 border-t border-border/30 px-4 py-1">
         {onViewTask ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
-        {onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
-          : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>}
+        {hasLiveTerminal && (onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
+          : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>)}
       </footer>
     </section>
   }

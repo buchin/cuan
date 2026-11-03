@@ -706,3 +706,60 @@ func TestServer_GetTaskRunHistory_LiveSessionAttemptResolution(t *testing.T) {
 	}
 }
 
+func TestServer_GetTaskRunHistory_DecoupledRunnerRequiresCurrentRunningAttempt(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	detail, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{Title: "Decoupled history"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	att, err := srv.taskSvc.CreateAttempt(ctx, detail.ID, "owner", task.CreateAttemptRequest{RunnerID: "runner", AgentName: "agent_dev"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := terminal.SpawnPTY(ctx, terminal.PTYConfig{TaskID: detail.ID, WorkDir: t.TempDir(), Shell: "/bin/sh", Args: []string{"-c", "sleep 8"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := terminal.NewSession("runner-sess-"+att.ID, detail.ID, proc, terminal.ModeInteractive)
+	defer session.Close()
+	bridge, err := terminal.NewSocketBridge(session, terminal.SocketPath(att.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer bridge.Close()
+	readLive := func() map[string]any {
+		t.Helper()
+		req := httptest.NewRequest("GET", "/api/v1/tasks/"+detail.ID+"/run-agent/history", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			t.Fatalf("history status %d", rec.Code)
+		}
+		var result struct {
+			Live map[string]any `json:"live_session"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		return result.Live
+	}
+	if readLive() != nil {
+		t.Fatal("queued attempt exposed terminal")
+	}
+	if _, err := srv.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning}); err != nil {
+		t.Fatal(err)
+	}
+	live := readLive()
+	if live == nil || live["attempt_id"] != att.ID || live["session_id"] != "runner-sess-"+att.ID {
+		t.Fatal("current runner socket not exposed", live)
+	}
+	if _, err := srv.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusSucceeded}); err != nil {
+		t.Fatal(err)
+	}
+	if readLive() != nil {
+		t.Fatal("finished attempt exposed leftover socket")
+	}
+}

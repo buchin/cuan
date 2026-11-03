@@ -104,6 +104,7 @@ export interface TaskDetail extends Task {
   attachments?: Attachment[]
 }
 export interface Task {
+  repo_url?: string
   result_kind?: 'answer' | 'implementation'
   launch?: { state: 'queued' | 'claimed' | 'started' | 'stopped' | 'cancelled'; safe_error?: string; available_at: string }
   latest_attempt?: TaskAttempt

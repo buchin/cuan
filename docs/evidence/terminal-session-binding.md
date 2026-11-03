@@ -194,3 +194,25 @@ Approved spacing follow-up keeps8px sidebar inset, removes permanent account-act
 background, sets composer gutters12px mobile/16px desktop and reduces Inbox search
 vertical spacing. Build and browser fixtures passed;390/1440 screenshots rendered
 and inspected under `/home/dev/reports/cuan-gutters/`. Not deployed yet.
+
+## Studio plan approved; task-card terminal availability
+
+Studio-origin request a9cc4b8c completed with a plan and checklist, without creating
+a task. Plan covers five practical acceptance points, Indonesian<=200words,
+one docs/guides/checklist-penerimaan-id.md in existing Cuan project, Inbox delivery,
+no code/config/test or publication/external effects. Approved via same-room chat
+and requested exactly one delegated task with monitoring and verification.
+Approval receipt:97-studio-approval.json in the private E2E report directory.
+
+Task attachment preview now checks runtime availability only for a running current
+attempt, polls every5seconds while mounted/running, and hides Terminal for queued,
+finished/canceled or missing/mismatched sessions. Runtime endpoint now recognizes
+an actual listening decoupled runner attempt socket (previously only local-manager
+sessions). Explicit attempt attach remains fenced server-side. This is availability
+detection, not a production stdin/intervention/reconnect proof.
+
+Project gets a folder icon (FolderGit2 only when task repo_url identifies GitHub);
+status has a small semantic icon or working StatusDot in a muted badge. Backend
+regression with a real PTY/socket verifies queued/finished rejection and current
+running session recognition. Build and browser fixture pass. Queued/completed
+screenshots390/1440 inspected at `/home/dev/reports/cuan-terminal-availability-final/`.

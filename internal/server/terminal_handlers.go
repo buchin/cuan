@@ -1103,6 +1103,15 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
+	// The decoupled runner owns its PTY; only expose the current attempt socket.
+	if live == nil && s.taskSvc != nil {
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && detail != nil && detail.LatestAttempt != nil {
+			att := detail.LatestAttempt
+			if att.Status == task.AttemptStatusRunning && terminal.SocketExists(att.ID) {
+				live = map[string]any{"session_id": "runner-sess-" + att.ID, "attempt_id": att.ID, "agent_id": att.AgentName, "started_at": att.StartedAt}
+			}
+		}
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"task_id":      taskID,
 		"history":      history,
