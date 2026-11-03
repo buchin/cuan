@@ -593,6 +593,45 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		},
 	})
 
+	_ = sched.Register(&scheduler.Job{
+		ID:           "gc_task_workspaces",
+		Name:         "GC: Task Workspace Cleanup",
+		Description:  "Menghapus git worktrees task yang sudah selesai dan tidak aktif (>48 jam, max 10 workspace)",
+		ScheduleType: scheduler.ScheduleInterval,
+		Interval:     6 * time.Hour,
+		Enabled:      true,
+		Handler: func(ctx context.Context) error {
+			s.runTaskWorkspaceGC()
+			return nil
+		},
+	})
+
+	_ = sched.Register(&scheduler.Job{
+		ID:           "gc_old_releases",
+		Name:         "GC: Old Release Cleanup",
+		Description:  "Menghapus release binary lama di /opt/cuan/releases, hanya mempertahankan 3 release terbaru",
+		ScheduleType: scheduler.ScheduleInterval,
+		Interval:     6 * time.Hour,
+		Enabled:      true,
+		Handler: func(ctx context.Context) error {
+			s.runReleaseGC()
+			return nil
+		},
+	})
+
+	_ = sched.Register(&scheduler.Job{
+		ID:           "gc_oversized_logs",
+		Name:         "GC: Oversized Log Truncation",
+		Description:  "Memotong file log nginx/postgresql yang melebihi 200 MB untuk mencegah disk penuh",
+		ScheduleType: scheduler.ScheduleInterval,
+		Interval:     6 * time.Hour,
+		Enabled:      true,
+		Handler: func(ctx context.Context) error {
+			s.runLogGC()
+			return nil
+		},
+	})
+
 	termHandler.SetTaskResolver(s.resolveTaskID)
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
 	if s.runnerSvc != nil {
