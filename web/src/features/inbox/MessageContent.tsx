@@ -1,10 +1,13 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckSquare, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { ChatMarkdown } from './ChatMarkdown'
+import type { ParsedTaskReport } from '../../components/ui/StatusReportCard'
 import { CollapsibleChatText } from './CollapsibleChatText'
 import { cn } from '../../lib/utils'
-import { StatusReportCard, parseTaskReportMessage } from '../../components/ui/StatusReportCard'
+import { parseTaskReportMessage } from '../../components/ui/StatusReportCard'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
 import {
@@ -106,7 +109,7 @@ export const MessageContent = memo(function MessageContent({
     <>
       {report ? (
         <div className="space-y-2.5 w-full min-w-0 max-w-full">
-          <StatusReportCard report={report} />
+          <ReportSummary report={report} />
           {report.dodDetails?.remainingText && (
             <div className="pt-1">
               <CollapsibleChatText
@@ -194,3 +197,25 @@ export const MessageContent = memo(function MessageContent({
     </>
   )
 })
+
+// Report messages are historical evidence; the linked task owns current status.
+function ReportSummary({ report }: { report: ParsedTaskReport }) {
+  const [open, setOpen] = useState(false)
+  const { language } = useLanguage()
+  const id = language === 'id'
+  const label = id ? 'Rincian pemeriksaan' : 'Review details'
+  const summary = report.status === 'success'
+    ? (id ? 'Pemeriksaan ini dilaporkan lulus. Lihat status terbaru pada kartu tugas.' : 'This review was reported as passed. See the task card for its current status.')
+    : report.status === 'running'
+      ? (id ? 'Hasil pekerjaan sedang diperiksa.' : 'The work result is being checked.')
+      : (id ? 'Pemeriksaan ini mencatat bagian yang perlu ditinjau. Lihat status terbaru pada kartu tugas.' : 'This review recorded items needing attention. See the task card for its current status.')
+  return <>
+    <div data-testid="chat-review-summary" className="min-w-0 text-sm leading-relaxed">
+      <p>{summary}</p>
+      <button type="button" className="inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>{label}<ArrowRight aria-hidden className="h-3.5 w-3.5" /></button>
+    </div>
+    <SlideDrawer isOpen={open} onClose={() => setOpen(false)} title={label} size="lg">
+      <ChatMarkdown content={report.body} hideTaskCard />
+    </SlideDrawer>
+  </>
+}

@@ -109,3 +109,12 @@ Regression checks cover concurrent duplicate completion (one transition, no earl
 announcement), preservation of native evidence, and succeeded attempt versus task
 review state. Targeted runner and Inbox review tests pass. This fixes ordering and
 evidence loss; the existing production task is not manually relabeled as passed.
+
+## Evaluation progressive disclosure
+
+Inbox report messages now render a plain historical-review summary and a 44px
+Review details action. Full original report evidence opens in SlideDrawer instead
+of a StatusReportCard nested in the message bubble. Historical summaries direct
+readers to the task card for current status rather than claiming an old evaluation
+is current. Build and browser fixtures passed; mobile390 and desktop1440 summary
+and drawer screenshots rendered and inspected in `/home/dev/reports/cuan-review-summary/`.
