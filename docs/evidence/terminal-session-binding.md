@@ -135,3 +135,19 @@ Approved footer spacing follow-up removes compounded card bottom padding, keeps
 12px content spacing and uses4px footer vertical padding with44px action targets.
 Build and rendered browser fixture passed,390/1440 screenshots inspected at
 `/home/dev/reports/cuan-footer-spacing/`. This spacing follow-up is not yet deployed.
+
+## Re-review after restored evidence
+
+Request bb4529d3 completed with a narrative review but did not change the blocked
+task: ordinary chat review is separate from the trusted automatic acceptance path.
+The reply cited administrative task state as a gap and referred to the main dev
+checkout, which does not independently establish the attempt workspace state.
+
+Automatic review dedup previously allowed only one completed review per attempt,
+even after its evidence was corrected. Completed reviews now allow a new trusted
+review keyed by a digest of summary, original verification note and checklist.
+Status/timestamp changes do not create a new digest. Identical evidence deduplicates;
+decisions bind to the current digest. Legacy snapshot recovery is retained. The
+review prompt distinguishes board state from acceptance and does not require
+publication unless the approved task requires it. Targeted server Inbox review,
+review binding and delegation tests passed, plus new evidence-revision tests.
