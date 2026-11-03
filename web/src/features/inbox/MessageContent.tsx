@@ -83,8 +83,10 @@ export const MessageContent = memo(function MessageContent({
       ? actions
       : visibleActions
 
-  const effectiveBody =
-    displayBody || (!report && !extractedReceipt && effectiveActions.length === 0 ? content.trim() : '')
+  const rawBody = displayBody || (!report && !extractedReceipt && effectiveActions.length === 0 ? content.trim() : '')
+  const effectiveBody = hideTaskActions
+    ? rawBody.replace(/\n\nWork started\. I[’']ll report progress and the result here\./g, '').trim()
+    : rawBody
 
   const hasTaskAction = effectiveActions.some((a) => extractTaskId(a.href) || /^\/tasks\/[A-Za-z0-9_-]+$/.test(a.href.split(/[?#]/)[0]))
   const shouldHideTaskCard = Boolean(hideTaskActions || hasTaskAction)

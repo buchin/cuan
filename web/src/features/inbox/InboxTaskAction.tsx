@@ -5,20 +5,16 @@ import { apiFetch } from '../../api/client'
 import { InboxTaskDraft } from '../../api/chat'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { TaskCompletionCard } from './TaskCompletionCard'
-import { TaskCard } from './TaskCard'
+import { ChevronRight, CheckSquare } from 'lucide-react'
+import { workStatus, taskDetailUrl } from '../tasks/task-ui'
+
 
 export function InboxTaskAction({
   conversationId,
   messageId,
   draft,
   linkedTask,
-  onContinueChat,
   onViewTask,
-  onOpenTerminal,
-  onUseDraft,
-  onRetry,
-  isCustomerRoom,
 }: {
   conversationId: string
   messageId: string
@@ -84,42 +80,10 @@ export function InboxTaskAction({
 
   if (!draft && !existing) return null
   if (existing) {
-    const isCompleted =
-      (existing.status || '').toLowerCase().trim() === 'done' ||
-      (existing.status || '').toLowerCase().trim() === 'review'
-
-    if (isCompleted) {
-      return (
-        <div className="mt-2.5 w-full min-w-0" aria-label="Task completion from conversation">
-          <TaskCompletionCard
-            task={existing}
-            conversationId={conversationId}
-            onContinueChat={onContinueChat}
-            onUseDraft={onUseDraft}
-            onViewDetails={onViewTask}
-            onOpenTerminal={onOpenTerminal}
-            onRetry={onRetry}
-            isCustomerRoom={isCustomerRoom}
-          />
-        </div>
-      )
-    }
-
-    return (
-      <div className="mt-2.5 w-full min-w-0" aria-label="Task from conversation">
-        <TaskCard
-          taskId={existing.id}
-          initialTask={existing}
-          returnTo={`/inbox/${encodeURIComponent(conversationId)}`}
-          onClick={onViewTask}
-          onOpenTerminal={onOpenTerminal}
-          onUseDraft={onUseDraft}
-          onRetry={onRetry}
-          onContinueChat={onContinueChat}
-          isCustomerRoom={isCustomerRoom}
-        />
-      </div>
-    )
+    const content = <><CheckSquare aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 space-y-1"><span className="block text-sm font-medium leading-5 line-clamp-2">{existing.title}</span><span className="block text-xs text-muted-foreground">{t(workStatus(existing))}</span></span><ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" /></>
+    const classes = "mt-2.5 flex min-h-16 w-full max-w-xl items-center gap-3 rounded-xl bg-muted/30 px-4 py-3 text-left hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+    return onViewTask ? <button type="button" data-card="task-card" aria-label={t('Open task') + ': ' + existing.title} className={classes} onClick={() => onViewTask(existing)}>{content}</button>
+      : <Link data-card="task-card" aria-label={t('Open task') + ': ' + existing.title} className={classes} to={taskDetailUrl(existing)}>{content}</Link>
   }
   return (
     <form

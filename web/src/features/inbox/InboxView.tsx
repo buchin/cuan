@@ -1846,23 +1846,7 @@ export function InboxView({
                         </div>
                       )}
 
-                      {msg.uuid && (
-                        <InboxTaskAction
-                          linkedTask={linkedTaskForMsg}
-                          conversationId={
-                            activeContact.conversation_id || activeContact.id
-                          }
-                          messageId={msg.uuid}
-                          draft={isAgentMessage ? msg.task_draft : undefined}
-                          onViewTask={(task) => handleOpenTaskDrawer(task, 'details')}
-                          onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
-                          onUseDraft={handleUseDraft}
-                          onRetry={handleTaskRetry}
-                          onContinueChat={handleUseDraft}
-                          isCustomerRoom={activeContact.type === 'customer'}
-                        />
-                      )}
-                      {msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
+                      {isOutgoing && msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
                         <button
                           type="button"
                           data-testid="assigned-task-btn"
@@ -1882,6 +1866,22 @@ export function InboxView({
                       )}
                     </div>
                     </ItemActions>
+                      {msg.uuid && isAgentMessage && !isSupersededTaskMessage && (
+                        <InboxTaskAction
+                          linkedTask={linkedTaskForMsg}
+                          conversationId={
+                            activeContact.conversation_id || activeContact.id
+                          }
+                          messageId={msg.uuid}
+                          draft={isAgentMessage ? msg.task_draft : undefined}
+                          onViewTask={(task) => handleOpenTaskDrawer(task, 'details')}
+                          onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
+                          onUseDraft={handleUseDraft}
+                          onRetry={handleTaskRetry}
+                          onContinueChat={handleUseDraft}
+                          isCustomerRoom={activeContact.type === 'customer'}
+                        />
+                      )}
                     {(requestsByMessage.get(msg.uuid || '') || []).map((q) => {
                       const placeholder =
                         (q.agent_id || activeContact.type === 'agent') &&

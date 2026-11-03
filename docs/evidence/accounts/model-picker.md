@@ -59,3 +59,16 @@ A fixture containing one checked evidence bullet and one unmet criterion verifie
 that the rendered report does not claim1/1 criteria passed. Screenshots are at
 `review-evidence-390.png` and `review-evidence-1440.png` in the report directory.
 These changes are verified locally and held while the native E2E attempt is live.
+
+## Separate conversation task reference
+
+Agent speech remains in its message bubble, followed by a separate compact task
+reference (title/status, whole row opens task details). Only the latest task-link
+message displays the live reference; older messages retain their text/history.
+Outgoing source messages retain their Assigned to task shortcut. The generated
+English launch sentence is suppressed when appended to an agent explanation.
+
+Browser390/1440 fixtures include two messages for the same task and confirm one
+reference outside both speech bubbles, with Cancelled instead of Needs attention.
+Rendered mobile/desktop screenshots were inspected. Build and targeted drawer/
+in-flight card tests pass. Deployment is deferred while native attempt2 runs.
