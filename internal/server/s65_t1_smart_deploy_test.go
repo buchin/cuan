@@ -105,8 +105,8 @@ func TestServer_InvestigationTask_ReaperTimeoutIs5m(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTask error: %v", err)
 	}
-	if reapedInv.Status != task.TaskStatusFailed {
-		t.Fatalf("expected investigation task to be failed after 6m, got '%s'", reapedInv.Status)
+	if reapedInv.Status != task.TaskStatusBlocked {
+		t.Fatalf("expected investigation task to be blocked after 6m, got '%s'", reapedInv.Status)
 	}
 
 	// 2. Code task should remain running (doing) because 6m < 20m

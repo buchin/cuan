@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const sharedIconSource = fs.readFileSync(new URL('../src/components/ui/IconButton.tsx', import.meta.url), 'utf8')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -30,7 +31,7 @@ test('1. InboxSubPanel: Mark All Read button with CheckCheck icon and accessible
     'Mark All Read button must only be active/rendered when there are unread items'
   )
   assert.ok(
-    subPanelSource.includes('min-h-11 min-w-11'),
+    subPanelSource.includes('<IconButton') && sharedIconSource.includes('min-h-11 min-w-11'),
     'Mark All Read button must satisfy WCAG 44x44px minimum touch target size (min-h-11 min-w-11)'
   )
 })

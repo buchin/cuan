@@ -59,12 +59,14 @@ export type TaskStatus = 'backlog' | 'todo' | 'queued' | 'doing' | 'review' | 'd
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 export interface DoDItem {
+  evidence?: string
   id?: string
   text: string
   completed?: boolean
 }
 
 export interface TaskAttempt {
+  execution_deadline?: string
   id: string
   task_id: string
   runner_id: string

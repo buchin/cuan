@@ -5,6 +5,7 @@ import path from 'node:path'
 import { execSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
+const sharedListSource = fs.readFileSync(new URL('../src/components/layout/ListControls.tsx', import.meta.url), 'utf8')
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 const srcDir = path.join(rootDir, 'src')
@@ -45,9 +46,8 @@ test('1. S60-T1 TaskItemCard: Things 3 Pure Task Row Architecture', () => {
   )
 
   // Tengah: Judul tugas yang bernapas lega (tipografi Geist) tanpa badge bertumpuk
-  assert.match(
-    rowBlock,
-    /font-sans text-sm font-medium/,
+  assert.ok(
+    rowBlock.includes('<ListRowContent') && sharedListSource.includes('text-sm font-medium'),
     'TaskItemCard row title must use Geist sans font with medium weight'
   )
   assert.ok(
@@ -60,9 +60,8 @@ test('1. S60-T1 TaskItemCard: Things 3 Pure Task Row Architecture', () => {
   )
 
   // Kanan: Timestamp relatif abu-abu (muted)
-  assert.match(
-    rowBlock,
-    /<time[\s\S]*?className="[^"]*text-muted-foreground[^"]*tabular-nums/,
+  assert.ok(
+    rowBlock.includes('<time') && sharedListSource.includes('tabular-nums text-muted-foreground'),
     'TaskItemCard row must render muted relative timestamp with tabular-nums on the right'
   )
 

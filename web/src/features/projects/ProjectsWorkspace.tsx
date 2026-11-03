@@ -1,8 +1,9 @@
+import { ListSearch, ListTabs, ListTab, ListRowContent } from '../../components/layout/ListControls'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Folder, FolderGit2, Search, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal } from 'lucide-react'
+import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
@@ -184,35 +185,12 @@ export function ProjectsWorkspace({
         aria-label={t('Project list')}
         className={`min-h-0 w-full min-w-0 flex-col min-[1200px]:w-72 min-[1200px]:shrink-0 min-[1200px]:border-r ${project ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
-        <div className="shrink-0 border-b px-3 pt-3">
+        <div className="shrink-0 border-b border-border/40 px-4 pt-4">
           <ListCreateAction label="New project" kind="projects" onClick={onNewProject} />
-          <label className="flex h-10 items-center gap-2 rounded-md border bg-muted/20 px-3 focus-within:ring-2 focus-within:ring-ring">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              aria-label={t('Search projects')}
-              placeholder={t('Search projects…')}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="w-full min-w-0 bg-transparent text-base outline-none sm:text-sm"
-            />
-          </label>
-          <div
-            className="mt-1 flex gap-4"
-            role="group"
-            aria-label={t('Project filters')}
-          >
-            {[false, true].map((value) => (
-              <button
-                key={String(value)}
-                aria-pressed={archived === value}
-                onClick={() => setArchived(value)}
-                className={`min-h-11 border-b-2 px-1 text-xs transition-colors ${archived === value ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              >
-                {t(value ? 'Archived' : 'Active')}
-                <span className="ml-1.5 text-[11px] tabular-nums text-muted-foreground">{projects.filter((item) => !!item.is_archived === value).length}</span>
-              </button>
-            ))}
-          </div>
+          <ListSearch aria-label={t('Search projects')} placeholder={t('Search projects…')} value={query} onChange={event => setQuery(event.target.value)} />
+          <ListTabs className="mt-3 border-b-0" aria-label={t('Project filters')}>
+            {[false,true].map(value => <ListTab key={String(value)} selected={archived===value} count={projects.filter(item=>!!item.is_archived===value).length} onClick={()=>setArchived(value)}>{t(value?'Archived':'Active')}</ListTab>)}
+          </ListTabs>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {visible.map((item) => (
@@ -229,13 +207,7 @@ export function ProjectsWorkspace({
               aria-current={project?.id === item.id ? 'page' : undefined}
               className={`project-list-row group flex rounded-lg min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
-              <ProjectIcon repoUrl={item.repo_url} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{item.name}</span>
-                <span className="mt-1 block truncate text-xs text-muted-foreground">
-                  {String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))}
-                </span>
-              </span>
+              <ListRowContent leading={<ProjectIcon repoUrl={item.repo_url} />} title={item.name} description={String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))} />
             </Link>
             </ItemActions>
           ))}

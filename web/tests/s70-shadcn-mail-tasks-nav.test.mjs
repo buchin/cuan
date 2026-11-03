@@ -132,7 +132,7 @@ test('3. S70-T3: Shadcn Mail Multi-Pane & Thread Format Layout', () => {
     'InboxSubPanel must include search bar'
   )
   assert.ok(
-    inboxSubPanelSource.includes("role=\"group\" aria-label={t('Conversation filters')}"),
+    inboxSubPanelSource.includes("<ListTabs aria-label={t('Conversation filters')}"),
     'InboxSubPanel must provide conversation filter tabs'
   )
 

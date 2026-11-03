@@ -51,12 +51,12 @@ func TestRunnerService_DoDPass_AutoMarkDoneAndBusinessChat(t *testing.T) {
 		ID:           "task_store_update_1",
 		Title:        "Pembaruan Etalase Produk Toko",
 		Instructions: "Perbaiki tata letak etalase",
-		Summary:      "Tata letak etalase telah diperbarui dan dirapikan",
+		CompleteNote: "Fixture: command runner outputs recorded for workspace verification.", Summary: "Tata letak etalase telah diperbarui dan dirapikan",
 		SourceRoomID: "room_store_main",
 		Status:       task.TaskStatusDoing,
 		DoDChecklist: []task.DoDItem{
-			{Text: "Working tree bersih", Completed: false},
-			{Text: "Tests lulus 100%", Completed: false},
+			{Text: "Working tree bersih", Completed: true, Evidence: "git status --porcelain returned empty"},
+			{Text: "Tests lulus 100%", Completed: true, Evidence: "mock targeted test command returned PASS"},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
@@ -64,8 +64,8 @@ func TestRunnerService_DoDPass_AutoMarkDoneAndBusinessChat(t *testing.T) {
 	_ = taskStore.CreateTask(ctx, taskItem)
 
 	att := &task.TaskAttempt{
-		ID:            "att_store_1",
-		TaskID:        taskItem.ID,
+		ID:     "att_store_1",
+		TaskID: taskItem.ID, RunnerID: "runner_test",
 		AttemptNumber: 1,
 		Status:        task.AttemptStatusRunning,
 		CreatedAt:     time.Now().UTC(),
@@ -145,16 +145,16 @@ func TestRunnerService_DoDFixableGap_AutoRequeueWithAdaptiveTimeout(t *testing.T
 		ID:           "task_requeue_1",
 		Title:        "Sinkronisasi Stok Produk",
 		Instructions: "Sinkronisasi stok dari supplier",
-		Summary:      "Stok produk telah disinkronkan",
-		Status:       task.TaskStatusDoing,
-		CreatedAt:    time.Now().UTC(),
-		UpdatedAt:    time.Now().UTC(),
+		CompleteNote: "Fixture: command runner outputs recorded for workspace verification.", Summary: "Stok produk telah disinkronkan",
+		Status:    task.TaskStatusDoing,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	_ = taskStore.CreateTask(ctx, taskItem)
 
 	att1 := &task.TaskAttempt{
-		ID:            "att_req_1",
-		TaskID:        taskItem.ID,
+		ID:     "att_req_1",
+		TaskID: taskItem.ID, RunnerID: "runner_test",
 		AttemptNumber: 1, // Attempt 1
 		AgentName:     "agy",
 		Status:        task.AttemptStatusRunning,
@@ -248,7 +248,7 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 	taskItem := &task.Task{
 		ID:           "task_max_att",
 		Title:        "Perbaikan Algoritma Rekomendasi",
-		Summary:      "Pembaruan algoritma membutuhkan penyesuaian parameter",
+		CompleteNote: "Fixture: command runner outputs recorded for workspace verification.", Summary: "Pembaruan algoritma membutuhkan penyesuaian parameter",
 		SourceRoomID: "room_source_shop",
 		Status:       task.TaskStatusDoing,
 		CreatedAt:    time.Now().UTC(),
@@ -257,8 +257,8 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 	_ = taskStore.CreateTask(ctx, taskItem)
 
 	att3 := &task.TaskAttempt{
-		ID:            "att_max_3",
-		TaskID:        taskItem.ID,
+		ID:     "att_max_3",
+		TaskID: taskItem.ID, RunnerID: "runner_test",
 		AttemptNumber: 3, // Already Attempt 3 (Max cap!)
 		AgentName:     "agy",
 		Status:        task.AttemptStatusRunning,
@@ -326,11 +326,11 @@ func TestRunnerService_ValidateTaskTransition_StateMachineIntegration(t *testing
 	invalidPairs := [][2]string{
 		{task.TaskStatusBacklog, task.TaskStatusDoing}, // cannot skip queued/approved
 		{task.TaskStatusBacklog, task.TaskStatusDone},  // cannot skip to done
-		{task.TaskStatusDone, task.TaskStatusDoing},     // terminal cannot transition
-		{task.TaskStatusDone, task.TaskStatusQueued},    // terminal cannot transition
+		{task.TaskStatusDone, task.TaskStatusDoing},    // terminal cannot transition
+		{task.TaskStatusDone, task.TaskStatusQueued},   // terminal cannot transition
 		{task.TaskStatusFailed, task.TaskStatusDoing},  // terminal cannot transition
-		{"unknown_status", task.TaskStatusDoing},        // invalid source
-		{task.TaskStatusDoing, "unknown_status"},        // invalid destination
+		{"unknown_status", task.TaskStatusDoing},       // invalid source
+		{task.TaskStatusDoing, "unknown_status"},       // invalid destination
 	}
 
 	for _, pair := range invalidPairs {

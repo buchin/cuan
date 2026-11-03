@@ -374,6 +374,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 
 	now := time.Now().UTC()
 	leaseExpires := now.Add(leaseDuration)
+	deadline := now.Add(task.CalculateTaskTimeout(t.ExecutionCategory, att.AttemptNumber, t.Title, t.Instructions))
 
 	// Update task_attempts
 	updateAttemptQuery := `
@@ -381,16 +382,17 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 			status = 'running',
 			runner_id = $2,
 			started_at = $3,
-			lease_expires_at = $4
+			lease_expires_at = $4, execution_deadline = $5
 		WHERE id = $1
 	`
-	if _, err := tx.ExecContext(ctx, updateAttemptQuery, att.ID, runnerID, now, leaseExpires); err != nil {
+	if _, err := tx.ExecContext(ctx, updateAttemptQuery, att.ID, runnerID, now, leaseExpires, deadline); err != nil {
 		return nil, nil, fmt.Errorf("update attempt to running: %w", err)
 	}
 	att.Status = task.AttemptStatusRunning
 	att.RunnerID = runnerID
 	att.StartedAt = &now
 	att.LeaseExpiresAt = &leaseExpires
+	att.ExecutionDeadline = &deadline
 
 	// Update task status to doing
 	updateTaskQuery := `UPDATE tasks SET status = 'doing', updated_at = $2 WHERE id = $1`
@@ -441,30 +443,17 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 }
 
 func (s *DBStore) RenewLease(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration) (bool, error) {
-	var cancelRequested bool
-	var status string
-	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(cancel_requested, false), status FROM task_attempts WHERE id = $1", attemptID).Scan(&cancelRequested, &status)
+	var cancel bool
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE task_attempts SET lease_expires_at=CASE WHEN cancel_requested THEN lease_expires_at ELSE NOW()+($3 * INTERVAL '1 second') END WHERE id=$1 AND runner_id=$2 AND status='running' AND lease_expires_at>NOW() RETURNING COALESCE(cancel_requested,false)`,
+		attemptID, runnerID, leaseDuration.Seconds()).Scan(&cancel)
 	if err == sql.ErrNoRows {
-		return false, task.ErrAttemptNotFound
+		return false, task.ErrAttemptFinal
 	}
 	if err != nil {
-		return false, fmt.Errorf("query attempt for lease: %w", err)
+		return false, err
 	}
-
-	if cancelRequested || status == task.AttemptStatusCanceled {
-		return true, nil
-	}
-
-	now := time.Now().UTC()
-	leaseExpires := now.Add(leaseDuration)
-
-	_, err = s.db.ExecContext(ctx, "UPDATE task_attempts SET lease_expires_at = $2 WHERE id = $1", attemptID, leaseExpires)
-	if err != nil {
-		return false, fmt.Errorf("renew lease on attempt: %w", err)
-	}
-
-	_, _ = s.db.ExecContext(ctx, "UPDATE runners SET last_heartbeat_at = $2, updated_at = $2 WHERE id = $1", runnerID, now)
-	return false, nil
+	return cancel, nil
 }
 
 func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttempt, error) {
@@ -509,6 +498,7 @@ func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttemp
 		expired = append(expired, &a)
 	}
 
+	rows.Close()
 	exitCode := 137
 	errMsg := "Runner heartbeat lost and lease expired; marked interrupted and recoverable without auto-rerun."
 
@@ -519,24 +509,23 @@ func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttemp
 		a.ExitCode = &exitCode
 		a.ErrorMessage = errMsg
 
-		_, _ = s.db.ExecContext(ctx, `
-			UPDATE task_attempts SET
-				status = 'interrupted',
-				finished_at = $2,
-				interrupted_at = $2,
-				exit_code = $3,
-				error_message = $4
-			WHERE id = $1
-		`, a.ID, now, exitCode, errMsg)
-
-		// Set task to review
-		_, _ = s.db.ExecContext(ctx, "UPDATE tasks SET status = 'review', updated_at = $2 WHERE id = $1", a.TaskID, now)
+		tasks := task.NewDBStore(s.db)
+		t, err := tasks.GetTask(ctx, a.TaskID)
+		if err != nil {
+			continue
+		}
+		expected := t.UpdatedAt
+		t.Status = task.TaskStatusBlocked
+		t.UpdatedAt = now
+		if err = tasks.CompleteExecution(ctx, a, t, nil, expected, a.RunnerID, false); err != nil {
+			continue
+		}
 
 		// Clean up any remaining task launches
 		_, _ = s.db.ExecContext(ctx, "UPDATE task_launches SET state = 'stopped', safe_error = 'Attempt interrupted (lease expired).', lease_token = '', lease_until = NULL, updated_at = $2 WHERE task_id = $1 AND state IN ('queued', 'claimed', 'started')", a.TaskID, now)
 
 		// Set runner to offline
-		_, _ = s.db.ExecContext(ctx, "UPDATE runners SET status = 'offline', current_attempt_id = NULL, current_task_id = NULL, updated_at = $2 WHERE id = $1", a.RunnerID, now)
+		_, _ = s.db.ExecContext(ctx, "UPDATE runners SET status = 'offline', current_attempt_id = NULL, current_task_id = NULL, updated_at = $2 WHERE id = $1 AND current_attempt_id=$3", a.RunnerID, now, a.ID)
 
 		// Record activity
 		actID := generateRandomID("act")
@@ -547,7 +536,7 @@ func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttemp
 				$1, $2, $3, $4, $5, $6, $7, $8, $9
 			)
 		`, actID, a.TaskID, a.ID, task.ActivityTypeInterrupted, "system", task.AttemptStatusRunning, task.AttemptStatusInterrupted,
-			fmt.Sprintf("Attempt %s interrupted (lease expired). Task is in review and can be retried explicitly.", a.ID), now)
+			fmt.Sprintf("Attempt %s interrupted (lease expired). Task is blocked; saved work can be continued explicitly.", a.ID), now)
 	}
 
 	return expired, nil
@@ -557,4 +546,10 @@ func generateRandomID(prefix string) string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)
 	return fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(b))
+}
+
+// ReleaseAssignment cannot clear a newer claim made while completion was saved.
+func (s *DBStore) ReleaseAssignment(ctx context.Context, runnerID, attemptID string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE runners SET status='idle',current_task_id=NULL,current_attempt_id=NULL,updated_at=NOW() WHERE id=$1 AND current_attempt_id=$2`, runnerID, attemptID)
+	return err
 }

@@ -425,9 +425,9 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		INSERT INTO task_attempts (
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, cancel_requested, canceled_at, interrupted_at, attempt_number,
-			started_at, finished_at, error_message, created_at,request_hash
+			started_at, finished_at, error_message, created_at,request_hash,execution_deadline
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,$17
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,$17,$18
 		)
 	`
 	_, err := execer.ExecContext(ctx, query,
@@ -446,7 +446,7 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		a.StartedAt,
 		a.FinishedAt,
 		a.ErrorMessage,
-		a.CreatedAt, a.RequestHash,
+		a.CreatedAt, a.RequestHash, a.ExecutionDeadline,
 	)
 	if err != nil {
 		return fmt.Errorf("create attempt: %w", err)
@@ -463,7 +463,7 @@ func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, erro
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
 			COALESCE(attempt_number, 1), started_at, finished_at,
-			COALESCE(error_message, ''), created_at,request_hash
+			COALESCE(error_message, ''), created_at,request_hash,execution_deadline
 		FROM task_attempts
 		WHERE id = $1
 	`
@@ -484,7 +484,7 @@ func (s *DBStore) GetAttempt(ctx context.Context, id string) (*TaskAttempt, erro
 		&a.StartedAt,
 		&a.FinishedAt,
 		&a.ErrorMessage,
-		&a.CreatedAt, &a.RequestHash,
+		&a.CreatedAt, &a.RequestHash, &a.ExecutionDeadline,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrAttemptNotFound
@@ -501,7 +501,7 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
 			COALESCE(attempt_number, 1), started_at, finished_at,
-			COALESCE(error_message, ''), created_at,request_hash
+			COALESCE(error_message, ''), created_at,request_hash,execution_deadline
 		FROM task_attempts
 		WHERE task_id = $1
 		ORDER BY created_at DESC
@@ -524,7 +524,7 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 		&a.StartedAt,
 		&a.FinishedAt,
 		&a.ErrorMessage,
-		&a.CreatedAt, &a.RequestHash,
+		&a.CreatedAt, &a.RequestHash, &a.ExecutionDeadline,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -541,7 +541,7 @@ func (s *DBStore) ListAttempts(ctx context.Context, taskID string) ([]*TaskAttem
 			id, task_id, runner_id, agent_name, status, exit_code, peak_rss_bytes,
 			lease_expires_at, COALESCE(cancel_requested, false), canceled_at, interrupted_at,
 			COALESCE(attempt_number, 1), started_at, finished_at,
-			COALESCE(error_message, ''), created_at,request_hash
+			COALESCE(error_message, ''), created_at,request_hash,execution_deadline
 		FROM task_attempts
 		WHERE task_id = $1
 		ORDER BY created_at DESC
@@ -571,7 +571,7 @@ func (s *DBStore) ListAttempts(ctx context.Context, taskID string) ([]*TaskAttem
 			&a.StartedAt,
 			&a.FinishedAt,
 			&a.ErrorMessage,
-			&a.CreatedAt, &a.RequestHash,
+			&a.CreatedAt, &a.RequestHash, &a.ExecutionDeadline,
 		); err != nil {
 			return nil, fmt.Errorf("scan attempt: %w", err)
 		}
@@ -594,7 +594,8 @@ func (s *DBStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 			attempt_number = $9,
 			started_at = $10,
 			finished_at = $11,
-			error_message = $12
+			error_message = $12,
+ execution_deadline = COALESCE(execution_deadline,$13)
 		WHERE id = $1 AND (status IN ('queued','running') OR status=$2)
 	`
 	res, err := s.db.ExecContext(ctx, query,
@@ -609,7 +610,7 @@ func (s *DBStore) UpdateAttempt(ctx context.Context, a *TaskAttempt) error {
 		a.AttemptNumber,
 		a.StartedAt,
 		a.FinishedAt,
-		a.ErrorMessage,
+		a.ErrorMessage, a.ExecutionDeadline,
 	)
 	if err != nil {
 		return fmt.Errorf("update attempt: %w", err)

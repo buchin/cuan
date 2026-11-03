@@ -145,7 +145,16 @@ For completed implementation, finish with:
 For a greeting/question with no file changes, use --state review --result-kind answer.
 Use --state review when implementation still needs review.
 For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
-Done requires actual completed work, verification evidence and all declared criteria completed.
+Done requires actual completed work and verification evidence. For each original
+acceptance criterion, supply its unchanged text/id, completed:true and a concrete
+"evidence" string (observed result, command output, artifact or live check).
+Use task report --report-file with JSON containing dod_checklist to send these
+structured observations. Do not mark unchecked criteria complete implicitly,
+remove criteria, or add revision instructions to the approved checklist.
+For long work, publish task report --progress checkpoints before risky or slow
+steps and after each verified milestone. On continuation inspect the same task
+workspace and checkpoints; reconcile uncertain external effects before repeating.
+Retry only unfinished approved work; retain verified artifacts and branch.
 For a greeting/question, put the actual useful answer in --summary, not a meta-description such as "Responded to the message". Explain in --complete-note that no files/tests were needed. Never claim unperformed work. For a blocker use --state blocked
 with summary and concrete evidence instead.
 A final report closes this session automatically after output drains.
@@ -183,24 +192,9 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	digest := sha256.Sum256([]byte(raw))
 	value, ok := s.taskAgentGrants.Load(digest)
-	if (!ok || raw == "") && len(raw) == 64 {
-		// Server restart resilience: if server restarted during an active task attempt,
-		// recover the grant if the requested task is currently in running state.
-		taskID := chi.URLParam(r, "id")
-		if taskID != "" && s.taskSvc != nil {
-			if latest, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && latest != nil && latest.LatestAttempt != nil && latest.LatestAttempt.Status == task.AttemptStatusRunning {
-				recovered := taskAgentGrant{
-					TaskID:    taskID,
-					AttemptID: latest.LatestAttempt.ID,
-					AgentID:   latest.LatestAttempt.AgentName,
-					Expires:   time.Now().Add(8 * time.Hour),
-				}
-				s.taskAgentGrants.Store(digest, recovered)
-				value = recovered
-				ok = true
-			}
-		}
-	}
+	// Unknown capabilities cannot be reconstructed from token length. After a
+	// restart only a newly issued, attempt-bound grant authorizes reporting.
+
 	if !ok || raw == "" {
 		respondJSONError(w, 401, "Task session access is unavailable")
 		return

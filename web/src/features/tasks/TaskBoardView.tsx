@@ -1,7 +1,8 @@
+import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
+import { IconButton } from '../../components/ui/IconButton'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  Search,
   SlidersHorizontal,
   ArrowUpDown,
   Circle,
@@ -466,24 +467,12 @@ export function TaskBoardView({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <label className="relative min-w-0 flex-1 sm:max-w-xs lg:max-w-sm">
-          <Search
-            aria-hidden
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground"
-          />
-          <input
-            aria-label="Search tasks"
-            placeholder="Search tasks…"
-            value={query}
-            onChange={(e) => update('q', e.target.value)}
-            className="h-8 w-full rounded-md border border-input bg-transparent pl-8 pr-3 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          />
-        </label>
+        <ListSearch containerClassName="sm:max-w-xs lg:max-w-sm" aria-label={t('Search tasks')} placeholder={t('Search tasks…')} value={query} onChange={event=>update('q',event.target.value)} />
         <button
           type="button"
           onClick={() => setFiltersOpen(true)}
           className={cn(
-            "hidden sm:inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium hover:bg-accent/50 transition-colors",
+            "hidden sm:inline-flex h-11 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium hover:bg-accent/50 transition-colors",
             status !== 'all' && "border-solid bg-accent/40 text-foreground"
           )}
         >
@@ -499,7 +488,7 @@ export function TaskBoardView({
           type="button"
           onClick={() => setFiltersOpen(true)}
           className={cn(
-            "hidden sm:inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium hover:bg-accent/50 transition-colors",
+            "hidden sm:inline-flex h-11 items-center gap-1.5 rounded-md border border-dashed border-border/80 px-2.5 text-xs font-medium hover:bg-accent/50 transition-colors",
             priority !== 'all' && "border-solid bg-accent/40 text-foreground"
           )}
         >
@@ -515,34 +504,14 @@ export function TaskBoardView({
           <button
             type="button"
             onClick={clear}
-            className="hidden sm:inline-flex h-8 items-center gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="hidden sm:inline-flex h-11 items-center gap-1 px-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             <span>Reset</span>
             <X className="h-3.5 w-3.5" />
           </button>
         )}
-        <button
-          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-transparent px-2.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-          onClick={() => setFiltersOpen(true)}
-          aria-label={
-            filterCount ? `Filters (${filterCount} active)` : 'Filters'
-          }
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">View</span>
-          {filterCount > 0 && (
-            <span className="rounded bg-accent px-1.5 text-[10px] font-mono">
-              {filterCount}
-            </span>
-          )}
-        </button>
-        <button
-          className="icon-action sm:hidden h-8 w-8"
-          aria-label="Sort tasks"
-          onClick={() => setSortOpen(true)}
-        >
-          <ArrowUpDown className="h-3.5 w-3.5" />
-        </button>
+        <IconButton label={filterCount ? t('Filters')+' ('+filterCount+')' : t('Filters')} className="relative ml-auto" active={filterCount>0} onClick={()=>setFiltersOpen(true)}><SlidersHorizontal />{filterCount>0&&<span className="absolute right-0.5 top-0.5 text-[10px] tabular-nums">{filterCount}</span>}</IconButton>
+        <IconButton label={t('Sort tasks')} className="sm:hidden" onClick={()=>setSortOpen(true)}><ArrowUpDown /></IconButton>
         <label className="relative hidden sm:block">
           <ArrowUpDown
             aria-hidden
@@ -552,7 +521,7 @@ export function TaskBoardView({
             aria-label="Sort tasks"
             value={sort}
             onChange={(e) => update('sort', e.target.value)}
-            className="h-8 w-32 appearance-none rounded-md border border-input bg-transparent pl-7 pr-6 text-xs hover:bg-accent/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="h-11 w-32 appearance-none rounded-md border border-input bg-transparent pl-7 pr-6 text-xs hover:bg-accent/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             {sortOptions}
           </select>
@@ -563,12 +532,8 @@ export function TaskBoardView({
         </label>
       </div>
       {/* Mobile Horizontal Scrollable Filter Chips */}
-      <div
-        role="tablist"
-        aria-label={t('Task status filter chips')}
-        className="flex sm:hidden items-center gap-2 overflow-x-auto py-1 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {mobileFilterChips.map((chip) => {
+      <ListTabs className="sm:hidden" aria-label={t('Task status filter chips')}>
+        {mobileFilterChips.map(chip=>{
           const isSelected =
             (chip.id === 'all' && (status === 'all' || !status)) ||
             (chip.id === 'active' &&
@@ -582,83 +547,14 @@ export function TaskBoardView({
                 status === 'review_or_blocked' ||
                 ['review', 'blocked', 'failed', 'cancelled'].includes(status)))
 
-          return (
-            <button
-              key={chip.id}
-              type="button"
-              role="tab"
-              aria-selected={isSelected}
-              onClick={() => {
-                update('status', chip.id)
-                onStatusFilterChange?.(chip.id)
-              }}
-              className={cn(
-                'inline-flex min-h-11 min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all select-none',
-                isSelected
-                  ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40',
-              )}
-            >
-              <span>{chip.label}</span>
-              <span
-                className={cn(
-                  'rounded-full px-1.5 py-0.5 text-[10px] font-mono tabular-nums leading-none',
-                  isSelected
-                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-                    : 'bg-muted-foreground/15 text-muted-foreground',
-                )}
-              >
-                {chip.count}
-              </span>
-            </button>
-          )
+          return <ListTab key={chip.id} selected={isSelected} count={chip.count} onClick={()=>{update('status',chip.id);onStatusFilterChange?.(chip.id)}}>{chip.label}</ListTab>
         })}
-      </div>
+      </ListTabs>
 
       {/* Desktop Horizontal Category Chips */}
-      <nav
-        aria-label="Filter task status"
-        className="hidden sm:flex shrink-0 items-center gap-1 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {[{ id: 'all', label: 'All' }, ...TASK_STATUSES].map((item) => {
-          const isSelected = status === item.id
-          const count =
-            item.id === 'all'
-              ? scoped.length
-              : scoped.filter((t) => taskStatus(t.status) === item.id).length
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={isSelected}
-              aria-pressed={isSelected}
-              onClick={() => {
-                update('status', item.id)
-                onStatusFilterChange?.(item.id)
-              }}
-              className={cn(
-                'inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-all focus-visible:outline-1 focus-visible:outline-ring',
-                isSelected
-                  ? 'bg-secondary text-secondary-foreground font-semibold shadow-xs'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              <span>{item.label}</span>
-              <span
-                className={cn(
-                  'font-mono text-[10px] tabular-nums',
-                  isSelected
-                    ? 'text-foreground font-semibold'
-                    : 'text-muted-foreground/80',
-                )}
-              >
-                ({count})
-              </span>
-            </button>
-          )
-        })}
-      </nav>
+      <ListTabs className="hidden sm:flex" aria-label={t('Filter task status')}>
+        {[{id:'all',label:t('All')},...TASK_STATUSES].map(item=><ListTab key={item.id} selected={status===item.id} count={item.id==='all'?scoped.length:scoped.filter(entry=>taskStatus(entry.status)===item.id).length} onClick={()=>{update('status',item.id);onStatusFilterChange?.(item.id)}}>{t(item.label)}</ListTab>)}
+      </ListTabs>
       {chips.length > 0 && (
         <div
           aria-label="Active task filters"

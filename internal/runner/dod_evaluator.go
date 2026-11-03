@@ -15,6 +15,7 @@ import (
 
 // DoDValidationRequest specifies input for autonomous DoD evaluation.
 type DoDValidationRequest struct {
+	Checklist     []task.DoDItem `json:"acceptance_checklist,omitempty"`
 	TaskID        string         `json:"task_id"`
 	AttemptID     string         `json:"attempt_id"`
 	AttemptNumber int            `json:"attempt_number"`
@@ -78,6 +79,13 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 		Gaps:              make([]string, 0),
 	}
 
+	gaps := task.AcceptanceGaps(&task.Task{Summary: req.Summary, CompleteNote: req.CompleteNote, DoDChecklist: req.Checklist})
+	if len(gaps) > 0 {
+		res.Gaps = gaps
+		res.Action = "review"
+		res.Fixable = true
+		return res, nil
+	}
 	workingDir := req.WorkingDir
 	if workingDir == "" {
 		// If no working dir, check current working dir or repository root
@@ -92,11 +100,11 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 	if isNonCodeOrInvestigation {
 		res.Passed = true
 		res.Action = "mark_done"
-		res.Details = fmt.Sprintf("### Evaluasi Definition of Done (DoD) Otonom\n"+
-			"**Status:** LULUS (Tugas Investigasi / Non-Kode)\n\n"+
-			"**Bukti yang Terverifikasi:**\n"+
-			"- [x] Ringkasan analisa dan RCA teknis lengkap\n"+
-			"- [x] Solusi dan draf balasan untuk pengguna siap\n"+
+		res.Details = fmt.Sprintf("### Evaluasi Definition of Done (DoD) Otonom\n" +
+			"**Status:** LULUS (Tugas Investigasi / Non-Kode)\n\n" +
+			"**Bukti yang Terverifikasi:**\n" +
+			"- [x] Ringkasan analisa dan RCA teknis lengkap\n" +
+			"- [x] Solusi dan draf balasan untuk pengguna siap\n" +
 			"- [x] Bebas modifikasi repositori (zero unwanted side-effects)\n")
 		return res, nil
 	}

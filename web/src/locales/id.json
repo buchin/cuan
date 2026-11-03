@@ -1583,5 +1583,9 @@
   "Could not disconnect this brain. Try again.": "Koneksi belum dapat diputuskan. Coba lagi.",
   "Discard unsaved changes?": "Buang perubahan yang belum disimpan?",
   "AI capacity is temporarily full. Your message is saved.": "Kapasitas AI sedang penuh. Pesan Anda tersimpan.",
-  "Connection": "Koneksi"
+  "Connection": "Koneksi",
+  "Search conversations…": "Cari percakapan…",
+  "Search tasks": "Cari tugas",
+  "Sort tasks": "Urutkan tugas",
+  "Back to conversations": "Kembali ke percakapan"
 }

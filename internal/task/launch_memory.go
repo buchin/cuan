@@ -255,14 +255,6 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 			}
 			j.UpdatedAt = now
 		}
-		// 2. Reconcile started/claimed launches that exceeded hard execution timeout (20 minutes)
-		if (j.State == "started" || j.State == "claimed") && j.UpdatedAt.Before(now.Add(-20*time.Minute)) {
-			j.State = "stopped"
-			j.SafeError = "Execution exceeded hard timeout (20 minutes)."
-			j.UpdatedAt = now
-			j.LeaseToken = ""
-			j.LeaseUntil = nil
-		}
 		// Auto-cancel abandoned interactive terminal tasks queued > 5 min
 		if t != nil && t.Status == TaskStatusQueued && strings.HasPrefix(t.Title, "Terminal · ") && t.CreatedAt.Before(now.Add(-5*time.Minute)) {
 			t.Status = "cancelled"

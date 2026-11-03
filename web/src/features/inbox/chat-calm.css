@@ -3,15 +3,15 @@
 
 .wa-chat,
 .calm-chat {
-  --wa-bg: hsl(var(--background));
-  --wa-header: hsl(var(--card));
-  --wa-incoming: hsl(var(--muted) / 0.5);
-  --wa-outgoing: hsl(var(--secondary) / 0.85);
-  --wa-text: hsl(var(--foreground));
-  --wa-meta: hsl(var(--muted-foreground));
-  --wa-outgoing-meta: hsl(var(--muted-foreground));
-  --wa-send: hsl(var(--foreground));
-  --wa-send-text: hsl(var(--background));
+  --wa-bg: oklch(var(--background));
+  --wa-header: oklch(var(--card));
+  --wa-incoming: oklch(var(--muted) / 0.5);
+  --wa-outgoing: oklch(var(--secondary) / 0.85);
+  --wa-text: oklch(var(--foreground));
+  --wa-meta: oklch(var(--muted-foreground));
+  --wa-outgoing-meta: oklch(var(--muted-foreground));
+  --wa-send: oklch(var(--foreground));
+  --wa-send-text: oklch(var(--background));
   --wa-pattern: transparent;
   background: var(--wa-bg);
   color: var(--wa-text);
@@ -68,9 +68,9 @@
   background: var(--wa-header);
   color: var(--wa-text);
   border-bottom: none;
-  height: 52px;
-  min-height: 52px;
-  max-height: 52px;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
   box-sizing: border-box;
 }
 
@@ -109,7 +109,7 @@
   border-radius: 16px;
   box-shadow: none;
   color: var(--wa-text);
-  border: 1px solid hsl(var(--border) / 0.2);
+  border: 1px solid oklch(var(--border) / 0.2);
   border-color: transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -199,7 +199,7 @@
 .wa-day-label,
 .calm-day-label {
   background: transparent !important;
-  color: hsl(var(--muted-foreground));
+  color: oklch(var(--muted-foreground));
   border: none !important;
   font-size: 12px;
   font-weight: 500;
@@ -233,7 +233,7 @@
 
 .wa-input-capsule,
 .calm-input-capsule {
-  background: hsl(var(--muted) / 0.45);
+  background: oklch(var(--muted) / 0.45);
   color: var(--wa-text);
   border: 1px solid transparent;
   border-radius: 24px;
@@ -269,7 +269,7 @@
 .wa-action-btn:hover,
 .calm-action-btn:hover {
   color: var(--wa-text);
-  background-color: hsl(var(--muted) / 0.5);
+  background-color: oklch(var(--muted) / 0.5);
 }
 .dark .wa-action-btn:hover,
 .dark .calm-action-btn:hover {
@@ -365,8 +365,8 @@
 /* Blockquote in Calm Stream: Clean neutral accent line, NO WhatsApp green */
 .wa-chat .chat-markdown blockquote,
 .calm-chat .chat-markdown blockquote {
-  border-left: 3.5px solid hsl(var(--border) / 0.8);
-  background: hsl(var(--muted) / 0.35);
+  border-left: 3.5px solid oklch(var(--border) / 0.8);
+  background: oklch(var(--muted) / 0.35);
   border-radius: 0 6px 6px 0;
   padding: 5px 9px;
   margin: 3px 0 6px 0;
@@ -384,7 +384,7 @@
 }
 .wa-incoming .chat-markdown blockquote,
 .calm-incoming .chat-markdown blockquote {
-  border-left-color: hsl(var(--border));
+  border-left-color: oklch(var(--border));
   background: rgba(0, 0, 0, 0.03);
   color: var(--wa-meta);
 }
@@ -396,7 +396,7 @@
 }
 .wa-outgoing .chat-markdown blockquote,
 .calm-outgoing .chat-markdown blockquote {
-  border-left-color: hsl(var(--foreground) / 0.4);
+  border-left-color: oklch(var(--foreground) / 0.4);
   background: rgba(0, 0, 0, 0.04);
   color: var(--wa-outgoing-meta);
 }
@@ -476,10 +476,10 @@
 }
 
 /* Conversation list surfaces */
-.inbox-list { background: hsl(var(--background)); }
-.inbox-search { background: hsl(var(--muted) / 0.5); }
-.dark .inbox-list { background: #121212; }
-.dark .inbox-search, .dark .app-page-header { background: #18181b; }
+.inbox-list { background: oklch(var(--background)); }
+.inbox-search { background: oklch(var(--muted) / 0.5); }
+.dark .inbox-list { background: oklch(var(--background)); }
+
 
 /* Hairline inset divider */
 .inbox-item-divider {
@@ -490,11 +490,11 @@
   inset-inline-start: 3.75rem;
   inset-inline-end: 0;
   height: 1px;
-  background-color: hsl(var(--border) / 0.4);
+  background-color: oklch(var(--border) / 0.4);
   pointer-events: none;
 }
 .dark .inbox-item-divider {
-  background-color: hsl(var(--border) / 0.3);
+  background-color: oklch(var(--border) / 0.3);
 }
 .inbox-list .overflow-y-auto > :last-child .inbox-item-divider,
 .inbox-item-row:last-child .inbox-item-divider {

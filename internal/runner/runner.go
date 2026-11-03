@@ -701,6 +701,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	att := claim.Attempt
 	t := claim.Task
 	startTime := time.Now()
+	deadline := task.AttemptDeadline(t, att)
+	ctx, cancelAttempt := context.WithDeadline(ctx, deadline)
+	defer cancelAttempt()
 
 	lane := task.NormalizeExecutionCategory(t.ExecutionCategory)
 	if lane == "" {
@@ -708,7 +711,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 
 	// Adaptive Timeout calculation with pruned 5m timeout for investigation/readonly tasks
-	timeoutDuration := CalculateTaskTimeout(lane, att.AttemptNumber, t.Title, t.Instructions)
+	timeoutDuration := time.Until(task.AttemptDeadline(t, att))
+	if timeoutDuration < 0 {
+		timeoutDuration = time.Nanosecond
+	}
 	gracePeriod := GetGracePeriod()
 
 	// Stream initial start log
@@ -804,6 +810,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if claim.TaskAgent != nil {
 		encoded, _ := json.Marshal(claim.TaskAgent)
 		env["CUAN_TASK_CAPABILITY_JSON"] = string(encoded)
+		if executable, e := os.Executable(); e == nil {
+			env["CUAN_TASK_EXECUTABLE"] = executable
+		}
 	}
 	env["CUAN_TASK_ATTEMPT"] = fmt.Sprintf("%d", att.AttemptNumber)
 	env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
@@ -863,10 +872,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 
 	if err != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			compReq.Status = task.AttemptStatusCanceled
-			compReq.ExitCode = 130
-			compReq.ErrorMessage = "Execution canceled by runner context"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ExitCode = 124
+			compReq.ErrorMessage = "The execution deadline was reached; saved work is preserved."
+		} else if errors.Is(ctx.Err(), context.Canceled) {
+			compReq.Status = task.AttemptStatusInterrupted
+			compReq.ExitCode = 143
+			compReq.ErrorMessage = "Execution interrupted because the runner context ended"
 		} else if IsInfraFault("", err.Error(), 1) {
 			compReq.Status = task.AttemptStatusInterrupted
 			compReq.ExitCode = 137
@@ -888,6 +901,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 75
 			compReq.ErrorMessage = "The AI provider reported a usage limit. The run was stopped; saved work will be continued when capacity is available."
+		} else if result.Status == "CANCELED" && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ExitCode = 124
+			compReq.ErrorMessage = "The execution deadline was reached; saved work is preserved."
 		} else if result.Status == "CANCELED" {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
@@ -980,8 +997,19 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	// Send complete notification to server
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/complete", att.ID)
-	_, _ = r.doRequest(context.Background(), http.MethodPost, urlPath, compReq)
-	log.Printf("[Runner %s] Attempt %s finalized with status '%s' (exit %d)", r.cfg.RunnerID, att.ID, compReq.Status, compReq.ExitCode)
+	completionCtx, cancelCompletion := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	defer cancelCompletion()
+	response, submitErr := r.doRequest(completionCtx, http.MethodPost, urlPath, compReq)
+	if submitErr != nil {
+		log.Printf("[Runner %s] Attempt %s completion could not be delivered: %v", r.cfg.RunnerID, att.ID, submitErr)
+		return
+	}
+	response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		log.Printf("[Runner %s] Attempt %s completion was not accepted (HTTP %d); saved server state remains authoritative", r.cfg.RunnerID, att.ID, response.StatusCode)
+		return
+	}
+	log.Printf("[Runner %s] Attempt %s completion delivered (reported status '%s', exit %d)", r.cfg.RunnerID, att.ID, compReq.Status, compReq.ExitCode)
 
 	// Clean up stale or excess workspaces post-execution
 	if r.gitClient != nil && r.cfg.WorkspacesDir != "" {

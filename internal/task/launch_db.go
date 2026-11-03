@@ -149,11 +149,6 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution attempt is no longer active (orphan launch reconciled).',lease_token='',lease_until=NULL,updated_at=$1 WHERE state = 'started' AND updated_at < $2 AND NOT EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = task_launches.task_id AND a.status = 'running')`, now, zombieCutoff); err != nil {
 		return err
 	}
-	// 2b. Reconcile started/claimed launches that exceeded hard execution timeout (20 minutes)
-	timeoutCutoff := now.Add(-20 * time.Minute)
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution exceeded hard timeout (20 minutes).',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('started','claimed') AND updated_at < $2`, now, timeoutCutoff); err != nil {
-		return err
-	}
 	// 3. Auto-cancel abandoned interactive terminal tasks queued for > 5 minutes
 	staleCutoff := now.Add(-5 * time.Minute)
 	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET status = 'cancelled', updated_at = $1 WHERE status = 'queued' AND title LIKE 'Terminal · %' AND created_at < $2`, now, staleCutoff); err != nil {

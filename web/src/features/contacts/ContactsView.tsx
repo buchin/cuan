@@ -1,3 +1,5 @@
+import { ListSearch, ListRowContent } from '../../components/layout/ListControls'
+import { IconButton } from '../../components/ui/IconButton'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
@@ -5,7 +7,6 @@ import { ContactMemoryPanel } from './ContactMemoryPanel'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
-  Search,
   Archive,
   SlidersHorizontal,
   Users,
@@ -269,25 +270,15 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
         aria-label={t('Contact list')}
         className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r border-border/40 ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
-        <div className="shrink-0 border-b border-border/40 p-3">
+        <div className="shrink-0 border-b border-border/40 p-4">
           <ListCreateAction label="New contact" kind="contacts" onClick={onNewContact} />
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <label className="flex min-w-0 flex-1 min-h-11 items-center gap-2 rounded-xl border border-border/40 bg-muted/20 px-3 focus-within:ring-2 focus-within:ring-ring">
-                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <input
-                  aria-label={t('Search contacts and notes')}
-                  className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none"
-                  placeholder={t('Search contacts…')}
-                  maxLength={200}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-              <button
+              <ListSearch aria-label={t('Search contacts and notes')} placeholder={t('Search contacts…')} value={query} onChange={event=>setQuery(event.target.value)} />
+              <IconButton
                 type="button"
-                className="icon-action relative shrink-0"
-                aria-label={t('Filters')}
+                className="relative"
+                label={t('Filters')}
                 aria-expanded={filtersOpen}
                 aria-controls="contact-filters"
                 onClick={() => setFiltersOpen(!filtersOpen)}
@@ -299,17 +290,17 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                     className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary"
                   />
                 )}
-              </button>
-              <button
+              </IconButton>
+              <IconButton
                 type="button"
-                className={`icon-action shrink-0 ${showArchived ? 'bg-accent text-primary' : 'text-muted-foreground'}`}
-                aria-label={t(showArchived ? 'Active contacts' : 'Archived contacts')}
+                active={showArchived}
+                label={t(showArchived ? 'Active contacts' : 'Archived contacts')}
                 title={t(showArchived ? 'Active contacts' : 'Archived contacts')}
                 aria-pressed={showArchived}
                 onClick={() => setShowArchived((value) => !value)}
               >
                 <Archive className="h-4 w-4" aria-hidden="true" />
-              </button>
+              </IconButton>
             </div>
 
             {(tag || product) && !filtersOpen && (
@@ -484,36 +475,13 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                           select(c.id)
                         }}
                         aria-pressed={selectedId === c.id}
-                        className={`contact-list-row flex min-h-[48px] w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
+                        className={`contact-list-row flex min-h-[4.5rem] w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
                           selectedId === c.id ? 'bg-muted/50 font-medium' : ''
                         }`}
                       >
-                        <span
-                          aria-hidden="true"
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground/80"
-                        >
-                          {Array.from(label(c))
-                            .slice(0, 2)
-                            .join('')
-                            .toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground leading-snug">
-                            {label(c)}
-                          </span>
-                          <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                            {c.email ? (
-                              <span className="truncate">{c.email}</span>
-                            ) : (
-                              <span className="truncate text-muted-foreground/60">{t(source(c))}</span>
-                            )}
-                          </span>
-                          {c.search_note && query.trim() && (
-                            <span className="mt-1 block break-words text-[11px] text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5">
-                              <span className="font-medium">{t('Note')}:</span> {c.search_note.snippet}
-                            </span>
-                          )}
-                        </span>
+                        <ListRowContent leading={<span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground/80">{Array.from(label(c)).slice(0,2).join('').toUpperCase()}</span>} title={label(c)} description={c.email || t(source(c))}>
+                          {c.search_note && query.trim() && <span className="mt-1 block text-xs text-muted-foreground"><span className="font-medium">{t('Note')}:</span> {c.search_note.snippet}</span>}
+                        </ListRowContent>
                       </button>
                     </ItemActions>
                   ))}

@@ -1,3 +1,4 @@
+import { IconButton } from '../../components/ui/IconButton'
 import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
@@ -125,7 +126,8 @@ function TaskDetailView({
   onDelete,
   onRunAgent,
 }: Props & { task: Task }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const id = language === 'id'
   const dialog = useRef<HTMLDialogElement>(null),
     [params, setParams] = useSearchParams(),
     full = params.get('view') === 'full'
@@ -187,6 +189,9 @@ function TaskDetailView({
     checklist = (detail.dod_checklist || []).map((i) =>
       typeof i === 'string' ? { text: i, completed: false } : i,
     )
+  const hasReviewEvidence = Boolean(detail.summary?.trim() && detail.complete_note?.trim() &&
+    checklist.every((item) => item.completed && 'evidence' in item && String(item.evidence || '').trim()))
+  const publicStatus = id ? ({ backlog: 'Rencana', todo: 'Siap dikerjakan', queued: 'Dalam antrean', doing: 'Dikerjakan', review: 'Perlu ditinjau', done: 'Selesai', blocked: 'Terhambat' } as Record<string, string>)[detail.status] || statusLabel(detail.status) : statusLabel(detail.status)
   const dirty =
     editing && JSON.stringify(draft) !== JSON.stringify(makeDraft(detail))
   const selectedProject = projects.find(
@@ -244,7 +249,11 @@ function TaskDetailView({
     agentsApi
       .list()
       .then((list) => {
-        if (active) setAgents(list)
+        if (active) {
+          setAgents(list)
+          const assistant = list.find((a) => a.enabled !== false && a.status !== 'inactive')
+          if (assistant) setAgentId(assistant.id)
+        }
       })
       .catch(() => {})
     const timer = setInterval(() => {
@@ -423,7 +432,7 @@ function TaskDetailView({
       openSession(detail.latest_attempt?.id || '')
     } else openRun()
   }
-  const authorName = (id: string) => agents.find((a) => a.id === id)?.name || id
+  const authorName = (_id: string) => agents.find((a) => a.enabled !== false)?.name || '@cuan'
   const field = (key: keyof Draft, value: string) =>
     setDraft((d) => ({ ...d, [key]: value }))
   function renderChecklistText(text: string) {
@@ -480,7 +489,7 @@ function TaskDetailView({
       )}
     >
       <GitHubPrerequisite task={detail} />
-      <header className="px-3.5 pb-3 pt-2.5 sm:px-6 min-[1200px]:h-13 min-[1200px]:py-0 shrink-0 border-b border-border/40 flex items-center justify-between gap-2 bg-background">
+      <header className="px-4 pb-4 pt-2 sm:px-6 shrink-0 border-b border-border/40 bg-background">
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             <span className="shrink-0 font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md bg-muted/80 text-foreground border border-border/60">{taskRef(detail.id)}</span>
@@ -489,9 +498,9 @@ function TaskDetailView({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              className="icon-action hidden sm:inline-flex"
-              aria-label={full ? 'Collapse task view' : 'Expand task view'}
+            <IconButton
+              className="hidden sm:inline-flex"
+              label={full ? 'Collapse task view' : 'Expand task view'}
               onClick={() =>
                 setParams(
                   (old) => {
@@ -509,16 +518,16 @@ function TaskDetailView({
               ) : (
                 <Maximize2 className="h-4 w-4" />
               )}
-            </button>
+            </IconButton>
             <div className="relative">
-              <button
-                className="icon-action"
-                aria-label="Task actions"
+              <IconButton
+
+                label={id ? 'Menu tugas' : 'Task actions'}
                 aria-expanded={menu}
                 onClick={() => setMenu((v) => !v)}
               >
                 <MoreHorizontal className="h-4 w-4" />
-              </button>
+              </IconButton>
               {menu && (
                 <div className="absolute right-0 top-full z-20 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
                   {detail.source_room_id && (
@@ -565,23 +574,22 @@ function TaskDetailView({
                 </div>
               )}
             </div>
-            <button
+            <IconButton
               autoFocus
-              className="icon-action"
-              aria-label="Close task details"
+              label={id ? 'Tutup detail tugas' : 'Close task details'}
               onClick={close}
               disabled={busy}
             >
-              <X className="h-5 w-5" />
-            </button>
+              <X />
+            </IconButton>
           </div>
         </div>
-        <h2 className="mt-1 break-words text-base sm:text-lg lg:text-xl font-bold tracking-tight text-foreground leading-snug">
+        <h2 className="mt-2 break-words text-base sm:text-lg font-semibold tracking-tight text-foreground leading-snug">
           {detail.title}
         </h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
           <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize", taskStatusBadgeClass(detail.status))}>
-            {statusLabel(detail.status)}
+            {publicStatus}
           </span>
           {['running', 'queued'].includes(
             detail.latest_attempt?.status || '',
@@ -603,12 +611,12 @@ function TaskDetailView({
       >
         {(
           [
-            { id: 'overview', label: 'Overview' },
+            { id: 'overview', label: id ? 'Ringkasan' : 'Overview' },
             {
               id: 'sessions',
-              label: `Sessions${detail.attempts.length ? ' (' + detail.attempts.length + ')' : ''}`,
+              label: (id ? 'Detail teknis' : 'Technical details'),
             },
-            { id: 'activity', label: 'Activity' },
+            { id: 'activity', label: id ? 'Riwayat' : 'Activity' },
           ] as const
         ).map((item) => (
           <button
@@ -681,6 +689,22 @@ function TaskDetailView({
         )}
         {tab === 'overview' && (
           <div className="space-y-6">
+            {!editing && (
+              <section aria-label={id ? 'Langkah berikutnya' : 'Next step'} className="space-y-1">
+                <h3 className="text-sm font-medium">{running
+                  ? (id ? '@cuan sedang mengerjakan tugas ini' : '@cuan is working on this task')
+                  : detail.status === 'done' ? (id ? 'Tugas selesai' : 'Task completed')
+                  : detail.status === 'review' ? (id ? 'Perlu ditinjau' : 'Ready for review')
+                  : detail.status === 'blocked' ? (id ? 'Pekerjaan terhenti' : 'Work is blocked')
+                  : (id ? 'Siap dikerjakan' : 'Ready to start')}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{running
+                  ? (id ? 'Anda bisa meninggalkan halaman ini. Perkembangan akan tersimpan di sini.' : 'You can leave this page. Progress is saved here.')
+                  : detail.status === 'done' ? (id ? 'Lihat hasil dan bukti penyelesaiannya di bawah.' : 'See the result and verification below.')
+                  : detail.status === 'review' ? (id ? (hasReviewEvidence ? 'Periksa ringkasan dan bukti sebelum menyetujui. Jika belum sesuai, minta perbaikan.' : 'Bukti penyelesaian belum lengkap. Minta perbaikan agar @cuan melengkapi hasilnya.') : 'Check the summary and evidence before approving, or request changes.')
+                  : detail.status === 'blocked' ? (id ? 'Periksa ringkasan kendala. Tambahkan arahan lalu coba lagi saat kendala sudah teratasi.' : 'Check the blocker summary. Add guidance and retry when it is resolved.')
+                  : (id ? 'Periksa instruksi, lalu mulai agar @cuan mengerjakannya.' : 'Check the instructions, then start the task with @cuan.')}</p>
+              </section>
+            )}
             {editing ? (
               <form
                 id="task-edit-form"
@@ -829,7 +853,9 @@ function TaskDetailView({
             ) : (
               <>
                 <section className="rounded-xl border border-border/80 bg-card p-3 sm:p-4 shadow-xs">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/60">
+                  <details className="space-y-3">
+                    <summary className="min-h-11 cursor-pointer text-sm text-muted-foreground">{id ? 'Pengaturan tugas' : 'Task settings'}</summary>
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="pb-3 sm:pb-0 sm:pr-4 flex flex-col justify-between">
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -837,7 +863,7 @@ function TaskDetailView({
                       </span>
                       <select
                         aria-label="Task status"
-                        className="field-control h-10 min-h-10 text-xs font-medium rounded-lg border-input bg-background/80 hover:bg-background transition-colors"
+                        className="field-control min-h-11 text-xs font-medium rounded-lg border-input bg-background/80 hover:bg-background transition-colors"
                         disabled={busy || running || !loaded}
                         value={detail.status}
                         onChange={(e) =>
@@ -889,6 +915,7 @@ function TaskDetailView({
                       </div>
                     </div>
                   </div>
+                  </details>
                   {detail.pr_url && /^https?:\/\//i.test(detail.pr_url) && (
                     <div className="mt-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
@@ -940,21 +967,35 @@ function TaskDetailView({
                   )}
                 </section>
 
+                <section className="space-y-2">
+                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>{id ? 'Ringkasan pekerjaan' : 'Work summary'}</span>
+                  </h3>
+                  {emptyProse(detail.summary, id ? 'Belum ada ringkasan pekerjaan.' : 'No work summary recorded yet.')}
+                </section>
+                <section className="space-y-2">
+                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    <span>{id ? 'Hasil & bukti' : 'Result & verification'}</span>
+                  </h3>
+                  {emptyProse(
+                    detail.complete_note,
+                    id ? 'Belum ada hasil terverifikasi. Jangan setujui sebelum hasil dan buktinya tersedia.' : 'No verified result yet. Check the result and evidence before approval.',
+                  )}
+                </section>
+
                 {(() => {
                   const parsed = parseTaskInstructions(detail.description)
                   return (
-                    <section className="space-y-3">
-                      <div className="flex items-center justify-between gap-2">
+                    <details className="space-y-3">
+                      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2">
                         <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                           <FileText className="h-4 w-4 text-primary" />
-                          <span>Human instructions</span>
+                          <span>{id ? 'Instruksi awal' : 'Original instructions'}</span><ChevronDown className="h-4 w-4 text-muted-foreground" />
                         </h3>
-                        {parsed.isDelegation && (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                            Managed Delegation
-                          </span>
-                        )}
-                      </div>
+
+                      </summary>
                       {emptyProse(
                         parsed.cleanText || detail.description,
                         'No instructions yet. Edit this task to describe the work.',
@@ -1075,7 +1116,7 @@ function TaskDetailView({
                           </div>
                         </details>
                       )}
-                    </section>
+                    </details>
                   )
                 })()}
 
@@ -1086,7 +1127,7 @@ function TaskDetailView({
                   const isAllDone = totalCount > 0 && completedCount === totalCount
 
                   return (
-                    <section className="rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 shadow-xs space-y-3">
+                    <section className="border-t border-border/40 pt-5 space-y-3">
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -1101,7 +1142,7 @@ function TaskDetailView({
                               <ListChecks className="h-4 w-4" />
                             </span>
                             <h3 className="text-sm font-bold text-foreground">
-                              Agent checklist
+                              {id ? 'Kriteria selesai' : 'Acceptance criteria'}
                             </h3>
                           </div>
 
@@ -1188,6 +1229,9 @@ function TaskDetailView({
                               )}
                             >
                               {renderChecklistText(item.text)}
+                              {'evidence' in item && item.evidence && (
+                                <span className="mt-1 block text-xs font-normal text-muted-foreground no-underline">{String(item.evidence)}</span>
+                              )}
                             </span>
                           </label>
                         ))}
@@ -1196,23 +1240,6 @@ function TaskDetailView({
                   )
                 })()}
 
-                <section className="space-y-2">
-                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span>Work summary</span>
-                  </h3>
-                  {emptyProse(detail.summary, 'No work summary recorded yet.')}
-                </section>
-                <section className="space-y-2">
-                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    <span>Completion notes & verification</span>
-                  </h3>
-                  {emptyProse(
-                    detail.complete_note,
-                    'No completion notes recorded yet. Review the session output and record what changed and how it was verified before approval.',
-                  )}
-                </section>
                 {detail.attachments && detail.attachments.length > 0 && (
                   <section aria-label={t('Files from this work session')}>
                     <h3 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
@@ -1413,14 +1440,15 @@ function TaskDetailView({
                   {detail.status === 'review' && !running && (
                     <button
                       className="action-secondary min-h-11 min-w-[44px] px-3.5 sm:px-4 text-xs sm:text-sm font-medium"
-                      disabled={busy || !loaded}
+                      disabled={busy || !loaded || !hasReviewEvidence}
+                      title={!hasReviewEvidence ? (id ? 'Hasil dan bukti belum lengkap' : 'Result and evidence are incomplete') : undefined}
                       onClick={() => {
                         setApprovalNote(detail.complete_note || '')
                         setError('')
                         setModal('approve')
                       }}
                     >
-                      Approve result
+                      {id ? 'Setujui hasil' : 'Approve result'}
                     </button>
                   )}
                   <button
@@ -1433,7 +1461,7 @@ function TaskDetailView({
                     ) : (
                       !running && <Play className="h-4 w-4" />
                     )}
-                    <span>{runLabel}</span>
+                    <span>{id ? (running ? 'Lihat progres' : detail.status === 'review' ? 'Minta perbaikan' : detail.attempts.length ? 'Coba lagi' : 'Mulai') : runLabel}</span>
                   </button>
                 </>
               )}
@@ -1468,36 +1496,8 @@ function TaskDetailView({
           }}
         >
           <p className="text-sm text-muted-foreground">
-            Start a new session using the saved instructions and the selected
-            agent. Earlier sessions and output are retained.
+            {id ? '@cuan melanjutkan dari instruksi yang tersimpan. Riwayat pekerjaan sebelumnya tetap tersedia.' : '@cuan uses the saved instructions. Previous work remains available.'}
           </p>
-          <label className="grid gap-1 text-sm">
-            Agent
-            <select
-              aria-label="Execution agent"
-              className="field-control"
-              required
-              value={agentId}
-              onChange={(e) => setAgentId(e.target.value)}
-              disabled={busy}
-            >
-              <option value="">Choose an agent</option>
-              {agents
-                .filter((a) => a.enabled !== false && a.status !== 'inactive')
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          {agents.every(
-            (a) => a.enabled === false || a.status === 'inactive',
-          ) && (
-            <p className="text-sm">
-              Add an agent in Settings → Agents before starting.
-            </p>
-          )}
           <label className="grid gap-1 text-sm">
             {detail.status === 'review'
               ? 'Required changes'

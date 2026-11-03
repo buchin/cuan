@@ -253,7 +253,7 @@ export function taskDetailUrl(task: { id: string; project_id?: string | null }) 
 }
 
 export function taskTerminalUrl(task: { id: string; project_id?: string | null }) {
-  return `/tasks/${encodeURIComponent(task.id)}`
+  return `/tasks/${encodeURIComponent(task.id)}/sessions/latest`
 }
 
 // Regex to clean ANSI escape codes (CSI, OSC, etc.)

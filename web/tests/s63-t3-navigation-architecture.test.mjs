@@ -210,7 +210,7 @@ test('5. S63-T3: Task Layout Outer Padding & HairlineList Optimization', () => {
   // AppShell padding reduction for tasks: p-2 sm:p-3 md:p-4 lg:p-6
   assert.ok(
     appShellSource.includes("currentTab === 'tasks'") &&
-      appShellSource.includes("'overflow-auto p-2 sm:p-3 md:p-4 lg:p-6'"),
+      appShellSource.includes("'overflow-auto p-4 md:p-5'"),
     'AppShell must apply trimmed padding p-2 sm:p-3 md:p-4 lg:p-6 for tasks tab'
   )
 

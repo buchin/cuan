@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/buchin/cuan/internal/task"
 	"log"
-	"os"
 	"syscall"
 	"time"
 )
@@ -36,15 +36,20 @@ func (s *Server) isTaskActiveOnHost(taskID string) bool {
 // ReconcileZombies reconciles zombie task attempts and launches whose OS process is dead
 // or has exceeded the hard execution timeout, freeing the project lane automatically.
 func (s *Server) ReconcileZombies(ctx context.Context) error {
-	timeout := 20 * time.Minute
-	if v := os.Getenv("CUAN_TASK_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			timeout = d
+	timeout := task.DefaultMaxCapTimeout + task.GetGracePeriod()
+	deadlines := map[string]time.Time{}
+	if s.taskSvc != nil {
+		if tasks, e := s.taskSvc.ListTasks(ctx, task.TaskFilter{}); e == nil {
+			for _, t := range tasks {
+				if a, e := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); e == nil && a != nil && a.Status == task.AttemptStatusRunning {
+					deadlines[t.ID] = task.AttemptDeadline(&t.Task, a).Add(task.GetGracePeriod())
+				}
+			}
 		}
 	}
 
 	if s.terminalManager != nil {
-		s.terminalManager.ReconcileZombieSessions(timeout)
+		s.terminalManager.ReconcileZombieSessions(timeout, deadlines)
 	}
 
 	if s.taskSvc != nil {

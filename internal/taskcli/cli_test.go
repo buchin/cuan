@@ -140,7 +140,7 @@ func TestTaskReportItemizedDoD(t *testing.T) {
 	t.Setenv("CUAN_TASK_CAPABILITY_FILE", path)
 
 	var out, errOut bytes.Buffer
-	if Run([]string{"report", "--state", "done", "--summary", "Audit done", "--dod-item", "Criterion 1 passed", "--dod-item", "Criterion 2 passed"}, &out, &errOut) != 0 {
+	if Run([]string{"report", "--state", "done", "--summary", "Audit done", "--dod-item", "Criterion 1 passed", "--dod-evidence", "Fixture 1 matched", "--dod-item", "Criterion 2 passed", "--dod-evidence", "Fixture 2 matched"}, &out, &errOut) != 0 {
 		t.Fatal(errOut.String())
 	}
 }

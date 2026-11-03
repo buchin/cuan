@@ -1,3 +1,5 @@
+import { IconButton } from './IconButton'
+import { ActionMenuItem } from './ActionMenuItem'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { MoreHorizontal } from 'lucide-react'
@@ -96,10 +98,10 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
       {!!offset && swipeAction && <div aria-hidden="true" className="absolute inset-0 flex items-center justify-end rounded-md bg-muted pr-3 text-xs font-medium">{t(swipeAction.previewLabel || swipeAction.label)}</div>}
       <div className={`item-action-row relative flex min-w-0 ${subtle ? "items-start" : "items-center bg-transparent"}`} style={{ transform: offset ? `translateX(${offset}px)` : undefined }}>
         <div className="min-w-0 flex-1">{children}</div>
-        <button ref={trigger} data-item-menu type="button" disabled={busy} className={`${subtle ? "message-menu-trigger absolute right-0 top-0 z-10 opacity-0 pointer-events-none focus-visible:opacity-100 focus-visible:pointer-events-auto" : "pr-2"} icon-action bg-transparent text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground`} aria-label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
+        <IconButton ref={trigger} data-item-menu type="button" disabled={busy} className={`${subtle ? "message-menu-trigger absolute right-0 top-0 z-10 opacity-0 pointer-events-none focus-visible:opacity-100 focus-visible:pointer-events-auto" : ""} bg-transparent text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground`} label={t('Actions for') + ' ' + label} aria-haspopup="menu" aria-expanded={!!menu}
           onClick={event => { event.stopPropagation(); if (menu) close(); else { const r = event.currentTarget.getBoundingClientRect(); open(r.right - 232, r.bottom) } }}>
           <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
       {feedback && <p role="status" className="px-3 pb-2 text-xs text-muted-foreground">{feedback}</p>}
       {error && <p role="alert" className="px-3 pb-2 text-xs text-destructive">{error}</p>}
@@ -116,7 +118,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
               buttons[next]?.focus()
             }
           }}>
-          {actions.map(action => <button key={action.label} role="menuitem" type="button" disabled={action.disabled} className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none disabled:opacity-50" onClick={() => void perform(action)}>{t(action.label)}</button>)}
+          {actions.map(action => <ActionMenuItem key={action.label} disabled={action.disabled} onClick={() => void perform(action)}>{t(action.label)}</ActionMenuItem>)}
         </div>, document.body)}
     </div>
   )

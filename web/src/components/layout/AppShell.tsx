@@ -1,3 +1,5 @@
+import { PageHeader, PageHeaderBrand, PageTitle } from './PageHeader'
+import { IconButton } from '../ui/IconButton'
 import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { UniversalSearch } from './UniversalSearch'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -375,10 +377,8 @@ export function AppShell({
         </section>
       )}
       <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header
+        <PageHeader
           className={cn(
-            'flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 md:px-5 box-border',
-            'app-page-header h-14 md:h-16 md:!h-13',
             sessionWorkspace || contentHeader || currentTab === 'inbox' || currentTab === 'chat'
               ? 'hidden'
               : hideBottomNav && 'hidden md:flex',
@@ -406,13 +406,7 @@ export function AppShell({
                 <ArrowLeft className="h-5 w-5" />
               </button>
             ) : (
-              <Link
-                to="/chat"
-                aria-label={t('Go to Chat')}
-                className="icon-action md:hidden"
-              >
-                <CuanMark decorative className="h-7 w-7" />
-              </Link>
+              <PageHeaderBrand />
             )}
             {breadcrumbs.length > 0 && (
               <nav
@@ -435,9 +429,9 @@ export function AppShell({
                 ))}
               </nav>
             )}
-            <h1 className="page-title min-w-0 truncate text-base font-semibold tracking-tight">
+            <PageTitle>
               {pageTitleIsContent ? pageTitle : t(pageTitle || label || '')}
-            </h1>
+            </PageTitle>
             {currentTab === 'account' && (
               <span
                 data-testid="user-role-badge"
@@ -462,15 +456,15 @@ export function AppShell({
             <UniversalSearch hideTrigger={shouldHideSearch} />
             {headerActions}
             {currentTab === 'inbox' && (
-              <button
-                className="icon-action hidden min-[1200px]:inline-flex"
-                aria-label={
+              <IconButton
+                className="hidden min-[1200px]:inline-flex"
+                label={
                   listOpen ? t('Hide conversations') : t('Show conversations')
                 }
                 onClick={() => setListOpen((v) => !v)}
               >
                 <PanelLeft className="h-5 w-5" />
-              </button>
+              </IconButton>
             )}
             {newAction && (
               <div className={(['projects', 'contacts', 'inbox'].includes(currentTab) || (currentTab === 'account' && location.pathname.includes('/contacts'))) && !(currentTab === 'inbox' && !listOpen) ? 'min-[1200px]:hidden' : undefined}>
@@ -483,7 +477,7 @@ export function AppShell({
               </div>
             )}
           </div>
-        </header>
+        </PageHeader>
         {secondaryNavigation}
         <div
           className={cn(
@@ -494,7 +488,7 @@ export function AppShell({
               sessionWorkspace
               ? 'overflow-hidden'
               : currentTab === 'tasks'
-                ? 'overflow-auto p-2 sm:p-3 md:p-4 lg:p-6'
+                ? 'overflow-auto p-4 md:p-5'
                 : 'overflow-auto p-3 sm:p-4 md:p-6',
             !hideBottomNav && 'mobile-content-bottom',
           )}

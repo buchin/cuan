@@ -97,7 +97,7 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	w = invoke("POST", created.ID, `{"state":"review","complete_note":"Verified actual output","dod_checklist":[{"text":"Verify the result","completed":false}]}`, token)
+	w = invoke("POST", created.ID, `{"state":"review","summary":"Implemented fixture","complete_note":"Verified actual output","dod_checklist":[{"text":"Verify the result","completed":false}]}`, token)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -198,7 +198,7 @@ printf 'READY_FOR_FOLLOWUP\n'
 read -r followup
 [ "$followup" = "second turn" ] || exit 23
 "$CUAN_TASK_EXECUTABLE" task get >/dev/null || exit 24
-printf '%s' '{"state":"progress","dod_checklist":[{"text":"Verify the result","completed":true}]}' > fixture-report.json
+printf '%s' '{"state":"progress","dod_checklist":[{"text":"Verify the result","completed":true,"evidence":"Actual PTY input and task tool observed in fixture"}]}' > fixture-report.json
 "$CUAN_TASK_EXECUTABLE" task report --report-file fixture-report.json >/dev/null || exit 30
 "$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --result-kind ` + kind + ` --summary 'Two interactive turns completed' --complete-note 'Verified actual PTY input and task tool' || exit 25
 printf 'FINAL_OUTPUT_DRAINED\n'
@@ -319,5 +319,25 @@ while :; do sleep 1; done
 				}
 			}
 		})
+	}
+}
+
+func TestTaskAgentUnknownCapabilityCannotRecoverByLength(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	created := workspaceTask(t, call)
+	ctx := context.Background()
+	a, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "agent_lifecycle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := task.TaskStatusDoing
+	s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Status: &doing})
+	s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/task-agent/"+created.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+strings.Repeat("a", 64))
+	out := httptest.NewRecorder()
+	s.Router().ServeHTTP(out, req)
+	if out.Code != http.StatusUnauthorized {
+		t.Fatalf("unknown capability was reconstructed: %d", out.Code)
 	}
 }

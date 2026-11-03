@@ -47,24 +47,24 @@ type TaskRunHistory struct {
 
 // TaskAgentRunConfig specifies parameters for launching an agent process in a task workspace.
 type TaskAgentRunConfig struct {
-	Model           string
-	AttachmentPaths []string
-	AttemptID       string
-	TaskID          string
-	ProjectID       string
-	AgentID         string
-	AgentName       string
-	Command         string // "agy", "claude", "shell", or auto
-	Args            []string
+	Model             string
+	AttachmentPaths   []string
+	AttemptID         string
+	TaskID            string
+	ProjectID         string
+	AgentID           string
+	AgentName         string
+	Command           string // "agy", "claude", "shell", or auto
+	Args              []string
 	Prompt            string
 	ExecutionCategory string
 	WorkDir           string
-	Env             []string
-	Cols            uint16
-	Rows            uint16
-	Mode            Mode
-	OnOutput        func([]byte)
-	OnExit          func(history *TaskRunHistory)
+	Env               []string
+	Cols              uint16
+	Rows              uint16
+	Mode              Mode
+	OnOutput          func([]byte)
+	OnExit            func(history *TaskRunHistory)
 }
 
 // ManagerConfig defines configuration parameters for the terminal session manager.
@@ -251,7 +251,7 @@ func (m *Manager) CloseSession(taskID string) error {
 
 // ReconcileZombieSessions sweeps any sessions whose OS process has died or
 // exceeded the maximum execution duration. It closes them and frees project lanes.
-func (m *Manager) ReconcileZombieSessions(maxDuration time.Duration) []string {
+func (m *Manager) ReconcileZombieSessions(maxDuration time.Duration, deadlines ...map[string]time.Time) []string {
 	if maxDuration <= 0 {
 		maxDuration = 20 * time.Minute
 	}
@@ -279,7 +279,13 @@ func (m *Manager) ReconcileZombieSessions(maxDuration time.Duration) []string {
 			}
 		}
 
-		if !isZombie && maxDuration > 0 && now.Sub(sess.CreatedAt()) > maxDuration {
+		expired := maxDuration > 0 && now.Sub(sess.CreatedAt()) > maxDuration
+		if len(deadlines) > 0 {
+			if deadline, ok := deadlines[0][taskID]; ok {
+				expired = now.After(deadline)
+			}
+		}
+		if !isZombie && expired {
 			isZombie = true
 			reason = "execution_timeout"
 		}

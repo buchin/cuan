@@ -28,7 +28,7 @@ func TestDoDEvaluator_AllCriteriaPass_MarkDone(t *testing.T) {
 		AttemptNumber: 1,
 		WorkingDir:    t.TempDir(),
 		TaskTitle:     "Refactor cache layer",
-		Summary:       "Refactored cache to be modular",
+		CompleteNote:  "Fixture: isolated command runner output is checked by evaluator.", Summary: "Refactored cache to be modular",
 	}
 
 	res, err := evaluator.EvaluateDoD(context.Background(), req)
@@ -64,7 +64,7 @@ func TestDoDEvaluator_DirtyWorkingTree_AutoRequeue(t *testing.T) {
 		AttemptNumber: 1, // First attempt
 		WorkingDir:    t.TempDir(),
 		TaskTitle:     "Update runner",
-		Summary:       "Working on runner",
+		CompleteNote:  "Fixture: isolated command runner output is checked by evaluator.", Summary: "Working on runner",
 	}
 
 	res, err := evaluator.EvaluateDoD(context.Background(), req)
@@ -110,7 +110,7 @@ func TestDoDEvaluator_TestFailure_AutoRequeueWithAdaptiveTimeout(t *testing.T) {
 		AttemptNumber: 2,
 		WorkingDir:    t.TempDir(),
 		TaskTitle:     "Fix database race",
-		Summary:       "Attempted fix",
+		CompleteNote:  "Fixture: isolated command runner output is checked by evaluator.", Summary: "Attempted fix",
 	}
 
 	res, err := evaluator.EvaluateDoD(context.Background(), req)
@@ -153,7 +153,7 @@ func TestDoDEvaluator_MaxAttemptsReached_MoveToReview(t *testing.T) {
 		AttemptNumber: 3,
 		WorkingDir:    t.TempDir(),
 		TaskTitle:     "Fix stubborn bug",
-		Summary:       "Failed 3rd attempt",
+		CompleteNote:  "Fixture: isolated command runner output is checked by evaluator.", Summary: "Failed 3rd attempt",
 	}
 
 	res, err := evaluator.EvaluateDoD(context.Background(), req)
@@ -193,7 +193,7 @@ func TestDoDEvaluator_AttachToEventBus(t *testing.T) {
 		AttemptNumber: 1,
 		WorkingDir:    t.TempDir(),
 		Status:        "succeeded",
-		Summary:       "Event triggered DoD evaluation",
+		CompleteNote:  "Fixture: isolated command runner output is checked by evaluator.", Summary: "Event triggered DoD evaluation",
 	})
 
 	wg.Wait()

@@ -54,6 +54,11 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 		return
 	}
 
+	// A stale completion must not review another attempt or restart queued work.
+	if detail.LatestAttempt.ID != attemptID || detail.LatestAttempt.Status != status || detail.Status == task.TaskStatusQueued || detail.Status == "cancelled" {
+		return
+	}
+
 	// If task is already done, no need to re-evaluate
 	if detail.Status == task.TaskStatusDone {
 		return
@@ -131,7 +136,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 			sb.WriteString("- [ ] **Koneksi Runner**: " + errMsg + "\n\n")
 			sb.WriteString("**Tindakan:** Tugas memerlukan perhatian teknis dan dapat dijalankan ulang secara manual tanpa mengurangi kuota 3x revisi bisnis.")
 			return inboxReviewEvaluation{
-				Decision:    "review",
+				Decision:    "blocked",
 				Explanation: sb.String(),
 				Revision:    "",
 			}
@@ -161,7 +166,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 	}
 
 	// Attempt succeeded (exit 0)
-	hasVerification := strings.TrimSpace(d.CompleteNote) != "" || strings.TrimSpace(d.Summary) != ""
+	hasVerification := len(task.AcceptanceGaps(&d.Task)) == 0
 	if !hasVerification {
 		sb.WriteString("**Status:** BELUM LULUS (Perlu Revisi)\n\n")
 		sb.WriteString("**Bukti yang Terverifikasi:**\n")

@@ -1,3 +1,4 @@
+import { IconButton } from '../ui/IconButton'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
@@ -162,16 +163,16 @@ export function UniversalSearch({ hideTrigger = false }: { hideTrigger?: boolean
   return (
     <>
       {!hideTrigger && (
-        <button
+        <IconButton
           type="button"
           className="icon-action"
-          aria-label={t('Search Cuan')}
+          label={t('Search Cuan')}
           aria-keyshortcuts="Control+k Meta+k"
           title={t('Search Cuan') + ' (⌘/Ctrl K)'}
           onClick={() => setOpen(true)}
         >
           <Search className="h-5 w-5" />
-        </button>
+        </IconButton>
       )}
       {createPortal(
         <ActionDialog

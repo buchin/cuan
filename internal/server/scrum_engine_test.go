@@ -45,8 +45,8 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 		SourceRoomID: room.ID,
 		Status:       task.TaskStatusDoing,
 		DoDChecklist: []task.DoDItem{
-			{Text: "CSV generator implemented", Completed: false},
-			{Text: "Targeted unit tests PASS", Completed: false},
+			{Text: "CSV generator implemented", Completed: true, Evidence: "CSV output matched the fixture schema"},
+			{Text: "Targeted unit tests PASS", Completed: true, Evidence: "targeted CSV tests passed"},
 		},
 		Summary:      "Implemented CSV generator and added test coverage.",
 		CompleteNote: "Ran go test ./... and verified CSV output export matches schema.",
@@ -320,5 +320,20 @@ func TestPromptInjection_DirectContentVerification(t *testing.T) {
 	}
 	if !strings.Contains(chatAdditions, "=== AGENTIC SCRUM RULES (§1–§13) ===") {
 		t.Errorf("expected chat additions to contain Scrum rules banner")
+	}
+}
+
+func TestScrumFallbackCannotApproveSummaryWithoutCriterionEvidence(t *testing.T) {
+	d := &task.TaskDetailResponse{Task: task.Task{Summary: "Finished", CompleteNote: "Checked", DoDChecklist: []task.DoDItem{{Text: "Check actual result", Completed: false}}}, LatestAttempt: &task.TaskAttempt{Status: task.AttemptStatusSucceeded, AttemptNumber: 1}}
+	if decision := evaluateTaskDoDDeterministic(d); decision.Decision == "pass" {
+		t.Fatal("fallback approved unchecked criteria")
+	}
+	d.DoDChecklist[0].Completed = true
+	if decision := evaluateTaskDoDDeterministic(d); decision.Decision == "pass" {
+		t.Fatal("fallback approved criterion without evidence")
+	}
+	d.DoDChecklist[0].Evidence = "Observed output matched expected value"
+	if decision := evaluateTaskDoDDeterministic(d); decision.Decision != "pass" {
+		t.Fatalf("verified result rejected: %+v", decision)
 	}
 }

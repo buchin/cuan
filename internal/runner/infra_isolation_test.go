@@ -8,7 +8,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-func TestRunnerService_Complete_InfraFaultKeepsReviewStatus(t *testing.T) {
+func TestRunnerService_Complete_InfraFaultBlocksWithoutReviewResult(t *testing.T) {
 	ctx := context.Background()
 	taskStore := task.NewMemoryStore()
 	runnerStore := NewMemoryStore(taskStore)
@@ -56,12 +56,12 @@ func TestRunnerService_Complete_InfraFaultKeepsReviewStatus(t *testing.T) {
 		t.Fatalf("expected attempt status 'interrupted', got '%s'", completedAtt.Status)
 	}
 
-	// Task status must be 'review' (Needs Attention), NOT 'blocked'
+	// An interrupted run has no reviewable result.
 	updatedTask, err := taskStore.GetTask(ctx, taskItem.ID)
 	if err != nil {
 		t.Fatalf("failed to get updated task: %v", err)
 	}
-	if updatedTask.Status != task.TaskStatusReview {
-		t.Fatalf("expected task status 'review' for infra fault, got '%s'", updatedTask.Status)
+	if updatedTask.Status != task.TaskStatusBlocked {
+		t.Fatalf("expected task status 'blocked' for infra fault, got '%s'", updatedTask.Status)
 	}
 }

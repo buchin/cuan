@@ -56,6 +56,7 @@ const (
 
 // DoDItem accepts legacy string checklists as well as editable structured items.
 type DoDItem struct {
+	Evidence  string `json:"evidence,omitempty"`
 	ID        string `json:"id,omitempty"`
 	Text      string `json:"text"`
 	Completed bool   `json:"completed"`
@@ -71,50 +72,51 @@ func (d *DoDItem) UnmarshalJSON(data []byte) error {
 
 // Task represents a unit of work bound to a project.
 type Task struct {
-	CreationHash    string    `json:"-"`
-	SourceRoomID    string    `json:"source_room_id,omitempty"`
-	SourceMessageID string    `json:"source_message_id,omitempty"`
-	ID              string    `json:"id"`
-	ProjectID       string    `json:"project_id"`
-	ProjectIDs      []string  `json:"project_ids,omitempty"`
-	Title           string    `json:"title"`
-	Instructions    string    `json:"instructions"`
-	Summary         string    `json:"summary"`
-	CompleteNote    string    `json:"complete_note"`
-	DoDChecklist    []DoDItem `json:"dod_checklist"`
+	CreationHash      string    `json:"-"`
+	SourceRoomID      string    `json:"source_room_id,omitempty"`
+	SourceMessageID   string    `json:"source_message_id,omitempty"`
+	ID                string    `json:"id"`
+	ProjectID         string    `json:"project_id"`
+	ProjectIDs        []string  `json:"project_ids,omitempty"`
+	Title             string    `json:"title"`
+	Instructions      string    `json:"instructions"`
+	Summary           string    `json:"summary"`
+	CompleteNote      string    `json:"complete_note"`
+	DoDChecklist      []DoDItem `json:"dod_checklist"`
 	Status            string    `json:"status"`             // backlog, doing, review, done, blocked
 	Priority          string    `json:"priority"`           // low, normal, high, urgent
 	ExecutionCategory string    `json:"execution_category"` // code, ops, readonly
 	AssignedAgent     string    `json:"assigned_agent"`     // e.g. agy
-	BranchName      string    `json:"branch_name,omitempty"`
-	PRURL           string    `json:"pr_url,omitempty"`
-	PRNumber        int       `json:"pr_number,omitempty"`
-	CommitSHA       string    `json:"commit_sha,omitempty"`
-	DiffSummary     string    `json:"diff_summary,omitempty"`
-	TestSummary     string    `json:"test_summary,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	BranchName        string    `json:"branch_name,omitempty"`
+	PRURL             string    `json:"pr_url,omitempty"`
+	PRNumber          int       `json:"pr_number,omitempty"`
+	CommitSHA         string    `json:"commit_sha,omitempty"`
+	DiffSummary       string    `json:"diff_summary,omitempty"`
+	TestSummary       string    `json:"test_summary,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // TaskAttempt represents an execution run by a runner and agent.
 type TaskAttempt struct {
-	ID              string     `json:"id"`
-	RequestHash     string     `json:"-"`
-	TaskID          string     `json:"task_id"`
-	RunnerID        string     `json:"runner_id"`
-	AgentName       string     `json:"agent_name"`
-	Status          string     `json:"status"` // queued, running, succeeded, failed, canceled, interrupted
-	ExitCode        *int       `json:"exit_code,omitempty"`
-	PeakRSSBytes    int64      `json:"peak_rss_bytes"`
-	LeaseExpiresAt  *time.Time `json:"lease_expires_at,omitempty"`
-	CancelRequested bool       `json:"cancel_requested"`
-	CanceledAt      *time.Time `json:"canceled_at,omitempty"`
-	InterruptedAt   *time.Time `json:"interrupted_at,omitempty"`
-	AttemptNumber   int        `json:"attempt_number"`
-	StartedAt       *time.Time `json:"started_at,omitempty"`
-	FinishedAt      *time.Time `json:"finished_at,omitempty"`
-	ErrorMessage    string     `json:"error_message,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ExecutionDeadline *time.Time `json:"execution_deadline,omitempty"`
+	ID                string     `json:"id"`
+	RequestHash       string     `json:"-"`
+	TaskID            string     `json:"task_id"`
+	RunnerID          string     `json:"runner_id"`
+	AgentName         string     `json:"agent_name"`
+	Status            string     `json:"status"` // queued, running, succeeded, failed, canceled, interrupted
+	ExitCode          *int       `json:"exit_code,omitempty"`
+	PeakRSSBytes      int64      `json:"peak_rss_bytes"`
+	LeaseExpiresAt    *time.Time `json:"lease_expires_at,omitempty"`
+	CancelRequested   bool       `json:"cancel_requested"`
+	CanceledAt        *time.Time `json:"canceled_at,omitempty"`
+	InterruptedAt     *time.Time `json:"interrupted_at,omitempty"`
+	AttemptNumber     int        `json:"attempt_number"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	FinishedAt        *time.Time `json:"finished_at,omitempty"`
+	ErrorMessage      string     `json:"error_message,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 // TaskActivity represents an audit history log or comment on a task.
@@ -141,7 +143,7 @@ type LogRecord struct {
 
 // TaskItemResponse is returned in task listings.
 type TaskItemResponse struct {
-	ResultKind     string       `json:"result_kind,omitempty"`
+	ResultKind string `json:"result_kind,omitempty"`
 	Task
 	ProjectName    string       `json:"project_name,omitempty"`
 	ProjectNames   []string     `json:"project_names,omitempty"`
@@ -151,8 +153,8 @@ type TaskItemResponse struct {
 
 // TaskDetailResponse contains full detail including history and attempts.
 type TaskDetailResponse struct {
-	ResultKind     string          `json:"result_kind,omitempty"`
-	Launch         *LaunchInfo     `json:"launch,omitempty"`
+	ResultKind string      `json:"result_kind,omitempty"`
+	Launch     *LaunchInfo `json:"launch,omitempty"`
 	Task
 	ProjectName    string          `json:"project_name,omitempty"`
 	ProjectNames   []string        `json:"project_names,omitempty"`
@@ -166,20 +168,20 @@ type TaskDetailResponse struct {
 
 // Request and filter types
 type CreateTaskRequest struct {
-	RequestID       string    `json:"request_id,omitempty"`
-	Status          string    `json:"status,omitempty"`
-	SourceRoomID    string    `json:"-"`
-	SourceMessageID string    `json:"-"`
-	ProjectID       string    `json:"project_id"`
-	ProjectIDs      []string  `json:"project_ids,omitempty"`
-	Title           string    `json:"title"`
+	RequestID         string    `json:"request_id,omitempty"`
+	Status            string    `json:"status,omitempty"`
+	SourceRoomID      string    `json:"-"`
+	SourceMessageID   string    `json:"-"`
+	ProjectID         string    `json:"project_id"`
+	ProjectIDs        []string  `json:"project_ids,omitempty"`
+	Title             string    `json:"title"`
 	Instructions      string    `json:"instructions"`
 	Priority          string    `json:"priority,omitempty"`
 	ExecutionCategory string    `json:"execution_category,omitempty"`
 	TaskType          string    `json:"task_type,omitempty"`
 	Category          string    `json:"category,omitempty"`
 	AssignedAgent     string    `json:"assigned_agent,omitempty"`
-	DoDChecklist    []DoDItem `json:"dod_checklist,omitempty"`
+	DoDChecklist      []DoDItem `json:"dod_checklist,omitempty"`
 }
 
 type UpdateTaskRequest struct {

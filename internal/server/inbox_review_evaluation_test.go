@@ -402,8 +402,8 @@ func TestApplyInboxReviewEvaluation_RevisionIncludesExplanation(t *testing.T) {
 			break
 		}
 	}
-	if !foundNewDoD {
-		t.Fatalf("expected revision DoD item to be merged into task.DoDChecklist, got: %+v", updatedTask.DoDChecklist)
+	if foundNewDoD || len(updatedTask.DoDChecklist) != 2 {
+		t.Fatalf("revision expanded original acceptance criteria: %+v", updatedTask.DoDChecklist)
 	}
 }
 
@@ -448,8 +448,8 @@ func TestApplyInboxReviewEvaluation_PassUpdatesTaskToDoneAndAppendsLink(t *testi
 		Instructions:  "Cuan managed delegation v1.\nBuild form.\n\nApproval message: " + userMsgID,
 		AssignedAgent: "agent_lifecycle",
 		DoDChecklist: []task.DoDItem{
-			{Text: "Input validation", Completed: false},
-			{Text: "Submit button", Completed: false},
+			{Text: "Input validation", Completed: true, Evidence: "Invalid input rejected in form fixture"},
+			{Text: "Submit button", Completed: true, Evidence: "Submit event captured by fixture"},
 		},
 	})
 	if err != nil {
@@ -572,7 +572,7 @@ func TestApplyInboxReviewEvaluation_FallbackTextReview(t *testing.T) {
 		Instructions:  "Cuan managed delegation v1.\nBuild footer.\n\nApproval message: " + userMsgID,
 		AssignedAgent: "agent_lifecycle",
 		DoDChecklist: []task.DoDItem{
-			{Text: "Footer links", Completed: false},
+			{Text: "Footer links", Completed: true, Evidence: "Footer hrefs matched expected destinations"},
 		},
 	})
 	if err != nil {

@@ -23,9 +23,9 @@ type Capability struct {
 
 func Run(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
+		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
-{"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true}],"commit_sha":"optional commit","test_summary":"Actual checks"}
+{"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true,"evidence":"Observed output or check result"}],"commit_sha":"optional commit","test_summary":"Actual checks"}
 Omit metadata/checklists when unnecessary. Use --summary and --complete-note directly for a simple result.`)
 		return 0
 	}
@@ -46,8 +46,9 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 	file := fs.String("report-file", "", "Structured JSON report file (never human instructions)")
 	var artifacts []string
 	fs.Func("artifact", "Output file relative to WORKSPACE_DIR to deliver privately in Inbox (repeatable)", func(path string) error { artifacts = append(artifacts, path); return nil })
-	var dodItems []string
-	fs.Func("dod-item", "Itemized Definition of Done verification evidence (repeatable)", func(item string) error { dodItems = append(dodItems, item); return nil })
+	var dodItems, dodEvidence []string
+	fs.Func("dod-item", "Original acceptance criterion text, unchanged (repeatable; pair with --dod-evidence)", func(item string) error { dodItems = append(dodItems, item); return nil })
+	fs.Func("dod-evidence", "Observed result for the corresponding --dod-item (repeatable)", func(value string) error { dodEvidence = append(dodEvidence, value); return nil })
 	if e := fs.Parse(args[1:]); e != nil {
 		if e == flag.ErrHelp {
 			return 0
@@ -116,22 +117,26 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 				data[strings.ReplaceAll(f.Name, "-", "_")] = *v
 			}
 		})
+		if len(dodItems) != len(dodEvidence) {
+			fmt.Fprintln(errOut, "Pair each --dod-item with one --dod-evidence, or use --report-file for criteria with IDs")
+			return 2
+		}
 		if len(dodItems) > 0 {
 			if data["complete_note"] == nil || data["complete_note"] == "" {
 				var sb strings.Builder
 				sb.WriteString("### Bukti Verifikasi Definition of Done (DoD)\n")
-				for _, itm := range dodItems {
+				for i, itm := range dodItems {
 					sb.WriteString("- [x] ")
-					sb.WriteString(itm)
+					sb.WriteString(itm + ": " + dodEvidence[i])
 					sb.WriteString("\n")
 				}
 				data["complete_note"] = sb.String()
 			}
 			if _, exists := data["dod_checklist"]; !exists {
 				var items []map[string]any
-				for _, itm := range dodItems {
+				for i, itm := range dodItems {
 					items = append(items, map[string]any{
-						"text":      itm,
+						"text": itm, "evidence": dodEvidence[i],
 						"completed": true,
 					})
 				}

@@ -20,9 +20,8 @@ test('1. Hierarchy & Typography: Merapikan readability mobile (360px-390px) & vi
 
   // Visual divider between Status, Priority, and Assignee
   assert.ok(
-    sidePeekSource.includes('divide-y sm:divide-y-0 sm:divide-x divide-border/60') ||
-    sidePeekSource.includes('divide-y') && sidePeekSource.includes('divide-x'),
-    'Task metadata section must implement clean visual dividers between Status, Priority, and Assignee'
+    sidePeekSource.includes('grid-cols-3 gap-3') && sidePeekSource.includes('Task settings'),
+    'Secondary task metadata must use a compact grid inside Task settings'
   )
 
   // Status badge styling helper
@@ -47,11 +46,11 @@ test('1. Hierarchy & Typography: Merapikan readability mobile (360px-390px) & vi
 
   // Heading scale and mobile padding
   assert.ok(
-    sidePeekSource.includes('text-base sm:text-lg lg:text-xl font-bold tracking-tight'),
+    sidePeekSource.includes('text-base sm:text-lg font-semibold tracking-tight'),
     'Task title must use responsive heading scale for mobile viewports'
   )
   assert.ok(
-    sidePeekSource.includes('px-3.5 pb-3 pt-2.5 sm:px-6'),
+    sidePeekSource.includes('px-4 pb-4 pt-2 sm:px-6'),
     'Header must use compact padding on mobile viewports'
   )
 

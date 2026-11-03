@@ -1,3 +1,4 @@
+import { ListRowContent } from '../../components/layout/ListControls'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -291,51 +292,12 @@ export function TaskItemCard({
           className
         )}
       >
-        {/* Kiri: Indikator status halus (StatusDot netral/halus) */}
-        <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-          <StatusDot
-            status={dotVariant}
-            size="sm"
-            aria-label={t(status)}
-            title={t(status)}
-          />
-        </div>
-
-        {/* Tengah: Judul tugas yang bernapas lega (font Geist) tanpa badge bertumpuk */}
-        <div className="min-w-0 flex-1 py-0.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-sans text-sm font-medium leading-normal text-foreground group-hover:text-primary transition-colors truncate">
-              {currentTask.title}
-            </span>
-            {showProject && currentTask.project_name && (
-              <span className="hidden sm:inline-flex shrink-0 items-center gap-1 text-[11px] font-normal text-muted-foreground/60">
-                <span>·</span>
-                <span className="truncate max-w-[120px]">{currentTask.project_name}</span>
-              </span>
-            )}
-          </div>
-          {isWorking && liveActivity ? (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-blue-600 dark:text-blue-400 font-normal">
-              {liveActivity}
-            </p>
-          ) : isQueued ? (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-600 dark:text-amber-400 font-normal">
-              {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
-              {currentTask.latest_progress
-                ? cleanTerminalText(currentTask.latest_progress)
-                : (summary || t('Menunggu giliran eksekusi runner...'))}
-            </p>
-          ) : null}
-        </div>
-
-        {/* Kanan: Timestamp relatif abu-abu (muted) */}
-        <time
-          dateTime={currentTask.updated_at}
-          title={new Date(currentTask.updated_at).toLocaleString()}
-          className="shrink-0 text-xs text-muted-foreground/75 whitespace-nowrap tabular-nums font-normal"
-        >
-          {t(relativeTime(currentTask.updated_at))}
-        </time>
+        <ListRowContent
+          leading={<span className="flex h-5 w-5 items-center justify-center"><StatusDot status={dotVariant} size="sm" aria-label={t(status)} title={t(status)} /></span>}
+          title={<span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{currentTask.title}</span>{showProject&&currentTask.project_name&&<span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">· {currentTask.project_name}</span>}</span>}
+          description={isWorking&&liveActivity?liveActivity:isQueued?<>{queuePosition? t('Antrean')+' #'+queuePosition+' · ':''}{currentTask.latest_progress?cleanTerminalText(currentTask.latest_progress):(summary||t('Menunggu giliran eksekusi runner...'))}</>:undefined}
+          trailing={<time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()}>{t(relativeTime(currentTask.updated_at))}</time>}
+        />
       </div>
     )
   }

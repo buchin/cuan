@@ -546,6 +546,9 @@ func (s *Server) runnerRecoveryContext(ctx context.Context, taskID, currentAttem
 			fmt.Fprintf(&b, "; error=%s", attempt.ErrorMessage)
 		}
 		b.WriteString("\n")
+		previous := *detail
+		previous.LatestAttempt = attempt
+		b.WriteString(taskRecoveryContext(&previous))
 		break
 	}
 	for i := len(detail.Activities) - 1; i >= 0; i-- {
@@ -561,6 +564,13 @@ func (s *Server) runnerRecoveryContext(ctx context.Context, taskID, currentAttem
 		b.WriteString(message)
 		b.WriteString("\nContinue from this evidence; re-check it before relying on it.\n")
 		break
+	}
+	for i := len(detail.Activities) - 1; i >= 0; i-- {
+		a := detail.Activities[i]
+		if a != nil && strings.HasPrefix(a.Message, "Auto-Requeue:") {
+			b.WriteString("\nSaved revision feedback (not new authorization):\n" + truncateProjectText(a.Message, 6000) + "\n")
+			break
+		}
 	}
 	if b.Len() == 0 {
 		return ""
@@ -731,6 +741,15 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 
 	att, err := s.runnerSvc.Complete(r.Context(), attemptID, req)
 	if err != nil {
+		if errors.Is(err, task.ErrAttemptFinal) {
+			saved, _ := s.taskSvc.GetAttempt(r.Context(), attemptID)
+			respondJSON(w, http.StatusOK, map[string]any{"ignored": true, "attempt": saved})
+			return
+		}
+		if errors.Is(err, task.ErrRequestConflict) {
+			respondJSONError(w, http.StatusConflict, "The execution was superseded or the task changed. Saved state was preserved.")
+			return
+		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to complete attempt: %v", err))
 		return
 	}

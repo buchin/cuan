@@ -186,7 +186,11 @@ func TestQualityGate_DualPath_CodeFixRequiresLiveDeploy(t *testing.T) {
 		t.Fatalf("Expected auto_deploy error message, got: %s", completedAttFail.ErrorMessage)
 	}
 
-	// Case B: Now provide verified live deployment on attempt 2
+	// Case B: A new runner claim restores the active board before completion.
+	codeTask.Status = task.TaskStatusDoing
+	codeTask.UpdatedAt = time.Now().UTC()
+	s.taskSvc.Store().UpdateTask(ctx, codeTask)
+	// Now provide verified live deployment on attempt 2
 	attCode2 := &task.TaskAttempt{
 		ID:            "att_qg_codefix_2",
 		TaskID:        codeTask.ID,

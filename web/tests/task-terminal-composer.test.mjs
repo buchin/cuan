@@ -141,7 +141,7 @@ test('8. Pin Terminal Toggle & Auto-Close Prevention in TaskSessionPage', () => 
   assert.match(content, /import\s*\{[^}]*\bPinOff\b[^}]*\}\s*from\s*'lucide-react'/, 'Must import PinOff from lucide-react')
 
   // Must have pinTerminal state persisted via localStorage
-  assert.match(content, /cuan_terminal_pin/, 'Must persist pin preference in cuan_terminal_pin localStorage key')
+  assert.doesNotMatch(content, /cuan_terminal_pin/, 'A terminal pin must never leak into another task through global storage')
   assert.match(content, /pinTerminal,\s*setPinTerminal/, 'Must manage pinTerminal state')
 
   // Auto-close prevention when task completes
@@ -153,7 +153,7 @@ test('8. Pin Terminal Toggle & Auto-Close Prevention in TaskSessionPage', () => 
   assert.match(content, /<Pin\b/, 'Must render Pin icon when pinned')
 
   // Pinned notification banner
-  assert.match(content, /Terminal pinned · Work finished/, 'Must render pinned banner with status and saved output')
+  assert.match(content, /Terminal pinned · Session ended/, 'Must render pinned banner with status and saved output')
 })
 
 test('9. Mobile input breathing room and anti-JSON leak guards in TaskTerminal and Composer', () => {

@@ -42,7 +42,7 @@ test('1. S60-T4: Chat Stream Typography & Geist Variable in chat-calm.css', () =
     'chat-calm.css message bubbles must eliminate heavy drop-shadows'
   )
   assert.ok(
-    css.includes('border: 1px solid hsl(var(--border) / 0.2)'),
+    css.includes('border: 1px solid oklch(var(--border) / 0.2)'),
     'chat-calm.css message bubbles must use subtle hairline borders'
   )
 })

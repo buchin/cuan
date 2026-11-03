@@ -372,9 +372,9 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return wrapResult(fmt.Sprintf("Pekerjaan telah berhasil diselesaikan dan diverifikasi.\n\n[View work](/tasks/%s)", t.ID))
 		}
 		if strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
-			reviewStatus := task.TaskStatusReview
+			reviewStatus := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
-			t.Status = task.TaskStatusReview
+			t.Status = task.TaskStatusBlocked
 
 			// Single-bubble idempotency: Do NOT push duplicate notification to q.RoomID
 			// because wrapResult returns the response directly to q.RoomID. Only notify
@@ -390,33 +390,14 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			}, 3, d.ProjectName)
 			return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
 		}
-		if t.Status == task.TaskStatusDone || t.Status == task.TaskStatusBlocked {
+		if t.Status == task.TaskStatusDone {
 			review := task.TaskStatusReview
 			if _, err = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &review}); err != nil {
 				return fail("the task could not be returned for correction")
 			}
 		}
-		if strings.TrimSpace(d.Revision) != "" {
-			newItems := extractDoDFromDescription(d.Revision)
-			if len(newItems) > 0 {
-				existing := make(map[string]bool)
-				for _, item := range t.DoDChecklist {
-					existing[strings.ToLower(strings.TrimSpace(item.Text))] = true
-				}
-				updatedDoD := append([]task.DoDItem{}, t.DoDChecklist...)
-				for _, item := range newItems {
-					key := strings.ToLower(strings.TrimSpace(item.Text))
-					if !existing[key] {
-						updatedDoD = append(updatedDoD, item)
-						existing[key] = true
-					}
-				}
-				if len(updatedDoD) > len(t.DoDChecklist) {
-					_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{DoDChecklist: &updatedDoD})
-					t.DoDChecklist = updatedDoD
-				}
-			}
-		}
+		// Revision feedback belongs to the launch/checkpoint, not approved criteria.
+
 	} else {
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
@@ -681,10 +662,10 @@ func delegationScopeDigest(d inboxDelegation) string {
 }
 
 var (
-	dodCheckboxRegex = regexp.MustCompile(`(?i)^[\*\-\+]\s*\[([ xX])\]\s*(.+)`)
-	dodNumberedRegex = regexp.MustCompile(`^\d+[\.\)]\s*(.+)`)
-	dodBulletRegex   = regexp.MustCompile(`^[\*\-\+]\s*(.+)`)
-	dodHeaderRegex   = regexp.MustCompile(`(?i)^(?:dod|acceptance criteria|kriteria penerimaan|kriteria|definition of done)\s*[:—\-]?\s*$`)
+	dodCheckboxRegex      = regexp.MustCompile(`(?i)^[\*\-\+]\s*\[([ xX])\]\s*(.+)`)
+	dodNumberedRegex      = regexp.MustCompile(`^\d+[\.\)]\s*(.+)`)
+	dodBulletRegex        = regexp.MustCompile(`^[\*\-\+]\s*(.+)`)
+	dodHeaderRegex        = regexp.MustCompile(`(?i)^(?:dod|acceptance criteria|kriteria penerimaan|kriteria|definition of done)\s*[:—\-]?\s*$`)
 	dodSectionHeaderRegex = regexp.MustCompile(`(?i)^(?:target area|pemeriksaan & eksekusi|pemeriksaan|eksekusi|kriteria selesai|kriteria|catatan|langkah|tahapan|scope|lingkup|catatan penting)\s*[:—\-]?$`)
 )
 

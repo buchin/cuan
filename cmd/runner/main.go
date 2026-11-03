@@ -14,9 +14,13 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/runner"
+	"github.com/buchin/cuan/internal/taskcli"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "task" {
+		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	// Detached worker process execution (Pola #1: Detached Worker Process)
 	if len(os.Args) > 1 && os.Args[1] == "worker-task" {
 		workerFlags := flag.NewFlagSet("worker-task", flag.ExitOnError)

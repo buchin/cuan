@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const sharedListSource = fs.readFileSync(new URL('../src/components/layout/ListControls.tsx', import.meta.url), 'utf8')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -99,14 +100,13 @@ test('3. Requirement 3: Neutral & calm filter tabs (Things 3 / Bear Notes segmen
 
   // Uses calm neutral segment styling (bg-secondary text-foreground)
   assert.ok(
-    subPanelContent.includes('bg-secondary text-foreground font-semibold'),
+    subPanelContent.includes('<ListTabs') && sharedListSource.includes('border-foreground font-medium text-foreground'),
     'Active filter tabs must adopt calm neutral Things 3 / Bear Notes segment styling'
   )
 
   // Preserves accessibility touch target >= 44px
   assert.ok(
-    subPanelContent.includes('min-h-11') &&
-      subPanelContent.includes('rounded-full px-3.5 py-1.5'),
+    subPanelContent.includes('<ListTab') && sharedListSource.includes('min-h-11'),
     'Filter buttons must maintain WCAG min-h-11 touch target and standard padding'
   )
 

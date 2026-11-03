@@ -297,6 +297,8 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 	oldestQueued.RunnerID = runnerID
 	oldestQueued.StartedAt = &now
 	oldestQueued.LeaseExpiresAt = &leaseExpires
+	deadline := now.Add(task.CalculateTaskTimeout(matchedTask.ExecutionCategory, oldestQueued.AttemptNumber, matchedTask.Title, matchedTask.Instructions))
+	oldestQueued.ExecutionDeadline = &deadline
 
 	if err := m.taskStore.UpdateAttempt(ctx, oldestQueued); err != nil {
 		return nil, nil, err
@@ -339,6 +341,9 @@ func (m *MemoryStore) RenewLease(ctx context.Context, attemptID, runnerID string
 		return false, err
 	}
 
+	if att.RunnerID != runnerID || att.Status != task.AttemptStatusRunning || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(time.Now())) {
+		return false, task.ErrAttemptFinal
+	}
 	if att.CancelRequested || att.Status == task.AttemptStatusCanceled {
 		return true, nil
 	}
@@ -385,18 +390,23 @@ func (m *MemoryStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAt
 				a.ExitCode = &exitErr
 				a.ErrorMessage = "Runner heartbeat lost and lease expired; marked interrupted and recoverable without auto-rerun."
 
-				_ = m.taskStore.UpdateAttempt(ctx, a)
-
-				// Update task to review/blocked (recoverable)
-				t.Status = task.TaskStatusReview
+				expected := t.UpdatedAt
+				t.Status = task.TaskStatusBlocked
 				t.UpdatedAt = now
-				_ = m.taskStore.UpdateTask(ctx, t)
+				completion, ok := m.taskStore.(task.CompletionStore)
+				if !ok {
+					continue
+				}
+				if err := completion.CompleteExecution(ctx, a, t, nil, expected, a.RunnerID, false); err != nil {
+					continue
+				}
+
 				if ls, ok := m.taskStore.(task.LaunchStore); ok {
 					_ = ls.FinishTaskLaunches(ctx, t.ID, "stopped")
 				}
 
 				// Update runner
-				if r, exists := m.runners[a.RunnerID]; exists {
+				if r, exists := m.runners[a.RunnerID]; exists && r.CurrentAttemptID == a.ID {
 					r.Status = StatusOffline
 					r.CurrentAttemptID = ""
 					r.CurrentTaskID = ""
@@ -432,4 +442,16 @@ func containsString(slice []string, val string) bool {
 		}
 	}
 	return false
+}
+
+func (m *MemoryStore) ReleaseAssignment(_ context.Context, runnerID, attemptID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if r, ok := m.runners[runnerID]; ok && r.CurrentAttemptID == attemptID {
+		r.Status = StatusIdle
+		r.CurrentTaskID = ""
+		r.CurrentAttemptID = ""
+		r.UpdatedAt = time.Now().UTC()
+	}
+	return nil
 }

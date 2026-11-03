@@ -219,8 +219,8 @@ func TestRunner_LeaseExpirationAndInterruptedRecovery(t *testing.T) {
 
 	// Verify task is now in review / recoverable status
 	resTask, _ := taskStore.GetTask(ctx, t1.ID)
-	if resTask.Status != task.TaskStatusReview {
-		t.Errorf("Expected task status 'review', got '%s'", resTask.Status)
+	if resTask.Status != task.TaskStatusBlocked {
+		t.Errorf("Expected task status 'blocked', got '%s'", resTask.Status)
 	}
 
 	// Verify no automatic rerun occurred (no new attempt created)
@@ -346,7 +346,7 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 	}
 	_ = taskStore.CreateTask(ctx, tk)
 	att := &task.TaskAttempt{
-		ID:     "att_ad_1",
+		ID: "att_ad_1", RunnerID: "runner_1",
 		TaskID: tk.ID,
 		Status: task.AttemptStatusRunning,
 	}
@@ -373,9 +373,12 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 		t.Fatalf("Expected auto_deploy error message, got: %s", completedAtt.ErrorMessage)
 	}
 
-	// Now with live deployment confirmed
+	// Now with live deployment confirmed; a new claim returns the board to doing.
+	tk.Status = task.TaskStatusDoing
+	tk.UpdatedAt = time.Now().UTC()
+	taskStore.UpdateTask(ctx, tk)
 	att2 := &task.TaskAttempt{
-		ID:     "att_ad_2",
+		ID: "att_ad_2", RunnerID: "runner_1",
 		TaskID: tk.ID,
 		Status: task.AttemptStatusRunning,
 	}
@@ -428,7 +431,7 @@ func TestRunner_AutoDeployCompliance_NonCodeInvestigation_SucceedsWithoutDeploy(
 	_ = taskStore.CreateTask(ctx, tk)
 
 	att := &task.TaskAttempt{
-		ID:     "att_inv_1",
+		ID: "att_inv_1", RunnerID: "runner_1",
 		TaskID: tk.ID,
 		Status: task.AttemptStatusRunning,
 	}
@@ -736,7 +739,7 @@ type blockingMockAdapter struct {
 	releaseOps    chan struct{}
 }
 
-func (b *blockingMockAdapter) Name() string { return "agy" }
+func (b *blockingMockAdapter) Name() string             { return "agy" }
 func (b *blockingMockAdapter) Version() (string, error) { return "1.0.0", nil }
 func (b *blockingMockAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
 	if req.TaskID == "task_code_d" {
@@ -893,5 +896,3 @@ func TestRunner_Daemon_ParallelLanesExecution(t *testing.T) {
 	}
 	t.Log("✓ Both lanes cleanly finished and released mutexes")
 }
-
-

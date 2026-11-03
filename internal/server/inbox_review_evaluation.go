@@ -244,15 +244,15 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		return "Hasil pekerjaan sedang ditinjau ulang oleh tim. Konteks dan bukti pekerjaan tersimpan aman." + link
 	}
 	if decision.Decision == "pass" {
-		if d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+		if d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || len(task.AcceptanceGaps(&d.Task)) > 0 {
 			decision.Decision = "revise"
-			decision.Revision = "Gap: the previous execution attempt did not succeed. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
-			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Eksekusi sebelumnya belum berhasil diselesaikan.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
+			decision.Revision = "Gap: a successful execution with evidence for every original acceptance criterion is not established. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
+			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Keberhasilan eksekusi dan bukti untuk setiap kriteria belum lengkap.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
 		} else {
 			completedDoD := make([]task.DoDItem, len(d.DoDChecklist))
 			for i, item := range d.DoDChecklist {
 				completedDoD[i] = task.DoDItem{
-					Text:      item.Text,
+					ID: item.ID, Evidence: item.Evidence, Text: item.Text,
 					Completed: true,
 				}
 			}
@@ -317,7 +317,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		// do not auto-delegate into an infinite loop. Ask user to review or adjust.
 		hasRepeatedTimeout := d.LatestAttempt != nil && (strings.Contains(d.LatestAttempt.ErrorMessage, "timeout") || (d.LatestAttempt.ExitCode != nil && *d.LatestAttempt.ExitCode == 124)) && len(d.Attempts) >= 2
 		if hasRepeatedTimeout || len(d.Attempts) >= 3 {
-			review := task.TaskStatusReview
+			review := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review})
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 			msg := decision.Explanation
@@ -342,7 +342,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		}
 		return output
 	}
-	review := task.TaskStatusReview
+	review := task.TaskStatusBlocked
 	if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review}); err != nil {
 		return "Hasil pekerjaan masih memerlukan peninjauan lebih lanjut. Catatan dan bukti tersimpan aman."
 	}

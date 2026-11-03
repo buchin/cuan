@@ -4,6 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const sharedListSource = fs.readFileSync(new URL('../src/components/layout/ListControls.tsx', import.meta.url), 'utf8')
+const sharedHeaderSource = fs.readFileSync(new URL('../src/components/layout/PageHeader.tsx', import.meta.url), 'utf8')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -66,7 +68,7 @@ test('3. Requirement 2: Horizontal Scrollable Filter Chips (Semua, Aktif, Selesa
 
   // Verify horizontal scrollable container
   assert.ok(
-    taskBoardSource.includes('overflow-x-auto') && taskBoardSource.includes('flex sm:hidden'),
+    taskBoardSource.includes('<ListTabs className="sm:hidden"') && sharedListSource.includes('overflow-x-auto'),
     'TaskBoardView must provide a mobile horizontal scrollable container'
   )
 
@@ -90,8 +92,8 @@ test('3. Requirement 2: Horizontal Scrollable Filter Chips (Semua, Aktif, Selesa
 
   // Verify chip pill styling and touch sizing
   assert.ok(
-    taskBoardSource.includes('rounded-full') && taskBoardSource.includes('min-h-9'),
-    'Filter chips must have rounded-full pill styling and minimum 36px touch height'
+    taskBoardSource.includes('<ListTab') && sharedListSource.includes('min-h-11'),
+    'Filter chips must have rounded-full pill styling and minimum 44px touch height'
   )
 
   // Verify translation mappings in id.json
@@ -181,15 +183,15 @@ test('6. Requirement 1 & 2: Complete Audit & Clean Mobile Top Bar Layout (360-39
 
   // 3. Verify clean, proportional, and consistent top bar layout on mobile (360–390px)
   assert.ok(
-    appShellSource.includes('h-14 md:h-16'),
+    appShellSource.includes('<PageHeader') && sharedHeaderSource.includes('h-14'),
     'AppShell top bar must maintain standard 56px (h-14) height on mobile'
   )
   assert.ok(
-    appShellSource.includes('px-3 md:px-5'),
+    sharedHeaderSource.includes('px-3') && sharedHeaderSource.includes('md:px-5'),
     'AppShell top bar must maintain px-3 padding on mobile to maximize content width'
   )
   assert.ok(
-    appShellSource.includes('page-title min-w-0 truncate'),
+    appShellSource.includes('<PageTitle') && sharedHeaderSource.includes('page-title min-w-0 truncate'),
     'Page title must include min-w-0 truncate preventing header overflow on 360-390px'
   )
   assert.ok(

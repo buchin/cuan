@@ -4,6 +4,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+const sharedListSource = fs.readFileSync(new URL('../src/components/layout/ListControls.tsx', import.meta.url), 'utf8')
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.join(__dirname, '..')
 
@@ -115,10 +116,10 @@ test('1. Mobile Viewport Responsiveness (360px - 390px) & Safe Padding across al
 
   // D. Elimination of Horizontal Overflow via Chips & Flex-wrap
   const chipContainerRegex = /overflow-x-auto.*\[scrollbar-width:none\]/
-  assert(chipContainerRegex.test(taskBoardSrc), 'Tasks view must use overflow-x-auto without scrollbar blowout')
-  assert(chipContainerRegex.test(inboxSubPanelSrc), 'Inbox view must use overflow-x-auto without scrollbar blowout')
-  assert(chipContainerRegex.test(projectsViewSrc), 'Projects view must use overflow-x-auto without scrollbar blowout')
-  assert(chipContainerRegex.test(projectWorkViewSrc), 'ProjectWorkView must use overflow-x-auto without scrollbar blowout')
+  assert(taskBoardSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'Tasks view must use overflow-x-auto without scrollbar blowout')
+  assert(inboxSubPanelSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'Inbox view must use overflow-x-auto without scrollbar blowout')
+  assert(projectsViewSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'Projects view must use overflow-x-auto without scrollbar blowout')
+  assert(projectWorkViewSrc.includes('<ListTabs') && chipContainerRegex.test(sharedListSource), 'ProjectWorkView must use overflow-x-auto without scrollbar blowout')
   assert(settingsViewSrc.includes('overflow-x-auto'), 'Settings view nav must support horizontal scrolling')
 })
 
@@ -164,27 +165,27 @@ test('2. Touch Target Compliance (min 44x44px WCAG 2.1 AA) on Primary & Secondar
     'TaskItemCard primary CTAs (Live Terminal, Retry, Start session, View result) must have min-h-11 min-w-[44px]'
   )
   assert(
-    taskBoardSrc.includes('min-h-11') && taskBoardSrc.includes('rounded-full px-3.5 py-1.5'),
+    taskBoardSrc.includes('<ListTab') && sharedListSource.includes('min-h-11'),
     'TaskBoardView status filter chips must satisfy min-h-11 touch target'
   )
 
   // C. Inbox: Filter Chips & Search Input
   assert(
-    inboxSubPanelSrc.includes('min-h-11') && inboxSubPanelSrc.includes('rounded-full px-3.5 py-1.5'),
+    inboxSubPanelSrc.includes('<ListTab') && sharedListSource.includes('min-h-11'),
     'InboxSubPanel filter chips must satisfy min-h-11 touch target'
   )
   assert(
-    inboxSubPanelSrc.includes('min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search'),
+    inboxSubPanelSrc.includes('<ListSearch') && sharedListSource.includes('h-11 min-h-11'),
     'InboxSubPanel search input must satisfy min-h-11 touch target'
   )
 
   // D. Projects: Tabs & Filter Chips
   assert(
-    projectsViewSrc.includes('inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full'),
+    projectsViewSrc.includes('<ListTab') && sharedListSource.includes('inline-flex min-h-11 shrink-0'),
     'ProjectsView category chips must satisfy min-h-11 touch target'
   )
   assert(
-    projectWorkViewSrc.includes('inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full'),
+    projectWorkViewSrc.includes('<ListTab') && sharedListSource.includes('inline-flex min-h-11 shrink-0'),
     'ProjectWorkView category chips must satisfy min-h-11 touch target'
   )
 
@@ -306,12 +307,7 @@ test('3. Status Badge WCAG 2.1 AA Contrast Ratios & Header/Filter Layout Consist
   )
 
   // 2. Consistent Horizontal Category Chips pattern (Supports default primary and Things 3 / Bear Notes calm segments)
-  const hasUnifiedChipsPattern = (src) =>
-    src.includes('overflow-x-auto') &&
-    src.includes('rounded-full') &&
-    src.includes('min-h-11') &&
-    (src.includes('bg-primary text-primary-foreground') || src.includes('bg-secondary text-foreground')) &&
-    (src.includes('text-muted-foreground'))
+  const hasUnifiedChipsPattern = (src) => src.includes('<ListTabs') && src.includes('<ListTab') && sharedListSource.includes('overflow-x-auto') && sharedListSource.includes('border-b-2') && sharedListSource.includes('text-muted-foreground')
 
   assert(hasUnifiedChipsPattern(taskBoardSrc), 'Tasks must implement unified category chips pattern')
   assert(hasUnifiedChipsPattern(inboxSubPanelSrc), 'Inbox must implement unified category chips pattern')

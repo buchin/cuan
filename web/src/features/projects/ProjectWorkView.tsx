@@ -1,3 +1,4 @@
+import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import {
   ExtensionBoundary,
@@ -7,7 +8,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Search, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
@@ -304,47 +305,11 @@ export function ProjectWorkView({
             {scoped.length}
           </span>
         </h3>
-        <label className="flex min-h-11 w-full items-center gap-2 rounded-md border px-3 sm:w-64">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            className="w-full min-w-0 bg-transparent text-base outline-none sm:text-sm"
-            aria-label={t('Search project work')}
-            placeholder={t('Search tasks…')}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+        <ListSearch containerClassName="sm:max-w-64" aria-label={t('Search project work')} placeholder={t('Search tasks…')} value={query} onChange={event=>setQuery(event.target.value)} />
       </div>
-      <div role="group" aria-label={t('Task filters')} className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b px-3 pb-2 sm:px-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {filters.filter(item => item.id === 'all' || item.id === filter || searched.some(item.matches)).map(item => {
-          const isSelected = filter === item.id
-          const count = searched.filter(item.matches).length
-          return (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={isSelected}
-              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring ${
-                isSelected
-                  ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40'
-              }`}
-              onClick={() => setFilter(item.id)}
-            >
-              <span>{t(item.label)}</span>
-              <span
-                className={`inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none ${
-                  isSelected
-                    ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-                    : 'bg-muted-foreground/15 text-muted-foreground'
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <ListTabs aria-label={t('Task filters')} className="px-4">
+        {filters.filter(item=>item.id==='all'||item.id===filter||searched.some(item.matches)).map(item=><ListTab key={item.id} selected={filter===item.id} count={searched.filter(item.matches).length} onClick={()=>setFilter(item.id)}>{t(item.label)}</ListTab>)}
+      </ListTabs>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-5">
         {error ? (
           <div role="alert" className="p-3 text-sm">

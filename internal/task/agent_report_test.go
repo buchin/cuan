@@ -225,3 +225,35 @@ func TestRunnerLogLiveActivityFallback(t *testing.T) {
 		t.Fatalf("expected list progress from logs, got %q", list[0].LatestProgress)
 	}
 }
+
+func TestAgentReportCannotCompleteOrReplaceUnverifiedCriteria(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore(), nil)
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Evidence", Instructions: "Deliver approved scope", DoDChecklist: []DoDItem{{ID: "approved", Text: "Original requirement"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := TaskStatusDoing
+	svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing})
+	svc.UpdateAttemptStatus(ctx, a.ID, "fixture", UpdateAttemptRequest{Status: AttemptStatusRunning})
+	summary, note := "Implemented requirement", "Checked fixture output"
+	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note}); err == nil {
+		t.Fatal("unchecked criteria were implicitly completed")
+	}
+	changed := []DoDItem{{ID: "approved", Text: "Different requirement", Completed: true, Evidence: "Claimed"}}
+	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note, Checklist: &changed}); err == nil {
+		t.Fatal("agent changed approved scope")
+	}
+	verified := []DoDItem{{ID: "approved", Text: "Original requirement", Completed: true, Evidence: "Fixture output matched original expected value"}}
+	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note, Checklist: &verified}); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := svc.GetTaskDetail(ctx, created.ID)
+	if saved.Status != TaskStatusDoing || len(saved.DoDChecklist) != 1 || saved.DoDChecklist[0].Evidence == "" {
+		t.Fatal("report bypassed execution completion or lost evidence")
+	}
+}

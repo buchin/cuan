@@ -318,8 +318,7 @@ body:has(.task-terminal-container),
   max-height: 52px;
   box-sizing: border-box;
 }
-.h-13,
-[class*="h-13"] {
+.h-13 {
   height: 52px !important;
   min-height: 52px !important;
   max-height: 52px !important;

@@ -123,8 +123,8 @@ func TestInboxDelegation_RetryLimit_MultiRoomProactiveChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get task error: %v", err)
 	}
-	if updatedTask.Status != task.TaskStatusReview {
-		t.Fatalf("expected task status 'review', got %s", updatedTask.Status)
+	if updatedTask.Status != task.TaskStatusBlocked {
+		t.Fatalf("expected task status 'blocked', got %s", updatedTask.Status)
 	}
 
 	// 2. Verify proactive multi-room chat notifications sent to both q.RoomID and t.SourceRoomID

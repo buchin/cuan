@@ -133,7 +133,7 @@ func FormatBusinessFriendlyReviewMessage(title, summary string, gaps []string, a
 
 	followUpOptions := []string{
 		"Beri arahan tambahan atau sesuaikan instruksi pekerjaan di obrolan ini agar kami dapat melanjutkannya.",
-		"Tinjau perkembangan yang sudah selesai di menu Tugas aplikasi Cuan dan putuskan langkah prioritas berikutnya.",
+		"Tinjau perkembangan yang tersimpan di menu Tugas aplikasi Cuan dan putuskan langkah prioritas berikutnya.",
 	}
 
 	var sb strings.Builder
@@ -207,9 +207,9 @@ func BuildTaskReviewEnvelope(title, summary string, gaps []string, attemptNumber
 			}
 			cleanEvidence = strings.Join(cleanedGaps, "; ")
 		} else if !requiresDeploy {
-			cleanEvidence = "Investigasi dan analisis teknis selesai tanpa modifikasi kode repositori."
+			cleanEvidence = "Bukti verifikasi belum disertakan."
 		} else {
-			cleanEvidence = "Perubahan kode berhasil dikompilasi dan diverifikasi."
+			cleanEvidence = "Bukti verifikasi belum disertakan."
 		}
 	}
 

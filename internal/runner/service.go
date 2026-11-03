@@ -250,6 +250,12 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		return &ClaimTaskResponse{Claimed: false}, nil
 	}
 
+	fresh, err := s.taskStore.GetTask(ctx, t.ID)
+	if err != nil {
+		return nil, err
+	}
+	t = fresh
+
 	var leaseExpires time.Time
 	if att.LeaseExpiresAt != nil {
 		leaseExpires = *att.LeaseExpiresAt
@@ -281,10 +287,32 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 
 // Complete handles completion report from a runner daemon.
 func (s *RunnerService) Complete(ctx context.Context, attemptID string, req CompleteAttemptRequest) (*task.TaskAttempt, error) {
+	switch req.Status {
+	case task.AttemptStatusSucceeded, task.AttemptStatusFailed, task.AttemptStatusCanceled, task.AttemptStatusInterrupted:
+	default:
+		return nil, task.ErrInvalidTaskInput
+	}
 	att, err := s.taskStore.GetAttempt(ctx, attemptID)
 	if err != nil {
 		return nil, err
 	}
+
+	if att.RunnerID != req.RunnerID {
+		return nil, task.ErrRequestConflict
+	}
+	if att.Status != task.AttemptStatusRunning && att.Status != task.AttemptStatusQueued {
+		return nil, task.ErrAttemptFinal
+	}
+	latest, err := s.taskStore.GetLatestAttempt(ctx, att.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if latest == nil || latest.ID != att.ID {
+		return nil, task.ErrAttemptFinal
+	}
+	var effects []func()
+	var completionActivities []*task.TaskActivity
+	var nextAttempt *task.TaskAttempt
 
 	now := time.Now().UTC()
 	att.FinishedAt = &now
@@ -316,7 +344,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 
 				if settings.IsAutoDeployEnabled() && requiresDeploy {
-					if !req.LiveDeploymentConfirmed && !hasAutoDeployVerification(t.CompleteNote, t.Summary) {
+					if !req.LiveDeploymentConfirmed {
 						status = task.AttemptStatusFailed
 						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"
 					}
@@ -329,14 +357,17 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		att.ErrorMessage = req.ErrorMessage
 	}
 
-	if err := s.taskStore.UpdateAttempt(ctx, att); err != nil {
-		return nil, fmt.Errorf("update attempt on complete: %w", err)
-	}
-
 	// Update task status:
 	t, err := s.taskStore.GetTask(ctx, att.TaskID)
-	if err == nil && t != nil {
+	if err != nil {
+		return nil, err
+	}
+	if t == nil {
+		return nil, task.ErrTaskNotFound
+	}
+	{
 		oldStatus := t.Status
+		expectedUpdatedAt := t.UpdatedAt
 
 		// 1. Emisi internal event task:attempt_succeeded / task:attempt_completed
 		completedEvt := AttemptCompletedEvent{
@@ -368,9 +399,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			completedEvt.EventType = EventTaskAttemptFailed
 		}
 		if s.eventBus != nil {
-			s.eventBus.PublishCompleted(ctx, completedEvt)
+			effects = append(effects, func() { s.eventBus.PublishCompleted(ctx, completedEvt) })
 		} else {
-			EmitAttemptCompleted(ctx, completedEvt)
+			effects = append(effects, func() { EmitAttemptCompleted(ctx, completedEvt) })
 		}
 
 		// 2. Evaluasi DoD Otonom & Logika Auto-Mark Done / Auto-Requeue
@@ -383,7 +414,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 			}
 			valReq := DoDValidationRequest{
-				TaskID:        t.ID,
+				Checklist: t.DoDChecklist, TaskID: t.ID,
 				AttemptID:     att.ID,
 				AttemptNumber: att.AttemptNumber,
 				WorkingDir:    workingDir,
@@ -396,6 +427,11 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			dodVal, _ = s.dodEvaluator.EvaluateDoD(ctx, valReq)
 		}
 
+		if dodVal != nil && dodVal.Passed {
+			if gaps := task.AcceptanceGaps(t); len(gaps) > 0 {
+				dodVal = &DoDValidationResult{Passed: false, Action: "review", Gaps: gaps}
+			}
+		}
 		autoRequeued := false
 		if status == task.AttemptStatusSucceeded {
 			if dodVal != nil && dodVal.Passed {
@@ -403,9 +439,6 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				t.Status = task.TaskStatusDone
 				if dodVal.Details != "" {
 					t.CompleteNote = dodVal.Details
-				}
-				for i := range t.DoDChecklist {
-					t.DoDChecklist[i].Completed = true
 				}
 				// Proactive messenger di Chat/Inbox: lapor tugas tuntas dalam bahasa bisnis ramah
 				if s.chatNotifier != nil {
@@ -417,13 +450,13 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					}
 					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
 						if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
-							_ = pn.SendTaskCompletedBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName)
+							effects = append(effects, func() { _ = pn.SendTaskCompletedBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName) })
 						} else {
-							_ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary)
+							effects = append(effects, func() { _ = s.chatNotifier.SendTaskCompletedBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary) })
 						}
 					}
 				}
-			} else if dodVal != nil && dodVal.Action == "auto_requeue" && att.AttemptNumber < MaxAttempts {
+			} else if dodVal != nil && dodVal.Action == "auto_requeue" && dodVal.Fixable && req.AgentReportConfirmed && len(task.AcceptanceGaps(t)) == 0 && CanRequeue(att.AttemptNumber) {
 				// Ada gap fixable & attempt < 3: Requeue otomatis dengan alokasi waktu adaptif
 				t.Status = task.TaskStatusQueued
 				autoRequeued = true
@@ -445,7 +478,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					Status:        task.AttemptStatusQueued,
 					CreatedAt:     now,
 				}
-				_ = s.taskStore.CreateAttempt(ctx, newAttempt)
+				nextAttempt = newAttempt
 
 				requeueMsg := fmt.Sprintf("Auto-Requeue: Celah DoD terdeteksi pada attempt #%d. Task otomatis dikembalikan ke antrean untuk perbaikan pada attempt #%d (alokasi timeout adaptif: %v).\n\nInstruksi Revisi:\n%s",
 					att.AttemptNumber, nextAttNum, nextTimeout, dodVal.RequeueInstructions)
@@ -460,9 +493,12 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					Message:      requeueMsg,
 					CreatedAt:    now,
 				}
-				_ = s.taskStore.CreateActivity(ctx, requeueAct)
+				completionActivities = append(completionActivities, requeueAct)
 			} else {
 				t.Status = task.TaskStatusReview
+				if len(task.AcceptanceGaps(t)) > 0 {
+					t.Status = task.TaskStatusBlocked
+				}
 				if s.chatNotifier != nil {
 					var gaps []string
 					if dodVal != nil {
@@ -476,15 +512,19 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					}
 					for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
 						if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
-							_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, gaps, att.AttemptNumber)
+							effects = append(effects, func() {
+								_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, gaps, att.AttemptNumber)
+							})
 						} else {
-							_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+							effects = append(effects, func() {
+								_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, gaps, att.AttemptNumber)
+							})
 						}
 					}
 				}
 			}
 		} else if status == task.AttemptStatusInterrupted || IsInfraFault(status, att.ErrorMessage, req.ExitCode) {
-			t.Status = task.TaskStatusReview
+			t.Status = task.TaskStatusBlocked
 			if s.chatNotifier != nil {
 				errMsg := att.ErrorMessage
 				if errMsg == "" {
@@ -498,9 +538,13 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
 					if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
-						_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+						effects = append(effects, func() {
+							_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+						})
 					} else {
-						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+						effects = append(effects, func() {
+							_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+						})
 					}
 				}
 			}
@@ -519,9 +563,13 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 				for _, rID := range uniqueRooms(t.SourceRoomID, req.RoomID) {
 					if pn, ok := s.chatNotifier.(ProjectAwareNotifier); ok && pName != "" {
-						_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+						effects = append(effects, func() {
+							_ = pn.SendTaskReviewBusinessMessageWithContext(ctx, rID, t.ID, t.Title, t.Summary, pName, []string{errMsg}, att.AttemptNumber)
+						})
 					} else {
-						_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+						effects = append(effects, func() {
+							_ = s.chatNotifier.SendTaskReviewBusinessMessage(ctx, rID, t.ID, t.Title, t.Summary, []string{errMsg}, att.AttemptNumber)
+						})
 					}
 				}
 			}
@@ -531,7 +579,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if srcState, errSrc := taskfsm.FromCuanTaskStatus(oldStatus); errSrc == nil {
 			if dstState, errDst := taskfsm.FromCuanTaskStatus(t.Status); errDst == nil {
 				if !taskfsm.CanTransition(srcState, dstState) && srcState != dstState {
-					t.Status = task.TaskStatusReview
+					return nil, task.ErrRequestConflict
 				}
 			}
 		}
@@ -556,8 +604,6 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		}
 
 		t.UpdatedAt = now
-		_ = s.taskStore.UpdateTask(ctx, t)
-
 		// Record activity
 		msg := fmt.Sprintf("Attempt %s selesai dengan status '%s' (exit code: %d, peak RSS: %d bytes).", att.ID, status, req.ExitCode, req.PeakRSSBytes)
 		if autoRequeued {
@@ -577,15 +623,24 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			Message:      msg,
 			CreatedAt:    now,
 		}
-		_ = s.taskStore.CreateActivity(ctx, act)
+		completionActivities = append(completionActivities, act)
+		completionStore, ok := s.taskStore.(task.CompletionStore)
+		if !ok {
+			return nil, fmt.Errorf("atomic execution completion unavailable")
+		}
+		if err := completionStore.CompleteExecution(ctx, att, t, nextAttempt, expectedUpdatedAt, req.RunnerID, true, completionActivities...); err != nil {
+			return nil, err
+		}
+		for _, effect := range effects {
+			effect()
+		}
+
 	}
 
-	// Reset runner status to idle
-	if r, err := s.store.GetRunner(ctx, req.RunnerID); err == nil && r != nil {
-		r.Status = StatusIdle
-		r.CurrentTaskID = ""
-		r.CurrentAttemptID = ""
-		_ = s.store.RegisterOrUpdateHeartbeat(ctx, r)
+	if assignments, ok := s.store.(interface {
+		ReleaseAssignment(context.Context, string, string) error
+	}); ok {
+		_ = assignments.ReleaseAssignment(ctx, req.RunnerID, att.ID)
 	}
 
 	return att, nil
@@ -602,12 +657,6 @@ func (s *RunnerService) ListRunners(ctx context.Context) ([]*RunnerInfo, error) 
 
 func (s *RunnerService) GetRunner(ctx context.Context, id string) (*RunnerInfo, error) {
 	return s.store.GetRunner(ctx, id)
-}
-
-func hasAutoDeployVerification(note, summary string) bool {
-	combined := strings.ToLower(note + " " + summary)
-	return (strings.Contains(combined, "deploy") || strings.Contains(combined, "release") || strings.Contains(combined, "rilis")) &&
-		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
 }
 
 func isInvestigationOrNonCode(texts ...string) bool {

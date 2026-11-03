@@ -78,8 +78,9 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 		return false
 	}
 	var snapshot struct {
-		Summary      string `json:"summary"`
-		CompleteNote string `json:"complete_note"`
+		Checklist    []task.DoDItem `json:"dod_checklist"`
+		Summary      string         `json:"summary"`
+		CompleteNote string         `json:"complete_note"`
 		Activities   []struct {
 			AttemptID    *string `json:"attempt_id"`
 			ActivityType string  `json:"activity_type"`
@@ -95,7 +96,13 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 	for i := len(snapshot.Activities) - 1; i >= 0; i-- {
 		activity := snapshot.Activities[i]
 		if activity.AttemptID != nil && *activity.AttemptID == claim.Attempt.ID && activity.ActivityType == "agent_report" {
-			return activity.NewStatus == "review" || activity.NewStatus == "done"
+			if activity.NewStatus != "review" && activity.NewStatus != "done" {
+				return false
+			}
+			claim.Task.Summary = snapshot.Summary
+			claim.Task.CompleteNote = snapshot.CompleteNote
+			claim.Task.DoDChecklist = snapshot.Checklist
+			return true
 		}
 	}
 	return false
@@ -414,7 +421,7 @@ func (r *Runner) processCompletionEventAndDoD(ctx context.Context, ws *git.TaskW
 	// 2. Background Autonomous DoD Evaluator validation
 	if r.dodEvaluator != nil {
 		evalReq := DoDValidationRequest{
-			TaskID:        t.ID,
+			Checklist: t.DoDChecklist, TaskID: t.ID,
 			AttemptID:     att.ID,
 			AttemptNumber: att.AttemptNumber,
 			WorkingDir:    workingDir,

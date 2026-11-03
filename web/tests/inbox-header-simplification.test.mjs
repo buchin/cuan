@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const sharedIconSource = fs.readFileSync(new URL('../src/components/ui/IconButton.tsx', import.meta.url), 'utf8')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -77,7 +78,7 @@ test('3. Requirement 3: Clean chat header preserving back navigation and chat id
     'Chat header must use ChevronLeft icon for back navigation'
   )
   assert.ok(
-    headerContent.includes('h-11 w-11'),
+    headerContent.includes('<IconButton') && sharedIconSource.includes('h-11 w-11'),
     'Back button must maintain minimum 44px (h-11 w-11) touch target'
   )
 

@@ -634,8 +634,8 @@ func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testin
 			break
 		}
 	}
-	if !hasEdgeCases {
-		t.Fatalf("expected updated DoD checklist to include new item from revision, got: %+v", taskDetail.DoDChecklist)
+	if hasEdgeCases || len(taskDetail.DoDChecklist) != 1 {
+		t.Fatalf("revision changed original acceptance criteria: %+v", taskDetail.DoDChecklist)
 	}
 }
 
@@ -698,8 +698,8 @@ func TestInboxDelegation_CrossRoomRevisionWithoutAuthorizationIDUsesCurrentMessa
 			break
 		}
 	}
-	if !hasCache {
-		t.Fatalf("expected DoD item from revision to be added, got: %+v", detail.DoDChecklist)
+	if hasCache || len(detail.DoDChecklist) != 1 {
+		t.Fatalf("revision changed original acceptance criteria: %+v", detail.DoDChecklist)
 	}
 }
 

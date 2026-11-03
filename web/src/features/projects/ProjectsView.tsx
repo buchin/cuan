@@ -1,3 +1,4 @@
+import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Project, Task } from '../../api/types'
@@ -218,14 +219,7 @@ export function ProjectsView({
 
       {/* Search Bar */}
       <div className="flex items-center gap-2">
-        <input
-          type="search"
-          aria-label="Search projects"
-          placeholder={t('Search projects…')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="field-control min-w-0 flex-1"
-        />
+        <ListSearch aria-label={t('Search projects')} placeholder={t('Search projects…')} value={search} onChange={event=>setSearch(event.target.value)} />
       </div>
 
       {search.trim() && displayedProjects.length > 0 && (
@@ -240,53 +234,10 @@ export function ProjectsView({
       )}
 
       {/* Category Filter Chips */}
-      <nav
-        aria-label="Project tabs"
-        className="flex items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <button
-          type="button"
-          aria-pressed={activeTab === 'active'}
-          onClick={() => setActiveTab('active')}
-          className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring ${
-            activeTab === 'active'
-              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-              : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40'
-          }`}
-        >
-          <span>{t('Active Projects')}</span>
-          <span
-            className={`inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none ${
-              activeTab === 'active'
-                ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-                : 'bg-muted-foreground/15 text-muted-foreground'
-            }`}
-          >
-            {activeProjects.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-pressed={activeTab === 'archived'}
-          onClick={() => setActiveTab('archived')}
-          className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-ring ${
-            activeTab === 'archived'
-              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
-              : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40'
-          }`}
-        >
-          <span>{t('Archived')}</span>
-          <span
-            className={`inline-flex min-w-4 items-center justify-center rounded-full px-1.5 text-[10px] font-mono leading-none ${
-              activeTab === 'archived'
-                ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-                : 'bg-muted-foreground/15 text-muted-foreground'
-            }`}
-          >
-            {archivedProjects.length}
-          </span>
-        </button>
-      </nav>
+      <ListTabs aria-label={t('Project filters')}>
+        <ListTab selected={activeTab==='active'} count={activeProjects.length} onClick={()=>setActiveTab('active')}>{t('Active Projects')}</ListTab>
+        <ListTab selected={activeTab==='archived'} count={archivedProjects.length} onClick={()=>setActiveTab('archived')}>{t('Archived')}</ListTab>
+      </ListTabs>
 
       {/* Projects Display: HairlineList Canvas (Zero nested cards) */}
       {displayedProjects.length === 0 ? (

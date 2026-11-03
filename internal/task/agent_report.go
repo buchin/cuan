@@ -46,6 +46,8 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 	if t.Status != TaskStatusDoing {
 		return nil, ErrRequestConflict
 	}
+	expectedUpdatedAt := t.UpdatedAt
+	var activities []*TaskActivity
 	bad := func(message string) (*Task, error) { return nil, fmt.Errorf("%w: %s", ErrInvalidTaskInput, message) }
 	if r.Title != nil {
 		v := strings.TrimSpace(*r.Title)
@@ -78,6 +80,16 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 		if e = validateChecklist(*r.Checklist); e != nil {
 			return nil, e
 		}
+		if len(t.DoDChecklist) > 0 {
+			if len(*r.Checklist) != len(t.DoDChecklist) {
+				return bad("report evidence against the original criteria; do not add or remove approved scope")
+			}
+			for i, item := range *r.Checklist {
+				if item.Text != t.DoDChecklist[i].Text || (t.DoDChecklist[i].ID != "" && item.ID != t.DoDChecklist[i].ID) {
+					return bad("preserve the original acceptance criterion text and order")
+				}
+			}
+		}
 		t.DoDChecklist = append([]DoDItem{}, (*r.Checklist)...)
 	}
 	if r.CommitSHA != nil {
@@ -103,7 +115,7 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 	default:
 		return bad("state must be progress, review, blocked or done")
 	}
-	if r.State != "progress" && (t.Summary == "" || t.CompleteNote == "") {
+	if r.State != "progress" && (r.Summary == nil || r.CompleteNote == nil || t.Summary == "" || t.CompleteNote == "") {
 		return bad("a result requires summary and completion evidence")
 	}
 	// Answers remain reviewable; implementation completion is an explicit agent decision.
@@ -111,24 +123,14 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 		r.State = "review"
 	}
 	if r.State == "done" {
-		if r.Checklist == nil && len(t.DoDChecklist) > 0 {
-			for i := range t.DoDChecklist {
-				t.DoDChecklist[i].Completed = true
-			}
-		}
-		for _, item := range t.DoDChecklist {
-			if !item.Completed {
-				return bad("complete all declared acceptance criteria before done")
-			}
+		if gaps := AcceptanceGaps(t); len(gaps) > 0 {
+			return bad(strings.Join(gaps, " "))
 		}
 	}
 	if r.ResultKind != "" && (r.State == "progress" || (r.ResultKind == "answer" && r.State != "review") || (r.ResultKind != "answer" && r.ResultKind != "implementation")) {
 		return bad("result_kind requires a final report and must be answer or implementation")
 	}
 	t.UpdatedAt = time.Now().UTC()
-	if e = s.store.UpdateTask(ctx, t); e != nil {
-		return nil, e
-	}
 	message := strings.TrimSpace(r.Progress)
 	if message == "" {
 		message = "Agent report: " + r.State
@@ -145,14 +147,17 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 		if kind == "" {
 			kind = "implementation"
 		}
-		if e = s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_result_kind", Author: author, NewStatus: kind, Message: "Result type reported by agent: " + kind, CreatedAt: stamp}); e != nil {
-			return nil, e
-		}
+		activities = append(activities, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_result_kind", Author: author, NewStatus: kind, Message: "Result type reported by agent: " + kind, CreatedAt: stamp})
 	}
-	e = s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_report", Author: author, NewStatus: r.State, Message: message, CreatedAt: stamp})
-	if e != nil {
+	activities = append(activities, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_report", Author: author, NewStatus: r.State, Message: message, CreatedAt: stamp})
+	completion, ok := s.store.(CompletionStore)
+	if !ok {
+		return nil, ErrRequestConflict
+	}
+	if e = completion.CompleteExecution(ctx, a, t, nil, expectedUpdatedAt, a.RunnerID, a.RunnerID != "local_terminal", activities...); e != nil {
 		return nil, e
 	}
+
 	return t, nil
 }
 func (s *Service) AgentReviewReady(ctx context.Context, taskID, attemptID string) (bool, error) {

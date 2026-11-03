@@ -94,9 +94,9 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		sb.WriteString("Map your verification evidence directly to the criteria above.\n")
 		sb.WriteString("For investigation/audit tasks, provide factual findings, commit SHAs, or diagnostic outputs.\n")
 		sb.WriteString("If using the cuan CLI in workspace, report completion using:\n")
-		sb.WriteString("  cuan task report --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")
+		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")
 		sb.WriteString("Or provide itemized criteria verification using repeatable flags:\n")
-		sb.WriteString("  cuan task report --summary \"<summary>\" --dod-item \"<item 1 evidence>\" --dod-item \"<item 2 evidence>\"\n")
+		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --summary \"<summary>\" --dod-item \"<original criterion>\" --dod-evidence \"<observed result>\"\n")
 	}
 
 	if agentPrompt != "" {

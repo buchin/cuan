@@ -1,3 +1,6 @@
+import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
+import { IconButton } from '../../components/ui/IconButton'
+import { PageHeader, PageHeaderBrand, PageTitle } from '../../components/layout/PageHeader'
 import { HairlineList } from '../../components/layout/HairlineList'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
@@ -8,9 +11,8 @@ import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CuanMark } from '../../components/brand/CuanMark'
 import { ChatContact } from '../../api/chat'
-import { Search, Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
+import { Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
@@ -429,49 +431,31 @@ export function InboxSubPanel({
   return (
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       {/* ── Single Unified Header (matching shadcn Mail h-13) ── */}
-      <div className="flex h-13 shrink-0 items-center justify-between border-b border-border px-3 md:px-4 box-border">
-        <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-          <Link
-            to="/chat"
-            aria-label={t('Go to Chat')}
-            className="icon-action md:hidden shrink-0 inline-flex items-center justify-center -ml-1"
-          >
-            <CuanMark decorative className="h-6 w-6 shrink-0" />
-          </Link>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <h1 className="page-title text-base md:text-sm font-semibold tracking-tight text-foreground truncate">
-              {t('Inbox')}
-            </h1>
-            {totalUnreadCount > 0 && (
-              <span className="font-mono text-xs text-muted-foreground font-normal">
-                {totalUnreadCount}
-              </span>
-            )}
-          </div>
-        </div>
+      <PageHeader>
+        <div className="flex min-w-0 items-center gap-2"><PageHeaderBrand /><PageTitle>{t('Inbox')}</PageTitle>{totalUnreadCount>0&&<span className="text-xs tabular-nums text-muted-foreground">{totalUnreadCount}</span>}</div>
         <div className="flex items-center gap-1">
           {onNewMessage && (
-            <button
+            <IconButton
               type="button"
               onClick={onNewMessage}
-              aria-label={t('New message')}
+              label={t('New message')}
               title={t('New message')}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+
             >
               <Plus className="h-4 w-4" />
-            </button>
+            </IconButton>
           )}
           {totalUnreadCount > 0 && (
-            <button
+            <IconButton
               type="button"
               disabled={markingAll}
-              aria-label={t('Mark all as read')}
+              label={t('Mark all as read')}
               title={t('Mark all as read')}
               onClick={handleMarkAllRead}
-              className="inline-flex h-8 w-8 min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+
             >
               <CheckCheck className="h-4 w-4 text-primary" />
-            </button>
+            </IconButton>
           )}
           <ItemActions
             label="Inbox"
@@ -483,104 +467,17 @@ export function InboxSubPanel({
             <span className="sr-only">Actions</span>
           </ItemActions>
         </div>
-      </div>
+      </PageHeader>
 
       {/* ── Search & Filter Toolbar ── */}
-      <div className="p-3 pb-2 space-y-2 border-b border-border/40">
-        <div className="relative w-full">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            aria-label={t('Search conversations')}
-            placeholder="Search conversations…"
-            className="min-h-11 pl-8 pr-3 py-2 text-base rounded-full inbox-search w-full md:min-h-8 md:h-8 md:text-xs md:py-1 md:rounded-none border border-input bg-background/60 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
-
-        {/* Filter Categories: All, Agents, Customers, Archived */}
-        <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label={t('Conversation filters')}>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'all' && !showArchived}
-            onClick={() => {
-              setShowArchived(false)
-              handleTabClick('all')
-            }}
-            className={cn(
-              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
-              activeTab === 'all' && !showArchived
-                ? 'bg-secondary text-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            <span>{t('All')}</span>
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'agents' && !showArchived}
-            onClick={() => {
-              setShowArchived(false)
-              handleTabClick('agents')
-            }}
-            className={cn(
-              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
-              activeTab === 'agents' && !showArchived
-                ? 'bg-secondary text-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            <span>{t('Agents')}</span>
-            {agentUnreadCount > 0 && (
-              <span className="font-mono text-[10px] px-1.5 py-0.2 bg-primary text-primary-foreground font-bold">
-                {agentUnreadCount}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            aria-pressed={activeTab === 'customers' && !showArchived}
-            onClick={() => {
-              setShowArchived(false)
-              handleTabClick('customers')
-            }}
-            className={cn(
-              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
-              activeTab === 'customers' && !showArchived
-                ? 'bg-secondary text-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            <span>{t('Customers')}</span>
-            {onlineVisitorCount > 0 && (
-              <span className="relative flex h-2 w-2" title={`${onlineVisitorCount} ${t('online')}`}>
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 status-dot"></span>
-              </span>
-            )}
-            {customerUnreadCount > 0 && (
-              <span className="font-mono text-[10px] px-1.5 py-0.2 bg-primary text-primary-foreground font-bold">
-                {customerUnreadCount}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            aria-label={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
-            title={t(showArchived ? 'Back to Inbox' : 'Archived conversations')}
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived((v) => !v)}
-            className={cn(
-              'inline-flex min-h-11 md:min-h-7 shrink-0 items-center gap-1 rounded-full px-3.5 py-1.5 md:rounded-md md:px-2.5 md:py-1 text-xs font-medium transition-colors',
-              showArchived
-                ? 'bg-secondary text-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            <Archive className="h-3.5 w-3.5" />
-          </button>
-        </div>
+      <div className="p-4 pb-0 space-y-3 border-b border-border/40">
+        <ListSearch aria-label={t('Search conversations')} placeholder={t('Search conversations…')} value={query} onChange={event=>handleQueryChange(event.target.value)} />
+        <ListTabs aria-label={t('Conversation filters')} className="border-b-0">
+          <ListTab selected={activeTab==='all'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('all')}}>{t('All')}</ListTab>
+          <ListTab selected={activeTab==='agents'&&!showArchived} count={agentUnreadCount||undefined} onClick={()=>{setShowArchived(false);handleTabClick('agents')}}>{t('Agents')}</ListTab>
+          <ListTab selected={activeTab==='customers'&&!showArchived} count={customerUnreadCount||undefined} onClick={()=>{setShowArchived(false);handleTabClick('customers')}}>{t('Customers')}{onlineVisitorCount>0&&<StatusDot status="healthy" size="sm" title={onlineVisitorCount+' '+t('online')} />}</ListTab>
+          <IconButton className="ml-auto" label={t(showArchived?'Back to Inbox':'Archived conversations')} active={showArchived} aria-pressed={showArchived} onClick={()=>setShowArchived(value=>!value)}><Archive /></IconButton>
+        </ListTabs>
 
         {/* Customer Sub-Filter (Chats vs Online Visitors) */}
         {activeTab === 'customers' && !showArchived && (

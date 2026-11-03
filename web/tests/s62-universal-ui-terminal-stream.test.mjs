@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const sharedListSource = fs.readFileSync(new URL('../src/components/layout/ListControls.tsx', import.meta.url), 'utf8')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '../..')
@@ -123,7 +124,7 @@ test('3. S62-T3: Projects & Contacts View Things 3 & Bear Notes Audit', () => {
 
   // ContactsView & ContactMemoryPanel
   assert.ok(
-    contactsSource.includes('rounded-xl border border-border/40 bg-muted/20'),
+    contactsSource.includes('<ListSearch') && sharedListSource.includes('border border-border/40 bg-muted/20'),
     'ContactsView search input container must use rounded-xl border-border/40 bg-muted/20',
   )
   assert.ok(

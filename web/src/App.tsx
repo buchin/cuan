@@ -122,6 +122,7 @@ export function App() {
   const sessionRoute =
     rootSegment === 'tasks' &&
     !!subParam &&
+    (pathSegments[2] === 'sessions' || new URLSearchParams(location.search).get('terminal') === 'open') &&
     !['detail', 'full'].includes(
       new URLSearchParams(location.search).get('view') || '',
     )
@@ -129,6 +130,7 @@ export function App() {
     rootSegment === 'projects' &&
     pathSegments[2] === 'tasks' &&
     Boolean(pathSegments[3]) &&
+    (pathSegments[4] === 'sessions' || new URLSearchParams(location.search).get('terminal') === 'open') &&
     !['detail', 'full'].includes(
       new URLSearchParams(location.search).get('view') || '',
     )

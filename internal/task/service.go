@@ -773,6 +773,10 @@ func (s *Service) updateAttemptStatus(ctx context.Context, attemptID string, aut
 	now := time.Now().UTC()
 	if newStatus == AttemptStatusRunning && att.StartedAt == nil {
 		att.StartedAt = &now
+		if t, e := s.store.GetTask(ctx, att.TaskID); e == nil {
+			deadline := now.Add(CalculateTaskTimeout(t.ExecutionCategory, att.AttemptNumber, t.Title, t.Instructions))
+			att.ExecutionDeadline = &deadline
+		}
 	}
 	if (newStatus == AttemptStatusSucceeded || newStatus == AttemptStatusFailed || newStatus == AttemptStatusCanceled || newStatus == AttemptStatusInterrupted) && att.FinishedAt == nil {
 		att.FinishedAt = &now
@@ -1098,41 +1102,12 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 		}
 
 		if a.Status != "running" && a.Status != "queued" {
-			// If attempt has ended but task is still in doing/working, reconcile task status to failed
-			if t.Status == TaskStatusDoing || t.Status == "working" {
-				t.Status = TaskStatusFailed
-				t.UpdatedAt = now
-				_ = s.store.UpdateTask(ctx, t)
-				_ = s.FinishTaskLaunches(ctx, t.ID, "stopped")
-			}
+			_ = s.ReconcileLocalTask(ctx, t.ID, a.ID)
 			continue
 		}
 
-		// Check 1: Exceeded timeout (pruned 5m for investigation/readonly tasks, default 20m for code tasks)
-		taskTimeout := timeout
-		combinedMeta := strings.ToLower(t.Title + " " + t.Instructions)
-		if t.ExecutionCategory == ExecutionCategoryReadOnly ||
-			(t.ExecutionCategory != ExecutionCategoryCode && (strings.Contains(combinedMeta, "investigasi") ||
-				strings.Contains(combinedMeta, "investigation") ||
-				strings.Contains(combinedMeta, "rca") ||
-				strings.Contains(combinedMeta, "analisis"))) {
-			taskTimeout = 5 * time.Minute
-		}
-		startTime := a.CreatedAt
-		if a.StartedAt != nil && !a.StartedAt.IsZero() {
-			startTime = *a.StartedAt
-		}
-		exceededTimeout := now.Sub(startTime) > taskTimeout
-
-		// If a decoupled runner is actively heartbeating with an active lease,
-		// allow up to a 2-minute grace period so it is not reaped while finalizing.
-		if exceededTimeout && a.RunnerID != "" && a.RunnerID != "local_terminal" {
-			if a.LeaseExpiresAt != nil && now.Before(*a.LeaseExpiresAt) {
-				if now.Sub(startTime) <= taskTimeout+2*time.Minute {
-					exceededTimeout = false
-				}
-			}
-		}
+		deadline := AttemptDeadline(t, a)
+		exceededTimeout := now.After(deadline.Add(GetGracePeriod()))
 
 		// Check 2: OS process is dead (only for local_terminal attempts currently running;
 		// decoupled runner daemon attempts are tracked via lease heartbeats, not local terminalManager)
@@ -1146,19 +1121,25 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 		if exceededTimeout || processDead {
 			msg := "Task runner process terminated or inactive (zombie attempt reaped)."
 			if exceededTimeout {
-				msg = fmt.Sprintf("Task runner exceeded hard execution timeout (%v).", timeout)
+				msg = fmt.Sprintf("Task execution deadline exceeded (%s).", deadline.UTC().Format(time.RFC3339))
 			}
 
-			// Mark attempt failed
-			_, _ = s.UpdateAttemptStatus(ctx, a.ID, "zombie_reaper", UpdateAttemptRequest{
-				Status:       AttemptStatusFailed,
-				ErrorMessage: msg,
-			})
-
-			// Mark task failed
-			t.Status = TaskStatusFailed
+			expected := t.UpdatedAt
+			a.Status = AttemptStatusFailed
+			a.ErrorMessage = msg
+			a.FinishedAt = &now
+			exitCode := 124
+			a.ExitCode = &exitCode
+			t.Status = TaskStatusBlocked
 			t.UpdatedAt = now
-			_ = s.store.UpdateTask(ctx, t)
+			completion, ok := s.store.(CompletionStore)
+			if !ok {
+				continue
+			}
+			if err := completion.CompleteExecution(ctx, a, t, nil, expected, a.RunnerID, false); err != nil {
+				continue
+			}
+			_ = s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: t.ID, AttemptID: &a.ID, ActivityType: ActivityTypeAttempt, Author: "zombie_reaper", NewStatus: TaskStatusBlocked, Message: msg, CreatedAt: now})
 
 			// Mark task launches stopped
 			_ = s.FinishTaskLaunches(ctx, t.ID, "stopped")
@@ -1174,6 +1155,9 @@ func validateChecklist(items []DoDItem) error {
 	}
 	for i := range items {
 		items[i].Text = strings.TrimSpace(items[i].Text)
+		if len([]rune(items[i].Evidence)) > 4000 {
+			return fmt.Errorf("%w: criterion evidence must be at most 4000 characters", ErrInvalidTaskInput)
+		}
 		if items[i].Text == "" || len([]rune(items[i].Text)) > 500 {
 			return fmt.Errorf("%w: acceptance criteria must contain 1–500 characters", ErrInvalidTaskInput)
 		}

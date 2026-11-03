@@ -1,3 +1,5 @@
+import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
+import { IconButton } from '../../components/ui/IconButton'
 import { updateItemPreference } from '../../hooks/useArchivedItems'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { Button } from "../../components/ui/button"
@@ -1219,11 +1221,7 @@ export function InboxView({
       >
         {canvasMode === 'studio' ? (
           <div className="flex h-full flex-1 flex-col overflow-hidden">
-            <div className="wa-studio-header h-13 sm:h-13 px-3 sm:px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b min-[1200px]:border-border/40 bg-background">
-              <span className="text-sm font-semibold text-foreground">
-                {t('Studio · New Idea')}
-              </span>
-            </div>
+            <PageHeader className="wa-studio-header"><PageTitle>{t('Studio · New Idea')}</PageTitle></PageHeader>
             <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
               <div className="calm-stream-constraint max-w-2xl mx-auto">
                 <StudioView
@@ -1254,17 +1252,10 @@ export function InboxView({
         ) : (
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <div className="wa-chat-header h-13 px-4 flex items-center justify-between shrink-0 border-b-0 min-[1200px]:border-b border-border bg-background box-border">
+            <PageHeader className="wa-chat-header border-b-0 min-[1200px]:border-b">
               <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
-                <button
-                  type="button"
-                  onClick={handleBackToContacts}
-                  title="Back to conversations"
-                  className="min-[1200px]:hidden inline-flex h-11 w-11 items-center justify-center -ml-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-none transition-colors shrink-0"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
+                <IconButton label={t('Back to conversations')} onClick={handleBackToContacts} className="min-[1200px]:hidden"><ChevronLeft /></IconButton>
 
                 <div className="relative shrink-0">
                   <div
@@ -1349,7 +1340,7 @@ export function InboxView({
                   aria-hidden="true"
                 />
               </div>
-            </div>
+            </PageHeader>
 
             {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
 
