@@ -212,17 +212,17 @@ export function SettingsMasterNav({
                   to={targetUrl}
                   onClick={() => onSelectSection?.(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`group flex min-h-[4.5rem] items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
+                  className={`group flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
                     isActive
                       ? 'bg-accent text-foreground font-medium'
                       : 'text-foreground/80 hover:bg-accent/50 hover:text-foreground'
                   }`}
                 >
                   <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
                       isActive
-                        ? 'bg-muted/50 text-foreground'
-                        : 'bg-muted/30 text-muted-foreground group-hover:text-foreground'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground group-hover:text-foreground'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -244,13 +244,7 @@ export function SettingsMasterNav({
                         }`}
                       />
                     </div>
-                    <p
-                      className={`mt-1 text-xs leading-normal line-clamp-2 ${
-                        isActive ? 'text-primary/75' : 'text-muted-foreground'
-                      }`}
-                    >
-                      {t(item.subtitleKey)}
-                    </p>
+
                   </div>
                 </Link>
               )

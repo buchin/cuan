@@ -145,7 +145,7 @@ test('2. Categorization: 4 semantic categories with Lucide icons, active state, 
   )
 })
 
-test('3. Layout: Single-column settings canvas in SettingsView.tsx', () => {
+test('3. Layout: Desktop master-detail settings with bounded reading canvas', () => {
   const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf8')
 
   // SettingsMasterNav must be imported and rendered
@@ -158,8 +158,7 @@ test('3. Layout: Single-column settings canvas in SettingsView.tsx', () => {
     'SettingsView must render SettingsMasterNav component',
   )
 
-  assert.ok(settingsViewSrc.includes('mx-auto w-full max-w-4xl'), 'Settings must use a readable single-column canvas')
-  assert.ok(!settingsViewSrc.includes('md:w-72') && !settingsViewSrc.includes('md:w-80'), 'Settings must not add a second desktop sidebar')
+  assert.ok(settingsViewSrc.includes('lg:grid-cols-[256px_minmax(0,1fr)]'), 'Desktop Settings must retain categories beside readable detail')
 })
 
 test('4. Responsiveness: Master-first mobile pattern and ChevronLeft return button', () => {
@@ -173,11 +172,11 @@ test('4. Responsiveness: Master-first mobile pattern and ChevronLeft return butt
 
   // On mobile without section, sidebar is visible and detail is hidden
   assert.ok(
-    settingsViewSrc.includes("hasExplicitSection ? 'hidden' : 'block p-4 md:p-6'"),
+    settingsViewSrc.includes("hasExplicitSection ? 'hidden lg:block lg:p-4' : 'block p-4 md:p-6 lg:p-4'"),
     'Sidebar must show on mobile root and hide when detail is active',
   )
   assert.ok(
-    settingsViewSrc.includes("!hasExplicitSection ? 'hidden' : 'block'"),
+    settingsViewSrc.includes("!hasExplicitSection ? 'hidden lg:block' : 'block'"),
     'Detail view must hide on mobile root and display when section is selected',
   )
 
@@ -355,7 +354,7 @@ test('6. Localization: Complete Indonesian translations in id.json', () => {
   )
 })
 
-test('7. Mobile Responsive Constraints & Touch Target: p-4 md:p-6, max-w-4xl, min-h-11', () => {
+test('7. Responsive padding, bounded detail and44px touch targets', () => {
   const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf8')
 
   // Container padding: p-4 on mobile, md:p-6 on desktop
@@ -366,7 +365,7 @@ test('7. Mobile Responsive Constraints & Touch Target: p-4 md:p-6, max-w-4xl, mi
 
   // max-w-4xl constraint
   assert.ok(
-    settingsViewSrc.includes('max-w-4xl'),
+    fs.readFileSync(path.join(webDir, 'src/components/layout/DetailLayout.tsx'), 'utf8').includes('max-w-3xl'),
     'Detail container must enforce max-w-4xl for optimal reading length',
   )
 

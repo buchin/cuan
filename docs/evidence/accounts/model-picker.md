@@ -28,3 +28,21 @@ node docs/evidence/accounts/model-picker-check.cjs
 ```
 
 Artifacts: `/home/dev/reports/cuan-account-models/`.
+
+## Settings master–detail and message boundaries
+
+Desktop Settings now keeps a compact category navigation beside its bounded
+reading canvas and opens General at the index. Mobile keeps category-list then
+single-detail navigation, with the existing header back action. Personal sections
+opened from Settings remain in Settings; Account deep links remain supported.
+Category subtitles and large icon blocks were removed from the navigation.
+
+Agent messages containing task/status cards retain the normal soft incoming
+bubble. The former broad :has() rule incorrectly stripped padding/background
+from the entire mixed message. Canceled attempts now take precedence over the
+board's retained blocked state, displaying Cancelled instead of Needs attention.
+
+Browser fixtures390/1440 verify desktop category persistence, default General,
+mobile master/detail visibility, stable Settings personal routes, and nontransparent
+mixed-message background/padding with a real rendered task card. Updated screenshots
+were directly inspected. These checks do not establish native task completion.

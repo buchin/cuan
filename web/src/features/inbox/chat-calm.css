@@ -427,46 +427,7 @@
   margin: 0;
 }
 
-/* Seamless Borderless Artifacts inside Calm Stream (Bear Notes Inspired) */
-.wa-message-bubble:has(.status-report-card),
-.calm-message-bubble:has(.status-report-card),
-.wa-message-bubble:has(.approval-card),
-.calm-message-bubble:has(.approval-card),
-.wa-message-bubble:has([data-card="task-card"]),
-.calm-message-bubble:has([data-card="task-card"]),
-.wa-message-bubble:has([data-testid="task-completion-card"]),
-.calm-message-bubble:has([data-testid="task-completion-card"]),
-.wa-message-bubble:has([aria-label="Agent response progress"]),
-.calm-message-bubble:has([aria-label="Agent response progress"]),
-.wa-message-bubble:has([aria-label="Task from conversation"]),
-.calm-message-bubble:has([aria-label="Task from conversation"]),
-[aria-label="Agent response progress"] .wa-message-bubble,
-[aria-label="Agent response progress"] .calm-message-bubble {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  width: 100%;
-  max-width: min(96%, 680px);
-}
-@media (min-width: 1024px) {
-  .wa-message-bubble:has(.status-report-card),
-  .calm-message-bubble:has(.status-report-card),
-  .wa-message-bubble:has(.approval-card),
-  .calm-message-bubble:has(.approval-card),
-  .wa-message-bubble:has([data-card="task-card"]),
-  .calm-message-bubble:has([data-card="task-card"]),
-  .wa-message-bubble:has([data-testid="task-completion-card"]),
-  .calm-message-bubble:has([data-testid="task-completion-card"]),
-  .wa-message-bubble:has([aria-label="Agent response progress"]),
-  .calm-message-bubble:has([aria-label="Agent response progress"]),
-  .wa-message-bubble:has([aria-label="Task from conversation"]),
-  .calm-message-bubble:has([aria-label="Task from conversation"]),
-  [aria-label="Agent response progress"] .wa-message-bubble,
-  [aria-label="Agent response progress"] .calm-message-bubble {
-    max-width: min(88%, 700px);
-  }
-}
+/* Mixed text and task messages retain the same calm message boundary. */
 .wa-message-bubble:has(.status-report-card) .wa-markdown-footer,
 .calm-message-bubble:has(.status-report-card) .calm-markdown-footer,
 .wa-message-bubble:has([data-testid="task-completion-card"]) .wa-markdown-footer,

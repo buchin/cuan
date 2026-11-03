@@ -1,3 +1,4 @@
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { DetailLayout } from '../../components/layout/DetailLayout'
 import { GeneralSettings } from './GeneralSettings'
 import { IntegrationOverview } from './IntegrationOverview'
@@ -14,7 +15,7 @@ import {
   type LanguagePreference,
 } from '../../context/LanguageContext'
 import { useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
 import { useTheme } from '../../context/ThemeContext'
 import { AppsSkillsView } from './AppsSkillsView'
@@ -48,6 +49,7 @@ export function SettingsView({
   const { t, preference, setPreference } = useLanguage()
   const location = useLocation()
   const { theme, setTheme } = useTheme()
+  const desktop = useMediaQuery('(min-width: 1024px)')
 
   const rawSubSection = location.pathname.split('/')[2]
   const hasExplicitSection = Boolean(rawSubSection)
@@ -75,50 +77,14 @@ export function SettingsView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl min-h-[calc(100vh-4rem)]">
-      {/* Hidden accessible navigation tabs for screen readers and link compatibility */}
-      <nav
-        aria-label={t('Settings sections')}
-        className="sr-only overflow-x-auto"
-      >
-        {[
-          ['general', t('General')],
-          ['team', t('Team')],
-          ['agent', t('Assistant & AI Brain')],
-          ['memory', t('Agent Memory')],
-          ['schedules', t('Schedules')],
-          ['profile', t('Profile & password')],
-          ['contacts', t('Contacts')],
-          ['apps-skills', t('Apps & Skills')],
-          ['integrations', t('Integrations')],
-          ['appearance', t('Appearance')],
-          ['notifications', t('Notifications')],
-        ]
-          .map(([id, label]) => {
-          const isAccount = location.pathname.startsWith('/account')
-          const to = isAccount
-            ? `/account/${id}`
-            : id === 'contacts' ? '/account/contacts' : id === 'general' ? '/settings' : `/settings/${id}`
-          return (
-            <Link
-              key={id}
-              to={to}
-              aria-current={section === id ? 'page' : undefined}
-              className={`inline-flex min-h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${section === id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              {t(label)}
-            </Link>
-          )
-        })}
-      </nav>
-
+    <div className="mx-auto w-full min-h-[calc(100vh-4rem)] lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
       {/* Settings index uses the same single-column canvas as other pages. */}
       <section
-        className={hasExplicitSection ? 'hidden' : 'block p-4 md:p-6'}
+        className={hasExplicitSection ? 'hidden lg:block lg:p-4' : 'block p-4 md:p-6 lg:p-4'}
       >
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
           <SettingsMasterNav
-            currentSection={hasExplicitSection ? section : ''}
+            currentSection={hasExplicitSection || desktop ? section : ''}
             isAccount={isAccount}
           />
         </div>
@@ -127,7 +93,7 @@ export function SettingsView({
       {/* Detail Content (Kanan) - flex-1 min-w-0 max-w-4xl */}
       <main
         className={`flex-1 min-w-0 overflow-y-auto p-4 md:p-6 ${
-          !hasExplicitSection ? 'hidden' : 'block'
+          !hasExplicitSection ? 'hidden lg:block' : 'block'
         }`}
       >
         <DetailLayout

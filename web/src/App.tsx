@@ -488,12 +488,6 @@ export function App() {
         },
       })
     }
-    if (rootSegment === 'settings' && ['profile', 'appearance', 'notifications'].includes(subParam)) {
-      navigate('/account/' + encodeURIComponent(subParam) + location.search + location.hash, {
-        replace: true,
-        state: location.state,
-      })
-    }
     if (rootSegment === 'account' && ['general', 'team', 'ai-providers', 'memory', 'agent', 'agents', 'apps-skills', 'integrations'].includes(subParam)) {
       navigate('/settings/' + encodeURIComponent(subParam) + location.search + location.hash, {
         replace: true,
