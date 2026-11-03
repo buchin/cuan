@@ -94,6 +94,11 @@ func TestInboxTaskCounter_ContactsAndConversationsPayload(t *testing.T) {
 		t.Fatalf("failed to create linked task: %v", err)
 	}
 
+	doing := task.TaskStatusDoing
+	if _, err := srv.taskSvc.UpdateTask(context.Background(), createdTask.ID, "owner", task.UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatal(err)
+	}
+
 	// 4. Verify /api/v1/chat/contacts now reports task_count=1 and active_tasks=1
 	recAfter := httptest.NewRecorder()
 	reqAfter := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts", nil)

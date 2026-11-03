@@ -28,6 +28,7 @@ type InboxThreadItem struct {
 	LastMessage  *db.ProjectMessageDTO `json:"last_message,omitempty"`
 	MessageCount int                   `json:"message_count"`
 	TaskCount    int                   `json:"task_count"`
+	ReviewTasks  int                   `json:"review_tasks"`
 	ActiveTasks  int                   `json:"active_tasks"`
 	QueuedTasks  int                   `json:"queued_tasks"`
 	DoneTasks    int                   `json:"done_tasks"`
@@ -99,6 +100,7 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		// Fetch linked tasks to derive status
 		tasks, _ := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
 		taskCount := len(tasks)
+		reviewTasks := 0
 		activeTasks := 0
 		queuedTasks := 0
 		doneTasks := 0
@@ -117,10 +119,12 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 				failedTasks++
 			} else if st == "queued" || st == "pending" {
 				queuedTasks++
-			} else {
+			} else if st == "review" {
+				reviewTasks++
+			} else if inboxTaskIsWorking(st) {
 				activeTasks++
 			}
-			if st == "doing" || st == "review" {
+			if inboxTaskIsWorking(st) {
 				hasDoing = true
 			}
 		}
@@ -138,10 +142,12 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 							failedTasks++
 						} else if stStatus == "queued" || stStatus == "pending" {
 							queuedTasks++
-						} else {
+						} else if stStatus == "review" {
+							reviewTasks++
+						} else if inboxTaskIsWorking(stStatus) {
 							activeTasks++
 						}
-						if stStatus == "doing" || stStatus == "review" {
+						if inboxTaskIsWorking(stStatus) {
 							hasDoing = true
 						}
 					}
@@ -153,6 +159,8 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		if taskCount > 0 {
 			if hasDoing {
 				derivedStatus = "in_progress"
+			} else if reviewTasks > 0 {
+				derivedStatus = "review"
 			} else if hasDone {
 				derivedStatus = "done"
 			} else {
@@ -190,6 +198,7 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 			MessageCount: messageCount,
 			TaskCount:    taskCount,
 			ActiveTasks:  activeTasks,
+			ReviewTasks:  reviewTasks,
 			QueuedTasks:  queuedTasks,
 			DoneTasks:    doneTasks,
 			FailedTasks:  failedTasks,
@@ -383,9 +392,12 @@ func (s *Server) handleGetInboxThread(w http.ResponseWriter, r *http.Request) {
 	if len(tasks) > 0 {
 		hasDone := false
 		hasDoing := false
+		reviewTasks := 0
 		for _, t := range tasks {
 			st := strings.ToLower(t.Status)
-			if st == "doing" || st == "review" {
+			if st == "review" {
+				reviewTasks++
+			} else if inboxTaskIsWorking(st) {
 				hasDoing = true
 			} else if st == "done" {
 				hasDone = true
@@ -393,6 +405,8 @@ func (s *Server) handleGetInboxThread(w http.ResponseWriter, r *http.Request) {
 		}
 		if hasDoing {
 			derivedStatus = "in_progress"
+		} else if reviewTasks > 0 {
+			derivedStatus = "review"
 		} else if hasDone {
 			derivedStatus = "done"
 		}

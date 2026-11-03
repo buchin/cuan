@@ -493,6 +493,10 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {
+		resp.OwnerID, _ = s.authSvc.OwnerID(r.Context())
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), resp.Task.ID); err == nil {
+			resp.RequiresVision = s.taskRequiresVision(r.Context(), resp.OwnerID, detail, "", "")
+		}
 		claimCtx := r.Context()
 		if resp.WorkingDir != "" {
 			claimCtx = context.WithValue(claimCtx, taskAgentWorkspaceKey{}, resp.WorkingDir)

@@ -9,7 +9,7 @@ import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
 import { projectsApi } from '../../api/projects'
 import { type Project } from '../../api/types'
 import { tasteApi, type GroundingTaste } from '../../api/taste'
-import { StudioExecutionSelector } from './StudioExecutionSelector'
+import { StudioProjectSelector } from './StudioProjectSelector'
 import { TasteGroundingChips } from './TasteGroundingChips'
 
 export function StudioView({
@@ -87,7 +87,7 @@ export function StudioView({
   const [agents, setAgents] = useState<Agent[]>([])
   const [searchParams] = useSearchParams()
   const [agentsLoading, setAgentsLoading] = useState(true)
-  const [selectedAgentId, setSelectedAgentId] = useState('')
+  const selectedAgentId = agents.find((a) => a.id === 'agent_cuan')?.id || ''
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [selectedProjectId, setSelectedProjectId] = useState(
@@ -109,12 +109,12 @@ export function StudioView({
   }, [searchParams, autoFocus])
 
   const selectedAgent = agents.find((a) => a.id === selectedAgentId)
-  const supportsVision = selectedAgent
+  const supportsVision = selectedAgent?.id === 'agent_cuan' ? true : selectedAgent
     ? isModelVisionCapable(selectedAgent.model_id, selectedAgent.provider || selectedAgent.harness)
     : true
 
   useEffect(() => {
-    if (!selectedAgent) return
+    if (!selectedAgent || selectedAgent.id === 'agent_cuan') return
     const vision = isModelVisionCapable(selectedAgent.model_id, selectedAgent.provider || selectedAgent.harness)
     if (!vision && uploads.hasImages()) {
       uploads.removeImages()
@@ -267,7 +267,7 @@ export function StudioView({
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('provider_quota_exhausted') || msg.includes('quota')) {
         setError(
-          t('All available agents reached usage limits. Your message is saved. Try again after the limit resets.'),
+          t('AI capacity is temporarily full. Your message is saved.'),
         )
       } else {
         setError(
@@ -425,7 +425,7 @@ export function StudioView({
           <label htmlFor="studio-goal" className="sr-only">
             {t('Your goal')}
           </label>
-          <div className="relative rounded-2xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+          <div className="relative rounded-2xl border border-input bg-background focus-within:border-muted-foreground/60 focus-within:ring-1 focus-within:ring-muted-foreground/30">
             <textarea
               data-primary-composer
               id="studio-goal"
@@ -462,19 +462,13 @@ export function StudioView({
                   disableImages={!supportsVision}
                   compact={true}
                 />
+                {selectedAgent && <span className="truncate text-xs text-muted-foreground" aria-label={t('Assistant')}>{selectedAgent.name}</span>}
                 {agentSetup === 'ready' && !agentsLoading && !projectsLoading && (
-                  <StudioExecutionSelector
+                  <StudioProjectSelector
                     projects={projects.filter((p) => !p.is_archived)}
                     selectedProjectId={selectedProjectId}
-                    onSelectProject={setSelectedProjectId}
+                    onSelect={setSelectedProjectId}
                     onConnectProjectClick={onCreateProject}
-                    agents={agents}
-                    selectedAgentId={selectedAgentId}
-                    onSelectAgent={setSelectedAgentId}
-                    onAddAgentClick={() => {
-                      setAddAgentModalOpen(true)
-                      setAddAgentTrigger(true)
-                    }}
                     disabled={busy}
                   />
                 )}

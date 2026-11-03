@@ -14,9 +14,9 @@ test('1. S69-T1 & S69-T2: Single Unified Assistant & No Technical Nicknames in S
 
   const content = fs.readFileSync(agentSettingsPath, 'utf8')
   // Verify assistant name handling
-  assert.ok(content.includes('assistantName'), 'Must maintain assistant name state')
+  assert.ok(content.includes('setName'), 'Must maintain assistant name state')
   assert.ok(content.includes('Cuan'), 'Must have default assistant name Cuan')
-  assert.ok(content.includes('handleSaveName'), 'Must support updating assistant name')
+  assert.ok(content.includes('agentsApi.patch(primary.id'), 'Must support updating assistant name')
 
   // Verify internal legacy bot nicknames are not displayed as separate cards
   assert.ok(!content.includes("'@dev'"), 'Must not expose @dev nickname card to user')

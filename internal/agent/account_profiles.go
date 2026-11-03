@@ -19,6 +19,7 @@ import (
 // Account metadata and CLI profiles share a private persistent configuration root.
 // Credentials stay CLI-owned; no token or filesystem path is part of the DTO.
 type ProviderAccount struct {
+	ModelID            string               `json:"model_id,omitempty"`
 	AllowModelFallback bool                 `json:"allow_model_fallback"`
 	ModelCooldowns     map[string]time.Time `json:"model_cooldowns,omitempty"`
 	AllowFailover      bool                 `json:"allow_failover"`
@@ -243,38 +244,12 @@ func ResolveHealthyAccountProfile(owner string) (string, *ProviderAccount, error
 	if owner == "" {
 		owner = "owner_admin"
 	}
-	accounts, err := ListProviderAccounts(owner)
-	if err != nil || len(accounts) == 0 {
+	home, profile, release, err := LeaseHealthyBrain(owner, nil)
+	if err != nil {
 		return "", nil, err
 	}
-
-	// 1. First priority: verified account with credentials present
-	for _, a := range accounts {
-		if a.Legacy || !a.CredentialsPresent {
-			continue
-		}
-		if a.State == "verified" {
-			home, err := ProviderAccountHome(owner, a.ID)
-			if err == nil && home != "" && IsAntigravityLoggedInInDir(home) {
-				return home, a, nil
-			}
-		}
-	}
-
-	// 2. Second priority: any account not quota_limited and not unavailable
-	for _, a := range accounts {
-		if a.Legacy || !a.CredentialsPresent {
-			continue
-		}
-		if a.State != "quota_limited" && a.State != "unavailable" && a.State != "login_required" {
-			home, err := ProviderAccountHome(owner, a.ID)
-			if err == nil && home != "" && IsAntigravityLoggedInInDir(home) {
-				return home, a, nil
-			}
-		}
-	}
-
-	return "", nil, errors.New("no healthy provider account available")
+	release()
+	return home, profile, nil
 }
 
 // A filtered child environment avoids inherited provider credentials, config paths,
@@ -615,4 +590,30 @@ func RecordProviderModelRestriction(owner, id, model string) error {
 	}
 	a.ModelCooldowns[model] = time.Now().Add(5 * time.Minute)
 	return saveProviderAccount(a)
+}
+
+// UpdateProviderAccountSettings edits metadata only; credentials and bindings stay intact.
+func UpdateProviderAccountSettings(owner, id, label, model string) (*ProviderAccount, error) {
+	label = strings.TrimSpace(label)
+	model = strings.TrimSpace(model)
+	if label == "" || len([]rune(label)) > 100 || strings.ContainsAny(label, "\r\n\x00") {
+		return nil, errors.New("Enter a name of 1–100 characters")
+	}
+	if len(model) > 200 || (model != "" && !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`).MatchString(model)) {
+		return nil, errors.New("Enter a valid model ID or leave it empty for Auto")
+	}
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if a.Legacy {
+		return nil, errors.New("Legacy connection settings are managed by the server")
+	}
+	a.Label, a.ModelID = label, model
+	if err := saveProviderAccount(a); err != nil {
+		return nil, err
+	}
+	return a, nil
 }

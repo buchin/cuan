@@ -63,12 +63,12 @@ test('2. StudioAgentSelector: Compact pill button & modern popover structure', (
 
 test('3. StudioView: Composer toolbar integration without raw select block', () => {
   assert.ok(
-    studioViewSource.includes('<StudioAgentSelector') || studioViewSource.includes('<StudioExecutionSelector'),
+    studioViewSource.includes('<StudioProjectSelector'),
     'StudioView must render StudioAgentSelector or unified StudioExecutionSelector in composer toolbar'
   )
   assert.ok(
-    studioViewSource.includes('onAddAgentClick='),
-    'StudioView must wire onAddAgentClick to trigger add agent modal'
+    !studioViewSource.includes('onAddAgentClick='),
+    'Studio must not ask users to pick or add internal agents'
   )
   assert.ok(
     !studioViewSource.includes('<select') && !studioViewSource.includes('id="studio-agent"'),

@@ -42,21 +42,20 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 	topicID := delegationMessageID("studio:" + strings.ToLower(req.RequestID))
 	var selected *db.Agent
 
-	// Honor an explicit agent pick when provided and available for execution.
-	if req.AgentID != "" {
-		a, err := s.agentRepo.GetAgentByID(r.Context(), req.AgentID)
-		if err == nil && a != nil && a.Enabled && a.Status != "inactive" {
-			if _, err := s.ownedAgentProfileHome(r.Context(), owner, a); err == nil {
-				selected = a
-			}
+	// A replay retains its original durable conversation. New work always uses
+	// the public identity; legacy agents are private brains, not recipients.
+	if s.projectStudioRepo != nil {
+		if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), topicID); e == nil && room != nil {
+			selected, _ = s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
 		}
 	}
-
 	if selected == nil {
-		if s.projectStudioRepo != nil {
-			if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), topicID); e == nil && room != nil {
-				selected, _ = s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+		if a, err := s.agentRepo.GetAgentByID(r.Context(), db.AgentIDCuan); err == nil && a != nil {
+			if !a.Enabled || a.Status == "inactive" {
+				respondJSONError(w, 503, "Your assistant is unavailable. Your draft is preserved.")
+				return
 			}
+			selected = a
 		}
 	}
 	if selected == nil {

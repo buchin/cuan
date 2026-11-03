@@ -11,7 +11,6 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { InboxRequest } from '../../api/chat'
-import { TeamView } from '../team/TeamView'
 
 export function evaluateInboxQuotaStatus(q: {
   steps?: { seq: number; kind: string; text: string; at: string }[]
@@ -90,9 +89,6 @@ export function InboxActivity({
   const [copyStatus, setCopyStatus] = useState('')
   const [recovering, setRecovering] = useState(false)
   const [recoveryStatus, setRecoveryStatus] = useState('')
-  const [connectSetup, setConnectSetup] = useState(false)
-  const [connectRequested, setConnectRequested] = useState(false)
-  const [accountJustConnected, setAccountJustConnected] = useState(false)
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
@@ -168,7 +164,7 @@ export function InboxActivity({
       ? Math.floor(duration / 1000)
       : null
   const label = {
-    queued: 'Queued',
+    queued: q.safe_error?.startsWith('AI capacity is temporarily full.') ? 'Waiting for capacity' : 'Queued',
     running: 'Running',
     cancelling: 'Cancelling…',
     completed: 'Completed',
@@ -182,7 +178,7 @@ export function InboxActivity({
         step.kind !== 'provider_result' && step.kind !== 'runtime_session' && step.kind !== 'recovery_policy',
     ) || []
   const Icon =
-    autoPending ? LoaderCircle : q.state === 'queued'
+    (autoPending || accessBlocked) ? Clock3 : q.state === 'queued'
       ? Clock3
       : active
         ? LoaderCircle
@@ -207,7 +203,7 @@ export function InboxActivity({
               'h-4 w-4 shrink-0 ' +
               ((active && q.state !== 'queued') || autoPending
                 ? 'animate-spin'
-                : q.state === 'failed'
+                : q.state === 'failed' && !accessBlocked
                   ? 'text-destructive'
                   : '')
             }
@@ -222,7 +218,7 @@ export function InboxActivity({
               : q.state === 'running'
               ? activityText
               : q.state === 'failed'
-                ? (accessBlocked ? t('Could not reply — AI quota reached') : t('Could not reply'))
+                ? (accessBlocked ? t('Waiting for AI capacity') : t('Could not reply'))
                 : q.state === 'interrupted' ? t('Reply interrupted') : t(label)}
           </span>
           {!autoPending && seconds !== null && (
@@ -259,7 +255,7 @@ export function InboxActivity({
             )}
             {!bubble && !compact && (
               <Icon
-                className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
+                className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' && !accessBlocked ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
                 aria-hidden="true"
               />
             )}
@@ -293,7 +289,7 @@ export function InboxActivity({
                     ? 'Reply saved.'
                     : 'Message sent.'
                   : q.state === 'queued'
-                    ? 'Message saved and queued.'
+                    ? (q.safe_error?.startsWith('AI capacity is temporarily full.') ? 'Your message is saved and will continue automatically.' : 'Message saved and queued.')
                     : q.state === 'running'
                       ? 'The agent is preparing a reply.'
                       : q.state === 'interrupted'
@@ -494,7 +490,7 @@ export function InboxActivity({
               recovery === 'recovering'
                 ? 'Your message is saved.'
                 : accessBlocked
-                  ? 'All connected AI accounts reached provider usage limits. Your message is saved.'
+                  ? 'AI capacity was unavailable. Your message is saved.'
                   : isToolBudget
                     ? 'The tool budget was reached for this turn. Your message is saved.'
                     : recovery === 'check_agent'
@@ -506,75 +502,6 @@ export function InboxActivity({
                           : 'Your reply stopped. Your message is saved.'
             )}
           </p>
-          {accessBlocked && (
-            accountJustConnected ? (
-              <div className="my-2.5 space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>{t('New AI account connected!')}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t('Your saved message is being retried with the newly connected account.')}
-                </p>
-                {onRetry && (
-                  <button
-                    type="button"
-                    disabled={recovering}
-                    className="action-primary text-xs px-3 py-1.5 inline-flex items-center gap-1.5 shadow"
-                    onClick={() => void recover(onRetry)}
-                  >
-                    {recovering ? (
-                      <>
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                        <span>{t('Sending…')}</span>
-                      </>
-                    ) : (
-                      <>
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        <span>{t('Send saved message now')}</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="my-2.5 space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-                <p className="text-xs font-medium text-foreground">
-                  {t('To continue sooner, connect another account with available AI access. Your saved work stays in this conversation.')}
-                </p>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-                    onClick={() => { setConnectSetup(true); setConnectRequested(true) }}
-                  >
-                    {t('Connect another account')}
-                  </button>
-                  <Link
-                    to="/settings/agents"
-                    className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
-                  >
-                    {t('Open account settings')}
-                  </Link>
-                </div>
-              </div>
-            )
-          )}
-          {connectSetup && (
-            <TeamView
-              connectionOnly
-              createRequested={connectRequested}
-              onCreateHandled={() => setConnectRequested(false)}
-              onAgentConnected={() => {
-                setConnectSetup(false)
-                setAccountJustConnected(true)
-                setRecoveryStatus(t('Account connected. Retrying your saved message…'))
-                if (onRetry) {
-                  void recover(onRetry)
-                }
-              }}
-            />
-          )}
           {!accessBlocked && isToolBudget && onRetry ? (
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -634,7 +561,7 @@ export function InboxActivity({
               )}
             </div>
           ) : null}
-          {accessBlocked && !accountJustConnected && onRetry && (
+          {accessBlocked && onRetry && (
             <button
               type="button"
               disabled={recovering}
@@ -642,7 +569,7 @@ export function InboxActivity({
               onClick={() => void recover(onRetry)}
             >
               {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
-              {t(recovering ? 'Trying again…' : 'Try again anyway')}
+              {t(recovering ? 'Trying again…' : 'Retry saved message')}
             </button>
           )}
           {recoveryStatus && <p role="status" className="text-xs text-muted-foreground">{recoveryStatus}</p>}

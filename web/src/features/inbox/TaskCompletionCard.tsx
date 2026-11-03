@@ -18,7 +18,7 @@ import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
-import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl } from '../tasks/task-ui'
+import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl, workStatus } from '../tasks/task-ui'
 import { ChatMarkdown } from './ChatMarkdown'
 import { parseTaskReviewEnvelope } from './task-envelope'
 
@@ -55,7 +55,9 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
     setCurrentTask(task)
   }, [task])
 
-  const isDone = (currentTask.status || '').toLowerCase().trim() === 'done'
+  const stateLabel = workStatus(currentTask)
+  const isDone = stateLabel === 'Completed'
+  const stopped = ['Cancelled', 'Needs attention'].includes(stateLabel)
 
   // Parse dual-channel output envelope & fallback
   const envelopeResult = useMemo(() => {
@@ -161,9 +163,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
       aria-label={isDone ? t('Kartu Tugas Selesai') : t('Kartu Tugas Siap Reviu')}
       className={cn(
         'w-full max-w-xl rounded-xl border border-border/40 bg-card/40 dark:bg-card/20 p-3.5 sm:p-4 text-card-foreground transition-all shadow-xs space-y-3',
-        isDone
-          ? 'border-l-2 border-l-emerald-500/70 border-emerald-500/20'
-          : 'border-l-2 border-l-purple-500/70 border-purple-500/20',
+        'border-border/40',
         className
       )}
     >
@@ -175,16 +175,16 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             className={cn(
               'inline-flex items-center gap-1.5 text-xs font-medium',
               isDone
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-purple-600 dark:text-purple-400'
+                ? 'text-muted-foreground'
+                : 'text-muted-foreground'
             )}
           >
             {isDone ? (
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             ) : (
-              <ClipboardCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             )}
-            <span>{isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
+            <span>{stopped ? t(stateLabel) : isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
           </span>
 
           <span className="text-xs font-mono font-medium text-muted-foreground">

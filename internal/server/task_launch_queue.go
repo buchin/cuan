@@ -148,7 +148,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		Code  string `json:"code"`
 	}
 	json.Unmarshal(response.body.Bytes(), &problem)
-	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "provider_vision_unsupported" {
+	if targetAgent != db.AgentIDCuan && (problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "provider_vision_unsupported") {
 		needsVision := s.taskRequiresVision(ctx, job.OwnerID, detail, "", job.Revision)
 		if altAgent := s.findHealthyTaskAgentFailover(ctx, job.OwnerID, targetAgent, detail, needsVision); altAgent != nil {
 			log.Printf("[TaskLaunch] Auto-failover task %s from %s to alternative healthy agent %s (reason: %s)", job.TaskID, targetAgent, altAgent.ID, problem.Code)
@@ -166,7 +166,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 	}
 	if problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "provider_vision_unsupported" || problem.Code == "repository_preparing" || problem.Code == "project_concurrency_busy" {
-		if job.Checks >= 10 {
+		if job.Checks >= 10 && problem.Code != "provider_capacity" && problem.Code != "provider_unavailable" {
 			status := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, job.TaskID, "runner", task.UpdateTaskRequest{Status: &status})
 			return finish("stopped", "The task reached maximum queue retry attempts waiting for project concurrency or provider availability. Check active work or run again.")

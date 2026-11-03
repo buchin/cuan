@@ -218,3 +218,32 @@ func (s *Server) handleDeleteProviderAccount(w http.ResponseWriter, r *http.Requ
 	}
 	respondJSON(w, 200, map[string]any{"status": "deleted", "id": id})
 }
+
+func (s *Server) handleUpdateProviderAccountSettings(w http.ResponseWriter, r *http.Request) {
+	if !s.requireOwnerRole(w, r) {
+		return
+	}
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	id := chi.URLParam(r, "accountID")
+	if _, err := agent.GetProviderAccount(owner, id); err != nil {
+		respondJSONError(w, 404, "Account not found")
+		return
+	}
+	var input struct {
+		Label string `json:"label"`
+		Model string `json:"model_id"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input) != nil {
+		respondJSONError(w, 400, "Enter valid brain settings")
+		return
+	}
+	updated, err := agent.UpdateProviderAccountSettings(owner, id, input.Label, input.Model)
+	if err != nil {
+		respondJSONError(w, 400, err.Error())
+		return
+	}
+	respondJSON(w, 200, map[string]any{"account": updated})
+}

@@ -114,6 +114,8 @@ export function parseTaskReviewEnvelope(
   const rawStatus = (task.status || '').toLowerCase().trim()
   const isDone = rawStatus === 'done'
   const isReview = rawStatus === 'review'
+  const stopped = task.status === 'blocked' || task.launch?.state === 'stopped' || task.launch?.state === 'cancelled' || ['failed', 'interrupted', 'canceled', 'cancelled'].includes(task.latest_attempt?.status || task.execution_status || '')
+  const fallbackSummary = stopped ? 'Pekerjaan terhenti. Hasil belum terverifikasi.' : 'Hasil pekerjaan menunggu peninjauan.'
 
   // Extract operator summary
   let summary = parsed?.summary?.trim() || ''
@@ -122,7 +124,7 @@ export function parseTaskReviewEnvelope(
     if (rawSummary.startsWith('{') && rawSummary.includes('"draft"')) {
       summary = isDone
         ? 'Instruksi tugas berhasil diselesaikan dengan baik.'
-        : 'Tugas telah selesai diproses dan siap untuk direviu.'
+        : fallbackSummary
     } else {
       summary = rawSummary
     }
@@ -131,7 +133,7 @@ export function parseTaskReviewEnvelope(
   if (!summary) {
     summary = isDone
       ? 'Instruksi tugas berhasil diselesaikan dengan baik.'
-      : 'Tugas telah selesai diproses dan siap untuk direviu.'
+      : fallbackSummary
   }
 
   // Extract visitor reply draft
@@ -151,6 +153,8 @@ export function parseTaskReviewEnvelope(
       draft = ''
     }
   }
+
+  if (stopped) { summary = task.latest_attempt?.error_message || fallbackSummary; draft = '' }
 
   const evidence =
     parsed?.evidence?.trim() ||

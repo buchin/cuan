@@ -70,6 +70,7 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 	r.Route("/provider-accounts", func(ar chi.Router) {
 		ar.Get("/", s.handleListProviderAccounts)
 		ar.Post("/", s.handleCreateProviderAccount)
+		ar.Patch("/{accountID}", s.handleUpdateProviderAccountSettings)
 		ar.Post("/{accountID}/auth-init", s.handleProviderAccountAuthInit)
 		ar.Post("/{accountID}/auth-code", s.handleProviderAccountAuthCode)
 		ar.Post("/{accountID}/verify", s.handleVerifyProviderAccount)

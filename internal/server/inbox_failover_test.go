@@ -54,7 +54,7 @@ func setupFailoverFixture(t *testing.T) (*Server, string, *db.Agent, *agent.Prov
 	bin := t.TempDir()
 	script := `#!/bin/sh
 printf x >> "$HOME/calls"
-case "$2" in *"Your display name: @main"*) ;; *) exit 9;; esac
+case "$2" in *"Your display name: @main"*|*"Your display name: @cuan"*) ;; *) exit 9;; esac
 if [ -f "$HOME/timeout" ]; then
  printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"provider timeout: connection timed out"}}'
  exit 3
@@ -319,7 +319,7 @@ func TestInboxFailoverSingleDurableReply(t *testing.T) {
 		}
 		json.Unmarshal(w.Body.Bytes(), &data)
 		if len(data.Requests) == 1 && data.Requests[0].State == "completed" {
-			if len(data.Messages) != 2 || !strings.Contains(w.Body.String(), "Same agent backup answer") || data.Requests[0].AgentID != "agent_main" {
+			if len(data.Messages) != 2 || !strings.Contains(w.Body.String(), "Same agent backup answer") || data.Requests[0].AgentID != db.AgentIDCuan {
 				t.Fatal(w.Body.String())
 			}
 			break
@@ -334,8 +334,8 @@ func TestInboxFailoverSingleDurableReply(t *testing.T) {
 	}
 	for _, dir := range []string{home, backupHome} {
 		calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
-		if string(calls) != "x" {
-			t.Fatal("duplicate execution", string(calls))
+		if len(calls) > 1 || (dir == backupHome && string(calls) != "x") {
+			t.Fatal("duplicate execution or no backup reply", string(calls))
 		}
 	}
 }

@@ -21,7 +21,6 @@ import {
   ArrowUp,
 } from 'lucide-react'
 import type { Task, TaskStatus, Project } from '../../api/types'
-import { agentsApi, type Agent } from '../../api/agents'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import {
   TASK_STATUSES,
@@ -69,7 +68,6 @@ export function TaskBoardView({
     [sortOpen, setSortOpen] = useState(false),
     [saving, setSaving] = useState(''),
     [actionError, setActionError] = useState(''),
-    [agents, setAgents] = useState<Agent[]>([]),
     [selectedRows, setSelectedRows] = useState<Set<string>>(new Set()),
     [limit, setLimit] = useState(100),
     [currentPage, setCurrentPage] = useState(1)
@@ -93,8 +91,16 @@ export function TaskBoardView({
     status = params.get('status') || 'all',
     project = activeProject?.id || params.get('project') || 'all',
     priority = params.get('priority') || 'all',
-    assignee = params.get('assignee') || 'all',
     sort = params.get('sort') || 'updated'
+  useEffect(() => {
+    if (!params.has('assignee') && !/^(agent|assignee)(-desc)?$/.test(params.get('sort') || '')) return
+    setParams(old => {
+      const next = new URLSearchParams(old)
+      next.delete('assignee')
+      if (/^(agent|assignee)(-desc)?$/.test(next.get('sort') || '')) next.delete('sort')
+      return next
+    }, { replace: true })
+  }, [params, setParams])
   const update = (key: string, value: string) =>
     setParams(
       (old) => {
@@ -121,29 +127,11 @@ export function TaskBoardView({
   }
   useEffect(() => {
     setCurrentPage(1)
-  }, [query, status, project, priority, assignee, sort])
-  useEffect(() => {
-    let alive = true
-    agentsApi
-      .list()
-      .then((list) => {
-        if (alive) setAgents(list)
-      })
-      .catch(() => {})
-    return () => {
-      alive = false
-    }
-  }, [])
+  }, [query, status, project, priority, sort])
   useEffect(
     () => setLimit(100),
-    [query, status, project, priority, assignee, sort],
+    [query, status, project, priority, sort],
   )
-  const names = new Map(agents.map((a) => [a.id, a.name]))
-  const name = (t: Task) =>
-    names.get(t.assignee_id || t.assignee || '') ||
-    t.assignee_id ||
-    t.assignee ||
-    'Unassigned'
   const projectName = (t: Task) =>
     t.project_name ||
     projects.find((p) => p.id === t.project_id || t.project_ids?.includes(p.id))
@@ -233,11 +221,7 @@ export function TaskBoardView({
       (t) =>
         matchesStatus(t) &&
         (priority === 'all' || t.priority === priority) &&
-        (assignee === 'all' ||
-          (assignee === 'unassigned'
-            ? !t.assignee_id && !t.assignee
-            : (t.assignee_id || t.assignee) === assignee)) &&
-        [t.id, taskRef(t.id), t.title, t.description, name(t), projectName(t)]
+        [t.id, taskRef(t.id), t.title, t.description, projectName(t)]
           .join(' ')
           .toLowerCase()
           .includes(query.trim().toLowerCase()),
@@ -269,12 +253,6 @@ export function TaskBoardView({
       } else if (sort === 'status-desc') {
         const diff = (b.status || 'backlog').localeCompare(a.status || 'backlog')
         if (diff) return diff
-      } else if (sort === 'agent' || sort === 'assignee') {
-        const diff = name(a).localeCompare(name(b))
-        if (diff) return diff
-      } else if (sort === 'agent-desc' || sort === 'assignee-desc') {
-        const diff = name(b).localeCompare(name(a))
-        if (diff) return diff
       } else if (sort === 'updated-asc') {
         const diff = (Date.parse(a.updated_at) || 0) - (Date.parse(b.updated_at) || 0)
         if (diff) return diff
@@ -290,8 +268,7 @@ export function TaskBoardView({
   const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   const filterCount =
     Number(project !== 'all' && !activeProject) +
-    Number(priority !== 'all') +
-    Number(assignee !== 'all')
+    Number(priority !== 'all')
   const filtered = !!query || status !== 'all' || filterCount > 0
   const clear = () => {
     setParams(
@@ -329,18 +306,7 @@ export function TaskBoardView({
     ...(priority !== 'all'
       ? [{ key: 'priority', label: 'Priority: ' + priority }]
       : []),
-    ...(assignee !== 'all'
-      ? [
-          {
-            key: 'assignee',
-            label:
-              'Assignee: ' +
-              (assignee === 'unassigned'
-                ? 'Unassigned'
-                : names.get(assignee) || assignee),
-          },
-        ]
-      : []),
+
   ]
   const saveRow = async (
     t: Task,
@@ -483,23 +449,7 @@ export function TaskBoardView({
           ))}
         </select>
       </label>
-      <label className="grid gap-1 text-sm">
-        Assignee
-        <select
-          aria-label="Filter assignee"
-          className="field-control"
-          value={assignee}
-          onChange={(e) => update('assignee', e.target.value)}
-        >
-          <option value="all">All assignees</option>
-          <option value="unassigned">Unassigned</option>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </label>
+
     </>
   )
   return (
@@ -799,7 +749,7 @@ export function TaskBoardView({
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <div className="hidden overflow-hidden rounded-md border border-border/40 bg-card/30 lg:block shadow-2xs">
-            <table className="w-full table-fixed text-left text-xs">
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="sticky top-0 z-10 bg-muted/40 text-xs font-medium text-muted-foreground border-b border-border/40">
                 <tr>
                   <th className="w-[40px] px-2 py-2 text-center">
@@ -822,7 +772,7 @@ export function TaskBoardView({
                     </span>
                   </th>
                   <th
-                    className="w-[34%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
+                    className="w-[49%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
                     onClick={() => handleSortColumn('title')}
                     title="Sort by Title"
                   >
@@ -852,16 +802,6 @@ export function TaskBoardView({
                     </span>
                   </th>
                   <th
-                    className="w-[15%] px-2 py-2 font-medium cursor-pointer select-none hover:text-foreground transition-colors"
-                    onClick={() => handleSortColumn('agent')}
-                    title="Sort by Agent"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      <span>Agent</span>
-                      {sort === 'agent' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'agent-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
-                    </span>
-                  </th>
-                  <th
                     className="w-[11%] px-2 py-2 text-right font-medium cursor-pointer select-none hover:text-foreground transition-colors"
                     onClick={() => handleSortColumn('updated')}
                     title="Sort by Updated Time"
@@ -886,7 +826,7 @@ export function TaskBoardView({
                     )}
                     onClick={() => onSelectTask(t)}
                   >
-                    <td className="w-[40px] px-2 py-1.5 text-center" onClick={(e) => toggleSelectRow(t.id, e)}>
+                    <td className="w-[40px] px-2 py-2.5 text-center" onClick={(e) => toggleSelectRow(t.id, e)}>
                       <input
                         type="checkbox"
                         aria-label={`Select task ${t.title}`}
@@ -895,10 +835,10 @@ export function TaskBoardView({
                         className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-ring"
                       />
                     </td>
-                    <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground font-medium">
+                    <td className="px-2 py-2.5 font-mono text-xs text-muted-foreground font-medium">
                       {taskRef(t.id)}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-2.5">
                       <div className="flex items-center gap-1.5 max-w-full">
                         {!activeProject && projectName(t) !== 'No project' && (
                           <span className="inline-flex shrink-0 items-center rounded border border-border/50 bg-muted/40 px-1.5 py-0.2 text-[10px] font-semibold text-muted-foreground truncate max-w-[110px]">
@@ -906,7 +846,7 @@ export function TaskBoardView({
                           </span>
                         )}
                         <button
-                          className="block text-left text-xs font-medium leading-tight hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring truncate"
+                          className="block text-left text-sm font-medium leading-6 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring truncate"
                           onClick={(e) => {
                             e.stopPropagation()
                             onSelectTask(t)
@@ -923,7 +863,7 @@ export function TaskBoardView({
                     </td>
                     <td className="px-2 py-1">{statusPicker(t)}</td>
                     <td className="px-2 py-1">
-                      <span className="inline-flex items-center gap-1 text-xs">
+                      <span className="inline-flex items-center gap-1 text-sm">
                         {t.priority === 'urgent' || t.priority === 'high' ? (
                           <ArrowUp className="h-3 w-3 text-destructive" />
                         ) : t.priority === 'low' ? (
@@ -933,7 +873,7 @@ export function TaskBoardView({
                         )}
                         <span
                           className={cn(
-                            'capitalize text-xs',
+                            'capitalize text-sm',
                             t.priority === 'urgent' && 'font-semibold text-destructive',
                             t.priority === 'high' && 'font-semibold text-foreground',
                             t.priority === 'normal' && 'text-muted-foreground',
@@ -944,60 +884,7 @@ export function TaskBoardView({
                         </span>
                       </span>
                     </td>
-                    <td className="break-words px-2 py-1 text-xs text-muted-foreground">
-                      <div className="relative">
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute left-1 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-muted text-[9px] font-medium text-muted-foreground"
-                        >
-                          {t.assignee_id || t.assignee
-                            ? name(t)
-                                .replace(/^@/, '')
-                                .slice(0, 1)
-                                .toUpperCase()
-                            : '–'}
-                        </span>
-                        <select
-                          aria-label={`Change assignee for ${t.title}`}
-                          className="h-7 w-full appearance-none truncate rounded-md border border-transparent bg-transparent pl-6 pr-4 text-xs text-foreground hover:border-input focus-visible:outline focus-visible:outline-1 focus-visible:outline-ring"
-                          value={t.assignee_id || t.assignee || ''}
-                          disabled={
-                            !!saving ||
-                            ['running', 'queued'].includes(
-                              t.latest_attempt?.status || '',
-                            )
-                          }
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            void saveRow(t, { assignee_id: e.target.value })
-                          }
-                        >
-                          <option value="">Unassigned</option>
-                          {!names.has(t.assignee_id || t.assignee || '') &&
-                            (t.assignee_id || t.assignee) && (
-                              <option value={t.assignee_id || t.assignee}>
-                                {name(t)}
-                              </option>
-                            )}
-                          {agents
-                            .filter(
-                              (a) =>
-                                a.enabled !== false ||
-                                a.id === (t.assignee_id || t.assignee),
-                            )
-                            .map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                        </select>
-                        <ChevronDown
-                          aria-hidden
-                          className="pointer-events-none absolute right-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity"
-                        />
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1 text-right text-[11px] font-mono text-muted-foreground">
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs font-mono text-muted-foreground">
                       <time
                         dateTime={t.updated_at}
                         title={new Date(t.updated_at).toLocaleString('en-US')}

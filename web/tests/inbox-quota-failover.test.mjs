@@ -144,8 +144,8 @@ test('4. Heuristic: Non-quota technical failure without past cooldown never trig
 test('5. InboxActivity component source code: Selective quota warning and humanized error feedback architecture', () => {
   // Selective quota warning in bubble / header status
   assert.ok(
-    inboxActivitySource.includes("accessBlocked ? t('Could not reply — AI quota reached') : t('Could not reply')"),
-    'InboxActivity must display "Could not reply — AI quota reached" ONLY when accessBlocked is true',
+    inboxActivitySource.includes("accessBlocked ? t('Waiting for AI capacity') : t('Could not reply')"),
+    'InboxActivity must display "Waiting for AI capacity" ONLY when accessBlocked is true',
   )
 
   // True error feedback priority in failure description
@@ -168,7 +168,7 @@ test('5. InboxActivity component source code: Selective quota warning and humani
 })
 
 test('6. Localization: Indonesian dictionary (id.json) contains 100% of new failure and quota translations', () => {
-  assert.equal(idLocale['Could not reply — AI quota reached'], 'Belum bisa membalas — Kuota AI habis')
+  assert.equal(idLocale['Waiting for AI capacity'], 'Menunggu kapasitas AI')
   assert.equal(idLocale['Could not reply'], 'Belum bisa membalas')
   assert.equal(idLocale['Try again'], 'Coba lagi')
   assert.equal(idLocale['Trying again…'], 'Mencoba lagi…')

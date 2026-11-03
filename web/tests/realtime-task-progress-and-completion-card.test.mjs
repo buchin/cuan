@@ -81,8 +81,8 @@ test('3. Actionable Completion Card: business-friendly summary, DoD, and quick a
   assert.ok(cardSource.includes('data-testid="completion-card-action-btn"'), 'Must have task action button testid')
 
   // Verify support for both done (emerald) and review (purple)
-  assert.ok(cardSource.includes('border-emerald-500'), 'Must style done state with emerald')
-  assert.ok(cardSource.includes('border-purple-500'), 'Must style review state with purple')
+  assert.ok(cardSource.includes('border-border/40'), 'Status must use calm shared borders')
+  assert.ok(cardSource.includes('stopped ? t(stateLabel)'), 'Stopped work must not claim review-ready success')
 
   // Verify DoD checklist support
   assert.ok(cardSource.includes('dod_checklist'), 'Must inspect dod_checklist')

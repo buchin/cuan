@@ -57,7 +57,7 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	} else if providerLimitedInboxTaskCanResume(d) {
 		key = "task-provider-recovery:" + d.LatestAttempt.ID
 		gap = "the provider stopped the previous execution because of an access limit; its failed route is cooling down"
-		notice = "Koneksi AI sebelumnya mengalami antrean atau batas kuota. Sistem otomatis melanjutkan lewat jalur cadangan..."
+		notice = "Kapasitas AI sedang disesuaikan. Pekerjaan tersimpan dan akan dilanjutkan otomatis."
 	}
 	revision := "Gap: " + gap + "; completion and verification are not established. Area: this task's existing project workspace and original approved deliverables. Inspect and preserve existing files before making changes; do not rebuild in provider HOME or another workspace. Reconcile uncertain external effects before repeating them. Continue only unfinished approved work. Verify every original acceptance criterion with targeted checks and report actual evidence and user-accessible results. Finish only when the original scope and verification are complete." + taskRecoveryContext(d)
 	output := s.startAuthorizedLaunch(ctx, origin, d, delegationMessageID(key), origin.RequestID, revision)
@@ -92,6 +92,9 @@ func taskRevisionAttemptCount(d *task.TaskDetailResponse) int {
 		var exitCode int
 		if a.ExitCode != nil {
 			exitCode = *a.ExitCode
+		}
+		if strings.HasPrefix(a.ErrorMessage, "The AI provider reported a usage limit.") {
+			continue
 		}
 		if a.Status == task.AttemptStatusInterrupted || runner.IsInfraFault(a.Status, a.ErrorMessage, exitCode) {
 			continue

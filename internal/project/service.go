@@ -148,17 +148,33 @@ func (s *Service) Connect(ctx context.Context, req ConnectProjectRequest) (*Proj
 		UpdatedAt:      now,
 	}
 
-	// 4. Perform initial clone or fetch
-	if err := s.gitClient.CloneOrFetch(ctx, owner, repo, token, localPath); err != nil {
-		// If clone fails, record error but save project so owner can see status
+	// Persist identity before network I/O so a slow clone cannot lose the project.
+	p.CloneStatus = "connected"
+	if err := s.store.CreateProject(ctx, p); err != nil {
+		return nil, err
+	}
+	cloneBudget := 45 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline) - 5*time.Second; remaining < cloneBudget {
+			cloneBudget = remaining
+		}
+	}
+	cloneCtx, cancelClone := context.WithTimeout(ctx, cloneBudget)
+	cloneErr := s.gitClient.CloneOrFetch(cloneCtx, owner, repo, token, localPath)
+	cloneTimedOut := cloneCtx.Err() != nil
+	cancelClone()
+	if cloneErr != nil {
 		p.CloneStatus = "failed"
-		p.LastError = err.Error()
+		p.LastError = cloneErr.Error()
+		if cloneTimedOut {
+			p.LastError = "Repository download took too long. Your project is saved. Retry synchronization to continue."
+		}
 	} else {
 		p.CloneStatus = "synced"
 	}
-
-	if err := s.store.CreateProject(ctx, p); err != nil {
-		return nil, err
+	p.UpdatedAt = time.Now().UTC()
+	if err := s.store.UpdateProject(ctx, p); err != nil {
+		return nil, fmt.Errorf("project saved, but synchronization status could not be updated: %w", err)
 	}
 
 	return p.ToResponse(), nil

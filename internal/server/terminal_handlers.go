@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -266,6 +267,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	payload.AgentID = strings.TrimSpace(payload.AgentID)
+	if s.agentRepo != nil {
+		switch payload.AgentID {
+		case "", "@cuan", "cuan", "agent_sm", "@sm", "agent_dev", "@dev", "agent_support", "@support":
+			if public, err := s.agentRepo.GetAgentByID(r.Context(), db.AgentIDCuan); err == nil && public != nil {
+				payload.AgentID = public.ID
+			}
+		}
+	}
 	payload.Prompt = strings.TrimSpace(payload.Prompt)
 	payload.Revision = strings.TrimSpace(payload.Revision)
 	if len([]rune(payload.Revision)) > 6000 {
@@ -773,7 +782,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			taskPrompt += extra
 		}
 	}
-	quotaHit := false
+	var quotaHit atomic.Bool
 	retryCount := 0
 	launched := false
 	defer func() {
@@ -790,10 +799,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			output.onQuota = func() {
 				<-launchSettled
 				if selectedAccountID != "" {
-					_ = agent.RecordProviderModelQuota(ownerID, selectedAccountID, selectedModel)
+					_ = output.recordQuotaCooldown(ownerID, selectedAccountID)
 				}
 				_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
-				quotaHit = true
+				quotaHit.Store(true)
 			}
 			output.onRegion = func() {
 				<-launchSettled
@@ -811,20 +820,20 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 
 		// 3. Spawn PTY process via Manager
 		runCfg := terminal.TaskAgentRunConfig{
-			Model:           selectedModel,
-			AttachmentPaths: attachmentPaths,
+			Model:             selectedModel,
+			AttachmentPaths:   attachmentPaths,
 			AttemptID:         attemptID,
 			TaskID:            taskID,
 			ProjectID:         projID,
 			ExecutionCategory: taskCategory,
 			AgentID:           agentID,
-			AgentName:       agentName,
-			Command:         payload.Binary,
-			Prompt:          taskPrompt,
-			WorkDir:         workDir,
-			Cols:            payload.Cols,
-			Rows:            payload.Rows,
-			Mode:            terminal.ModeInteractive,
+			AgentName:         agentName,
+			Command:           payload.Binary,
+			Prompt:            taskPrompt,
+			WorkDir:           workDir,
+			Cols:              payload.Cols,
+			Rows:              payload.Rows,
+			Mode:              terminal.ModeInteractive,
 			OnOutput: func(chunk []byte) {
 				if output != nil {
 					output.append(chunk)
@@ -945,7 +954,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		// Wait briefly to detect quota hit during early execution
 		<-launchSettled
 
-		if !quotaHit {
+		if !quotaHit.Load() {
 			if sourceRoom != "" {
 				s.publishInbox(sourceRoom)
 			}
@@ -967,7 +976,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 
 		// Quota hit - retry with next available agent
 		retryCount++
-		quotaHit = false
+		quotaHit.Store(false)
 		if retryCount >= maxAgentRetries {
 			break
 		}
@@ -1014,7 +1023,6 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	respondJSON(w, 409, map[string]string{"error": "All available agents reached usage limits. Your message is saved. Try again after the limit resets.", "code": "provider_quota_exhausted"})
 }
-
 
 // handleGetTaskRunHistory returns execution history of an agent runner on a task.
 // GET /api/v1/tasks/{id}/run-agent/history

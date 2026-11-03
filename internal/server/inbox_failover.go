@@ -14,7 +14,7 @@ import (
 	"github.com/buchin/cuan/internal/db"
 )
 
-const inboxQuotaNoBackup = "No allowed account/model route is currently available. Your message is saved. Check usage and fallback settings in Settings → Agents or try again after the limit resets."
+const inboxQuotaNoBackup = "AI capacity is temporarily full. Your message is saved and will continue automatically."
 
 type inboxModelKey struct{}
 
@@ -139,7 +139,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		triedAccounts[route.accountID] = true
 		if step != nil {
 			if !route.primary {
-				step("account_failover", "Continuing this agent's reply with an allowed backup account.")
+				step("account_failover", "Continuing the reply with available AI capacity.")
 			}
 			if route.model == "" {
 				step("model_auto", "Using Auto: the AI provider chooses its default model.")
@@ -168,7 +168,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		}()
 		if output != "" {
 			if step != nil && (!route.primary || attempts > 1) {
-				step("account_failover_complete", "This agent's reply completed using the selected account and model.")
+				step("account_failover_complete", "The reply is ready.")
 			}
 			return output, ""
 		}
@@ -237,7 +237,10 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		if step != nil {
 			step("recovery_safe", "No provider execution was started; account session slots are full.")
 		}
-		return "", "All available AI session slots are in use. Your message is saved. Try again when a session finishes."
+		if step != nil {
+			step("capacity_wait", "Waiting for available AI capacity.")
+		}
+		return "", inboxQuotaNoBackup
 	}
 	if lastNonQuotaFailure != "" {
 		return "", lastNonQuotaFailure
@@ -250,6 +253,10 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			return "", "Provider quota is limited. Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
 		}
 		return "", "Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
+	}
+	if step != nil {
+		step("recovery_safe", "Only safe reply activity occurred; no unfinished external operation will be replayed.")
+		step("capacity_wait", "Waiting for available AI capacity.")
 	}
 	return "", inboxQuotaNoBackup
 }
@@ -285,16 +292,14 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 	if primary == nil && isCuanFacade {
 		if _, healthyAcct, err := agent.ResolveHealthyAccountProfile(owner); err == nil && healthyAcct != nil {
 			primary = healthyAcct
-			if home == "" {
-				home, _ = agent.ProviderAccountHome(owner, primary.ID)
-			}
+			// Account metadata and native HOME must be selected together. A previous
+			// load-balancer lookup may have returned another healthy brain.
+			home, _ = agent.ProviderAccountHome(owner, primary.ID)
 		} else {
 			for _, p := range profiles {
 				if !p.Legacy && p.CredentialsPresent && p.State != "login_required" && p.State != "unavailable" && p.State != "setup_incomplete" {
 					primary = p
-					if home == "" {
-						home, _ = agent.ProviderAccountHome(owner, primary.ID)
-					}
+					home, _ = agent.ProviderAccountHome(owner, primary.ID)
 					break
 				}
 			}
@@ -371,6 +376,9 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		model := registered.ModelID
 		if !agent.IsTextModel(model) || isCuanFacade || model == "gemini-1.5-pro" || model == "gemini-1.5-flash" {
 			model = ""
+		}
+		if isCuanFacade && profile != nil && profile.ModelID != "" {
+			model = profile.ModelID
 		}
 		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)))
 		addModel := func(id string, remaining float64) {

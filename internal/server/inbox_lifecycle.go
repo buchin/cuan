@@ -131,6 +131,9 @@ func (s *Server) drainInboxRoom(room string) {
 		var next *db.InboxRequest
 		for j := range requests {
 			if requests[j].State == "queued" {
+				if inboxCapacityWaiting(requests[j], time.Now()) {
+					return
+				}
 				next = &requests[j]
 				break
 			}
@@ -200,6 +203,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	step("accepted", "Message received.")
 	step("recovery_policy", "safe-reply-v1")
 	q.State = "completed"
+	q.SafeError = ""
 	var topicTitle string
 	var reply *db.ProjectMessage
 	if q.AgentID != "" {
@@ -222,7 +226,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 				if registered == nil {
 					registered = &db.Agent{
 						ID:      q.AgentID,
-						Name:    "Scrum Master",
+						Name:    db.DefaultAgentHandle,
 						Harness: "agy",
 						Enabled: true,
 						Status:  db.AgentStatusActive,
@@ -399,6 +403,12 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	}
 	if q.SafeError != "" {
 		q.State = "failed"
+		if q.SafeError == inboxQuotaNoBackup && time.Since(q.CreatedAt) < 24*time.Hour {
+			q.State = "queued"
+			q.Deadline = time.Now().Add(24 * time.Hour)
+		} else if q.SafeError == inboxQuotaNoBackup {
+			q.SafeError = "AI capacity is still unavailable. Your message is saved; retry when you are ready."
+		}
 	}
 	if ctx.Err() != nil {
 		q.State = "interrupted"
@@ -763,4 +773,18 @@ func (s *Server) inboxLinkedTasks(ctx context.Context, room string) ([]*task.Tas
 		items = []*task.TaskItemResponse{}
 	}
 	return items, err
+}
+
+// A durable queued request can wait for capacity without creating another
+// message, task or provider session. Cancellation remains available while waiting.
+func inboxCapacityWaiting(q db.InboxRequest, now time.Time) bool {
+	if q.State != "queued" || q.SafeError != inboxQuotaNoBackup {
+		return false
+	}
+	for i := len(q.Steps) - 1; i >= 0; i-- {
+		if q.Steps[i].Kind == "finished" {
+			return now.Sub(q.Steps[i].At) < 30*time.Second
+		}
+	}
+	return false
 }

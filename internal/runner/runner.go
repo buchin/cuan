@@ -772,12 +772,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()
-	profileHome, healthyAcct, _ := agent.ResolveHealthyAccountProfile("")
-	if profileHome != "" {
-		home = profileHome
-		_ = agent.PrepareAntigravitySettings(profileHome, workingDir)
-		_ = agent.EnsureAntigravityOnboarding(profileHome)
-	} else {
+	profileHome := ""
+	// A claimed owner is routed through private leased brains below. Do not
+	// borrow the runner's ambient login as that owner's credentials.
+	if claim.OwnerID == "" {
 		_ = agent.PrepareAntigravitySettings(home, workingDir)
 		_ = agent.EnsureAntigravityMCPConfig(home)
 	}
@@ -793,9 +791,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				env[parts[0]] = parts[1]
 			}
 		}
-		if healthyAcct != nil {
-			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Runner menggunakan akun '%s' (%s) dari kumpulan otak AI.", healthyAcct.Label, healthyAcct.Email))
-		}
+
 	}
 	if claim.DeployBranch != "" {
 		env["CUAN_DEPLOY_BRANCH"] = claim.DeployBranch
@@ -822,7 +818,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		// Unix domain socket bridge for zero-downtime streaming.
 		if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
 			if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
-				result, err = r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
+				result, err = r.executeWithBrains(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
 			}
 		}
 
@@ -888,7 +884,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			r.streamOutputLogs(ctx, att.ID, result.Stdout, result.Stderr)
 		}
 
-		if result.Status == "CANCELED" {
+		if result.Status == "QUOTA_LIMITED" {
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ExitCode = 75
+			compReq.ErrorMessage = "The AI provider reported a usage limit. The run was stopped; saved work will be continued when capacity is available."
+		} else if result.Status == "CANCELED" {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
 			compReq.ErrorMessage = "Execution canceled"
@@ -1057,6 +1057,61 @@ func (r *Runner) doRequest(ctx context.Context, method, path string, body interf
 
 // executeWithPTY spawns agy inside a native pseudo-terminal (creack/pty) and binds
 // Unix domain sockets for decoupled streaming to cuan-server.
+// Finish one process before switching brains. Resume the same task and workspace,
+// never a native provider session or a fresh task, and reconcile partial effects.
+func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse, t *task.Task, att *task.TaskAttempt, prompt, workingDir string, env map[string]string, timeout time.Duration, count *int64) (*agent.ExecutionResult, error) {
+	if claim.OwnerID == "" {
+		return r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeout, count)
+	}
+	routed, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	r.mu.Lock()
+	if act := r.activeAttempts[att.ID]; act != nil {
+		act.cancel = cancel
+	}
+	r.mu.Unlock()
+	tried := map[string]bool{}
+	for len(tried) < 8 && routed.Err() == nil {
+		home, brain, release, err := agent.LeaseHealthyBrain(claim.OwnerID, tried, claim.RequiresVision)
+		if err != nil {
+			return &agent.ExecutionResult{Status: "QUOTA_LIMITED", ExitCode: 75, Error: agent.ErrBrainCapacity.Error()}, nil
+		}
+		tried[brain.ID] = true
+		_ = agent.PrepareAntigravitySettings(home, workingDir)
+		_ = agent.EnsureAntigravityOnboarding(home)
+		childEnv := map[string]string{}
+		for key, value := range env {
+			childEnv[key] = value
+		}
+		for _, item := range agent.AntigravityProfileEnvironment(home) {
+			if key, value, ok := strings.Cut(item, "="); ok {
+				childEnv[key] = value
+			}
+		}
+		childEnv["CUAN_BRAIN_MODEL"] = brain.ModelID
+		nextPrompt := prompt
+		if len(tried) > 1 {
+			nextPrompt = "Continue the SAME approved task after an AI capacity interruption. Inspect existing files, git state, saved task reports and external effects FIRST. Preserve completed work. Reconcile uncertain operations before repeating them; do not repeat deployments, messages or other external writes without verification. Perform only unfinished original scope.\n\n" + prompt
+			r.streamLogLine(routed, att.ID, "system", "Continuing saved work automatically with available AI capacity.")
+		}
+		result, runErr := func() (*agent.ExecutionResult, error) {
+			defer release()
+			return r.executeWithPTY(routed, claim, t, att, nextPrompt, workingDir, childEnv, timeout, count)
+		}()
+		if runErr != nil || result == nil || result.Status != "QUOTA_LIMITED" || routed.Err() != nil {
+			return result, runErr
+		}
+		duration, reset, _ := agent.ParseProviderQuotaResetDuration(result.Error)
+		if err := agent.RecordProviderAccountQuotaWithDuration(claim.OwnerID, brain.ID, duration, reset); err != nil {
+			return nil, fmt.Errorf("could not retain AI capacity cooldown")
+		}
+	}
+	if routed.Err() != nil {
+		return nil, routed.Err()
+	}
+	return &agent.ExecutionResult{Status: "QUOTA_LIMITED", ExitCode: 75, Error: agent.ErrBrainCapacity.Error()}, nil
+}
+
 func (r *Runner) executeWithPTY(
 	ctx context.Context,
 	claim ClaimTaskResponse,
@@ -1076,7 +1131,7 @@ func (r *Runner) executeWithPTY(
 	defer cancelExec()
 
 	r.mu.Lock()
-	if act, ok := r.activeAttempts[att.ID]; ok {
+	if act, ok := r.activeAttempts[att.ID]; ok && claim.OwnerID == "" {
 		act.cancel = cancelExec
 	}
 	r.mu.Unlock()
@@ -1085,6 +1140,10 @@ func (r *Runner) executeWithPTY(
 		"--dangerously-skip-permissions",
 		"--prompt-interactive", prompt,
 		"--add-dir", workingDir,
+	}
+
+	if model := env["CUAN_BRAIN_MODEL"]; model != "" {
+		ptyArgs = append(ptyArgs, "--model", model)
 	}
 
 	ptyEnv := []string{
@@ -1158,11 +1217,49 @@ func (r *Runner) executeWithPTY(
 
 	// Subscribe logger to feed database logs in real time
 	logSubID := "logger-" + att.ID
-	logSub, _, _ := sess.Subscribe(logSubID, terminal.ModeWatch)
+	logSub, history, subscribeErr := sess.Subscribe(logSubID, terminal.ModeWatch)
+	if subscribeErr != nil {
+		return nil, fmt.Errorf("subscribe task output: %w", subscribeErr)
+	}
 	defer sess.Unsubscribe(logSubID)
 
+	var quotaHit atomic.Bool
+	var quotaReset string
 	var logBuf bytes.Buffer
 	var logMu sync.Mutex
+	consumeOutput := func(chunk []byte) {
+		logMu.Lock()
+		logBuf.Write(chunk)
+		for {
+			line, lErr := logBuf.ReadString('\n')
+			if len(line) > 0 {
+				clean := strings.TrimRight(line, "\r\n")
+				if clean != "" {
+					atomic.AddInt64(liveStreamedCount, 1)
+					r.streamLogLine(ctx, att.ID, "stdout", clean)
+
+					// Quota limit / exhaustion detection: fail fast to avoid interactive terminal hang
+					if strings.Contains(clean, "Individual quota reached") ||
+						strings.Contains(clean, "Resource has been exhausted") ||
+						strings.Contains(clean, "Quota exceeded") ||
+						strings.Contains(clean, "rate_limit_exceeded") {
+						quotaHit.Store(true)
+						if _, reset, ok := agent.ParseProviderQuotaResetDuration(clean); ok {
+							quotaReset = reset
+						}
+						r.streamLogLine(ctx, att.ID, "system", "AI capacity limit detected. Preserving work before selecting another available route.")
+						cancelExec()
+						_ = sess.Close()
+					}
+				}
+			}
+			if lErr != nil {
+				break
+			}
+		}
+		logMu.Unlock()
+	}
+	consumeOutput(history)
 	go func() {
 		for {
 			select {
@@ -1172,32 +1269,7 @@ func (r *Runner) executeWithPTY(
 				if !ok {
 					return
 				}
-				logMu.Lock()
-				logBuf.Write(chunk)
-				for {
-					line, lErr := logBuf.ReadString('\n')
-					if len(line) > 0 {
-						clean := strings.TrimRight(line, "\r\n")
-						if clean != "" {
-							atomic.AddInt64(liveStreamedCount, 1)
-							r.streamLogLine(ctx, att.ID, "stdout", clean)
-
-							// Quota limit / exhaustion detection: fail fast to avoid interactive terminal hang
-							if strings.Contains(clean, "Individual quota reached") ||
-								strings.Contains(clean, "Resource has been exhausted") ||
-								strings.Contains(clean, "Quota exceeded") ||
-								strings.Contains(clean, "rate_limit_exceeded") {
-								r.streamLogLine(ctx, att.ID, "system", "Quota limit detected in session output. Aborting execution immediately.")
-								cancelExec()
-								_ = sess.Close()
-							}
-						}
-					}
-					if lErr != nil {
-						break
-					}
-				}
-				logMu.Unlock()
+				consumeOutput(chunk)
 			}
 		}
 	}()
@@ -1253,5 +1325,21 @@ func (r *Runner) executeWithPTY(
 		res.Error = "execution canceled"
 	}
 
+	if quotaHit.Load() && ctx.Err() == nil {
+		if r.confirmAgentReport(ctx, claim) {
+			res.Status = "SUCCESS"
+			res.ExitCode = 0
+			res.Error = ""
+			return res, nil
+		}
+		res.Status = "QUOTA_LIMITED"
+		res.ExitCode = 75
+		res.Error = "Provider quota is limited."
+		logMu.Lock()
+		if quotaReset != "" {
+			res.Error += " Resets in " + quotaReset + "."
+		}
+		logMu.Unlock()
+	}
 	return res, nil
 }

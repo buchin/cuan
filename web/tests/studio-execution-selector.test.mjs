@@ -46,7 +46,7 @@ test('1. StudioExecutionSelector: Single unified smart pill & tabbed popover', (
 
 test('2. StudioView: Clean single-row composer toolbar on mobile and desktop', () => {
   assert.ok(
-    studioViewSource.includes('<StudioExecutionSelector'),
+    studioViewSource.includes('<StudioProjectSelector'),
     'StudioView must render unified StudioExecutionSelector in composer toolbar'
   )
   assert.ok(
@@ -58,16 +58,15 @@ test('2. StudioView: Clean single-row composer toolbar on mobile and desktop', (
     'Submit button must be shrink-0 so it stays on the same line on mobile'
   )
   assert.ok(
-    !studioViewSource.includes('<StudioAgentSelector') && !studioViewSource.includes('<StudioProjectSelector'),
+    !studioViewSource.includes('<StudioAgentSelector') && !studioViewSource.includes('<StudioExecutionSelector'),
     'StudioView must not render two separate competing pill buttons side-by-side'
   )
 })
 
 test('3. StudioView: Add agent trigger opens TeamView dialog without premature unmounting', () => {
   assert.ok(
-    studioViewSource.includes('setAddAgentModalOpen(true)') &&
-    studioViewSource.includes('setAddAgentTrigger(true)'),
-    'onAddAgentClick must set both modal open state and creation trigger'
+    studioViewSource.includes("agents.find((a) => a.id === 'agent_cuan')") && !studioViewSource.includes('onAddAgentClick='),
+    'Studio must use the public assistant without account selection'
   )
   assert.ok(
     studioViewSource.includes('dialogOnly={agentSetup !== \'needed\'}'),

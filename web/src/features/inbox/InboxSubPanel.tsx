@@ -124,9 +124,10 @@ export function ConversationItem({
   const id = contact.conversation_id || contact.id
   const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
+  const reviewTasks = Number(contact.review_tasks) || 0
   const hasActiveWork = activeTasks > 0
   const isAgentConnectionIssue =
-    contact.type === 'agent' &&
+    contact.type === 'agent' && contact.agent_id !== 'agent_cuan' &&
     !hasActiveWork &&
     ['login_required', 'quota_limited', 'unavailable'].includes(status.state)
 
@@ -219,7 +220,7 @@ export function ConversationItem({
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className={cn("text-xs truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
+              <span className={cn("text-sm truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
               {unread > 0 && (
@@ -236,27 +237,28 @@ export function ConversationItem({
           </div>
 
           {!isSubjectRedundant && (
-            <div className="text-xs font-medium text-foreground/80 truncate">
+            <div className="text-sm font-medium text-foreground/80 truncate">
               {subject}
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
+          <p className="text-sm text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
             {conversationPreview(contact.last_message)}
           </p>
 
-          {(hasActiveWork || (showAgentName && contact.type === 'agent') || (contact.type === 'customer' && contact.product)) && (
+          {(hasActiveWork || reviewTasks > 0 || (showAgentName && contact.type === 'agent') || (contact.type === 'customer' && contact.product)) && (
             <div className="flex items-center gap-1.5 pt-0.5">
               {hasActiveWork && (
                 <span
                   data-testid="task-badge-active"
                   aria-label={`${activeTasks} active tasks`}
-                  className="inline-flex items-center gap-1 border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-400"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
                 >
                   <StatusDot status="working" size="xs" pulse />
                   <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
                 </span>
               )}
+              {reviewTasks > 0 && <span data-testid="task-badge-review" className="text-[11px] text-muted-foreground">{reviewTasks} {t('meninjau hasil')}</span>}
               {showAgentName && contact.type === 'agent' && (
                 <span className="inline-flex items-center gap-1 border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                   <Bot className="h-3 w-3 text-primary" />

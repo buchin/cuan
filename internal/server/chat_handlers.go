@@ -48,6 +48,7 @@ type ChatContact struct {
 	PageTitle      string    `json:"page_title,omitempty"`
 	TaskCount      int       `json:"task_count"`
 	ActiveTasks    int       `json:"active_tasks"`
+	ReviewTasks    int       `json:"review_tasks"`
 	QueuedTasks    int       `json:"queued_tasks"`
 	DoneTasks      int       `json:"done_tasks"`
 	FailedTasks    int       `json:"failed_tasks"`
@@ -638,6 +639,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	// Count active tasks and total tasks per conversation room
 	taskCountByRoom := make(map[string]int)
 	activeTasksByRoom := make(map[string]int)
+	reviewTasksByRoom := make(map[string]int)
 	queuedTasksByRoom := make(map[string]int)
 	doneTasksByRoom := make(map[string]int)
 	failedTasksByRoom := make(map[string]int)
@@ -654,7 +656,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						failedTasksByRoom[t.SourceRoomID]++
 					} else if st == "queued" || st == "pending" {
 						queuedTasksByRoom[t.SourceRoomID]++
-					} else {
+					} else if st == "review" {
+						reviewTasksByRoom[t.SourceRoomID]++
+					} else if inboxTaskIsWorking(st) {
 						activeTasksByRoom[t.SourceRoomID]++
 					}
 				}
@@ -672,6 +676,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						queued := 0
 						done := 0
 						failed := 0
+						review := 0
 						for _, pt := range pTasks {
 							st := strings.ToLower(strings.TrimSpace(pt.Status))
 							if st == "done" {
@@ -680,11 +685,14 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 								failed++
 							} else if st == "queued" || st == "pending" {
 								queued++
-							} else {
+							} else if st == "review" {
+								review++
+							} else if inboxTaskIsWorking(st) {
 								active++
 							}
 						}
 						activeTasksByRoom[rm.ID] = active
+						reviewTasksByRoom[rm.ID] = review
 						queuedTasksByRoom[rm.ID] = queued
 						doneTasksByRoom[rm.ID] = done
 						failedTasksByRoom[rm.ID] = failed
@@ -694,16 +702,16 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int) {
+	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int, int) {
 		for _, id := range ids {
 			if id == "" {
 				continue
 			}
 			if tc := taskCountByRoom[id]; tc > 0 {
-				return tc, activeTasksByRoom[id], queuedTasksByRoom[id], doneTasksByRoom[id], failedTasksByRoom[id]
+				return tc, activeTasksByRoom[id], queuedTasksByRoom[id], doneTasksByRoom[id], failedTasksByRoom[id], reviewTasksByRoom[id]
 			}
 		}
-		return 0, 0, 0, 0, 0
+		return 0, 0, 0, 0, 0, 0
 	}
 
 	if typeFilter != "customers" {
@@ -722,7 +730,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						continue
 					}
 					// Single Agent Facade: when @cuan is active, hide internal legacy agents from contacts list
-					if hasCuanAgent && (a.ID == "agent_sm" || a.ID == "agent_dev" || a.ID == "agent_support") {
+					if hasCuanAgent && a.ID != db.AgentIDCuan {
 						continue
 					}
 					roomID := ""
@@ -759,7 +767,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							})
 						}
 					}
-					tc, at, qt, dt, ft := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
+					tc, at, qt, dt, ft, rt := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
 					c := ChatContact{
 						ID:      "contact_" + a.ID,
 						AgentID: a.ID, AgentName: a.Name,
@@ -780,6 +788,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						QueuedTasks:    qt,
 						DoneTasks:      dt,
 						FailedTasks:    ft,
+						ReviewTasks:    rt,
 					}
 					contacts = append(contacts, c)
 				}
@@ -805,8 +814,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					at = messages[len(messages)-1].CreatedAt
 					unread = countUnread(room.ID, messages, true)
 				}
-				tc, activeCnt, queuedCnt, doneCnt, failedCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt})
+				tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt})
 			}
 		}
 	}
@@ -903,7 +912,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
-			tc, at, qt, dt, ft := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			tc, at, qt, dt, ft, rt := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			contactEmail := sess.Email
 			if contactEmail == "" && liveSess != nil && liveSess.Email != "" {
 				contactEmail = liveSess.Email
@@ -938,11 +947,24 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				QueuedTasks:    qt,
 				DoneTasks:      dt,
 				FailedTasks:    ft,
+				ReviewTasks:    rt,
 			}
 			contacts = append(contacts, custContact)
 		}
 	}
 
+	if s.agentRepo != nil {
+		if cuan, err := s.agentRepo.GetAgentByID(r.Context(), db.AgentIDCuan); err == nil && cuan != nil && cuan.Enabled {
+			for i := range contacts {
+				if contacts[i].Type == "agent" {
+					if strings.HasPrefix(contacts[i].ID, "contact_") {
+						contacts[i].Name = cuan.Name
+					}
+					contacts[i].AgentID, contacts[i].AgentName, contacts[i].Avatar = cuan.ID, cuan.Name, cuan.Avatar
+				}
+			}
+		}
+	}
 	// Filter by search query if specified
 	if searchQuery != "" {
 		filtered := make([]ChatContact, 0)
@@ -980,13 +1002,22 @@ type ResolvedConversation struct {
 
 // resolveConversationContext resolves any conversation identifier (room UUID, agent ID, contact alias, handle)
 // into a valid room UUID in project_rooms and the target agent persona.
-func (s *Server) resolveConversationContext(ctx context.Context, convID string, messageText string) ResolvedConversation {
+func (s *Server) resolveConversationContext(ctx context.Context, convID string, messageText string) (result ResolvedConversation) {
 	inboxRoomResolutionMu.Lock()
 	defer inboxRoomResolutionMu.Unlock()
 
+	// Legacy rooms keep their IDs/history, while new turns use the public identity.
+	defer func() {
+		if result.IsAgent && s.agentRepo != nil {
+			if a, err := s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan); err == nil && a != nil && a.Enabled {
+				result.TargetAgentID, result.TargetAgentName = a.ID, a.Name
+				result.TargetHarness = db.NormalizeHarness(a.Harness, a.Provider)
+			}
+		}
+	}()
 	s.ensureDefaultAgentRooms(ctx)
 
-	result := ResolvedConversation{
+	result = ResolvedConversation{
 		RoomID:        strings.TrimSpace(convID),
 		TargetHarness: "agy",
 	}
@@ -1045,7 +1076,7 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 			result.RoomID = foundRoomID
 		}
 		result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
-	return result
+		return result
 	}
 
 	// 5. If convID is a room UUID in projectStudioRepo
@@ -1066,7 +1097,7 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 				}
 				if _, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil {
 					result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
-	return result
+					return result
 				}
 				result.IsAgent = false
 			}
@@ -1371,6 +1402,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		return
 	}
 	activeTasks := 0
+	reviewTasks := 0
 	queuedTasks := 0
 	doneTasks := 0
 	failedTasks := 0
@@ -1382,12 +1414,15 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			failedTasks++
 		} else if st == task.TaskStatusQueued || st == task.TaskStatusPending {
 			queuedTasks++
-		} else {
+		} else if st == "review" {
+			reviewTasks++
+		} else if inboxTaskIsWorking(st) {
 			activeTasks++
 		}
 	}
 	contact.TaskCount = len(linked)
 	contact.ActiveTasks = activeTasks
+	contact.ReviewTasks = reviewTasks
 	contact.QueuedTasks = queuedTasks
 	contact.DoneTasks = doneTasks
 	contact.FailedTasks = failedTasks
@@ -1396,6 +1431,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		"tasks":           linked,
 		"task_count":      len(linked),
 		"active_tasks":    activeTasks,
+		"review_tasks":    reviewTasks,
 		"queued_tasks":    queuedTasks,
 		"done_tasks":      doneTasks,
 		"failed_tasks":    failedTasks,
@@ -1929,7 +1965,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			PromptChoices:   promptChoices,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
-			GroundingTastes:  groundingTastes,
+			GroundingTastes: groundingTastes,
 		})
 	}
 
@@ -2047,3 +2083,12 @@ const embeddedWidgetJSFallback = `/* Dojo Live Chat Widget (Vanilla JS Shadow DO
   };
 })();
 `
+
+// Only executing work belongs in the working count.
+func inboxTaskIsWorking(status string) bool {
+	switch status {
+	case "doing", "in_progress", "running":
+		return true
+	}
+	return false
+}

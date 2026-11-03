@@ -480,7 +480,7 @@ export function InboxView({
   const contactDisplayName = (() => {
     if (!activeContact) return ''
     if (activeContact.type === 'agent') {
-      const matched = agentForContact(activeContact, agents) || activeAgent
+      const matched = agents.find(a => a.id === 'agent_cuan') || agentForContact(activeContact, agents) || activeAgent
       if (matched?.name) return matched.name
       if (activeContact.agent_name) return activeContact.agent_name
       // If activeContact.name is a technical task title, fallback to friendly agent name
@@ -1321,11 +1321,11 @@ export function InboxView({
                       </div>
                     )}
                   </div>
-                  <ContactStatus
+                  {!(activeContact.type === 'agent' && agents.some(a => a.id === 'agent_cuan')) && <ContactStatus
                     contact={activeContact}
                     agents={agents}
                     now={now}
-                  />
+                  />}
                 </div>
               </div>
 

@@ -39,6 +39,12 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 		respondJSONError(w, 503, "Conversations are unavailable")
 		return
 	}
+	// Canonicalize new conversation recipients while preserving existing rooms.
+	if existing, _ := s.projectStudioRepo.GetRoomByID(r.Context(), req.RequestID); existing == nil {
+		if cuan, e := s.agentRepo.GetAgentByID(r.Context(), db.AgentIDCuan); e == nil && cuan != nil {
+			req.AgentID = cuan.ID
+		}
+	}
 	a, err := s.agentRepo.GetAgentByID(r.Context(), req.AgentID)
 	if err != nil || a == nil || !a.Enabled {
 		respondJSONError(w, 404, "Agent is unavailable")

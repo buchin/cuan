@@ -105,7 +105,7 @@ func (r *SQLProjectStudioRepository) FinishInboxRequest(ctx context.Context, q I
 	}
 	defer tx.Rollback()
 	var finalState string
-	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET state=CASE WHEN state='cancelling' THEN 'cancelled' ELSE $3 END,safe_error=CASE WHEN state='cancelling' THEN safe_error ELSE $4 END,steps=steps || jsonb_build_array(jsonb_build_object('seq',jsonb_array_length(steps)+1,'kind','finished','text','Reply processing ended.','at',NOW())) WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued','cancelling') RETURNING state`, q.RoomID, q.RequestID, q.State, q.SafeError).Scan(&finalState)
+	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET deadline=CASE WHEN $3='queued' THEN NOW()+INTERVAL '24 hours' ELSE deadline END,state=CASE WHEN state='cancelling' THEN 'cancelled' ELSE $3 END,safe_error=CASE WHEN state='cancelling' THEN safe_error ELSE $4 END,steps=steps || jsonb_build_array(jsonb_build_object('seq',jsonb_array_length(steps)+1,'kind','finished','text','Reply processing ended.','at',NOW())) WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued','cancelling') RETURNING state`, q.RoomID, q.RequestID, q.State, q.SafeError).Scan(&finalState)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
