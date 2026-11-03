@@ -25,6 +25,7 @@ type Settings struct {
 	WorkspaceRevision string `json:"workspace_revision,omitempty"`
 	AutoDeploy        *bool  `json:"auto_deploy,omitempty"`
 	DeployBranch      string `json:"deploy_branch,omitempty"`
+	Environment       string `json:"environment,omitempty"`
 }
 
 func (s Settings) IsAutoDeployEnabled() bool {
@@ -42,6 +43,7 @@ type UpdateSettingsRequest struct {
 	DefaultBranch     string    `json:"default_branch"`
 	DeployBranch      string    `json:"deploy_branch,omitempty"`
 	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
+	Environment       string    `json:"environment,omitempty"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
 }
 type workspaceBinding struct {
@@ -57,6 +59,7 @@ type taskProjectSnapshot struct {
 	Instructions       string `json:"instructions,omitempty"`
 	AutoDeploy         *bool  `json:"auto_deploy,omitempty"`
 	DeployBranch       string `json:"deploy_branch,omitempty"`
+	Environment        string `json:"environment,omitempty"`
 }
 
 func SettingsFromMetadata(raw json.RawMessage) Settings {
@@ -96,6 +99,7 @@ func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 		Instructions:       settings.Instructions,
 		AutoDeploy:         &autoDeploy,
 		DeployBranch:       settings.DeployBranch,
+		Environment:        settings.Environment,
 	})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
@@ -178,6 +182,9 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	if len([]rune(req.Goal)) > 2000 || len([]rune(req.Instructions)) > 4000 {
 		return nil, errors.New("Goal or instructions exceed the allowed length.")
 	}
+	if len([]rune(req.Environment)) > 32000 {
+		return nil, errors.New("Environment configuration exceeds the allowed length (32,000 characters).")
+	}
 	branch := strings.TrimSpace(req.DefaultBranch)
 	if branch != "" && (len(branch) > 200 || strings.HasPrefix(branch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", branch).Run() != nil) {
 		return nil, errors.New("Enter a valid branch name.")
@@ -226,6 +233,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	settings.Goal = strings.TrimSpace(req.Goal)
 	settings.Instructions = strings.TrimSpace(req.Instructions)
 	settings.DeployBranch = deployBranch
+	settings.Environment = strings.TrimSpace(req.Environment)
 	if req.AutoDeploy != nil {
 		settings.AutoDeploy = req.AutoDeploy
 	}
@@ -337,4 +345,30 @@ func PreserveProjectGuidance(previous, next string) string {
 		next = next[:at]
 	}
 	return strings.TrimSpace(next) + saved
+}
+
+// ParseEnvironment parses standard KEY=VALUE lines into a map[string]string.
+// Handles comments (#), empty lines, quoted values ("val" or 'val'), and trims whitespace.
+func ParseEnvironment(raw string) map[string]string {
+	result := make(map[string]string)
+	lines := strings.Split(raw, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		parts := strings.SplitN(trimmed, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+		if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+			val = val[1 : len(val)-1]
+		}
+		if key != "" {
+			result[key] = val
+		}
+	}
+	return result
 }

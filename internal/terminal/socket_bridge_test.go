@@ -215,3 +215,85 @@ func TestSocketBridge_ConcatenatedControlFrames(t *testing.T) {
 		t.Errorf("raw JSON frame string leaked into terminal PTY stream!")
 	}
 }
+
+func TestSocketBridge_FragmentedControlFrames(t *testing.T) {
+	tmpDir := t.TempDir()
+	taskID := "task-frag-frames-test"
+	sockPath := filepath.Join(tmpDir, "frag.sock")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	proc, err := SpawnPTY(ctx, PTYConfig{
+		TaskID:      taskID,
+		WorkDir:     tmpDir,
+		Shell:       "/bin/sh",
+		InitialCols: 80,
+		InitialRows: 24,
+	})
+	if err != nil {
+		t.Fatalf("spawn pty: %v", err)
+	}
+	defer proc.Close()
+
+	sess := NewSession("sess-frag", taskID, proc, ModeInteractive)
+	defer sess.Close()
+
+	bridge, err := NewSocketBridge(sess, sockPath)
+	if err != nil {
+		t.Fatalf("new socket bridge: %v", err)
+	}
+	defer bridge.Close()
+
+	conn, err := net.Dial("unix", sockPath)
+	if err != nil {
+		t.Fatalf("dial socket: %v", err)
+	}
+	defer conn.Close()
+
+	// Simulate streaming fragmentation: first half of JSON frame arrives
+	chunk1 := `{"type":"stdin","data":"echo FRAG_`
+	if _, err := conn.Write([]byte(chunk1)); err != nil {
+		t.Fatalf("write chunk 1: %v", err)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Second half arrives with newline and next frame
+	chunk2 := `MENTED\n"}` + "\n"
+	if _, err := conn.Write([]byte(chunk2)); err != nil {
+		t.Fatalf("write chunk 2: %v", err)
+	}
+
+	buf := make([]byte, 2048)
+	foundTarget := false
+	leakedJSON := false
+	deadline := time.Now().Add(2 * time.Second)
+
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+		n, rErr := conn.Read(buf)
+		if n > 0 {
+			out := string(buf[:n])
+			if strings.Contains(out, "FRAG_MENTED") {
+				foundTarget = true
+			}
+			if strings.Contains(out, `{"type":"stdin"`) || strings.Contains(out, `"data":`) {
+				leakedJSON = true
+			}
+			if foundTarget {
+				break
+			}
+		}
+		if rErr != nil && !strings.Contains(rErr.Error(), "timeout") {
+			break
+		}
+	}
+
+	if !foundTarget {
+		t.Errorf("expected to read FRAG_MENTED from cat across fragmented chunks")
+	}
+	if leakedJSON {
+		t.Errorf("raw JSON frame string leaked into terminal PTY stream during fragmentation!")
+	}
+}

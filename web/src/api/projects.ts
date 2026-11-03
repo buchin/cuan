@@ -2,7 +2,7 @@ import { apiFetch } from './client'
 import { Project, CreateProjectRequest } from './types'
 
 export const projectsApi = {
-  updateSettings: async (id: string, data: { name: string; goal: string; instructions: string; repo_url: string; default_branch: string; deploy_branch?: string; expected_updated_at: string; auto_deploy?: boolean }): Promise<Project> =>
+  updateSettings: async (id: string, data: { name: string; goal: string; instructions: string; repo_url: string; default_branch: string; deploy_branch?: string; expected_updated_at: string; auto_deploy?: boolean; environment?: string }): Promise<Project> =>
     apiFetch<Project>('/api/v1/projects/' + encodeURIComponent(id) + '/settings', { method: 'PATCH', body: JSON.stringify(data) }),
 
   list: async (): Promise<Project[]> => {

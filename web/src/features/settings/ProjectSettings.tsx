@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { GitHubRepositoryPicker } from './GitHubRepositoryPicker'
 import { Link, useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
@@ -14,19 +15,23 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
 }) {
   const { t } = useLanguage()
   const isDefault = project.id === 'default'
-  const repositoryView = useLocation().pathname.split('/').filter(Boolean)[2] === 'repository'
+  const pathSegments = useLocation().pathname.split('/').filter(Boolean)
+  const repositoryView = pathSegments[2] === 'repository'
+  const environmentView = pathSegments[2] === 'environment'
   const values = (p: Project) => ({
     name: p.name, goal: String(p.metadata?.cuan_settings?.goal || ''),
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),
     repo_url: p.repo_url || '', default_branch: p.default_branch || '',
     deploy_branch: String(p.metadata?.cuan_settings?.deploy_branch || ''),
     auto_deploy: p.metadata?.cuan_settings?.auto_deploy !== false,
+    environment: String(p.metadata?.cuan_settings?.environment || ''),
   })
   const [baseline, setBaseline] = useState(() => values(project))
   const [form, setForm] = useState(baseline)
   const [version, setVersion] = useState(project.updated_at)
   const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
+  const [showSecrets, setShowSecrets] = useState(false)
   const dirty = JSON.stringify(form) !== JSON.stringify(baseline)
   useEffect(() => {
     if (!dirty) return
@@ -41,7 +46,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
   }
   return <section className={`mx-auto w-full max-w-2xl space-y-6 ${embedded ? 'px-4 py-5 sm:px-5' : 'page-content'}`}>
     {!embedded && <Link to={'/projects/' + encodeURIComponent(project.id) + '/tasks'} className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground">{t('← Back to project')}</Link>}
-    <form aria-label={t(repositoryView ? 'Project repository' : 'Project settings')} className="space-y-5" onSubmit={async event => {
+    <form aria-label={t(environmentView ? 'Project environment' : repositoryView ? 'Project repository' : 'Project settings')} className="space-y-5" onSubmit={async event => {
       event.preventDefault()
       if (busy || !dirty) return
       const connectionChanged = form.repo_url !== baseline.repo_url || form.default_branch !== baseline.default_branch
@@ -55,7 +60,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
       } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save changes. Try again.'); setConflict(cause instanceof ApiError && cause.status === 409) }
       finally { setBusy(false) }
     }}>
-      {!repositoryView && <>
+      {!repositoryView && !environmentView && <>
       <div className="space-y-2">
         <label htmlFor="project-name" className="text-sm font-medium">{t('Project name')}</label>
         <input id="project-name" className="field-control" value={form.name} required maxLength={120} disabled={busy || isDefault} onChange={event => change('name', event.target.value)} />
@@ -85,6 +90,39 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
       </div>
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}
+      {environmentView && <section className="space-y-5">
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold">{t('Environment Variables')}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">{t('Variabel lingkungan ini otomatis di-inject ke file .env di direktori kerjaan dan di-export ke sesi agent terminal saat task dijalankan.')}</p>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label htmlFor="project-environment" className="text-sm font-medium">{t('.env Configuration')}</label>
+            <button
+              type="button"
+              onClick={() => setShowSecrets(prev => !prev)}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              {showSecrets ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              <span>{t(showSecrets ? 'Mask secrets' : 'Reveal secrets')}</span>
+            </button>
+          </div>
+          <textarea
+            id="project-environment"
+            rows={12}
+            maxLength={32000}
+            disabled={busy}
+            value={form.environment}
+            onChange={event => change('environment', event.target.value)}
+            placeholder={'# Project environment variables\nAPP_ENV=production\nDOJO_VPS_PUBLIC_IP=43.157.241.102\nDOJO_VPS_PASSWORD=...'}
+            className={`field-control font-mono text-xs leading-relaxed resize-y py-3 min-h-[240px] ${showSecrets ? '' : 'tracking-wider'}`}
+            style={showSecrets ? {} : { WebkitTextSecurity: 'disc' } as any}
+          />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {t('Format standar 12-factor: KEY=VALUE per baris. Komentar yang diawali # dan baris kosong diabaikan. Variabel ini akan otomatis di-overlay ke template .env.example di repositori.')}
+          </p>
+        </div>
+      </section>}
       {repositoryView && (isDefault ? <p className="text-sm text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p> : <section className="space-y-5">
         <div className="space-y-2">
           <h2 className="text-sm font-semibold">{t('Repository')}</h2>
@@ -125,7 +163,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <span role="status" className="text-xs text-muted-foreground">{t(notice || (dirty ? 'Unsaved changes' : ''))}</span>
       </div>}
     </form>
-    {!repositoryView && onArchive && !isDefault && !project.is_archived && <section className="border-t pt-5">
+    {!repositoryView && !environmentView && onArchive && !isDefault && !project.is_archived && <section className="border-t pt-5">
       <h2 className="text-sm font-medium">{t('Archive project')}</h2>
       <p className="my-2 text-sm text-muted-foreground">{t('Hide this project from active projects. Your data stays available.')}</p>
       <button type="button" className="action-secondary" disabled={busy || dirty} onClick={async () => {

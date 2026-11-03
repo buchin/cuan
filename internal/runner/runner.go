@@ -20,6 +20,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/project"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
@@ -798,6 +799,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 	if claim.DeployBranch != "" {
 		env["CUAN_DEPLOY_BRANCH"] = claim.DeployBranch
+	}
+	if claim.Environment != "" {
+		for k, v := range project.ParseEnvironment(claim.Environment) {
+			env[k] = v
+		}
 	}
 	if claim.TaskAgent != nil {
 		encoded, _ := json.Marshal(claim.TaskAgent)

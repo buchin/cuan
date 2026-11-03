@@ -16,6 +16,7 @@ import (
 
 	"github.com/buchin/cuan/internal/agent"
 	cuangit "github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskprocess"
 	"github.com/buchin/cuan/internal/terminal"
@@ -887,6 +888,16 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
 		}
 		runCfg.Env = append(runCfg.Env, reportEnv...)
+		if projID != "" && s.projectSvc != nil {
+			if p, pErr := s.projectSvc.Get(r.Context(), projID); pErr == nil && p != nil {
+				settings := project.SettingsFromMetadata(p.Metadata)
+				if settings.Environment != "" {
+					for k, v := range project.ParseEnvironment(settings.Environment) {
+						runCfg.Env = append(runCfg.Env, fmt.Sprintf("%s=%s", k, v))
+					}
+				}
+			}
+		}
 		if attempt != nil && routeNote != "" {
 			if _, err := s.taskSvc.AddComment(r.Context(), taskID, "runner", routeNote); err != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Provider route could not be recorded. Execution did not start."})

@@ -97,6 +97,7 @@ type ClaimTaskResponse struct {
 	DeployBranch  string               `json:"deploy_branch,omitempty"`
 	WorkingDir    string               `json:"working_dir,omitempty"`
 	AutoDeploy    bool                 `json:"auto_deploy,omitempty"`
+	Environment   string               `json:"environment,omitempty"`
 	LeaseExpires  time.Time            `json:"lease_expires"`
 	TaskAgent     *TaskAgentCapability `json:"task_agent,omitempty"`
 	AgentPrompt   string               `json:"agent_prompt,omitempty"`

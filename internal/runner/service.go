@@ -272,6 +272,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 			resp.WorkingDir = p.LocalPath
 			settings := project.SettingsFromMetadata(p.Metadata)
 			resp.AutoDeploy = settings.IsAutoDeployEnabled()
+			resp.Environment = settings.Environment
 		}
 	}
 

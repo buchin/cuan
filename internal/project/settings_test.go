@@ -250,3 +250,66 @@ func TestProjectSettingsDeployBranch(t *testing.T) {
 		t.Fatal("expected error for invalid branch name, got nil")
 	}
 }
+
+func TestParseEnvironment(t *testing.T) {
+	raw := `
+# Production environment configuration
+APP_NAME=Dojo
+APP_ENV="production"
+APP_DEBUG=false
+APP_URL='https://dojo.cc'
+
+DOJO_VPS_PUBLIC_IP=43.157.241.102
+DOJO_VPS_PASSWORD="falcon-27%-panda"
+`
+	parsed := ParseEnvironment(raw)
+	if parsed["APP_NAME"] != "Dojo" {
+		t.Errorf("expected APP_NAME Dojo, got %q", parsed["APP_NAME"])
+	}
+	if parsed["APP_ENV"] != "production" {
+		t.Errorf("expected APP_ENV production, got %q", parsed["APP_ENV"])
+	}
+	if parsed["APP_DEBUG"] != "false" {
+		t.Errorf("expected APP_DEBUG false, got %q", parsed["APP_DEBUG"])
+	}
+	if parsed["APP_URL"] != "https://dojo.cc" {
+		t.Errorf("expected APP_URL https://dojo.cc, got %q", parsed["APP_URL"])
+	}
+	if parsed["DOJO_VPS_PUBLIC_IP"] != "43.157.241.102" {
+		t.Errorf("expected DOJO_VPS_PUBLIC_IP 43.157.241.102, got %q", parsed["DOJO_VPS_PUBLIC_IP"])
+	}
+	if parsed["DOJO_VPS_PASSWORD"] != "falcon-27%-panda" {
+		t.Errorf("expected DOJO_VPS_PASSWORD falcon-27%%-panda, got %q", parsed["DOJO_VPS_PASSWORD"])
+	}
+}
+
+func TestProjectSettingsEnvironment(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	initial := &Project{ID: "proj_env_test", Name: "Env Test", DefaultBranch: "main", Metadata: json.RawMessage(`{}`), UpdatedAt: time.Now().UTC()}
+	if err := store.CreateProject(ctx, initial); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store, nil, "fixture-secret", t.TempDir())
+	p, _ := service.Get(ctx, initial.ID)
+
+	envContent := "DOJO_VPS_PUBLIC_IP=43.157.241.102\nDOJO_VPS_PASSWORD=secret"
+	req := UpdateSettingsRequest{
+		Name:              "Env Test",
+		Environment:       envContent,
+		ExpectedUpdatedAt: p.UpdatedAt,
+	}
+	saved, err := service.UpdateSettings(ctx, p.ID, req)
+	if err != nil {
+		t.Fatalf("expected update to succeed, got %v", err)
+	}
+	settings := SettingsFromMetadata(saved.Metadata)
+	if settings.Environment != envContent {
+		t.Fatalf("expected environment %q, got %q", envContent, settings.Environment)
+	}
+
+	snapshot := SnapshotProjectGuidance("Do work", saved)
+	if !strings.Contains(snapshot, "DOJO_VPS_PUBLIC_IP") {
+		t.Fatalf("expected snapshot to include environment, got %s", snapshot)
+	}
+}

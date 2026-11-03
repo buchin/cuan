@@ -17,7 +17,7 @@ func (s *Server) handleProjectSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request project.UpdateSettingsRequest
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&request) != nil {
 		respondJSONError(w, 400, "Enter valid project settings.")

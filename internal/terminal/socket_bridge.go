@@ -184,22 +184,46 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 
 	// Goroutine 2: Client -> PTY (Handles raw keystrokes and JSON control messages)
 	buf := make([]byte, 4096)
+	var pending []byte
 	for {
 		n, rErr := conn.Read(buf)
 		if n > 0 {
-			data := buf[:n]
+			pending = append(pending, buf[:n]...)
 
-			// Check if message is a JSON control frame
-			if data[0] == '{' {
-				dec := json.NewDecoder(bytes.NewReader(data))
-				handledCount := 0
-				for {
+			for len(pending) > 0 {
+				// Strip leading whitespace / newlines from line delimiters
+				trimmed := bytes.TrimLeft(pending, " \t\r\n")
+				if consumed := len(pending) - len(trimmed); consumed > 0 {
+					pending = pending[consumed:]
+				}
+				if len(pending) == 0 {
+					break
+				}
+
+				// Check if pending starts with a JSON control frame
+				if pending[0] == '{' {
+					dec := json.NewDecoder(bytes.NewReader(pending))
 					var msg TerminalMessage
 					if err := dec.Decode(&msg); err != nil {
+						// Incomplete JSON frame in stream, await more bytes from conn.Read
+						if len(pending) > 65536 {
+							// Safety guard: drop unparseable chunk up to next '{' or clear
+							if idx := bytes.IndexByte(pending[1:], '{'); idx >= 0 {
+								pending = pending[1+idx:]
+							} else {
+								pending = nil
+							}
+						}
 						break
 					}
+
+					offset := int(dec.InputOffset())
+					if offset <= 0 || offset > len(pending) {
+						offset = len(pending)
+					}
+					pending = pending[offset:]
+
 					if msg.Type != "" {
-						handledCount++
 						switch msg.Type {
 						case "resize":
 							if msg.Cols > 0 && msg.Rows > 0 {
@@ -213,21 +237,37 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 							_, _ = conn.Write([]byte("{\"type\":\"pong\"}\n"))
 						}
 					}
+					continue
 				}
-				offset := int(dec.InputOffset())
-				if offset < len(data) {
-					remainder := bytes.TrimSpace(data[offset:])
-					if len(remainder) > 0 && !bytes.HasPrefix(remainder, []byte(`{"type":`)) {
-						_, _ = sb.session.WriteInput(subID, data[offset:])
+
+				// If pending contains a JSON frame further down, isolate leading bytes
+				if idx := bytes.Index(pending, []byte(`{"type":`)); idx >= 0 {
+					if idx > 0 {
+						leading := pending[:idx]
+						if !bytes.Contains(leading, []byte(`"data":`)) && !bytes.Contains(leading, []byte(`"stdin"`)) {
+							_, _ = sb.session.WriteInput(subID, leading)
+						}
+						pending = pending[idx:]
 					}
+					continue
 				}
-				if handledCount == 0 && !bytes.HasPrefix(data, []byte(`{"type":`)) {
-					// Fallback to raw bytes ONLY if it was not an attempt at sending a JSON control frame
-					_, _ = sb.session.WriteInput(subID, data)
+
+				// Filter out leaked JSON fragments (e.g. '", "data": ' or '"data":')
+				if bytes.Contains(pending, []byte(`"type":"stdin"`)) ||
+					bytes.Contains(pending, []byte(`"type": "stdin"`)) ||
+					bytes.Contains(pending, []byte(`"data":`)) {
+					if idx := bytes.IndexByte(pending, '{'); idx >= 0 {
+						pending = pending[idx:]
+						continue
+					}
+					pending = nil
+					break
 				}
-			} else {
-				// Raw terminal bytes (direct keystrokes or data)
-				_, _ = sb.session.WriteInput(subID, data)
+
+				// Pure raw terminal input
+				_, _ = sb.session.WriteInput(subID, pending)
+				pending = nil
+				break
 			}
 		}
 		if rErr != nil {

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -83,7 +84,9 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 			return "", errors.New("Task workspace branch changed; retained work needs review")
 		}
 		preflightWorkspaceRebase(ctx, destination, source, p.DefaultBranch)
+		settings := SettingsFromMetadata(p.Metadata)
 		s.configureWorkspaceDeployBranch(ctx, destination, p)
+		_ = syncWorkspaceEnvironment(destination, settings.Environment)
 		return destination, nil
 	} else if !os.IsNotExist(err) {
 		return "", err
@@ -121,16 +124,19 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 			}
 		}
 	}
+	settings := SettingsFromMetadata(p.Metadata)
 	if _, err = run("-C", source, "show-ref", "--verify", "refs/heads/"+branch); err == nil {
 		if err := s.restoreRetiredWorkspace(ctx, key, taskID, source, branch, destination); err != nil {
 			return "", err
 		}
+		_ = syncWorkspaceEnvironment(destination, settings.Environment)
 		return destination, nil
 	}
 	if _, err = run("-C", source, "worktree", "add", "-b", branch, destination, base); err != nil {
 		return "", errors.New("Could not prepare the isolated task workspace")
 	}
 	s.configureWorkspaceDeployBranch(ctx, destination, p)
+	_ = syncWorkspaceEnvironment(destination, settings.Environment)
 	return destination, nil
 }
 
@@ -182,4 +188,72 @@ func (s *Service) configureWorkspaceDeployBranch(ctx context.Context, destinatio
 	if deployBranch != "" {
 		_ = exec.CommandContext(ctx, "git", "-C", destination, "config", "cuan.deployBranch", deployBranch).Run()
 	}
+}
+
+func syncWorkspaceEnvironment(destDir string, envText string) error {
+	if strings.TrimSpace(envText) == "" {
+		return nil
+	}
+	envPath := filepath.Join(destDir, ".env")
+	envExamplePath := filepath.Join(destDir, ".env.example")
+
+	parsedNew := ParseEnvironment(envText)
+	if len(parsedNew) == 0 {
+		return nil
+	}
+
+	// If .env doesn't exist but .env.example exists, seed from .env.example
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		if exampleData, err := os.ReadFile(envExamplePath); err == nil {
+			_ = os.WriteFile(envPath, exampleData, 0600)
+		}
+	}
+
+	var existingContent string
+	if data, err := os.ReadFile(envPath); err == nil {
+		existingContent = string(data)
+	}
+
+	lines := strings.Split(existingContent, "\n")
+	updatedKeys := make(map[string]bool)
+	var newLines []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			newLines = append(newLines, line)
+			continue
+		}
+		parts := strings.SplitN(trimmed, "=", 2)
+		if len(parts) == 2 {
+			k := strings.TrimSpace(parts[0])
+			if newVal, exists := parsedNew[k]; exists {
+				if strings.ContainsAny(newVal, " \t\"'") {
+					newLines = append(newLines, fmt.Sprintf("%s=%q", k, newVal))
+				} else {
+					newLines = append(newLines, fmt.Sprintf("%s=%s", k, newVal))
+				}
+				updatedKeys[k] = true
+				continue
+			}
+		}
+		newLines = append(newLines, line)
+	}
+
+	for k, v := range parsedNew {
+		if !updatedKeys[k] {
+			if strings.ContainsAny(v, " \t\"'") {
+				newLines = append(newLines, fmt.Sprintf("%s=%q", k, v))
+			} else {
+				newLines = append(newLines, fmt.Sprintf("%s=%s", k, v))
+			}
+		}
+	}
+
+	finalContent := strings.Join(newLines, "\n")
+	if !strings.HasSuffix(finalContent, "\n") {
+		finalContent += "\n"
+	}
+
+	return os.WriteFile(envPath, []byte(finalContent), 0600)
 }

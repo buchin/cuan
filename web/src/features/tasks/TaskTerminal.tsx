@@ -465,6 +465,25 @@ export function TaskTerminal({
         const t = term.current
 
         if (event.data instanceof ArrayBuffer) {
+          const raw = new TextDecoder('utf-8', { fatal: false }).decode(event.data)
+          if (
+            raw.includes('"type":"stdin"') ||
+            raw.includes('"type": "stdin"') ||
+            raw.includes('", "data": "}{') ||
+            raw.includes('{"type":')
+          ) {
+            // Strip out leaked JSON control frames from display
+            const sanitized = raw
+              .replace(/\{"type"\s*:\s*"stdin"[^}]*\}/g, '')
+              .replace(/",\s*"data"\s*:\s*"/g, '')
+              .replace(/\{"type"\s*:\s*"[^"]*"[^}]*\}/g, '')
+            if (sanitized) {
+              t.write(sanitized, () => {
+                if (following.current) t.scrollToBottom()
+              })
+            }
+            return
+          }
           t.write(new Uint8Array(event.data), () => {
             if (following.current) t.scrollToBottom()
           })
@@ -522,7 +541,12 @@ export function TaskTerminal({
         } catch {
           // Non-JSON string data: direct raw string output over terminal stream (filter out any leaked stdin JSON control text)
           const raw = String(event.data)
-          if (!raw.includes('"type":"stdin"') && !raw.includes('"type": "stdin"')) {
+          if (
+            !raw.includes('"type":"stdin"') &&
+            !raw.includes('"type": "stdin"') &&
+            !raw.includes('", "data": "}{') &&
+            !raw.includes('{"type":')
+          ) {
             term.current?.write(raw)
           }
         }

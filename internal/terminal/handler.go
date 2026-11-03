@@ -401,7 +401,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 				}
-				if handledCount == 0 && !bytes.HasPrefix(payload, []byte(`{"type":`)) {
+				if handledCount == 0 && !bytes.HasPrefix(payload, []byte(`{"type":`)) && !bytes.Contains(payload, []byte(`"type":"stdin"`)) && !bytes.Contains(payload, []byte(`"type": "stdin"`)) {
 					if _, err := session.WriteInput(subID, payload); err != nil {
 						_ = writeJSON(TerminalMessage{
 							Type:    "error",
@@ -411,11 +411,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				// Not a JSON control message -> treat as direct raw text stdin input (e.g. from xterm.js)
-				if _, err := session.WriteInput(subID, payload); err != nil {
-					_ = writeJSON(TerminalMessage{
-						Type:    "error",
-						Message: err.Error(),
-					})
+				// Ensure no leaked JSON control frames are sent to PTY
+				if !bytes.Contains(payload, []byte(`"type":"stdin"`)) && !bytes.Contains(payload, []byte(`"type": "stdin"`)) && !bytes.Contains(payload, []byte(`{"type":`)) {
+					if _, err := session.WriteInput(subID, payload); err != nil {
+						_ = writeJSON(TerminalMessage{
+							Type:    "error",
+							Message: err.Error(),
+						})
+					}
 				}
 			}
 			continue
@@ -579,7 +582,8 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 		}
 		if msgType == websocket.TextMessage || msgType == websocket.BinaryMessage {
 			toWrite := data
-			if len(data) > 0 && data[0] == '{' && !bytes.HasSuffix(data, []byte("\n")) {
+			trimmed := bytes.TrimLeft(data, " \t\r\n")
+			if len(trimmed) > 0 && trimmed[0] == '{' && !bytes.HasSuffix(data, []byte("\n")) {
 				toWrite = append(data, '\n')
 			}
 			if _, wErr := unixConn.Write(toWrite); wErr != nil {

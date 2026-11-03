@@ -39,7 +39,9 @@ export function ProjectsWorkspace({
 }) {
   const { t } = useLanguage()
   const navigate = useNavigate()
-  const repositoryView = useLocation().pathname.split('/').filter(Boolean)[2] === 'repository'
+  const pathSegments = useLocation().pathname.split('/').filter(Boolean)
+  const repositoryView = pathSegments[2] === 'repository'
+  const environmentView = pathSegments[2] === 'environment'
   const [query, setQuery] = useState('')
   const [archived, setArchived] = useState(!!project?.is_archived)
   useEffect(() => {
@@ -310,7 +312,12 @@ export function ProjectsWorkspace({
               </div>
             </div>}
             {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b px-4 sm:px-5">
-              {[{label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView}, ...(project.id !== 'default' ? [{label: 'Repository', path: 'repository', active: !!settingsContent && repositoryView}] : []), {label: 'Activity', path: 'tasks', active: !settingsContent}].map(item => <Link
+              {[
+                {label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView && !environmentView},
+                {label: 'Environment', path: 'environment', active: !!settingsContent && environmentView},
+                ...(project.id !== 'default' ? [{label: 'Repository', path: 'repository', active: !!settingsContent && repositoryView}] : []),
+                {label: 'Activity', path: 'tasks', active: !settingsContent}
+              ].map(item => <Link
                 key={item.path}
                 to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}
                 aria-current={item.active ? 'page' : undefined}
