@@ -561,6 +561,19 @@ export function parseNdjsonLine(rawLine: string, index = 0): VisualStep | null {
  * If the line is NDJSON, it replaces the raw JSON dump with a Things 3 styled ANSI line.
  */
 export function formatLogLineForTerminal(line: string): string {
+  if (
+    line.includes('"type":"stdin"') ||
+    line.includes('"type": "stdin"') ||
+    line.includes('", "data": "}{')
+  ) {
+    line = line
+      .replace(/\{"type"\s*:\s*"stdin"[^}]*\}/g, '')
+      .replace(/",\s*"data"\s*:\s*"/g, '')
+    if (!line.trim()) {
+      return ''
+    }
+  }
+
   const step = parseNdjsonLine(line)
   if (!step) {
     return line
