@@ -254,3 +254,16 @@ mismatch, unauthenticated access, finished attempts and omitted private scope.
 Targeted server+runner tests pass. This is a reproduced reliability defect, not
 proof that it is the sole production queue cause. Existing older detached workers
 are not hot-patched or canceled by this change.
+
+## Release transfer timeout
+
+Deployment c9df9e5 local command reached its300second limit before activation.
+Production current symlink and both service binaries remainedfeec9aa and active.
+No remote scp/rsync/activation process remained. Local payload44MiB, remote staging
+28MiB and target release directory empty proved an interrupted transfer, not a
+failed activation. Do not claim this release deployed or restart a live activator.
+
+The maintained deployment script now transfers payload via compressed rsync with
+partial-file append verification. Existing versioned staging, manifest checksums,
+atomic activation and rollback gates remain. Shell syntax check passed; next full
+deploy must verify transfer and activation in production before success is claimed.

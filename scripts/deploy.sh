@@ -190,7 +190,8 @@ if [[ "$is_local" == 1 ]]; then
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
-  sshpass -e scp -q -r "$release_dir" "$release_host:.local/share/cuan-releases/"
+  echo "==> Transferring verified payload (compressed, resumable)..."
+  sshpass -e rsync -az --partial --append-verify -e ssh "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
   sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
   sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
