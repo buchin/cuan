@@ -57,3 +57,34 @@ func TestAcceptanceEvidenceRequiredForEveryCriterion(t *testing.T) {
 		t.Fatal("complete evidence rejected")
 	}
 }
+
+func TestQueuedAttemptDoesNotConsumeExecutionDeadline(t *testing.T) {
+	for _, legacyDeadline := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unclaimed", true: "legacy queued deadline"}[legacyDeadline], func(t *testing.T) {
+			ctx := context.Background()
+			store := NewMemoryStore()
+			svc := NewService(store, nil)
+			old := time.Now().Add(-3 * time.Hour)
+			expired := old.Add(time.Minute)
+			item := &Task{ID: "waiting", Title: "Queued work", Status: TaskStatusQueued, CreatedAt: old, UpdatedAt: old}
+			att := &TaskAttempt{ID: "waiting-attempt", TaskID: item.ID, RunnerID: "runner", Status: AttemptStatusQueued, CreatedAt: old, AttemptNumber: 1}
+			if legacyDeadline {
+				att.ExecutionDeadline = &expired
+			}
+			if err := store.CreateTask(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			if err := store.CreateAttempt(ctx, att); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.ReconcileZombieAttempts(ctx, time.Millisecond, func(string) bool { return false }); err != nil {
+				t.Fatal(err)
+			}
+			saved, _ := store.GetAttempt(ctx, att.ID)
+			work, _ := store.GetTask(ctx, item.ID)
+			if saved.Status != AttemptStatusQueued || saved.FinishedAt != nil || work.Status != TaskStatusQueued {
+				t.Fatal("waiting task was reaped as executed")
+			}
+		})
+	}
+}

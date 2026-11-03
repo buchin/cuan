@@ -267,3 +267,33 @@ The maintained deployment script now transfers payload via compressed rsync with
 partial-file append verification. Existing versioned staging, manifest checksums,
 atomic activation and rollback gates remain. Shell syntax check passed; next full
 deploy must verify transfer and activation in production before success is claimed.
+
+## Successful release and production inspection
+
+Native rsync3.5.0 and its Alpine runtime libraries were installed only under
+`/home/dev/.local/rsync-native` from the official Alpine package repository, without
+changing the ambient compatibility wrapper. With that binary selected on PATH,
+maintained deploy script completed in372seconds, preserving all manifest/atomic/
+health gates. Production7b7eef5e56906a9c1cf86e5e2de15468d4741982 health matched;
+both active service /proc/MainPID/exe paths matched release binaries. Evidence:
+`/home/dev/reports/cuan-native-rsync-release-deploy.log`.
+
+Real authenticated production browser screenshots390/1440 were captured and
+inspected for the Studio-origin task. Card showed Queued, folder/status indicator,
+Detail only,0Terminal buttons and no horizontal overflow. Evidence:
+`production-studio-task-render.json` and `production-studio-task-{390,1440}.png`.
+
+## Queue time incorrectly counted as execution time
+
+Snapshot114 contradicts the earlier assumption that the same queued attempt would
+be retained: initial attempt att_b8dd618 was reaped for an execution deadline even
+though started_at was null. Automatic coordinator review queued replacement
+att_443069f2d613c0df324134fb110fab5d within the same task. No execution duplication
+is established, but queue waiting incorrectly consumed an attempt and caused a
+misleading failure/revision message.
+
+The zombie sweeper now skips queued attempts: claim sets the immutable execution
+deadline when work actually starts. Regression checks cover aged queued attempts,
+legacy queued deadlines and actual running deadline expiry. Targeted tests passed.
+This queued-deadline fix is committed separately after production7b7eef5 and is
+not deployed yet. Full Studio-origin result verification remains pending.

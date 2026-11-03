@@ -1106,6 +1106,11 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 			continue
 		}
 
+		// Queue age is not execution time. Claiming the attempt assigns its
+		// immutable execution deadline; queued work has no process to reap.
+		if a.Status == AttemptStatusQueued {
+			continue
+		}
 		deadline := AttemptDeadline(t, a)
 		exceededTimeout := now.After(deadline.Add(GetGracePeriod()))
 
