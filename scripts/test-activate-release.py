@@ -18,6 +18,11 @@ class Response:
     def read(self): return self.body
 
 class Gates(unittest.TestCase):
+    def test_release_schema_count_matches_repository_migrations(self):
+        migrations = Path(__file__).resolve().parent.parent / 'migrations'
+        versions = [int(path.name.split('_', 1)[0]) for path in migrations.glob('*.up.sql')]
+        self.assertEqual(a.SCHEMA_COUNT, max(versions), 'Update release readiness when adding a migration')
+
     def test_current_schema_and_exact_html_required_for_old_and_new_code(self):
         with tempfile.TemporaryDirectory() as directory:
             a.BASE = Path(directory)

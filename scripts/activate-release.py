@@ -15,7 +15,7 @@ import urllib.parse
 BASE = Path('/opt/cuan')
 SERVICE = 'cuan'
 PORT = 8080
-SCHEMA_COUNT = 31
+SCHEMA_COUNT = 32
 
 
 def switch(link, target):
