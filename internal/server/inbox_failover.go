@@ -369,7 +369,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 	routes := []inboxAccountRoute{}
 	add := func(profile *agent.ProviderAccount, profileHome string, isPrimary bool, usage agent.AccountModelUsage) {
 		model := registered.ModelID
-		if !agent.IsTextModel(model) {
+		if !agent.IsTextModel(model) || isCuanFacade || model == "gemini-1.5-pro" || model == "gemini-1.5-flash" {
 			model = ""
 		}
 		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)))
@@ -481,7 +481,7 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 	profile, err := agent.GetProviderAccount(owner, route.accountID)
 	isCuanFacade := registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan"
 	allowed := err == nil && profile.CredentialsPresent && ((route.primary && ((profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || isCuanFacade)) || (!route.primary && (profile.AllowFailover || isCuanFacade)))
-	if allowed && route.model != "" && route.model != registered.ModelID && route.model != registered.FallbackModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
+	if allowed && !isCuanFacade && route.model != "" && route.model != registered.ModelID && route.model != registered.FallbackModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
 		allowed = false
 	}
 	if allowed && time.Now().Before(profile.ModelCooldowns[route.model]) {

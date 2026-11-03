@@ -178,7 +178,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
 		}
-		if model, _ := ctx.Value(inboxModelKey{}).(string); agent.IsTextModel(model) {
+		if model, _ := ctx.Value(inboxModelKey{}).(string); agent.IsTextModel(model) && model != "gemini-1.5-pro" && model != "gemini-1.5-flash" {
 			args = append(args, "--model", model)
 		}
 	case "commandcode":
