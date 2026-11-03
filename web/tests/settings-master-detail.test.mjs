@@ -144,7 +144,7 @@ test('2. Categorization: 4 semantic categories with Lucide icons, active state, 
   )
 })
 
-test('3. Layout: Two-Column Master-Detail in SettingsView.tsx', () => {
+test('3. Layout: Single-column settings canvas in SettingsView.tsx', () => {
   const settingsViewSrc = fs.readFileSync(settingsViewPath, 'utf8')
 
   // SettingsMasterNav must be imported and rendered
@@ -157,26 +157,8 @@ test('3. Layout: Two-Column Master-Detail in SettingsView.tsx', () => {
     'SettingsView must render SettingsMasterNav component',
   )
 
-  // Left master sidebar with w-72 / w-80 and border-r
-  assert.ok(
-    settingsViewSrc.includes('w-full md:w-72 lg:w-80 shrink-0 border-b md:border-b-0 md:border-r border-border') ||
-      (settingsViewSrc.includes('md:w-72') || settingsViewSrc.includes('md:w-80')) &&
-      settingsViewSrc.includes('border-r border-border'),
-    'Master sidebar must have consistent w-72/w-80 width and border-r border on desktop',
-  )
-
-  // Right content detail area with flex-1 min-w-0 max-w-4xl
-  assert.ok(
-    settingsViewSrc.includes('flex-1 min-w-0') &&
-      settingsViewSrc.includes('max-w-4xl'),
-    'Content detail area must feature flex-1 min-w-0 and max-w-4xl max width',
-  )
-
-  // Overflow-y protection to prevent horizontal layout blowout
-  assert.ok(
-    settingsViewSrc.includes('overflow-y-auto'),
-    'Containers must protect against layout clipping with overflow-y-auto',
-  )
+  assert.ok(settingsViewSrc.includes('mx-auto w-full max-w-4xl'), 'Settings must use a readable single-column canvas')
+  assert.ok(!settingsViewSrc.includes('md:w-72') && !settingsViewSrc.includes('md:w-80'), 'Settings must not add a second desktop sidebar')
 })
 
 test('4. Responsiveness: Master-first mobile pattern and ChevronLeft return button', () => {
@@ -190,11 +172,11 @@ test('4. Responsiveness: Master-first mobile pattern and ChevronLeft return butt
 
   // On mobile without section, sidebar is visible and detail is hidden
   assert.ok(
-    settingsViewSrc.includes("hasExplicitSection ? 'hidden md:block' : 'block'"),
+    settingsViewSrc.includes("hasExplicitSection ? 'hidden' : 'block p-4 md:p-6'"),
     'Sidebar must show on mobile root and hide when detail is active',
   )
   assert.ok(
-    settingsViewSrc.includes("!hasExplicitSection ? 'hidden md:block' : 'block'"),
+    settingsViewSrc.includes("!hasExplicitSection ? 'hidden' : 'block'"),
     'Detail view must hide on mobile root and display when section is selected',
   )
 

@@ -155,3 +155,9 @@ func (s *Service) launchInfo(ctx context.Context, taskID string) *LaunchInfo {
 func LaunchInstructionsHash(text string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(text)))
 }
+
+// Only interrupted infrastructure recovery may revive a stopped launch.
+// Validation, cancellation and authorization failures remain terminal.
+func recoverableStoppedLaunch(reason string) bool {
+	return reason == "Task is in terminal status." || reason == "Execution stopped during server restart."
+}

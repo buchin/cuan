@@ -605,7 +605,7 @@ func TestReconcileGhostQueuedTaskResurrection(t *testing.T) {
 		RequestID:        "req_ghost_1",
 		OwnerID:          "owner",
 		RoomID:           "room",
-		SourceRequestID: "req_source_1",
+		SourceRequestID:  "req_source_1",
 		AgentID:          "agent_sm",
 		InstructionsHash: LaunchInstructionsHash("Fix issues"),
 		CreatedAt:        now,
@@ -668,7 +668,7 @@ func TestReconcileGhostQueuedTaskResurrectionAfterServerRestart(t *testing.T) {
 		RequestID:        "req_mermaid_1",
 		OwnerID:          "owner",
 		RoomID:           "room",
-		SourceRequestID: "req_source_1",
+		SourceRequestID:  "req_source_1",
 		AgentID:          "agent_sm",
 		InstructionsHash: LaunchInstructionsHash("Render diagrams"),
 		CreatedAt:        now.Add(-2 * time.Hour),
@@ -742,7 +742,7 @@ func TestReconcileStartupLaunches_RevivesQueuedTask(t *testing.T) {
 		RequestID:        "req_startup_1",
 		OwnerID:          "owner",
 		RoomID:           "room",
-		SourceRequestID: "req_source_startup_1",
+		SourceRequestID:  "req_source_startup_1",
 		AgentID:          "agent_sm",
 		InstructionsHash: LaunchInstructionsHash("Do recovery"),
 		CreatedAt:        now.Add(-1 * time.Hour),
@@ -832,7 +832,7 @@ func TestLaunchMultiLaneConcurrency(t *testing.T) {
 		TaskID:           readTask.ID,
 		ProjectID:        projectID,
 		RequestID:        "req_read_1",
-		SourceRequestID: "req_read_source_1",
+		SourceRequestID:  "req_read_source_1",
 		OwnerID:          "owner",
 		RoomID:           "room-1",
 		AgentID:          "agent-1",
@@ -872,7 +872,7 @@ func TestLaunchMultiLaneConcurrency(t *testing.T) {
 		TaskID:           codeTask2.ID,
 		ProjectID:        projectID,
 		RequestID:        "req_code_2",
-		SourceRequestID: "req_code_source_2",
+		SourceRequestID:  "req_code_source_2",
 		OwnerID:          "owner",
 		RoomID:           "room-1",
 		AgentID:          "agent-1",
@@ -925,7 +925,7 @@ func TestLaunchMultiLaneConcurrency(t *testing.T) {
 		TaskID:           readTaskMig.ID,
 		ProjectID:        "proj-mig-test",
 		RequestID:        "req_read_mig_1",
-		SourceRequestID: "req_read_mig_source_1",
+		SourceRequestID:  "req_read_mig_source_1",
 		OwnerID:          "owner",
 		RoomID:           "room-1",
 		AgentID:          "agent-1",
@@ -944,5 +944,43 @@ func TestLaunchMultiLaneConcurrency(t *testing.T) {
 	}
 	if claimedMigRead != nil {
 		t.Fatalf("expected readonly task launch %s to be blocked by active migration, but got %+v", readMigLaunch.ID, claimedMigRead)
+	}
+}
+
+func TestRequestConflictLaunchRemainsStoppedDuringRecovery(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+	created, err := svc.CreateTask(ctx, "user", CreateTaskRequest{Title: "Preserve rejected request", ProjectIDs: []string{"p"}, Instructions: "approved scope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := TaskStatusQueued
+	if _, err = svc.UpdateTask(ctx, created.ID, "user", UpdateTaskRequest{Status: &status}); err != nil {
+		t.Fatal(err)
+	}
+	launch, err := svc.SaveLaunch(ctx, TaskLaunch{TaskID: created.ID, ProjectID: "p", RequestID: "request", OwnerID: "owner", RoomID: "room", SourceRequestID: "source", AgentID: "agent_cuan", InstructionsHash: LaunchInstructionsHash("approved scope"), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := svc.ClaimLaunch(ctx, now, "worker", launch.ID)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v, %v", claimed, err)
+	}
+	if err = svc.FinishLaunch(ctx, claimed.ID, claimed.LeaseToken, "stopped", now, ErrRequestConflict.Error()); err != nil {
+		t.Fatal(err)
+	}
+	for _, recover := range []func(context.Context, time.Time) error{svc.ReconcileOrphanLaunches, svc.ReconcileStartupLaunches} {
+		if err = recover(ctx, now); err != nil {
+			t.Fatal(err)
+		}
+		saved, err := svc.GetLaunch(ctx, launch.ID)
+		if err != nil || saved.State != "stopped" || saved.SafeError != ErrRequestConflict.Error() {
+			t.Fatalf("rejected launch resurrected: %+v, %v", saved, err)
+		}
+	}
+	if next, err := svc.ClaimLaunch(ctx, now.Add(time.Minute), "worker2"); err != nil || next != nil {
+		t.Fatalf("rejected launch claimed: %+v, %v", next, err)
 	}
 }

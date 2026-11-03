@@ -244,7 +244,7 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 			}
 		}
 		// Self-heal orphan ghost-queued tasks: if task is queued but launch was stopped (e.g. restart, terminal status false alarm, or expired window), revive it
-		if t != nil && t.Status == TaskStatusQueued && j.State == "stopped" && j.SafeError != "Task was cancelled." {
+		if t != nil && t.Status == TaskStatusQueued && j.State == "stopped" && recoverableStoppedLaunch(j.SafeError) {
 			j.State = "queued"
 			j.SafeError = ""
 			j.LeaseToken = ""
@@ -285,7 +285,7 @@ func (m *MemoryStore) ReconcileStartupLaunches(_ context.Context, now time.Time)
 	for _, j := range m.launches {
 		t := m.tasks[j.TaskID]
 		if t != nil && t.Status == TaskStatusQueued {
-			if j.State == "started" || j.State == "claimed" || (j.State == "stopped" && j.SafeError != "Task was cancelled.") {
+			if j.State == "started" || j.State == "claimed" || (j.State == "stopped" && recoverableStoppedLaunch(j.SafeError)) {
 				j.State = "queued"
 				j.SafeError = ""
 				j.LeaseToken = ""

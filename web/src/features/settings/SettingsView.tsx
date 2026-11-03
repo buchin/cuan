@@ -80,7 +80,7 @@ export function SettingsView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl flex flex-col md:flex-row min-h-[calc(100vh-4rem)]">
+    <div className="mx-auto w-full max-w-4xl min-h-[calc(100vh-4rem)]">
       {/* Hidden accessible navigation tabs for screen readers and link compatibility */}
       <nav
         aria-label={t('Settings sections')}
@@ -117,43 +117,39 @@ export function SettingsView({
         })}
       </nav>
 
-      {/* Master Sidebar (Kiri) - w-72 / w-80 di desktop */}
-      <aside
-        className={`w-full md:w-72 lg:w-80 shrink-0 border-b md:border-b-0 md:border-r border-border/40 bg-card/25 ${
-          hasExplicitSection ? 'hidden md:block' : 'block'
-        }`}
+      {/* Settings index uses the same single-column canvas as other pages. */}
+      <section
+        className={hasExplicitSection ? 'hidden' : 'block p-4 md:p-6'}
       >
-        <div className="sticky top-0 p-4 md:p-5 overflow-y-auto max-h-[calc(100vh-4rem)] space-y-4">
-          <header className="hidden md:block pb-1">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
+        <div className="space-y-6">
+          <header className="space-y-1">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
               {t(isAccount ? 'Account' : 'Settings')}
             </h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {t(
-                isAccount
-                  ? 'Personal profile, preferences, and relations.'
-                  : 'Manage your workspace, AI intelligence, and personal account.',
-              )}
+            <p className="text-sm text-muted-foreground">
+              {t(isAccount
+                ? 'Personal profile, preferences, and relations.'
+                : 'Manage your workspace, AI intelligence, and personal account.')}
             </p>
           </header>
 
           <SettingsMasterNav
-            currentSection={section}
+            currentSection={hasExplicitSection ? section : ''}
             isAccount={isAccount}
             safeReturn={safeReturn}
           />
         </div>
-      </aside>
+      </section>
 
       {/* Detail Content (Kanan) - flex-1 min-w-0 max-w-4xl */}
       <main
         className={`flex-1 min-w-0 overflow-y-auto p-4 md:p-6 ${
-          !hasExplicitSection ? 'hidden md:block' : 'block'
+          !hasExplicitSection ? 'hidden' : 'block'
         }`}
       >
         <div className={`${section === 'agents' ? 'max-w-5xl' : 'max-w-4xl'} mx-auto space-y-6`}>
           {/* Mobile Back Button to return to categorized master menu */}
-          <div className="md:hidden">
+          <div>
             <Link
               to={
                 safeReturn
@@ -183,7 +179,7 @@ export function SettingsView({
           </div>
 
           {!(section === 'integrations' && location.pathname.split('/')[3]) && (
-            <header className="hidden sm:block pb-2 border-b border-border/40">
+            <header className="space-y-1 pb-2">
               <h2 className="text-lg font-semibold capitalize text-foreground">
                 {t(
                   section === 'general'

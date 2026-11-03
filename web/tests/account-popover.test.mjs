@@ -80,7 +80,7 @@ test('3. Consolidated Account & Security vs Preferences grouping', async () => {
   assert.ok(accountGroupPos < profilePos, 'Profile & password must follow Account & Security header')
   assert.ok(profilePos < prefGroupPos, 'Preferences group must follow Account group')
   assert.ok(prefGroupPos < languagePos, 'Language toggle must follow Preferences header')
-  assert.ok(!popoverContent.includes("navigate('/settings')"), 'Settings is in primary navigation, not duplicated in Account popover')
+  assert.ok(popoverContent.includes('navuser-settings') && popoverContent.includes("t('Settings')"), 'Settings must be directly accessible from the account menu on mobile')
 
   // In S59-T3, Contacts and Schedules are lifted out of NavUser popover into primary Operations navigation
   assert.ok(

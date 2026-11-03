@@ -76,6 +76,13 @@ On mobile, open **Akun → Pengaturan → Assistant & AI Brain** to manage the
 assistant and its brains. The settings shortcut is directly below your identity
 in the account menu, marked with a gear icon. It is also available from the
 desktop account menu and the Settings sidebar entry.
+Settings uses a single-column category list on desktop and mobile. Open a
+category to edit its settings and use Back to Settings to return to the list;
+existing category deep links remain supported. Brain details remain in a drawer.
+
+Queue recovery only revives launches interrupted by a server restart or a
+previous terminal-status reconciliation. Rejected or changed requests remain
+stopped; a queued label must not be treated as evidence that execution started.
 
 Targeted Go tests cover ownership, pool leases and cooldowns, quota classification,
 continuation of the same workspace, cancellation, durable Inbox capacity waiting,
