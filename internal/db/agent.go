@@ -778,8 +778,16 @@ func (r *SQLAgentRepository) GetAgentByID(ctx context.Context, id string) (*Agen
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			if id == "agent_sm" || id == "agent_dev" || id == "agent_support" {
-				return r.GetAgentByID(ctx, AgentIDCuan)
+			cleanID := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(id), "@"))
+			if cleanID == "cuan" || cleanID == "agent_cuan" || cleanID == "sm" || cleanID == "agent_sm" || cleanID == "dev" || cleanID == "agent_dev" || cleanID == "support" || cleanID == "agent_support" {
+				if id != AgentIDCuan {
+					return r.GetAgentByID(ctx, AgentIDCuan)
+				}
+			}
+			if !strings.HasPrefix(cleanID, "agent_") && cleanID != "" {
+				if ag, errSub := r.GetAgentByID(ctx, "agent_"+cleanID); errSub == nil && ag != nil {
+					return ag, nil
+				}
 			}
 			return nil, ErrAgentNotFound
 		}
@@ -1412,9 +1420,15 @@ func (m *MemoryAgentRepository) GetAgentByID(_ context.Context, id string) (*Age
 
 	a, exists := m.agents[id]
 	if !exists {
-		if id == "agent_sm" || id == "agent_dev" || id == "agent_support" {
+		cleanID := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(id), "@"))
+		if cleanID == "cuan" || cleanID == "agent_cuan" || cleanID == "sm" || cleanID == "agent_sm" || cleanID == "dev" || cleanID == "agent_dev" || cleanID == "support" || cleanID == "agent_support" {
 			if cuan, existsCuan := m.agents[AgentIDCuan]; existsCuan {
 				return cuan.Clone(), nil
+			}
+		}
+		if !strings.HasPrefix(cleanID, "agent_") && cleanID != "" {
+			if custom, existsCustom := m.agents["agent_"+cleanID]; existsCustom {
+				return custom.Clone(), nil
 			}
 		}
 		return nil, ErrAgentNotFound

@@ -164,12 +164,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				timeout = v
 			}
 		}
-		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
+		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		if workspace != "" && !directCoordinator {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {
-			args = []string{"-p", system, "--print-timeout", "45s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json", "--effort", "low"}
+			args = []string{"-p", system, "--print-timeout", "45s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
