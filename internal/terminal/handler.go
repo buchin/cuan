@@ -202,7 +202,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if !found {
 			// Check if decoupled cuan-runner has an active PTY socket for this task
-			if SocketExists(taskID) {
+			socketID := taskID
+			if expected := strings.TrimPrefix(q.Get("session_id"), "runner-sess-"); strings.HasPrefix(expected, "att_") {
+				socketID = expected
+			}
+			if SocketExists(socketID) {
 				h.proxySocketToWebSocket(w, r, taskID, responseHeader)
 				return
 			}
@@ -210,10 +214,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if expected := q.Get("session_id"); expected != "" && expected != session.ID() {
-			if q.Get("reconnect") != "1" {
-				http.Error(w, "The selected session is no longer live.", http.StatusConflict)
-				return
-			}
+			http.Error(w, "The selected session is no longer live.", http.StatusConflict)
+			return
 		}
 	} else {
 		if h.mgr != nil {
@@ -463,6 +465,15 @@ func generateSubscriberID() string {
 // This allows cuan-server to seamlessly proxy terminal connections to cuan-runner, surviving
 // web server restarts and deployments without disrupting active task agent execution.
 func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request, taskID string, responseHeader http.Header) {
+	socketID := taskID
+	expected := strings.TrimPrefix(r.URL.Query().Get("session_id"), "runner-sess-")
+	if expected != "" {
+		if !strings.HasPrefix(expected, "att_") {
+			http.Error(w, "The selected terminal session is no longer live", http.StatusConflict)
+			return
+		}
+		socketID = expected
+	}
 	conn, err := h.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
 		log.Printf("[TerminalWS] Upgrade failed for runner task %s: %v", taskID, err)
@@ -470,7 +481,7 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	}
 	defer conn.Close()
 
-	sockPath := SocketPath(taskID)
+	sockPath := SocketPath(socketID)
 	unixConn, err := net.DialTimeout("unix", sockPath, 2*time.Second)
 	if err != nil {
 		log.Printf("[TerminalWS] Dial runner socket failed for task %s (%s): %v", taskID, sockPath, err)
@@ -516,7 +527,7 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Send handshake connected message
-	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session":"runner-%s","task_id":"%s","mode":"interactive","cols":%d,"rows":%d}`, taskID, taskID, cols, rows)))
+	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session_id":"%s","task_id":"%s","mode":"interactive","cols":%d,"rows":%d}`, socketID, taskID, cols, rows)))
 
 	// Setup ping/pong
 	_ = conn.SetReadDeadline(time.Now().Add(pongWait))

@@ -280,7 +280,7 @@ func TestHandler_WebSocketRunnerSocketProxy(t *testing.T) {
 	defer runnerSess.Close()
 
 	// Expose via standard Unix domain socket path
-	sockPath := SocketPath(taskID)
+	sockPath := SocketPath("att_proxy_binding_test")
 	bridge, err := NewSocketBridge(runnerSess, sockPath)
 	if err != nil {
 		t.Fatalf("new socket bridge: %v", err)
@@ -301,7 +301,7 @@ func TestHandler_WebSocketRunnerSocketProxy(t *testing.T) {
 	}))
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/tasks/" + taskID + "/terminal?mode=interactive&attach=1"
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/tasks/" + taskID + "/terminal?mode=interactive&attach=1&session_id=runner-sess-att_proxy_binding_test"
 
 	// 3. Connect browser WebSocket client
 	wsConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -365,5 +365,29 @@ func TestHandler_WebSocketRunnerSocketProxy(t *testing.T) {
 
 	if !receivedScrollback {
 		t.Errorf("second client expected to receive scrollback history after reconnect")
+	}
+}
+
+func TestHandler_ReconnectCannotSelectReplacementSession(t *testing.T) {
+	mgr := NewManager(ManagerConfig{WorkspacesDir: t.TempDir()})
+	defer mgr.CloseAll()
+	server := httptest.NewServer(NewHandler(HandlerConfig{Manager: mgr}))
+	defer server.Close()
+	base := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/tasks/task-reconnect-binding/terminal"
+	conn, _, err := websocket.DefaultDialer.Dial(base, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_, _, err = conn.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement, response, err := websocket.DefaultDialer.Dial(base+"?attach=1&reconnect=1&session_id=expired-session", nil)
+	if replacement != nil {
+		replacement.Close()
+	}
+	if err == nil || response == nil || response.StatusCode != http.StatusConflict {
+		t.Fatalf("stale reconnect must fail closed, got response=%v err=%v", response, err)
 	}
 }

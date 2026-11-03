@@ -1,3 +1,4 @@
+import { TerminalInputBuffer } from './terminal-input-buffer'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -52,6 +53,9 @@ export function TaskTerminal({
   const term = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const socket = useRef<WebSocket | null>(null)
+  const inputQueue = useRef(new TerminalInputBuffer())
+  const inputGeneration = taskId + ':' + attempt.id
+  inputQueue.current.bind(inputGeneration)
 
   const [connection, setConnection] = useState('loading')
   const [error, setError] = useState('')
@@ -61,7 +65,8 @@ export function TaskTerminal({
   const [search, setSearch] = useState('')
   const [match, setMatch] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [activeSessionId, setActiveSessionId] = useState(live?.session_id || '')
+  const [attachedSession, setAttachedSession] = useState({ generation: inputGeneration, id: '' })
+  const activeSessionId = attachedSession.generation === inputGeneration ? attachedSession.id : ''
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean
     x: number
@@ -149,17 +154,17 @@ export function TaskTerminal({
   const sendKey = useCallback((key: string) => {
     const ws = socket.current
     const terminal = term.current
-    if (ws?.readyState === WebSocket.OPEN) {
-      if (!interactive.current) {
-        if (terminal) terminal.options.disableStdin = false
-        interactive.current = true
-        setInput(true)
-        ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
-      }
-      ws.send(JSON.stringify({ type: 'stdin', data: key }))
-      if (following.current) terminal?.scrollToBottom()
+    if (!interactive.current && ws?.readyState !== WebSocket.OPEN) return
+    if (ws?.readyState === WebSocket.OPEN && !interactive.current) {
+      if (terminal) terminal.options.disableStdin = false
+      interactive.current = true
+      setInput(true)
+      ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
     }
-  }, [])
+    const send = ws?.readyState === WebSocket.OPEN ? (data: string) => ws.send(JSON.stringify({ type: 'stdin', data })) : undefined
+    if (!inputQueue.current.write(inputGeneration, key, send)) setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
+    if (send && following.current) terminal?.scrollToBottom()
+  }, [inputGeneration, t])
 
   const probeTerminalAvailability = useCallback(async (): Promise<number | null> => {
     try {
@@ -496,7 +501,7 @@ export function TaskTerminal({
           if (data.type === 'connected') {
             if (data.session_id) {
               liveIdRef.current = data.session_id
-              setActiveSessionId(data.session_id)
+              setAttachedSession({ generation: inputGeneration, id: data.session_id })
             }
 
             // Always reset terminal on connect so no stale ghost lines or duplicate logs remain
@@ -515,6 +520,7 @@ export function TaskTerminal({
             setInput(enabled)
             t.options.disableStdin = !enabled
             t.options.cursorBlink = false
+            if (enabled) inputQueue.current.flush(inputGeneration, data => ws.send(JSON.stringify({ type: 'stdin', data })))
             setConnection('connected')
             setNotice('')
             setError('')
@@ -943,9 +949,9 @@ export function TaskTerminal({
 
         terminal.onData((data) => {
           const ws = socket.current
-          if (interactive.current && ws?.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'stdin', data }))
-          }
+          if (!interactive.current) return
+          const send = ws?.readyState === WebSocket.OPEN ? (value: string) => ws.send(JSON.stringify({ type: 'stdin', data: value })) : undefined
+          if (!inputQueue.current.write(inputGeneration, data, send)) setError('Terminal input is pending. Reconnect to the same session before typing more.')
         })
 
         // Incremental polling loop used exclusively as fallback when PTY socket is unavailable

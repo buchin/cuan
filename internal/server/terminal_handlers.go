@@ -127,6 +127,36 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Attempt-specific attaches may never fall through to another task's PTY.
+	expected := strings.TrimPrefix(r.URL.Query().Get("session_id"), "runner-sess-")
+	if strings.HasPrefix(expected, "att_") {
+		if s.taskSvc == nil {
+			respondJSONError(w, 503, "Task attempt lookup is unavailable")
+			return
+		}
+		attempt, err := s.taskSvc.AttemptForTask(r.Context(), taskID, expected)
+		if err != nil || attempt.Status != task.AttemptStatusRunning {
+			respondJSONError(w, 409, "The selected attempt has no live terminal")
+			return
+		}
+		if s.terminalManager != nil {
+			if session, ok := s.terminalManager.GetSession(taskID); ok {
+				matched := false
+				for _, history := range s.terminalManager.GetTaskHistory(taskID) {
+					if history.SessionID == session.ID() && history.AttemptID == expected {
+						matched = true
+					}
+				}
+				if !matched {
+					respondJSONError(w, 409, "The selected attempt is no longer live")
+					return
+				}
+				query := r.URL.Query()
+				query.Set("session_id", session.ID())
+				r.URL.RawQuery = query.Encode()
+			}
+		}
+	}
 	if taskID != rawTaskID {
 		q := r.URL.Query()
 		q.Set("task_id", taskID)
