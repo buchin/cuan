@@ -555,11 +555,7 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
                 <span>{showDiagnostics ? "Sembunyikan Detail Diagnostik ←" : "Detail Diagnostik & Status Deploy →"}</span>
               </button>
 
-              {dod.checklist && dod.checklist.length > 0 && (
-                <span className="text-[11px] font-mono text-muted-foreground/80">
-                  Kriteria Selesai (DoD): {dod.checklist.filter((i) => i.completed).length}/{dod.checklist.length} Terpenuhi
-                </span>
-              )}
+
             </div>
 
             {/* Diagnostic Details Panel */}

@@ -337,3 +337,11 @@ func TestScrumFallbackCannotApproveSummaryWithoutCriterionEvidence(t *testing.T)
 		t.Fatalf("verified result rejected: %+v", decision)
 	}
 }
+
+func TestCancelledTaskReviewNeverClaimsAcceptanceOrRequestsRevision(t *testing.T) {
+	d := &task.TaskDetailResponse{Task: task.Task{Status: task.TaskStatusBlocked, DoDChecklist: []task.DoDItem{{Text: "Create the actual file", Completed: false}}}, LatestAttempt: &task.TaskAttempt{Status: task.AttemptStatusCanceled, AttemptNumber: 1}}
+	result := evaluateTaskDoDDeterministic(d)
+	if result.Decision != "blocked" || result.Revision != "" || strings.Contains(result.Explanation, "[x]") || strings.Contains(result.Explanation, "PO") || !strings.Contains(result.Explanation, "dibatalkan") {
+		t.Fatalf("misleading canceled review: %+v", result)
+	}
+}

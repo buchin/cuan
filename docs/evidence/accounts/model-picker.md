@@ -46,3 +46,16 @@ Browser fixtures390/1440 verify desktop category persistence, default General,
 mobile master/detail visibility, stable Settings personal routes, and nontransparent
 mixed-message background/padding with a real rendered task card. Updated screenshots
 were directly inspected. These checks do not establish native task completion.
+
+## Canceled work and evaluation claims
+
+Canceled attempts produce a plain cancellation notice without a passing checklist,
+PO decision request or automatic revision. A canceled attempt is not evidence of
+acceptance. DoD cards no longer compute a completion ratio from narrative evidence
+items: that list is not the authoritative acceptance checklist and excludes gaps.
+The original evaluation and underlying task criteria remain accessible in details.
+
+A fixture containing one checked evidence bullet and one unmet criterion verifies
+that the rendered report does not claim1/1 criteria passed. Screenshots are at
+`review-evidence-390.png` and `review-evidence-1440.png` in the report directory.
+These changes are verified locally and held while the native E2E attempt is live.

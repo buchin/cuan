@@ -114,6 +114,9 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 	}
 
 	att := d.LatestAttempt
+	if att.Status == task.AttemptStatusCanceled {
+		return inboxReviewEvaluation{Decision: "blocked", Explanation: "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tersimpan; laporan ini tidak memulai ulang pekerjaan."}
+	}
 	isSuccess := att.Status == task.AttemptStatusSucceeded && (att.ExitCode == nil || *att.ExitCode == 0)
 
 	var sb strings.Builder

@@ -228,6 +228,9 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 
 func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxRequest, raw string) string {
 	d := s.inboxReviewedTask(ctx, q)
+	if d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusCanceled {
+		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
+	}
 	decision, err := parseInboxReviewEvaluation(raw)
 	if err != nil {
 		decision, err = parseFallbackTextReview(raw)
