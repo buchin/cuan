@@ -1,3 +1,4 @@
+import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { workStatus } from '../tasks/task-ui'
 import { startsMessageGroup } from './message-group'
 import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
@@ -50,7 +51,6 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronDown,
-  EyeOff,
   Lock,
   Copy,
   Clock,
@@ -1679,20 +1679,11 @@ export function InboxView({
                       className={cn(
                         'wa-message-bubble relative min-w-0',
                         msg.uuid === requestedMessageId && 'ring-2 ring-ring',
-                        msg.is_internal && 'ring-1 ring-amber-500/40 border border-amber-500/30',
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
-                      {msg.is_internal && (
-                        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 rounded-full w-fit">
-                          <EyeOff className="h-3 w-3" />
-                          <span>{t('Internal · Invisible to visitor')}</span>
-                          {(msg.mention_handle || (msg.author_name && msg.author_name !== 'Owner' && msg.author_name !== 'You')) && (
-                            <span className="font-semibold text-foreground bg-background/60 px-1 rounded ml-0.5">
-                              {msg.mention_handle || msg.author_name}
-                            </span>
-                          )}
-                        </div>
+                      {msg.is_internal && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
+                        <div className="-ml-3 -mt-2 -mb-1 w-fit"><InternalVisibility /></div>
                       )}
                       {msg.approval_title && !msg.approval_plan && (
                         <p className="mb-2 text-xs font-medium">
@@ -1700,10 +1691,11 @@ export function InboxView({
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
-                        <AttachmentFile key={a.id} attachment={a} />
+                        <AttachmentFile key={a.id} attachment={a} internal={msg.is_internal === true} />
                       ))}
                       {msg.attachment_url && !msg.attachments?.length && (
                         <AttachmentFile
+                          internal={msg.is_internal === true}
                           attachment={{
                             id: msg.attachment_url,
                             name: msg.attachment_name || 'Customer file',
@@ -2168,14 +2160,11 @@ export function InboxView({
                       </div>
                     </div>
                     {(whisperMode || inputMessage.trim().startsWith('@')) && (
-                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold inline-flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        <EyeOff className="h-3 w-3" />
-                        {t('Internal · Invisible to visitor')}
-                      </span>
+                      <InternalVisibility />
                     )}
                   </div>
                 )}
-                <AttachmentPreviews uploads={uploads} disabled={sending} />
+                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
                 <div
                   className={`wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 ${
                     isMultiline ? 'is-multiline' : ''

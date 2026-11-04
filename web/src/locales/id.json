@@ -1670,5 +1670,7 @@
   "Work canceled. Saved work is still available.": "Pekerjaan dibatalkan. Hasil yang tersimpan tetap tersedia.",
   "Review passed. Open the conversation for details.": "Review lulus. Buka percakapan untuk melihat rinciannya.",
   "{{count}} needs attention": "{{count}} perlu perhatian",
-  "{{count}} need attention": "{{count}} perlu perhatian"
+  "{{count}} need attention": "{{count}} perlu perhatian",
+  "Internal visibility": "Visibilitas internal",
+  "Only you and your team can see this. The customer cannot see this message or attachment.": "Hanya Anda dan tim yang dapat melihat ini. Pelanggan tidak dapat melihat pesan atau lampiran ini."
 }

@@ -1,3 +1,4 @@
+import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useState, useEffect, memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -372,6 +373,7 @@ export const TaskCard = memo(function TaskCard({
         )}
       >
         <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2">
+          {isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60" />
@@ -406,6 +408,7 @@ export const TaskCard = memo(function TaskCard({
         )}
       >
         <div className="flex items-center justify-between gap-2">
+          {isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
             <span>{taskRef(taskId)}</span>
           </div>
@@ -486,6 +489,7 @@ export const TaskCard = memo(function TaskCard({
       {/* Header: Status, Live Timer, Project, TaskRef, and Timestamp */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
+          {isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}
           <span
             className={cn(
               'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',

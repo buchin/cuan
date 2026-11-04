@@ -41,7 +41,7 @@ async function routeAPI(route){
  if(p==='/api/system/worker-health')return json({status:'ready',is_alive:true,running_count:0,queued_count:0})
  if(p==='/api/system/update')return json({current_version:'fixture',latest_version:'fixture',has_update:false})
   if(/chat\/conversations\/fixture-room\/(messages|events)$/.test(p)){
-   const data={conversation_id:'fixture-room',room_id:'fixture-room',contact:contacts[0],tasks:[task],messages:[{id:1,uuid:'message',author_type:'user',sender_type:'visitor',content:'Buatkan panduan untuk pelanggan.',created_at:now},{id:11,uuid:'user-followup',author_type:'user',sender_type:'visitor',content:'Gunakan bahasa yang sederhana.',created_at:now},{id:2,uuid:'reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Panduan sudah selesai dan diperiksa.\n\n[View work](/tasks/msg_reply)',created_at:now},{id:3,uuid:'agent-followup',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'Silakan cek file hasilnya.',created_at:now},{id:4,uuid:'file-only',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'',message:'',attachments:[{id:'fixture-file',name:'panduan.pdf',type:'application/pdf',size:1024,url:'/fixtures/panduan.pdf'}],created_at:now},{id:5,uuid:'user-later',author_type:'user',sender_type:'visitor',content:'Terima kasih, hasilnya sudah sesuai.',created_at:new Date(Date.parse(now)+360000).toISOString()}],requests:[]}
+   const data={conversation_id:'fixture-room',room_id:'fixture-room',contact:contacts[0],tasks:[task],messages:[{id:1,uuid:'message',author_type:'user',sender_type:'visitor',content:'Buatkan panduan untuk pelanggan.',created_at:now},{id:11,uuid:'user-followup',author_type:'user',sender_type:'visitor',content:'Gunakan bahasa yang sederhana.',created_at:now},{id:2,uuid:'reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Panduan sudah selesai dan diperiksa.\n\n[View work](/tasks/msg_reply)',created_at:now},{id:3,uuid:'agent-followup',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'Silakan cek file hasilnya.',created_at:now},{id:4,uuid:'file-only',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'',message:'',attachments:[{id:'fixture-file',name:'panduan.md',type:'text/markdown',size:1024,url:'/api/v1/chat/attachments/private-file'}],created_at:now},{id:5,uuid:'user-later',author_type:'user',sender_type:'visitor',content:'Terima kasih, hasilnya sudah sesuai.',created_at:new Date(Date.parse(now)+360000).toISOString()}],requests:[]}
    return p.endsWith('/events')?route.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: '+JSON.stringify(data)+'\n\n'}):json(data)
   } return json({})
 }
@@ -55,6 +55,7 @@ contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='her
  const context=await browser.newContext({viewport:{width,height:900},isMobile:width===390,hasTouch:width===390}),page=await context.newPage();debugPage=page;
  await page.addInitScript(theme=>{localStorage.setItem('cuan_token','fixture');localStorage.setItem('cuan-theme',theme)},theme)
  await page.route('**/api/**',routeAPI)
+ await page.route('**/api/v1/chat/attachments/private-file',route=>route.fulfill({contentType:'text/markdown',body:'# Panduan privat\nIsi lampiran internal.'}))
  await page.goto('http://127.0.0.1:4183/inbox/fixture-room')
  const header=page.locator('.wa-chat-header'),headerBox=await header.boundingBox();
  for(const element of [header.locator('h2'),header.getByTestId('customer-email-text')]) {
@@ -67,6 +68,16 @@ contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='her
  const card=page.locator('[data-card=task-card]');await card.waitFor();assert.equal(await card.count(),1,'one task attachment in customer room');await card.scrollIntoViewIfNeeded();
  assert(await card.getByRole('button',{name:'Detail',exact:true}).isVisible());assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0)
  assert.equal(await page.locator('[data-message-id=reply] [data-card]').count(),1,'card belongs to agent delegation');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ const reply=page.locator('[data-message-id=reply]'),privacy=reply.locator('.wa-message-bubble [data-internal-visibility]');assert.equal(await privacy.count(),1);
+ assert.equal(await page.locator('[data-message-id=message] [data-internal-visibility]').count(),0,'public customer text has no internal marker');
+ assert.equal(await page.locator('[data-message-id=agent-followup] [data-internal-visibility]').count(),0,'public agent text has no internal marker');
+ assert.equal(await card.locator('[data-internal-visibility]').count(),1,'customer-room owner task card is internal');
+ await privacy.scrollIntoViewIfNeeded();assert((await privacy.boundingBox()).width>=44);assert((await privacy.boundingBox()).height>=44);
+ await privacy.click();let popover=page.getByRole('dialog',{name:'Internal visibility',exact:true});await popover.waitFor();assert(await popover.getByText('Only you and your team can see this. The customer cannot see this message or attachment.',{exact:true}).isVisible());
+ const rect=await popover.boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width);await page.screenshot({path:out+'/privacy-'+theme+'-'+width+'.png'});await page.keyboard.press('Escape');await popover.waitFor({state:'detached'});
+ await privacy.focus();await page.keyboard.press('Enter');await popover.waitFor();await page.keyboard.press('Escape');assert(await privacy.evaluate(el=>el===document.activeElement));
+ const file=page.locator('[data-message-id=file-only]');assert.equal(await file.locator('[data-internal-visibility]').count(),1,'file-only message has one marker');await file.getByRole('button',{name:'Preview panduan.md',exact:true}).click();const preview=page.locator('dialog[open]');await preview.waitFor();const previewPrivacy=preview.locator('[data-internal-visibility]');await previewPrivacy.click();await popover.waitFor();assert(await preview.locator('[role=dialog][aria-label="Internal visibility"]').isVisible(),'popover stays in native dialog top layer');await page.keyboard.press('Escape');assert(await preview.isVisible(),'Escape dismisses privacy without closing preview');await page.keyboard.press('Escape');await preview.waitFor({state:'detached'});
+ await card.scrollIntoViewIfNeeded();
  await page.screenshot({path:out+'/customer-'+theme+'-'+width+'.png'});
  await card.getByRole('button',{name:'Detail',exact:true}).click();assert(page.url().includes('/inbox/fixture-room'));await context.close()
  }

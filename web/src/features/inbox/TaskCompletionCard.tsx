@@ -1,3 +1,4 @@
+import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useState, useMemo, useEffect, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
@@ -170,6 +171,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
       {/* Top Header: Calm Status, TaskRef, Live Terminal & Retry Buttons */}
       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-border/40 pb-2.5">
         <div className="flex items-center gap-2 min-w-0">
+          {isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}
           <span
             data-testid="completion-card-status"
             className={cn(

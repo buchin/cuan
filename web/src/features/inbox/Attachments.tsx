@@ -1,3 +1,4 @@
+import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Camera, Images, FolderOpen } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -322,9 +323,11 @@ export function AttachmentPicker({
 export function AttachmentPreviews({
   uploads,
   disabled = false,
+  internal = false,
 }: {
   uploads: ReturnType<typeof useAttachments>
   disabled?: boolean
+  internal?: boolean
 }) {
   const { t } = useLanguage()
   if (!uploads.items.length && !uploads.busy && !uploads.error) return null
@@ -335,7 +338,7 @@ export function AttachmentPreviews({
           key={a.id}
           className="flex max-w-full items-center gap-2 rounded-xl border border-border/80 bg-muted/40 px-2.5 py-1.5 text-xs shadow-xs"
         >
-          <AttachmentFile attachment={a} />
+          <AttachmentFile attachment={a} internal={internal} />
           <button
             type="button"
             className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
@@ -366,7 +369,7 @@ export function AttachmentPreviews({
   )
 }
 
-export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
+export function AttachmentFile({ attachment: a, internal = false }: { attachment: Attachment; internal?: boolean }) {
   const { t } = useLanguage()
 
   const [url, setURL] = useState(''),
@@ -426,7 +429,8 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
     }
   }
   return (
-    <div className="min-w-0 max-w-full">
+    <div className="flex min-w-0 max-w-full items-start">
+      {internal && <InternalVisibility className="-ml-2" />}
       <button
         type="button"
         onClick={(e) => {
@@ -470,6 +474,7 @@ export function AttachmentFile({ attachment: a }: { attachment: Attachment }) {
       {canPreview && previewOpen && (
         <Suspense fallback={null}>
           <FilePreviewModal
+            internal={internal}
             open={previewOpen}
             attachment={a}
             onClose={() => setPreviewOpen(false)}

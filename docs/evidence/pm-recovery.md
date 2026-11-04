@@ -197,3 +197,22 @@ feedback uses the same-size icon, so no width/height jump occurs. Real390px touc
 and1440px light/dark browser fixtures check name/email bounds, long labels,44px
 copy target, actual clipboard value, stable header height and task-card actions.
 Screenshots were rendered and directly inspected before deployment.
+
+## Approved quiet internal-visibility indicator
+
+User approved replacing repeated internal banners with a small eye-off marker.
+The reusable `InternalVisibility` component now appears on internal bubbles,
+owner-only customer-room task cards and private attachment previews (including the
+opened file dialog). Public message/file surfaces are unmarked; draft attachments
+follow the composer mode. Amber rings/banners on sent bubbles were removed.
+Message/backend filtering remains unchanged. Real390px touch and1440px desktop
+light/dark fixtures verify public/internal distinctions,44px targets, click and
+keyboard explanation, viewport bounds, Escape/focus return and native-dialog
+portal layering. Screenshots were directly inspected. Build and targeted header
+regressions pass; visitor filtering remains covered by backend tests.
+
+Live Heru recovery now has a new final report with summary/verification saved on
+attempt att_660e570b4664acc669aa3056ef791936. The attempt exits0 but is rejected by
+auto-deploy compliance because earlier code changes were not proven deployed.
+This is a separate scope/compliance issue, not continued loss of report access.
+Do not claim the original installation/live criteria fulfilled without evidence.

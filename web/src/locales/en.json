@@ -270,5 +270,7 @@
   "Work canceled. Saved work is still available.": "Work canceled. Saved work is still available.",
   "Review passed. Open the conversation for details.": "Review passed. Open the conversation for details.",
   "{{count}} needs attention": "{{count}} needs attention",
-  "{{count}} need attention": "{{count}} need attention"
+  "{{count}} need attention": "{{count}} need attention",
+  "Internal visibility": "Internal visibility",
+  "Only you and your team can see this. The customer cannot see this message or attachment.": "Only you and your team can see this. The customer cannot see this message or attachment."
 }

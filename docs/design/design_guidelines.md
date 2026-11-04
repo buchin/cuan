@@ -331,3 +331,16 @@ Identitas avatar diperbarui sesuai persetujuan user: gunakan bentuk kotak untuk
 avatar Inbox dan account, termasuk menu akun. Ukuran36px pada trigger dan40px di
 menu tetap. Pie progres serta titik status tetap bulat sehingga tidak menyerupai
 identitas pengirim. Ketentuan terbaru ini menggantikan pengecualian avatar bulat.
+
+### 7.8. Internal visibility markers
+
+Internal customer-room messages and owner-only task/attachment surfaces use the
+shared `InternalVisibility` eye-off indicator in their leading corner/header.
+Do not repeat yellow explanatory banners, sender pills or amber border rings on
+every bubble. The icon is muted14px with a44px touch target. Tap/keyboard opens
+the explanation; desktop hover may reveal it. Popovers support Escape, outside
+dismissal and viewport bounds, including native file-preview dialogs.
+Only mark surfaces known to be internal: message visibility comes from persisted
+`is_internal`; unsent attachments follow the actual composer mode; customer-room
+task cards are owner-only surfaces. Public messages/attachments have no marker.
+The indicator explains access and never grants or changes it.
