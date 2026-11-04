@@ -326,6 +326,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							inferenceCtx := ctx
 							if snapshot, ok := s.inboxTaskReviewPrompt(ctx, q); ok {
 								inferenceCtx = context.WithValue(ctx, inboxTaskReviewKey{}, true)
+								if isCustomerReplyDelivery(q, s.inboxReviewedTask(ctx, q)) {
+									inferenceCtx = context.WithValue(inferenceCtx, inboxCustomerReplyKey{}, true)
+								}
 								snapshotReview = true
 								prompt = snapshot
 								if snapshot == "" {
@@ -337,6 +340,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								attachments := s.inboxAttachmentPaths(ctx, q)
 								if snapshotReview {
 									attachments = s.inboxReviewImagePaths(ctx, q)
+									if inferenceCtx.Value(inboxCustomerReplyKey{}) == true {
+										attachments = nil
+									}
 								}
 								output, failure = s.executeInboxWithFailover(inferenceCtx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, attachments...)
 							}

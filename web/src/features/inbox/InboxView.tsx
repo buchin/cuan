@@ -1525,7 +1525,7 @@ export function InboxView({
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
                 previousBubbleMessage = msg
                 const hasSpeech = withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
-                const showMessageSurface = hasSpeech || !(linkedTaskForMsg || isSupersededTaskMessage) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.reply_draft || msg.receipt_extraction || msg.product || msg.prompt_choices)
+                const showMessageSurface = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices)
                 const metadata = (
                   <span className="wa-message-meta">
                     <time dateTime={msg.created_at}>

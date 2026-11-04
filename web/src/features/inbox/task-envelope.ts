@@ -113,7 +113,6 @@ export function parseTaskReviewEnvelope(
 
   const rawStatus = (task.status || '').toLowerCase().trim()
   const isDone = rawStatus === 'done'
-  const isReview = rawStatus === 'review'
   const stopped = task.status === 'blocked' || task.launch?.state === 'stopped' || task.launch?.state === 'cancelled' || ['failed', 'interrupted', 'canceled', 'cancelled'].includes(task.latest_attempt?.status || task.execution_status || '')
   const fallbackSummary = stopped ? 'Pekerjaan terhenti. Hasil belum terverifikasi.' : 'Hasil pekerjaan menunggu peninjauan.'
 
@@ -143,16 +142,6 @@ export function parseTaskReviewEnvelope(
     (task as any).reply_draft ||
     (task as any).metadata?.reply_draft ||
     ''
-
-  if (!draft) {
-    if (isDone) {
-      draft = `Halo! Kami telah menyelesaikan pekerjaan terkait "${task.title}". Semuanya telah kami proses dengan baik. Silakan beri tahu kami jika ada detail lain yang Anda butuhkan.`
-    } else if (isReview) {
-      draft = `Halo! Terkait kebutuhan "${task.title}", kami telah menindaklanjutinya dan menyiapkan langkah terbaik untuk Anda. Silakan beri tahu kami jika ada detail yang ingin disesuaikan.`
-    } else {
-      draft = ''
-    }
-  }
 
   if (stopped) { summary = task.latest_attempt?.error_message || fallbackSummary; draft = '' }
 

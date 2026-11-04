@@ -55,7 +55,7 @@ test('1. S65-T2: task-envelope parser extracts dual-channel envelope JSON and pr
   const resB = parseTaskReviewEnvelope(taskB)
   assert.equal(resB.isFromEnvelope, false)
   assert.equal(resB.summary, 'Kode checkout telah diperbaiki dan diuji.')
-  assert.ok(resB.draft.includes('Perbaikan bug keranjang belanja'))
+  assert.equal(resB.draft, '', 'Plain result without a saved draft must not invent one')
   assert.equal(resB.requiresDeploy, false)
 
   // Case C: Review status task
@@ -66,7 +66,7 @@ test('1. S65-T2: task-envelope parser extracts dual-channel envelope JSON and pr
     summary: 'Desain telah siap untuk ditinjau.',
   }
   const resC = parseTaskReviewEnvelope(taskC)
-  assert.ok(resC.draft.includes('Review proposal desain'))
+  assert.equal(resC.draft, '', 'Review status must not fabricate a customer response')
 })
 
 test('2. S65-T2: TaskCompletionCard integrates Live Terminal, Retry, and 1-Click Actionable Visitor Reply Draft', () => {

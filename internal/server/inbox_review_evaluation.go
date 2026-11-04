@@ -40,15 +40,16 @@ Mere generic claims without factual data or evidence must be treated as unverifi
 In explanation, write one to three plain sentences: the actual outcome, the concrete remaining issue if any, and what Cuan will do next. No greetings, taglines, checklist headings, generic follow-up options, administrative status labels or requests for the owner to diagnose agent-fixable problems. Keep technical commands, package names, revision steps and the full acceptance breakdown in revision and the task evidence, rather than the chat explanation. Mention a human action only for a specific external prerequisite that truly requires it. Do not claim the visitor has received an internal draft or that deployment succeeded without matching evidence.
 
 Use the user's language from the original request (default to English if the original request is English, or Indonesian if Indonesian; never use Spanish or another language absent from the request). Do not include task identifiers, authorization metadata or JSON in explanation.`
-const inboxReviewEvaluationSchema = `{"type":"object","properties":{"visual_inspection":{"type":"string"},"decision":{"enum":["pass","revise","blocked"]},"finding":{"type":"string"},"remaining_work":{"enum":["none","verification","implementation","external"]},"explanation":{"type":"string"},"revision":{"type":"string"}},"required":["visual_inspection","decision","finding","remaining_work","explanation","revision"],"additionalProperties":false}`
+const inboxReviewEvaluationSchema = `{"type":"object","properties":{"customer_reply_draft":{"type":"string"},"visual_inspection":{"type":"string"},"decision":{"enum":["pass","revise","blocked"]},"finding":{"type":"string"},"remaining_work":{"enum":["none","verification","implementation","external"]},"explanation":{"type":"string"},"revision":{"type":"string"}},"required":["visual_inspection","decision","finding","remaining_work","explanation","revision"],"additionalProperties":false}`
 
 type inboxReviewEvaluation struct {
-	VisualInspection string `json:"visual_inspection,omitempty"`
-	Decision         string `json:"decision"`
-	Finding          string `json:"finding,omitempty"`
-	RemainingWork    string `json:"remaining_work,omitempty"`
-	Explanation      string `json:"explanation"`
-	Revision         string `json:"revision"`
+	CustomerReplyDraft string `json:"customer_reply_draft,omitempty"`
+	VisualInspection   string `json:"visual_inspection,omitempty"`
+	Decision           string `json:"decision"`
+	Finding            string `json:"finding,omitempty"`
+	RemainingWork      string `json:"remaining_work,omitempty"`
+	Explanation        string `json:"explanation"`
+	Revision           string `json:"revision"`
 }
 
 var inboxReviewTaskLink = regexp.MustCompile(`/tasks/([A-Za-z0-9_-]+)`)
@@ -67,6 +68,9 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 		d, err := s.taskSvc.GetTaskDetail(ctx, match[1])
 		if err != nil || d == nil || d.LatestAttempt == nil {
 			continue
+		}
+		if isCustomerReplyDelivery(q, d) {
+			return d
 		}
 		for _, suffix := range []string{"", ":snapshot", ":snapshot:evaluation", ":evidence:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d) + ":retry", ":report-provenance:" + inboxReviewEvidenceDigest(d), ":report-provenance:" + inboxReviewEvidenceDigest(d) + ":retry", ":assessment:" + inboxReviewEvidenceDigest(d), ":assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":verification-assessment:" + inboxReviewEvidenceDigest(d), ":verification-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":visual-assessment:" + inboxReviewEvidenceDigest(d), ":visual-assessment:" + inboxReviewEvidenceDigest(d) + ":retry"} {
 			key := "task-review:" + d.LatestAttempt.ID + suffix
@@ -187,7 +191,7 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 			return result, bad
 		}
 	}
-	if result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" || strings.TrimSpace(result.Explanation) == "" || len(result.VisualInspection) > 4000 || len(result.Finding) > 1000 || (result.RemainingWork != "" && result.RemainingWork != "none" && result.RemainingWork != "verification" && result.RemainingWork != "implementation" && result.RemainingWork != "external") || len(result.Explanation) > 6000 || len(result.Revision) > 6000 || result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" || result.Decision != "revise" && result.Revision != "" {
+	if result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" || strings.TrimSpace(result.Explanation) == "" || len(result.VisualInspection) > 4000 || len(result.Finding) > 1000 || (result.RemainingWork != "" && result.RemainingWork != "none" && result.RemainingWork != "verification" && result.RemainingWork != "implementation" && result.RemainingWork != "external") || len(result.Explanation) > 6000 || len(result.Revision) > 6000 || len(result.CustomerReplyDraft) > 6000 || result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" || result.Decision != "revise" && result.Revision != "" {
 		return result, bad
 	}
 	return result, nil
@@ -271,6 +275,12 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
 	}
 	decision, err := parseInboxReviewEvaluation(raw)
+	if isCustomerReplyDelivery(q, d) {
+		if err != nil {
+			return "Draf balasan belum berhasil disiapkan. Hasil investigasi tetap tersimpan."
+		}
+		return s.applyAcceptedCustomerReply(ctx, q, d, decision)
+	}
 	if err != nil {
 		decision, err = parseFallbackTextReview(raw)
 	}

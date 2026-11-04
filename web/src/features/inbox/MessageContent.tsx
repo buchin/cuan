@@ -83,7 +83,7 @@ export const MessageContent = memo(function MessageContent({
 
   // Fallback to un-suppress bubbles: never leave a blank bubble when content or links exist
   const effectiveActions =
-    visibleActions.length === 0 && !report && !extractedReceipt && !body.trim() && actions.length > 0
+    !hideTaskActions && visibleActions.length === 0 && !report && !extractedReceipt && !body.trim() && actions.length > 0
       ? actions
       : visibleActions
 

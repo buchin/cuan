@@ -25,6 +25,12 @@ func (s *Server) inboxTaskReviewPrompt(ctx context.Context, q db.InboxRequest) (
 	if a := d.LatestAttempt; a != nil && (a.CancelRequested || a.CanceledAt != nil || a.Status == task.AttemptStatusCanceled) {
 		return "", true
 	}
+	if isCustomerReplyDelivery(q, d) {
+		if !s.acceptedCustomerReplyEligible(ctx, d) || !s.customerReplyAuthorized(ctx, q, d) {
+			return "", true
+		}
+		return customerReplyDeliveryInstruction + "\n\nAccepted result data:\n" + s.inboxReviewData(ctx, d), true
+	}
 	return s.inboxReviewData(ctx, d), true
 }
 

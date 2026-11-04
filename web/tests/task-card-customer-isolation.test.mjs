@@ -39,7 +39,7 @@ test('1. task-envelope: in-flight (queued / doing) tasks MUST NOT produce fallba
   const resDoing = parseTaskReviewEnvelope(doingTask)
   assert.equal(resDoing.draft, '', 'Doing task must have empty draft')
 
-  // Completed task still gets friendly visitor draft
+  // Completion alone is not evidence for a customer-facing success claim.
   const doneTask = {
     id: 'task_done_3',
     title: 'Perbaikan pemutaran video',
@@ -47,8 +47,7 @@ test('1. task-envelope: in-flight (queued / doing) tasks MUST NOT produce fallba
     summary: 'Masalah pemutaran video telah diatasi.',
   }
   const resDone = parseTaskReviewEnvelope(doneTask)
-  assert.ok(resDone.draft.length > 0, 'Done task should have fallback draft')
-  assert.ok(resDone.draft.includes('Perbaikan pemutaran video'))
+  assert.equal(resDone.draft, '', 'Done status must not fabricate a visitor reply')
 })
 
 test('2. TaskCard & TaskCompletionCard: isCustomerRoom guard ensures drafts only appear in customer conversations', () => {

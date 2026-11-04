@@ -446,6 +446,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	}
 	s.recoverPhaseHandoffs(ctx)
 	s.reconcileVisualAcceptances(ctx)
+	s.queueAcceptedCustomerReplies(ctx)
 	items, err := s.taskSvc.InboxDeliveryTasks(ctx)
 	if err != nil {
 		return
