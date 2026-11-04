@@ -165,6 +165,7 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 	// Goroutine 1: PTY -> Client
 	go func() {
 		defer close(done)
+		defer conn.Close() // Wake the input reader when a lagging subscriber is detached.
 		for {
 			select {
 			case <-sb.closeChan:

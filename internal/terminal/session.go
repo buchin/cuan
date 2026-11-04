@@ -281,6 +281,27 @@ func (s *Session) IsClosed() bool {
 	return s.closed
 }
 
+// publishOutput never lets a slow subscriber continue after losing PTY bytes.
+// ANSI and UTF-8 sequences span chunks: a silent gap corrupts the screen. Keep
+// the history and detach only the lagging viewer so it can replay on reconnect.
+func (s *Session) publishOutput(chunk []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.historyBuffer.Write(chunk)
+	s.lastActivity = time.Now().UTC()
+	for id, sub := range s.subscribers {
+		select {
+		case sub.SendChan <- chunk:
+		default:
+			delete(s.subscribers, id)
+			close(sub.CloseChan)
+		}
+	}
+}
+
 // readPump continuously reads from the PTY master descriptor and fans out to all subscribers.
 func (s *Session) readPump() {
 	defer close(s.readerDone)
@@ -291,18 +312,7 @@ func (s *Session) readPump() {
 			chunk := make([]byte, n)
 			copy(chunk, buf[:n])
 
-			s.mu.Lock()
-			s.historyBuffer.Write(chunk)
-			s.lastActivity = time.Now().UTC()
-
-			for _, sub := range s.subscribers {
-				select {
-				case sub.SendChan <- chunk:
-				default:
-					// Dropping or non-blocking if channel is full
-				}
-			}
-			s.mu.Unlock()
+			s.publishOutput(chunk)
 			if s.onOutput != nil {
 				s.onOutput(chunk)
 			}

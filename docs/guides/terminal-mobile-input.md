@@ -79,3 +79,19 @@ socket lifecycle regression now checks byte-for-byte preservation of ANSI,
 JSON output and Unicode split across frames. This establishes stream fidelity,
 not resolution of the physical keyboard report. Soft reconnect replay and
 render backpressure remain separate from this fix.
+
+## Slow viewer recovery
+
+The PTY session previously dropped output chunks silently when a subscriber's
+256-chunk queue filled. A partial ANSI/UTF-8 sequence could therefore be followed
+by later bytes, corrupting that viewer's terminal state. A slow viewer is now
+detached instead; its socket closes so the existing reconnect path can replay
+retained history. Healthy viewers and the agent process continue, and input is
+not resent merely because output recovery occurs. The runner Unix bridge also
+closes its connection when the subscriber detaches, waking its input reader.
+
+`TestSessionSlowSubscriberCannotContinueWithMissingBytes` verifies the exact
+overflow case, healthy-viewer isolation and retained-history replay. This is
+gap detection and recovery, not Fural's full render-credit protocol or a soft
+reconnect implementation. Sustained overload can still cause reconnects, and
+history remains bounded to the existing retention window.

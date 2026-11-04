@@ -1,11 +1,45 @@
 package terminal
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestSessionSlowSubscriberCannotContinueWithMissingBytes(t *testing.T) {
+	s := &Session{subscribers: map[string]*Subscriber{}, historyBuffer: newRingBuffer(128 * 1024)}
+	slow := &Subscriber{ID: "slow", SendChan: make(chan []byte, 1), CloseChan: make(chan struct{})}
+	fast := &Subscriber{ID: "fast", SendChan: make(chan []byte, 8), CloseChan: make(chan struct{})}
+	s.subscribers[slow.ID] = slow
+	s.subscribers[fast.ID] = fast
+	chunks := [][]byte{[]byte("\x1b["), []byte("2K\rhello"), []byte(" world")}
+	for _, chunk := range chunks {
+		s.publishOutput(chunk)
+	}
+	select {
+	case <-slow.CloseChan:
+	default:
+		t.Fatal("slow viewer silently lost output")
+	}
+	if s.SubscriberCount() != 1 {
+		t.Fatal("healthy viewer detached")
+	}
+	var received []byte
+	for range chunks {
+		received = append(received, (<-fast.SendChan)...)
+	}
+	want := bytes.Join(chunks, nil)
+	if !bytes.Equal(received, want) {
+		t.Fatal("healthy viewer bytes changed")
+	}
+	s.Unsubscribe(slow.ID) // Must not close the overflow signal twice.
+	_, history, err := s.Subscribe("reconnected", ModeInteractive)
+	if err != nil || !bytes.Equal(history, want) {
+		t.Fatal("reconnect cannot recover missed output", err)
+	}
+}
 
 func TestSession_WatchModeBlocksInput(t *testing.T) {
 	tempDir := t.TempDir()
