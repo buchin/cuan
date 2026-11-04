@@ -172,6 +172,23 @@ func (m *MemoryStore) FinishLaunch(_ context.Context, id, token, state string, n
 	j.UpdatedAt = time.Now().UTC()
 	j.LeaseToken = ""
 	j.LeaseUntil = nil
+	if state == "stopped" {
+		latest := true
+		for _, other := range m.launches {
+			if other.TaskID == j.TaskID && (other.CreatedAt.After(j.CreatedAt) || (other.CreatedAt.Equal(j.CreatedAt) && other.ID > j.ID)) {
+				latest = false
+			}
+		}
+		for _, attempt := range m.attempts {
+			if attempt.TaskID == j.TaskID && (attempt.Status == AttemptStatusQueued || attempt.Status == AttemptStatusRunning) {
+				latest = false
+			}
+		}
+		if t := m.tasks[j.TaskID]; latest && t != nil && t.Status == TaskStatusQueued {
+			t.Status = TaskStatusBlocked
+			t.UpdatedAt = j.UpdatedAt
+		}
+	}
 	return nil
 }
 func (m *MemoryStore) FinishTaskLaunches(_ context.Context, taskID string, finalState string) error {

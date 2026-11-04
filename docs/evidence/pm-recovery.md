@@ -77,3 +77,25 @@ attachment beneath the internal delegation, Detail preserving the Inbox route,
 and no Terminal for a completed task without a live session. Screenshots were
 rendered and directly inspected. Reproduce with
 `node docs/evidence/customer-task-card-check.cjs` after the frontend build.
+
+## First live resume: retained branch, missing worktree
+
+The original audit resume request `aac9bded-33d0-4788-8b99-05e6d5a785c5`
+completed its coordinator phase and attempted to launch the same task, without a
+new task. Execution did not start: the original Git worktree directory is absent,
+but its branch and Git worktree registration remain. No verified retirement
+receipt exists. The application correctly refuses to pretend the missing worktree
+was deliberately retired; uncommitted files cannot be assumed recovered.
+
+The launch reached stopped while the board remained queued. `FinishLaunch` now
+atomically marks a still-queued task blocked when its latest launch stops and it
+has no queued/running attempt. PostgreSQL uses the task advisory lock shared with
+native attempt reservation/cancellation. Older launch outcomes, backoff, active
+attempts, canceled/done work and stale lease tokens cannot overwrite current
+state. Memory and isolated PostgreSQL exercise the same seven scenarios.
+Targeted server queue recovery and Inbox delivery tests also pass.
+
+This repair does not recover lost files. Next: provide a recovery path preserving
+retained branch/index evidence and clearly separating verified reconstruction
+from missing uncommitted work; then resume the same audit. General sequential
+backlog recovery is still unproven and remains required.

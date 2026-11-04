@@ -177,7 +177,21 @@ func (s *DBStore) FinishLaunch(ctx context.Context, id, token, state string, nex
 	if !validLaunchFinish(state) {
 		return ErrInvalidTaskInput
 	}
-	result, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state=$3,available_at=$4,safe_error=$5,lease_token='',lease_until=NULL,updated_at=NOW() WHERE id=$1 AND state='claimed' AND lease_token=$2 AND lease_until>NOW()`, id, token, state, next, safeError)
+	tx, e := s.db.BeginTx(ctx, nil)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback()
+	var taskID string
+	if e = tx.QueryRowContext(ctx, `SELECT task_id FROM task_launches WHERE id=$1`, id).Scan(&taskID); e != nil {
+		return e
+	}
+	// Serialize with attempt reservation and cancellation before changing either
+	// launch or board state. A stopped old launch must not block newer work.
+	if _, e = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+taskID); e != nil {
+		return e
+	}
+	result, e := tx.ExecContext(ctx, `UPDATE task_launches SET state=$3,available_at=$4,safe_error=$5,lease_token='',lease_until=NULL,updated_at=NOW() WHERE id=$1 AND state='claimed' AND lease_token=$2 AND lease_until>NOW()`, id, token, state, next, safeError)
 	if e != nil {
 		return e
 	}
@@ -188,7 +202,15 @@ func (s *DBStore) FinishLaunch(ctx context.Context, id, token, state string, nex
 	if n != 1 {
 		return ErrLaunchLease
 	}
-	return nil
+	if state == "stopped" {
+		_, e = tx.ExecContext(ctx, `UPDATE tasks SET status='blocked',updated_at=NOW() WHERE id=$1 AND status='queued'
+		AND $2=(SELECT id FROM task_launches WHERE task_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1)
+		AND NOT EXISTS (SELECT 1 FROM task_attempts WHERE task_id=$1 AND status IN ('queued','running'))`, taskID, id)
+		if e != nil {
+			return e
+		}
+	}
+	return tx.Commit()
 }
 func (s *DBStore) CancelLaunches(ctx context.Context, taskID string, now time.Time) (int64, error) {
 	tx, e := s.db.BeginTx(ctx, nil)

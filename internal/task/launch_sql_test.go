@@ -46,4 +46,5 @@ func TestLaunchPostgresContract(t *testing.T) {
 		t.Fatal(e)
 	}
 	launchContract(t, store, created.ID, room)
+	stoppedLaunchBoardContract(t, store, "launch-project")
 }
