@@ -88,3 +88,18 @@ Production cron now runs at minute 17 every hour with `--staging`. The deploy
 script installs the maintained pruner and runs it before transferring payloads.
 Installed releases still retain the original five-newest/24-hour protection.
 Run `python3 scripts/test-prune-release-artifacts.py` for targeted checks.
+
+### Task admission at critically low space
+
+Before reserving a bound task attempt, the run-agent endpoint checks available
+bytes on the selected workspace filesystem. Below 256 MiB it returns a retryable
+`execution_storage` response. Durable launches stay queued without exhausting
+their ordinary preparation-retry limit and can proceed after space returns.
+Unknown/unsupported disk telemetry is distinct from a measured zero-byte result.
+High percentage usage alone does not block a filesystem with sufficient bytes.
+
+This is a minimum admission floor, not a guarantee that a large build will fit.
+It does not stop existing attempts or replace runner-host monitoring. Historical
+exit-code-2 attempts have no final agent report, but their retained terminal logs
+do not prove the exact provider exit cause; disk pressure remains a hypothesis
+for those failures, separate from the verified full-disk deployment incident.

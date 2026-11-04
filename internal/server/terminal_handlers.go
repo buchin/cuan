@@ -709,6 +709,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				taskPrompt = revision
 			}
 			runnerID := strings.TrimSpace(payload.RunnerID)
+			storagePath := workDir
+			if storagePath == "" && s.cfg != nil {
+				storagePath = s.cfg.WorkspacesDir
+			}
+			if taskStorageCritical(getSystemResources(storagePath)) {
+				respondJSON(w, 503, map[string]string{"code": "execution_storage", "error": "Server storage is temporarily full. Saved work will continue after space is available."})
+				return
+			}
 			if runnerID == "" {
 				if agentID == "agent_lifecycle" || agentID == "agent_queued" {
 					runnerID = "local_terminal"
