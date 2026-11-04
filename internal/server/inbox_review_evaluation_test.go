@@ -382,9 +382,18 @@ func TestApplyInboxReviewEvaluation_RevisionIncludesExplanation(t *testing.T) {
 		Deadline:  nowAuto.Add(10 * time.Minute),
 	}
 
+	// Keep the actual correction durably queued. A stopped/failed launch must
+	// instead show its own outcome, without promising that a correction is active.
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "revision-explanation-busy", ProjectID: "default", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+		t.Fatal(err)
+	}
 	evalJSON := `{"decision":"revise","explanation":"### Evaluasi Kriteria Selesai (DoD)\n**Status:** BELUM LULUS\n\n- [ ] **Eliminasi navbar search**: Belum selesai di halaman Inbox.","revision":"Gap: eliminate search in Inbox.\n- [ ] Eliminate search in Inbox"}`
 	result := s.applyInboxReviewEvaluation(ctx, q, evalJSON)
 	t.Logf("applyInboxReviewEvaluation result: %s", result)
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(task1.ID, q.RequestID))
+	if err != nil || launch.State != "queued" {
+		t.Fatal("fixture did not queue the claimed correction", err)
+	}
 
 	if !strings.Contains(result, "Evaluasi Kriteria Selesai (DoD)") {
 		t.Fatalf("expected result to include structured DoD explanation, got: %s", result)
@@ -393,7 +402,7 @@ func TestApplyInboxReviewEvaluation_RevisionIncludesExplanation(t *testing.T) {
 		t.Fatalf("expected result to include gap item, got: %s", result)
 	}
 
-	// Verify new DoD item from revision was merged into task.DoDChecklist
+	// Verify revision feedback did not expand the approved acceptance checklist
 	updatedTask, err := s.taskSvc.GetTaskDetail(ctx, task1.ID)
 	if err != nil {
 		t.Fatal(err)

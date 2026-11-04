@@ -8,6 +8,8 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+const inboxCorrectionLimitExplanation = "Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan."
+
 // An accepted owner continuation starts a new bounded correction cycle. Old
 // attempts remain evidence, but must not spend a newly authorized cycle's budget.
 // A system review or an unrelated owner message cannot reset that cycle.

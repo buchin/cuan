@@ -350,18 +350,22 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			review := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review})
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
-			msg := decision.Explanation
-			if !strings.Contains(msg, "/tasks/"+d.ID) {
-				msg += taskLink
-			}
-			return msg
+			// Model prose cannot promise continuation when no launch was queued.
+			return inboxCorrectionLimitExplanation + taskLink
 		}
 
 		delegation := inboxDelegation{TaskID: d.ID, ProjectID: d.ProjectID, AuthorizationID: d.SourceMessageID, Revision: decision.Revision}
 		payload, _ := json.Marshal(delegation)
-		output := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(payload)+"\n```")
+		var launchErr error
+		launchCtx := context.WithValue(ctx, inboxReviewLaunchErrorKey{}, &launchErr)
+		output := s.applyInboxDelegation(launchCtx, q, "```cuan-delegate\n"+string(payload)+"\n```")
+		if retryableReviewLaunchError(launchErr) {
+			if retry, ok := ctx.Value(inboxHandoffPersistenceKey{}).(*bool); ok {
+				*retry = true
+			}
+		}
 		taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
-		if !strings.Contains(output, "/tasks/"+d.ID) && !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
+		if !strings.Contains(output, "/tasks/"+d.ID) {
 			output += taskLink
 		}
 		if s.isCustomerRoom(ctx, q.RoomID) {
@@ -374,7 +378,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			if launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID)); err == nil && launch != nil && (launch.State == "queued" || launch.State == "claimed" || launch.State == "started") {
 				return decision.Explanation + taskLink
 			}
-			return decision.Explanation + "\n\n" + output
+			// Failed authorization/admission or missing launch must retain only the
+			// actual outcome, without an unfulfilled promise from the model.
+			return output
 		}
 		return output
 	}

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -12,6 +13,19 @@ import (
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
+
+// Only tool-free review application installs this observer. Ordinary chat turns
+// must not be replayed merely because a later launch write failed.
+type inboxReviewLaunchErrorKey struct{}
+
+func recordInboxReviewLaunchError(ctx context.Context, err error) {
+	if observed, ok := ctx.Value(inboxReviewLaunchErrorKey{}).(*error); ok {
+		*observed = err
+	}
+}
+func retryableReviewLaunchError(err error) bool {
+	return err != nil && !errors.Is(err, task.ErrRequestConflict) && !errors.Is(err, task.ErrInvalidTaskInput) && !errors.Is(err, task.ErrTaskNotFound)
+}
 
 func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string) string {
 	now := time.Now().UTC()
@@ -26,6 +40,7 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if !ownerTurn {
 		basis, err := s.ownerContinuationLaunch(ctx, t)
 		if err != nil {
+			recordInboxReviewLaunchError(ctx, err)
 			return "The approved continuation could not be checked. No execution was started."
 		}
 		if basis != nil && basis.OwnerID == q.OwnerID {
@@ -40,6 +55,7 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	job, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: launchAgent, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
 	link := "\n\n[View work](/tasks/" + t.ID + ")"
 	if e != nil {
+		recordInboxReviewLaunchError(ctx, e)
 		return "The work is saved, but its launch could not be recorded. No new execution was started." + link
 	}
 	handled := job.State == "started" || (job.State == "stopped" && t != nil && t.Status == task.TaskStatusDone)

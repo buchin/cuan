@@ -42,3 +42,33 @@ unknown tool effects retain their existing failure/safety behavior.
 `TestInboxBoundedQuotaRouteCheckKeepsWorkPending` uses10 explicit model routes:
 8 fail with quota, the request retains the queued sentinel, and the next turn
 succeeds on a previously untried model. No task execution is replayed.
+
+## Launch persistence and truthful outcomes
+
+A tool-free review must not disappear when its correction launch cannot be saved.
+The review application observes typed launch-preparation/write errors through a
+local context value. Transient errors retain the same Inbox request in `queued`
+with the existing bounded backoff and 24-hour deadline. No final reply is stored.
+The next evaluation rechecks current approval, task identity, cancellation, scope
+and correction budget; the deterministic launch key deduplicates a write whose
+outcome was uncertain. This can evaluate the review model again, but does not
+replay execution tools or the original user turn.
+
+This retry signal is installed only while applying a validated review correction.
+Ordinary chat/tool turns are not automatically replayed after a launch failure.
+Request conflicts, invalid launch input and a deleted task are terminal outcomes,
+not transient storage failures. Once a launch exists, its existing durable worker
+owns pending execution recovery.
+
+Continuation prose is shown only with the exact review launch saved as queued,
+claimed or started. Failed admission instead shows its actual result. Exhausting
+the correction budget produces a concise stopped outcome, even if the model
+promised to continue. This does not raise the retry limit, reopen canceled work,
+rewrite old messages, or claim that historical blocked tasks are resolved.
+
+Targeted checks include `TestInboxReviewLaunchStorageOutageKeepsOriginalRequestQueued`
+with a real Inbox lifecycle and fixture provider, transient versus permanent
+launch failures, recovery under the same request key, no extra execution attempt,
+and suppression of a false continuation promise at the correction limit.
+`node docs/evidence/review-outcome-check.cjs` renders the stopped outcome and task
+card using the real frontend at 390px and 1440px with isolated API fixtures.

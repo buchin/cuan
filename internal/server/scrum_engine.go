@@ -152,10 +152,9 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 		sb.WriteString("- [ ] **Eksekusi Berhasil**: " + errMsg + "\n\n")
 
 		if taskRevisionAttemptCount(d) >= 3 {
-			sb.WriteString("**Tindakan:** Memerlukan keputusan PO (telah mencapai batas 3 attempt perbaikan).")
 			return inboxReviewEvaluation{
 				Decision:    "blocked",
-				Explanation: sb.String(),
+				Explanation: inboxCorrectionLimitExplanation,
 				Revision:    "",
 			}
 		}
