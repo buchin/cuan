@@ -67,6 +67,9 @@ func verifyDocumentationChanges(ctx context.Context, root, branch string) *verif
 		if err != nil || !info.Mode().IsRegular() || info.Size() > 1<<20 {
 			return &verificationResult{Error: "Documentation verification failed: unreadable or unsafe Markdown file"}
 		}
+		if info.Mode()&0111 != 0 {
+			return nil // An executable Markdown path may contain runtime code.
+		}
 		resolved, err := filepath.EvalSymlinks(path)
 		if err != nil {
 			return &verificationResult{Error: "Documentation verification failed: unresolved file"}

@@ -179,7 +179,8 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 	return true, ""
 }
 
-// detectRepoCodeChanges inspects git status and diff in the workspace to determine if any code changes occurred.
+// detectRepoCodeChanges distinguishes runtime changes from a verified Markdown
+// deliverable. Original task acceptance/publication criteria still apply.
 func workspaceComparisonBase(ws *git.TaskWorkspace, fallback string) string {
 	if ws != nil && ws.BaseCommit != "" {
 		return ws.BaseCommit
@@ -209,6 +210,11 @@ func (r *Runner) detectRepoCodeChanges(ctx context.Context, ws *git.TaskWorkspac
 		return false, "", fmt.Errorf("pinned repository baseline comparison could not be verified: %w", err)
 	}
 	hasCommittedDiff := len(strings.TrimSpace(diffSummary)) > 0
+	if hasUncommitted || hasCommittedDiff {
+		if documentation := verifyDocumentationChanges(ctx, ws.Path, workspaceComparisonBase(ws, defaultBranch)); documentation != nil && documentation.Passed {
+			return false, diffSummary, nil
+		}
+	}
 
 	return (hasUncommitted || hasCommittedDiff), diffSummary, nil
 }

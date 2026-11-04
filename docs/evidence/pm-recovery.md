@@ -29,6 +29,25 @@ main workspace. This does not prove those task branches or their original scope
 complete. No task workspace, production status, cancellation or execution budget
 was manually changed during this audit.
 
+## Documentation deliverables and runtime deployment
+
+The retained CuanAff investigation failed its deployment gate even though its
+saved verifier summary describes two Markdown-only changes. The runner previously
+treated any dirty/committed repository delta as runtime code for auto-deploy.
+Runtime-change detection now checks the same pinned-baseline Markdown verifier:
+only verified, nonexecutable Markdown-only changes are classified as non-runtime.
+Mixed code, executable Markdown, unsafe/invalid text and unknown Git baselines
+do not receive that classification. The Git diff remains available for review.
+
+This changes only the project's automatic runtime-deployment requirement. It
+does not waive task-specific publication criteria or prove the content correct.
+The completion service regression confirms independent acceptance is still
+required and observed runtime code still requires deployment receipts.
+Historical CuanAff verification lacks an exact-attempt runner-verification record;
+its task-level text alone is insufficient to manufacture acceptance or retry it.
+The original failed attempt, scope and files remain preserved for evidence-bound
+recovery. No task was administratively restarted or marked complete.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.

@@ -1039,7 +1039,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 							compReq.Status = task.AttemptStatusFailed
 							compReq.ErrorMessage = errNote
 						} else {
-							r.streamLogLine(ctx, att.ID, "system", "Tugas investigasi/non-kode tanpa modifikasi berkas repo: meloloskan gate kepatuhan auto_deploy tanpa deployment palsu.")
+							r.streamLogLine(ctx, att.ID, "system", "Tidak ada perubahan kode runtime yang memerlukan auto_deploy. Kriteria hasil dan publikasi task tetap diperiksa saat review.")
 						}
 					}
 				}
