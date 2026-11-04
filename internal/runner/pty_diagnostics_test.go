@@ -52,6 +52,22 @@ func TestPTYDiagnosticsDetectsQuotaSplitAcrossFrames(t *testing.T) {
 		}
 	}
 }
+
+func TestPTYDiagnosticsQuotaOverlapAfterSpinnerHistory(t *testing.T) {
+	var c ptyDiagnosticCollector
+	for i := 0; i < 1000; i++ {
+		c.Feed([]byte("\r⣯  \x1b[90mRunning command...\x1b[0m"))
+	}
+	if len(c.quotaWindow) > maxPTYQuotaOverlap {
+		t.Fatal("quota scan retained diagnostic-sized history")
+	}
+	for _, chunk := range []string{"\r\x1b[31", "mResource has ", "been exhausted\x1b[0m"} {
+		_, hit := c.Feed([]byte(chunk))
+		if strings.Contains(chunk, "exhausted") && !strings.Contains(hit, "Resource has been exhausted") {
+			t.Fatal("split ANSI quota signal was lost after spinner history")
+		}
+	}
+}
 func TestPTYDiagnosticsBoundsUnterminatedOutputAndFlushesTail(t *testing.T) {
 	var c ptyDiagnosticCollector
 	input := strings.Repeat("x", 5*maxPTYDiagnosticFragment) + "final error without newline"

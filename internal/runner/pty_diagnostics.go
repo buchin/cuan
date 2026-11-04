@@ -9,6 +9,10 @@ import (
 
 const maxPTYDiagnosticFragment = 16 * 1024
 
+// Quota phrases are at most 27 bytes. Keep a small independent overlap for
+// split phrases/ANSI frames instead of rescanning 16 KiB on every spinner redraw.
+const maxPTYQuotaOverlap = 256
+
 // PTY transport frames are arbitrary bytes, not complete lines. This collector
 // only affects persisted diagnostic logs; terminal viewers receive original bytes.
 type ptyDiagnosticCollector struct {
@@ -21,8 +25,8 @@ func (c *ptyDiagnosticCollector) Feed(chunk []byte) ([]string, string) {
 	c.pending += string(chunk)
 	c.quotaWindow += string(chunk)
 	probe := task.CleanTerminalStatusLine(c.quotaWindow)
-	if len(c.quotaWindow) > maxPTYDiagnosticFragment {
-		c.quotaWindow = c.quotaWindow[len(c.quotaWindow)-maxPTYDiagnosticFragment:]
+	if len(c.quotaWindow) > maxPTYQuotaOverlap {
+		c.quotaWindow = c.quotaWindow[len(c.quotaWindow)-maxPTYQuotaOverlap:]
 	}
 	quota := ""
 	for _, signal := range []string{"Individual quota reached", "Resource has been exhausted", "Quota exceeded", "rate_limit_exceeded"} {
