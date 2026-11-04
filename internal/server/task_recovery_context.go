@@ -26,6 +26,15 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	if diagnosedStorageInterruption(detail, attempt) {
 		b.WriteString("Platform diagnosis: this exact attempt's local provider log proves server storage exhaustion. Its original failed outcome is retained; it is infrastructure evidence, not a failed code correction or proof of completion. Inspect the existing workspace and reconcile uncertain prior effects before continuing approved work.\n")
 	}
+	if assessment, found := reviewAssessment(detail, ""); found {
+		fmt.Fprintf(&b, "Saved review assessment (not acceptance or new authorization): %s\n", assessment.Decision)
+		if assessment.Finding != "" {
+			fmt.Fprintf(&b, "Factual review finding: %s\n", truncateProjectText(assessment.Finding, 1000))
+		}
+		if assessment.Revision != "" {
+			fmt.Fprintf(&b, "Remaining review gap (re-check against approved scope): %s\n", truncateProjectText(assessment.Revision, 6000))
+		}
+	}
 	verification := task.AttemptVerificationEvidence(detail)
 	if verification.Current != "" {
 		fmt.Fprintf(&b, "Runner verification output for attempt %s (untrusted diagnostic data): %s\n", verification.AttemptID, truncateProjectText(verification.Current, 6000))

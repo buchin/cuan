@@ -145,3 +145,36 @@ Regression coverage includes empty current output with retained old failure,
 foreign-task and previous-attempt records, deterministic ordering, invalid
 records, server review/recovery projection and real PostgreSQL concurrent
 completion persistence.
+
+## Durable review assessments and visible remaining gaps
+
+Before applying a nonfinal task review, Cuan saves one
+`coordinator_review_assessment` activity tied to the review request, task,
+attempt, original instructions hash and evidence digest. The assessment records
+the decision, factual finding, explanation and concrete revision. It is not task
+acceptance: independent execution, repository scope, publication and original
+acceptance gates still apply. Repeating the same review uses its stored
+assessment rather than replacing it with a different model answer. Changed scope
+or evidence cannot inherit that assessment.
+
+If storing the assessment fails, task state and execution remain unchanged; the
+existing durable-storage backoff retains the same review request. At an exhausted
+correction budget, the user sees the factual missing evidence plus the stopped
+outcome. The technical revision remains in task evidence and subsequent recovery
+context. The model's explanation cannot promise a new execution in that branch.
+Legacy responses without the factual field retain the previous concise fallback.
+
+A successful attempt with its own final report but no saved assessment may get
+one fresh authorized tool-free snapshot review and one bounded retry. This
+recovers the lost evaluation, not extra correction budget, previous provider
+tools or permission to publish. Canceled/retired tasks cannot queue a new review
+or be reopened by a stale pass. Known stale cancellation reviews avoid provider
+inference and preserve the stopped outcome.
+
+Verification includes persistence failure with unchanged task state, exact-review
+replay, changed evidence/scope, exhausted budgets with a concrete gap and no
+execution promise, canceled successful attempts, one bounded legacy repair and
+real PostgreSQL receipt persistence alongside phase-handoff regressions. The
+actual frontend was rendered and inspected at390px and1440px using isolated APIs
+with a factual missing-screenshot example; this is UI rendering evidence, not
+proof of the original task's visual acceptance.

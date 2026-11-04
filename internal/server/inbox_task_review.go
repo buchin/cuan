@@ -19,7 +19,10 @@ func (s *Server) inboxTaskReviewPrompt(ctx context.Context, q db.InboxRequest) (
 		return "", false
 	}
 	d := s.inboxReviewedTask(ctx, q)
-	if d == nil {
+	if d == nil || d.Status == "cancelled" || d.Status == "canceled" {
+		return "", true
+	}
+	if a := d.LatestAttempt; a != nil && (a.CancelRequested || a.CanceledAt != nil || a.Status == task.AttemptStatusCanceled) {
 		return "", true
 	}
 	return s.inboxReviewData(ctx, d), true
@@ -45,7 +48,7 @@ func (s *Server) inboxStaleReviewOutcome(ctx context.Context, q db.InboxRequest)
 			continue
 		}
 		a := d.LatestAttempt
-		if a.CancelRequested || a.Status == task.AttemptStatusCanceled || a.CanceledAt != nil {
+		if d.Status == "cancelled" || d.Status == "canceled" || a.CancelRequested || a.Status == task.AttemptStatusCanceled || a.CanceledAt != nil {
 			return "The work has stopped. Your conversation and saved work are preserved. I will wait for your instruction before continuing it."
 		}
 	}

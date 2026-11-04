@@ -520,7 +520,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDetailResponse) {
 	// Accepted work is final until a fresh user instruction reopens it. A late
 	// review or repaired provider must never reject an already accepted result.
-	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == task.TaskStatusQueued || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
+	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" || detail.Status == task.TaskStatusQueued || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
 		return
 	}
 
@@ -616,6 +616,11 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 					// reset execution limits or replay the previous provider process.
 					key += ":report-provenance:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
+				} else if recoverSnapshot && reviewAssessmentMissing(detail) && !strings.Contains(previous.Content, inboxReviewAssessmentPolicy) {
+					// Recover the discarded assessment once, not execution approval
+					// or additional correction budget. The review remains tool-free.
+					key += ":assessment:" + inboxReviewEvidenceDigest(detail)
+					requestID = delegationMessageID(key)
 				} else if !strings.Contains(previous.Content, "Review evidence digest: ") && recoverSnapshot {
 					// Historical text-only reviews did not reliably apply their decision.
 					// Evaluate the current snapshot once under the tool-free contract.
@@ -645,7 +650,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") && recoverSnapshot {
 				key += ":evaluation"
 				requestID = delegationMessageID(key)
-			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
 				key += ":retry"
 				requestID = delegationMessageID(key)
 			} else {
@@ -666,6 +671,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	content += fmt.Sprintf("\n\nReport provenance: %s; reported attempt: %s.\n\nHistorical task state (reference only, not current verification):\n%s\n%s\nPrior report from attempt %s:\n%s", reported.Provenance, reported.AttemptID, truncateProjectText(reported.HistoricalSummary, 3000), truncateProjectText(reported.HistoricalVerification, 3000), reported.HistoricalAttemptID, truncateProjectText(reported.HistoricalReport, 3000))
 	content += "\n\nReview evidence digest: " + inboxReviewEvidenceDigest(detail)
 	content += "\n" + inboxReportProvenancePolicy
+	content += "\n" + inboxReviewAssessmentPolicy
 	content += taskRecoveryContext(detail)
 	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: targetRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now}
