@@ -69,17 +69,30 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 			if s.projectStudioRepo == nil {
 				return
 			}
-			s.deliverInboxTaskUpdates(ctx)
-			rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
-			if err != nil {
-				return
+			var roomIDs []string
+			if pending, ok := s.projectStudioRepo.(db.InboxDispatchRepository); ok {
+				var err error
+				roomIDs, err = pending.ListInboxDispatchRooms(ctx, time.Now().UTC())
+				if err != nil {
+					log.Print("Inbox dispatch discovery unavailable")
+					return
+				}
+			} else {
+				rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
+				if err != nil {
+					return
+				}
+				for _, room := range rooms {
+					roomIDs = append(roomIDs, room.ID)
+				}
 			}
-			for _, room := range rooms {
+			for _, roomID := range roomIDs {
 				if ctx.Err() != nil {
 					return
 				}
-				s.kickInboxRoom(room.ID)
+				s.kickInboxRoom(roomID)
 			}
+			s.kickInboxTaskUpdates(ctx)
 		}
 		scan()
 		for {
@@ -95,13 +108,25 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 		}
 	}()
 }
-func (s *Server) drainInboxRoom(room string) {
-	select {
-	case s.inboxSlots <- struct{}{}:
-		defer func() { <-s.inboxSlots }()
-	default:
+
+// Historical result inspection must not hold up accepted Inbox turns. Only one
+// delivery scan runs at a time, independently of the bounded chat worker slots.
+func (s *Server) kickInboxTaskUpdates(parent context.Context) {
+	const key = "__inbox_task_updates"
+	if s.inboxStopping.Load() {
 		return
 	}
+	if _, loaded := s.inboxWorkers.LoadOrStore(key, true); loaded {
+		return
+	}
+	go func() {
+		defer s.inboxWorkers.Delete(key)
+		ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+		defer cancel()
+		s.deliverInboxTaskUpdates(ctx)
+	}()
+}
+func (s *Server) drainInboxRoom(room string) {
 	store, ok := s.projectStudioRepo.(db.InboxLifecycleRepository)
 	if !ok {
 		return
@@ -141,13 +166,22 @@ func (s *Server) drainInboxRoom(room string) {
 		if next == nil {
 			return
 		}
+		// Empty rooms and capacity backoff must not occupy provider slots while
+		// reading history; otherwise scans of many idle rooms starve real work.
+		select {
+		case s.inboxSlots <- struct{}{}:
+		default:
+			return
+		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		q, claimed, err := store.ClaimInboxRequest(ctx, room, next.RequestID)
 		cancel()
 		if err != nil || !claimed {
+			<-s.inboxSlots
 			return
 		}
 		s.runInboxRequest(store, q)
+		<-s.inboxSlots
 	}
 }
 func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRequest) {

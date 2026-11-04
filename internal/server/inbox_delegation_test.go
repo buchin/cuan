@@ -459,6 +459,24 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	// Exhaust the automatic business retry allowance without granting a new scope.
+	for i := 0; i < 2; i++ {
+		a, e := s.taskSvc.CreateAttempt(ctx, existingTaskID, "owner", task.CreateAttemptRequest{RunnerID: "fixture", AgentName: "agent_lifecycle"})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning}); e != nil {
+			t.Fatal(e)
+		}
+		if _, e = s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Business verification failed"}); e != nil {
+			t.Fatal(e)
+		}
+	}
+	detail, _ := s.taskSvc.GetTaskDetail(ctx, existingTaskID)
+	if taskRevisionAttemptCount(detail) < 3 {
+		t.Fatal("fixture did not exhaust automatic retry budget")
+	}
+	s.taskSvc.UpdateTask(ctx, existingTaskID, "coordinator", task.UpdateTaskRequest{Status: &statusBlocked})
 	// User sends a new message in the same room ("Gas", "Lanjut")
 	continuationMsgID := db.GenerateUUID()
 	continuationReq := db.InboxRequest{OwnerID: owner.ID, AgentID: "agent_lifecycle", RoomID: room.RoomID, RequestID: db.GenerateUUID(), MessageID: continuationMsgID, ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "cont", CreatedAt: now.Add(time.Minute), Deadline: now.Add(2 * time.Hour)}
@@ -470,7 +488,7 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 		Action:          "run",
 		TaskID:          existingTaskID,
 		ProjectID:       "p1",
-		AuthorizationID: continuationMsgID,
+		AuthorizationID: initMsgID,
 		Revision:        "Continue previous work with fixes",
 	}
 	rawCont, _ := json.Marshal(continuationDelegation)

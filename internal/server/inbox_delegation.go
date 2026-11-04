@@ -156,19 +156,27 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if err != nil {
 		return fail("conversation context is unavailable")
 	}
+	currentUserTurn := false
 	var authorization *db.ProjectMessage
 	for i := range messages {
+		if messages[i].ID == q.MessageID && messages[i].AuthorType == "user" {
+			currentUserTurn = true
+		}
 		if messages[i].ID == d.AuthorizationID && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
 			authorization = &messages[i]
 		}
 	}
 	// Only an authenticated owner's accepted message can authorize execution;
 	// a visitor message or an injected author label cannot grant that authority.
+	authenticatedCurrentTurn := false
 	authenticatedApproval := false
 	authorizationRequestID := ""
 	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 		if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
 			for _, request := range requests {
+				if request.RequestID == q.RequestID && request.MessageID == q.MessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+					authenticatedCurrentTurn = true
+				}
 				if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
 					authenticatedApproval = true
 					authorizationRequestID = request.RequestID
@@ -371,7 +379,8 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			}
 			return wrapResult(fmt.Sprintf("Pekerjaan telah berhasil diselesaikan dan diverifikasi.\n\n[View work](/tasks/%s)", t.ID))
 		}
-		if strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
+		freshOwnerContinuation := currentUserTurn && authenticatedCurrentTurn && q.MessageID != t.SourceMessageID
+		if !freshOwnerContinuation && strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
 			reviewStatus := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
 			t.Status = task.TaskStatusBlocked
@@ -471,7 +480,13 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		return
 	}
 	for _, item := range items {
+		if ctx.Err() != nil {
+			return
+		}
 		if item.SourceRoomID == "" || !strings.HasPrefix(item.Instructions, "Cuan managed delegation v1.\n") {
+			continue
+		}
+		if item.Status == task.TaskStatusDone && item.LatestAttempt != nil {
 			continue
 		}
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)

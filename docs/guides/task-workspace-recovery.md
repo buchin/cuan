@@ -24,3 +24,11 @@ queued and retries through the saved launch. Avoid repeatedly sending the same
 instruction while its request or attempt remains active.
 
 Implementation evidence: [PM recovery](../evidence/pm-recovery.md).
+
+A terminal answer and a completed task are separate observations. The agent must
+save a final task report with evidence; the runner then closes its execution and
+Cuan evaluates the original criteria. New reporting sessions retain their scoped
+authorization across server deployments using encrypted durable grants. Restart
+does not authorize unknown tokens or another task. Older sessions created before
+this repair may need a scoped continuation that verifies saved work and reports
+it without repeating implementation or external actions.

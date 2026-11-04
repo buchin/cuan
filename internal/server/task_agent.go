@@ -46,6 +46,7 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 	var artifactRoot *os.Root
 	cleanup := func() {
 		s.taskAgentGrants.Delete(digest)
+		_ = os.Remove(taskGrantPath(digest))
 		if artifactRoot != nil {
 			_ = artifactRoot.Close()
 		}
@@ -83,7 +84,13 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		cleanup()
 		return nil, "", "", none, e
 	}
-	s.taskAgentGrants.Store(digest, taskAgentGrant{TaskID: taskID, AttemptID: attemptID, AgentID: agentID, Expires: time.Now().Add(8*time.Hour + 5*time.Minute), ArtifactRoot: artifactRoot})
+	grant := taskAgentGrant{TaskID: taskID, AttemptID: attemptID, AgentID: agentID, Expires: time.Now().Add(8*time.Hour + 5*time.Minute), ArtifactRoot: artifactRoot}
+	workspace, _ := ctx.Value(taskAgentWorkspaceKey{}).(string)
+	if e = s.persistTaskGrant(digest, grant, workspace); e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
+	s.taskAgentGrants.Store(digest, grant)
 	instructions := `## Session guidance
 Respond to the actual request. A greeting or question is not a request to build
 an application, create a repository, inspect deployment, or write tests.
@@ -194,8 +201,13 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	digest := sha256.Sum256([]byte(raw))
 	value, ok := s.taskAgentGrants.Load(digest)
-	// Unknown capabilities cannot be reconstructed from token length. After a
-	// restart only a newly issued, attempt-bound grant authorizes reporting.
+	// Only a previously issued authenticated record can restore a grant after
+	// restart. Unknown tokens still fail closed, regardless of their length.
+	if !ok && raw != "" {
+		if restored, err := s.loadTaskGrant(digest); err == nil {
+			value, ok = restored, true
+		}
+	}
 
 	if !ok || raw == "" {
 		respondJSONError(w, 401, "Task session access is unavailable")

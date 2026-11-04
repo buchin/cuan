@@ -142,3 +142,46 @@ persona. Regression tests cover existing conflicting legacy records, editable
 public name/connection, custom identities and disabled-state preservation; facade,
 failover and missing-worktree flow regressions pass. The pending production
 requests remain the same: no resend/replacement is required after deployment.
+
+## Live Heru task: terminal answer without a persisted final report
+
+Owner reported working state after the terminal printed an answer in room
+8c899836-c96c-4f28-a747-2bab7c14f5bf. Official task/log inspection confirms attempt
+att_bfe5a865bd07f002bbc070367b2455d2 remains running with renewable runner lease,
+but task summary/verification and matching final agent_report are absent. The
+latest terminal output ends with a user-facing answer and interactive prompt.
+Application logs also show task-agent access returning401 after deployment.
+
+Reporting capabilities were stored only in server memory. A surviving detached
+runner retained its original token across server restart, while the server lost
+its grant. Runner read-only report recovery could read already-saved reports but
+could not authorize the agent's missing final write. Polling renewed the execution
+lease while waiting for a valid report; printed prose alone is not acceptance.
+
+Newly issued grants now persist as private encrypted attempt-bound records under
+the server's stable Cuan configuration home. Records bind the token digest,
+task/attempt/agent, expiry and artifact root; writes are synced before issuance.
+Restart reload validates the record and existing active-attempt checks. Arbitrary
+same-length tokens, copied ciphertext under another digest and cross-task access
+remain rejected. Cleanup revokes disk and memory. Tests simulate memory loss,
+actually submit a final report, verify persistence and exercise denial/revocation.
+Already-issued pre-repair tokens have no durable record and cannot be invented;
+that live session requires a scoped reporting recovery retaining its files.
+
+## Dispatch and explicit continuation
+
+History-result inspection no longer precedes queued conversation dispatch. It
+runs as a single bounded background scan; accepted done attempts are skipped.
+Only actual pending/recent recovery rooms are discovered from durable requests,
+and idle/backoff rooms do not reserve provider slots while reading history.
+Memory and isolated PostgreSQL discovery tests cover idle-room exclusion and
+recent-failure recovery. A blocked history query integration test proves a new
+conversation completes without waiting for that query. An older broad SQL
+fixture additionally failed in its subprocess sandbox setup; this is recorded
+separately from the passing new isolated discovery contract.
+
+A fresh accepted owner continuation can exceed the automatic revision allowance
+without changing original scope/authorization. Automated system reviews and
+replayed old approval remain bounded. Regression exhausts three business failures,
+then verifies that the freshly authenticated continuation starts the same task
+while its original authorization ID remains unchanged.
