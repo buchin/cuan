@@ -107,10 +107,10 @@ export function NavUser({
           {/* Avatar */}
           <div data-avatar="true"
             className={cn(
-              'flex shrink-0 items-center justify-center bg-primary text-primary-foreground font-mono font-bold rounded-none',
-              'h-9 w-9 text-xs',
-              
-              bottomNavigation && !active && 'bg-muted text-muted-foreground',
+              'flex shrink-0 items-center justify-center font-mono font-bold rounded-none',
+              bottomNavigation ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs bg-primary text-primary-foreground',
+              bottomNavigation && (active ? 'bg-primary/10 text-primary' : 'bg-muted/60 text-muted-foreground'),
+
             )}
           >
             {initials}

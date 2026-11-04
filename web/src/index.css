@@ -511,3 +511,8 @@ body:has(.task-terminal-container),
 
 /* Unread counts are notifications, distinct from square identity avatars. */
 .notification-count { border-radius: 9999px !important; }
+
+/* Keep section color, with a clear quiet distinction for the current page. */
+.bottom-navigation [data-nav-tone][aria-current="page"] { color: var(--nav-icon-color); font-weight: 600; }
+.bottom-navigation [data-nav-tone]:not([aria-current="page"]) svg { opacity: 0.65; }
+.bottom-navigation [data-nav-tone][aria-current="page"] svg { opacity: 1; }

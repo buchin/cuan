@@ -423,3 +423,15 @@ accounts and two requiring login. Official runtime inspection confirmed a busy
 runner with fresh heartbeat and output. The audit revision remains queued; this
 is not a completed task, and no account preference, cancellation or task status
 was manually changed to force it through.
+
+## Balanced mobile Account navigation
+
+The mobile Account avatar is28px with a quiet inactive surface and soft active
+accent. All mobile icons share28px alignment slots while keeping their20px
+artwork, so labels share the same baseline and touch targets remain56px.
+Current section color and semibold text distinguish the active item; inactive
+icons retain their section colors at reduced opacity, with no full-tab box.
+Desktop avatar sizing is preserved. Real390px light/dark Projects and Account
+screenshots plus1440px desktop were rendered and visually inspected under
+account-nav. Browser assertions verify28px avatar geometry, aligned labels,
+active aria-current, icon opacity and minimum touch height.

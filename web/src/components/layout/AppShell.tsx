@@ -497,7 +497,7 @@ export function AppShell({
               onClick={() => navigate('studio')}
               className={cn('flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs', currentTab === 'studio' ? 'font-semibold text-primary' : 'text-muted-foreground')}
             >
-              <CuanMark decorative className="h-5 w-5" />
+              <span className="flex h-7 w-7 items-center justify-center"><CuanMark decorative className="h-5 w-5" /></span>
               <span>{t('Studio')}</span>
             </button>
             {/* Inbox */}
@@ -518,7 +518,7 @@ export function AppShell({
                   : 'text-muted-foreground',
               )}
             >
-              <span className="relative">
+              <span className="relative flex h-7 w-7 items-center justify-center">
                 <Inbox className="h-5 w-5" />
                 {effectiveInboxUnread > 0 && (
                   <span
@@ -551,7 +551,7 @@ export function AppShell({
                   : 'text-muted-foreground',
               )}
             >
-              <CheckSquare className="h-5 w-5" />
+              <span className="flex h-7 w-7 items-center justify-center"><CheckSquare className="h-5 w-5" /></span>
               <span>{t('Tasks')}</span>
             </button>
 
@@ -573,7 +573,7 @@ export function AppShell({
                   : 'text-muted-foreground',
               )}
             >
-              <FolderGit2 className="h-5 w-5" />
+              <span className="flex h-7 w-7 items-center justify-center"><FolderGit2 className="h-5 w-5" /></span>
               <span>{t('Projects')}</span>
             </button>
 
