@@ -88,7 +88,14 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
 - **Aturan Utama:** Mengklik referensi tugas dari gelembung percakapan (atau kartu aksi tugas) meluncurkan laci samping kanan (`SlideDrawer` / `TaskSidePeek`), bukan mengganti kanvas obrolan (*zero canvas disruption*).
 - **Hasil Pengalaman Pengguna:** Aliran percakapan di sebelah kiri tetap utuh, terlihat, dan aktif, sehingga pengguna dapat memeriksa detail teknis tugas tanpa kehilangan konteks diskusi dengan asisten AI.
 
-### 2.10. 4 Pilar Mobile Bottom Navigation & Ergonomi Jempol (Thumb Zone Ergonomics)
+### 2.10. Pemisahan Peran Tombol Kartu Tugas: Navigasi vs Aksi Kontekstual (Zero Redundant CTA)
+- **Aturan Utama:**
+  1. **Status Normal (Tanpa Kegagalan):** Hanya menampilkan **satu tombol aksi primer** yang jelas (*single-CTA clarity*, misal: *Live Terminal* saat tugas berjalan, atau *View result* saat tugas selesai) guna mengeliminasi tombol ganda redundan (*Detail* + *Open task*) yang membuka rute tujuan yang sama.
+  2. **Status Bermasalah (`Needs attention` / Galat):** Menampilkan pemisahan peran yang tegas dan kontekstual:
+     - **Tombol Sekunder (`Lihat Detail`):** Di sisi kiri, khusus untuk membuka detail diagnostik, riwayat kegagalan, dan log eksekusi.
+     - **Tombol Primer Kontekstual (`Retry` / Coba Lagi):** Di sisi kanan, aksi 1-klik untuk segera mengulang eksekusi tanpa memaksa pengguna membuka halaman task terlebih dahulu, dilengkapi umpan balik visual (*loading spinner*) dan label *Retrying...* yang responsif.
+
+### 2.11. 4 Pilar Mobile Bottom Navigation & Ergonomi Jempol (Thumb Zone Ergonomics)
 - **Aturan Utama:** Navigasi bawah mobile (`AppShell.tsx`) murni terdiri dari 4 pilar utama simetris dan lapang:
   1. **Chat (`/inbox`, MessageSquare):** Aliran percakapan pelanggan dan asisten AI.
   2. **Tasks (`/tasks`, CheckSquare):** Pusat penugasan dan antrean kerja otomatis.

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuan Task Card - Contextual Button Separation & Single-CTA Clarity Visual Report</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #141416;
+      color: #ededed;
+    }
+    .report-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .report-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 6px 0;
+      color: #fff;
+    }
+    .report-desc {
+      font-size: 14px;
+      color: #a1a1aa;
+      margin: 0;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .preview-box {
+      border-radius: 16px;
+      padding: 20px;
+      background: #18181b;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .preview-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-family: monospace;
+    }
+    .tag-attention {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .tag-completed {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .tag-working {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .card-mock {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .badge-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin: 0 0 16px 0;
+    }
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 12px;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: #a1a1aa;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary-retry {
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary-terminal {
+      background: #18181b;
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary-result {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <h1 class="report-title">Verifikasi Visual: Tombol Aksi Kontekstual & Eliminasi Tombol Ganda Redundan</h1>
+    <p class="report-desc">Pemisahan peran navigasi (Lihat Detail) vs aksi langsung (Retry / Live Terminal / View result), memastikan Zero Redundant CTA.</p>
+  </div>
+
+  <div class="grid-container">
+    <!-- State 1: Needs Attention -->
+    <div class="preview-box">
+      <div class="preview-label">
+        <span>Kasus 1: Status Needs Attention</span>
+        <span class="tag tag-attention">Contextual Retry + Detail</span>
+      </div>
+      <div class="card-mock">
+        <div class="card-header">
+          <div class="badge-group">
+            <span class="tag tag-attention">Needs attention</span>
+            <span style="color: #71717a;">📁 cuan</span>
+            <span style="font-family: monospace; color: #a1a1aa;">#23A0A7</span>
+          </div>
+          <span style="font-size: 11px; color: #71717a;">1j lalu</span>
+        </div>
+        <h4 class="card-title">Kompaksi & Penyelarasan Padding Navbar Terminal Mobile</h4>
+        <div class="card-footer">
+          <button class="btn-secondary">Detail Diagnostik →</button>
+          <button class="btn-primary-retry">🔄 Coba lagi (Retry)</button>
+        </div>
+      </div>
+      <p style="font-size: 11px; color: #a1a1aa; margin-top: 10px;">
+        ✔ Tombol ganda redundan ("Detail" dan "Open task") dieliminasi.<br>
+        ✔ Kiri: Akses navigasi riwayat/log. Kanan: Aksi langsung retry 1-klik.
+      </p>
+    </div>
+
+    <!-- State 2: Working/Running -->
+    <div class="preview-box">
+      <div class="preview-label">
+        <span>Kasus 2: Status Working / Active Runner</span>
+        <span class="tag tag-working">Single-CTA Live Terminal</span>
+      </div>
+      <div class="card-mock">
+        <div class="card-header">
+          <div class="badge-group">
+            <span class="tag tag-working">Working</span>
+            <span style="color: #71717a;">📁 cuan</span>
+            <span style="font-family: monospace; color: #a1a1aa;">#B819E0</span>
+          </div>
+          <span style="font-size: 11px; color: #71717a;">Aktif 2m</span>
+        </div>
+        <h4 class="card-title">Streaming Log Terminal xterm Terbuka</h4>
+        <div class="card-footer" style="justify-content: flex-end;">
+          <button class="btn-primary-terminal">📟 Live Terminal</button>
+        </div>
+      </div>
+      <p style="font-size: 11px; color: #a1a1aa; margin-top: 10px;">
+        ✔ Single-CTA clarity: Hanya menampilkan 1 tombol primer terfokus (Live Terminal).
+      </p>
+    </div>
+
+    <!-- State 3: Completed Normal -->
+    <div class="preview-box">
+      <div class="preview-label">
+        <span>Kasus 3: Status Selesai / Completed Normal</span>
+        <span class="tag tag-completed">Single-CTA View Result</span>
+      </div>
+      <div class="card-mock">
+        <div class="card-header">
+          <div class="badge-group">
+            <span class="tag tag-completed">Completed</span>
+            <span style="color: #71717a;">📁 cuan</span>
+            <span style="font-family: monospace; color: #a1a1aa;">#3C19F2</span>
+          </div>
+          <span style="font-size: 11px; color: #71717a;">15m lalu</span>
+        </div>
+        <h4 class="card-title">Refactor Antrean Eksekusi Worker Micro-modular</h4>
+        <div class="card-footer" style="justify-content: flex-end;">
+          <button class="btn-primary-result">✔ View result</button>
+        </div>
+      </div>
+      <p style="font-size: 11px; color: #a1a1aa; margin-top: 10px;">
+        ✔ Bebas tombol ganda: Tidak lagi menampilkan "Detail" dan "View result" secara bersamaan.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

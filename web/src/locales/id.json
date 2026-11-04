@@ -319,6 +319,7 @@
   "Save": "Simpan",
   "Retry": "Coba lagi",
   "Retrying...": "Mencoba lagi...",
+  "Failed to retry session": "Gagal mengulang sesi",
   "Auto Deploy": "Auto Deploy",
   "Otomatis deploy ke lingkungan live setelah task selesai diverifikasi.": "Otomatis deploy ke lingkungan live setelah task selesai diverifikasi.",
   "Loading…": "Memuat…",

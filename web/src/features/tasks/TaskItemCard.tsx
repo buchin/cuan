@@ -533,21 +533,24 @@ export function TaskItemCard({
       {/* Footer: Action buttons */}
       {showActions && (
         <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/50 text-xs">
-          {/* Left Actions: Detail & Cancel draft */}
+          {/* Left Actions: Detail (contextual on failure/review) & Cancel draft */}
           <div className="flex items-center gap-2">
-            <Link
-              to={detailUrl}
-              state={{ taskReturnTo: currentReturnTo }}
-              onClick={(e) => {
-                e.stopPropagation()
-                onNavigate?.()
-              }}
-              className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-1 px-3.5 text-xs font-medium rounded-lg justify-center transition-colors focus-visible:outline-2 focus-visible:outline-ring"
-              aria-label={`${t('Detail')} for ${currentTask.title}`}
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span>{t('Detail')}</span>
-            </Link>
+            {(status === 'Needs attention' ||
+              (currentTask.pr_url && !applied && status === 'Ready for review')) && (
+              <Link
+                to={detailUrl}
+                state={{ taskReturnTo: currentReturnTo }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigate?.()
+                }}
+                className="action-secondary min-h-11 min-w-[44px] inline-flex items-center gap-1 px-3.5 text-xs font-medium rounded-lg justify-center transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+                aria-label={`${t('Detail')} for ${currentTask.title}`}
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span>{t('Detail')}</span>
+              </Link>
+            )}
 
             {status === 'Not started' && (
               <button

@@ -303,7 +303,7 @@ export function LandingPage() {
               {
                 Icon: CheckCircle2,
                 title: 'Things 3 Task Rows & Bear Notes Stream.',
-                text: 'Inspired by Things 3 and Bear Notes. Pure task rows with zero loud buttons, glitch-free mobile render, zero nested cards, progressive disclosure drawers, and peaceful typography.',
+                text: 'Inspired by Things 3 and Bear Notes. Pure task rows with contextual action buttons (1-click retry on failure, live terminal when running, zero redundant double actions), progressive disclosure drawers, and peaceful typography.',
               },
               {
                 Icon: Compass,

@@ -91,6 +91,7 @@ export const TaskCard = memo(function TaskCard({
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [retryError, setRetryError] = useState('')
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
   const [showTimeline, setShowTimeline] = useState(false)
 
@@ -314,6 +315,7 @@ export const TaskCard = memo(function TaskCard({
     e.stopPropagation()
     if (retrying || !currentTask) return
     setRetrying(true)
+    setRetryError('')
     try {
       if (onRetry) {
         await onRetry(currentTask)
@@ -334,8 +336,8 @@ export const TaskCard = memo(function TaskCard({
         }
       }
       onNavigate?.()
-    } catch {
-      // ignore
+    } catch (err: any) {
+      setRetryError(err?.message || t('Failed to retry session'))
     } finally {
       setRetrying(false)
     }
@@ -748,46 +750,51 @@ export const TaskCard = memo(function TaskCard({
             {t(relativeTime(currentTask.updated_at))}
           </time>
 
-          {isNeedsAttention && (
+          {isNeedsAttention ? (
             <button
               type="button"
               disabled={retrying}
               onClick={handleRetry}
               data-testid="task-card-retry-btn"
               aria-label={t('Retry')}
-              className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-destructive hover:bg-destructive/10 border border-destructive/30 hover:border-destructive/50 transition-colors cursor-pointer"
             >
               <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin')} />
               <span>{retrying ? t('Retrying...') : t('Retry')}</span>
             </button>
+          ) : (
+            <button
+              type="button"
+              onClick={isWorking ? handleOpenTerminal : handleActionClick}
+              data-testid="task-card-terminal-btn"
+              aria-label={`${isWorking ? t('Live Terminal') : t('Open task')}: ${currentTask.title}`}
+              className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
+            >
+              {isWorking ? (
+                <>
+                  <Terminal className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  <span>{t('Live Terminal')}</span>
+                </>
+              ) : isQueued ? (
+                <>
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('Open task')}</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('Open task')}</span>
+                </>
+              )}
+            </button>
           )}
-
-          <button
-            type="button"
-            onClick={isWorking ? handleOpenTerminal : handleActionClick}
-            data-testid="task-card-terminal-btn"
-            aria-label={`${t('Open task')}: ${currentTask.title}`}
-            className="min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer"
-          >
-            {isWorking ? (
-              <>
-                <Terminal className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                <span>{t('Live Terminal')}</span>
-              </>
-            ) : isQueued ? (
-              <>
-                <FileText className="h-3.5 w-3.5 shrink-0" />
-                <span>{t('Open task')}</span>
-              </>
-            ) : (
-              <>
-                <FileText className="h-3.5 w-3.5 shrink-0" />
-                <span>{t('Open task')}</span>
-              </>
-            )}
-          </button>
         </div>
       </div>
+      {retryError && (
+        <div className="text-[11px] text-destructive pt-1 font-medium break-words">
+          {retryError}
+        </div>
+      )}
     </div>
   )
 })
