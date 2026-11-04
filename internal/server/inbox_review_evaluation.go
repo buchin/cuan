@@ -687,6 +687,11 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 // Evidence revisions, unlike task status or timestamps, justify one new review.
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
+	// Acceptance may replace the user-facing summary. Machine evidence remains
+	// immutable; that presentation change must not invalidate its visual review.
+	if evidence := inboxReportEvidence(d); evidence.Provenance == "current_runner_finalization" {
+		parts[1], parts[2] = evidence.Summary, evidence.Verification
+	}
 	if d.LatestAttempt != nil {
 		for _, a := range d.Activities {
 			if a != nil && a.TaskID == d.ID && a.AttemptID != nil && *a.AttemptID == d.LatestAttempt.ID && a.ActivityType == recoveredVerificationArtifactsActivity && a.Author == "coordinator" {

@@ -46,7 +46,11 @@ func reviewAssessment(d *task.TaskDetailResponse, requestID string) (inboxReview
 	return assessment, selected != nil
 }
 func reviewAssessmentMissing(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+		return false
+	}
+	provenance := inboxReportEvidence(d).Provenance
+	if provenance != "current_attempt_report" && provenance != "current_runner_finalization" {
 		return false
 	}
 	_, found := reviewAssessment(d, "")

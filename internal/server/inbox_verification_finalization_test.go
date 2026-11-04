@@ -187,4 +187,26 @@ func verificationFinalizationContract(t *testing.T, s *Server, d *task.TaskDetai
 	if taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, current)) < 3 {
 		t.Fatal("finalization reset correction budget")
 	}
+	accepted := inboxReviewEvaluation{Decision: "pass", Finding: "Actual images inspected.", Explanation: "Actual images inspected.", VisualInspection: "Inspected the delivered 390px application image.", RemainingWork: "none"}
+	q.RequestID = db.GenerateUUID()
+	if _, err = s.saveReviewAssessment(ctx, current, q, accepted); err != nil {
+		t.Fatal(err)
+	}
+	current.Summary = accepted.Finding
+	if _, found := reviewAssessment(current, q.RequestID); !found {
+		t.Fatal("acceptance summary invalidated immutable machine evidence review")
+	}
+	row, err := store.GetTask(ctx, current.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row.Summary, row.Status = accepted.Finding, task.TaskStatusDone
+	if err = store.UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	s.reconcileVisualAcceptances(ctx)
+	current, err = s.taskSvc.GetTaskDetail(ctx, current.ID)
+	if err != nil || current.Status != task.TaskStatusDone {
+		t.Fatal("visual audit rejected independently inspected machine result", err)
+	}
 }
