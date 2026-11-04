@@ -63,15 +63,15 @@ type DiskHealth struct {
 
 // MemoryHealth represents host memory usage.
 type MemoryHealth struct {
-	TotalBytes   uint64  `json:"total_bytes"`
-	FreeBytes    uint64  `json:"free_bytes"`
-	AvailBytes   uint64  `json:"avail_bytes"`
-	UsedBytes    uint64  `json:"used_bytes"`
-	UsedPercent  float64 `json:"used_percent"`
-	Warning      bool    `json:"warning"`
-	TotalMB      uint64  `json:"total_mb"`
-	AvailableMB  uint64  `json:"available_mb"`
-	UsedMB       uint64  `json:"used_mb"`
+	TotalBytes  uint64  `json:"total_bytes"`
+	FreeBytes   uint64  `json:"free_bytes"`
+	AvailBytes  uint64  `json:"avail_bytes"`
+	UsedBytes   uint64  `json:"used_bytes"`
+	UsedPercent float64 `json:"used_percent"`
+	Warning     bool    `json:"warning"`
+	TotalMB     uint64  `json:"total_mb"`
+	AvailableMB uint64  `json:"available_mb"`
+	UsedMB      uint64  `json:"used_mb"`
 }
 
 // SystemHealthResult represents comprehensive host health metrics.
@@ -84,8 +84,20 @@ type SystemHealthResult struct {
 	CheckedAt     time.Time    `json:"checked_at"`
 }
 
+const (
+	TypecheckPassed   = "passed"
+	TypecheckFailed   = "failed"
+	TypecheckTimedOut = "timed_out"
+	TypecheckNotRun   = "not_run"
+	TypecheckCanceled = "canceled"
+)
+
 // TypecheckResult represents the diagnostic result of static typechecking / linting.
 type TypecheckResult struct {
+	Status     string   `json:"status"`
+	Directory  string   `json:"directory"`
+	Reason     string   `json:"reason,omitempty"`
+	Truncated  bool     `json:"truncated,omitempty"`
 	Success    bool     `json:"success"`
 	Tool       string   `json:"tool"` // "tsc", "go vet", etc.
 	IssueCount int      `json:"issue_count"`
@@ -106,13 +118,13 @@ type DepsResult struct {
 
 // DiagnosticEnvelope wraps diagnostic results with execution metadata.
 type DiagnosticEnvelope struct {
-	Tool        string `json:"tool"`
-	Success     bool   `json:"success"`
-	DurationMs  int64  `json:"duration_ms"`
-	Timestamp   string `json:"timestamp"`
-	Data        any    `json:"data,omitempty"`
-	Error       string `json:"error,omitempty"`
-	Truncated   bool   `json:"truncated,omitempty"`
+	Tool       string `json:"tool"`
+	Success    bool   `json:"success"`
+	DurationMs int64  `json:"duration_ms"`
+	Timestamp  string `json:"timestamp"`
+	Data       any    `json:"data,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Truncated  bool   `json:"truncated,omitempty"`
 }
 
 // EndpointHealthResult represents the HTTP endpoint probe result.

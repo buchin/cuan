@@ -11,6 +11,19 @@ import (
 	"time"
 )
 
+func diagnosticPassed(result any) bool {
+	if check, ok := result.(*TypecheckResult); ok {
+		return check.Success
+	}
+	return true
+}
+func diagnosticExitCode(result any) int {
+	if !diagnosticPassed(result) {
+		return 1
+	}
+	return 0
+}
+
 // RunRepoCLI executes git repository inspection subcommands.
 func RunRepoCLI(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
@@ -97,7 +110,7 @@ func RunRepoCLI(args []string, out, errOut io.Writer) int {
 	if *jsonFlag {
 		env := DiagnosticEnvelope{
 			Tool:       "repo " + subcommand,
-			Success:    true,
+			Success:    diagnosticPassed(result),
 			DurationMs: durationMs,
 			Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			Data:       result,
@@ -108,12 +121,12 @@ func RunRepoCLI(args []string, out, errOut io.Writer) int {
 			return 1
 		}
 		fmt.Fprintln(out, string(enc))
-		return 0
+		return diagnosticExitCode(result)
 	}
 
 	// Human-readable format
 	printHumanResult(out, subcommand, result)
-	return 0
+	return diagnosticExitCode(result)
 }
 
 // RunDiagCLI executes system health and static diagnostic subcommands.
@@ -202,7 +215,7 @@ func RunDiagCLI(args []string, out, errOut io.Writer) int {
 	if *jsonFlag {
 		env := DiagnosticEnvelope{
 			Tool:       "diag " + subcommand,
-			Success:    true,
+			Success:    diagnosticPassed(result),
 			DurationMs: durationMs,
 			Timestamp:  time.Now().UTC().Format(time.RFC3339),
 			Data:       result,
@@ -213,11 +226,11 @@ func RunDiagCLI(args []string, out, errOut io.Writer) int {
 			return 1
 		}
 		fmt.Fprintln(out, string(enc))
-		return 0
+		return diagnosticExitCode(result)
 	}
 
 	printHumanResult(out, subcommand, result)
-	return 0
+	return diagnosticExitCode(result)
 }
 
 func printRepoHelp(out io.Writer) {
@@ -339,7 +352,17 @@ func printHumanResult(out io.Writer, sub string, result any) {
 		if !v.Success {
 			status = "FAILED"
 		}
+		if v.Status == TypecheckNotRun {
+			status = "NOT RUN"
+		} else if v.Status == TypecheckTimedOut {
+			status = "TIMED OUT"
+		} else if v.Status == TypecheckCanceled {
+			status = "CANCELED"
+		}
 		fmt.Fprintf(out, "Static Typecheck (%s): %s (%d issues, %d ms)\n", v.Tool, status, v.IssueCount, v.DurationMs)
+		if v.Reason != "" {
+			fmt.Fprintln(out, v.Reason)
+		}
 		for _, issue := range v.Issues {
 			fmt.Fprintf(out, "  ! %s\n", issue)
 		}

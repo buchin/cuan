@@ -110,7 +110,7 @@ var nativeMCPTools = []mcpToolDefinition{
 	},
 	{
 		Name:        "inspect_typecheck",
-		Description: "Run static typechecking (tsc --noEmit or go vet) bounded to 10s timeout.",
+		Description: "Run static typechecking (tsc --noEmit or go vet) bounded to 10s timeout. Only status=passed and success=true mean verification passed; not_run and timed_out are not passing checks.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -791,7 +791,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 						"text": string(textBytes),
 					},
 				},
-				"isError": false,
+				"isError": !diagnosticPassed(toolResult),
 			}
 		}
 

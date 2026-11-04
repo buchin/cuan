@@ -16,24 +16,25 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
 const (
-	DefaultTimeout          = 5 * time.Second
-	TypecheckTimeout        = 10 * time.Second
-	MaxOutputBytes          = 128 * 1024 // 128 KB bounded output
-	MaxLogLimit             = 100
-	DefaultLogLimit         = 10
+	DefaultTimeout   = 5 * time.Second
+	TypecheckTimeout = 10 * time.Second
+	MaxOutputBytes   = 128 * 1024 // 128 KB bounded output
+	MaxLogLimit      = 100
+	DefaultLogLimit  = 10
 )
 
 var (
-	ErrForbiddenCharacters  = errors.New("forbidden characters or shell control operators in argument")
-	ErrDisallowedFlag       = errors.New("mutation or non-whitelisted flag rejected")
+	ErrForbiddenCharacters   = errors.New("forbidden characters or shell control operators in argument")
+	ErrDisallowedFlag        = errors.New("mutation or non-whitelisted flag rejected")
 	ErrNonWhitelistedCommand = errors.New("non-whitelisted inspection command rejected")
-	ErrInvalidDirectory     = errors.New("target directory does not exist or is not a directory")
-	ErrCommandTimedOut      = errors.New("inspection command timed out")
+	ErrInvalidDirectory      = errors.New("target directory does not exist or is not a directory")
+	ErrCommandTimedOut       = errors.New("inspection command timed out")
 )
 
 // Allowed subcommands for git repository inspection
@@ -101,49 +102,64 @@ func ValidateSafeArgs(subcommand string, extraArgs []string) error {
 	return nil
 }
 
-// runBoundedCommand executes a command with timeout and strictly bounded output buffer.
+// boundedDiagnosticOutput drains all output but retains only a fixed-size prefix.
+// Stopping the pipe reader at the limit can deadlock a still-writing command.
+type boundedDiagnosticOutput struct {
+	mu        sync.Mutex
+	buffer    bytes.Buffer
+	truncated bool
+}
+
+func (b *boundedDiagnosticOutput) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	count := len(p)
+	remaining := MaxOutputBytes - b.buffer.Len()
+	if len(p) > remaining {
+		p = p[:remaining]
+		b.truncated = true
+	}
+	_, _ = b.buffer.Write(p)
+	return count, nil
+}
+
+// runBoundedCommand bounds memory, process time and waiting for inherited pipes.
 func runBoundedCommand(ctx context.Context, timeout time.Duration, dir, name string, args ...string) ([]byte, bool, error) {
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-
 	cmd := exec.CommandContext(cmdCtx, name, args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
+	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-
-	var buf bytes.Buffer
-	var truncated bool
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, false, err
-	}
-	cmd.Stderr = cmd.Stdout // combine stderr into stdout pipe
-
-	if err := cmd.Start(); err != nil {
-		return nil, false, err
-	}
-
-	// Read up to MaxOutputBytes + 1
-	lr := io.LimitReader(stdoutPipe, int64(MaxOutputBytes+1))
-	data, err := io.ReadAll(lr)
-	if err == nil {
-		if len(data) > MaxOutputBytes {
-			truncated = true
-			data = data[:MaxOutputBytes]
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
 		}
-		buf.Write(data)
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if err == syscall.ESRCH {
+			return os.ErrProcessDone
+		}
+		return err
 	}
-
-	waitErr := cmd.Wait()
-	if cmdCtx.Err() == context.DeadlineExceeded {
-		return buf.Bytes(), truncated, ErrCommandTimedOut
+	cmd.WaitDelay = 200 * time.Millisecond
+	var output boundedDiagnosticOutput
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	err := cmd.Run()
+	if errors.Is(err, exec.ErrWaitDelay) && cmd.Process != nil {
+		// An exited leader can leave a same-group child holding its output pipe.
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
-	return buf.Bytes(), truncated, waitErr
+	if errors.Is(cmdCtx.Err(), context.DeadlineExceeded) {
+		err = ErrCommandTimedOut
+	} else if cmdCtx.Err() != nil {
+		err = cmdCtx.Err()
+	}
+	output.mu.Lock()
+	defer output.mu.Unlock()
+	return append([]byte(nil), output.buffer.Bytes()...), output.truncated, err
 }
 
 // sanitizeRepoDir checks and resolves the repository directory path.
@@ -514,7 +530,9 @@ func InspectTypecheck(ctx context.Context, dir string) (*TypecheckResult, error)
 
 	start := time.Now()
 	res := &TypecheckResult{
-		Issues: make([]string, 0),
+		Status:    TypecheckNotRun,
+		Directory: dir,
+		Issues:    make([]string, 0),
 	}
 
 	// Detect if TypeScript project (look for tsconfig.json or web/tsconfig.json)
@@ -546,10 +564,11 @@ func InspectTypecheck(ctx context.Context, dir string) (*TypecheckResult, error)
 			cmdArgs = []string{"--no-install", "tsc", "--noEmit"}
 		}
 
-		out, _, err := runBoundedCommand(ctx, TypecheckTimeout, tsDir, cmdName, cmdArgs...)
+		res.Directory = tsDir
+		out, truncated, err := runBoundedCommand(ctx, TypecheckTimeout, tsDir, cmdName, cmdArgs...)
 		res.DurationMs = time.Since(start).Milliseconds()
 		res.Raw = string(out)
-		res.Success = (err == nil)
+		setTypecheckOutcome(res, err, truncated)
 
 		scanner := bufio.NewScanner(strings.NewReader(res.Raw))
 		for scanner.Scan() {
@@ -565,10 +584,10 @@ func InspectTypecheck(ctx context.Context, dir string) (*TypecheckResult, error)
 	// If Go project (go.mod exists)
 	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 		res.Tool = "go vet ./..."
-		out, _, err := runBoundedCommand(ctx, TypecheckTimeout, dir, "go", "vet", "./...")
+		out, truncated, err := runBoundedCommand(ctx, TypecheckTimeout, dir, "go", "vet", "./...")
 		res.DurationMs = time.Since(start).Milliseconds()
 		res.Raw = string(out)
-		res.Success = (err == nil)
+		setTypecheckOutcome(res, err, truncated)
 
 		scanner := bufio.NewScanner(strings.NewReader(res.Raw))
 		for scanner.Scan() {
@@ -583,9 +602,32 @@ func InspectTypecheck(ctx context.Context, dir string) (*TypecheckResult, error)
 
 	// Neither TypeScript nor Go detected
 	res.Tool = "none"
-	res.Success = true
-	res.Raw = "No TypeScript or Go configuration detected for static typecheck."
+	res.Reason = "No TypeScript or Go configuration detected; no typecheck was run."
+	res.Raw = res.Reason
 	return res, nil
+}
+
+func setTypecheckOutcome(result *TypecheckResult, err error, truncated bool) {
+	result.Truncated = truncated
+	result.Success = err == nil
+	if err == nil {
+		result.Status = TypecheckPassed
+		return
+	}
+	result.Reason = err.Error()
+	var exit *exec.ExitError
+	switch {
+	case errors.Is(err, ErrCommandTimedOut):
+		result.Status = TypecheckTimedOut
+	case errors.Is(err, context.Canceled):
+		result.Status = TypecheckCanceled
+	case errors.Is(err, exec.ErrWaitDelay):
+		result.Status = TypecheckFailed
+	case errors.As(err, &exit):
+		result.Status = TypecheckFailed
+	default:
+		result.Status = TypecheckNotRun
+	}
 }
 
 // InspectDependencies inspects top-level project dependencies without network calls.

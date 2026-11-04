@@ -225,8 +225,8 @@ func TestInspectTypecheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InspectTypecheck failed: %v", err)
 	}
-	if !res.Success || res.Tool != "none" {
-		t.Errorf("expected none tool and success, got: %+v", res)
+	if res.Success || res.Tool != "none" || res.Status != "not_run" {
+		t.Errorf("unsupported project must not claim a passing check: %+v", res)
 	}
 }
 
