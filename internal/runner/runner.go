@@ -833,6 +833,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			env["CUAN_TASK_EXECUTABLE"] = executable
 		}
 	}
+	prompt += browserRuntimeEnvironment(env, claim.RequiresVision)
 	env["CUAN_TASK_ATTEMPT"] = fmt.Sprintf("%d", att.AttemptNumber)
 	env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()

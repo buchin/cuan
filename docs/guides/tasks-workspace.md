@@ -292,3 +292,9 @@ receives source implementation checks separately from the verifier's own evidenc
 original acceptance requirements remain in force. Failure cannot acquire another
 verification run or an unrestricted infrastructure retry. Results still require
 coordinator review before the task is accepted or the next approved phase starts.
+
+Native runners expose the installed screenshot tool as `CUAN_BROWSER_CLI` and its
+Node module as `CUAN_BROWSER_MODULE`. `PLAYWRIGHT_BROWSERS_PATH` points to the
+service browser cache independently of the leased AI account's private HOME.
+Visual tasks receive this tool context automatically; they should not search
+entire filesystems or install duplicate browsers when the platform tool exists.
