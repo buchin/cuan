@@ -518,8 +518,11 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 
 	if req.Status != nil {
 		st := strings.ToLower(strings.TrimSpace(*req.Status))
+		if st == "canceled" {
+			st = "cancelled"
+		}
 		switch st {
-		case TaskStatusBacklog, "todo", TaskStatusQueued, TaskStatusPending, TaskStatusDoing, TaskStatusReview, TaskStatusDone, TaskStatusBlocked:
+		case TaskStatusBacklog, "todo", TaskStatusQueued, TaskStatusPending, TaskStatusDoing, TaskStatusReview, TaskStatusDone, TaskStatusBlocked, "cancelled":
 			if st != oldStatus {
 				latest, e := s.store.GetLatestAttempt(ctx, id)
 				if e != nil && !errors.Is(e, ErrAttemptNotFound) {
@@ -589,7 +592,9 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	}
 
 	if statusChanged {
-		if newStatus == TaskStatusDone || newStatus == TaskStatusBlocked || newStatus == TaskStatusReview || newStatus == "cancelled" || newStatus == "failed" {
+		if newStatus == "cancelled" {
+			_ = s.FinishTaskLaunches(ctx, t.ID, "cancelled")
+		} else if newStatus == TaskStatusDone || newStatus == TaskStatusBlocked || newStatus == TaskStatusReview || newStatus == "failed" {
 			_ = s.FinishTaskLaunches(ctx, t.ID, "stopped")
 		}
 		actMsg := fmt.Sprintf("Task status changed from '%s' to '%s'.", oldStatus, newStatus)

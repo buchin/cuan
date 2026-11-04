@@ -126,6 +126,13 @@ the authenticated Owner API. Inspect its scope, linked conversation and attempt
 first; active executions are rejected. This does not delete its conversation.
 Never infer that a conversation is disposable from its title alone.
 
+To retire approved work that is obsolete but worth retaining, use
+`cuan task update TASK_ID --status cancelled --summary "Reason and replacement"`.
+Both `canceled` and `cancelled` are accepted; storage uses `cancelled`. Active
+queued/running attempts must be canceled first with `cuan task cancel`, then
+read back before retiring the task. Historical attempt results are preserved.
+Cancellation is not acceptance and must never be reported as completed work.
+
 `cuan task cancel TASK_ID` requests cancellation through the authenticated Cuan
 API. This does not prove the worker has stopped: inspect the same task with
 `cuan task get TASK_ID --json` until its attempt reaches a terminal state.
