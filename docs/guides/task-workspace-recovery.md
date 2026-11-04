@@ -39,3 +39,10 @@ and apply to the runner and server, including automatic commit/push and auto-app
 A later continuation cannot relax an earlier attempt's restrictions. This does
 not waive original acceptance criteria: unavailable live-install evidence must
 still be reported honestly as a gap or blocker.
+
+Cuan owns recovery of an already-authorized execution and advancement through its
+approved work. Repeated manual resume messages or administrative status changes
+are not an orchestration mechanism. External development sessions diagnose and
+repair the product; they must not finish Cuan's backlog on its behalf or create
+success records to make a recovery test pass. Escalate to the user only when a
+real prerequisite cannot be resolved by the agent within the approved scope.

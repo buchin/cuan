@@ -249,3 +249,26 @@ Typed content still grows to the existing140px cap and clearing returns to one
 line. Real390px/1440px light/dark browser checks verify both modes, bounded growth,
 shrink after clear and the existing internal-visibility/header/task-card flows.
 Screenshots were rendered and inspected before deployment.
+
+## Autonomy constraint clarified by the owner
+
+The owner explicitly clarified that the outcome is a capable Cuan, not a backlog
+completed by the external development session. Manual status changes, individual
+resume prompts, external deliverable implementation and repeated owner-like
+instructions must not substitute for Cuan's own durable orchestration. Earlier
+manually initiated recovery pilots are diagnostic evidence only; they do not
+prove autonomous project management.
+
+Continue through product-level fixes: durable recovery of already-authorized
+intent, same-task execution, evidence-based acceptance, bounded correction,
+capacity/dependency recovery and automatic advancement to the next authorized
+item. Direct intervention is reserved for necessary diagnosis/system repair or
+an actual external prerequisite. Keep canceled work stopped and distinguish an
+unresolvable prerequisite from an agent-fixable failure without repeatedly asking
+the user to operate tasks.
+
+Current acceptance concern confirmed through GitHub: Heru task's referenced PR9
+remains OPEN, mergeCommit/mergedAt are null. Its report's HTTP200/live-readiness
+wording alone does not prove that task commit f628a6d is deployed. Correct the
+systemic evidence gate and autonomous correction path; do not manually rewrite
+that task into apparent success or use a fresh resume prompt as the solution.
