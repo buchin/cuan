@@ -72,3 +72,40 @@ launch failures, recovery under the same request key, no extra execution attempt
 and suppression of a false continuation promise at the correction limit.
 `node docs/evidence/review-outcome-check.cjs` renders the stopped outcome and task
 card using the real frontend at 390px and 1440px with isolated API fixtures.
+
+## Attempt-scoped report evidence
+
+Task summaries and completion notes survive retries so saved work is not erased.
+They are not automatically evidence that a new execution did or verified anything.
+Review input now labels the provenance of reported data and the matching attempt
+ID. Fallback report selection uses only the current task/attempt, ordered by event
+time and ID, rather than whichever report happens to be last in an activity array.
+A progress report supplies progress, not inherited final verification.
+
+If a failed/retried execution has no current report, its reported result and
+verification stay empty. Retained task fields and the most recent earlier report
+are supplied separately as bounded historical reference, with the earlier attempt
+ID. A legacy single successful execution without report events keeps its task
+snapshot explicitly unbound; it does not receive an invented report attempt ID.
+Existing execution, cancellation, scope, deployment and acceptance gates remain
+in force. No stored reports, task fields, files or attempts are erased or rewritten.
+
+A completed review that predated this policy and misattributed an older report
+gets one fresh tool-free snapshot evaluation under `report-provenance:<digest>`.
+The synthetic input carries `Report provenance policy: v1`; a failed/interrupted
+snapshot has at most one additional retry. Original authenticated owner approval,
+cancellation checks and execution correction limits still apply. Deterministic
+keys prevent repeated scans/restarts from creating more reviews for unchanged
+state. This does not reset a task's execution budget or restart its old process.
+The pre-existing evidence digest remains unchanged, preserving pending phase
+handoff bindings and reviews already in flight.
+
+Production inspection on 2026-11-04 found that both remaining blocked attempts
+had zero current report events but had earlier reports. The preview task still
+had task-level summary and verification fields. This demonstrated misattribution
+in review input; it did not establish either attempt's underlying process failure.
+
+Tests cover retained historical context, missing-current reports across terminal
+states, progress versus final reports, foreign-task exclusion, stable ordering,
+legacy snapshots, canonical fresh-review binding, and one-time reconciliation
+without a new execution attempt.

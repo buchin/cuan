@@ -12,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-func stalledReviewFixture(t *testing.T, state string) (*Server, *task.TaskDetailResponse, db.InboxRequest) {
+func stalledReviewFixture(t *testing.T, state string, executionStatus ...string) (*Server, *task.TaskDetailResponse, db.InboxRequest) {
 	t.Helper()
 	s, _, _, _ := inboxFixture(t)
 	s.inboxStopping.Store(true)
@@ -33,6 +33,9 @@ func stalledReviewFixture(t *testing.T, state string) (*Server, *task.TaskDetail
 		t.Fatal(err)
 	}
 	attempt := &task.TaskAttempt{ID: "review-recovery-attempt", TaskID: item.ID, RunnerID: "fixture", AgentName: origin.AgentID, Status: task.AttemptStatusSucceeded, ExitCode: new(int), CreatedAt: now}
+	if len(executionStatus) > 0 {
+		attempt.Status = executionStatus[0]
+	}
 	if err := s.taskSvc.Store().CreateAttempt(ctx, attempt); err != nil {
 		t.Fatal(err)
 	}
