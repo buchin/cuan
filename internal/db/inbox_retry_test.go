@@ -272,7 +272,7 @@ func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
 		t.Fatalf("expected manual retry to succeed for check_usage, got child=%+v, created=%v, err=%v", child, created, err)
 	}
 
-	// 2. Unsafe failure (check_status) must be rejected for both manual and auto
+	// 2. Unsafe failure (check_status) must reject auto-retry, but allow manual retry with reconciliation
 	unsafeReq := InboxRequest{
 		RoomID:    "room2",
 		RequestID: "req-unsafe",
@@ -289,8 +289,12 @@ func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
 	}
 	r.AcceptInboxRequest(ctx, unsafeReq, &ProjectMessage{ID: unsafeReq.MessageID, RoomID: unsafeReq.RoomID, Content: "test unsafe", CreatedAt: now})
 
-	if _, _, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
-		t.Fatalf("expected ErrInboxRetryUnavailable for manual retry on check_status, got %v", err)
+	if _, _, err := r.AutoRetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
+		t.Fatalf("expected ErrInboxRetryUnavailable for auto-retry on check_status, got %v", err)
+	}
+	childUnsafe, createdUnsafe, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID)
+	if err != nil || !createdUnsafe || childUnsafe.State != "queued" || !InboxRetryNeedsReconciliation(childUnsafe) {
+		t.Fatalf("expected manual retry to succeed with retry_reconcile for check_status, got child=%+v, created=%v, err=%v", childUnsafe, createdUnsafe, err)
 	}
 
 	// 3. Interrupted request allows manual retry but rejects auto-retry
