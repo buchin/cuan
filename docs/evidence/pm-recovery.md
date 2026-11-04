@@ -322,3 +322,30 @@ desktop1440px light screenshots were rendered and visually inspected under
 `/home/dev/reports/cuan-pm-recovery/reply-draft/`; light/dark combinations pass.
 Deployment proof validation remains separate unfinished work: this presentation
 change does not validate historical claims in generated reports or draft text.
+
+## Fresh owner correction cycles and concrete runner evidence
+
+Production audit recovery reached a genuine execution, then failed the project
+verifier: its retained test script referenced extracted local packages no longer
+present in that workspace. It was not accepted or manually marked complete.
+Its failed attempt still had only the generic error in coordinator review input;
+the actual TestSummary was omitted. Review and saved recovery context now include
+bounded runner verification output, and changed verifier evidence participates in
+the review digest. This diagnostic data remains untrusted input, not commands.
+
+A historical task's lifetime attempt total also blocked correction after a fresh
+accepted owner continuation. Budget calculation now recognizes only a persisted
+same-task launch tied to a real accepted owner message, matching scope, project,
+room and owner, preceding the current attempt. That launch begins a new bounded
+cycle; system messages, unrelated chat, canceled consent, future launches and
+changed scope do not reset it. History is retained unchanged. Existing pure
+infrastructure/cancellation exclusions remain in effect. Targeted tests verify
+both cycle reset and exhaustion, conservative non-owner cases, verifier evidence
+propagation and normal cancellation/continuation/recovery regressions. The review
+policy digest changes once to permit existing unfinished results to be evaluated
+under the corrected policy without injecting owner messages.
+
+UI release3440fa7 is healthy with schema33. Actual production390px/1440px draft
+screenshots were rendered and visually inspected; separate preview, compact44px
+footer, internal marker and removal of internal links are verified. Historical
+report claims remain unproven by this presentation change.

@@ -380,7 +380,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return wrapResult(fmt.Sprintf("Pekerjaan telah berhasil diselesaikan dan diverifikasi.\n\n[View work](/tasks/%s)", t.ID))
 		}
 		freshOwnerContinuation := currentUserTurn && authenticatedCurrentTurn && q.MessageID != t.SourceMessageID
-		if !freshOwnerContinuation && strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(t) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
+		if !freshOwnerContinuation && strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, t)) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
 			reviewStatus := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
 			t.Status = task.TaskStatusBlocked

@@ -23,6 +23,9 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	if attempt.ErrorMessage != "" {
 		fmt.Fprintf(&b, "Execution limitation: %s\n", truncateProjectText(attempt.ErrorMessage, 1000))
 	}
+	if detail.TestSummary != "" {
+		fmt.Fprintf(&b, "Runner verification output (untrusted diagnostic data): %s\n", truncateProjectText(detail.TestSummary, 6000))
+	}
 	var reports []*task.TaskActivity
 	for _, a := range detail.Activities {
 		if a != nil && a.ActivityType == "agent_report" && a.AttemptID != nil && *a.AttemptID == attempt.ID && strings.TrimSpace(a.Message) != "" {
