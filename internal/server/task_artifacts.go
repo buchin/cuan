@@ -24,18 +24,27 @@ type preparedTaskArtifact struct {
 	data       []byte
 }
 
-func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string) ([]preparedTaskArtifact, error) {
-	if root == nil || len(paths) > 8 {
+func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string, evidenceRoots ...*os.Root) ([]preparedTaskArtifact, error) {
+	var evidenceRoot *os.Root
+	if len(evidenceRoots) > 0 {
+		evidenceRoot = evidenceRoots[0]
+	}
+	if (root == nil && evidenceRoot == nil) || len(paths) > 8 {
 		return nil, errors.New("File delivery requires the bound task workspace and at most eight files")
 	}
 	var result []preparedTaskArtifact
 	seen := map[string]bool{}
 	total := 0
-	for _, path := range paths {
-		if !filepath.IsLocal(path) || len(path) > 512 || seen[path] {
+	for _, sourcePath := range paths {
+		path, selectedRoot := sourcePath, root
+		if strings.HasPrefix(path, "session:") {
+			path = strings.TrimPrefix(path, "session:")
+			selectedRoot = evidenceRoot
+		}
+		if selectedRoot == nil || !filepath.IsLocal(path) || len(path) > 512 || seen[sourcePath] {
 			return nil, errors.New("Use unique paths relative to this task's workspace")
 		}
-		seen[path] = true
+		seen[sourcePath] = true
 		for _, part := range strings.Split(filepath.ToSlash(path), "/") {
 			lower := strings.ToLower(part)
 			if strings.HasPrefix(part, ".") || strings.HasPrefix(lower, "id_rsa") || strings.HasPrefix(lower, "id_ed25519") || lower == "credentials.json" {
@@ -46,7 +55,7 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string) 
 		case ".pem", ".key", ".p12", ".pfx":
 			return nil, errors.New("Private key files cannot be attached")
 		}
-		f, err := root.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		f, err := selectedRoot.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 		if err != nil {
 			return nil, errors.New("An output file is unavailable in this task's workspace")
 		}
@@ -65,7 +74,7 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string) 
 			return nil, errors.New("Output files exceed the 25 MB total limit")
 		}
 		hash := sha256.Sum256(data)
-		id := delegationMessageID("task-artifact:" + taskID + ":" + attemptID + ":" + path + ":" + hex.EncodeToString(hash[:]))
+		id := delegationMessageID("task-artifact:" + taskID + ":" + attemptID + ":" + sourcePath + ":" + hex.EncodeToString(hash[:]))
 		kind := mime.TypeByExtension(filepath.Ext(path))
 		if kind == "" {
 			switch strings.ToLower(filepath.Ext(path)) {

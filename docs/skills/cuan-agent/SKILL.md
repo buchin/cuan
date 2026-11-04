@@ -193,3 +193,10 @@ and `validate` use the authenticated Settings API. Secrets are imported only by
 explicit environment variable name and omitted from output. Existing automatic
 email preferences are preserved; validation sends no email. See
 [Resend guide](../../guides/resend-integration.md).
+
+Bound workers may create verification output under `CUAN_TASK_ARTIFACTS_DIR`
+without changing the repository and attach it with `task report --artifact
+session:mobile.png`. The same `session:PATH` form works in `report_current_task`
+artifacts. The root belongs to the exact authenticated attempt and cannot be
+chosen by the caller. Ordinary paths stay workspace-relative; all sources share
+the existing file/count/size limits. This is file delivery, not task acceptance.

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"net/http/httptest"
 	"os"
@@ -50,6 +51,15 @@ func TestTaskArtifactsCannotEscapeOrExposePrivateFiles(t *testing.T) {
 }
 
 func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
+	for _, session := range []bool{false, true} {
+		name := "workspace"
+		if session {
+			name = "session outside repository"
+		}
+		t.Run(name, func(t *testing.T) { taskArtifactDeliveryContract(t, session) })
+	}
+}
+func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	s, token, call, _ := inboxFixture(t)
 	ctx := context.Background()
 	owner, err := s.authSvc.ValidateToken(ctx, token)
@@ -77,11 +87,32 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 	workspace := t.TempDir()
 	original := "<!doctype html><title>Offline output</title><p>Works offline</p>"
 	os.WriteFile(filepath.Join(workspace, "output.html"), []byte(original), 0600)
-	_, _, capability, cleanup, err := s.issueTaskAgent(context.WithValue(ctx, taskAgentWorkspaceKey{}, workspace), saved.ID, a.ID, q.AgentID)
+	env, _, capability, cleanup, err := s.issueTaskAgent(context.WithValue(ctx, taskAgentWorkspaceKey{}, workspace), saved.ID, a.ID, q.AgentID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cleanup()
+	sourceFile := filepath.Join(workspace, "output.html")
+	paths := `["output.html"]`
+	if session {
+		var directory string
+		for _, item := range env {
+			if strings.HasPrefix(item, "CUAN_TASK_ARTIFACTS_DIR=") {
+				directory = strings.TrimPrefix(item, "CUAN_TASK_ARTIFACTS_DIR=")
+			}
+		}
+		if directory == "" || strings.HasPrefix(directory, workspace+string(filepath.Separator)) {
+			t.Fatal("missing isolated evidence directory")
+		}
+		os.Remove(sourceFile)
+		sourceFile = filepath.Join(directory, "output.html")
+		if err := os.WriteFile(sourceFile, []byte(original), 0600); err != nil {
+			t.Fatal(err)
+		}
+		paths = `["session:output.html"]`
+		// Reopen both roots from the durable encrypted grant, as after restart.
+		s.forgetTaskGrant(sha256.Sum256([]byte(capability)))
+	}
 	report := func(paths string) *httptest.ResponseRecorder {
 		request := httptest.NewRequest("POST", "/api/v1/task-agent/"+saved.ID, strings.NewReader(`{"state":"done","summary":"HTML ready","complete_note":"Verified offline file","artifacts":`+paths+`}`))
 		request.Header.Set("Authorization", "Bearer "+capability)
@@ -92,10 +123,10 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 	if w := report(`["../private.txt"]`); w.Code != 400 {
 		t.Fatal("escaped output accepted", w.Code, w.Body.String())
 	}
-	if w := report(`["output.html"]`); w.Code != 200 {
+	if w := report(paths); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if w := report(`["output.html"]`); w.Code != 200 {
+	if w := report(paths); w.Code != 200 {
 		t.Fatal("identical delivery was not idempotent", w.Code, w.Body.String())
 	}
 	detail, _ := s.taskSvc.GetTaskDetail(ctx, saved.ID)
@@ -121,7 +152,14 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 		raw, _ := json.Marshal(messages)
 		t.Fatal("download not surfaced in Inbox", string(raw))
 	}
-	os.WriteFile(filepath.Join(workspace, "output.html"), []byte("REPLACED_SOURCE"), 0600)
+	os.WriteFile(sourceFile, []byte("REPLACED_SOURCE"), 0600)
+	if session {
+		entries, _ := os.ReadDir(workspace)
+		if len(entries) != 0 {
+			t.Fatal("session delivery modified repository")
+		}
+		cleanup() // Delivered Inbox copies must outlive the private staging directory.
+	}
 	download := call("GET", attachment.URL, "")
 	if download.Code != 200 || download.Body.String() != original || !strings.HasPrefix(download.Header().Get("Content-Disposition"), "attachment;") {
 		t.Fatal("immutable HTML download failed", download.Code, download.Header())
@@ -137,5 +175,44 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 	}
 	if _, _, err := loadAttachment("another-owner", attachment.ID); err == nil {
 		t.Fatal("file crossed owner boundary")
+	}
+}
+
+func TestSessionArtifactsKeepRootIsolationAndSharedDeliveryLimits(t *testing.T) {
+	workspace, stage := t.TempDir(), t.TempDir()
+	root, err := os.OpenRoot(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	evidence, err := os.OpenRoot(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer evidence.Close()
+	outside := filepath.Join(t.TempDir(), "private.txt")
+	os.WriteFile(outside, []byte("PRIVATE"), 0600)
+	os.Symlink(outside, filepath.Join(stage, "escape.txt"))
+	for _, path := range []string{"session:../private.txt", "session:" + outside, "session:.env", "session:nested/.git/config", "session:private.pem", "session:escape.txt"} {
+		if _, err := readTaskArtifacts(root, "task", "attempt", []string{path}, evidence); err == nil {
+			t.Fatal("invalid session file accepted", path)
+		}
+	}
+	os.WriteFile(filepath.Join(stage, "mobile.png"), []byte("snapshot fixture"), 0600)
+	if _, err := readTaskArtifacts(root, "task", "attempt", []string{"session:mobile.png"}); err == nil {
+		t.Fatal("session path worked without bound session root")
+	}
+	if _, err := readTaskArtifacts(root, "task", "attempt", []string{"session:mobile.png", "session:mobile.png"}, evidence); err == nil {
+		t.Fatal("duplicate session artifact accepted")
+	}
+	for _, file := range []string{filepath.Join(workspace, "one.txt"), filepath.Join(stage, "two.txt"), filepath.Join(stage, "three.txt")} {
+		os.WriteFile(file, nil, 0600)
+		os.Truncate(file, 9<<20)
+	}
+	if _, err := readTaskArtifacts(root, "task", "attempt", []string{"one.txt", "session:two.txt", "session:three.txt"}, evidence); err == nil {
+		t.Fatal("mixed roots bypassed aggregate25MB bound")
+	}
+	if _, err := readTaskArtifacts(root, "task", "attempt", []string{"one.txt", "session:two.txt"}, evidence); err != nil {
+		t.Fatal("valid mixed delivery rejected", err)
 	}
 }

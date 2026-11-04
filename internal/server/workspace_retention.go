@@ -21,6 +21,7 @@ func (s *Server) StartWorkspaceRetention(ctx context.Context) {
 				return
 			case <-ticker.C:
 			}
+			s.pruneExpiredTaskEvidence(ctx, time.Now())
 			cursor = s.runWorkspaceRetention(ctx, cursor, time.Now())
 		}
 	}()

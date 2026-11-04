@@ -533,7 +533,7 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusInternalServerError, "could not encode task capability")
 			return
 		}
-		resp.TaskAgent = &runner.TaskAgentCapability{API: cap.API, Token: cap.Token, TaskID: cap.TaskID, AttemptID: cap.AttemptID}
+		resp.TaskAgent = &runner.TaskAgentCapability{API: cap.API, Token: cap.Token, TaskID: cap.TaskID, AttemptID: cap.AttemptID, ArtifactsDir: cap.ArtifactsDir}
 		resp.AgentPrompt = prompt + s.runnerRecoveryContext(r.Context(), resp.Task.ID, resp.Attempt.ID)
 		_ = os.Remove(capPath)
 		_ = os.Remove(filepath.Dir(capPath))

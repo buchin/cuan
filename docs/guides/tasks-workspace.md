@@ -246,3 +246,26 @@ into unrequested deliverables.
 New project work is browsed at `/projects/PROJECT_ID/tasks`, with a work-list sidebar and session/result panel. Select work to open `/projects/PROJECT_ID/tasks/TASK_ID`; session paths extend it. Existing `/tasks/ID` links remain supported. The cross-project list is available from Account → Work monitor.
 
 Agent topics are independent conversations with stable IDs. Work cards in the agent reply open progress/results and return to the same conversation. A topic can exist without any task or PTY. New task creation without a project uses the initialized Default project; historical unassigned work stays readable in its Default workspace without changing its records.
+
+### Evidence outside a read-only repository
+
+New task sessions receive `CUAN_TASK_ARTIFACTS_DIR`, a private per-attempt output
+directory outside the repository. Save screenshots or inspection reports there
+and attach them with `--artifact session:mobile.png` (repeat for desktop/report).
+Ordinary relative artifact paths retain their workspace meaning. The session
+prefix selects only the root already bound to the authenticated task grant;
+clients cannot supply arbitrary directories. Both sources share the existing
+eight-file, 10 MB-per-file and 25 MB-total delivery limits and hidden/key file
+restrictions. Inbox receives immutable private copies with ordinary filenames.
+
+The encrypted grant index restores both roots after server restart. Local
+cleanup revokes the grant and removes staging while delivered Inbox copies
+remain downloadable. Hourly maintenance removes expired staging only after the
+grant's expiry plus one hour and only for terminal/missing attempts; live work,
+repositories, attachments and unmanaged paths are protected. The staging area is
+not a filesystem write quota. Existing local server/runner shared-filesystem
+assumptions remain; remote artifact upload is not introduced by this change.
+
+This makes screenshot delivery possible without changing repository files. It
+does not create screenshots, authenticate their visual contents, relax acceptance
+criteria or authorize another execution attempt by itself.

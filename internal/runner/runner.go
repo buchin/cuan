@@ -819,6 +819,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if claim.TaskAgent != nil {
 		encoded, _ := json.Marshal(claim.TaskAgent)
 		env["CUAN_TASK_CAPABILITY_JSON"] = string(encoded)
+		if claim.TaskAgent.ArtifactsDir != "" {
+			env["CUAN_TASK_ARTIFACTS_DIR"] = claim.TaskAgent.ArtifactsDir
+		}
 		if executable, e := os.Executable(); e == nil {
 			env["CUAN_TASK_EXECUTABLE"] = executable
 		}

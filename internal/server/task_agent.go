@@ -28,6 +28,7 @@ type taskAgentGrant struct {
 	TaskID, AttemptID, AgentID string
 	Expires                    time.Time
 	ArtifactRoot               *os.Root
+	EvidenceRoot               *os.Root
 }
 
 func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID string, contextParts ...string) ([]string, string, string, func(), error) {
@@ -43,11 +44,15 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		return nil, "", "", none, e
 	}
 	var artifactRoot *os.Root
+	var evidenceRoot *os.Root
 	cleanup := func() {
-		s.taskAgentGrants.Delete(digest)
+		s.forgetTaskGrant(digest)
 		_ = os.Remove(taskGrantPath(digest))
 		if artifactRoot != nil {
 			_ = artifactRoot.Close()
+		}
+		if evidenceRoot != nil {
+			_ = evidenceRoot.Close()
 		}
 		_ = os.RemoveAll(dir)
 	}
@@ -59,6 +64,15 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 			return nil, "", "", none, e
 		}
 	}
+	evidenceDir := filepath.Join(dir, "artifacts")
+	if e = os.Mkdir(evidenceDir, 0700); e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
+	if evidenceRoot, e = os.OpenRoot(evidenceDir); e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
 	base := s.taskAgentURL
 	if base == "" {
 		port := s.cfg.ServerPort
@@ -67,7 +81,7 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		}
 		base = "http://127.0.0.1:" + port
 	}
-	c := taskcli.Capability{API: base + "/api/v1/task-agent/" + taskID, Token: token, TaskID: taskID, AttemptID: attemptID}
+	c := taskcli.Capability{API: base + "/api/v1/task-agent/" + taskID, Token: token, TaskID: taskID, AttemptID: attemptID, ArtifactsDir: evidenceDir}
 	data, _ := json.Marshal(c)
 	file := filepath.Join(dir, "capability.json")
 	if e = os.WriteFile(file, data, 0600); e != nil {
@@ -83,7 +97,7 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		cleanup()
 		return nil, "", "", none, e
 	}
-	grant := taskAgentGrant{TaskID: taskID, AttemptID: attemptID, AgentID: agentID, Expires: time.Now().Add(8*time.Hour + 5*time.Minute), ArtifactRoot: artifactRoot}
+	grant := taskAgentGrant{TaskID: taskID, AttemptID: attemptID, AgentID: agentID, Expires: time.Now().Add(8*time.Hour + 5*time.Minute), ArtifactRoot: artifactRoot, EvidenceRoot: evidenceRoot}
 	workspace, _ := ctx.Value(taskAgentWorkspaceKey{}).(string)
 	if e = s.persistTaskGrant(digest, grant, workspace); e != nil {
 		cleanup()
@@ -155,6 +169,12 @@ credentials, hidden files or private keys. Cuan copies the files into private
 Inbox attachments so the user can download them without server access. Merely
 printing a file:// link or server path does not deliver a file. Example:
 "$CUAN_TASK_EXECUTABLE" task report --state done --summary "Files ready" --complete-note "Actual verification" --artifact "output.html" --artifact "README.md"
+For verification without modifying the repository, write screenshots or reports
+under "$CUAN_TASK_ARTIFACTS_DIR". This is a private output directory bound to this
+attempt, outside the repository. Attach those files using session-relative paths:
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary "Visual checks" --complete-note "Observed findings" --artifact "session:mobile.png" --artifact "session:desktop.png"
+The session prefix selects only the bound output directory, never an arbitrary
+server path. Do not copy secrets, credentials or hidden files into deliverables.
 For completed implementation, finish with:
 "$CUAN_TASK_EXECUTABLE" task report --state done --summary "Actual result" --complete-note "Verification and limitations"
 For a greeting/question with no file changes, use --state review --result-kind answer.
@@ -200,7 +220,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 		return nil, "", "", none, e
 	}
 	prompt := "\n\nRead the session guidance at " + guide + " before proceeding."
-	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable}, prompt, token, cleanup, nil
+	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable, "CUAN_TASK_ARTIFACTS_DIR=" + evidenceDir}, prompt, token, cleanup, nil
 
 }
 func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
@@ -221,7 +241,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	g := value.(taskAgentGrant)
 	if time.Now().After(g.Expires) {
-		s.taskAgentGrants.Delete(digest)
+		s.forgetTaskGrant(digest)
 		respondJSONError(w, 401, "Task session access expired")
 		return
 	}
@@ -300,7 +320,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, 409, e.Error())
 			return
 		}
-		artifacts, e = readTaskArtifacts(g.ArtifactRoot, g.TaskID, g.AttemptID, report.Artifacts)
+		artifacts, e = readTaskArtifacts(g.ArtifactRoot, g.TaskID, g.AttemptID, report.Artifacts, g.EvidenceRoot)
 		if e != nil {
 			respondJSONError(w, 400, e.Error())
 			return

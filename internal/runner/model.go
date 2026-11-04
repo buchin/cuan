@@ -110,10 +110,11 @@ type ClaimTaskResponse struct {
 // TaskAgentCapability is scoped to one task attempt and is used by the
 // background runner to access the same reporting contract as interactive sessions.
 type TaskAgentCapability struct {
-	API       string `json:"api"`
-	Token     string `json:"token"`
-	TaskID    string `json:"task_id"`
-	AttemptID string `json:"attempt_id"`
+	API          string `json:"api"`
+	Token        string `json:"token"`
+	TaskID       string `json:"task_id"`
+	AttemptID    string `json:"attempt_id"`
+	ArtifactsDir string `json:"artifacts_dir,omitempty"`
 }
 
 // StreamLogsRequest is used by runner to stream batches of output lines to the server.

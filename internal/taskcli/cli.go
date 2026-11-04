@@ -15,10 +15,11 @@ import (
 )
 
 type Capability struct {
-	API       string `json:"api"`
-	Token     string `json:"token"`
-	TaskID    string `json:"task_id"`
-	AttemptID string `json:"attempt_id"`
+	API          string `json:"api"`
+	Token        string `json:"token"`
+	TaskID       string `json:"task_id"`
+	AttemptID    string `json:"attempt_id"`
+	ArtifactsDir string `json:"artifacts_dir,omitempty"`
 }
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -27,6 +28,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true,"evidence":"Observed output or check result"}],"commit_sha":"optional commit","test_summary":"Actual checks"}
 Omit metadata/checklists when unnecessary. Use --summary and --complete-note directly for a simple result.`)
+		fmt.Fprintln(out, "For read-only verification, write output under CUAN_TASK_ARTIFACTS_DIR and use --artifact session:PATH. Ordinary artifact paths remain relative to WORKSPACE_DIR. Both sources share the eight-file and 25 MB limits.")
 		return 0
 	}
 	command := args[0]
@@ -45,7 +47,7 @@ Omit metadata/checklists when unnecessary. Use --summary and --complete-note dir
 	kind := fs.String("result-kind", "", "answer for conversation without file changes; implementation otherwise")
 	file := fs.String("report-file", "", "Structured JSON report file (never human instructions)")
 	var artifacts []string
-	fs.Func("artifact", "Output file relative to WORKSPACE_DIR to deliver privately in Inbox (repeatable)", func(path string) error { artifacts = append(artifacts, path); return nil })
+	fs.Func("artifact", "Output file relative to WORKSPACE_DIR, or session:PATH under CUAN_TASK_ARTIFACTS_DIR, to deliver privately in Inbox (repeatable)", func(path string) error { artifacts = append(artifacts, path); return nil })
 	var dodItems, dodEvidence []string
 	fs.Func("dod-item", "Original acceptance criterion text, unchanged (repeatable; pair with --dod-evidence)", func(item string) error { dodItems = append(dodItems, item); return nil })
 	fs.Func("dod-evidence", "Observed result for the corresponding --dod-item (repeatable)", func(value string) error { dodEvidence = append(dodEvidence, value); return nil })

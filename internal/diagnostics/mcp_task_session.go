@@ -13,7 +13,7 @@ import (
 
 var taskSessionMCPTools = []mcpToolDefinition{
 	{Name: "get_current_task", Description: "Read the task and attempt bound to this worker session using its private task capability. No task ID or Owner credentials are accepted.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
-	{Name: "report_current_task", Description: "Report progress or verified results for the bound task attempt. Use state progress for checkpoints; final reports need actual summary, verification and unchanged acceptance criteria with evidence. Attach deliverables using workspace-relative artifacts. This is a worker report, not an Owner message or coordinator acceptance.", InputSchema: taskSessionReportSchema()},
+	{Name: "report_current_task", Description: "Report progress or verified results for the bound task attempt. Use state progress for checkpoints; final reports need actual summary, verification and unchanged acceptance criteria with evidence. Attach deliverables using workspace-relative artifacts, or session:PATH for files under CUAN_TASK_ARTIFACTS_DIR outside the repository. This is a worker report, not an Owner message or coordinator acceptance.", InputSchema: taskSessionReportSchema()},
 	{Name: "push_current_task", Description: "Publish only the bound task branch through its scoped capability when approved scope allows it. Does not prove deployment or complete the task. Never use for no-push work.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 }
 

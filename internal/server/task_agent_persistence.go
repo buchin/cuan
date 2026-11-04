@@ -14,6 +14,7 @@ import (
 
 type persistedTaskGrant struct {
 	TaskID, AttemptID, AgentID, Workspace, Digest string
+	EvidenceDirectory                             string
 	Expires                                       time.Time
 }
 
@@ -21,7 +22,10 @@ func taskGrantPath(digest [32]byte) string {
 	return filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "task-session-grants", hex.EncodeToString(digest[:])+".json")
 }
 func (s *Server) persistTaskGrant(digest [32]byte, g taskAgentGrant, workspace string) error {
-	record := persistedTaskGrant{g.TaskID, g.AttemptID, g.AgentID, workspace, hex.EncodeToString(digest[:]), g.Expires}
+	record := persistedTaskGrant{TaskID: g.TaskID, AttemptID: g.AttemptID, AgentID: g.AgentID, Workspace: workspace, Digest: hex.EncodeToString(digest[:]), Expires: g.Expires}
+	if g.EvidenceRoot != nil {
+		record.EvidenceDirectory = g.EvidenceRoot.Name()
+	}
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -56,26 +60,34 @@ func (s *Server) persistTaskGrant(digest [32]byte, g taskAgentGrant, workspace s
 	defer dir.Close()
 	return dir.Sync()
 }
-func (s *Server) loadTaskGrant(digest [32]byte) (taskAgentGrant, error) {
-	var grant taskAgentGrant
+func (s *Server) readTaskGrantRecord(digest [32]byte) (persistedTaskGrant, error) {
+	var record persistedTaskGrant
 	path := taskGrantPath(digest)
 	info, err := os.Lstat(path)
 	if err != nil {
-		return grant, err
+		return record, err
 	}
 	if !info.Mode().IsRegular() || info.Size() > 16000 {
-		return grant, errors.New("Invalid persisted session grant")
+		return record, errors.New("Invalid persisted session grant")
 	}
 	encrypted, err := os.ReadFile(path)
 	if err != nil {
-		return grant, err
+		return record, err
 	}
 	raw, err := crypto.Decrypt(string(encrypted), s.cfg.AuthSecret)
 	if err != nil {
-		return grant, err
+		return record, err
 	}
-	var record persistedTaskGrant
-	if json.Unmarshal([]byte(raw), &record) != nil || record.Digest != hex.EncodeToString(digest[:]) || record.TaskID == "" || record.AttemptID == "" || record.AgentID == "" || record.Expires.Before(time.Now()) {
+	if json.Unmarshal([]byte(raw), &record) != nil || record.Digest != hex.EncodeToString(digest[:]) || record.TaskID == "" || record.AttemptID == "" || record.AgentID == "" || record.Expires.IsZero() {
+		return record, errors.New("Invalid persisted session grant")
+	}
+	return record, nil
+}
+
+func (s *Server) loadTaskGrant(digest [32]byte) (taskAgentGrant, error) {
+	var grant taskAgentGrant
+	record, err := s.readTaskGrantRecord(digest)
+	if err != nil || record.Expires.Before(time.Now()) {
 		return grant, errors.New("Invalid persisted session grant")
 	}
 	grant = taskAgentGrant{TaskID: record.TaskID, AttemptID: record.AttemptID, AgentID: record.AgentID, Expires: record.Expires}
@@ -89,9 +101,28 @@ func (s *Server) loadTaskGrant(digest [32]byte) (taskAgentGrant, error) {
 			return taskAgentGrant{}, err
 		}
 	}
+	if record.EvidenceDirectory != "" {
+		info, err := os.Lstat(record.EvidenceDirectory)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			if grant.ArtifactRoot != nil {
+				grant.ArtifactRoot.Close()
+			}
+			return taskAgentGrant{}, errors.New("Task evidence directory unavailable")
+		}
+		grant.EvidenceRoot, err = os.OpenRoot(record.EvidenceDirectory)
+		if err != nil {
+			if grant.ArtifactRoot != nil {
+				grant.ArtifactRoot.Close()
+			}
+			return taskAgentGrant{}, err
+		}
+	}
 	if actual, loaded := s.taskAgentGrants.LoadOrStore(digest, grant); loaded {
 		if grant.ArtifactRoot != nil {
 			grant.ArtifactRoot.Close()
+		}
+		if grant.EvidenceRoot != nil {
+			grant.EvidenceRoot.Close()
 		}
 		return actual.(taskAgentGrant), nil
 	}
