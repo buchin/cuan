@@ -53,6 +53,24 @@ func TestDocumentationVerificationIncludesCommittedAndUntrackedFiles(t *testing.
 		t.Fatalf("mixed code bypassed project verifier: %+v", result)
 	}
 }
+
+func TestDocumentationVerificationUsesBoundBaseline(t *testing.T) {
+	root := documentationFixture(t)
+	cmd := exec.Command("git", "update-ref", "refs/remotes/cuan-base/dev", "HEAD")
+	cmd.Dir = root
+	if err := cmd.Run(); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(root, "guide.md"), []byte("Approved guide."), 0600)
+	result := verifyDocumentationChanges(context.Background(), root, "refs/remotes/cuan-base/dev")
+	if result == nil || !result.Passed {
+		t.Fatalf("bound baseline not used: %+v", result)
+	}
+	os.WriteFile(filepath.Join(root, "main.go"), []byte("package main"), 0600)
+	if result := verifyDocumentationChanges(context.Background(), root, "refs/remotes/cuan-base/dev"); result != nil {
+		t.Fatalf("code change incorrectly treated as docs: %+v", result)
+	}
+}
 func TestDocumentationVerificationRejectsEmptyOrSymlinkFiles(t *testing.T) {
 	for _, kind := range []string{"empty", "symlink", "invalid"} {
 		t.Run(kind, func(t *testing.T) {

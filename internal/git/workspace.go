@@ -24,6 +24,7 @@ var (
 
 // TaskWorkspace represents an isolated git checkout dedicated to a specific task.
 type TaskWorkspace struct {
+	BaseRef       string `json:"base_ref,omitempty"`
 	TaskID        string `json:"task_id"`
 	ProjectID     string `json:"project_id"`
 	Path          string `json:"path"`
@@ -98,9 +99,13 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 
 	gitDir := filepath.Join(workspacePath, ".git")
 	if _, err := os.Stat(gitDir); err == nil {
+		ws.BaseRef, err = c.bindWorkspaceBase(ctx, cfg.BaseRepoDir, workspacePath, defaultBranch)
+		if err != nil {
+			return nil, err
+		}
 		// Resume in place. A merge conflict is saved work, never permission to
 		// reset, clean, delete the workspace, or rewind the task branch.
-		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName); err != nil {
+		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseRef); err != nil {
 			return nil, err
 		}
 		if err := c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail); err != nil {
@@ -153,7 +158,12 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	}
 
 	// Recover an existing local/remote task branch before creating a new one.
-	if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName); err != nil {
+	baseRef, err := c.bindWorkspaceBase(ctx, cfg.BaseRepoDir, workspacePath, defaultBranch)
+	if err != nil {
+		return nil, err
+	}
+	ws.BaseRef = baseRef
+	if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseRef); err != nil {
 		return nil, err
 	}
 
@@ -173,7 +183,7 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 }
 
 // checkoutRetainedTaskBranch never rewinds an existing branch or discards files.
-func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch string) error {
+func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch, baseRef string) error {
 	current, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD").Output()
 	if err == nil && strings.TrimSpace(string(current)) == branch {
 		return nil // Also preserve an in-progress merge/index on this branch.
@@ -194,12 +204,49 @@ func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch str
 				return errors.New("retained task branch could not be verified; saved files were preserved")
 			}
 			args = append(args, "-b", branch)
+			if baseRef != "" {
+				args = append(args, baseRef)
+			}
 		}
 	}
 	if err := exec.CommandContext(ctx, c.gitBinary, args...).Run(); err != nil {
 		return errors.New("task branch checkout needs reconciliation; saved files, commits and conflicts were preserved")
 	}
 	return nil
+}
+
+// Import the selected cache ref without changing its working tree or the
+// retained task branch. A local clone's HEAD need not be the selected branch.
+func (c *Client) bindWorkspaceBase(ctx context.Context, source, destination, branch string) (string, error) {
+	var err error
+	destination, err = filepath.Abs(destination)
+	if err != nil {
+		return "", err
+	}
+	if source == "" {
+		source = destination
+	}
+	source, err = filepath.Abs(source)
+	if err != nil {
+		return "", err
+	}
+	for _, ref := range []string{"refs/remotes/origin/" + branch, "refs/heads/" + branch} {
+		if exec.CommandContext(ctx, c.gitBinary, "-C", source, "rev-parse", "--verify", "--end-of-options", ref+"^{commit}").Run() != nil {
+			continue
+		}
+		bound := "refs/remotes/cuan-base/" + branch
+		if exec.CommandContext(ctx, c.gitBinary, "-C", destination, "fetch", "--no-tags", "--no-write-fetch-head", "--", source, "+"+ref+":"+bound).Run() != nil {
+			return "", errors.New("current project base could not be read; retained task files were preserved")
+		}
+		return bound, nil
+	}
+	if source != destination {
+		return c.bindWorkspaceBase(ctx, "", destination, branch)
+	}
+	if exec.CommandContext(ctx, c.gitBinary, "-C", destination, "rev-parse", "--verify", "HEAD^{commit}").Run() == nil {
+		return "", errors.New("selected project base branch is unavailable; retained task files were preserved")
+	}
+	return "", nil // Empty/new repositories retain their initial branch behavior.
 }
 
 // configureWorkspaceGitIdentity sets user.name and user.email in local repository config.
@@ -406,6 +453,11 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 	// Try comparing baseBranch...HEAD
 	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "diff", "--stat", baseBranch+"...HEAD")
 	out, err := cmd.Output()
+	// A bound baseline is authoritative, including an empty diff. Never
+	// substitute an unrelated previous commit when no task changes exist.
+	if strings.HasPrefix(baseBranch, "refs/") {
+		return strings.TrimSpace(string(out)), err
+	}
 	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
 		return strings.TrimSpace(string(out)), nil
 	}

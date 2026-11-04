@@ -17,7 +17,11 @@ func verifyDocumentationChanges(ctx context.Context, root, branch string) *verif
 		return nil
 	}
 	base := ""
-	for _, ref := range []string{"refs/remotes/origin/" + branch, "refs/heads/" + branch} {
+	refs := []string{"refs/remotes/origin/" + branch, "refs/heads/" + branch}
+	if strings.HasPrefix(branch, "refs/") {
+		refs = []string{branch}
+	}
+	for _, ref := range refs {
 		cmd := exec.CommandContext(ctx, "git", "rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
 		cmd.Dir = root
 		if output, err := cmd.Output(); err == nil {

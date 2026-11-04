@@ -777,7 +777,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 	policy := executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits)
 	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
-	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir) + policy.Prompt()
+	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir)
+	if ws != nil && ws.BaseRef != "" {
+		prompt += "\n\nCurrent project baseline: " + ws.BaseRef + ". Inspect this ref before relying on retained test commands or earlier code structure. A resumed task may still have older commits and pending edits: reconcile only the approved changes while preserving saved work. Do not replace verification merely to hide failures. This baseline is context, not authorization to expand scope, change repository identity or publish.\n"
+	}
+	prompt += policy.Prompt()
 
 	// Prepare workspace settings & MCP tool configurations for runner session
 	home, _ := os.UserHomeDir()
@@ -953,7 +957,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
 			if compReq.Status == task.AttemptStatusSucceeded {
-				verification, evidence := verifyTaskRepository(ctx, workingDir, claim.DefaultBranch, policy, readOnlyBaseline)
+				verification, evidence := verifyTaskRepository(ctx, workingDir, workspaceComparisonBase(ws, claim.DefaultBranch), policy, readOnlyBaseline)
 				compReq.RepositoryVerification = evidence
 				compReq.TestSummary = verification.Summary
 				if !verification.Passed {

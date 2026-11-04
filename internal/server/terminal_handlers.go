@@ -660,6 +660,15 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 						return
 					}
+					if detail.LatestAttempt != nil && detail.LatestAttempt.ErrorMessage == "Project verification failed" {
+						// A verifier from an old cache must not trap recovery on the
+						// same obsolete baseline. Refresh refs before reserving work;
+						// the retained edits and approved repository binding stay intact.
+						if e = s.projectSvc.RefreshExecutionBase(r.Context(), project); e != nil {
+							respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
+							return
+						}
+					}
 					workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
 					if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) && revision != "" && detail.LatestAttempt != nil {
 						workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), taskID, project)

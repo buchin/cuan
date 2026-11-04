@@ -69,6 +69,25 @@ func TestExecutionWorkspaceFetchesMissingBaseWithoutChangingFiles(t *testing.T) 
 	if string(data) != "fetch\n" {
 		t.Fatal("resumed work fetched or recreated", string(data))
 	}
+	// A real verification failure can request a fresh bound cache ref without
+	// checking out source files or replacing retained task edits.
+	os.WriteFile(filepath.Join(seed, "README"), []byte("new approved baseline"), 0600)
+	run("-C", seed, "commit", "-am", "Update approved base")
+	run("-C", seed, "push", remote, "main")
+	if err := svc.RefreshExecutionBase(context.Background(), response); err != nil {
+		t.Fatal(err)
+	}
+	if got := run("-C", source, "show", "refs/remotes/origin/main:README"); got != "new approved baseline" {
+		t.Fatal("cache stayed stale", got)
+	}
+	data, _ = os.ReadFile(filepath.Join(first, "README"))
+	if string(data) != "retained task edits" {
+		t.Fatal("refresh changed task files")
+	}
+	data, _ = os.ReadFile(filepath.Join(source, "pending.txt"))
+	if string(data) != "retain untracked work" {
+		t.Fatal("refresh changed source files")
+	}
 	response.DefaultBranch = "missing"
 	if _, err = svc.ExecutionWorkspace(context.Background(), "task-missing", response); err == nil || !strings.Contains(err.Error(), "selected version no longer exists") {
 		t.Fatal("missing branch misreported", err)

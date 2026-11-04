@@ -188,6 +188,13 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 }
 
 // detectRepoCodeChanges inspects git status and diff in the workspace to determine if any code changes occurred.
+func workspaceComparisonBase(ws *git.TaskWorkspace, fallback string) string {
+	if ws != nil && ws.BaseRef != "" {
+		return ws.BaseRef
+	}
+	return fallback
+}
+
 func (r *Runner) detectRepoCodeChanges(ctx context.Context, ws *git.TaskWorkspace, defaultBranch string) (bool, string) {
 	if ws == nil || r.gitClient == nil || ws.Path == "" {
 		return false, ""
@@ -199,7 +206,7 @@ func (r *Runner) detectRepoCodeChanges(ctx context.Context, ws *git.TaskWorkspac
 	statusOut, err := cmdStatus.Output()
 	hasUncommitted := err == nil && len(strings.TrimSpace(string(statusOut))) > 0
 
-	diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, defaultBranch)
+	diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, workspaceComparisonBase(ws, defaultBranch))
 	hasCommittedDiff := len(strings.TrimSpace(diffSummary)) > 0
 
 	return (hasUncommitted || hasCommittedDiff), diffSummary
@@ -309,7 +316,7 @@ func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace
 	}
 
 	// 2. Diff summary
-	diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, defaultBranch)
+	diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, workspaceComparisonBase(ws, defaultBranch))
 	compReq.DiffSummary = diffSummary
 	if compReq.TestSummary == "" {
 		compReq.TestSummary = "No project verifier was available; agent report evidence retained."
