@@ -595,6 +595,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			RoomID:  targetRoomID,
 		}
 	}
+	s.diagnoseInboxStorageFailure(ctx, detail, *origin)
 	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {
 		return
 	}

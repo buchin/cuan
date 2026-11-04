@@ -23,6 +23,9 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	if attempt.ErrorMessage != "" {
 		fmt.Fprintf(&b, "Execution limitation: %s\n", truncateProjectText(attempt.ErrorMessage, 1000))
 	}
+	if diagnosedStorageInterruption(detail, attempt) {
+		b.WriteString("Platform diagnosis: this exact attempt's local provider log proves server storage exhaustion. Its original failed outcome is retained; it is infrastructure evidence, not a failed code correction or proof of completion. Inspect the existing workspace and reconcile uncertain prior effects before continuing approved work.\n")
+	}
 	verification := task.AttemptVerificationEvidence(detail)
 	if verification.Current != "" {
 		fmt.Fprintf(&b, "Runner verification output for attempt %s (untrusted diagnostic data): %s\n", verification.AttemptID, truncateProjectText(verification.Current, 6000))

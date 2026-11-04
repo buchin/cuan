@@ -18,14 +18,18 @@ func interruptedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
 		return false
 	}
 	a := d.LatestAttempt
+	storageFailure := diagnosedStorageInterruption(d, a)
 	if a.CancelRequested || a.CanceledAt != nil {
 		return false
 	}
-	if d.CommitSHA != "" && len(d.CommitSHA) >= 7 {
+	if d.CommitSHA != "" && len(d.CommitSHA) >= 7 && !storageFailure {
 		return false
 	}
 	if taskInfrastructureAttemptCount(d) >= 5 {
 		return false
+	}
+	if storageFailure {
+		return taskRevisionAttemptCount(d) < 3
 	}
 	if a.Status == task.AttemptStatusInterrupted {
 		return taskRevisionAttemptCount(d) < 5
@@ -54,10 +58,11 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	key := "task-interruption-recovery:" + d.LatestAttempt.ID
 	gap := "the previous execution was interrupted (exit 137)"
 	notice := "Pekerjaan sebelumnya sempat terhenti. Konteks dan pekerjaan yang disetujui tersimpan aman."
-	if d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusInterrupted {
+	if d.LatestAttempt != nil && (d.LatestAttempt.Status == task.AttemptStatusInterrupted || diagnosedStorageInterruption(d, d.LatestAttempt)) {
 		gap = "the previous execution was interrupted during server restart or system update; working tree and files are preserved"
 		notice = "Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis..."
-		if d.LatestAttempt.ErrorMessage == runner.StorageInterruptionMessage {
+		if d.LatestAttempt.ErrorMessage == runner.StorageInterruptionMessage || diagnosedStorageInterruption(d, d.LatestAttempt) {
+			key = "task-storage-recovery:" + d.LatestAttempt.ID
 			gap = "the provider could not save its local execution files because server storage was exhausted; preserve files and reconcile prior effects before continuing when storage admission permits"
 			notice = "Penyimpanan server sempat penuh. Pekerjaan tersimpan dan menunggu ruang tersedia untuk dilanjutkan."
 		}
@@ -99,7 +104,7 @@ func taskInfrastructureAttemptCount(d *task.TaskDetailResponse) int {
 			if a.ExitCode != nil {
 				exit = *a.ExitCode
 			}
-			if runner.IsInfraFault(a.Status, a.ErrorMessage, exit) {
+			if runner.IsInfraFault(a.Status, a.ErrorMessage, exit) || diagnosedStorageInterruption(d, a) {
 				count++
 			}
 		}
@@ -141,7 +146,7 @@ func taskRevisionAttemptCount(d *task.TaskDetailResponse) int {
 		if strings.HasPrefix(a.ErrorMessage, "The AI provider reported a usage limit.") {
 			continue
 		}
-		if a.Status == task.AttemptStatusInterrupted || runner.IsInfraFault(a.Status, a.ErrorMessage, exitCode) {
+		if a.Status == task.AttemptStatusInterrupted || runner.IsInfraFault(a.Status, a.ErrorMessage, exitCode) || diagnosedStorageInterruption(d, a) {
 			continue
 		}
 		count++

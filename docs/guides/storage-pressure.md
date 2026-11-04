@@ -57,3 +57,33 @@ Verification covers rapid same-day deployment retention with a live process,
 rollback protection, admission boundary values, bounded profile-specific provider
 log classification, a real PTY fixture writing a storage failure, quota and
 ordinary failure preservation, and the independent interruption recovery limit.
+
+## Reconciling historical opaque exits
+
+For an owner-authorized blocked task whose latest attempt failed with exit 2,
+Cuan can inspect that owner's provider profiles for a matching historical CLI
+process. Eligibility requires recorded start/end times within the last seven
+days. Candidate filenames must match the local execution start window (two
+seconds before to thirty seconds after start); at most twenty matching files per
+profile are inspected. The native workspace header must name the exact task
+workspace twice as passed to AGY, and the final file modification must fall
+within the attempt through five seconds after completion. Only the existing
+bounded local-profile ENOSPC detector can establish the cause.
+
+Cuan saves one `execution_diagnosis` activity per attempt, including a negative
+result to avoid repeated disk scans. A positive receipt binds the original
+instructions hash, start/end times, attempt/task IDs, platform author and evidence
+SHA-256. Raw provider logs, profile paths and credentials are not published. The
+original failed attempt and exit code remain unchanged.
+
+A valid diagnosis removes that infrastructure failure from the code correction
+count and includes it in the separate infrastructure count. It does not reset
+any budget or invent a successful result. Existing commits remain saved work,
+not grounds to discard it or to claim deployment. Cuan may queue one idempotent
+continuation of the same task only while the original approval remains valid,
+code correction count is below three, infrastructure count is below five, and
+normal cancellation, project concurrency, storage and publication guards permit
+it. The continuation must inspect saved files and reconcile uncertain effects.
+Unmatched logs, another owner's profile, changed instructions, invalid receipts
+or cancellation cannot authorize recovery. Other opaque exit codes and timeouts
+are not automatically reclassified by this mechanism.
