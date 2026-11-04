@@ -293,3 +293,32 @@ system messages, foreign owners, future messages and canceled requests. Memory
 and isolated PostgreSQL contracts cover stale observations, changed scope, newer
 intent, expiration and consumed receipts. These tests prove this recovery path,
 not general autonomous backlog management or deployment evidence correctness.
+
+Production automatically consumed the workspace recovery receipt and reserved a
+new attempt for the original audit task, without an owner continuation or status
+write from this session. Final verified outcome is still pending. The initial
+release check incorrectly expected migration32 after applying33 and rolled back;
+services remained active on the previous application release. Updated activation
+schema expectation and its existing safety tests, then successfully reactivated
+release27a7683 with healthy33-migration readiness. The deployment entrypoint now
+runs activation safety tests before building/transferring so this mismatch fails
+before production mutation. Do not interpret successful activation as completion
+of the audit task or the overall autonomy goal.
+
+## Separate customer reply attachment
+
+Customer reply drafts are now separate attachments below the internal report,
+with one preview, an internal visibility marker and a footer action. The footer
+has no extra vertical padding; the button retains44px touch height. Using a draft
+loads the public reply composer without sending. Extraction preserves trailing
+internal task links in the owner report but excludes them from the visitor draft,
+and retains subsequent sections. Stored messages are unchanged. Navbar unread
+counts are explicitly exempted from the global square-corner CSS rule.
+
+Focused parser/privacy regressions and the real frontend fixture pass. The
+fixture verifies one draft preview outside the bubble, footer geometry, public
+composer loading and circular single-digit unread badge. Mobile390px dark and
+desktop1440px light screenshots were rendered and visually inspected under
+`/home/dev/reports/cuan-pm-recovery/reply-draft/`; light/dark combinations pass.
+Deployment proof validation remains separate unfinished work: this presentation
+change does not validate historical claims in generated reports or draft text.

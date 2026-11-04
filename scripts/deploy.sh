@@ -90,6 +90,9 @@ if [ ! -d "web/dist" ] && [ -d "/opt/cuan/current/web/dist" ]; then
   cp -a /opt/cuan/current/web/dist web/
 fi
 
+echo "==> Checking release activation safety..."
+python3 scripts/test-activate-release.py
+
 echo "==> Running frontend test gate..."
 npm test --prefix web
 
