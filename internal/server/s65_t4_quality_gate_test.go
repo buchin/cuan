@@ -160,7 +160,7 @@ func TestQualityGate_DualPath_CodeFixRequiresLiveDeploy(t *testing.T) {
 	hasCodeChanges := true
 	requiresDeploy := true
 	diffSummary := "modified: internal/cart/checkout.go (+12, -4)"
-	commitSHA := "abcdef123456"
+	commitSHA := strings.Repeat("a", 40)
 
 	reqFail := runner.CompleteAttemptRequest{
 		RunnerID:                "cuan-runner-1",
@@ -216,6 +216,10 @@ func TestQualityGate_DualPath_CodeFixRequiresLiveDeploy(t *testing.T) {
 		LiveDeploymentConfirmed: true, // Deployed live and verified!
 	}
 
+	receipt, _ := json.Marshal(task.DeploymentReceipt{Version: 1, TaskID: codeTask.ID, AttemptID: attCode2.ID, CommitSHA: commitSHA, ReleaseSHA: commitSHA, Environment: "production", Health: "healthy"})
+	if err := s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(codeTask.ID, attCode2.ID, commitSHA), TaskID: codeTask.ID, AttemptID: &attCode2.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(receipt), CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
 	completedAttSuccess, err := runnerSvc.Complete(ctx, attCode2.ID, reqSuccess)
 	if err != nil {
 		t.Fatalf("CompleteAttempt unexpected error: %v", err)

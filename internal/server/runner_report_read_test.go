@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/buchin/cuan/internal/task"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunnerReportReadRequiresBoundActiveAttemptAndOmitsInstructions(t *testing.T) {
@@ -31,6 +33,11 @@ func TestRunnerReportReadRequiresBoundActiveAttemptAndOmitsInstructions(t *testi
 	if _, err = s.taskSvc.ReportAgent(ctx, d.ID, a.ID, "agent", task.AgentReport{State: "review", Summary: &summary, CompleteNote: &note}); err != nil {
 		t.Fatal(err)
 	}
+	commit := strings.Repeat("a", 40)
+	payload, _ := json.Marshal(map[string]any{"version": 1, "task_id": d.ID, "attempt_id": a.ID, "commit_sha": commit, "release_sha": commit, "environment": "production", "health": "healthy", "private_extra": "private-environment-do-not-return"})
+	if err := s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(d.ID, a.ID, commit), TaskID: d.ID, AttemptID: &a.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(payload), CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
 	path := "/api/v1/runner/attempts/" + a.ID + "/report?task_id=" + d.ID + "&runner_id="
 	for _, tc := range []struct {
 		runner, auth string
@@ -50,6 +57,18 @@ func TestRunnerReportReadRequiresBoundActiveAttemptAndOmitsInstructions(t *testi
 		}
 		if tc.code == 200 && !strings.Contains(rec.Body.String(), note) {
 			t.Fatal("native evidence absent")
+		}
+		if tc.code == 200 {
+			var response struct {
+				Activities []*task.TaskActivity `json:"activities"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			detail, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+			if err != nil || !task.VerifiedDeployment(response.Activities, detail.LatestAttempt, commit, time.Now().UTC()) {
+				t.Fatal("bound receipt omitted from runner recovery")
+			}
 		}
 	}
 	if _, err = s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusSucceeded}); err != nil {

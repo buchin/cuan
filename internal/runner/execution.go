@@ -125,11 +125,11 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 	return false
 }
 
-func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse, hasCodeChanges ...bool) (bool, string) {
+func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse, hasCodeChanges bool, expectedCommit string) (bool, string) {
 	if !claim.AutoDeploy {
 		return true, ""
 	}
-	if claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" {
+	if claim.Task == nil || claim.Attempt == nil || claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" {
 		return false, "Kepatuhan auto_deploy: sesi task tidak memiliki kapabilitas agent untuk memvalidasi deployment live"
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, claim.TaskAgent.API, nil)
@@ -141,19 +141,22 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 	if err != nil {
 		return false, "Kepatuhan auto_deploy: gagal mengakses API task: " + err.Error()
 	}
+	if (response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden) && r.cfg.RunnerToken != "" {
+		response.Body.Close()
+		query := url.Values{"task_id": {claim.Task.ID}, "runner_id": {r.cfg.RunnerID}}
+		response, err = r.doRequest(ctx, http.MethodGet, "/api/v1/runner/attempts/"+url.PathEscape(claim.Attempt.ID)+"/report?"+query.Encode(), nil)
+		if err != nil {
+			return false, "Kepatuhan auto_deploy: attempt report is unavailable"
+		}
+	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		return false, fmt.Sprintf("Kepatuhan auto_deploy: API task mengembalikan status %d", response.StatusCode)
 	}
 	var snapshot struct {
-		Status       string `json:"status"`
-		Summary      string `json:"summary"`
-		CompleteNote string `json:"complete_note"`
-		Activities   []struct {
-			ActivityType string `json:"activity_type"`
-			NewStatus    string `json:"new_status"`
-			Message      string `json:"message"`
-		} `json:"activities"`
+		Summary      string               `json:"summary"`
+		CompleteNote string               `json:"complete_note"`
+		Activities   []*task.TaskActivity `json:"activities"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
 		return false, "Kepatuhan auto_deploy: gagal decode snapshot task: " + err.Error()
@@ -162,27 +165,15 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 	// Smart Compliance Gate: If there are NO code modifications in the repo
 	// (investigation, RCA, data clarification, third-party outage),
 	// allow completion without enforcing fake live deployment.
-	if len(hasCodeChanges) > 0 && !hasCodeChanges[0] {
+	if !hasCodeChanges {
 		if strings.TrimSpace(snapshot.Summary) == "" && strings.TrimSpace(snapshot.CompleteNote) == "" {
 			return false, "Kepatuhan investigasi: tugas investigasi wajib menyertakan ringkasan temuan dan draf solusi"
 		}
 		return true, ""
 	}
 
-	combined := strings.ToLower(snapshot.CompleteNote + " " + snapshot.Summary)
-	hasDeployProof := (strings.Contains(combined, "deploy") || strings.Contains(combined, "rilis") || strings.Contains(combined, "release")) &&
-		(strings.Contains(combined, "live") || strings.Contains(combined, "production") || strings.Contains(combined, "healthz") || strings.Contains(combined, "smoke"))
-
-	for _, a := range snapshot.Activities {
-		msg := strings.ToLower(a.Message)
-		if strings.Contains(msg, "auto_deploy") || strings.Contains(msg, "live deployment") || strings.Contains(msg, "release") {
-			hasDeployProof = true
-			break
-		}
-	}
-
-	if !hasDeployProof {
-		return false, "Kepatuhan auto_deploy: runner wajib memastikan perubahan kode telah di-deploy dan terverifikasi live di production sebelum menyatakan task selesai; commit/push lokal saja tidak memenuhi syarat"
+	if !task.VerifiedDeployment(snapshot.Activities, claim.Attempt, expectedCommit, time.Now().UTC()) {
+		return false, "Kepatuhan auto_deploy: verified production deployment receipt is missing for this exact task, attempt and repository commit; report text is not deployment evidence"
 	}
 	return true, ""
 }

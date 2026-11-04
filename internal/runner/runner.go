@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -975,16 +976,23 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				}
 
 				if requiresDeploy {
-					deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true)
+					commit, commitErr := r.gitClient.GetLatestCommitSHA(ctx, workingDir)
+					clean, cleanErr := exec.CommandContext(ctx, "git", "-C", workingDir, "status", "--porcelain", "--untracked-files=normal").Output()
+					deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true, commit)
+					if commitErr != nil || cleanErr != nil || len(bytes.TrimSpace(clean)) != 0 {
+						deployed = false
+						errNote = "Kepatuhan auto_deploy: deployment evidence must match the committed repository state; uncommitted files are preserved for continuation"
+					}
 					if !deployed {
 						compReq.Status = task.AttemptStatusFailed
 						compReq.ErrorMessage = errNote
 					} else {
+						compReq.CommitSHA = commit
 						compReq.LiveDeploymentConfirmed = true
 					}
 				} else {
 					// Non-code or investigation tasks pass compliance without forcing fake live deploy
-					passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false)
+					passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false, "")
 					if !passed {
 						compReq.Status = task.AttemptStatusFailed
 						compReq.ErrorMessage = errNote

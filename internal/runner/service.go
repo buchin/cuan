@@ -370,15 +370,23 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 						requiresDeploy = false
 					}
 				}
+				// A caller's exemption cannot override observed code changes.
+				if isCodeLane && req.HasCodeChanges != nil && *req.HasCodeChanges {
+					requiresDeploy = true
+				}
 
 				limits, policyErr := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
 				if policyErr != nil {
 					return nil, policyErr
 				}
 				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy {
-					if !req.LiveDeploymentConfirmed {
+					activities, receiptErr := s.taskStore.ListActivities(ctx, att.TaskID)
+					if receiptErr != nil {
+						return nil, receiptErr
+					}
+					if !req.LiveDeploymentConfirmed || !task.VerifiedDeployment(activities, att, req.CommitSHA, now) {
 						status = task.AttemptStatusFailed
-						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"
+						att.ErrorMessage = "Kepatuhan auto_deploy: verified production deployment receipt is required for the exact task, attempt and commit; commit/push and report claims alone do not satisfy acceptance"
 					}
 				}
 			}

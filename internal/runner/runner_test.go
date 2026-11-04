@@ -353,14 +353,18 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 	_ = taskStore.CreateAttempt(ctx, att)
 
 	// Attempt completed as Succeeded without live deployment evidence
+	changed, exempt := true, false
 	req := CompleteAttemptRequest{
-		RunnerID:             "runner_1",
-		Status:               task.AttemptStatusSucceeded,
-		ExitCode:             0,
-		AgentReportConfirmed: true,
-		AgentReportRequired:  true,
-		CommitSHA:            "abc1234",
-		BranchName:           "cuan/task-ad1",
+		RunnerID:                "runner_1",
+		Status:                  task.AttemptStatusSucceeded,
+		ExitCode:                0,
+		AgentReportConfirmed:    true,
+		AgentReportRequired:     true,
+		CommitSHA:               "abc1234",
+		BranchName:              "cuan/task-ad1",
+		HasCodeChanges:          &changed,
+		RequiresDeploy:          &exempt,
+		LiveDeploymentConfirmed: true,
 	}
 	completedAtt, err := svc.Complete(ctx, att.ID, req)
 	if err != nil {
@@ -379,8 +383,9 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 	taskStore.UpdateTask(ctx, tk)
 	att2 := &task.TaskAttempt{
 		ID: "att_ad_2", RunnerID: "runner_1",
-		TaskID: tk.ID,
-		Status: task.AttemptStatusRunning,
+		TaskID:    tk.ID,
+		Status:    task.AttemptStatusRunning,
+		CreatedAt: time.Now(),
 	}
 	_ = taskStore.CreateAttempt(ctx, att2)
 	req2 := CompleteAttemptRequest{
@@ -389,9 +394,13 @@ func TestRunner_AutoDeployEnforcement(t *testing.T) {
 		ExitCode:                0,
 		AgentReportConfirmed:    true,
 		AgentReportRequired:     true,
-		CommitSHA:               "abc1234",
+		CommitSHA:               strings.Repeat("a", 40),
 		BranchName:              "cuan/task-ad1",
 		LiveDeploymentConfirmed: true,
+	}
+	receipt, _ := json.Marshal(task.DeploymentReceipt{Version: 1, TaskID: tk.ID, AttemptID: att2.ID, CommitSHA: req2.CommitSHA, ReleaseSHA: req2.CommitSHA, Environment: "production", Health: "healthy"})
+	if err := taskStore.CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(tk.ID, att2.ID, req2.CommitSHA), TaskID: tk.ID, AttemptID: &att2.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(receipt), CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
 	}
 	completedAtt2, err := svc.Complete(ctx, att2.ID, req2)
 	if err != nil {
