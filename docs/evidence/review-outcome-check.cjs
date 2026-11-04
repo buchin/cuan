@@ -5,6 +5,7 @@ const fs=require('fs'),http=require('http'),path=require('path'),assert=require(
 const out=process.env.CUAN_REVIEW_EVIDENCE_DIR||'/home/dev/reports/cuan-pm-recovery/review-outcome',now=new Date().toISOString()
 const finding=process.env.CUAN_REVIEW_FINDING||''
 const verifying=process.env.CUAN_REVIEW_VERIFYING==='1'
+const recovered=process.env.CUAN_REVIEW_RECOVERED_FILES==='1'
 const stopped=verifying?'Cuan menyiapkan verifikasi tambahan pada hasil yang sama.':'Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.'
 const outcome=[finding,stopped].filter(Boolean).join('\n\n')
 Object.assign(task,{title:'Perbaiki navigasi',summary:'Verifikasi belum selesai.',status:verifying?'queued':'blocked',source_message_id:'reply',launch:{state:verifying?'queued':'stopped'},latest_attempt:{id:'attempt',status:finding?'succeeded':'failed'}})
@@ -12,9 +13,11 @@ const contact={id:'fixture',type:'agent',agent_id:'agent_cuan',agent_name:'@cuan
 let browser,server
 async function api(route){
  const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
+ if(recovered&&p.startsWith('/api/v1/chat/attachments/'))return route.fulfill({contentType:p.endsWith('inspection.md')?'text/markdown':'image/png',body:p.endsWith('inspection.md')?'Saved output; independent review pending.':fs.readFileSync('docs/evidence/attachments/studio-light-390.png')})
  if(p==='/api/v1/chat/contacts')return json({contacts:[contact]})
  if(/^\/api\/v1\/chat\/conversations\/fixture-room\/(messages|events)$/.test(p)){
   const body={conversation_id:'fixture-room',room_id:'fixture-room',contact,tasks:[task],requests:[],messages:[{id:1,uuid:'user',author_type:'user',sender_type:'visitor',content:'Perbaiki navigasi yang sudah disetujui.',created_at:now},{id:2,uuid:'reply',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:outcome+'\n\n[View work](/tasks/msg_reply)',created_at:now}]}
+  if(recovered)body.messages.push({id:3,uuid:'recovered-files',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'Files from this work session',created_at:now,attachments:[{id:'mobile',name:'mobile.png',size:92402,type:'image/png',url:'/api/v1/chat/attachments/mobile.png'},{id:'desktop',name:'desktop.png',size:77597,type:'image/png',url:'/api/v1/chat/attachments/desktop.png'},{id:'inspection',name:'inspection.md',size:2885,type:'text/markdown',url:'/api/v1/chat/attachments/inspection.md'}]})
   return p.endsWith('/events')?route.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: '+JSON.stringify(body)+'\n\n'}):json(body)
  }
  return routeAPI(route)
@@ -35,6 +38,7 @@ async function api(route){
   await page.locator('[data-card=task-card]').first().waitFor()
   assert.equal(await page.getByText(/akan melanjutkan|I will continue/).count(),0)
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
+  if(recovered)await page.getByText('inspection.md',{exact:true}).last().scrollIntoViewIfNeeded()
   await page.screenshot({path:`${out}/blocked-review-${width}.png`})
   await context.close()
  }

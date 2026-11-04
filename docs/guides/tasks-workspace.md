@@ -331,3 +331,27 @@ task/source commit, retains the ten-minute bound and cannot chain. The new worke
 must reproduce the exact runtime fingerprint before execution, and backend
 completion rejects missing runtime evidence. Original approval, cancellation,
 project lane ordering and publication requirements remain unchanged.
+
+### Outputs saved before a verification timeout
+
+A failed verification process does not discard its session output files. For an
+attempt-bound verification timeout, Cuan recovers up to eight regular files from
+the dedicated session evidence root, using the existing private-key, hidden-file,
+10 MB/file and 25 MB/total delivery restrictions. It never scans the repository
+for arbitrary files, follows output directory symlinks or guesses a task from a
+`/tmp` directory name. Encrypted grant records preserve exact ownership across
+server restarts.
+
+Recovered files are delivered as **unreviewed** evidence. The worker's failed
+status, absent final report and missing scope verification remain visible; file
+recovery cannot accept the task or start another execution. A durable receipt
+updates the review evidence digest so a previous review cannot silently ignore
+newly recovered outputs. Review sees actual image dimensions and bounded text
+excerpts, separately from historical reports and current execution checks.
+
+Inbox update polling selects raw managed-task candidates before loading detailed
+review context. Accepted task history with execution attempts is excluded. Owner
+completion without an attempt, with saved summary and verification, remains
+eligible for its existing result notice; cancellation notices remain eligible.
+The polling path does not construct board result classifications, project names
+or live progress for thousands of accepted tasks.

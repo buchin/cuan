@@ -293,7 +293,7 @@ esac
 		}
 	}
 	prompt, _ := os.ReadFile(filepath.Join(home, "delegation-prompts"))
-	for _, text := range []string{humanPrompt, "reported_verification", "Do not use tools"} {
+	for _, text := range []string{humanPrompt, "reported_verification", "Without delivered_images, do not use any tools."} {
 		if !strings.Contains(string(prompt), text) {
 			t.Fatal("missing relevant context", text)
 		}

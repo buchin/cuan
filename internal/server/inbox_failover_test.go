@@ -422,7 +422,7 @@ func TestInboxUsesSameAccountWhileAnotherSessionRuns(t *testing.T) {
 			proof = true
 		}
 	})
-	if output != "" || !strings.Contains(failure, "session slots") || strings.Contains(failure, "quota") || !proof {
+	if output != "" || failure != inboxQuotaNoBackup || strings.Contains(failure, "quota") || !proof {
 		t.Fatal("capacity misreported as quota", output, failure, proof)
 	}
 	second()

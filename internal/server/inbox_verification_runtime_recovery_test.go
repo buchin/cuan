@@ -92,7 +92,7 @@ func verificationRuntimeRecoveryContract(t *testing.T, s *Server, d *task.TaskDe
 		d.Status = "cancelled"
 	}
 	outcome, scheduled := s.startVerificationFollowup(ctx, q, d, assessment)
-	want := scenario == "ready" || scenario == "missing completion evidence"
+	want := scenario == "ready" || scenario == "missing completion evidence" || scenario == "timeout"
 	if scheduled != want {
 		t.Fatalf("scheduled=%v want=%v outcome=%s", scheduled, want, outcome)
 	}
@@ -131,6 +131,11 @@ func verificationRuntimeRecoveryContract(t *testing.T, s *Server, d *task.TaskDe
 		t.Fatal("recovery claim invalid", err)
 	}
 	req := runner.CompleteAttemptRequest{RunnerID: d.LatestAttempt.RunnerID, Status: task.AttemptStatusSucceeded, VerifiedSourceCommit: d.CommitSHA, VerificationRuntimeFingerprint: runtime.Fingerprint, AgentReportRequired: true, AgentReportConfirmed: true, RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("b", 64), Final: strings.Repeat("b", 64)}}
+	if scenario == "timeout" {
+		req.Status = task.AttemptStatusFailed
+		req.ExitCode = 124
+		req.ErrorMessage = "Execution timed out"
+	}
 	if scenario == "missing completion evidence" {
 		req.VerificationRuntimeFingerprint = ""
 	}
@@ -139,7 +144,7 @@ func verificationRuntimeRecoveryContract(t *testing.T, s *Server, d *task.TaskDe
 		t.Fatal(err)
 	}
 	expected := task.AttemptStatusSucceeded
-	if scenario == "missing completion evidence" {
+	if scenario == "missing completion evidence" || scenario == "timeout" {
 		expected = task.AttemptStatusFailed
 	}
 	if completed.Status != expected {

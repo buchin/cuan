@@ -446,7 +446,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	}
 	s.recoverPhaseHandoffs(ctx)
 	s.reconcileVisualAcceptances(ctx)
-	items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+	items, err := s.taskSvc.InboxDeliveryTasks(ctx)
 	if err != nil {
 		return
 	}
@@ -457,10 +457,13 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		if item.SourceRoomID == "" || !strings.HasPrefix(item.Instructions, "Cuan managed delegation v1.\n") {
 			continue
 		}
-		if item.Status == task.TaskStatusDone && item.LatestAttempt != nil {
+		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
 			continue
 		}
-		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		if err == nil {
+			s.recoverTerminalVerificationArtifacts(ctx, detail)
+		}
 		if err == nil {
 			if launch, e := s.taskSvc.LatestLaunch(ctx, item.ID); e == nil && launch != nil && (launch.State == "stopped" || launch.State == "cancelled") {
 				if s.recoverUnstartedInboxTask(ctx, detail, *launch) {
