@@ -28,7 +28,7 @@ test('2. InboxView renders AttachmentPreviews for customer contacts', () => {
     'AttachmentPreviews must not be restricted to agent contacts only'
   )
   assert.ok(
-    inboxViewSrc.includes('<AttachmentPreviews uploads={uploads} disabled={sending} />'),
+    /<AttachmentPreviews\b[^>]*uploads=\{uploads\}[^>]*disabled=\{sending\}/.test(inboxViewSrc),
     'InboxView must render AttachmentPreviews above the input capsule'
   )
 })

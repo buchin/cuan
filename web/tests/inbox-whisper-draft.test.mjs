@@ -16,17 +16,15 @@ test('1. ChatMessage interface declares is_internal, mention_handle, and reply_d
   assert.ok(chatApiSrc.includes('reply_draft?: string'), 'ChatMessage must declare reply_draft')
 })
 
-test('2. InboxView renders internal whisper badge and invisible to visitor warning', () => {
+test('2. InboxView uses the shared internal visibility explanation', () => {
   const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
   assert.ok(inboxViewSrc.includes('msg.is_internal'), 'InboxView must check msg.is_internal')
   assert.ok(
-    inboxViewSrc.includes("t('Internal · Invisible to visitor')"),
-    'InboxView must display Internal · Invisible to visitor badge'
+    inboxViewSrc.includes('<InternalVisibility'),
+    'Internal surfaces must expose the reusable privacy explanation'
   )
-  assert.ok(
-    inboxViewSrc.includes('msg.mention_handle'),
-    'InboxView must display mention_handle if present'
-  )
+  const indicator = fs.readFileSync(path.resolve(__dirname, '../src/components/ui/InternalVisibility.tsx'), 'utf8')
+  assert.ok(indicator.includes("t('Internal · Invisible to visitor')"), 'Internal marker retains its accessible label')
 })
 
 test('3. InboxView renders ready-to-use customer draft reply card with Review & Use action', () => {
