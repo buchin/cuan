@@ -29,8 +29,13 @@ type Project struct {
 }
 
 type TaskProgress struct {
-	Total int `json:"total"`
-	Done  int `json:"done"`
+	Active   int `json:"active"`
+	Queued   int `json:"queued"`
+	Review   int `json:"review"`
+	Blocked  int `json:"blocked"`
+	Canceled int `json:"canceled"`
+	Total    int `json:"total"`
+	Done     int `json:"done"`
 }
 
 type ProjectResponse struct {

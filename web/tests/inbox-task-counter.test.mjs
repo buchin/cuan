@@ -108,8 +108,8 @@ test('3. S59-T6: Active work micro-indicator retains accessible attributes', () 
 
 test('4. InboxView synchronizes activeContact task counts and triggers refresh on task creation', () => {
   assert.ok(
-    inboxViewSource.includes('activeContact.task_count = data.tasks.length'),
-    'InboxView must sync task_count onto activeContact when loading conversation'
+    inboxViewSource.includes('activeContact.task_count = total') && inboxViewSource.includes("count('task_count', data.tasks.length)") && inboxViewSource.includes('const summary = data.contact'),
+    'InboxView must prefer server task counts, retaining a fallback for older snapshots'
   )
   assert.ok(
     inboxViewSource.includes('activeContact.review_tasks = rt'),

@@ -487,3 +487,24 @@ body:has(.task-terminal-container),
 [data-status-dot="success"], [data-status-dot="healthy"] { background-color: var(--status-success); }
 [data-status-dot="warning"] { background-color: var(--status-warning); }
 [data-status-dot] > span { background-color: inherit; }
+
+/* Inbox row actions remain available to pointer hover, keyboard and long press. */
+[data-item-actions-quiet] .item-menu-quiet {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+[data-item-actions-quiet]:has(:focus-visible) .item-menu-quiet {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  background: oklch(var(--background));
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-item-actions-quiet]:hover .item-menu-quiet {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    background: oklch(var(--background));
+  }
+}

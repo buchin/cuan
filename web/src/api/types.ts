@@ -19,7 +19,7 @@ export interface LoginResponse {
 export type ProjectType = 'custom' | 'blog' | 'youtube' | 'olshop' | 'affiliate' | 'saas' | 'blank'
 
 export interface Project {
-  task_progress?: { total: number; done: number }
+  task_progress?: { total: number; done: number; active?: number; queued?: number; review?: number; blocked?: number; canceled?: number }
   id: string
   name: string
   repo_url: string

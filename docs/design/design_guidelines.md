@@ -315,3 +315,14 @@ pertama per rangkaian pengirim yang sama; warna mengikuti permukaan, tanpa garis
 atau bayangan tambahan. Pergantian hari/pengirim, visibilitas internal, atau jeda
 lima menit memulai rangkaian baru. Preview task/file bukan bubble ucapan dan tidak
 mendapat ekor. Bentuk umum komponen mengikuti tema yang sudah ada.
+
+Penyempurnaan yang disetujui: sembunyikan pie pada progres0%; Inbox juga tidak
+menampilkan pie untuk satu task. Penanda **Perlu perhatian**, working, dan review
+aktual tetap terlihat. Tugas dibatalkan tidak dihitung sebagai review hanya karena
+status penyimpanan hasil parsial masih review. Semua pekerjaan tersisa selesai
+dengan pembatalan memakai lingkaran penuh netral; centang hijau berarti selesai
+tanpa pembatalan. Pie dapat diketuk/di-hover untuk rincian angka, dengan target44px,
+ikon16px, dan kontrol yang terpisah dari tombol/link pembuka percakapan/project.
+Menu titik tiga daftar Inbox tampil on-demand melalui hover, tekan lama, atau
+keyboard. Cuplikan laporan sistem menggunakan bahasa singkat dan kondisi terkini;
+pesan asli dan rincian laporan tetap utuh di dalam percakapan.

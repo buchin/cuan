@@ -14,10 +14,22 @@ type taskCounts struct{ Total, Active, Queued, Done, Failed, Review, Canceled in
 type scopedTaskCounts struct{ Rooms, Projects map[string]taskCounts }
 
 // One grouped query, independent of task-list pagination. Never reads instructions,
-// outputs, attempts or logs. Modern execution records supersede mirrored old rows.
+// outputs or logs. Only the latest attempt/launch status is read; modern records
+// supersede mirrored old rows, including canceled work saved in review.
 const taskCountsSQL = `
 WITH canonical AS (
- SELECT id, project_id, source_room_id::text AS room_id, lower(btrim(status)) AS status FROM tasks
+ SELECT t.id, t.project_id, t.source_room_id::text AS room_id,
+ CASE
+ WHEN lower(btrim(t.status)) = 'done' THEN 'done'
+ WHEN l.state IN ('queued','claimed') THEN 'queued'
+ WHEN a.status = 'running' THEN 'doing'
+ WHEN a.status = 'queued' THEN 'queued'
+ WHEN a.status IN ('canceled','cancelled') OR l.state = 'cancelled' THEN 'canceled'
+ WHEN a.status IN ('failed','interrupted') OR l.state = 'stopped' THEN 'blocked'
+ ELSE lower(btrim(t.status)) END AS status
+ FROM tasks t
+ LEFT JOIN LATERAL (SELECT status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
+ LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) l ON true
  UNION ALL
  SELECT p.id::text, p.project_id, p.room_id::text, lower(btrim(p.status)) FROM project_tasks p
  WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = p.id::text)
@@ -84,7 +96,16 @@ func (s *Server) readTaskCounts(ctx context.Context) (scopedTaskCounts, error) {
 			return result, err
 		}
 		for _, t := range tasks {
-			items[t.ID] = item{t.SourceRoomID, t.Status, append(append([]string{}, t.ProjectIDs...), t.ProjectID)}
+			attempt, _ := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID)
+			launch, _ := s.taskSvc.LatestLaunch(ctx, t.ID)
+			attemptStatus, launchState := "", ""
+			if attempt != nil {
+				attemptStatus = attempt.Status
+			}
+			if launch != nil {
+				launchState = launch.State
+			}
+			items[t.ID] = item{t.SourceRoomID, taskCountStatus(t.Status, attemptStatus, launchState), append(append([]string{}, t.ProjectIDs...), t.ProjectID)}
 		}
 	}
 	for _, t := range items {
@@ -119,4 +140,25 @@ func addTaskCount(c taskCounts, status string) taskCounts {
 		c.Canceled++
 	}
 	return c
+}
+
+// Presentation only: stopping a run does not overwrite its saved review/history.
+func taskCountStatus(status, attempt, launch string) string {
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch {
+	case status == "done":
+		return "done"
+	case launch == "queued" || launch == "claimed":
+		return "queued"
+	case attempt == "running":
+		return "doing"
+	case attempt == "queued":
+		return "queued"
+	case attempt == "canceled" || attempt == "cancelled" || launch == "cancelled":
+		return "canceled"
+	case attempt == "failed" || attempt == "interrupted" || launch == "stopped":
+		return "blocked"
+	default:
+		return status
+	}
 }

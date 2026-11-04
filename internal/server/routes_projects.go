@@ -76,7 +76,7 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, p := range projects {
 		c := counts.Projects[p.ID]
-		p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done}
+		p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done, Active: c.Active, Queued: c.Queued, Review: c.Review, Blocked: c.Failed, Canceled: c.Canceled}
 	}
 
 	archivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("archived")))
@@ -228,7 +228,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := counts.Projects[p.ID]
-	p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done}
+	p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done, Active: c.Active, Queued: c.Queued, Review: c.Review, Blocked: c.Failed, Canceled: c.Canceled}
 	respondJSON(w, http.StatusOK, p)
 }
 

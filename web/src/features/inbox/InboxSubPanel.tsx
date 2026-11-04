@@ -1,8 +1,9 @@
+import { workConversationPreview } from './conversation-work-preview'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
 import { PageHeader, PageHeaderBrand, PageTitle } from '../../components/layout/PageHeader'
 import { HairlineList } from '../../components/layout/HairlineList'
-import { TaskProgress } from '../../components/ui/TaskProgress'
+import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
@@ -13,13 +14,15 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
+import { Bot, User, Archive, CheckCheck, Plus, AlertCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
-export function conversationPreview(message?: string) {
+export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
   if (!message?.trim()) return 'No messages yet.'
   let text = message.trim()
+  const workPreview = workConversationPreview(text, counts)
+  if (workPreview) return t(workPreview)
   if (/the work is saved, but could not start|create attempt:|invalid task status/i.test(text)) return 'Pekerjaan tersimpan, tetapi belum bisa dimulai.'
 
   // Clean raw JSON strings (e.g. {"decision": "revise", ...}) to friendly summary text
@@ -129,6 +132,9 @@ export function ConversationItem({
   const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const reviewTasks = Number(contact.review_tasks) || 0
+  const failedTasks = Number(contact.failed_tasks) || 0
+  const progress = { total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0), done: contact.done_tasks, canceled: contact.canceled_tasks, active: activeTasks, queued: contact.queued_tasks, review: reviewTasks, blocked: contact.failed_tasks, minTasks: 2 }
+  const showProgress = !!taskProgressModel(progress)
   const hasActiveWork = activeTasks > 0
   const isAgentConnectionIssue =
     contact.type === 'agent' && contact.agent_id !== 'agent_cuan' &&
@@ -155,6 +161,7 @@ export function ConversationItem({
     <ItemActions
       key={contact.id}
       label={contact.name}
+      quiet
       swipeAction={archiveAction}
       className={cn(
         'inbox-item-row border-b border-border/40 transition-colors hover:bg-accent/40',
@@ -168,6 +175,7 @@ export function ConversationItem({
         archiveAction,
       ]}
     >
+      <div data-conversation-row className="relative">
       <button
         type="button"
         onClick={openContact}
@@ -204,8 +212,7 @@ export function ConversationItem({
         {/* Content Body */}
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <TaskProgress total={contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0)} done={contact.done_tasks} />
+            <div className={cn("flex items-center gap-1.5 min-w-0", showProgress && 'pl-9')}>
               <span className={cn("text-sm truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
@@ -224,11 +231,17 @@ export function ConversationItem({
           )}
 
           <p className="text-sm text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
-            {conversationPreview(contact.last_message)}
+            {conversationPreview(contact.last_message, contact, t)}
           </p>
 
-          {(hasActiveWork || reviewTasks > 0) && (
-            <div className="flex items-center gap-1.5 pt-0.5">
+          {(hasActiveWork || reviewTasks > 0 || failedTasks > 0) && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
+              {failedTasks > 0 && (
+                <span data-testid="task-badge-attention" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  <AlertCircle aria-hidden="true" className="h-3 w-3 text-[color:var(--status-warning)]" />
+                  <span>{t(failedTasks === 1 ? '{{count}} needs attention' : '{{count}} need attention').replace('{{count}}', String(failedTasks))}</span>
+                </span>
+              )}
               {hasActiveWork && (
                 <span
                   data-testid="task-badge-active"
@@ -252,6 +265,8 @@ export function ConversationItem({
         </div>
 
       </button>
+      {showProgress && <div className="absolute left-[50px] top-0 z-10"><TaskProgress {...progress} /></div>}
+      </div>
       {!isLast && (
         <div
           aria-hidden="true"

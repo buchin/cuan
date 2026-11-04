@@ -21,7 +21,6 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
-	"github.com/buchin/cuan/internal/task"
 )
 
 // ChatContact represents a contact in the direct messenger hub (agent or customer).
@@ -1341,44 +1340,30 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		respondJSONError(w, 503, "Could not read conversation tasks")
 		return
 	}
-	activeTasks := 0
-	reviewTasks := 0
-	queuedTasks := 0
-	doneTasks := 0
-	failedTasks := 0
-	canceledTasks := 0
-	for _, t := range linked {
-		st := strings.ToLower(strings.TrimSpace(t.Status))
-		if st == task.TaskStatusDone {
-			doneTasks++
-		} else if st == "canceled" || st == "cancelled" {
-			canceledTasks++
-		} else if st == task.TaskStatusBlocked || st == "failed" {
-			failedTasks++
-		} else if st == task.TaskStatusQueued || st == task.TaskStatusPending {
-			queuedTasks++
-		} else if st == "review" {
-			reviewTasks++
-		} else if inboxTaskIsWorking(st) {
-			activeTasks++
-		}
+	counts, err := s.readTaskCounts(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Could not read conversation task progress")
+		return
 	}
-	contact.TaskCount = len(linked)
+	c := counts.Rooms[resolved.RoomID]
+	activeTasks, reviewTasks, queuedTasks, doneTasks, failedTasks := c.Active, c.Review, c.Queued, c.Done, c.Failed
+	contact.TaskCount = c.Total
 	contact.ActiveTasks = activeTasks
 	contact.ReviewTasks = reviewTasks
 	contact.QueuedTasks = queuedTasks
 	contact.DoneTasks = doneTasks
 	contact.FailedTasks = failedTasks
-	contact.CanceledTasks = canceledTasks
+	contact.CanceledTasks = c.Canceled
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,
-		"task_count":      len(linked),
+		"task_count":      c.Total,
 		"active_tasks":    activeTasks,
 		"review_tasks":    reviewTasks,
 		"queued_tasks":    queuedTasks,
 		"done_tasks":      doneTasks,
 		"failed_tasks":    failedTasks,
+		"canceled_tasks":  c.Canceled,
 		"requests":        inboxRecoveryRequests(requests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,

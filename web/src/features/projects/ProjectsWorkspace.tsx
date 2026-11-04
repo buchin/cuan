@@ -9,7 +9,7 @@ import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
 import { workStatus } from '../tasks/task-ui'
 import { useLanguage } from '../../context/LanguageContext'
-import { TaskProgress } from '../../components/ui/TaskProgress'
+import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
 
@@ -202,14 +202,17 @@ export function ProjectsWorkspace({
               { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/settings') },
               ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
             ]}>
+            <div data-project-row className="relative">
             <Link
               key={item.id}
               to={`/projects/${encodeURIComponent(item.id)}/settings`}
               aria-current={project?.id === item.id ? 'page' : undefined}
               className={`project-list-row group flex rounded-lg min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
             >
-              <ListRowContent leading={<ProjectIcon repoUrl={item.repo_url} />} title={<span className="flex min-w-0 items-center gap-2"><TaskProgress {...item.task_progress} /><span className="truncate">{item.name}</span></span>} description={String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))} />
+              <ListRowContent leading={<ProjectIcon repoUrl={item.repo_url} />} title={<span className={`block truncate ${taskProgressModel(item.task_progress || {}) ? 'pl-9' : ''}`}>{item.name}</span>} description={String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))} />
             </Link>
+            <div className="absolute left-[50px] top-1 z-10"><TaskProgress {...item.task_progress} /></div>
+            </div>
             </ItemActions>
           ))}
           {error && !project && (

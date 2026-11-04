@@ -1,3 +1,4 @@
+import { workStatus } from '../tasks/task-ui'
 import { startsMessageGroup } from './message-group'
 import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
 import { IconButton } from '../../components/ui/IconButton'
@@ -590,30 +591,27 @@ export function InboxView({
         setLinkedTasks(data.tasks || [])
         if (data.tasks) cacheTasks(data.tasks)
         if (activeContact && data.tasks) {
-          const at = data.tasks.filter((t) => {
-            const s = (t.status || '').toLowerCase().trim()
-            return s === 'doing' || s === 'in_progress' || s === 'running' || s === 'working'
-          }).length
-          const rt = data.tasks.filter((t) => (t.status || '').toLowerCase().trim() === 'review').length
-          const qt = data.tasks.filter((t) => {
-            const s = (t.status || '').toLowerCase().trim()
-            return s === 'queued' || s === 'pending'
-          }).length
-          const dt = data.tasks.filter((t) => (t.status || '').toLowerCase().trim() === 'done').length
-          const ct = data.tasks.filter((t) => ['canceled', 'cancelled'].includes((t.status || '').toLowerCase().trim())).length
-          const ft = data.tasks.filter((t) => {
-            const s = (t.status || '').toLowerCase().trim()
-            return s === 'blocked' || s === 'failed'
-          }).length
+          const states = data.tasks.map(task => task.status === 'done' ? 'Completed' : workStatus(task))
+          // The server summary also understands canceled attempts saved as review.
+          const summary = data.contact
+          const count = (field: keyof ChatContact, fallback: number) => typeof summary?.[field] === 'number' ? Number(summary[field]) : fallback
+          const total = count('task_count', data.tasks.length)
+          const at = count('active_tasks', states.filter(state => state === 'Working').length)
+          const rt = count('review_tasks', states.filter(state => ['Ready for review', 'Answered'].includes(state)).length)
+          const qt = count('queued_tasks', states.filter(state => state === 'Queued').length)
+          const dt = count('done_tasks', states.filter(state => state === 'Completed').length)
+          const ct = count('canceled_tasks', states.filter(state => state === 'Cancelled').length)
+          const ft = count('failed_tasks', states.filter(state => ['Needs attention', 'Not running'].includes(state)).length)
+
           const changed =
-            activeContact.task_count !== data.tasks.length ||
+            activeContact.task_count !== total ||
             activeContact.active_tasks !== at ||
             activeContact.review_tasks !== rt ||
             activeContact.queued_tasks !== qt ||
             activeContact.done_tasks !== dt ||
             activeContact.canceled_tasks !== ct ||
             activeContact.failed_tasks !== ft
-          activeContact.task_count = data.tasks.length
+          activeContact.task_count = total
           activeContact.active_tasks = at
           activeContact.review_tasks = rt
           activeContact.queued_tasks = qt
