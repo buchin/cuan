@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--user', required=True, help='Linux account running the Cuan service')
     parser.add_argument('--check', action='store_true', help='Verify only; do not install or change host policy')
+    parser.add_argument('--browser', action='store_true', help='Include browser setup/readiness for screenshot tasks')
     args = parser.parse_args()
     if sys.platform != 'linux':
         parser.error('Native Linux is required')
@@ -67,6 +68,9 @@ def main():
         result = subprocess.run(as_user(command), capture_output=True, text=True, timeout=20)
         if result.returncode or not result.stdout.strip():
             raise RuntimeError('AI CLI could not start inside the sandbox. Check CLI compatibility and host namespace policy')
+        if args.browser:
+            browser_args = ['--check'] if args.check else ['--install-deps']
+            subprocess.run([sys.executable, str(scripts/'setup-browser-runtime.py'), '--user', args.user, *browser_args], check=True, timeout=600)
         print(json.dumps({'runtimeReady': True, 'sandboxReady': True, 'cliStartsInSandbox': True, 'providerInvocations': 0,
                           'nextStep': 'Connect an AI account in Settings > Agents, then submit a goal in Studio'}))
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:

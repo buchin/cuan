@@ -79,3 +79,29 @@ service user's `.local/bin/bwrap` symlink only if it points to
 `sudo apparmor_parser -R /etc/apparmor.d/cuan-inbox-bwrap`, and remove that profile
 and the dedicated runtime binary. Do not delete account profiles or modify
 user-namespace sysctls.
+
+## Browser verification on native runners
+
+For tasks requiring actual screenshots, install the official Playwright browser
+runtime under the non-root runner account. This is platform setup, separate from
+user projects and AI account profiles:
+
+```sh
+sudo python3 scripts/setup-agent-runtime.py --user cuan --browser
+sudo python3 scripts/setup-agent-runtime.py --user cuan --browser --check
+```
+
+For an existing AI runtime, use `setup-browser-runtime.py --user cuan
+--install-deps` directly with sudo. The pinned official `playwright-core` package
+lives under `$HOME/.local/share/cuan-browser`; its headless Chromium download uses
+Playwright's browser cache. Only headless Chromium is installed. The command
+`cuan-browser` is linked under `$HOME/.local/bin`. OS dependencies are installed
+through the official Playwright installer only when `--install-deps` is selected.
+Installation requires 3 GiB free to preserve task execution headroom.
+
+`--check` starts the browser, renders a 390px page and captures an in-memory PNG.
+A directory or package installation alone never proves readiness. Checks do not
+contact a provider, use an owner login, modify repositories or install software.
+For real task evidence, render the changed application at its required viewports
+and store screenshots in `CUAN_TASK_ARTIFACTS_DIR`, then attach `session:PATH`.
+The readiness screenshot is not task acceptance evidence.
