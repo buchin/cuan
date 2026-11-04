@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -146,12 +147,14 @@ func TestApplyInboxReviewEvaluationMultiPhaseAutoAdvancement(t *testing.T) {
 
 	// 2. Setup user approval message
 	userMsgID := db.GenerateUUID()
+	approvedPayload, _ := json.Marshal(attachmentMessage{Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: inboxApprovalPlan{Title: "Phase 1: Database Setup", Description: "Phase 1: Database Setup | Phase 2: API Endpoints | Phase 3: Frontend View", ProjectID: "default"}}})
 	userMsg := &db.ProjectMessage{
 		ID:         userMsgID,
 		RoomID:     room.RoomID,
 		AuthorType: "user",
 		AuthorID:   "owner",
-		Content:    "Approve plan",
+		Content:    attachmentEnvelope + string(approvedPayload),
+		CreatedAt:  time.Now().UTC().Add(-time.Minute),
 	}
 	if err := s.projectStudioRepo.CreateMessage(ctx, userMsg); err != nil {
 		t.Fatal(err)

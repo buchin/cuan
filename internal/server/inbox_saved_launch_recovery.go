@@ -70,7 +70,8 @@ func (s *Server) authorizeSavedTaskLaunch(ctx context.Context, j task.TaskLaunch
 			return trigger, true, nil
 		}
 	}
-	return trigger, false, nil
+	authorized, phaseErr := s.authorizeApprovedPhase(ctx, j, d)
+	return trigger, authorized, phaseErr
 }
 
 func (s *Server) recoverUnstartedInboxTask(ctx context.Context, d *task.TaskDetailResponse, j task.TaskLaunch) bool {

@@ -308,8 +308,16 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				s.publishInbox(q.RoomID)
 			}
 
-			if target, ok := s.detectNextMultiPhase(ctx, d); ok {
-				return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation, target)
+			if approval, approvalErr := s.phaseApproval(ctx, d, q.OwnerID, q.RoomID); approvalErr == nil {
+				approved := *d
+				approved.Title = fmt.Sprintf("Phase %d: current", approval.Phase)
+				approved.Instructions = approval.Plan.Plan.Description
+				approved.SourceMessageID = ""
+				if _, ok := s.detectNextMultiPhase(ctx, &approved); ok {
+					return s.enqueueInboxAutoDelegation(ctx, q, d, decision.Explanation)
+				}
+			} else if _, hinted := s.detectNextMultiPhase(ctx, d); hinted {
+				return decision.Explanation + "\n\nApproval for the next phase could not be verified. No new phase was started.\n\n[View work](/tasks/" + d.ID + ")"
 			}
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 			if s.isCustomerRoom(ctx, q.RoomID) {
@@ -448,78 +456,112 @@ func (s *Server) detectNextMultiPhase(ctx context.Context, d *task.TaskDetailRes
 	}, true
 }
 
-func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, explanation string, target *multiPhaseTarget) string {
-	nextTitle := fmt.Sprintf("Phase %d: %s", target.NextPhase, target.NextTitle)
-	key := fmt.Sprintf("auto-phase:%s:%d", d.ID, target.NextPhase)
-	requestID := delegationMessageID(key)
-	inputMsgID := delegationMessageID(key + ":input")
-	replyMsgID := delegationMessageID(key + ":reply")
-	now := time.Now().UTC()
-
-	systemContent := fmt.Sprintf("Autonomous Sprint Execution: Phase %d verified complete.\n\nAutomatically advancing to **%s**.\n\nProject: %s", target.CurrentPhase, nextTitle, d.ProjectID)
-
-	var nextTaskID string
-	if s.taskSvc != nil {
-		nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\nPhase %d of %d: %s\n\nPart of approved multi-phase plan:\n%s\n\nApproval message: %s\nConversation: %s\nReport actual progress and verification evidence. Stay within this scope.", target.NextPhase, target.NextPhase, target.TotalPhases, target.NextTitle, d.Instructions, d.SourceMessageID, q.RoomID)
-		created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{
-			SourceRoomID:  q.RoomID,
-			ProjectID:     d.ProjectID,
-			Title:         nextTitle,
-			Instructions:  nextInstructions,
-			AssignedAgent: q.AgentID,
-		})
-		if err == nil && created != nil {
-			nextTaskID = created.ID
-			launchID := delegationMessageID("task-run:" + q.RoomID + ":" + inputMsgID)
-			if detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID); err == nil {
-				_ = s.startAuthorizedLaunch(ctx, db.InboxRequest{
-					OwnerID:   q.OwnerID,
-					AgentID:   q.AgentID,
-					RoomID:    q.RoomID,
-					RequestID: requestID,
-				}, detail, launchID, requestID, "")
-			}
+func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, explanation string) string {
+	var handoff *db.ProjectMessage
+	fail := func(reason string) string {
+		text := explanation + "\n\n" + reason + " No new phase was started."
+		if handoff != nil {
+			handoff.Content = text
+			handoff.UpdatedAt = time.Now().UTC()
+			_ = s.projectStudioRepo.UpdateMessage(ctx, handoff)
 		}
+		return text
 	}
-
-	if nextTaskID != "" {
-		systemContent += fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
+	approval, err := s.phaseApproval(ctx, d, q.OwnerID, q.RoomID)
+	if err != nil {
+		return fail("The original plan approval could not be verified.")
 	}
-
-	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
-		nextReq := db.InboxRequest{
-			OwnerID:     q.OwnerID,
-			AgentID:     q.AgentID,
-			RoomID:      q.RoomID,
-			RequestID:   requestID,
-			MessageID:   inputMsgID,
-			ReplyID:     replyMsgID,
-			PayloadHash: requestID,
-			State:       "completed",
-			CreatedAt:   now,
-			Deadline:    now.Add(10 * time.Minute),
-		}
-		msg := &db.ProjectMessage{
-			ID:         inputMsgID,
-			RoomID:     q.RoomID,
-			AuthorType: "system",
-			AuthorID:   "cuan_auto_delegation",
-			AuthorName: "Cuan",
-			Content:    systemContent,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-		if _, fresh, err := store.AcceptInboxRequest(ctx, nextReq, msg); err == nil && fresh {
-			s.publishInbox(q.RoomID)
-			s.kickInboxRoom(q.RoomID)
-		}
+	if d.Status != task.TaskStatusDone || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil {
+		return fail("The preceding phase has not been accepted.")
 	}
-
-	if nextTaskID == "" {
+	approved := *d
+	approved.Title = fmt.Sprintf("Phase %d: current", approval.Phase)
+	approved.Instructions = approval.Plan.Plan.Description
+	approved.SourceMessageID = ""
+	target, ok := s.detectNextMultiPhase(ctx, &approved)
+	if !ok {
 		return explanation
 	}
-	link := fmt.Sprintf("\n\n[View work](/tasks/%s)", nextTaskID)
-	return fmt.Sprintf("%s\n\nPhase %d verified complete. Automatically advancing to **%s** without stopping.%s", explanation, target.CurrentPhase, nextTitle, link)
+	policy, err := s.taskPublicationPolicy(ctx, d)
+	if err != nil {
+		return fail("The approved execution limits could not be verified.")
+	}
+	limits := ""
+	if policy.ReadOnlyRepository {
+		limits += "Repository is read-only.\n"
+	}
+	if policy.DenyPush {
+		limits += "Do not push.\n"
+	}
+	if policy.DenyDeploy {
+		limits += "Do not deploy.\n"
+	}
+	nextTitle := fmt.Sprintf("Phase %d: %s", target.NextPhase, target.NextTitle)
+	key := fmt.Sprintf("auto-phase:%s:%d", approval.Root.ID, target.NextPhase)
+	requestID, inputMsgID := delegationMessageID(key), delegationMessageID(key+":input")
+	now := time.Now().UTC()
+	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+	if !ok {
+		return fail("Conversation storage is unavailable.")
+	}
+	nextReq := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: requestID, MessageID: inputMsgID, ReplyID: inputMsgID, PayloadHash: requestID, State: "completed", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
+	msg := &db.ProjectMessage{ID: inputMsgID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_auto_delegation", AuthorName: "Cuan", Content: fmt.Sprintf("Phase %d verified complete. Preparing %s.", approval.Phase, nextTitle), CreatedAt: now, UpdatedAt: now}
+	accepted, fresh, err := store.AcceptInboxRequest(ctx, nextReq, msg)
+	if err != nil {
+		return fail("The phase handoff could not be saved.")
+	}
+	if accepted.OwnerID != q.OwnerID || accepted.RoomID != q.RoomID || accepted.MessageID != inputMsgID {
+		return fail("The saved handoff identity differs.")
+	}
+	if !fresh {
+		stored, e := s.projectStudioRepo.GetMessageByID(ctx, inputMsgID)
+		if e != nil || stored == nil || stored.AuthorType != "system" || stored.AuthorID != "cuan_auto_delegation" {
+			return fail("The saved handoff message differs.")
+		}
+		msg = stored
+	}
+	handoff = msg
+	if accepted.State == "cancelled" || accepted.State == "canceled" || accepted.State == "cancelling" {
+		return fail("The phase handoff was cancelled.")
+	}
+	inherited := phaseTaskInstructions(approval.Root.Instructions)
+	if approval.Plan.Plan.Description != "" {
+		inherited = strings.ReplaceAll(inherited, approval.Plan.Plan.Description, "[See the approved plan above.]")
+	}
+	nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\n%s\n\nApproved phase: %s\n\nOriginal approved plan:\n%s\n\nHistorical root context (reference only; the active approved phase above controls):\n%s\n\nApproval message: %s\nConversation: %s\nExecute only the active phase and report actual verification evidence.", target.NextPhase, limits, nextTitle, approval.Plan.Plan.Description, inherited, approval.Root.SourceMessageID, q.RoomID)
+	created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: nextTitle, Instructions: nextInstructions, AssignedAgent: q.AgentID, ExecutionCategory: d.ExecutionCategory})
+	if err != nil || created == nil {
+		return fail("The next phase task could not be saved.")
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil || detail.ProjectID != d.ProjectID || detail.SourceRoomID != q.RoomID || detail.SourceMessageID != inputMsgID || phaseTaskInstructions(detail.Instructions) != nextInstructions || detail.ExecutionCategory != d.ExecutionCategory {
+		return fail("The saved phase scope differs from the approved handoff.")
+	}
+	if err := s.savePhaseLineage(ctx, detail, d, approval, q.OwnerID, q.RoomID); err != nil {
+		return fail("The next phase authorization could not be saved.")
+	}
+	// Refresh the receipt-bearing detail before launch authorization reads it.
+	detail, err = s.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		return fail("The saved phase authorization could not be read.")
+	}
+	outcome := s.startAuthorizedLaunch(ctx, accepted, detail, requestID, approval.Request.RequestID, "")
+	status := fmt.Sprintf("Phase %d verified complete. Next phase: %s.\n\n%s", approval.Phase, nextTitle, outcome)
+	msg.Content = status
+	if !fresh {
+		stored, e := s.projectStudioRepo.GetMessageByID(ctx, inputMsgID)
+		if e != nil || stored == nil {
+			return fail("The phase status could not be read.")
+		}
+		msg = stored
+		msg.Content = status
+	}
+	msg.UpdatedAt = time.Now().UTC()
+	if err := s.projectStudioRepo.UpdateMessage(ctx, msg); err != nil {
+		return explanation + "\n\n" + outcome + "\n\nThe phase status could not be saved."
+	}
+	s.publishInbox(q.RoomID)
+	return explanation + "\n\n" + status
 }
 
 func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxRequest) (string, bool) {

@@ -135,8 +135,10 @@ while :;do sleep 0.1;done
 			t.Fatalf("queued continuation not started: %+v", job)
 		}
 		completed := waitWorkspaceTask(t, s, created.ID, task.AttemptStatusSucceeded)
-		if completed.Status != "done" || len(completed.Attempts) != 2 {
-			t.Fatal("continuation did not finish same task exactly once", completed.Status, len(completed.Attempts))
+		// Inbox work waits for coordinator acceptance after a successful process;
+		// an agent's done report and push alone must not bypass that review.
+		if completed.Status != task.TaskStatusReview || len(completed.Attempts) != 2 {
+			t.Fatal("continuation did not preserve same task for review exactly once", completed.Status, len(completed.Attempts))
 		}
 		s.drainTaskLaunches(ctx, time.Now().UTC())
 		calls, _ := os.ReadFile(filepath.Join(os.Getenv("HOME"), "github-continuations"))
