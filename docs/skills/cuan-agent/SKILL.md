@@ -120,6 +120,12 @@ Read-only MCP equivalents: `list_provider_accounts` and `get_provider_account_us
 
 ### Cancel active task execution
 
+For explicitly approved cleanup of obsolete test data, use
+`cuan task delete TASK_ID`. This permanently deletes an inactive task through
+the authenticated Owner API. Inspect its scope, linked conversation and attempt
+first; active executions are rejected. This does not delete its conversation.
+Never infer that a conversation is disposable from its title alone.
+
 `cuan task cancel TASK_ID` requests cancellation through the authenticated Cuan
 API. This does not prove the worker has stopped: inspect the same task with
 `cuan task get TASK_ID --json` until its attempt reaches a terminal state.

@@ -26,6 +26,8 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "delete":
+		return runTaskDelete(ctx, extraArgs, out, errOut)
 	case "logs":
 		return runTaskLogs(ctx, extraArgs, out, errOut)
 	case "cancel", "stop":
@@ -44,6 +46,34 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 	}
 }
 
+func runTaskDelete(ctx context.Context, args []string, out, errOut io.Writer) int {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" || strings.HasPrefix(args[0], "-") {
+		fmt.Fprintln(errOut, "Usage: cuan task delete <task-id>")
+		return 2
+	}
+	if err := taskSessionOwnerWriteError(); err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "Configure the Cuan connection first.")
+		return 1
+	}
+	response, err := client.doRequest(ctx, http.MethodDelete, "/api/v1/tasks/"+url.PathEscape(args[0]), nil)
+	if err != nil {
+		fmt.Fprintln(errOut, "Deletion was not confirmed. Inspect the task before retrying.")
+		return 1
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		fmt.Fprintf(errOut, "Deletion was not confirmed (HTTP %d). Active tasks must be stopped first.\n", response.StatusCode)
+		return 1
+	}
+	fmt.Fprintln(out, "Task deleted.")
+	return 0
+}
+
 func printTaskHelp(out io.Writer) {
 	fmt.Fprintln(out, `Cuan Task CLI — Inspect and manage tasks on the Cuan platform board
 
@@ -60,6 +90,7 @@ Subcommands:
   get       Inspect a single task and its execution attempts
   update    Update status, summary, and verification evidence
   create    Create a new task draft on the board
+  delete    Permanently delete an inactive task (Owner only)
 
 Examples:
   cuan task list --status doing
