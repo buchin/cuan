@@ -181,6 +181,9 @@ checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for 
 PY
 
 if [[ "$is_local" == 1 ]]; then
+  if [[ -L /opt/cuan/current && -L /opt/cuan/previous ]]; then
+    sudo -n python3 scripts/prune-release-artifacts.py --staging "$HOME/.local/share/cuan-releases" --apply
+  fi
   echo "==> Deploying release payload locally to /opt/cuan/releases/$release_sha..."
   sudo -n mkdir -p "/opt/cuan/releases/$release_sha"
   sudo -n chown -R "$(id -u):$(id -g)" /opt/cuan/releases 2>/dev/null || true
@@ -193,6 +196,8 @@ if [[ "$is_local" == 1 ]]; then
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
+  sshpass -e scp -q scripts/prune-release-artifacts.py "$release_host:.local/share/cuan-s25/prune-release-artifacts.py"
+  sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/maintenance && sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-release-artifacts.py /opt/cuan/maintenance/prune-release-artifacts.py && if [ -L /opt/cuan/current ] && [ -L /opt/cuan/previous ]; then sudo -n python3 /opt/cuan/maintenance/prune-release-artifacts.py --staging /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases --apply; fi"
   echo "==> Transferring verified payload (compressed, resumable)..."
   sshpass -e rsync -az --partial --append-verify -e ssh "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"

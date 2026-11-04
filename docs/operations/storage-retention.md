@@ -65,3 +65,26 @@ Targeted checks: `go test ./internal/task ./internal/server -run
 'TestRecentAttemptLogRetention|TestTaskOutputRetainsLateRedactedDiagnostics|TestInboxLifecycleNegativeCasesAndRetainedTaskOutput'
 -count=1 -timeout=30s`. Memory and SQL tests cover late errors, line/byte bounds,
 incremental cursors, oversized lines and isolation between attempts.
+
+### November 4: upload staging retention
+
+The 50 GB production disk filled again during frequent deployments. Inspection
+found 64 valid installed releases and 64 staged copies younger than 24 hours;
+the daily installed-release policy was running but did not cover upload staging.
+Old staging copies were removed, and the official installed-payload pruner
+removed six eligible releases. The extended pruner recovered further space,
+leaving about 4 GB free at observation time. Application/task data and backups
+were preserved; this does not establish the cause of provider exit code 2.
+
+`--staging /home/ubuntu/.local/share/cuan-releases` removes redundant upload
+copies older than one hour, preserving five newest and current/previous IDs.
+It requires an intact matching installed manifest and verifies SHA-256 checksums
+for the complete installed payload and every remaining staged file. Partial
+uploads are eligible only when the installed copy is complete. Unknown files,
+symlinks, corrupt copies and missing counterparts are retained. The activation
+lock protects pruning; staging and installation roots must not overlap.
+
+Production cron now runs at minute 17 every hour with `--staging`. The deploy
+script installs the maintained pruner and runs it before transferring payloads.
+Installed releases still retain the original five-newest/24-hour protection.
+Run `python3 scripts/test-prune-release-artifacts.py` for targeted checks.
