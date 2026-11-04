@@ -467,3 +467,21 @@ Still required for the full project-manager outcome:
 No production backlog statuses, owner resume messages or visitor replies were
 manually written in these recovery fixes. Keep canceled work stopped and retain
 original files, approval and evidence while repairing the product itself.
+
+## Scope-only execution classification
+
+Execution and migration classification now exclude the project guidance snapshot
+using the same marker parser that preserves workspace binding. Project goals,
+standing instructions, auto_deploy defaults and environment key names remain in
+the execution prompt, but cannot turn an audit into a code task or make every
+project task a schema migration. Deployment-status nouns do not count as a deploy
+action, and an explicit no-deploy restriction does not select the code lane.
+An actual deploy command and real schema modification still select code.
+
+Creation-path tests cover audit, deployment-status comparison, explicit deployment,
+contact sync and genuine migration under deliberately code/migration-heavy project
+guidance. Task concurrency and migration lane regressions, runner lane tests and
+queued launch/recovery server flows pass. Existing saved execution categories are
+not silently rewritten. Therefore this prevents new misclassification; old task
+scope and verification selection still require evidence-backed recovery rather
+than a manual category/status edit or bypass of required checks.

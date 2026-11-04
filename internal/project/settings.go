@@ -86,6 +86,14 @@ func findSnapshotMarker(text string) (int, int) {
 	return -1, 0
 }
 
+// TaskScopeInstructions separates approved work from snapshotted project defaults.
+func TaskScopeInstructions(instructions string) string {
+	if start, _ := findSnapshotMarker(instructions); start >= 0 {
+		return instructions[:start]
+	}
+	return instructions
+}
+
 // SnapshotProjectGuidance freezes guidance and repository identity at task
 // creation. Historical workspace paths never come from task text.
 func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {

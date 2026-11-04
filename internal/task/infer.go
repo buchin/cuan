@@ -1,6 +1,11 @@
 package task
 
-import "strings"
+import (
+	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
+	"regexp"
+	"strings"
+)
 
 // Initial metadata is local and deterministic; the bound agent can refine it.
 func inferPrompt(prompt string) (string, string) {
@@ -44,9 +49,12 @@ func NormalizeExecutionCategory(val string) string {
 	}
 }
 
+var deployActionWord = regexp.MustCompile(`(?i)\bdeploy\b`)
+
 // InferExecutionCategory determines the appropriate execution lane (code, ops, readonly)
 // based on task title and instructions.
 func InferExecutionCategory(title, instructions string) string {
+	instructions = project.TaskScopeInstructions(instructions)
 	combined := strings.ToLower(strings.TrimSpace(title + " " + instructions))
 
 	// Database schema migrations always belong in code lane due to exclusive DDL locking requirements
@@ -61,6 +69,9 @@ func InferExecutionCategory(title, instructions string) string {
 		"refactor", "bugfix", "fix ", "frontend", "backend", "deploy",
 	}
 	for _, s := range codeSignals {
+		if s == "deploy" && (!deployActionWord.MatchString(combined) || executionpolicy.FromInstructions(title+"\n"+instructions).DenyDeploy) {
+			continue
+		}
 		if strings.Contains(combined, s) {
 			return ExecutionCategoryCode
 		}
@@ -97,6 +108,7 @@ func InferExecutionCategory(title, instructions string) string {
 
 // IsSchemaMigrationPrompt checks whether task instructions or title involve database schema migrations.
 func IsSchemaMigrationPrompt(title, instructions string) bool {
+	instructions = project.TaskScopeInstructions(instructions)
 	combined := strings.ToLower(strings.TrimSpace(title + " " + instructions))
 	signals := []string{
 		"migration", "migrate", "db:migrate", "artisan migrate",
