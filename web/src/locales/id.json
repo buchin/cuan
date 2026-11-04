@@ -1675,5 +1675,7 @@
   "Only you and your team can see this. The customer cannot see this message or attachment.": "Hanya Anda dan tim yang dapat melihat ini. Pelanggan tidak dapat melihat pesan atau lampiran ini.",
   "Write a reply…": "Tulis balasan…",
   "Internal message…": "Pesan internal…",
-  "{{count}} unread messages": "{{count}} pesan belum dibaca"
+  "{{count}} unread messages": "{{count}} pesan belum dibaca",
+  "Delete task": "Hapus task",
+  "Keep task": "Pertahankan task"
 }

@@ -107,7 +107,7 @@ export function NavUser({
           {/* Avatar */}
           <div data-avatar="true"
             className={cn(
-              'flex shrink-0 items-center justify-center font-mono font-bold rounded-none',
+              'flex shrink-0 items-center justify-center font-mono font-bold rounded-full',
               bottomNavigation ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs bg-primary text-primary-foreground',
               bottomNavigation && (active ? 'bg-primary/10 text-primary' : 'bg-muted/60 text-muted-foreground'),
 
@@ -160,7 +160,7 @@ export function NavUser({
               className="mb-1 flex min-h-14 w-full items-center gap-3 border-b border-border/40 p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title={t('Account overview')}
             >
-              <div data-avatar="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none bg-primary text-xs font-bold text-primary-foreground">
+              <div data-avatar="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                 {initials}
               </div>
               <div className="grid min-w-0 flex-1 gap-0.5">

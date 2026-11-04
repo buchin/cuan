@@ -1,3 +1,4 @@
+import { TaskRowActions } from './TaskRowActions'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
 import { useEffect, useMemo, useState } from 'react'
@@ -15,7 +16,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal,
   PlusCircle,
   ArrowDown,
   ArrowRight,
@@ -789,19 +789,7 @@ export function TaskBoardView({
                       </time>
                     </td>
                     <td className="px-1 py-1 text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center">
-                        <button
-                          type="button"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                          aria-label={`Actions for ${t.title}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onSelectTask(t)
-                          }}
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      <TaskRowActions task={t} onDelete={onDeleteTask} onChanged={onRetry} />
                     </td>
                   </tr>
                 ))}
@@ -850,8 +838,8 @@ export function TaskBoardView({
             {(() => {
               const queuedPositions = getQueuedTasksPositions(rows)
               return rows.slice(0, limit).map((t) => (
+                <TaskRowActions key={t.id} task={t} onDelete={onDeleteTask} onChanged={onRetry}>
                 <TaskItemCard
-                  key={t.id}
                   task={t}
                   variant="row"
                   queuePosition={queuedPositions.get(t.id)}
@@ -859,6 +847,7 @@ export function TaskBoardView({
                   onClick={onSelectTask}
                   onDelete={onDeleteTask ? () => onDeleteTask(t.id) : undefined}
                 />
+                </TaskRowActions>
               ))
             })()}
           </HairlineList>

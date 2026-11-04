@@ -95,9 +95,9 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
 
   // Verify Row Actions dropdown trigger
   assert.ok(
-    taskBoardSource.includes('MoreHorizontal') &&
-    taskBoardSource.includes('Actions for'),
-    'TaskBoardView must render MoreHorizontal actions button for each row'
+    taskBoardSource.includes('<TaskRowActions') &&
+    fs.readFileSync(path.resolve(webDir, 'src/features/tasks/TaskRowActions.tsx'), 'utf8').includes('<ItemActions'),
+    'Task rows must use the shared action menu rather than opening task details'
   )
 
   // Verify Pagination Footer

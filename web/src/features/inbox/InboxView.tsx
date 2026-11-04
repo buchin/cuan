@@ -1267,7 +1267,7 @@ export function InboxView({
                 <div className="relative shrink-0">
                   <div
                     data-avatar="true"
-                    className="h-8 w-8 rounded-none bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
+                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
                   >
                     {activeContact.avatar ? (
                       <span>{activeContact.avatar}</span>
@@ -1367,7 +1367,7 @@ export function InboxView({
                   {activeContact?.type === 'customer' ? (
                     <>
                       <div className="relative">
-                        <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border shadow-xs">
+                        <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border shadow-xs">
                           {activeContact.avatar ? (
                             <span>{activeContact.avatar}</span>
                           ) : (
@@ -1993,7 +1993,7 @@ export function InboxView({
                   data-testid="inbox-working-indicator"
                 >
                   <div className="bg-card text-card-foreground border border-border/80 rounded-2xl rounded-tl-xs p-3 shadow-xs flex items-center gap-2.5">
-                    <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-xs shrink-0">
+                    <div data-avatar="true" className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-xs shrink-0">
                       {activeContact.avatar ? (
                         <span>{activeContact.avatar}</span>
                       ) : (

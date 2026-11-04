@@ -553,3 +553,28 @@ before dispatcher review and Done only after coordinator acceptance. Focused
 legacy/topic delegation, managed-project, no-extra-planning, replay, queued launch,
 cancellation, owner-budget and authorization flows pass. No historical production
 Done states are rewritten or manually reopened by this change.
+
+## Task row menus, current-section color and circular identity
+
+The table's ellipsis previously called onSelectTask. It now uses the same
+ItemActions menu as mobile task rows through TaskRowActions. Copy link stays on
+the task list. Delete is available for inactive tasks; cancellation is available
+for active/queued work, and both require confirmation. Failed actions remain in
+the dialog with retry feedback. Task archiving is not exposed because the task
+API does not support it. Desktop/table and mobile rows use44px triggers, Escape,
+outside dismissal and keyboard navigation through the shared menu.
+
+Navigation icons are muted unless their page is current. Inbox unread badges
+stay colored, circular for a single digit and capped at99+ on expanded desktop,
+collapsed rail and mobile. Identity avatars are circular in Inbox and Account,
+including the profile menu; project/folder icons remain square. Existing mobile
+28px and desktop36px account sizes are unchanged.
+
+Focused real-build browser checks pass at390px/1440px light/dark: menu opening
+never selects/navigates a task, Escape restores focus, Copy preserves the list,
+no delete/cancel request occurs before confirmation, and confirmed requests target
+the intended fixture task exactly once. New screenshots under task-row-menu were
+visually inspected, including Inbox identity and desktop badge. All frontend gate
+tests pass. Fixture mutations are isolated; no production task was deleted or
+canceled for verification. Project-prefixed sequential references remain the next
+approved UI/data change and are not implemented by this menu change.

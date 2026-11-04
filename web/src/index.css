@@ -412,7 +412,7 @@ body:has(.task-terminal-container),
   display: none !important;
 }
 
-/* Zero Border Radius Aesthetic (Precision Sharp Architecture, with square avatars and circular progress/status indicators) */
+/* Sharp work surfaces; identity avatars and status indicators remain circular. */
 *,
 ::before,
 ::after {
@@ -434,7 +434,7 @@ body:has(.task-terminal-container),
 [data-avatar],
 .user-avatar,
 .agent-avatar {
-  border-radius: 0px !important;
+  border-radius: 9999px !important;
 }
 
 .status-dot,
@@ -516,3 +516,8 @@ body:has(.task-terminal-container),
 .bottom-navigation [data-nav-tone][aria-current="page"] { color: var(--nav-icon-color); font-weight: 600; }
 .bottom-navigation [data-nav-tone]:not([aria-current="page"]) svg { opacity: 0.65; }
 .bottom-navigation [data-nav-tone][aria-current="page"] svg { opacity: 1; }
+
+/* Navigation color identifies the current page; unread badges stay independent. */
+.nav-action[data-nav-tone]:not([aria-current="page"]) svg,
+.bottom-navigation [data-nav-tone]:not([aria-current="page"]) svg { color: oklch(var(--muted-foreground)); opacity: 1; }
+.nav-action[data-nav-tone][aria-current="page"] { color: var(--nav-icon-color); }

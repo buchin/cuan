@@ -186,11 +186,11 @@ export function ConversationItem({
           isSelected && 'text-accent-foreground font-medium shadow-none',
         )}
       >
-        {/* Square identity avatar; progress and presence indicators stay circular */}
+        {/* Circular identity avatar; task progress stays separate */}
         <div className="relative shrink-0 mt-0.5">
           <div
             data-avatar="true"
-            className="h-9 w-9 rounded-none bg-secondary/80 flex items-center justify-center font-bold text-xs border border-border/50 text-foreground overflow-hidden avatar"
+            className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center font-bold text-xs border border-border/50 text-foreground overflow-hidden avatar"
           >
             {contact.avatar ? (
               <span>{contact.avatar}</span>
