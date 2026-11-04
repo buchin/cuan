@@ -32,3 +32,10 @@ authorization across server deployments using encrypted durable grants. Restart
 does not authorize unknown tokens or another task. Older sessions created before
 this repair may need a scoped continuation that verifies saved work and reports
 it without repeating implementation or external actions.
+
+Publication restrictions in a continuation (for example, “verify only; do not
+push or deploy”) are bound to that execution attempt. They narrow project defaults
+and apply to the runner and server, including automatic commit/push and auto-apply.
+A later continuation cannot relax an earlier attempt's restrictions. This does
+not waive original acceptance criteria: unavailable live-install evidence must
+still be reported honestly as a gap or blocker.

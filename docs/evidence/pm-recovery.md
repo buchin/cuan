@@ -216,3 +216,25 @@ attempt att_660e570b4664acc669aa3056ef791936. The attempt exits0 but is rejected
 auto-deploy compliance because earlier code changes were not proven deployed.
 This is a separate scope/compliance issue, not continued loss of report access.
 Do not claim the original installation/live criteria fulfilled without evidence.
+
+## Attempt-bound revision publication limits
+
+Live Heru attempt3 saved a final report but was rejected for missing deployment,
+despite the explicitly authorized reporting-only continuation prohibiting push
+and deploy. Runtime and server compliance checks parsed only original task
+instructions; the narrower revision lived in the durable launch and was ignored.
+
+Publication limits now combine the original task with the revision for that exact
+attempt via task_launches.attempt_id. A newer launch cannot change an older run's
+restrictions. Claim payloads carry limits; runner prompts, automatic commit/push,
+server push authorization, completion compliance and final-report auto-apply all
+honor them. Restrictions can only narrow defaults, never authorize publication.
+Missing live-install acceptance evidence remains a separate DoD gap.
+
+Memory and dedicated PostgreSQL contracts verify exact-attempt binding and
+unchanged original restrictions despite a newer launch. Runner integration
+verifies an auto-deploy-enabled project emits a no-push/no-deploy claim and accepts
+execution completion without demanding prohibited deployment. A real local Git
+fixture verifies the automatic publication path preserves pending files and HEAD.
+Targeted server reporting/push/reconstruction regressions pass. Production proof
+on a new continuation remains required after deployment.

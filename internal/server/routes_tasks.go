@@ -485,7 +485,7 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 			resp.ProjectRepo = p.RepoURL
 			resp.WorkingDir = p.LocalPath
 			settings := project.SettingsFromMetadata(p.Metadata)
-			resp.AutoDeploy = settings.IsAutoDeployEnabled()
+			resp.AutoDeploy = settings.IsAutoDeployEnabled() && !resp.PublicationLimits.DenyDeploy
 			resp.DeployBranch = strings.TrimSpace(settings.DeployBranch)
 			if resp.DeployBranch == "" {
 				resp.DeployBranch = strings.TrimSpace(p.DefaultBranch)

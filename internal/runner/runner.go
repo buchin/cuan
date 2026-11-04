@@ -776,6 +776,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		}
 	}
 	policy := executionpolicy.FromInstructions(t.Instructions)
+	policy.DenyPush = policy.DenyPush || claim.PublicationLimits.DenyPush
+	policy.DenyDeploy = policy.DenyDeploy || claim.PublicationLimits.DenyDeploy
 	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
 	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir) + policy.Prompt()
 

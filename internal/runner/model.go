@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"time"
 
 	"github.com/buchin/cuan/internal/task"
@@ -86,23 +87,24 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
-	OwnerID        string               `json:"owner_id,omitempty"`
-	RequiresVision bool                 `json:"requires_vision,omitempty"`
-	Claimed        bool                 `json:"claimed"`
-	Attempt        *task.TaskAttempt    `json:"attempt,omitempty"`
-	Task           *task.Task           `json:"task,omitempty"`
-	ProjectRepo    string               `json:"project_repo,omitempty"`
-	RepoOwner      string               `json:"repo_owner,omitempty"`
-	RepoName       string               `json:"repo_name,omitempty"`
-	RepoURL        string               `json:"repo_url,omitempty"`
-	DefaultBranch  string               `json:"default_branch,omitempty"`
-	DeployBranch   string               `json:"deploy_branch,omitempty"`
-	WorkingDir     string               `json:"working_dir,omitempty"`
-	AutoDeploy     bool                 `json:"auto_deploy,omitempty"`
-	Environment    string               `json:"environment,omitempty"`
-	LeaseExpires   time.Time            `json:"lease_expires"`
-	TaskAgent      *TaskAgentCapability `json:"task_agent,omitempty"`
-	AgentPrompt    string               `json:"agent_prompt,omitempty"`
+	PublicationLimits executionpolicy.PublicationPolicy `json:"publication_limits"`
+	OwnerID           string                            `json:"owner_id,omitempty"`
+	RequiresVision    bool                              `json:"requires_vision,omitempty"`
+	Claimed           bool                              `json:"claimed"`
+	Attempt           *task.TaskAttempt                 `json:"attempt,omitempty"`
+	Task              *task.Task                        `json:"task,omitempty"`
+	ProjectRepo       string                            `json:"project_repo,omitempty"`
+	RepoOwner         string                            `json:"repo_owner,omitempty"`
+	RepoName          string                            `json:"repo_name,omitempty"`
+	RepoURL           string                            `json:"repo_url,omitempty"`
+	DefaultBranch     string                            `json:"default_branch,omitempty"`
+	DeployBranch      string                            `json:"deploy_branch,omitempty"`
+	WorkingDir        string                            `json:"working_dir,omitempty"`
+	AutoDeploy        bool                              `json:"auto_deploy,omitempty"`
+	Environment       string                            `json:"environment,omitempty"`
+	LeaseExpires      time.Time                         `json:"lease_expires"`
+	TaskAgent         *TaskAgentCapability              `json:"task_agent,omitempty"`
+	AgentPrompt       string                            `json:"agent_prompt,omitempty"`
 }
 
 // TaskAgentCapability is scoped to one task attempt and is used by the

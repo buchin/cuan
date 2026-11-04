@@ -281,7 +281,7 @@ func (r *Runner) streamLogLine(ctx context.Context, attemptID, stream, line stri
 }
 
 func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace, t *task.Task, att *task.TaskAttempt, claim ClaimTaskResponse, compReq *CompleteAttemptRequest, lane string) {
-	if executionpolicy.FromInstructions(t.Instructions).DenyPush {
+	if executionpolicy.FromInstructions(t.Instructions).DenyPush || claim.PublicationLimits.DenyPush {
 		r.streamLogLine(ctx, att.ID, "system", "Task scope forbids publication; local files retained without automatic commit, push or PR.")
 		return
 	}

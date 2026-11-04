@@ -8,8 +8,8 @@ import (
 // PublicationPolicy can only restrict project defaults, never grant publication
 // permission. Project guidance is not a replacement for the approved task scope.
 type PublicationPolicy struct {
-	DenyPush   bool
-	DenyDeploy bool
+	DenyPush   bool `json:"deny_push"`
+	DenyDeploy bool `json:"deny_deploy"`
 }
 
 var publicationProhibition = regexp.MustCompile(`(?i)\b(?:jangan|dilarang|tanpa|do not|don't|must not|never|no)\b[^\n.!?]{0,400}`)

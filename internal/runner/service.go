@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buchin/cuan/internal/executionpolicy"
 	"strings"
 	"sync"
 	"time"
@@ -262,11 +261,16 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		leaseExpires = *att.LeaseExpiresAt
 	}
 
+	limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
+	if err != nil {
+		return nil, err
+	}
 	resp := &ClaimTaskResponse{
-		Claimed:      true,
-		Attempt:      att,
-		Task:         t,
-		LeaseExpires: leaseExpires,
+		Claimed:           true,
+		PublicationLimits: limits,
+		Attempt:           att,
+		Task:              t,
+		LeaseExpires:      leaseExpires,
 	}
 
 	if s.projectFinder != nil && t.ProjectID != "" {
@@ -278,7 +282,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 			resp.DefaultBranch = p.DefaultBranch
 			resp.WorkingDir = p.LocalPath
 			settings := project.SettingsFromMetadata(p.Metadata)
-			resp.AutoDeploy = settings.IsAutoDeployEnabled() && !executionpolicy.FromInstructions(t.Instructions).DenyDeploy
+			resp.AutoDeploy = settings.IsAutoDeployEnabled() && !limits.DenyDeploy
 			resp.Environment = settings.Environment
 		}
 	}
@@ -344,7 +348,11 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					}
 				}
 
-				if settings.IsAutoDeployEnabled() && requiresDeploy && !executionpolicy.FromInstructions(t.Instructions).DenyDeploy {
+				limits, policyErr := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
+				if policyErr != nil {
+					return nil, policyErr
+				}
+				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy {
 					if !req.LiveDeploymentConfirmed {
 						status = task.AttemptStatusFailed
 						att.ErrorMessage = "Kepatuhan auto_deploy: perubahan wajib di-deploy dan terverifikasi live di production sebelum task dinyatakan selesai; commit/push saja tidak memenuhi syarat"

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/buchin/cuan/internal/executionpolicy"
 	"io"
 	"net/http"
 	"os"
@@ -229,7 +228,12 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/push") {
-		if executionpolicy.FromInstructions(latest.Instructions).DenyPush {
+		limits, policyErr := s.taskSvc.AttemptPublicationPolicy(r.Context(), g.TaskID, g.AttemptID)
+		if policyErr != nil {
+			respondJSONError(w, 503, "Task publication limits are unavailable")
+			return
+		}
+		if limits.DenyPush {
 			respondJSONError(w, 403, "This task scope forbids pushing. Local work is preserved.")
 			return
 		}
@@ -327,7 +331,8 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			if latest, err := s.taskSvc.GetTaskDetail(context.Background(), g.TaskID); err == nil && latest != nil {
 				if proj, err := s.projectSvc.Get(context.Background(), latest.ProjectID); err == nil && proj != nil {
 					settings := project.SettingsFromMetadata(proj.Metadata)
-					if settings.IsAutoDeployEnabled() && !executionpolicy.FromInstructions(latest.Instructions).DenyDeploy {
+					limits, policyErr := s.taskSvc.AttemptPublicationPolicy(context.Background(), g.TaskID, g.AttemptID)
+					if policyErr == nil && settings.IsAutoDeployEnabled() && !limits.DenyDeploy && !limits.DenyPush {
 						go s.autoApplyAndDeployTask(context.Background(), g.TaskID, latest.ProjectID)
 					}
 				}
