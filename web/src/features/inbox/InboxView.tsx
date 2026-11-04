@@ -1260,7 +1260,7 @@ export function InboxView({
           <>
             {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
             <PageHeader className="wa-chat-header border-b-0 min-[1200px]:border-b">
-              <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+              <div className="flex flex-1 items-center gap-1.5 sm:gap-2.5 min-w-0">
                 {/* Mobile Back Button (<) */}
                 <IconButton label={t('Back to conversations')} onClick={handleBackToContacts} className="min-[1200px]:hidden"><ChevronLeft /></IconButton>
 
@@ -1279,8 +1279,8 @@ export function InboxView({
                   </div>
                 </div>
 
-                <div className="min-w-0 flex flex-col justify-center">
-                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+                <div className="min-w-0 flex-1 flex flex-col justify-center">
+                  <div className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-2">
                     <h2 className="truncate text-base font-semibold leading-tight text-foreground">
                       {contactDisplayName || activeContact.name}
                     </h2>
@@ -1288,12 +1288,26 @@ export function InboxView({
                       <div className="flex items-center gap-1 min-w-0" data-testid="customer-email-header">
                         <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">·</span>
                         <span
-                          className="truncate text-xs text-muted-foreground font-normal max-w-[140px] sm:max-w-[200px]"
+                          className="truncate text-xs text-muted-foreground font-normal max-w-full sm:max-w-[200px]"
                           title={activeContact.email}
                           data-testid="customer-email-text"
                         >
                           {activeContact.email}
                         </span>
+
+                      </div>
+                    )}
+                  </div>
+                  {activeContact.type !== 'customer' && !(activeContact.type === 'agent' && agents.some(a => a.id === 'agent_cuan')) && <ContactStatus
+                    contact={activeContact}
+                    agents={agents}
+                    now={now}
+                  />}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                {activeContact.type === 'customer' && activeContact.email && (
                         <button
                           type="button"
                           onClick={handleCopyCustomerEmail}
@@ -1308,26 +1322,14 @@ export function InboxView({
                           )}
                         >
                           {copiedEmail ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="inline-flex items-center text-emerald-600 dark:text-emerald-400">
                               <Check className="h-3.5 w-3.5 shrink-0" />
-                              <span>{t('Disalin!')}</span>
                             </span>
                           ) : (
                             <Copy className="h-3.5 w-3.5 shrink-0" />
                           )}
                         </button>
-                      </div>
-                    )}
-                  </div>
-                  {!(activeContact.type === 'agent' && agents.some(a => a.id === 'agent_cuan')) && <ContactStatus
-                    contact={activeContact}
-                    agents={agents}
-                    now={now}
-                  />}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-1">
+                )}
                 {activeContact.type === 'customer' && (
                   <Link
                     className="icon-action text-muted-foreground hover:text-foreground"

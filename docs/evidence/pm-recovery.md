@@ -185,3 +185,15 @@ without changing original scope/authorization. Automated system reviews and
 replayed old approval remain bounded. Regression exhausts three business failures,
 then verifies that the freshly authenticated continuation starts the same task
 while its original authorization ID remains unchanged.
+
+## Mobile customer header clipping
+
+The owner's screenshot showed contact name clipped above the fixed-height chat
+header. Customer email's44px copy target was nested in a wrapping text row; name,
+email and customer label exceeded the shared header height. The mobile identity
+now has two text lines (name/email), copy is a separate header action, and the
+redundant Customer label is omitted. Desktop retains inline name/email. Copy
+feedback uses the same-size icon, so no width/height jump occurs. Real390px touch
+and1440px light/dark browser fixtures check name/email bounds, long labels,44px
+copy target, actual clipboard value, stable header height and task-card actions.
+Screenshots were rendered and directly inspected before deployment.

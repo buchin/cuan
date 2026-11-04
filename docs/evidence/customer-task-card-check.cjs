@@ -45,6 +45,7 @@ async function routeAPI(route){
    return p.endsWith('/events')?route.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: '+JSON.stringify(data)+'\n\n'}):json(data)
   } return json({})
 }
+contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='herusip10.dengan.email.panjang@example.com'
 ;(async()=>{
  fs.mkdirSync(out,{recursive:true})
  server=http.createServer((req,res)=>{let p=path.join(process.cwd(),'web/dist',req.url.split('?')[0]);if(!path.extname(p))p=path.join(process.cwd(),'web/dist/index.html');try{res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':p.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(p))}catch{res.writeHead(404);res.end()}})
@@ -55,6 +56,14 @@ async function routeAPI(route){
  await page.addInitScript(theme=>{localStorage.setItem('cuan_token','fixture');localStorage.setItem('cuan-theme',theme)},theme)
  await page.route('**/api/**',routeAPI)
  await page.goto('http://127.0.0.1:4183/inbox/fixture-room')
+ const header=page.locator('.wa-chat-header'),headerBox=await header.boundingBox();
+ for(const element of [header.locator('h2'),header.getByTestId('customer-email-text')]) {
+  const box=await element.boundingBox();assert(box.y>=headerBox.y&&box.y+box.height<=headerBox.y+headerBox.height,'identity stays inside header');
+ }
+ const copy=header.getByTestId('copy-customer-email-button');assert((await copy.boundingBox()).width>=44);
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedFixtureEmail=text}}}));
+ await copy.click();assert.equal(await page.evaluate(()=>window.copiedFixtureEmail),'herusip10.dengan.email.panjang@example.com');
+ const afterCopy=await header.boundingBox();assert.equal(afterCopy.height,headerBox.height,'copy feedback must not change header height');
  const card=page.locator('[data-card=task-card]');await card.waitFor();assert.equal(await card.count(),1,'one task attachment in customer room');await card.scrollIntoViewIfNeeded();
  assert(await card.getByRole('button',{name:'Detail',exact:true}).isVisible());assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0)
  assert.equal(await page.locator('[data-message-id=reply] [data-card]').count(),1,'card belongs to agent delegation');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
