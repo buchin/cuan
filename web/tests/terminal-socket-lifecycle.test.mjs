@@ -38,6 +38,13 @@ test('active socket output still reaches the terminal', () => {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText
   const callback = new Function('disposed','socket','ws','term','following',`${code}; return callback`)(false,{current:ws},ws,term,{current:false})
-  callback({data:new TextEncoder().encode('live output').buffer})
-  assert.equal(new TextDecoder().decode(writes[0]),'live output')
+  const output = 'live output\r\n\x1b[2K{"type":"stdin","data":"valid terminal output"}\r\n日本語🙂'
+  const bytes = new TextEncoder().encode(output)
+  // Deliberately split inside multibyte UTF-8. Each PTY byte must survive;
+  // xterm's streaming parser owns decoding rather than each WS callback.
+  const split = bytes.length - 2
+  callback({data:bytes.slice(0,split).buffer})
+  callback({data:bytes.slice(split).buffer})
+  assert(writes.every(x=>x instanceof Uint8Array))
+  assert.deepEqual(Buffer.concat(writes.map(x=>Buffer.from(x))),Buffer.from(bytes))
 })

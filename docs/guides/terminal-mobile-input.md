@@ -69,3 +69,13 @@ Cuan's runner bridge unconditionally replays scrollback before live output.
 Simply removing the browser reset would duplicate that history. Adopting this
 behavior requires an ordered replay/catch-up contract across the bridge, rather
 than a browser-only change that could silently miss output during disconnection.
+
+## Preserve PTY bytes
+
+Binary WebSocket frames are raw PTY output, not JSON control frames. They must
+reach xterm unchanged. The old JSON-looking-text regex removed legitimate
+terminal content and could independently decode partial UTF-8 frames. The
+socket lifecycle regression now checks byte-for-byte preservation of ANSI,
+JSON output and Unicode split across frames. This establishes stream fidelity,
+not resolution of the physical keyboard report. Soft reconnect replay and
+render backpressure remain separate from this fix.
