@@ -249,16 +249,16 @@ export function TaskSessionPage({
   if (!detail) {
     return (
       <div className="flex h-full min-h-0 flex-col bg-background">
-        <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
+        <header className="flex h-9 sm:h-11 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <Link
               to={backURL}
               state={state}
-              className="icon-action shrink-0"
+              className="icon-action h-8 w-8 sm:h-8 sm:w-8 shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={t('Back')}
               title={t('Back')}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Link>
             <h2 className="truncate text-sm sm:text-base font-semibold text-foreground min-w-0">
               {error ? t('Work not found') : t('Loading session…')}
@@ -315,16 +315,16 @@ export function TaskSessionPage({
     const isCompleted = detail.status === 'done'
     return (
       <div className="flex h-full min-h-0 flex-col bg-background">
-        <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
+        <header className="flex h-9 sm:h-11 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <Link
               to={backURL}
               state={state}
-              className="icon-action shrink-0"
+              className="icon-action h-8 w-8 sm:h-8 sm:w-8 shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={t('Back')}
               title={t('Back')}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Link>
             <h2 className="truncate text-sm sm:text-base font-semibold text-foreground min-w-0" title={detail.title}>
               {detail.title}
@@ -431,7 +431,7 @@ export function TaskSessionPage({
   const statusBadge = (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
+        'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-1.5 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-semibold shadow-2xs transition-colors',
         isWorking && isConnected
           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
           : workStatusBadgeClass(status)
@@ -459,7 +459,7 @@ export function TaskSessionPage({
           )}
         />
       </span>
-      <span className="truncate max-w-[70px] min-[380px]:max-w-[100px] min-[440px]:max-w-none">{statusLabel}</span>
+      <span className="truncate max-w-[65px] min-[380px]:max-w-[90px] min-[440px]:max-w-none">{statusLabel}</span>
     </span>
   )
 
@@ -469,13 +469,13 @@ export function TaskSessionPage({
       className="flex h-full min-h-0 flex-col bg-background overscroll-contain"
     >
       <GitHubPrerequisite task={detail} />
-      <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2 select-none">
+      <header className="flex h-9 sm:h-11 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1 sm:gap-2 select-none">
         {/* Navigation & Task Title */}
-        <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-1.5">
           <Link
             to={backURL}
             state={state}
-            className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
+            className="icon-action h-8 w-8 sm:h-8 sm:w-8 shrink-0 text-muted-foreground hover:text-foreground"
             aria-label={
               backURL.startsWith('/inbox/')
                 ? 'Back to conversation'
@@ -487,15 +487,15 @@ export function TaskSessionPage({
                 : 'Back to tasks'
             }
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Link>
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
-            <span className="flex h-5 w-5 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded bg-muted/60 text-muted-foreground">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="flex h-5 w-5 sm:h-5.5 sm:w-5.5 shrink-0 items-center justify-center rounded bg-muted/60 text-muted-foreground">
               <Terminal className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground/80" />
             </span>
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 flex-1">
               <h2
-                className="truncate text-xs sm:text-sm font-semibold text-foreground min-w-0 tracking-tight"
+                className="truncate text-xs sm:text-sm font-semibold text-foreground min-w-0 flex-1 tracking-tight"
                 title={detail.title}
               >
                 {detail.title.startsWith('Terminal ·')
@@ -503,14 +503,14 @@ export function TaskSessionPage({
                   : detail.title}
               </h2>
               {detail.branch_name && (
-                <span className="hidden xs:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/80 text-muted-foreground shrink-0 max-w-[120px] truncate border border-border/40">
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/80 text-muted-foreground shrink-0 max-w-[120px] truncate border border-border/40">
                   <GitBranch className="h-2.5 w-2.5 shrink-0" />
                   <span className="truncate">{detail.branch_name}</span>
                 </span>
               )}
               {(attempt?.agent_name || selectedAgentId || detail.assignee_id) && (
                 <span
-                  className="hidden xs:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary shrink-0 border border-primary/20 max-w-[110px] truncate"
+                  className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary shrink-0 border border-primary/20 max-w-[110px] truncate"
                   title={`Agent: ${agentDisplayName(attempt?.agent_name || selectedAgentId || detail.assignee_id || '')}`}
                 >
                   <Bot className="h-2.5 w-2.5 shrink-0" />
@@ -528,7 +528,7 @@ export function TaskSessionPage({
           <button
             type="button"
             className={cn(
-              'icon-action shrink-0 transition-colors hidden sm:inline-flex',
+              'icon-action h-8 w-8 sm:h-8 sm:w-8 shrink-0 transition-colors hidden sm:inline-flex',
               pinTerminal
                 ? 'text-emerald-500 bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 dark:text-emerald-400'
                 : 'text-muted-foreground hover:text-foreground'
@@ -542,30 +542,30 @@ export function TaskSessionPage({
             onClick={handleTogglePin}
           >
             {pinTerminal ? (
-              <Pin className="h-4 w-4 fill-emerald-500/20 dark:fill-emerald-400/20" />
+              <Pin className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-emerald-500/20 dark:fill-emerald-400/20" />
             ) : (
-              <PinOff className="h-4 w-4" />
+              <PinOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             )}
           </button>
           {active && (
             <button
               type="button"
-              className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
+              className="icon-action h-8 w-8 sm:h-8 sm:w-8 shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
               aria-label="Cancel session"
               title={t('Cancel session')}
               onClick={() => setCancel(true)}
             >
-              <Square className="h-4 w-4 fill-current" />
+              <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
             </button>
           )}
           <button
             type="button"
-            className="icon-action shrink-0 text-muted-foreground hover:text-foreground"
+            className="icon-action h-8 w-8 sm:h-8 sm:w-8 shrink-0 text-muted-foreground hover:text-foreground"
             aria-label="Detail"
             title={t('Detail')}
             onClick={() => setShowDetail(true)}
           >
-            <Info className="h-4 w-4" />
+            <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         </div>
       </header>
@@ -586,10 +586,10 @@ export function TaskSessionPage({
       {active || showTerminal || isDedicatedTerminal ? (
         <div className="flex min-h-0 flex-1 flex-col overscroll-contain">
           {!active && (
-            <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                <span className="truncate font-medium text-foreground">
+            <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-muted/40 px-2 sm:px-3 py-1 sm:py-1.5 text-xs text-muted-foreground backdrop-blur-xs">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 rounded-full bg-emerald-500" />
+                <span className="truncate font-medium text-foreground text-xs">
                   {isDedicatedTerminal
                     ? t('Project terminal · Live with agent')
                     : pinTerminal
@@ -603,7 +603,7 @@ export function TaskSessionPage({
               {!isDedicatedTerminal && (
                 <button
                   type="button"
-                  className="action-secondary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"
+                  className="action-secondary shrink-0 text-[11px] sm:text-xs py-0.5 sm:py-1 px-2 sm:px-2.5 min-h-7 sm:min-h-8 inline-flex items-center gap-1 sm:gap-1.5 ml-1.5"
                   onClick={() => setShowTerminal(false)}
                 >
                   <span>{t('View result')}</span>

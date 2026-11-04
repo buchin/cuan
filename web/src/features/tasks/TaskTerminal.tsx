@@ -1067,14 +1067,14 @@ export function TaskTerminal({
     <div
       className={
         controlsTarget && !isFullscreen
-          ? 'flex items-center gap-1.5'
-          : 'flex shrink-0 items-center justify-between gap-1.5 bg-background px-2 py-1'
+          ? 'flex items-center gap-1 sm:gap-1.5'
+          : 'flex shrink-0 items-center justify-between gap-1 sm:gap-1.5 bg-background px-2 py-0.5 sm:py-1'
       }
     >
-      <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
         {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
+            className="inline-flex items-center gap-1 sm:gap-1.5 rounded-full px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
             role="status"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1112,7 +1112,7 @@ export function TaskTerminal({
           <span
             aria-hidden
             className={
-              'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
+              'mx-0.5 sm:mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
               (connection === 'connected' || connection === 'streaming'
                 ? 'bg-emerald-500 animate-pulse'
                 : connection === 'saved'
@@ -1125,12 +1125,12 @@ export function TaskTerminal({
       </div>
 
       {/* Quick Action Toolbar */}
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-0.5 sm:gap-1">
         {/* Quick Stop / Interrupt (Ctrl+C) - Active without legacy liveId gate */}
         {isTaskActive && (
           <button
             type="button"
-            className="icon-action text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 active:bg-rose-600 active:text-white"
+            className="icon-action h-8 w-8 sm:h-8 sm:w-8 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 active:bg-rose-600 active:text-white"
             aria-label={t('Send Ctrl+C (Interrupt)')}
             title={t('Send Ctrl+C (Interrupt)')}
             onClick={handleStop}
@@ -1142,7 +1142,7 @@ export function TaskTerminal({
         {/* Clear buffer */}
         <button
           type="button"
-          className="icon-action"
+          className="icon-action h-8 w-8 sm:h-8 sm:w-8"
           aria-label={t('Clear terminal')}
           title={t('Clear terminal')}
           onClick={handleClear}
@@ -1153,7 +1153,7 @@ export function TaskTerminal({
         {/* Fullscreen / Maximize toggle */}
         <button
           type="button"
-          className="icon-action"
+          className="icon-action h-8 w-8 sm:h-8 sm:w-8"
           aria-label={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
           title={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
           onClick={() => setIsFullscreen((prev) => !prev)}
@@ -1168,12 +1168,12 @@ export function TaskTerminal({
         {/* Mobile keyboard trigger - Active without legacy liveId gate */}
         <button
           type="button"
-          className="icon-action sm:hidden"
+          className="icon-action h-8 w-8 sm:h-8 sm:w-8 sm:hidden"
           aria-label={t('Show keyboard')}
           title={t('Show keyboard')}
           onClick={showKeyboard}
         >
-          <Keyboard className="h-4 w-4" />
+          <Keyboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </button>
       </div>
 
@@ -1182,33 +1182,33 @@ export function TaskTerminal({
         <summary
           aria-label={t('Terminal tools')}
           title={t('Terminal tools')}
-          className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+          className="icon-action h-8 w-8 sm:h-8 sm:w-8 cursor-pointer list-none [&::-webkit-details-marker]:hidden"
         >
-          <MoreHorizontal className="h-4 w-4" />
+          <MoreHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </summary>
         <div className="absolute right-0 top-full z-20 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
           <div className="flex flex-wrap justify-end gap-1">
             <button
               type="button"
-              className="icon-action"
+              className="icon-action h-8 w-8"
               aria-label={t('Reconnect terminal')}
               title={t('Reconnect to this session')}
               onClick={handleReconnect}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
             <button
               type="button"
-              className="icon-action"
+              className="icon-action h-8 w-8"
               aria-label={t('Copy output')}
               title={t('Copy output')}
               onClick={handleCopy}
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
             <button
               type="button"
-              className="icon-action"
+              className="icon-action h-8 w-8"
               aria-label={t('Download output')}
               title={t('Download output')}
               onClick={() => {

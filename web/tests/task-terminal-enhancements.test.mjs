@@ -164,11 +164,11 @@ test('6. Mobile-Safe Top Navbar Layout (< 360px): Single clean row and no button
   assert.ok(fs.existsSync(sessionPagePath), 'TaskSessionPage.tsx must exist')
   const content = fs.readFileSync(sessionPagePath, 'utf8')
 
-  // Header must be a single responsive row, not stacked rows
+  // Header must be a single responsive row, compact and lean (h-9 sm:h-11)
   assert.match(
     content,
-    /<header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3/,
-    'Header must be single unified row (h-11 sm:h-12)'
+    /<header className="flex h-9 sm:h-11 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3/,
+    'Header must be single unified compact row (h-9 sm:h-11)'
   )
 
   // Secondary Row on Mobile must be eliminated to prevent vertical waste and collision
