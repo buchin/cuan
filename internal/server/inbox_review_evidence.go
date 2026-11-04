@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/buchin/cuan/internal/task"
@@ -60,6 +61,22 @@ func inboxReportEvidence(d *task.TaskDetailResponse) inboxReportedEvidence {
 			out.HistoricalVerification = d.CompleteNote
 		}
 		return out
+	}
+	if d.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		for _, a := range d.Activities {
+			if a != nil && a.TaskID == d.ID && a.AttemptID != nil && *a.AttemptID == d.LatestAttempt.ID && a.ActivityType == task.ActivityRunnerFinalization && a.Author == d.LatestAttempt.RunnerID {
+				var report task.FinalizationReport
+				if json.Unmarshal([]byte(a.Message), &report) == nil && report.ManifestHash != "" {
+					out.AttemptID = d.LatestAttempt.ID
+					out.Provenance = "current_runner_finalization"
+					out.Summary = report.Summary
+					out.Verification = report.Verification
+					out.HistoricalSummary = d.Summary
+					out.HistoricalVerification = d.CompleteNote
+					return out
+				}
+			}
+		}
 	}
 	// Older integrations can complete a single attempt through the runner without
 	// an agent-report event. Keep those snapshots explicitly unbound, never assign

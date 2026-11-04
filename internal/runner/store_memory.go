@@ -258,6 +258,16 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 		}
 		for _, a := range attempts {
 			if a.Status == task.AttemptStatusQueued {
+				if ctx.Value(verificationFinalizationClaimKey{}) != true {
+					proof, err := task.VerificationIntentForAttempt(ctx, m.taskStore, t, a.ID)
+					if err != nil {
+						return nil, nil, err
+					}
+					if proof != nil && proof.FinalizeAttemptID != "" {
+						continue
+					}
+				}
+
 				// Check agent compatibility if specified
 				targetAgent := a.AgentName
 				if targetAgent == "" {

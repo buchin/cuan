@@ -23,6 +23,8 @@ const inboxReviewEvaluationInstruction = `You evaluate supplied work reports and
 
 verification_context, when present, binds previously completed implementation checks to the exact unchanged source commit verified by the current supplemental attempt. Those checks ran in source_attempt_id, not the current verifier. Apply the original acceptance and publication requirements without waiving any; read-only verification does not prove original deployment requirements. Missing current evidence still requires revision.
 
+A report_provenance=current_runner_finalization is a server-validated machine report of source integrity and saved output references, not an AI report or a rerun of implementation tests. Its referenced images still require independent visual inspection. Do not require a second AI report merely to repeat these machine checks; original scope and publication requirements remain mandatory.
+
 execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
 
 For code implementation tasks, require concrete verification evidence (test outputs, commit hashes, specific verified file changes). Set remaining_work=verification only when implementation is complete and the remaining work consists exclusively of checking the same result or supplying missing verification evidence without changing code, configuration, tests, documentation, commits or production. Any required implementation change or publication is remaining_work=implementation; a genuine external prerequisite is external; pass is none. This classification never grants execution permission.
@@ -77,7 +79,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	var files []conversationAttachment
 	var deliveredText []map[string]string
 	textBudget := 12000
-	if m, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+d.LatestAttempt.ID)); err == nil && m != nil && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == d.SourceMessageID {
+	if m, err := s.inboxReviewDelivery(ctx, d); err == nil && m != nil && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == d.SourceMessageID {
 		_, ids := decodeAttachmentMessage(m.Content)
 		if owner, err := s.taskArtifactOwner(ctx, d); err == nil {
 			for _, id := range ids {
@@ -298,6 +300,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}
 		}
 	}
+	if decision.Decision == "pass" && inboxReportEvidence(d).Provenance == "current_runner_finalization" && strings.TrimSpace(decision.Finding) != "" {
+		decision.Explanation = decision.Finding
+	}
 	if decision.Decision == "pass" {
 		_, scopeVerified, scopeErr := s.inboxReviewRepositoryScope(ctx, d)
 		intent, intentErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
@@ -323,6 +328,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				}
 			}
 			summary := strings.TrimSpace(d.Summary)
+			if inboxReportEvidence(d).Provenance == "current_runner_finalization" {
+				summary = decision.Explanation
+			}
 			if summary == "" {
 				summary = "Pekerjaan telah diselesaikan dan diverifikasi."
 			}
@@ -401,6 +409,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		// Infrastructure interruptions and canceled runs do not spend the business
 		// correction budget. A process ordinal is not a count of failed reviews.
 		if taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, d)) >= 3 {
+			if outcome, scheduled := s.startVerificationFinalization(ctx, q, d, decision); scheduled {
+				return outcome
+			}
 			if outcome, scheduled := s.startVerificationFollowup(ctx, q, d, decision); scheduled {
 				return outcome
 			}

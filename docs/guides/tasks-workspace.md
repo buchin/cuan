@@ -355,3 +355,28 @@ completion without an attempt, with saved summary and verification, remains
 eligible for its existing result notice; cancellation notices remain eligible.
 The polling path does not construct board result classifications, project names
 or live progress for thousands of accepted tasks.
+
+### Deterministic finalization of saved verification outputs
+
+If a read-only verifier times out after producing the required files, Cuan may
+schedule one machine-only finalization for that tested source commit. Eligibility
+requires the recovered immutable artifact manifest, an independent visual review,
+the original approval and a prior runner-verified repository fingerprint for the
+same source. Cancellation, changed instructions/source, altered delivered bytes
+or a missing baseline prevents finalization.
+
+This is a separate native integrity check, not another AI execution or a reset of
+implementation/recovery limits. It uses the existing task workspace, checks the
+exact clean HEAD and compares repository state to the saved fingerprint. It runs
+for at most 30 seconds within the existing execution deadline. It does not invoke
+an adapter, lease an AI account, prepare/reset a workspace, run project commands,
+push or deploy. Machine claims omit project environment, model context and task
+capabilities. Workers must explicitly support this mode; older workers leave its
+queued attempt untouched.
+
+Backend completion requires the exact source, expected baseline and artifact
+manifest. A typed runner finalization report is distinct from an AI report and
+preserves the original failed attempt. Original files keep their attempt identity
+and Inbox delivery; no duplicate attachment message is created. A successful
+integrity check moves the result to ordinary independent review. Original visual,
+acceptance, publication and phase approval requirements still apply before Done.

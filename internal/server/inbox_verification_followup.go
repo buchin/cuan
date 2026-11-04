@@ -137,5 +137,5 @@ func (s *Server) verificationReviewContext(ctx context.Context, d *task.TaskDeta
 	}
 	original := *d
 	original.LatestAttempt = source
-	return map[string]any{"source_attempt_id": proof.SourceAttemptID, "source_commit": proof.SourceCommit, "source_project_checks": task.AttemptVerificationEvidence(&original).Current, "repository_unchanged": true}
+	return map[string]any{"source_attempt_id": proof.SourceAttemptID, "source_commit": proof.SourceCommit, "source_project_checks": task.AttemptVerificationEvidence(&original).Current, "repository_unchanged": true, "finalized_outputs_from_attempt_id": proof.FinalizeAttemptID, "artifact_manifest_hash": proof.ArtifactManifestHash}
 }

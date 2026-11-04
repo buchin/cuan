@@ -528,6 +528,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		return
 	}
 
+	if ok, err := s.linkFinalizationArtifacts(ctx, detail); err != nil || !ok {
+		return
+	}
 	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
 		return
@@ -612,6 +615,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 					continue
 				}
 				if saved, ok := reviewAssessment(detail, reviewed.RequestID); ok && saved == latest {
+					if _, scheduled := s.startVerificationFinalization(ctx, reviewed, detail, saved); scheduled {
+						return
+					}
 					if _, scheduled := s.startVerificationFollowup(ctx, reviewed, detail, saved); scheduled {
 						return
 					}

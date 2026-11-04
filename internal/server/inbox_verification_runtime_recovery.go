@@ -13,7 +13,7 @@ import (
 // capability becomes available. It cannot change source, publication or scope,
 // replay an interrupted process, or chain another verification recovery.
 func (s *Server) verificationRuntimeRecoveryProof(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, prior *task.VerificationIntent, assessment inboxReviewEvaluation) *task.VerificationIntent {
-	if prior == nil || prior.RecoveryAttemptID != "" || s.runnerSvc == nil || prior.OwnerID != q.OwnerID || prior.RoomID != q.RoomID || assessment.VisualInspection == "" || len(s.inboxReviewImages(ctx, d)) == 0 || d.LatestAttempt.FinishedAt == nil || s.verificationReviewContext(ctx, d) == nil {
+	if prior == nil || prior.RecoveryAttemptID != "" || prior.FinalizeAttemptID != "" || s.runnerSvc == nil || prior.OwnerID != q.OwnerID || prior.RoomID != q.RoomID || assessment.VisualInspection == "" || len(s.inboxReviewImages(ctx, d)) == 0 || d.LatestAttempt.FinishedAt == nil || s.verificationReviewContext(ctx, d) == nil {
 		return nil
 	}
 	runtime := s.runnerSvc.BrowserRuntime(ctx, d.LatestAttempt.RunnerID)

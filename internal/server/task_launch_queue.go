@@ -165,6 +165,15 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if verification == nil && (targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued") {
 		runnerID = "local_terminal"
 	}
+	if verification != nil && verification.FinalizeAttemptID != "" {
+		if _, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &detail.Task, detail.LatestAttempt.ID); err != nil {
+			return finish("stopped", "The saved verification source could not be validated.")
+		}
+		if _, err := s.taskSvc.CreateAttempt(ctx, detail.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: targetAgent, RequestID: job.RequestID}); err != nil {
+			return finish("queued", "Verification finalization is waiting for its project lane.")
+		}
+		return finish("started", "")
+	}
 	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)
 	if response.code == 200 {
 		return finish("started", "")

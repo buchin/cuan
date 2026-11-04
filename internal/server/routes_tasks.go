@@ -492,6 +492,10 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if resp.Claimed && resp.Verification != nil && resp.Verification.FinalizeAttemptID != "" {
+		respondJSON(w, http.StatusOK, resp)
+		return
+	}
 	if resp.Claimed && resp.Task != nil && resp.Task.ProjectID != "" {
 		if p, err := s.projectSvc.Get(r.Context(), resp.Task.ProjectID); err == nil && p != nil {
 			resp.ProjectRepo = p.RepoURL

@@ -14,6 +14,9 @@ const VerificationIntentMarker = "Cuan verification-only intent v1: "
 // VerificationIntent permits one immutable-source evidence run, not another
 // implementation cycle or publication permission. It lives in its exact launch.
 type VerificationIntent struct {
+	FinalizeAttemptID      string `json:"finalize_attempt_id,omitempty"`
+	ArtifactManifestHash   string `json:"artifact_manifest_hash,omitempty"`
+	RepositoryBaseline     string `json:"repository_baseline,omitempty"`
 	RecoveryAttemptID      string `json:"recovery_attempt_id,omitempty"`
 	RuntimeFingerprint     string `json:"runtime_fingerprint,omitempty"`
 	SourceAttemptID        string `json:"source_attempt_id"`
@@ -31,6 +34,9 @@ func VerificationRequestID(taskID, commit string) string {
 }
 func VerificationRecoveryRequestID(taskID, commit string) string {
 	return verificationRequestID("verification-runtime-recovery:v1:", taskID, commit)
+}
+func VerificationFinalizeRequestID(taskID, commit string) string {
+	return verificationRequestID("verification-finalize:v1:", taskID, commit)
 }
 func verificationRequestID(prefix, taskID, commit string) string {
 	hash := sha256.Sum256([]byte(prefix + taskID + ":" + commit))
@@ -73,6 +79,12 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 			return nil, ErrInvalidTaskInput
 		}
 		expected = VerificationRecoveryRequestID(t.ID, proof.SourceCommit)
+	}
+	if proof.FinalizeAttemptID != "" || proof.ArtifactManifestHash != "" || proof.RepositoryBaseline != "" {
+		if proof.FinalizeAttemptID == "" || proof.FinalizeAttemptID == proof.SourceAttemptID || proof.FinalizeAttemptID == proof.RecoveryAttemptID || proof.RecoveryAttemptID == "" || !validVerificationHash(proof.ArtifactManifestHash) || !validVerificationHash(proof.RepositoryBaseline) {
+			return nil, ErrInvalidTaskInput
+		}
+		expected = VerificationFinalizeRequestID(t.ID, proof.SourceCommit)
 	}
 	if j.RequestID != expected {
 		return nil, ErrInvalidTaskInput
@@ -140,6 +152,11 @@ func ValidateVerificationSource(ctx context.Context, store Store, t *Task, attem
 	}
 	if proof.RecoveryAttemptID != "" {
 		if err := validateVerificationRuntimeRecovery(ctx, store, t, proof, activities); err != nil {
+			return nil, err
+		}
+	}
+	if proof.FinalizeAttemptID != "" {
+		if err := validateVerificationFinalization(ctx, store, t, proof, activities); err != nil {
 			return nil, err
 		}
 	}

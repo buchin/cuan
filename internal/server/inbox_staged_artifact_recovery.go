@@ -16,7 +16,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const recoveredVerificationArtifactsActivity = "verification_artifacts_recovered"
+const recoveredVerificationArtifactsActivity = task.ActivityRecoveredVerificationArtifacts
 
 // The dedicated session output directory is a delivery staging area. Preserve
 // its bounded outputs after a verifier times out, without fabricating an agent

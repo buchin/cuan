@@ -249,7 +249,8 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		return nil, fmt.Errorf("runner_id is required")
 	}
 
-	att, t, err := s.store.ClaimNextQueuedAttempt(ctx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
+	claimCtx := context.WithValue(ctx, verificationFinalizationClaimKey{}, req.SupportsVerificationFinalization)
+	att, t, err := s.store.ClaimNextQueuedAttempt(claimCtx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
 	if err != nil {
 		return nil, fmt.Errorf("claim attempt: %w", err)
 	}
@@ -276,6 +277,9 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	verification, err := task.ValidateVerificationSource(ctx, s.taskStore, t, att.ID)
 	if err != nil {
 		return nil, err
+	}
+	if verification != nil && verification.FinalizeAttemptID != "" && !req.SupportsVerificationFinalization {
+		return nil, fmt.Errorf("runner does not support verification finalization")
 	}
 	if runtime := s.BrowserRuntime(ctx, req.RunnerID); runtime != nil {
 		raw, _ := json.Marshal(runtime)
@@ -306,6 +310,12 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		}
 	}
 
+	if verification != nil && verification.FinalizeAttemptID != "" {
+		resp.Task = &task.Task{ID: t.ID, ProjectID: t.ProjectID, Title: t.Title, SourceRoomID: t.SourceRoomID, ExecutionCategory: t.ExecutionCategory}
+		resp.Environment = ""
+		resp.AutoDeploy = false
+		resp.OwnerID = verification.OwnerID
+	}
 	return resp, nil
 }
 
@@ -380,7 +390,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			return nil, proofErr
 		}
 		if proof != nil {
-			if (proof.RuntimeFingerprint != "" && req.VerificationRuntimeFingerprint != proof.RuntimeFingerprint) || req.VerifiedSourceCommit != proof.SourceCommit || !limits.ReadOnlyRepository || !req.RepositoryVerification.Unchanged() || req.LiveDeploymentConfirmed || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
+			if (proof.FinalizeAttemptID != "" && (req.FinalizationManifestHash != proof.ArtifactManifestHash || req.RepositoryVerification == nil || req.RepositoryVerification.Baseline != proof.RepositoryBaseline)) || (proof.FinalizeAttemptID == "" && proof.RuntimeFingerprint != "" && req.VerificationRuntimeFingerprint != proof.RuntimeFingerprint) || req.VerifiedSourceCommit != proof.SourceCommit || !limits.ReadOnlyRepository || !req.RepositoryVerification.Unchanged() || req.LiveDeploymentConfirmed || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
 				status = task.AttemptStatusFailed
 				att.ErrorMessage = "Verification-only source or publication scope was not verified by the runner"
 			} else {
@@ -448,6 +458,14 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	{
 		oldStatus := t.Status
 		expectedUpdatedAt := t.UpdatedAt
+		if status == task.AttemptStatusSucceeded && intent != nil && intent.FinalizeAttemptID != "" {
+			report := task.FinalizationReport{Summary: "Saved verification outputs checked against the unchanged source.", Verification: "The exact source commit and repository fingerprint match the prior verified baseline. Saved outputs are linked from the interrupted attempt for independent visual review. No AI execution, project commands, code changes, push or deployment occurred. Original implementation checks and the prior timeout retain their own provenance.", OriginAttemptID: intent.FinalizeAttemptID, ManifestHash: intent.ArtifactManifestHash}
+			raw, _ := json.Marshal(report)
+			completionActivities = append(completionActivities, &task.TaskActivity{ID: "finalization:" + att.ID, TaskID: t.ID, AttemptID: &att.ID, ActivityType: task.ActivityRunnerFinalization, Author: req.RunnerID, NewStatus: task.TaskStatusReview, Message: string(raw), CreatedAt: now})
+			t.Summary = report.Summary
+			t.CompleteNote = report.Verification
+			req.DoDValidation = &DoDValidationResult{Passed: false, Action: "review"}
+		}
 
 		// 1. Emisi internal event task:attempt_succeeded / task:attempt_completed
 		completedEvt := AttemptCompletedEvent{

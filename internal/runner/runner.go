@@ -449,9 +449,10 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	claimReq := ClaimTaskRequest{
-		RunnerID:        r.cfg.RunnerID,
-		SupportedAgents: []string{r.adapter.Name()},
-		AvailableLanes:  availableLanes,
+		SupportsVerificationFinalization: true,
+		RunnerID:                         r.cfg.RunnerID,
+		SupportedAgents:                  []string{r.adapter.Name()},
+		AvailableLanes:                   availableLanes,
 	}
 
 	resp, err := r.doRequest(ctx, http.MethodPost, "/api/v1/runner/claim", claimReq)
@@ -709,6 +710,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	t := claim.Task
 	startTime := time.Now()
 	deadline := verificationDeadline(task.AttemptDeadline(t, att), startTime, claim.Verification != nil)
+	if claim.Verification != nil && claim.Verification.FinalizeAttemptID != "" && startTime.Add(30*time.Second).Before(deadline) {
+		deadline = startTime.Add(30 * time.Second)
+	}
 	ctx, cancelAttempt := context.WithDeadline(ctx, deadline)
 	defer cancelAttempt()
 
@@ -782,6 +786,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 
 	// Prepare execution request with AGENTS.md guidance, DoD checklist, and Scrum rules injected
+	if claim.Verification != nil && claim.Verification.FinalizeAttemptID != "" {
+		r.runVerificationFinalizer(ctx, claim, workingDir, err)
+		return
+	}
 	var dodTexts []string
 	for _, item := range t.DoDChecklist {
 		if strings.TrimSpace(item.Text) != "" {

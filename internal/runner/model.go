@@ -81,9 +81,10 @@ type SteerAttemptResponse struct {
 
 // ClaimTaskRequest is sent by a runner to acquire the next queued task attempt for available lanes.
 type ClaimTaskRequest struct {
-	RunnerID        string   `json:"runner_id"`
-	SupportedAgents []string `json:"supported_agents"`
-	AvailableLanes  []string `json:"available_lanes,omitempty"` // code, ops, readonly
+	SupportsVerificationFinalization bool     `json:"supports_verification_finalization,omitempty"`
+	RunnerID                         string   `json:"runner_id"`
+	SupportedAgents                  []string `json:"supported_agents"`
+	AvailableLanes                   []string `json:"available_lanes,omitempty"` // code, ops, readonly
 }
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
@@ -128,6 +129,7 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
+	FinalizationManifestHash       string                  `json:"finalization_manifest_hash,omitempty"`
 	VerificationRuntimeFingerprint string                  `json:"verification_runtime_fingerprint,omitempty"`
 	VerifiedSourceCommit           string                  `json:"verified_source_commit,omitempty"`
 	RepositoryVerification         *RepositoryVerification `json:"repository_verification,omitempty"`

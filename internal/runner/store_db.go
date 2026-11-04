@@ -231,6 +231,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		FROM task_attempts a
 		JOIN tasks t ON a.task_id = t.id
 		WHERE a.status = 'queued'
+ AND ($4 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan verification-only intent v1:%' AND l.revision LIKE '%"finalize_attempt_id":%'))
 		  AND (
 		      ($1 = true AND COALESCE(t.execution_category, 'code') = 'code')
 		      OR ($2 = true AND COALESCE(t.execution_category, 'code') = 'ops')
@@ -330,7 +331,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 
 	var att task.TaskAttempt
 	var t task.Task
-	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead).Scan(
+	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true).Scan(
 		&att.ID,
 		&att.TaskID,
 		&att.RunnerID,

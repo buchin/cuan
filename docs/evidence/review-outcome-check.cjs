@@ -6,7 +6,7 @@ const out=process.env.CUAN_REVIEW_EVIDENCE_DIR||'/home/dev/reports/cuan-pm-recov
 const finding=process.env.CUAN_REVIEW_FINDING||''
 const verifying=process.env.CUAN_REVIEW_VERIFYING==='1'
 const recovered=process.env.CUAN_REVIEW_RECOVERED_FILES==='1'
-const stopped=verifying?'Cuan menyiapkan verifikasi tambahan pada hasil yang sama.':'Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.'
+const stopped=process.env.CUAN_REVIEW_OUTCOME||(verifying?'Cuan menyiapkan verifikasi tambahan pada hasil yang sama.':'Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.')
 const outcome=[finding,stopped].filter(Boolean).join('\n\n')
 Object.assign(task,{title:'Perbaiki navigasi',summary:'Verifikasi belum selesai.',status:verifying?'queued':'blocked',source_message_id:'reply',launch:{state:verifying?'queued':'stopped'},latest_attempt:{id:'attempt',status:finding?'succeeded':'failed'}})
 const contact={id:'fixture',type:'agent',agent_id:'agent_cuan',agent_name:'@cuan',name:'Perbaikan navigasi',conversation_id:'fixture-room',last_message:outcome,failed_tasks:verifying?0:1,task_count:1,updated_at:now}

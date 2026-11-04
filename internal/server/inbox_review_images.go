@@ -31,7 +31,7 @@ func (s *Server) inboxReviewImages(ctx context.Context, d *task.TaskDetailRespon
 	if d == nil || d.LatestAttempt == nil || s.projectStudioRepo == nil {
 		return nil
 	}
-	m, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+d.LatestAttempt.ID))
+	m, err := s.inboxReviewDelivery(ctx, d)
 	if err != nil || m == nil || m.AuthorType != "agent" || m.ReplyToID == nil || *m.ReplyToID != d.SourceMessageID {
 		return nil
 	}
