@@ -48,6 +48,31 @@ its task-level text alone is insufficient to manufacture acceptance or retry it.
 The original failed attempt, scope and files remain preserved for evidence-bound
 recovery. No task was administratively restarted or marked complete.
 
+## Bounded independent recovery of an existing investigation report
+
+Historical Markdown verification text can be used as a diagnosis hint without
+pretending it is an exact-attempt verification receipt. A failed exit-zero
+auto-deploy gate with a final report and reported acceptance evidence may now
+receive one fresh read-only inspection, keyed to task ID and approved scope.
+Original owner approval, cancellation rules and current agent identity are
+revalidated before saving its ordinary durable launch. Project-lane admission is
+unchanged. No code-correction budget is reset, no failed attempt becomes success,
+and a stopped inspection cannot generate another inspection for the same scope.
+
+The inspection must read actual existing files, preserve source provenance,
+deliver the report as attempt-bound artifacts, independently check original
+criteria and obtain a current unchanged-repository receipt. It cannot change
+files, refs, tests or documentation, push, deploy or repeat external effects.
+Missing implementation/publication remains a gap rather than permission to fix
+or waive it. Ordinary independent review then assesses the actual new evidence.
+This recovers the ability to investigate a potentially complete result; it does
+not accept the historical result or authorize another implementation retry.
+
+Memory and PostgreSQL contracts cover eligibility, original approval/ownership,
+latest-report state, cancellation, lane contention, deduplication, unchanged
+budget/history and terminal no-chain behavior. Inbox/runner regressions pass.
+The short review notice was rendered and inspected at390px and1440px.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.

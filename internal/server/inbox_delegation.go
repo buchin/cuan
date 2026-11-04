@@ -603,6 +603,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	s.diagnoseInboxStorageFailure(ctx, detail, *origin)
+	if s.recoverDocumentationEvidence(ctx, detail, *origin) {
+		return
+	}
 	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {
 		return
 	}
