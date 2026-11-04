@@ -55,12 +55,12 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 		}
 		if ready {
 			board = TaskStatusReview
-			var final string
-			e = tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT new_status FROM task_activities WHERE attempt_id=$1 AND activity_type='agent_report' ORDER BY created_at DESC,id DESC LIMIT 1),'')`, attemptID).Scan(&final)
+			var final, sourceRoom string
+			e = tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT new_status FROM task_activities WHERE attempt_id=$1 AND activity_type='agent_report' ORDER BY created_at DESC,id DESC LIMIT 1),''),COALESCE(source_room_id::text,'') FROM tasks WHERE id=$2`, attemptID, taskID).Scan(&final, &sourceRoom)
 			if e != nil {
 				return e
 			}
-			if final == "done" {
+			if final == "done" && sourceRoom == "" {
 				board = TaskStatusDone
 			}
 		}
@@ -128,7 +128,7 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 		}
 		if !required || (last != nil && (last.NewStatus == "review" || last.NewStatus == "done") && t.Summary != "" && t.CompleteNote != "") {
 			t.Status = TaskStatusReview
-			if last != nil && last.NewStatus == "done" {
+			if last != nil && last.NewStatus == "done" && t.SourceRoomID == "" {
 				t.Status = TaskStatusDone
 			}
 		}

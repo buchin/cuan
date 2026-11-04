@@ -208,7 +208,7 @@ while :;do sleep 1;done
 	}
 
 	result := waitWorkspaceTask(t, recovered, id, "succeeded")
-	if result.Status != "done" || len(result.Attempts) != 1 {
+	if result.Status != "review" || len(result.Attempts) != 1 {
 		t.Fatal(result.Status, len(result.Attempts))
 	}
 	if out := recovered.applyInboxDelegation(ctx, q, content); !strings.Contains(out, "already handled") {

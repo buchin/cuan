@@ -127,38 +127,12 @@ func TestInboxDelegation_RetryLimit_MultiRoomProactiveChat(t *testing.T) {
 		t.Fatalf("expected task status 'blocked', got %s", updatedTask.Status)
 	}
 
-	// 2. Verify proactive multi-room chat notifications sent to both q.RoomID and t.SourceRoomID
-	if len(sentRooms) != 2 {
-		t.Fatalf("expected notifications to 2 rooms (source and active), got %d: %v", len(sentRooms), sentRooms)
-	}
-	foundSource := false
-	foundActive := false
-	for _, r := range sentRooms {
-		if r == "room_source_shop_1" {
-			foundSource = true
-		}
-		if r == "room_active_chat_2" {
-			foundActive = true
-		}
-	}
-	if !foundSource || !foundActive {
-		t.Fatalf("expected both source and active rooms notified, got: %v", sentRooms)
+	// Inbox coordinator owns the decision and announcement. The runner must not
+	// send premature owner-intervention instructions before that review occurs.
+	if len(sentRooms) != 0 || len(sentMessages) != 0 {
+		t.Fatal("runner bypassed coordinator", sentRooms)
 	}
 
-	// 3. Verify message content is business-friendly and contains follow-up options
-	if len(sentMessages) == 0 {
-		t.Fatal("expected at least one review message sent")
-	}
-	msg := sentMessages[0]
-	if !strings.Contains(msg, "Halo! Pembaruan penting untuk toko Anda") {
-		t.Fatalf("expected friendly business intro, got:\n%s", msg)
-	}
-	if !strings.Contains(msg, "Opsi Tindak Lanjut yang Dapat Anda Pilih") {
-		t.Fatalf("expected follow up options section, got:\n%s", msg)
-	}
-	if strings.Contains(strings.ToLower(msg), "dod") || strings.Contains(strings.ToLower(msg), "scrum") {
-		t.Fatalf("found technical jargon in business chat:\n%s", msg)
-	}
 }
 
 func TestServer_SendBusinessFriendlyReviewNotification(t *testing.T) {

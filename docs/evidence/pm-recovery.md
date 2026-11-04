@@ -529,3 +529,27 @@ byte-for-byte. Existing shared launch contracts also pass in that database.
 Private log: native-receipt-postgres.log. This repairs native publication facts;
 the runner's keyword-based deployment-proof consumer and generic external
 provider attestation remain unfinished and must not be described as solved.
+
+## Local worker completion also awaits Inbox acceptance
+
+Broader focused delegation regressions exposed local reconciliation mapping an
+agent's final done report straight to task Done. That bypassed coordinator review
+and, because accepted work is protected, prevented the expected review from ever
+being queued. Memory and PostgreSQL local reconciliation now return Inbox-linked
+work to Review; tasks without an Inbox source preserve their existing behavior.
+Only coordinator acceptance closes Inbox work. Late reconciliation cannot undo
+an already accepted result. Replaying the same completed launch while review is
+pending now correctly says already handled and never creates another attempt.
+
+The synthetic owner-message authorization fallback in delegation is removed.
+System review without the actual accepted owner approval cannot create a launch,
+change assignment or reserve an attempt. Authentic continuations remain supported.
+Runner notification tests were updated to the existing coordinator-owned message
+contract, rather than expecting premature multi-room owner-help templates.
+
+Memory and isolated PostgreSQL contracts compare review versus done behavior and
+late-callback protection. Real local provider/process fixtures now assert Review
+before dispatcher review and Done only after coordinator acceptance. Focused
+legacy/topic delegation, managed-project, no-extra-planning, replay, queued launch,
+cancellation, owner-budget and authorization flows pass. No historical production
+Done states are rewritten or manually reopened by this change.

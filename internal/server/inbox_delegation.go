@@ -228,31 +228,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 					}
 				}
 			}
-			if (authorization == nil || !authenticatedApproval) && d.TaskID != "" {
-				isReviewTurn := false
-				for i := range messages {
-					if messages[i].ID == q.MessageID && messages[i].AuthorID == "cuan_work_review" {
-						isReviewTurn = true
-						break
-					}
-				}
-				tOwner, _ := s.taskArtifactOwner(ctx, tDetail)
-				if isReviewTurn || (tOwner != "" && tOwner == q.OwnerID) || strings.Contains(q.RequestID, "task-review:") {
-					// Autonomous Scrum revision or continuation: the task is already authorized
-					authorization = &db.ProjectMessage{
-						ID:         "auth_" + tDetail.ID,
-						RoomID:     q.RoomID,
-						AuthorType: "user",
-						AuthorName: "Owner",
-						Content:    tDetail.Instructions,
-						CreatedAt:  tDetail.CreatedAt,
-					}
-					authenticatedApproval = true
-					if authorizationRequestID == "" {
-						authorizationRequestID = q.RequestID
-					}
-				}
-			}
+
 		}
 	}
 	if authorization == nil || !authenticatedApproval {

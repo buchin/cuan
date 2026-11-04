@@ -229,7 +229,7 @@ esac
 	if managed && !strings.Contains(result.Instructions, fixturePath) {
 		t.Fatal("delegated task lost its attachment")
 	}
-	if result.Status != "done" || !strings.Contains(strings.ToLower(result.Instructions), "do not deploy") {
+	if result.Status != "review" || !strings.Contains(strings.ToLower(result.Instructions), "do not deploy") {
 		t.Fatal(result)
 	}
 	msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(ctx, accepted.Request.RoomID)
@@ -267,6 +267,9 @@ esac
 	waitInboxState(t, s, accepted.Request.RoomID, reviewID, "completed")
 	s.deliverInboxTaskUpdates(ctx)
 	result, _ = s.taskSvc.GetTaskDetail(ctx, tasks[0].ID)
+	if result.Status != "done" {
+		t.Fatal("coordinator did not accept verified result", result.Status)
+	}
 	if len(result.Attempts) != before {
 		t.Fatal("replayed work")
 	}

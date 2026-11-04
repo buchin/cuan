@@ -49,4 +49,5 @@ func TestLaunchPostgresContract(t *testing.T) {
 	stoppedLaunchBoardContract(t, store, "launch-project")
 	attemptPublicationPolicyContract(t, store, "launch-project")
 	unstartedWorkspaceRecoveryContract(t, store, "launch-project")
+	localInboxAcceptanceContract(t, store, "launch-project")
 }

@@ -42,7 +42,15 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if e != nil {
 		return "The work is saved, but its launch could not be recorded. No new execution was started." + link
 	}
-	if job.State == "started" || (job.State == "stopped" && t != nil && t.Status == task.TaskStatusDone) {
+	handled := job.State == "started" || (job.State == "stopped" && t != nil && t.Status == task.TaskStatusDone)
+	if job.State == "stopped" && t != nil && t.LatestAttempt != nil && t.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		if launches, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
+			if completed, err := launches.LaunchForAttempt(ctx, t.LatestAttempt.ID); err == nil && completed != nil && completed.ID == job.ID {
+				handled = true
+			}
+		}
+	}
+	if handled {
 		return "This request was already handled; I have not started it again." + link
 	}
 	if job.State == "cancelled" || job.State == "stopped" {
