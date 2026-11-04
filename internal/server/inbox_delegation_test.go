@@ -236,7 +236,7 @@ esac
 	found := false
 	for _, m := range msgs {
 		if m.ID == accepted.Request.ReplyID {
-			found = strings.Contains(m.Content, "Work started") && !strings.Contains(m.Content, "cuan-delegate")
+			found = strings.Contains(m.Content, "/tasks/"+result.ID) && !strings.Contains(m.Content, "cuan-delegate") && !strings.Contains(m.Content, "report progress and the result here")
 		}
 	}
 	if !found {
@@ -246,7 +246,7 @@ esac
 	before := len(result.Attempts)
 	replay := strings.Replace(content, "AUTH", accepted.Request.MessageID, 1)
 	response := s.applyInboxDelegation(ctx, accepted.Request, replay)
-	if !strings.Contains(response, "already handled") {
+	if !strings.Contains(response, "already handled") && !strings.Contains(response, "This launch has stopped") {
 		t.Fatal(response)
 	}
 	// A different trigger must reuse the approval's launch identity too.
@@ -254,7 +254,7 @@ esac
 	otherTrigger.RequestID = db.GenerateUUID()
 	otherTrigger.MessageID = db.GenerateUUID()
 	otherTrigger.CreatedAt = time.Now().UTC()
-	if out := s.applyInboxDelegation(ctx, otherTrigger, replay); !strings.Contains(out, "already handled") {
+	if out := s.applyInboxDelegation(ctx, otherTrigger, replay); !strings.Contains(out, "already handled") && !strings.Contains(out, "This launch has stopped") {
 		t.Fatal("approval replay launched again", out)
 	}
 	s.deliverInboxTaskUpdates(ctx)
@@ -316,7 +316,7 @@ esac
 		q.RequestID = db.GenerateUUID()
 		q.CreatedAt = time.Now()
 		response = s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(revision)+"\n```")
-		if !strings.Contains(response, "Work started") {
+		if !strings.Contains(response, "/tasks/"+result.ID) || strings.Contains(response, "report progress and the result here") {
 			t.Fatal(response)
 		}
 		result = waitWorkspaceTask(t, s, result.ID, "succeeded")
@@ -438,9 +438,7 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 	initDelegation := inboxDelegation{Action: "run", Title: "Initial Task", Description: "Initial task description", ProjectID: "p1", AuthorizationID: initMsgID}
 	raw, _ := json.Marshal(initDelegation)
 	out := s.applyInboxDelegation(ctx, initReq, "```cuan-delegate\n"+string(raw)+"\n```")
-	if !strings.Contains(out, "started") {
-		t.Fatalf("expected initial task to start, got: %s", out)
-	}
+	assertTaskLaunchPreview(t, s, out)
 
 	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
 	if len(tasks) != 1 {
@@ -503,9 +501,7 @@ func TestInboxDelegationContinuationInSameRoomAllowsRetry(t *testing.T) {
 	if strings.Contains(contOut, "retry limit") {
 		t.Fatalf("continuation wrongly rejected due to retry limit: %s", contOut)
 	}
-	if !strings.Contains(contOut, "started") {
-		t.Fatalf("expected continuation to start, got: %s", contOut)
-	}
+	assertTaskLaunchPreview(t, s, contOut)
 
 	// Verify task status was reset to queued, doing or review
 	updatedDetail, _ := s.taskSvc.GetTaskDetail(ctx, existingTaskID)
@@ -639,9 +635,7 @@ func TestInboxDelegation_CrossRoomTaskDelegationAllowedForOwnerAndTeam(t *testin
 	if strings.Contains(outCross, "could not start") {
 		t.Fatalf("cross-room delegation could not start: %s", outCross)
 	}
-	if !strings.Contains(outCross, "started") {
-		t.Fatalf("expected cross-room delegation to start, got: %s", outCross)
-	}
+	assertTaskLaunchPreview(t, s, outCross)
 
 	// Verify DoD checklist was expanded with the new revision item
 	taskDetail, err := s.taskSvc.GetTaskDetail(ctx, existingTaskID)
@@ -707,9 +701,7 @@ func TestInboxDelegation_CrossRoomRevisionWithoutAuthorizationIDUsesCurrentMessa
 	if strings.Contains(outRev, "outside this approved conversation scope") {
 		t.Fatalf("cross-room delegation wrongly rejected: %s", outRev)
 	}
-	if !strings.Contains(outRev, "started") {
-		t.Fatalf("expected cross-room delegation without authorization_id to start, got: %s", outRev)
-	}
+	assertTaskLaunchPreview(t, s, outRev)
 
 	detail, _ := s.taskSvc.GetTaskDetail(ctx, taskID)
 	hasCache := false
@@ -770,9 +762,7 @@ func TestInboxDelegation_CrossRoomRevisionReferencingOriginalApproval(t *testing
 	if strings.Contains(out, "outside this approved conversation scope") {
 		t.Fatalf("cross-room delegation wrongly rejected: %s", out)
 	}
-	if !strings.Contains(out, "started") {
-		t.Fatalf("expected cross-room delegation with original auth ID to start, got: %s", out)
-	}
+	assertTaskLaunchPreview(t, s, out)
 }
 
 func TestInboxDelegation_CrossRoomRejectedForVisitorOrUnauthenticated(t *testing.T) {
@@ -864,9 +854,7 @@ func TestInboxDelegation_ArchivedDefaultFallbackToActiveProject(t *testing.T) {
 	if strings.Contains(out, "could not be prepared") || strings.Contains(out, "archived project") {
 		t.Fatalf("delegation should not fail on archived Default project: %s", out)
 	}
-	if !strings.Contains(out, "started") {
-		t.Fatalf("expected delegation to start work on active project, got: %s", out)
-	}
+	assertTaskLaunchPreview(t, s, out)
 }
 
 func TestExtractDoDFromDescription(t *testing.T) {
@@ -1237,5 +1225,17 @@ func TestInboxDelegation_InstructionsDoNotProhibitDeploy(t *testing.T) {
 	}
 	if !strings.Contains(detail.Instructions, "Report actual progress and verification evidence. Stay within this scope.") {
 		t.Fatalf("task instructions missing expected scope guidance, got: %s", detail.Instructions)
+	}
+}
+
+func assertTaskLaunchPreview(t *testing.T, s *Server, output string) {
+	t.Helper()
+	match := inboxReviewTaskLink.FindStringSubmatch(output)
+	if len(match) != 2 || strings.Contains(output, "report progress and the result here") {
+		t.Fatalf("expected task preview without launch boilerplate: %s", output)
+	}
+	detail, err := s.taskSvc.GetTaskDetail(context.Background(), match[1])
+	if err != nil || detail.LatestAttempt == nil {
+		t.Fatalf("preview did not represent an actual execution: %v", err)
 	}
 }

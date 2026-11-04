@@ -8,7 +8,9 @@ export function workConversationPreview(message: string, counts?: Counts): strin
   const report = reportHeader && (/\bStatus\s*:/i.test(text) || /^This review /i.test(text))
   const canceled=/^(?:(?:Pekerjaan|Tugas)\s+(?:telah\s+)?dibatalkan|(?:The\s+)?work\s+(?:(?:has\s+been|was)\s+)?cancel(?:led|ed)|Task\b[^\n]{0,180}\bhas been cancel(?:led|ed))/i.test(text)
   const stopped=/^(?:The work has stopped\.|Pekerjaan (?:telah |sudah )?dihentikan\.)/i.test(text)
-  if(!report&&!canceled&&!stopped)return undefined
+  const launchPreview = /(?:^|\n\n)Work (?:queued|started)\. I[’']ll report progress and the result here\.(?:\s|$)/.test(text) && /\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)/.test(text)
+  const taskOnly = /^\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)\s*$/.test(text)
+  if(!report&&!canceled&&!stopped&&!launchPreview&&!taskOnly)return undefined
   const status=text.match(/\bStatus\s*:\s*([^\n]+)/i)?.[1]||text
   const negative=/\b(?:belum\s+lulus|perlu\s+(?:perhatian|perbaikan|revisi)|terkendala|blocked|failed|gagal|revisi|revision|needs attention)\b/i.test(status)
   if(counts&&typeof counts.task_count==='number'&&counts.task_count>0){
@@ -20,6 +22,7 @@ export function workConversationPreview(message: string, counts?: Counts): strin
     if(total>0&&counts.done_tasks===total)return (counts.canceled_tasks||0)>0?'Remaining work completed; some tasks were canceled.':'Work completed and verified.'
     if(total===0&&(counts.canceled_tasks||0)>0)return 'Work canceled. Saved work is still available.'
   }
+  if(launchPreview||taskOnly)return 'Saved work.'
   if(canceled||stopped)return 'Work canceled. Saved work is still available.'
   // The message reports a review outcome; it is not independent proof of completion.
   if(negative)return 'The result needs attention.'

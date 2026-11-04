@@ -221,7 +221,7 @@ while :;do sleep 1;done
 	messages, _ := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID)
 	starts := 0
 	for _, m := range messages {
-		if strings.HasPrefix(m.Content, "Work started") {
+		if strings.TrimSpace(m.Content) == "[View work](/tasks/"+id+")" {
 			starts++
 		}
 	}

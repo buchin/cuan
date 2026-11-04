@@ -613,7 +613,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		cutoff, _ := time.Parse(time.RFC3339Nano, state.ReadAt)
 		count := 0
 		for _, message := range messages {
-			if !message.CreatedAt.After(cutoff) {
+			if internalInboxReviewInput(message) || !message.CreatedAt.After(cutoff) {
 				continue
 			}
 			if isAgent {
@@ -686,9 +686,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						}
 						if roomID != "" {
 							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
-								lastMsg = msgs[len(msgs)-1].Content
-								lastAt = msgs[len(msgs)-1].CreatedAt
-								unread = countUnread(roomID, msgs, true)
+								msgs = visibleInboxMessages(msgs)
+								if len(msgs) > 0 {
+									lastMsg = msgs[len(msgs)-1].Content
+									lastAt = msgs[len(msgs)-1].CreatedAt
+									unread = countUnread(roomID, msgs, true)
+								}
 							}
 						}
 					}
@@ -749,9 +752,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				at := room.UpdatedAt
 				unread := 0
 				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
-					last = messages[len(messages)-1].Content
-					at = messages[len(messages)-1].CreatedAt
-					unread = countUnread(room.ID, messages, true)
+					messages = visibleInboxMessages(messages)
+					if len(messages) > 0 {
+						last = messages[len(messages)-1].Content
+						at = messages[len(messages)-1].CreatedAt
+						unread = countUnread(room.ID, messages, true)
+					}
 				}
 				tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt, canceledCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
 				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt, CanceledTasks: canceledCnt})
@@ -805,11 +811,14 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 
 			if s.projectStudioRepo != nil {
 				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
-					msgCount = len(msgs)
-					hasMessages = true
-					lastMsg = msgs[len(msgs)-1].Content
-					lastAt = msgs[len(msgs)-1].CreatedAt
-					unread = countUnread(sess.UUID, msgs, false)
+					msgs = visibleInboxMessages(msgs)
+					if len(msgs) > 0 {
+						msgCount = len(msgs)
+						hasMessages = true
+						lastMsg = msgs[len(msgs)-1].Content
+						lastAt = msgs[len(msgs)-1].CreatedAt
+						unread = countUnread(sess.UUID, msgs, false)
+					}
 				}
 			}
 
@@ -1793,7 +1802,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 	dtos := make([]ChatMessageDTO, 0, len(rawMsgs))
 	for _, m := range rawMsgs {
 		// Filter out internal synthetic review trigger prompts from client chat timeline
-		if m.AuthorType == "system" && m.AuthorID == "cuan_work_review" {
+		if internalInboxReviewInput(m) {
 			continue
 		}
 

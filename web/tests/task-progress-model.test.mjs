@@ -42,3 +42,13 @@ test('canceled execution saved in review is consistent with its task card',()=>{
  const report='### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** PERLU DIREVIU'
  assert.equal(workConversationPreview(report,{task_count:1,review_tasks:1}),'Result ready for review.')
 })
+
+test('launch previews show current queue state instead of repeated generated acknowledgement',()=>{
+ const link='[View work](/tasks/task_fixture)'
+ const ack='Hasil lama belum terverifikasi.\n\nWork queued. I’ll report progress and the result here.\n\n'+link
+ assert.equal(workConversationPreview(ack,{task_count:1,queued_tasks:1}),'Work is waiting to start.')
+ assert.equal(workConversationPreview(ack,{task_count:1,active_tasks:1}),'Work is in progress.')
+ assert.equal(workConversationPreview(ack,{task_count:1,failed_tasks:1}),'The result needs attention.')
+ assert.equal(workConversationPreview(link,{task_count:1,queued_tasks:1}),'Work is waiting to start.')
+ assert.equal(workConversationPreview('What does “Work queued” mean?'),undefined)
+})

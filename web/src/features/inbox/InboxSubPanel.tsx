@@ -23,7 +23,7 @@ export function conversationPreview(message?: string, counts?: ChatContact, t: (
   let text = message.trim()
   const workPreview = workConversationPreview(text, counts)
   if (workPreview) return t(workPreview)
-  if (/the work is saved, but could not start|create attempt:|invalid task status/i.test(text)) return 'Pekerjaan tersimpan, tetapi belum bisa dimulai.'
+  if (/the work is saved, but could not start|create attempt:|invalid task status/i.test(text)) return t('The work is saved, but could not start.')
 
   // Clean raw JSON strings (e.g. {"decision": "revise", ...}) to friendly summary text
   try {
@@ -230,7 +230,7 @@ export function ConversationItem({
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground dark:text-zinc-400 line-clamp-2 leading-relaxed">
+          <p className="text-sm text-muted-foreground dark:text-zinc-400 line-clamp-1 leading-normal">
             {conversationPreview(contact.last_message, contact, t)}
           </p>
 
@@ -345,18 +345,6 @@ export function InboxSubPanel({
     (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
     0
   )
-  const agentUnreadCount = contacts
-    .filter((c) => c.type === 'agent')
-    .reduce(
-      (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
-      0
-    )
-  const customerUnreadCount = contacts
-    .filter((c) => c.type === 'customer')
-    .reduce(
-      (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
-      0
-    )
   const handleMarkAllRead = async () => {
     if (markingAll) return
     setMarkingAll(true)
@@ -412,7 +400,7 @@ export function InboxSubPanel({
     <div className="flex flex-col h-full inbox-list text-foreground select-none">
       {/* ── Single Unified Header (matching shadcn Mail h-13) ── */}
       <PageHeader>
-        <div className="flex min-w-0 items-center gap-2"><PageHeaderBrand /><PageTitle>{t('Inbox')}</PageTitle>{totalUnreadCount>0&&<span className="text-xs tabular-nums text-muted-foreground">{totalUnreadCount}</span>}</div>
+        <div className="flex min-w-0 items-center gap-2"><PageHeaderBrand /><PageTitle>{t('Inbox')}</PageTitle></div>
         <div className="flex items-center gap-1">
           {onNewMessage && (
             <IconButton
@@ -446,8 +434,8 @@ export function InboxSubPanel({
         <ListSearch aria-label={t('Search conversations')} placeholder={t('Search conversations…')} value={query} onChange={event=>handleQueryChange(event.target.value)} />
         <ListTabs aria-label={t('Conversation filters')} className="border-b-0">
           <ListTab selected={activeTab==='all'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('all')}}>{t('All')}</ListTab>
-          <ListTab selected={activeTab==='agents'&&!showArchived} count={agentUnreadCount||undefined} onClick={()=>{setShowArchived(false);handleTabClick('agents')}}>{t('Agents')}</ListTab>
-          <ListTab selected={activeTab==='customers'&&!showArchived} count={customerUnreadCount||undefined} onClick={()=>{setShowArchived(false);handleTabClick('customers')}}>{t('Customers')}{onlineVisitorCount>0&&<StatusDot status="healthy" size="sm" title={onlineVisitorCount+' '+t('online')} />}</ListTab>
+          <ListTab selected={activeTab==='agents'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('agents')}}>{t('Assistant')}</ListTab>
+          <ListTab selected={activeTab==='customers'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('customers')}}>{t('Customers')}{onlineVisitorCount>0&&<StatusDot status="healthy" size="sm" title={onlineVisitorCount+' '+t('online')} />}</ListTab>
           <IconButton className="ml-auto" label={t(showArchived?'Back to Inbox':'Archived conversations')} active={showArchived} aria-pressed={showArchived} onClick={()=>setShowArchived(value=>!value)}><Archive /></IconButton>
         </ListTabs>
 

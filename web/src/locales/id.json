@@ -1677,5 +1677,8 @@
   "Internal message…": "Pesan internal…",
   "{{count}} unread messages": "{{count}} pesan belum dibaca",
   "Delete task": "Hapus task",
-  "Keep task": "Pertahankan task"
+  "Keep task": "Pertahankan task",
+  "Assistant": "Asisten",
+  "Saved work.": "Pekerjaan tersimpan.",
+  "The work is saved, but could not start.": "Pekerjaan tersimpan, tetapi belum bisa dimulai."
 }

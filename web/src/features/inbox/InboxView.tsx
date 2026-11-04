@@ -69,6 +69,8 @@ import { tasksApi } from '../../api/tasks'
 import './chat-calm.css'
 import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
+import { withoutTaskLaunchAcknowledgement } from './task-launch-text'
+import { taskMessageBindings } from './task-message-bindings'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
@@ -432,48 +434,16 @@ export function InboxView({
   }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
 
-  // Map each referenced task ID to the latest message that references it in this room.
-  // This enforces a strict single-card policy: only the latest message renders a TaskCard.
-  const latestMessageIdPerTask = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const m of messages) {
-      const content = m.content || m.message || ''
-      const matches = content.matchAll(/\/tasks\/([A-Za-z0-9_-]+)/g)
-      for (const match of matches) {
-        map.set(match[1], m.uuid || String(m.id))
-      }
-    }
-    return map
-  }, [messages])
-  const unattachedCompletedTasks = useMemo(() => {
-    const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
-    const messageContents = messages.map((m) => m.content || m.message || '').join(' ')
-    return linkedTasks.filter((t) => {
-      const isCompleted =
-        (t.status || '').toLowerCase().trim() === 'done' ||
-        (t.status || '').toLowerCase().trim() === 'review'
-      if (!isCompleted) return false
-      if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
-      if (messageContents.includes(`/tasks/${t.id}`)) return false
-      return true
-    })
-  }, [linkedTasks, messages])
-
-  const unattachedActiveTasks = useMemo(() => {
-    const visibleMsgIds = new Set(messages.map((m) => m.uuid).filter(Boolean))
-    const messageContents = messages.map((m) => m.content || m.message || '').join(' ')
-    return linkedTasks.filter((t) => {
-      const isCompleted =
-        (t.status || '').toLowerCase().trim() === 'done' ||
-        (t.status || '').toLowerCase().trim() === 'review'
-      if (isCompleted) return false
-      if (t.source_message_id && visibleMsgIds.has(t.source_message_id)) return false
-      const shortRef = t.id ? '#' + t.id.slice(0, 7) : ''
-      if (messageContents.includes(`/tasks/${t.id}`) || messageContents.includes(t.id)) return false
-      if (shortRef && messageContents.includes(shortRef)) return false
-      return true
-    })
-  }, [linkedTasks, messages])
+  const latestMessageIdPerTask = useMemo(
+    () => taskMessageBindings(linkedTasks, messages, requests, activeContact?.type === 'customer'),
+    [linkedTasks, messages, requests, activeContact?.type],
+  )
+  const unattachedCompletedTasks = useMemo(() => linkedTasks.filter(task =>
+    ['done', 'review'].includes((task.status || '').toLowerCase().trim()) && !latestMessageIdPerTask.has(task.id)),
+    [linkedTasks, latestMessageIdPerTask])
+  const unattachedActiveTasks = useMemo(() => linkedTasks.filter(task =>
+    !['done', 'review'].includes((task.status || '').toLowerCase().trim()) && !latestMessageIdPerTask.has(task.id)),
+    [linkedTasks, latestMessageIdPerTask])
   const [inputMessage, setInputMessage] = useState('')
   const uploads = useAttachments(
     'cuan-inbox-attachments:' +
@@ -1151,9 +1121,6 @@ export function InboxView({
     }
   }
 
-  const visibleMessageIds = new Set(
-    messages.map((message) => message.uuid).filter(Boolean),
-  )
   const requestAttempts = useMemo(() => {
     const grouped = new Map<string, InboxRequest[]>()
     for (const request of requests) {
@@ -1475,7 +1442,8 @@ export function InboxView({
                 // Internal agent delegation in a customer room has the same task
                 // attachment as an agent conversation. This is the owner's Inbox.
                 const isTaskAgentMessage = isAgentMessage ||
-                  (msg.author_type === 'agent' && msg.is_internal === true)
+                  (msg.author_type === 'agent' && msg.is_internal === true) ||
+                  (msg.author_type === 'system' && activeContact.type === 'agent')
                 const isFormattedMessage = true
 
                 const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
@@ -1492,24 +1460,8 @@ export function InboxView({
                   return null
                 }
 
-                const linkedTaskForMsg = msg.uuid
-                  ? linkedTasks.find(
-                      (task) =>
-                        (task.source_message_id === msg.uuid ||
-                          msgContent.includes(`/tasks/${task.id}`) ||
-                          requests.some(
-                            (q) =>
-                              q.reply_id === msg.uuid &&
-                              q.message_id === task.source_message_id,
-                          )) &&
-                        (isTaskAgentMessage ||
-                          !requests.some(
-                            (q) =>
-                              q.message_id === msg.uuid &&
-                              visibleMessageIds.has(q.reply_id),
-                          )),
-                    )
-                  : undefined
+                const linkedTasksForMsg = linkedTasks.filter(task => latestMessageIdPerTask.get(task.id) === (msg.uuid || String(msg.id)))
+                const linkedTaskForMsg = linkedTasksForMsg[0]
 
                 // Suppress obsolete stopped launch notifications if the task already succeeded/review/done
                 // or if there is a DoD evaluation or completion in the room
@@ -1540,43 +1492,10 @@ export function InboxView({
                   }
                 }
 
-                // Suppress duplicate/obsolete boilerplate launch progress messages ("Work started...", "The work is saved, but could not start...")
-                // if a later message in the room already references the same task.
-                // This eliminates redundant stacked task cards in the chat stream.
-                const isBoilerplateLaunchMessage =
-                  msgContent.startsWith('Work started. I’ll report progress and the result here.') ||
-                  msgContent.startsWith("Work started. I'll report progress and the result here.") ||
-                  msgContent.startsWith('The work is saved, but could not start.') ||
-                  msgContent.startsWith('The work is waiting for an available AI session.') ||
-                  msgContent.startsWith('The work is queued waiting for the active project task') ||
-                  msgContent.startsWith('The work is waiting to start. I’ll report progress here.') ||
-                  msgContent.startsWith("The work is waiting to start. I'll report progress here.")
-
-                if (isBoilerplateLaunchMessage) {
-                  const taskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
-                  if (taskIdMatch) {
-                    const taskId = taskIdMatch[1]
-                    const hasLaterTaskMessage = messages.slice(index + 1).some((m) => {
-                      const laterContent = m.content || m.message || ''
-                      return laterContent.includes(`/tasks/${taskId}`)
-                    })
-                    const hasOtherTaskMessage = messages.some((m) => {
-                      if ((m.uuid || m.id) === (msg.uuid || msg.id)) return false
-                      const otherContent = m.content || m.message || ''
-                      return otherContent.includes(`/tasks/${taskId}`)
-                    })
-                    if (hasLaterTaskMessage || hasOtherTaskMessage) {
-                      return null
-                    }
-                  }
-                }
-
                 const msgTaskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
-                const isSupersededTaskMessage = Boolean(
-                  msgTaskIdMatch &&
-                    latestMessageIdPerTask.get(msgTaskIdMatch[1]) &&
-                    latestMessageIdPerTask.get(msgTaskIdMatch[1]) !== (msg.uuid || msg.id),
-                )
+                const referencedTaskIds = [...msgContent.matchAll(/\/tasks\/([A-Za-z0-9_-]+)/g)].map(match => match[1])
+                const isSupersededTaskMessage = !isOutgoing && referencedTaskIds.length > 0 && referencedTaskIds.every(id =>
+                  latestMessageIdPerTask.has(id) && latestMessageIdPerTask.get(id) !== (msg.uuid || String(msg.id)))
 
                 const date = new Date(msg.created_at)
                 const showDate =
@@ -1617,7 +1536,8 @@ export function InboxView({
                 }
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
                 previousBubbleMessage = msg
-                const hasSpeech = msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim().length > 0
+                const hasSpeech = withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
+                const showMessageSurface = hasSpeech || !(linkedTaskForMsg || isSupersededTaskMessage) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.reply_draft || msg.receipt_extraction || msg.product || msg.prompt_choices)
                 const metadata = (
                   <span className="wa-message-meta">
                     <time dateTime={msg.created_at}>
@@ -1653,7 +1573,7 @@ export function InboxView({
                         {dayLabel}
                       </time>
                     )}
-                    <ItemActions subtle swipeAction={{ label: 'Quote message', previewLabel: 'Reply', run: quoteMessage }} label={t('Message') + ' ' + String(msg.id || index + 1)} actions={[
+                    {showMessageSurface && <ItemActions subtle swipeAction={{ label: 'Quote message', previewLabel: 'Reply', run: quoteMessage }} label={t('Message') + ' ' + String(msg.id || index + 1)} actions={[
                       { label: 'Copy message', run: () => navigator.clipboard.writeText(msg.content || msg.message) },
                       { label: 'Quote message', run: quoteMessage },
                       { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(activeContact.conversation_id || activeContact.id) + (msg.uuid ? '?message=' + encodeURIComponent(msg.uuid) : '')) },
@@ -1841,7 +1761,7 @@ export function InboxView({
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
                     </div>
-                    </ItemActions>
+                    </ItemActions>}
                     {msg.reply_draft && (
                       <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true} onUse={(draft) => {
                         setWhisperMode(false)
@@ -1851,13 +1771,14 @@ export function InboxView({
                         if (textareaRef.current) autoResizeTextarea(textareaRef.current)
                       }} />
                     )}
-                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (
+                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (linkedTasksForMsg.length ? linkedTasksForMsg : [undefined]).map(linkedTask => (
                         <InboxTaskAction
-                          linkedTask={linkedTaskForMsg}
+                          key={linkedTask?.id || msg.uuid}
+                          linkedTask={linkedTask}
                           conversationId={
                             activeContact.conversation_id || activeContact.id
                           }
-                          messageId={msg.uuid}
+                          messageId={msg.uuid!}
                           draft={isTaskAgentMessage ? msg.task_draft : undefined}
                           onViewTask={(task) => handleOpenTaskDrawer(task, 'details')}
                           onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
@@ -1866,7 +1787,7 @@ export function InboxView({
                           onContinueChat={handleUseDraft}
                           isCustomerRoom={activeContact.type === 'customer'}
                         />
-                      )}
+                      ))}
                     {(requestsByMessage.get(msg.uuid || '') || []).map((q) => {
                       const placeholder =
                         (q.agent_id || activeContact.type === 'agent') &&

@@ -9,12 +9,10 @@ const __dirname = path.dirname(__filename)
 const webDir = path.resolve(__dirname, '..')
 
 const taskCardPath = path.resolve(webDir, 'src/features/inbox/TaskCard.tsx')
-const inboxViewPath = path.resolve(webDir, 'src/features/inbox/InboxView.tsx')
 const idLocalePath = path.resolve(webDir, 'src/locales/id.json')
 const enLocalePath = path.resolve(webDir, 'src/locales/en.json')
 
 const taskCardSrc = fs.readFileSync(taskCardPath, 'utf8')
-const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
 const idLocale = JSON.parse(fs.readFileSync(idLocalePath, 'utf8'))
 const enLocale = JSON.parse(fs.readFileSync(enLocalePath, 'utf8'))
 
@@ -52,21 +50,8 @@ test('2. TaskCard: Attempt timeline row formatting, status, and error display', 
   )
 })
 
-test('3. InboxView: Deduplicates stacked boilerplate launch messages for the same task', () => {
-  assert.ok(
-    inboxViewSrc.includes('isBoilerplateLaunchMessage'),
-    'InboxView must identify boilerplate launch messages'
-  )
-  assert.ok(
-    inboxViewSrc.includes("Work started. I'll report progress and the result here.") ||
-    inboxViewSrc.includes('Work started. I’ll report progress and the result here.'),
-    'InboxView must check for Work started launch message'
-  )
-  assert.ok(
-    inboxViewSrc.includes('messages.slice(index + 1).some'),
-    'InboxView must inspect subsequent messages for the same taskId to suppress duplicates'
-  )
-})
+// Task message binding and acknowledgement behavior is covered by
+// task-message-bindings.test.mjs and task-launch-text.test.mjs.
 
 test('4. Localization: Dictionaries include Riwayat Sesi, Sesi, and toggle labels', () => {
   assert.equal(idLocale['Riwayat Sesi'], 'Riwayat Sesi')

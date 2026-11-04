@@ -208,14 +208,11 @@ export function StudioView({
     <section aria-label={t('Chat')} className="mx-auto w-full max-w-[75ch]">
       <div
         data-studio-goal-panel
-        className="flex min-h-[calc(var(--visible-height,100dvh)-180px-env(safe-area-inset-bottom))] flex-col justify-center py-2 md:min-h-[calc(100dvh-150px)]"
+        className="flex flex-col justify-start pt-8 pb-6 md:min-h-[calc(100dvh-150px)] md:justify-center md:py-2"
       >
         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('What would you like to get done today?')}
         </h2>
-        <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-          {t('Tell Cuan your goal. We’ll take care of the rest.')}
-        </p>
         {installation === 'incomplete' || installation === 'unsupported' ? (
           <aside aria-label={t('Server setup')} className="mt-4 rounded-lg border p-3 text-sm">
             <p className="font-medium">{t('Finish setting up Cuan')}</p>

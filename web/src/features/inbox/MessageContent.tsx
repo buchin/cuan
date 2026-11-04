@@ -1,4 +1,5 @@
 import { memo, useState } from 'react'
+import { withoutTaskLaunchAcknowledgement } from './task-launch-text'
 import { Link } from 'react-router-dom'
 import { CheckSquare, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -87,18 +88,15 @@ export const MessageContent = memo(function MessageContent({
       : visibleActions
 
   const rawBody = displayBody || (!report && !extractedReceipt && effectiveActions.length === 0 ? content.trim() : '')
-  const effectiveBody = hideTaskActions
-    ? rawBody.replace(/\n\nWork started\. I[’']ll report progress and the result here\./g, '').trim()
-    : rawBody
 
   const hasTaskAction = effectiveActions.some((a) => extractTaskId(a.href) || /^\/tasks\/[A-Za-z0-9_-]+$/.test(a.href.split(/[?#]/)[0]))
   const shouldHideTaskCard = Boolean(hideTaskActions || hasTaskAction)
+  const effectiveBody = withoutTaskLaunchAcknowledgement(rawBody, Boolean(hideTaskActions || actions.some(a => extractTaskId(a.href))), isOutgoing)
 
   const isBoilerplateLaunch =
     effectiveBody.startsWith('Work queued. I’ll report progress and the result here.') ||
     effectiveBody.startsWith('Work started. I’ll report progress and the result here.') ||
     effectiveBody.startsWith("Work started. I'll report progress and the result here.") ||
-    effectiveBody.startsWith('The work is saved, but could not start.') ||
     effectiveBody.startsWith('The work is waiting for an available AI session.') ||
     effectiveBody.startsWith('The work is queued waiting for the active project task') ||
     effectiveBody.startsWith('The work is waiting to start. I’ll report progress here.') ||

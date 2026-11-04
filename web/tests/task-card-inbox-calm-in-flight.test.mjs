@@ -34,19 +34,8 @@ test('1. InboxView: Elimination of redundant in-flight working bubble & sedang m
   )
 })
 
-test('2. InboxView: Single authoritative TaskCard stream rendering without duplication', () => {
-  // unattachedActiveTasks must guard against tasks already referenced in message contents
-  assert.ok(
-    inboxViewSrc.includes('if (messageContents.includes(`/tasks/${t.id}`)) return false'),
-    'unattachedActiveTasks must guard against messages referencing /tasks/{id}'
-  )
-
-  // unattachedCompletedTasks must also guard against duplicate links
-  assert.ok(
-    inboxViewSrc.includes('const messageContents = messages.map((m) => m.content || m.message || \'\').join(\' \')'),
-    'InboxView must inspect message contents for task links'
-  )
-})
+// Task message binding and acknowledgement behavior is covered by
+// task-message-bindings.test.mjs and task-launch-text.test.mjs.
 
 test('3. TaskCard: Calm Design and Progressive Disclosure adherence', () => {
   // TaskCard must provide clean working states without visual clutter

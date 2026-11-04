@@ -90,6 +90,7 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 	for _, rm := range rooms {
 		// Fetch messages for message count and last message
 		messages, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), rm.ID)
+		messages = visibleInboxMessages(messages)
 		messageCount := len(messages)
 		var lastMsgDTO *db.ProjectMessageDTO
 		if messageCount > 0 {

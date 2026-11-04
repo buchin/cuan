@@ -112,7 +112,7 @@ test('3. Requirement 3: Neutral & calm filter tabs (Things 3 / Bear Notes segmen
 
   // Preserves All, Agents, Customers, and Archived filter options
   assert.ok(subPanelContent.includes("t('All')"), 'Filter must include All tab')
-  assert.ok(subPanelContent.includes("t('Agents')"), 'Filter must include Agents tab')
+  assert.ok(subPanelContent.includes("t('Assistant')"), 'Filter must include singular Assistant tab')
   assert.ok(subPanelContent.includes("t('Customers')"), 'Filter must include Customers tab')
   assert.ok(subPanelContent.includes('Archive'), 'Filter must include Archive toggle')
 })
@@ -149,11 +149,11 @@ test('4. Requirement 4: ConversationItem 3-Tier Apple Mail & Bear Inset List Arc
     'Tier 2 must render StatusDot working state for active background tasks'
   )
 
-  // Tier 3: 2-line snippet in muted zinc-400
+  // Tier 3: 1-line snippet in muted zinc-400
   assert.ok(
-    subPanelContent.includes('line-clamp-2') &&
+    subPanelContent.includes('line-clamp-1') &&
       (subPanelContent.includes('text-zinc-400') || subPanelContent.includes('dark:text-zinc-400')),
-    'Tier 3 must display message snippet in 2 lines with line-clamp-2 and muted zinc-400'
+    'Tier 3 must display message snippet in 1 line with line-clamp-1 and muted zinc-400'
   )
 
   // Conversation item button accessibility

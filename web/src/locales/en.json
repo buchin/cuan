@@ -275,5 +275,8 @@
   "Only you and your team can see this. The customer cannot see this message or attachment.": "Only you and your team can see this. The customer cannot see this message or attachment.",
   "Write a reply…": "Write a reply…",
   "Internal message…": "Internal message…",
-  "{{count}} unread messages": "{{count}} unread messages"
+  "{{count}} unread messages": "{{count}} unread messages",
+  "Assistant": "Assistant",
+  "Saved work.": "Saved work.",
+  "The work is saved, but could not start.": "The work is saved, but could not start."
 }

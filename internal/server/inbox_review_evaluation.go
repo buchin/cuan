@@ -350,6 +350,12 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			return output
 		}
 		if strings.TrimSpace(decision.Explanation) != "" {
+			// The card shows queued/working state. Suppress a second generic
+			// acknowledgement only when this exact review's launch was saved.
+			// Failed admission and stopped launches must retain their explanation.
+			if launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID)); err == nil && launch != nil && (launch.State == "queued" || launch.State == "claimed" || launch.State == "started") {
+				return decision.Explanation + taskLink
+			}
 			return decision.Explanation + "\n\n" + output
 		}
 		return output
