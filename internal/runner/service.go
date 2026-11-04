@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -670,6 +671,12 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			CreatedAt:    now,
 		}
 		completionActivities = append(completionActivities, act)
+		verification, _ := json.Marshal(task.RunnerVerificationRecord{Summary: req.TestSummary})
+		completionActivities = append(completionActivities, &task.TaskActivity{
+			ID: "verification:" + att.ID, TaskID: t.ID, AttemptID: &att.ID,
+			ActivityType: task.ActivityTypeRunnerVerification, Author: req.RunnerID,
+			Message: string(verification), CreatedAt: now,
+		})
 		completionStore, ok := s.taskStore.(task.CompletionStore)
 		if !ok {
 			return nil, fmt.Errorf("atomic execution completion unavailable")

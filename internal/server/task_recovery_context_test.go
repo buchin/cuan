@@ -49,3 +49,17 @@ func TestTaskRecoveryWithoutReportRequiresWorkspaceInspection(t *testing.T) {
 		t.Fatal("missing cancellation override")
 	}
 }
+
+func TestTaskRecoveryLabelsRetainedVerifierAsHistorical(t *testing.T) {
+	id := "latest-exit-two"
+	d := &task.TaskDetailResponse{Task: task.Task{ID: "task", TestSummary: "STALE_MODULE_SETUP_FAILURE"}, LatestAttempt: &task.TaskAttempt{ID: id, Status: task.AttemptStatusFailed, ErrorMessage: "exit code 2"}}
+	got := taskRecoveryContext(d)
+	if strings.Contains(got, "Runner verification output") || !strings.Contains(got, "Historical task verification (not bound to this attempt") || !strings.Contains(got, "STALE_MODULE_SETUP_FAILURE") {
+		t.Fatal("historical verifier mislabeled as current", got)
+	}
+	d.Activities = append(d.Activities, &task.TaskActivity{TaskID: d.ID, AttemptID: &id, ActivityType: task.ActivityTypeRunnerVerification, Message: `{"summary":"CURRENT_FAILED_CHECK"}`})
+	got = taskRecoveryContext(d)
+	if !strings.Contains(got, "Runner verification output for attempt latest-exit-two") || !strings.Contains(got, "CURRENT_FAILED_CHECK") {
+		t.Fatal("current verifier lost", got)
+	}
+}

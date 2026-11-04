@@ -71,6 +71,7 @@ func TestExecutionLifecyclePostgres(t *testing.T) {
 	}
 	req := lifecycleResult()
 	req.RunnerID = "sql-runner"
+	req.TestSummary = "Project verification: SQL fixture passed"
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
@@ -90,6 +91,23 @@ func TestExecutionLifecyclePostgres(t *testing.T) {
 	}
 	if accepted != 1 {
 		t.Fatalf("concurrent SQL completions accepted %d times", accepted)
+	}
+	activities, err := ts.ListActivities(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := task.AttemptVerificationEvidence(&task.TaskDetailResponse{Task: *item, LatestAttempt: a, Activities: activities})
+	if evidence.Current != req.TestSummary || evidence.AttemptID != a.ID {
+		t.Fatalf("SQL completion lost bound verification: %+v", evidence)
+	}
+	verificationCount := 0
+	for _, activity := range activities {
+		if activity.ActivityType == task.ActivityTypeRunnerVerification {
+			verificationCount++
+		}
+	}
+	if verificationCount != 1 {
+		t.Fatalf("SQL completion persisted %d verification records", verificationCount)
 	}
 	after, err := ts.GetTask(ctx, item.ID)
 	if err != nil || after.Status != task.TaskStatusDone || after.DoDChecklist[0].Evidence == "" {

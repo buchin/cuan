@@ -125,3 +125,23 @@ report from mockups, HTML reports or layout calculations when visual inspection
 is required. Passing project tests alone does not prove that visual requirement.
 This is a review instruction, not an independent screenshot authenticity check.
 Previously accepted tasks are not reopened or executed by this change.
+
+## Runner verification provenance
+
+Each new runner completion atomically records a `runner_verification` activity
+with the exact task and attempt identity, including an empty summary when no
+verifier output was produced. Concurrent or repeated completion cannot create a
+second accepted record. No schema migration or historical rewrite is required.
+
+Review receives current runner output, its attempt ID and provenance separately
+from retained historical task verification. Recovery prompts likewise label
+unbound task-level `test_summary` as history and require checking it against the
+current approved baseline. An old failed project test is not automatically the
+cause of a later exit-2 or timeout failure. Missing or invalid attempt records do
+not inherit earlier checks. Legacy summaries remain available as history; this
+change does not reopen accepted work or reset correction budgets.
+
+Regression coverage includes empty current output with retained old failure,
+foreign-task and previous-attempt records, deterministic ordering, invalid
+records, server review/recovery projection and real PostgreSQL concurrent
+completion persistence.

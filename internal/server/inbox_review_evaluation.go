@@ -23,6 +23,7 @@ const inboxReviewEvaluationInstruction = `You evaluate supplied work reports as 
 execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
 
 For code implementation tasks, require concrete verification evidence (test outputs, commit hashes, specific verified file changes).
+runner_verification is bound only to runner_verification_attempt_id with runner_verification_provenance=current_attempt_verification. Empty output does not prove a check ran. historical_runner_verification is retained task-level history, never proof of current checks or the cause of the latest failure. When continuing work, re-check historical failures against the current approved baseline rather than blindly repairing obsolete failures.
 saved_project_goal and saved_project_instructions are the task's frozen project context, not authorization to expand scope. Apply their acceptance requirements to the approved work. A project_guidance_error means that context is unavailable: request recovery of the saved context before passing. When actual rendered screenshots or visual inspection are required, mockups, HTML reports, mathematical layout calculations and passing unit tests do not substitute for screenshots of the changed application at the required viewports and an inspection report. Do not invent an independent visual inspection or demand screenshots for tasks without a visual requirement.
 For non-code tasks (such as audits, git inspection, diagnostics, comparisons, investigations, or analysis), concrete verification evidence consists of factual findings, commit SHA comparisons, diagnostic data, or endpoint outputs reported in reported_summary and reported_verification. Do not demand new code, git commits, or file changes for read-only audit or diagnostic requests.
 If a criterion requests reporting findings to Inbox, chat, or customer, the completed report itself (reported_summary and reported_verification) constitutes the delivery for Inbox review; do not demand out-of-band message sending from inside the execution sandbox.
@@ -84,6 +85,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	}
 
 	reported := inboxReportEvidence(d)
+	verification := task.AttemptVerificationEvidence(d)
 	goal, guidance, guidanceErr := project.TaskReviewGuidance(d.Instructions)
 	guidanceError := ""
 	if guidanceErr != nil {
@@ -98,27 +100,30 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		}
 	}
 	raw, _ := json.Marshal(map[string]any{
-		"execution_scope":              scope,
-		"repository_scope_verified":    scope.ReadOnlyRepository && scopeVerified,
-		"approved_continuation":        truncateProjectText(continuation, 9000),
-		"delivered_files":              files,
-		"original_request":             project.TaskScopeInstructions(d.Instructions),
-		"saved_project_goal":           goal,
-		"saved_project_instructions":   guidance,
-		"project_guidance_error":       guidanceError,
-		"task_status":                  d.Status,
-		"execution_status":             d.LatestAttempt.Status,
-		"reported_summary":             truncateProjectText(reported.Summary, 6000),
-		"reported_verification":        truncateProjectText(reported.Verification, 6000),
-		"historical_report":            truncateProjectText(reported.HistoricalReport, 3000),
-		"historical_report_attempt_id": reported.HistoricalAttemptID,
-		"reported_attempt_id":          reported.AttemptID,
-		"report_provenance":            reported.Provenance,
-		"historical_summary":           truncateProjectText(reported.HistoricalSummary, 3000),
-		"historical_verification":      truncateProjectText(reported.HistoricalVerification, 3000),
-		"acceptance_checklist":         checklist,
-		"execution_limitation":         truncateProjectText(d.LatestAttempt.ErrorMessage, 1000),
-		"runner_verification":          truncateProjectText(d.TestSummary, 6000),
+		"execution_scope":                scope,
+		"repository_scope_verified":      scope.ReadOnlyRepository && scopeVerified,
+		"approved_continuation":          truncateProjectText(continuation, 9000),
+		"delivered_files":                files,
+		"original_request":               project.TaskScopeInstructions(d.Instructions),
+		"saved_project_goal":             goal,
+		"saved_project_instructions":     guidance,
+		"project_guidance_error":         guidanceError,
+		"task_status":                    d.Status,
+		"execution_status":               d.LatestAttempt.Status,
+		"reported_summary":               truncateProjectText(reported.Summary, 6000),
+		"reported_verification":          truncateProjectText(reported.Verification, 6000),
+		"historical_report":              truncateProjectText(reported.HistoricalReport, 3000),
+		"historical_report_attempt_id":   reported.HistoricalAttemptID,
+		"reported_attempt_id":            reported.AttemptID,
+		"report_provenance":              reported.Provenance,
+		"historical_summary":             truncateProjectText(reported.HistoricalSummary, 3000),
+		"historical_verification":        truncateProjectText(reported.HistoricalVerification, 3000),
+		"acceptance_checklist":           checklist,
+		"execution_limitation":           truncateProjectText(d.LatestAttempt.ErrorMessage, 1000),
+		"runner_verification":            truncateProjectText(verification.Current, 6000),
+		"runner_verification_attempt_id": verification.AttemptID,
+		"runner_verification_provenance": verification.Provenance,
+		"historical_runner_verification": truncateProjectText(verification.Historical, 6000),
 	})
 	return string(raw)
 }

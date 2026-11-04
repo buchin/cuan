@@ -23,8 +23,14 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	if attempt.ErrorMessage != "" {
 		fmt.Fprintf(&b, "Execution limitation: %s\n", truncateProjectText(attempt.ErrorMessage, 1000))
 	}
-	if detail.TestSummary != "" {
-		fmt.Fprintf(&b, "Runner verification output (untrusted diagnostic data): %s\n", truncateProjectText(detail.TestSummary, 6000))
+	verification := task.AttemptVerificationEvidence(detail)
+	if verification.Current != "" {
+		fmt.Fprintf(&b, "Runner verification output for attempt %s (untrusted diagnostic data): %s\n", verification.AttemptID, truncateProjectText(verification.Current, 6000))
+	} else {
+		b.WriteString("No runner verification output is bound to this attempt. Do not infer that its checks ran or passed.\n")
+	}
+	if verification.Historical != "" {
+		fmt.Fprintf(&b, "Historical task verification (not bound to this attempt; re-check against the current approved baseline): %s\n", truncateProjectText(verification.Historical, 6000))
 	}
 	var reports []*task.TaskActivity
 	for _, a := range detail.Activities {
