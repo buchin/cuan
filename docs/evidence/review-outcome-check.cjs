@@ -4,10 +4,11 @@ const {routeAPI,task}=require('./customer-task-card-check.cjs')
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('node:assert/strict')
 const out=process.env.CUAN_REVIEW_EVIDENCE_DIR||'/home/dev/reports/cuan-pm-recovery/review-outcome',now=new Date().toISOString()
 const finding=process.env.CUAN_REVIEW_FINDING||''
-const stopped='Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.'
+const verifying=process.env.CUAN_REVIEW_VERIFYING==='1'
+const stopped=verifying?'Cuan menyiapkan verifikasi tambahan pada hasil yang sama.':'Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.'
 const outcome=[finding,stopped].filter(Boolean).join('\n\n')
-Object.assign(task,{title:'Perbaiki navigasi',summary:'Verifikasi belum selesai.',status:'blocked',source_message_id:'reply',launch:{state:'stopped'},latest_attempt:{id:'attempt',status:finding?'succeeded':'failed'}})
-const contact={id:'fixture',type:'agent',agent_id:'agent_cuan',agent_name:'@cuan',name:'Perbaikan navigasi',conversation_id:'fixture-room',last_message:outcome,failed_tasks:1,task_count:1,updated_at:now}
+Object.assign(task,{title:'Perbaiki navigasi',summary:'Verifikasi belum selesai.',status:verifying?'queued':'blocked',source_message_id:'reply',launch:{state:verifying?'queued':'stopped'},latest_attempt:{id:'attempt',status:finding?'succeeded':'failed'}})
+const contact={id:'fixture',type:'agent',agent_id:'agent_cuan',agent_name:'@cuan',name:'Perbaikan navigasi',conversation_id:'fixture-room',last_message:outcome,failed_tasks:verifying?0:1,task_count:1,updated_at:now}
 let browser,server
 async function api(route){
  const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
@@ -37,5 +38,5 @@ async function api(route){
   await page.screenshot({path:`${out}/blocked-review-${width}.png`})
   await context.close()
  }
- console.log('390/1440: actual stopped correction outcome and task card visible without continuation promise or horizontal overflow.')
+ console.log('390/1440: actual review outcome and task card visible without unsupported continuation promise or horizontal overflow.')
 })().catch(error=>{console.error(error);process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})

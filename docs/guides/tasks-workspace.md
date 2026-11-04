@@ -269,3 +269,26 @@ assumptions remain; remote artifact upload is not introduced by this change.
 This makes screenshot delivery possible without changing repository files. It
 does not create screenshots, authenticate their visual contents, relax acceptance
 criteria or authorize another execution attempt by itself.
+
+### Supplemental verification of an existing implementation
+
+When implementation corrections are exhausted, Cuan may schedule one additional
+read-only verification of the same tested commit if the saved review classifies
+the remaining gap as verification only. This does not reset correction limits.
+Original owner approval, project lane serialization, cancellation and publication
+limits still apply. Missing implementation, publication or external prerequisites
+are not eligible for this path.
+
+The runner uses the existing clean task workspace at the exact source commit;
+it does not check out, reset or repair files. Verification runs for at most ten
+minutes within the existing attempt deadline. Code, configuration, documentation,
+git changes, push and deployment are prohibited. Tools and screenshots belong
+outside the repository; use `CUAN_TASK_ARTIFACTS_DIR` and `session:PATH` delivery.
+A missing or dirty workspace stops verification while preserving saved work.
+
+Backend completion requires the source commit receipt plus an unchanged repository
+fingerprint. Older workers that omit source evidence cannot report success. Review
+receives source implementation checks separately from the verifier's own evidence;
+original acceptance requirements remain in force. Failure cannot acquire another
+verification run or an unrestricted infrastructure retry. Results still require
+coordinator review before the task is accepted or the next approved phase starts.

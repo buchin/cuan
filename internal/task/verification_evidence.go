@@ -15,6 +15,7 @@ type VerificationEvidence struct {
 	Historical string
 	AttemptID  string
 	Provenance string
+	Author     string
 }
 
 func AttemptVerificationEvidence(d *TaskDetailResponse) VerificationEvidence {
@@ -45,6 +46,7 @@ func AttemptVerificationEvidence(d *TaskDetailResponse) VerificationEvidence {
 	}
 	out.Current = *record.Summary
 	out.AttemptID = d.LatestAttempt.ID
+	out.Author = latest.Author
 	out.Provenance = "current_attempt_verification"
 	if out.Historical == out.Current {
 		out.Historical = ""

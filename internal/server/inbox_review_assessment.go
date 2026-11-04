@@ -26,6 +26,8 @@ func reviewAssessment(d *task.TaskDetailResponse, requestID string) (inboxReview
 	if d == nil || d.LatestAttempt == nil {
 		return inboxReviewEvaluation{}, false
 	}
+	var selected *task.TaskActivity
+	var assessment inboxReviewEvaluation
 	for _, a := range d.Activities {
 		if a == nil || a.TaskID != d.ID || a.AttemptID == nil || *a.AttemptID != d.LatestAttempt.ID || a.ActivityType != reviewAssessmentActivity || a.Author != "coordinator" {
 			continue
@@ -36,10 +38,12 @@ func reviewAssessment(d *task.TaskDetailResponse, requestID string) (inboxReview
 		}
 		raw, _ := json.Marshal(record.Assessment)
 		if parsed, err := parseInboxReviewEvaluation(string(raw)); err == nil {
-			return parsed, true
+			if selected == nil || a.CreatedAt.After(selected.CreatedAt) || (a.CreatedAt.Equal(selected.CreatedAt) && a.ID > selected.ID) {
+				selected, assessment = a, parsed
+			}
 		}
 	}
-	return inboxReviewEvaluation{}, false
+	return assessment, selected != nil
 }
 func reviewAssessmentMissing(d *task.TaskDetailResponse) bool {
 	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || inboxReportEvidence(d).Provenance != "current_attempt_report" {

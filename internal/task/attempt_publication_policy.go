@@ -19,7 +19,16 @@ func AttemptPublicationPolicy(ctx context.Context, store Store, t *Task, attempt
 			return policy, err
 		}
 		if launch != nil && launch.TaskID == t.ID {
+			proof, err := VerificationIntentForLaunch(t, launch)
+			if err != nil {
+				return policy, err
+			}
 			revision := executionpolicy.FromInstructions(launch.Revision)
+			if proof != nil {
+				revision.ReadOnlyRepository = true
+				revision.DenyPush = true
+				revision.DenyDeploy = true
+			}
 			policy = policy.Restrict(revision)
 		}
 	}

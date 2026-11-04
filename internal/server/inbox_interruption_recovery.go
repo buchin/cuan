@@ -52,6 +52,11 @@ func providerLimitedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
 }
 
 func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
+	if d != nil && d.LatestAttempt != nil {
+		if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
+			return false // A supplemental verification has no automatic execution replay.
+		}
+	}
 	if (!interruptedInboxTaskCanResume(d) && !providerLimitedInboxTaskCanResume(d)) || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") {
 		return false
 	}

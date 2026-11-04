@@ -1,0 +1,168 @@
+package server
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"github.com/buchin/cuan/internal/db"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/buchin/cuan/internal/runner"
+	"github.com/buchin/cuan/internal/task"
+)
+
+func TestVerificationFollowupQueuesOnceWithoutResettingCorrectionBudget(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	verificationFollowupQueueContract(t, s, d, q)
+}
+func TestVerificationFollowupPostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) {
+		s, q, d := phaseLineageSetup(t, database)
+		verificationFollowupQueueContract(t, s, d, q)
+	})
+}
+func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest) {
+	t.Helper()
+	ctx := context.Background()
+	store := s.taskSvc.Store()
+	row, err := store.GetTask(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamp := time.Now()
+	for _, event := range []struct{ id, kind, state string }{{"final", "agent_report", "review"}, {"kind", "agent_result_kind", "implementation"}} {
+		if err = store.CreateActivity(ctx, &task.TaskActivity{ID: event.id, TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: event.kind, NewStatus: event.state, Message: "Actual implementation report", CreatedAt: stamp}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	row.Status = task.TaskStatusReview
+	row.Summary = "Implementation ready"
+	row.CompleteNote = "Actual checks passed; screenshot evidence pending"
+	row.CommitSHA = strings.Repeat("a", 40)
+	if err = store.UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"old-one", "old-two"} {
+		if err = store.CreateAttempt(ctx, &task.TaskAttempt{ID: id, TaskID: d.ID, Status: task.AttemptStatusFailed, CreatedAt: d.LatestAttempt.CreatedAt.Add(-time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, _ := json.Marshal(task.RunnerVerificationRecord{Summary: "Project verification: test.sh --fast (exit 0)"})
+	if err = store.CreateActivity(ctx, &task.TaskActivity{ID: "source-checks", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: task.ActivityTypeRunnerVerification, Author: d.LatestAttempt.RunnerID, Message: string(raw), CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+		t.Fatal(err)
+	}
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assessment := inboxReviewEvaluation{Decision: "revise", Finding: "Screenshot aplikasi belum tersedia.", RemainingWork: "verification", Explanation: "Evidence missing.", Revision: "Capture actual application at390px and desktop and inspect."}
+	if _, err = s.saveReviewAssessment(ctx, d, q, assessment); err != nil {
+		t.Fatal(err)
+	}
+	// A storage outage must retain the saved assessment and reuse the same intent.
+	failing := reviewLaunchFailureStore{Store: store, LaunchStore: store.(task.LaunchStore), failure: errors.New("temporary launch outage")}
+	s.taskSvc = task.NewService(failing, s.projectSvc)
+	if outcome, ok := s.startVerificationFollowup(ctx, q, d, assessment); ok || strings.Contains(outcome, "verifikasi tambahan") {
+		t.Fatal("promised unsaved verification")
+	}
+	s.taskSvc = task.NewService(store, s.projectSvc)
+	for i := 0; i < 3; i++ {
+		outcome, ok := s.startVerificationFollowup(ctx, q, d, assessment)
+		if !ok || !strings.Contains(outcome, "verifikasi tambahan") {
+			t.Fatalf("not queued %v %s", ok, outcome)
+		}
+	}
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	if err != nil || job == nil || job.State != "queued" {
+		t.Fatalf("missing durable intent %+v %v", job, err)
+	}
+	proof, err := task.VerificationIntentForLaunch(&d.Task, job)
+	if err != nil || proof == nil || proof.SourceAttemptID != d.LatestAttempt.ID {
+		t.Fatal("invalid source proof", err)
+	}
+	after, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil || len(after.Attempts) != 3 {
+		t.Fatal("created attempt behind busy project", err)
+	}
+	if taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, after)) < 3 {
+		t.Fatal("reset correction budget")
+	}
+	for _, kind := range []string{"implementation", "external"} {
+		rejected := assessment
+		rejected.RemainingWork = kind
+		if _, ok := s.startVerificationFollowup(ctx, q, d, rejected); ok {
+			t.Fatal("accepted nonverification work")
+		}
+	}
+	canceled := *d
+	canceled.Status = "cancelled"
+	if _, ok := s.startVerificationFollowup(ctx, q, &canceled, assessment); ok {
+		t.Fatal("revived retired task")
+	}
+}
+
+func TestVerificationReviewRequiresBackendSourceReceipt(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	verificationFollowupQueueContract(t, s, d, q)
+	ctx := context.Background()
+	store := s.taskSvc.Store()
+	if err := store.DeleteTask(ctx, "busy"); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "verifier-launch", job.ID); err != nil {
+		t.Fatal(err)
+	}
+	att, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: job.RequestID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := runner.NewService(runner.NewMemoryStore(store), store, nil)
+	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "verifier"}, time.Minute)
+	if err != nil || !claim.Claimed {
+		t.Fatal("claim failed", err)
+	}
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.verificationReviewContext(ctx, d) != nil {
+		t.Fatal("running verifier supplied source acceptance context")
+	}
+	_, err = service.Complete(ctx, att.ID, runner.CompleteAttemptRequest{RunnerID: "verifier", Status: task.AttemptStatusSucceeded, VerifiedSourceCommit: d.CommitSHA, AgentReportRequired: true, AgentReportConfirmed: true, RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("b", 64), Final: strings.Repeat("b", 64)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := s.verificationReviewContext(ctx, d)
+	if evidence == nil || evidence["source_attempt_id"] == att.ID || evidence["source_commit"] != d.CommitSHA || evidence["repository_unchanged"] != true {
+		t.Fatal("missing source context", evidence)
+	}
+	if task.AttemptVerificationEvidence(d).Current == evidence["source_project_checks"] {
+		t.Fatal("historical source tests attributed to verifier")
+	}
+	for _, a := range d.Activities {
+		if a.ActivityType == "verification_source_verified" {
+			a.Author = "agent"
+		}
+	}
+	if s.verificationReviewContext(ctx, d) != nil {
+		t.Fatal("agent could supply backend source receipt")
+	}
+}

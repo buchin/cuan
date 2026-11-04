@@ -87,6 +87,7 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
+	Verification      *task.VerificationIntent          `json:"verification,omitempty"`
 	PublicationLimits executionpolicy.PublicationPolicy `json:"publication_limits"`
 	OwnerID           string                            `json:"owner_id,omitempty"`
 	RequiresVision    bool                              `json:"requires_vision,omitempty"`
@@ -126,6 +127,7 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
+	VerifiedSourceCommit    string                  `json:"verified_source_commit,omitempty"`
 	RepositoryVerification  *RepositoryVerification `json:"repository_verification,omitempty"`
 	RunnerID                string                  `json:"runner_id"`
 	RoomID                  string                  `json:"room_id,omitempty"`

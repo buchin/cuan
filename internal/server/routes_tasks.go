@@ -507,7 +507,18 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {
 		resp.OwnerID, _ = s.authSvc.OwnerID(r.Context())
 		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), resp.Task.ID); err == nil {
-			resp.RequiresVision = s.taskRequiresVision(r.Context(), resp.OwnerID, detail, "", "")
+			revision := ""
+			if launches, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
+				launch, launchErr := launches.LaunchForAttempt(r.Context(), resp.Attempt.ID)
+				if launchErr != nil {
+					respondJSONError(w, http.StatusInternalServerError, "claim launch unavailable")
+					return
+				}
+				if launch != nil {
+					revision = launch.Revision
+				}
+			}
+			resp.RequiresVision = s.taskRequiresVision(r.Context(), resp.OwnerID, detail, "", revision)
 		}
 		claimCtx := r.Context()
 		if resp.WorkingDir != "" {

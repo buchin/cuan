@@ -131,6 +131,10 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if e != nil || detail.ProjectID != job.ProjectID || task.LaunchInstructionsHash(detail.Instructions) != job.InstructionsHash {
 		return finish("stopped", "The saved task scope has changed; check the current instructions before continuing.")
 	}
+	verification, verificationErr := task.VerificationIntentForLaunch(&detail.Task, &job)
+	if verificationErr != nil {
+		return finish("stopped", "The verification scope could not be validated.")
+	}
 	trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
 	if authErr != nil {
 		return finish("queued", "Conversation storage is temporarily unavailable.")
@@ -158,7 +162,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 	}
 	runnerID := "cuan-runner"
-	if targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued" {
+	if verification == nil && (targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued") {
 		runnerID = "local_terminal"
 	}
 	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)

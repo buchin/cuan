@@ -703,7 +703,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	att := claim.Attempt
 	t := claim.Task
 	startTime := time.Now()
-	deadline := task.AttemptDeadline(t, att)
+	deadline := verificationDeadline(task.AttemptDeadline(t, att), startTime, claim.Verification != nil)
 	ctx, cancelAttempt := context.WithDeadline(ctx, deadline)
 	defer cancelAttempt()
 
@@ -713,7 +713,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 
 	// Adaptive Timeout calculation with pruned 5m timeout for investigation/readonly tasks
-	timeoutDuration := time.Until(task.AttemptDeadline(t, att))
+	timeoutDuration := time.Until(deadline)
 	if timeoutDuration < 0 {
 		timeoutDuration = time.Nanosecond
 	}
@@ -727,7 +727,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	var ws *git.TaskWorkspace
 	var err error
 	workingDir := ""
-	if r.gitClient != nil && lane == task.ExecutionCategoryCode {
+	if claim.Verification != nil {
+		base := r.cfg.WorkspacesDir
+		if base == "" {
+			base = filepath.Join("data", "workspaces")
+		}
+		workingDir = filepath.Join(base, t.ID)
+		err = verifySourceRepository(ctx, workingDir, claim.Verification.SourceCommit)
+	} else if r.gitClient != nil && lane == task.ExecutionCategoryCode {
 		branchName := t.BranchName
 		if branchName == "" {
 			branchName = fmt.Sprintf("task/%s", t.ID)
@@ -886,6 +893,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
+	if claim.Verification != nil && readOnlyBaseline != "" {
+		compReq.VerifiedSourceCommit = claim.Verification.SourceCommit
+	}
 	compReq.AgentReportRequired = claim.TaskAgent != nil
 	if claim.Task != nil && claim.Task.SourceRoomID != "" {
 		compReq.RoomID = claim.Task.SourceRoomID

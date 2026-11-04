@@ -128,3 +128,24 @@ func verifyTaskRepository(ctx context.Context, root, branch string, policy execu
 	}
 	return verificationResult{Passed: true, Summary: "Read-only repository scope verified against the runner baseline: HEAD, tracked/index changes and nonignored untracked files unchanged. Project implementation tests are outside this audit; task report evidence still requires acceptance."}, evidence
 }
+
+// Supplemental verification never prepares, checks out or repairs a workspace.
+func verifySourceRepository(parent context.Context, root, commit string) error {
+	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
+	defer cancel()
+	head, err := fingerprintGit(ctx, root, "rev-parse", "--verify", "HEAD")
+	if err != nil || strings.TrimSpace(string(head)) != commit {
+		return fmt.Errorf("verification source commit differs from the approved implementation")
+	}
+	status, err := fingerprintGit(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil || len(status) != 0 {
+		return fmt.Errorf("verification requires the unchanged clean implementation workspace; saved work was preserved")
+	}
+	return nil
+}
+func verificationDeadline(existing, started time.Time, enabled bool) time.Time {
+	if enabled && started.Add(10*time.Minute).Before(existing) {
+		return started.Add(10 * time.Minute)
+	}
+	return existing
+}

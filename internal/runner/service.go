@@ -266,7 +266,12 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	if err != nil {
 		return nil, err
 	}
+	verification, err := task.ValidateVerificationSource(ctx, s.taskStore, t, att.ID)
+	if err != nil {
+		return nil, err
+	}
 	resp := &ClaimTaskResponse{
+		Verification:      verification,
 		Claimed:           true,
 		PublicationLimits: limits,
 		Attempt:           att,
@@ -316,6 +321,14 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if latest == nil || latest.ID != att.ID {
 		return nil, task.ErrAttemptFinal
 	}
+	currentTask, intentErr := s.taskStore.GetTask(ctx, att.TaskID)
+	if intentErr != nil {
+		return nil, intentErr
+	}
+	intent, intentErr := task.VerificationIntentForAttempt(ctx, s.taskStore, currentTask, att.ID)
+	if intentErr != nil {
+		return nil, intentErr
+	}
 	var effects []func()
 	var completionActivities []*task.TaskActivity
 	var nextAttempt *task.TaskAttempt
@@ -348,13 +361,26 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if err != nil {
 			return nil, err
 		}
+
+		proof, proofErr := task.ValidateVerificationSource(ctx, s.taskStore, current, att.ID)
+		if proofErr != nil {
+			return nil, proofErr
+		}
+		if proof != nil {
+			if req.VerifiedSourceCommit != proof.SourceCommit || !limits.ReadOnlyRepository || !req.RepositoryVerification.Unchanged() || req.LiveDeploymentConfirmed || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
+				status = task.AttemptStatusFailed
+				att.ErrorMessage = "Verification-only source or publication scope was not verified by the runner"
+			} else {
+				completionActivities = append(completionActivities, &task.TaskActivity{ID: "verification-source:" + att.ID, TaskID: att.TaskID, AttemptID: &att.ID, ActivityType: "verification_source_verified", Author: req.RunnerID, Message: proof.SourceCommit, CreatedAt: now})
+			}
+		}
 		if limits.ReadOnlyRepository {
 			if !req.RepositoryVerification.Unchanged() || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
 				status = task.AttemptStatusFailed
 				att.ErrorMessage = "Read-only repository scope was not verified by the runner; no completion accepted. Preserve saved work and report the scope mismatch without repairing unrelated tests."
 			} else {
 				readOnlyVerified = true
-				completionActivities = append(completionActivities, &task.TaskActivity{TaskID: att.TaskID, AttemptID: &att.ID, ActivityType: "repository_scope_verified", Author: req.RunnerID, NewStatus: "read_only", Message: "Runner verified unchanged repository state: " + req.RepositoryVerification.Baseline, CreatedAt: now})
+				completionActivities = append(completionActivities, &task.TaskActivity{ID: "repository-scope:" + att.ID, TaskID: att.TaskID, AttemptID: &att.ID, ActivityType: "repository_scope_verified", Author: req.RunnerID, NewStatus: "read_only", Message: "Runner verified unchanged repository state: " + req.RepositoryVerification.Baseline, CreatedAt: now})
 			}
 		}
 	}
@@ -503,7 +529,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 						}
 					}
 				}
-			} else if dodVal != nil && dodVal.Action == "auto_requeue" && dodVal.Fixable && req.AgentReportConfirmed && len(task.AcceptanceGaps(t)) == 0 && CanRequeue(att.AttemptNumber) {
+			} else if intent == nil && dodVal != nil && dodVal.Action == "auto_requeue" && dodVal.Fixable && req.AgentReportConfirmed && len(task.AcceptanceGaps(t)) == 0 && CanRequeue(att.AttemptNumber) {
 				// Ada gap fixable & attempt < 3: Requeue otomatis dengan alokasi waktu adaptif
 				t.Status = task.TaskStatusQueued
 				autoRequeued = true
