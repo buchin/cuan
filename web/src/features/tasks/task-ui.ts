@@ -74,11 +74,11 @@ export function attemptLabel(attempt: TaskAttempt) {
 // One user-facing status across project lists and session headers. A finished
 // process is not proof that a task was accepted or completed.
 export function workStatus(task: Task) {
+  if (task.status === 'done') return 'Completed'
   if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Queued'
   const attempt = task.latest_attempt?.status || task.execution_status
   if (attempt === 'running') return 'Working'
   if (attempt === 'queued') return 'Queued'
-  if (task.status === 'done') return 'Completed'
   if (attempt === 'canceled' || attempt === 'cancelled') return 'Cancelled'
   if (task.launch?.state === 'stopped') return 'Needs attention'
   if (task.launch?.state === 'cancelled') return 'Cancelled'
@@ -117,6 +117,7 @@ export function tasksForProject(tasks: Task[], projectId: string) {
 export const agentDisplayName = (value?: string) => value?.startsWith('agent_') ? '@' + value.slice(6) : value || 'Agent'
 
 export function isTaskRunning(task: Task) {
+  if (task.status === 'done') return false
   const attempt = task.latest_attempt?.status || task.execution_status
   return (
     attempt === 'running' ||

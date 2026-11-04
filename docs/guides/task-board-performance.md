@@ -22,7 +22,7 @@ input contract and request it only after that extension is selected.
 
 `GET /api/v1/tasks?view=board&page=1&page_size=25` returns:
 
-- `tasks`: compact task previews, with latest attempt and progress;
+- `tasks`: compact task previews, with latest attempt, safe launch state and progress;
 - `total`: number matching all current filters;
 - `scope_total` and `counts`: full project-scope tab counts;
 - `page` and `page_size`: actual server page, clamped after deletion/filter changes.
@@ -70,3 +70,11 @@ The UI requests `GET /api/v1/chat/contacts?view=list` for a single canonical
 No preview text is truncated; names, last-message search, unread/task counts and
 message history are unchanged. This removes the duplicated array from every
 shared contact refresh without breaking existing CLI consumers.
+
+Paged filters, sorting and scope counts use the same effective status as Inbox
+counters: accepted Done wins; queued/claimed recovery wins over the previous
+attempt; current running/queued attempts win over older stopped launches. Stopped
+and canceled work remains visible in the corresponding attention/canceled group.
+Latest launch presentation fields are fetched in one bounded page batch. Stored
+status in detail/storage, instructions and historical attempts are preserved;
+preview status is derived for consistency with filtering and counters.

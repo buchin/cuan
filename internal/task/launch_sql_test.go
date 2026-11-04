@@ -55,5 +55,9 @@ func TestLaunchPostgresContract(t *testing.T) {
 		t.Fatal(e)
 	}
 	taskPageContract(t, store, "page-project")
+	if _, e := db.ExecContext(ctx, `INSERT INTO projects(id,name,repo_url) VALUES('page-launch-project','Page launch fixture','')`); e != nil {
+		t.Fatal(e)
+	}
+	taskPageLaunchContract(t, store, "page-launch-project")
 	taskPageScalePostgres(t, db, store)
 }

@@ -79,12 +79,28 @@ func (s *Service) ListTaskPage(ctx context.Context, o PageOptions) (*TaskPage, e
 	if err != nil {
 		return nil, err
 	}
+	launches := map[string]*LaunchInfo{}
+	if reader, ok := s.store.(launchInfoReader); ok {
+		launches, err = reader.LatestLaunchInfos(ctx, selected.IDs)
+		if err != nil {
+			return nil, fmt.Errorf("list page launch info: %w", err)
+		}
+	}
 	byID := map[string]*TaskItemResponse{}
 	for _, t := range items {
 		byID[t.ID] = t
 	}
 	for _, id := range selected.IDs {
 		if item := byID[id]; item != nil {
+			item.Launch = launches[id]
+			attemptState, launchState := "", ""
+			if item.LatestAttempt != nil {
+				attemptState = item.LatestAttempt.Status
+			}
+			if item.Launch != nil {
+				launchState = item.Launch.State
+			}
+			item.Status = EffectiveStatus(item.Status, attemptState, launchState)
 			item.Instructions = taskPagePreview(project.TaskScopeInstructions(item.Instructions))
 			item.Summary = taskPagePreview(item.Summary)
 			item.CompleteNote = taskPagePreview(item.CompleteNote)
@@ -118,9 +134,10 @@ func (s *DBStore) SelectTaskPage(ctx context.Context, o PageOptions) (*taskPageS
 	}
 	query := `WITH scope AS (
  SELECT t.id,t.title,t.priority,t.created_at,t.updated_at,COALESCE(p.name,'') project_name,
- CASE WHEN t.status='failed' THEN 'blocked' ELSE t.status END status,COALESCE(a.status,'') attempt_status,COALESCE(k.answered,false) answered
+ ` + EffectiveStatusSQL + ` status,COALESCE(a.status,'') attempt_status,COALESCE(k.answered,false) answered
  FROM tasks t LEFT JOIN projects p ON p.id=t.project_id
  LEFT JOIN LATERAL (SELECT id,status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
+ LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) l ON true
  LEFT JOIN LATERAL (
  SELECT kind.new_status='answer' answered FROM
  (SELECT attempt_id,created_at FROM task_activities WHERE task_id=t.id AND activity_type='agent_report' AND new_status IN('review','done','blocked') ORDER BY created_at DESC,id DESC LIMIT 1) report
@@ -129,13 +146,12 @@ func (s *DBStore) SelectTaskPage(ctx context.Context, o PageOptions) (*taskPageS
  ) k ON true
  WHERE (NOT $7 OR t.title NOT LIKE 'Terminal ·%') AND ($1='' OR ($1='none' AND COALESCE(t.project_id,'')='' AND NOT EXISTS(SELECT 1 FROM task_projects tp WHERE tp.task_id=t.id)) OR t.project_id=$1 OR EXISTS(SELECT 1 FROM task_projects tp WHERE tp.task_id=t.id AND tp.project_id=$1))
  ), classified AS (
- SELECT *, (status<>'done' AND (status IN ('doing','queued','todo','backlog') OR attempt_status IN ('running','queued'))) active,
- (status<>'done' AND (status IN ('review','blocked','failed','cancelled') OR attempt_status IN ('failed','canceled','cancelled'))) board_attention,
+ SELECT *, (status IN ('doing','queued','todo','backlog')) active,
+ (status IN ('review','blocked','failed','canceled','cancelled')) board_attention,
  CASE WHEN status='done' THEN 'completed'
- WHEN attempt_status IN('running','queued') THEN 'active'
- WHEN attempt_status IN('canceled','cancelled') THEN 'canceled'
- WHEN status IN('queued','pending') THEN 'active'
- WHEN status='blocked' OR attempt_status IN('failed','interrupted') THEN 'attention'
+ WHEN status IN('canceled','cancelled') THEN 'canceled'
+ WHEN status IN('queued','pending') OR (status='doing' AND attempt_status='running') THEN 'active'
+ WHEN status='blocked' THEN 'attention'
  WHEN status='review' THEN CASE WHEN answered AND attempt_status IN('succeeded','completed') THEN 'completed' ELSE 'attention' END
  WHEN status='doing' THEN 'attention' ELSE 'active' END work_group FROM scope
  ), filtered AS (
@@ -183,6 +199,11 @@ func (m *MemoryStore) SelectTaskPage(ctx context.Context, o PageOptions) (*taskP
 	if err != nil {
 		return nil, err
 	}
+	launches, err := m.LatestLaunchInfos(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	statuses := map[string]string{}
 	result := &taskPageSelection{IDs: []string{}, Counts: map[string]int{}}
 	var rows []*Task
 	for _, t := range tasks {
@@ -201,8 +222,14 @@ func (m *MemoryStore) SelectTaskPage(ctx context.Context, o PageOptions) (*taskP
 		if a := attempts[t.ID]; a != nil {
 			attemptStatus = a.Status
 		}
-		active := status != "done" && (oneOf(status, "doing", "queued", "todo", "backlog") || oneOf(attemptStatus, "running", "queued"))
-		attention := status != "done" && (oneOf(status, "review", "blocked", "failed", "cancelled") || oneOf(attemptStatus, "failed", "canceled", "cancelled"))
+		launchState := ""
+		if launch := launches[t.ID]; launch != nil {
+			launchState = launch.State
+		}
+		status = EffectiveStatus(status, attemptStatus, launchState)
+		statuses[t.ID] = status
+		active := oneOf(status, "doing", "queued", "todo", "backlog")
+		attention := oneOf(status, "review", "blocked", "failed", "canceled", "cancelled")
 		result.Counts[status]++
 		if active {
 			result.Counts["active"]++
@@ -242,7 +269,7 @@ func (m *MemoryStore) SelectTaskPage(ctx context.Context, o PageOptions) (*taskP
 		case "task", "id", "task-desc", "id-desc":
 			cmp = strings.Compare(a.ID, b.ID)
 		case "status", "status-desc":
-			as, bs := a.Status, b.Status
+			as, bs := statuses[a.ID], statuses[b.ID]
 			if as == "failed" {
 				as = "blocked"
 			}
@@ -311,16 +338,13 @@ func taskPageWorkGroup(status, attempt string, answered bool) string {
 	if status == "done" {
 		return "completed"
 	}
-	if oneOf(attempt, "running", "queued") {
-		return "active"
-	}
-	if oneOf(attempt, "canceled", "cancelled") {
+	if oneOf(status, "canceled", "cancelled") {
 		return "canceled"
 	}
-	if oneOf(status, "queued", "pending") {
+	if oneOf(status, "queued", "pending") || (status == "doing" && attempt == "running") {
 		return "active"
 	}
-	if status == "blocked" || oneOf(attempt, "failed", "interrupted") {
+	if status == "blocked" {
 		return "attention"
 	}
 	if status == "review" {

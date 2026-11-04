@@ -10,3 +10,8 @@ test('stopped launch does not pretend work is queued; active attempts and fresh 
  assert.equal(status({status:'queued',launch:{state:'queued'},latest_attempt:{status:'failed'}}),'Queued')
  assert.equal(status({status:'blocked',latest_attempt:{status:'canceled'}}),'Cancelled')
 })
+
+test('accepted completion takes precedence over stale launch and attempt rows',()=>{
+ assert.equal(status({status:'done',launch:{state:'queued'},latest_attempt:{status:'failed'}}),'Completed')
+ assert.equal(status({status:'done',launch:{state:'claimed'},latest_attempt:{status:'running'}}),'Completed')
+})

@@ -19,14 +19,7 @@ type scopedTaskCounts struct{ Rooms, Projects map[string]taskCounts }
 const taskCountsSQL = `
 WITH canonical AS (
  SELECT t.id, t.project_id, t.source_room_id::text AS room_id,
- CASE
- WHEN lower(btrim(t.status)) = 'done' THEN 'done'
- WHEN l.state IN ('queued','claimed') THEN 'queued'
- WHEN a.status = 'running' THEN 'doing'
- WHEN a.status = 'queued' THEN 'queued'
- WHEN a.status IN ('canceled','cancelled') OR l.state = 'cancelled' THEN 'canceled'
- WHEN a.status IN ('failed','interrupted') OR l.state = 'stopped' THEN 'blocked'
- ELSE lower(btrim(t.status)) END AS status
+ ` + task.EffectiveStatusSQL + ` AS status
  FROM tasks t
  LEFT JOIN LATERAL (SELECT status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
  LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) l ON true
@@ -144,21 +137,5 @@ func addTaskCount(c taskCounts, status string) taskCounts {
 
 // Presentation only: stopping a run does not overwrite its saved review/history.
 func taskCountStatus(status, attempt, launch string) string {
-	status = strings.ToLower(strings.TrimSpace(status))
-	switch {
-	case status == "done":
-		return "done"
-	case launch == "queued" || launch == "claimed":
-		return "queued"
-	case attempt == "running":
-		return "doing"
-	case attempt == "queued":
-		return "queued"
-	case attempt == "canceled" || attempt == "cancelled" || launch == "cancelled":
-		return "canceled"
-	case attempt == "failed" || attempt == "interrupted" || launch == "stopped":
-		return "blocked"
-	default:
-		return status
-	}
+	return task.EffectiveStatus(status, attempt, launch)
 }

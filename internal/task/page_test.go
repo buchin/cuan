@@ -119,7 +119,7 @@ func taskPageContract(t *testing.T, store Store, project string) {
 			}
 		}
 	}
-	for status, want := range map[string]int{"completed": 2, "attention": 1, "work_active": 1, "active": 2, "dibatalkan_review": 3} {
+	for status, want := range map[string]int{"completed": 2, "attention": 1, "work_active": 1, "active": 1, "dibatalkan_review": 3} {
 		page := get(PageOptions{Search: "Group fixture", Status: status})
 		if page.Total != want {
 			t.Fatalf("group %s has %d tasks; want %d", status, page.Total, want)
