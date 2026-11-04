@@ -37,16 +37,17 @@ type RunnerInfo struct {
 
 // HeartbeatRequest is sent periodically by runner daemon to keep its lease alive and report metrics.
 type HeartbeatRequest struct {
-	RunnerID         string   `json:"runner_id"`
-	Hostname         string   `json:"hostname,omitempty"`
-	SupportedAgents  []string `json:"supported_agents,omitempty"`
-	CurrentAttemptID string   `json:"current_attempt_id,omitempty"`
-	ActiveAttemptIDs []string `json:"active_attempt_ids,omitempty"`
-	CPUPercent       float64  `json:"cpu_percent"`
-	MemoryUsedBytes  int64    `json:"memory_used_bytes"`
-	MemoryTotalBytes int64    `json:"memory_total_bytes"`
-	DiskUsedBytes    int64    `json:"disk_used_bytes"`
-	DiskTotalBytes   int64    `json:"disk_total_bytes"`
+	BrowserRuntime   *task.VerificationRuntime `json:"browser_runtime,omitempty"`
+	RunnerID         string                    `json:"runner_id"`
+	Hostname         string                    `json:"hostname,omitempty"`
+	SupportedAgents  []string                  `json:"supported_agents,omitempty"`
+	CurrentAttemptID string                    `json:"current_attempt_id,omitempty"`
+	ActiveAttemptIDs []string                  `json:"active_attempt_ids,omitempty"`
+	CPUPercent       float64                   `json:"cpu_percent"`
+	MemoryUsedBytes  int64                     `json:"memory_used_bytes"`
+	MemoryTotalBytes int64                     `json:"memory_total_bytes"`
+	DiskUsedBytes    int64                     `json:"disk_used_bytes"`
+	DiskTotalBytes   int64                     `json:"disk_total_bytes"`
 }
 
 // HeartbeatResponse instructs the runner on lease renewal and whether cancellation is requested.
@@ -127,25 +128,26 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
-	VerifiedSourceCommit    string                  `json:"verified_source_commit,omitempty"`
-	RepositoryVerification  *RepositoryVerification `json:"repository_verification,omitempty"`
-	RunnerID                string                  `json:"runner_id"`
-	RoomID                  string                  `json:"room_id,omitempty"`
-	Status                  string                  `json:"status"` // succeeded, failed, canceled
-	ExitCode                int                     `json:"exit_code"`
-	PeakRSSBytes            int64                   `json:"peak_rss_bytes"`
-	ErrorMessage            string                  `json:"error_message,omitempty"`
-	BranchName              string                  `json:"branch_name,omitempty"`
-	PRURL                   string                  `json:"pr_url,omitempty"`
-	PRNumber                int                     `json:"pr_number,omitempty"`
-	CommitSHA               string                  `json:"commit_sha,omitempty"`
-	DiffSummary             string                  `json:"diff_summary,omitempty"`
-	TestSummary             string                  `json:"test_summary,omitempty"`
-	AgentReportConfirmed    bool                    `json:"agent_report_confirmed"`
-	AgentReportRequired     bool                    `json:"agent_report_required"`
-	LiveDeploymentConfirmed bool                    `json:"live_deployment_confirmed,omitempty"`
-	DoDValidation           *DoDValidationResult    `json:"dod_validation,omitempty"`
-	RequeueFeedback         string                  `json:"requeue_feedback,omitempty"`
-	RequiresDeploy          *bool                   `json:"requires_deploy,omitempty"`
-	HasCodeChanges          *bool                   `json:"has_code_changes,omitempty"`
+	VerificationRuntimeFingerprint string                  `json:"verification_runtime_fingerprint,omitempty"`
+	VerifiedSourceCommit           string                  `json:"verified_source_commit,omitempty"`
+	RepositoryVerification         *RepositoryVerification `json:"repository_verification,omitempty"`
+	RunnerID                       string                  `json:"runner_id"`
+	RoomID                         string                  `json:"room_id,omitempty"`
+	Status                         string                  `json:"status"` // succeeded, failed, canceled
+	ExitCode                       int                     `json:"exit_code"`
+	PeakRSSBytes                   int64                   `json:"peak_rss_bytes"`
+	ErrorMessage                   string                  `json:"error_message,omitempty"`
+	BranchName                     string                  `json:"branch_name,omitempty"`
+	PRURL                          string                  `json:"pr_url,omitempty"`
+	PRNumber                       int                     `json:"pr_number,omitempty"`
+	CommitSHA                      string                  `json:"commit_sha,omitempty"`
+	DiffSummary                    string                  `json:"diff_summary,omitempty"`
+	TestSummary                    string                  `json:"test_summary,omitempty"`
+	AgentReportConfirmed           bool                    `json:"agent_report_confirmed"`
+	AgentReportRequired            bool                    `json:"agent_report_required"`
+	LiveDeploymentConfirmed        bool                    `json:"live_deployment_confirmed,omitempty"`
+	DoDValidation                  *DoDValidationResult    `json:"dod_validation,omitempty"`
+	RequeueFeedback                string                  `json:"requeue_feedback,omitempty"`
+	RequiresDeploy                 *bool                   `json:"requires_deploy,omitempty"`
+	HasCodeChanges                 *bool                   `json:"has_code_changes,omitempty"`
 }

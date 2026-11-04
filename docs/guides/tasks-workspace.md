@@ -289,7 +289,7 @@ A missing or dirty workspace stops verification while preserving saved work.
 Backend completion requires the source commit receipt plus an unchanged repository
 fingerprint. Older workers that omit source evidence cannot report success. Review
 receives source implementation checks separately from the verifier's own evidence;
-original acceptance requirements remain in force. Failure cannot acquire another
+original acceptance requirements remain in force. Failure alone cannot acquire another
 verification run or an unrestricted infrastructure retry. Results still require
 coordinator review before the task is accepted or the next approved phase starts.
 
@@ -313,3 +313,21 @@ returns those results to review while preserving files, commit, execution histor
 and correction limits. Ordinary accepted task history and cancellations are not
 reopened. The PostgreSQL candidate query selects only this affected verification
 mode and excludes already audited attempts.
+
+
+A rejected supplemental verifier has one additional recovery path after a browser
+capability changes. The runner periodically performs a real screenshot render
+outside task workspaces and sends its version, render fingerprint and check time
+through authenticated heartbeat. Probes run asynchronously and do not delay lease
+renewal. Old or missing readiness is not ready.
+
+Recovery requires the independently inspected visual rejection, the original
+successful implementation checks, an unchanged repository receipt and fresh browser
+readiness checked after the prior verifier finished. A recorded identical runtime
+cannot trigger recovery. Legacy verifiers without a capability snapshot can use
+this path once when readiness becomes proven. The recovery carries a durable
+runtime receipt and the original source proof; it has one deterministic launch per
+task/source commit, retains the ten-minute bound and cannot chain. The new worker
+must reproduce the exact runtime fingerprint before execution, and backend
+completion rejects missing runtime evidence. Original approval, cancellation,
+project lane ordering and publication requirements remain unchanged.

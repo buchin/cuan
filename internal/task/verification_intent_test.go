@@ -11,7 +11,7 @@ func TestVerificationIntentRequiresExactAuthorization(t *testing.T) {
 	task := &Task{ID: "task", SourceRoomID: "room", ProjectID: "project", Instructions: "approved scope"}
 	proof := VerificationIntent{SourceAttemptID: "source", SourceCommit: source, InstructionsHash: LaunchInstructionsHash(task.Instructions), OwnerID: "owner", RoomID: "room", SourceRequestID: "approval", AssessmentRequestID: "assessment", SourceVerificationHash: strings.Repeat("b", 64)}
 	launch := &TaskLaunch{TaskID: task.ID, ProjectID: task.ProjectID, RequestID: VerificationRequestID(task.ID, source), OwnerID: proof.OwnerID, RoomID: proof.RoomID, SourceRequestID: proof.SourceRequestID, InstructionsHash: proof.InstructionsHash}
-	for _, scenario := range []string{"valid", "empty owner", "empty room", "empty approval", "wrong scope", "wrong commit", "wrong request", "duplicate"} {
+	for _, scenario := range []string{"valid", "empty owner", "empty room", "empty approval", "wrong scope", "wrong commit", "wrong request", "duplicate", "runtime only", "parent only", "wrong runtime", "recovery wrong request"} {
 		t.Run(scenario, func(t *testing.T) {
 			p, j := proof, *launch
 			switch scenario {
@@ -28,6 +28,16 @@ func TestVerificationIntentRequiresExactAuthorization(t *testing.T) {
 				p.InstructionsHash = "other"
 			case "wrong commit":
 				p.SourceCommit = "short"
+			case "runtime only":
+				p.RuntimeFingerprint = strings.Repeat("a", 64)
+			case "parent only":
+				p.RecoveryAttemptID = "prior-verifier"
+			case "wrong runtime":
+				p.RecoveryAttemptID = "prior-verifier"
+				p.RuntimeFingerprint = strings.Repeat("z", 64)
+			case "recovery wrong request":
+				p.RecoveryAttemptID = "prior-verifier"
+				p.RuntimeFingerprint = strings.Repeat("a", 64)
 			case "wrong request":
 				j.RequestID = "other"
 			}

@@ -39,11 +39,15 @@ type activeAttempt struct {
 }
 
 type Runner struct {
-	cfg        *config.Config
-	adapter    agent.Adapter
-	gitClient  *git.Client
-	httpClient *http.Client
-	baseURL    string
+	browserMu        sync.Mutex
+	browserEvidence  *task.VerificationRuntime
+	browserNextProbe time.Time
+	browserProbing   bool
+	cfg              *config.Config
+	adapter          agent.Adapter
+	gitClient        *git.Client
+	httpClient       *http.Client
+	baseURL          string
 
 	// Multi-Lane Concurrency Mutexes (Pemisahan Mutex Runner)
 	gitDeployMu sync.Mutex   // Code lane: git operations, builds, deploys
@@ -326,6 +330,7 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 	r.mu.Unlock()
 
 	reqPayload := HeartbeatRequest{
+		BrowserRuntime:   r.browserRuntimeEvidence(ctx),
 		RunnerID:         r.cfg.RunnerID,
 		Hostname:         hostname,
 		SupportedAgents:  []string{r.adapter.Name()},
@@ -838,6 +843,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()
 
+	verificationRuntimeFingerprint := ""
+	if claim.Verification != nil && claim.Verification.RuntimeFingerprint != "" && err == nil {
+		evidence := probeBrowserRuntime(ctx)
+		if evidence == nil || evidence.Fingerprint != claim.Verification.RuntimeFingerprint {
+			err = fmt.Errorf("verified browser runtime is unavailable or changed; preserve saved work")
+		} else {
+			verificationRuntimeFingerprint = evidence.Fingerprint
+		}
+	}
 	var readOnlyBaseline string
 	if policy.ReadOnlyRepository && err == nil {
 		readOnlyBaseline, err = repositoryFingerprint(ctx, workingDir)
@@ -894,6 +908,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
+	compReq.VerificationRuntimeFingerprint = verificationRuntimeFingerprint
 	if claim.Verification != nil && readOnlyBaseline != "" {
 		compReq.VerifiedSourceCommit = claim.Verification.SourceCommit
 	}

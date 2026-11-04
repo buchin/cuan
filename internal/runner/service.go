@@ -19,6 +19,7 @@ type ProjectFinder interface {
 }
 
 type RunnerService struct {
+	browserRuntimes sync.Map
 	store           Store
 	taskStore       task.Store
 	projectFinder   ProjectFinder
@@ -106,6 +107,12 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 
 	if err := s.store.RegisterOrUpdateHeartbeat(ctx, info); err != nil {
 		return nil, err
+	}
+
+	if req.BrowserRuntime.Fresh(time.Now()) {
+		s.browserRuntimes.Store(req.RunnerID, *req.BrowserRuntime)
+	} else {
+		s.browserRuntimes.Delete(req.RunnerID)
 	}
 
 	shouldCancel := false
@@ -270,6 +277,12 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	if err != nil {
 		return nil, err
 	}
+	if runtime := s.BrowserRuntime(ctx, req.RunnerID); runtime != nil {
+		raw, _ := json.Marshal(runtime)
+		if err = s.taskStore.CreateActivity(ctx, &task.TaskActivity{ID: "verification-runtime:" + att.ID, TaskID: t.ID, AttemptID: &att.ID, ActivityType: task.ActivityVerificationRuntime, Author: req.RunnerID, Message: string(raw), CreatedAt: time.Now().UTC()}); err != nil {
+			return nil, err
+		}
+	}
 	resp := &ClaimTaskResponse{
 		Verification:      verification,
 		Claimed:           true,
@@ -367,7 +380,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			return nil, proofErr
 		}
 		if proof != nil {
-			if req.VerifiedSourceCommit != proof.SourceCommit || !limits.ReadOnlyRepository || !req.RepositoryVerification.Unchanged() || req.LiveDeploymentConfirmed || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
+			if (proof.RuntimeFingerprint != "" && req.VerificationRuntimeFingerprint != proof.RuntimeFingerprint) || req.VerifiedSourceCommit != proof.SourceCommit || !limits.ReadOnlyRepository || !req.RepositoryVerification.Unchanged() || req.LiveDeploymentConfirmed || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
 				status = task.AttemptStatusFailed
 				att.ErrorMessage = "Verification-only source or publication scope was not verified by the runner"
 			} else {

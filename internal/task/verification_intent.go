@@ -14,6 +14,8 @@ const VerificationIntentMarker = "Cuan verification-only intent v1: "
 // VerificationIntent permits one immutable-source evidence run, not another
 // implementation cycle or publication permission. It lives in its exact launch.
 type VerificationIntent struct {
+	RecoveryAttemptID      string `json:"recovery_attempt_id,omitempty"`
+	RuntimeFingerprint     string `json:"runtime_fingerprint,omitempty"`
 	SourceAttemptID        string `json:"source_attempt_id"`
 	SourceCommit           string `json:"source_commit"`
 	InstructionsHash       string `json:"instructions_hash"`
@@ -25,7 +27,13 @@ type VerificationIntent struct {
 }
 
 func VerificationRequestID(taskID, commit string) string {
-	hash := sha256.Sum256([]byte("verification-only:v1:" + taskID + ":" + commit))
+	return verificationRequestID("verification-only:v1:", taskID, commit)
+}
+func VerificationRecoveryRequestID(taskID, commit string) string {
+	return verificationRequestID("verification-runtime-recovery:v1:", taskID, commit)
+}
+func verificationRequestID(prefix, taskID, commit string) string {
+	hash := sha256.Sum256([]byte(prefix + taskID + ":" + commit))
 	hash[6] = (hash[6] & 0x0f) | 0x50
 	hash[8] = (hash[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", hash[:4], hash[4:6], hash[6:8], hash[8:10], hash[10:16])
@@ -53,7 +61,20 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 	}
 	line := strings.SplitN(j.Revision[at+len(VerificationIntentMarker):], "\n", 2)[0]
 	var proof VerificationIntent
-	if json.Unmarshal([]byte(line), &proof) != nil || t == nil || !fullObjectID(proof.SourceCommit) || t.SourceRoomID != proof.RoomID || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.SourceAttemptID == "" || proof.AssessmentRequestID == "" || len(proof.SourceVerificationHash) != 64 || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || j.InstructionsHash != proof.InstructionsHash || j.TaskID != t.ID || j.ProjectID != t.ProjectID || j.RequestID != VerificationRequestID(t.ID, proof.SourceCommit) || j.SourceRequestID != proof.SourceRequestID || j.OwnerID != proof.OwnerID || j.RoomID != proof.RoomID {
+	if json.Unmarshal([]byte(line), &proof) != nil || t == nil || !fullObjectID(proof.SourceCommit) || t.SourceRoomID != proof.RoomID || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.SourceAttemptID == "" || proof.AssessmentRequestID == "" || len(proof.SourceVerificationHash) != 64 || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || j.InstructionsHash != proof.InstructionsHash || j.TaskID != t.ID || j.ProjectID != t.ProjectID || j.SourceRequestID != proof.SourceRequestID || j.OwnerID != proof.OwnerID || j.RoomID != proof.RoomID {
+		return nil, ErrInvalidTaskInput
+	}
+	expected := VerificationRequestID(t.ID, proof.SourceCommit)
+	if proof.RecoveryAttemptID != "" || proof.RuntimeFingerprint != "" {
+		if proof.RecoveryAttemptID == "" || proof.RecoveryAttemptID == proof.SourceAttemptID || len(proof.RuntimeFingerprint) != 64 {
+			return nil, ErrInvalidTaskInput
+		}
+		if _, err := hex.DecodeString(proof.RuntimeFingerprint); err != nil {
+			return nil, ErrInvalidTaskInput
+		}
+		expected = VerificationRecoveryRequestID(t.ID, proof.SourceCommit)
+	}
+	if j.RequestID != expected {
 		return nil, ErrInvalidTaskInput
 	}
 	if _, err := hex.DecodeString(proof.SourceVerificationHash); err != nil {
@@ -116,6 +137,11 @@ func ValidateVerificationSource(ctx context.Context, store Store, t *Task, attem
 	d := &TaskDetailResponse{Task: *t, LatestAttempt: source, Activities: activities}
 	if !ProjectChecksPassed(d) || VerificationSummaryHash(AttemptVerificationEvidence(d).Current) != proof.SourceVerificationHash {
 		return nil, ErrInvalidTaskInput
+	}
+	if proof.RecoveryAttemptID != "" {
+		if err := validateVerificationRuntimeRecovery(ctx, store, t, proof, activities); err != nil {
+			return nil, err
+		}
 	}
 	return proof, nil
 }

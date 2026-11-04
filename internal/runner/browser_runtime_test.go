@@ -1,10 +1,14 @@
 package runner
 
 import (
+	"context"
+	"github.com/buchin/cuan/internal/task"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestBrowserRuntimeExposesInstalledOfficialToolOutsideWorkspace(t *testing.T) {
@@ -41,5 +45,53 @@ func TestBrowserRuntimeExposesInstalledOfficialToolOutsideWorkspace(t *testing.T
 	}
 	if browserRuntimeEnvironment(env, false) != "" {
 		t.Fatal("unnecessary visual guidance for nonvisual task")
+	}
+}
+
+func TestBrowserRuntimeHeartbeatReadinessExpiresAndNeverBorrowsOldEvidence(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	service := NewService(NewMemoryStore(store), store, nil)
+	evidence := &task.VerificationRuntime{Fingerprint: strings.Repeat("a", 64), Version: "1.64.1", CheckedAt: time.Now()}
+	if _, err := service.Heartbeat(ctx, HeartbeatRequest{RunnerID: "runner", BrowserRuntime: evidence}, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if service.BrowserRuntime(ctx, "runner") == nil {
+		t.Fatal("fresh authenticated render unavailable")
+	}
+	evidence.CheckedAt = time.Now().Add(-time.Hour)
+	if _, err := service.Heartbeat(ctx, HeartbeatRequest{RunnerID: "runner", BrowserRuntime: evidence}, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if service.BrowserRuntime(ctx, "runner") != nil {
+		t.Fatal("stale render borrowed previous readiness")
+	}
+	if _, err := service.Heartbeat(ctx, HeartbeatRequest{RunnerID: "runner"}, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if service.BrowserRuntime(ctx, "runner") != nil {
+		t.Fatal("missing evidence treated as ready")
+	}
+}
+
+func TestBrowserRuntimeEvidenceCacheReturnsIndependentCopies(t *testing.T) {
+	original := strings.Repeat("a", 64)
+	r := &Runner{browserEvidence: &task.VerificationRuntime{Fingerprint: original, Version: "1.64.1", CheckedAt: time.Now()}, browserNextProbe: time.Now().Add(time.Hour)}
+	var workers sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			value := r.browserRuntimeEvidence(context.Background())
+			if value == nil {
+				t.Error("cached readiness missing")
+				return
+			}
+			value.Fingerprint = "changed caller copy"
+		}()
+	}
+	workers.Wait()
+	if got := r.browserRuntimeEvidence(context.Background()); got == nil || got.Fingerprint != original {
+		t.Fatal("caller mutated readiness cache")
 	}
 }
