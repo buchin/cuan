@@ -59,3 +59,21 @@ Cuan chat interface on the same task, then observe worker execution, evidence,
 coordinator acceptance and same-Inbox report. Audit the rest of the authorized
 backlog and resolve its actual prerequisites. Do not mark the overall goal done
 merely because this first repair or a pilot succeeds.
+
+## Customer-room task attachment repair
+
+Production98c54f2 deployed healthy, with server/runner on the same release,
+PostgreSQL accepting connections and7.4GB free disk. While verifying, the owner
+reported a customer Inbox showing one working task but no attachment. Official
+CLI confirmed a running task and an internal agent reply referencing that task.
+The owner Inbox gated attachments on agent-room type, while orphan detection
+already treated the linked reply as attached. This hid the card entirely.
+
+Internal agent replies now render the same task attachment in the owner Inbox.
+The visitor channel and its internal-message filtering are unchanged. Public
+customer messages do not become eligible for this internal task attachment.
+Real390px touch/1440px light/dark browser regression checks verify exactly one
+attachment beneath the internal delegation, Detail preserving the Inbox route,
+and no Terminal for a completed task without a live session. Screenshots were
+rendered and directly inspected. Reproduce with
+`node docs/evidence/customer-task-card-check.cjs` after the frontend build.

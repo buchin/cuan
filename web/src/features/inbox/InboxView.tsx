@@ -1470,6 +1470,10 @@ export function InboxView({
                   !msg.author_name?.startsWith('@')
                 const isAgentMessage =
                   msg.author_type === 'agent' && activeContact.type === 'agent'
+                // Internal agent delegation in a customer room has the same task
+                // attachment as an agent conversation. This is the owner's Inbox.
+                const isTaskAgentMessage = isAgentMessage ||
+                  (msg.author_type === 'agent' && msg.is_internal === true)
                 const isFormattedMessage = true
 
                 const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
@@ -1496,7 +1500,7 @@ export function InboxView({
                               q.reply_id === msg.uuid &&
                               q.message_id === task.source_message_id,
                           )) &&
-                        (isAgentMessage ||
+                        (isTaskAgentMessage ||
                           !requests.some(
                             (q) =>
                               q.message_id === msg.uuid &&
@@ -1874,14 +1878,14 @@ export function InboxView({
                       )}
                     </div>
                     </ItemActions>
-                      {msg.uuid && isAgentMessage && !isSupersededTaskMessage && (
+                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (
                         <InboxTaskAction
                           linkedTask={linkedTaskForMsg}
                           conversationId={
                             activeContact.conversation_id || activeContact.id
                           }
                           messageId={msg.uuid}
-                          draft={isAgentMessage ? msg.task_draft : undefined}
+                          draft={isTaskAgentMessage ? msg.task_draft : undefined}
                           onViewTask={(task) => handleOpenTaskDrawer(task, 'details')}
                           onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
                           onUseDraft={handleUseDraft}
