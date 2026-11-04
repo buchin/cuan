@@ -88,7 +88,7 @@ test('3. S64-T3: WCAG 2.1 AA Touch Target Accessibility (>= 44x44px for Primary 
 
   // 4. Mobile text input must have min-h-[44px] on mobile to prevent accidental miss-touches
   assert.ok(
-    composerContent.includes('min-h-[44px] sm:min-h-[38px]'),
+    fs.readFileSync(path.join(webDir, 'src/components/ui/ComposerInput.tsx'), 'utf8').includes('min-h-[44px] sm:min-h-[38px]'),
     'Input textarea must have min-h-[44px] on mobile',
   )
 })

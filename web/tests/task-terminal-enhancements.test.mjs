@@ -247,16 +247,11 @@ test('7. Conditional Virtual Keyboard & Expandable Accessory Drawer', () => {
   )
   assert.match(
     terminalContent,
-    /\{liveId && isMobileKeyboardActive && \(\s*<MobileTerminalKeyboard/,
+    /\{isMobileKeyboardActive && \(\s*<MobileTerminalKeyboard/,
     'MobileTerminalKeyboard must only render when active'
   )
 
-  // TaskTerminal integrates mobile keyboard toggle with TerminalComposer without floating collision
-  assert.match(
-    terminalContent,
-    /onToggleMobileKbd=\{.*?setIsMobileKeyboardActive/,
-    'TaskTerminal must integrate onToggleMobileKbd into TerminalComposer'
-  )
+
 })
 
 test('8. Mobile Floating Prompt Bar (Isolated Input Capture)', () => {

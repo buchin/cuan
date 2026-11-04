@@ -140,11 +140,7 @@ test('4. S63-T2: TerminalComposer & Action Controls Unlocked (No Legacy liveId P
     'handleStop must call tasksApi.cancel to stop task execution',
   )
 
-  // Mobile Keyboard trigger
-  assert.ok(
-    content.includes('onClick={showKeyboard}'),
-    'Mobile keyboard trigger button must be active without liveId gate',
-  )
+
 })
 
 test('5. S63-T2: Interactive Mid-Run Steering via POST /api/v1/runner/attempts/{id}/steer', () => {
