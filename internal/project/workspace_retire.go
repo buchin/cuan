@@ -22,6 +22,8 @@ type WorkspaceRetirementState struct {
 }
 type workspaceReceipt struct{ TaskID, Source, Branch, Head, State string }
 
+var ErrExecutionWorkspaceMissing = errors.New("Original task workspace is missing; its branch was retained for recovery")
+
 func (s *Service) workspaceReceiptPath(key string) string {
 	return filepath.Join(s.baseDir, "retired-workspaces", key+".json")
 }
@@ -124,7 +126,10 @@ func (s *Service) RetireExecutionWorkspace(ctx context.Context, taskID string, p
 func (s *Service) restoreRetiredWorkspace(ctx context.Context, key, taskID, source, branch, destination string) error {
 	encrypted, err := os.ReadFile(s.workspaceReceiptPath(key))
 	if err != nil {
-		return errors.New("Original task workspace is missing; its branch was retained for recovery")
+		if os.IsNotExist(err) {
+			return ErrExecutionWorkspaceMissing
+		}
+		return errors.New("Workspace recovery receipt is unavailable")
 	}
 	raw, err := crypto.Decrypt(string(encrypted), s.authSecret)
 	if err != nil {

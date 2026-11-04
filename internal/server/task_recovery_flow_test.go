@@ -25,7 +25,11 @@ func TestInboxPlanApprovalRecoversProcessLossThroughVerifiedResult(t *testing.T)
 func TestApprovedRepositoryRecoveryPreservesPendingGitWork(t *testing.T) {
 	runInboxProcessLossRecovery(t, true, true)
 }
-func runInboxProcessLossRecovery(t *testing.T, structured, repository bool) {
+func TestApprovedRepositoryReconstructsMissingWorktree(t *testing.T) {
+	runInboxProcessLossRecovery(t, true, true, true)
+}
+func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reconstruct ...bool) {
+	missing := len(reconstruct) > 0 && reconstruct[0]
 	if testing.Short() {
 		t.Skip("skipping slow recovery flow test in short mode")
 	}
@@ -101,7 +105,7 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
   grep -q 'pending ignored data' pending.cache || exit 44
   [ "$(grep -c 'pending staged edit' README)" = 1 ] || exit 45
  fi
- "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Recovered original artifact' --complete-note 'Verified artifact content; create count one; no deployment' >/dev/null || exit 24
+ "$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Recovered original artifact' --complete-note 'Verified artifact content; create count one; no deployment' >/dev/null || exit 24
  while :; do sleep 1; done
 fi
 case "$2" in
@@ -117,6 +121,14 @@ case "$2" in
  *) auth="${2##*Target message ID: }"; printf '%s' "$auth" > "$HOME/recovery-auth"; printf '%s' '` + first + `' | sed "s/AUTH/$auth/g" ;;
 esac
 `
+	if missing {
+		script = strings.Replace(script, `if [ -f "$HOME/recovery-workspace" ]; then`, `if [ -f "$HOME/recovery-workspace" ] && ! grep -q 'Workspace reconstruction' "$guide"; then`, 1)
+		script = strings.Replace(script, ` "$CUAN_TASK_EXECUTABLE" task report --state review`, ` grep -q 'NOT proven recovered' "$guide" || exit 46
+ [ "$PWD" != "$(cat "$HOME/recovery-workspace")" ] || exit 47
+ grep -q 'pending staged edit' ../staged.patch || exit 48
+ [ ! -e pending.txt ] || exit 49
+ "$CUAN_TASK_EXECUTABLE" task report --state review`, 1)
+	}
 	if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -150,12 +162,21 @@ esac
 	if failed.Summary != "" {
 		t.Fatal("must exercise progress-only recovery")
 	}
+	if missing {
+		original, _ := os.ReadFile(filepath.Join(home, "recovery-workspace"))
+		if err := os.RemoveAll(strings.TrimSpace(string(original))); err != nil {
+			t.Fatal(err)
+		}
+	}
 	s.deliverInboxTaskUpdates(ctx)
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
+	s.deliverInboxTaskUpdates(ctx)
+	waitInboxState(t, s, accepted.Request.RoomID, delegationMessageID("task-review:"+result.LatestAttempt.ID), "completed")
+	result, _ = s.taskSvc.GetTaskDetail(ctx, result.ID)
 	if result.Status != "done" || len(result.Attempts) != 2 {
 		t.Fatal(result.Status, len(result.Attempts))
 	}
-	if repository {
+	if repository && !missing {
 		workspaceBytes, err := os.ReadFile(filepath.Join(home, "recovery-workspace"))
 		if err != nil {
 			t.Fatal(err)
@@ -174,12 +195,26 @@ esac
 			t.Fatal("unexpected duplicate implementation commit", got)
 		}
 	}
+	if missing {
+		p, e := s.projectSvc.TaskWorkspace(ctx, result.ProjectID, result.Instructions)
+		if e != nil {
+			t.Fatal(e)
+		}
+		work, e := s.projectSvc.TaskExecutionWorkspace(ctx, result.ID, result.Instructions, p)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if !strings.HasPrefix(git("-C", work, "branch", "--show-current"), "cuan/recovered-") {
+			t.Fatal("missing stable recovery branch")
+		}
+		if !strings.Contains(project.WorkspaceReconstructionContext(work), "NOT proven recovered") {
+			t.Fatal("missing reconstruction disclosure")
+		}
+	}
 	effects, _ := os.ReadFile(filepath.Join(home, "recovery-effects"))
 	if string(effects) != "created\n" {
 		t.Fatal("duplicate effect", string(effects))
 	}
-	s.deliverInboxTaskUpdates(ctx)
-	waitInboxState(t, s, accepted.Request.RoomID, delegationMessageID("task-review:"+result.LatestAttempt.ID), "completed")
 	s.deliverInboxTaskUpdates(ctx)
 	time.Sleep(20 * time.Millisecond)
 	tasks, _ = s.taskSvc.ListTasks(ctx, task.TaskFilter{})

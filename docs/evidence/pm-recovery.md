@@ -99,3 +99,29 @@ This repair does not recover lost files. Next: provide a recovery path preservin
 retained branch/index evidence and clearly separating verified reconstruction
 from missing uncommitted work; then resume the same audit. General sequential
 backlog recovery is still unproven and remains required.
+
+## Evidence-preserving workspace reconstruction
+
+An authorized task continuation with concrete revision and a recorded previous
+attempt can now reconstruct a missing isolated worktree from its retained
+committed branch. Ordinary task viewing still fails closed when no reconstruction
+record exists. Invalid retirement receipts are not bypassed. Reconstruction uses
+a separate stable branch/directory; the original missing path, branch, registered
+Git metadata and index are untouched. Available staged changes are exported as a
+private binary patch and original index before execution. Private evidence and
+encrypted identity receipt are written exclusively and synced to disk. Failures
+leave evidence in place instead of overwriting or creating another replacement.
+
+Task guidance explicitly says unstaged/untracked files are not proven recovered,
+previous checkmarks are historical, staged changes need inspection and every
+original acceptance criterion needs fresh evidence. Resume validates repository
+identity and recovery branch; a second external deletion is not silently reset.
+
+Project tests verify untouched original branch/index, staged patch preservation,
+no invented untracked recovery, restart preserving new pending files and refusal
+to rebuild another lost copy. Server integration exercises approved delegation,
+process loss, missing worktree, same-task reconstruction, actual fixture execution,
+review evaluation, original scope and exactly one same-Inbox outcome. Existing
+pending-work recovery and review/capacity regressions pass. Fixture reports use
+review before coordinator acceptance; accepted done work must not be re-reviewed.
+Production audit recovery remains to be demonstrated after deployment.

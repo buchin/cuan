@@ -17,7 +17,7 @@ import (
 
 	"github.com/buchin/cuan/internal/agent"
 	cuangit "github.com/buchin/cuan/internal/git"
-	"github.com/buchin/cuan/internal/project"
+	projectpkg "github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskprocess"
 	"github.com/buchin/cuan/internal/terminal"
@@ -661,6 +661,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						return
 					}
 					workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
+					if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) && revision != "" && detail.LatestAttempt != nil {
+						workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), taskID, project)
+					}
 					if e != nil {
 						if errors.Is(e, cuangit.ErrRepositoryDownloadUnavailable) {
 							respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
@@ -692,6 +695,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				}
 			}
 			sessionContext += taskRecoveryContext(detail)
+			sessionContext += projectpkg.WorkspaceReconstructionContext(workDir)
 			if revision != "" {
 				taskPrompt = revision
 			}
@@ -929,9 +933,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		runCfg.Env = append(runCfg.Env, reportEnv...)
 		if projID != "" && s.projectSvc != nil {
 			if p, pErr := s.projectSvc.Get(r.Context(), projID); pErr == nil && p != nil {
-				settings := project.SettingsFromMetadata(p.Metadata)
+				settings := projectpkg.SettingsFromMetadata(p.Metadata)
 				if settings.Environment != "" {
-					for k, v := range project.ParseEnvironment(settings.Environment) {
+					for k, v := range projectpkg.ParseEnvironment(settings.Environment) {
 						runCfg.Env = append(runCfg.Env, fmt.Sprintf("%s=%s", k, v))
 					}
 				}

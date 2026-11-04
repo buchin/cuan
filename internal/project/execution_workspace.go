@@ -37,6 +37,19 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 	}
 	digest := sha256.Sum256([]byte(taskID + "\x00" + source))
 	key := hex.EncodeToString(digest[:])
+	_, reconstructionRecord := s.reconstructionPaths(key)
+	if _, e := os.Lstat(reconstructionRecord); e == nil {
+		work, e := s.reconstructedWorkspace(ctx, taskID, source, key)
+		if e != nil {
+			return "", e
+		}
+		if e = syncWorkspaceEnvironment(work, SettingsFromMetadata(p.Metadata).Environment); e != nil {
+			return "", e
+		}
+		return work, nil
+	} else if !os.IsNotExist(e) {
+		return "", e
+	}
 	root := filepath.Join(s.baseDir, "task-workspaces")
 	if err = os.MkdirAll(root, 0700); err != nil {
 		return "", err
