@@ -74,8 +74,17 @@ func (s *Server) authorizeSavedTaskLaunch(ctx context.Context, j task.TaskLaunch
 }
 
 func (s *Server) recoverUnstartedInboxTask(ctx context.Context, d *task.TaskDetailResponse, j task.TaskLaunch) bool {
-	if d == nil || j.State != "stopped" || j.SafeError != task.MissingWorkspaceLaunchError || j.Revision == "" || !j.ExpiresAt.After(time.Now()) || (d.Status != task.TaskStatusQueued && d.Status != task.TaskStatusBlocked) {
+	if d == nil || j.State != "stopped" || task.UnstartedLaunchRecoveryKind(j) == "" || j.Revision == "" || !j.ExpiresAt.After(time.Now()) || (d.Status != task.TaskStatusQueued && d.Status != task.TaskStatusBlocked) {
 		return false
+	}
+	if task.UnstartedLaunchRecoveryKind(j) == "legacy-agent-routing-v1" {
+		if s.agentRepo == nil {
+			return false
+		}
+		resolved, err := s.runtimeAgent(ctx, j.AgentID)
+		if err != nil || resolved == nil || resolved.ID != db.AgentIDCuan || !resolved.Enabled {
+			return false
+		}
 	}
 	trigger, authorized, err := s.authorizeSavedTaskLaunch(ctx, j, d)
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, trigger, d) {

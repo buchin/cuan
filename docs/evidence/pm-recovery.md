@@ -349,3 +349,33 @@ UI release3440fa7 is healthy with schema33. Actual production390px/1440px draft
 screenshots were rendered and visually inspected; separate preview, compact44px
 footer, internal marker and removal of internal links are verified. Historical
 report claims remain unproven by this presentation change.
+
+## Legacy assistant alias at durable reservation boundary
+
+The production coordinator autonomously reviewed the failed audit again and
+requested a concrete correction for the missing test packages. Its launch then
+failed before reserving an attempt with `create attempt: Invalid task input`.
+Official read-only inspection showed the saved launch and assignment used the
+historical agent_sm alias, while execution resolved to agent_cuan. Storage
+correctly rejected that mismatch. The dispatcher now resolves the public
+assistant and saves the canonical assignment before attempt reservation, keeping
+scope, consent, lease and cancellation checks intact.
+
+A bounded recovery receipt also supports this exact pre-reservation error only
+for known historical persona aliases, with a present enabled public assistant.
+Custom-agent invalid input is not replayed. The original saved launch is reused;
+no task or owner prompt is created by this session. Real server fixture tests
+exercise stopped alias launch recovery through dispatch to exactly one canonical
+attempt. Shared memory and isolated PostgreSQL contracts verify one-shot recovery
+and rejection of unrelated errors; cancellation, scope changes and missing-worktree
+regressions pass. Production completion remains unproven until observed.
+
+## Card action alignment
+
+Task preview and customer draft attachments share CardActions. Actions align at
+the footer right edge with no vertical footer padding and44px minimum touch
+height. Browser checks cover completed cards and working cards with a matching
+live terminal session, alongside independent draft actions, at390px/1440px in
+light/dark. Screenshots were visually inspected under card-actions and
+card-actions-working in the private evidence root. No secondary explanation text
+was added.

@@ -109,6 +109,16 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if detail.AssignedAgent != "" {
 		targetAgent = detail.AssignedAgent
 	}
+	// Resolve the public assistant before reserving an attempt. Historical
+	// persona aliases must agree with the canonical assignment checked by storage.
+	if s.agentRepo != nil {
+		if resolved, err := s.runtimeAgent(ctx, targetAgent); err == nil && resolved != nil && resolved.ID == db.AgentIDCuan && targetAgent != resolved.ID {
+			targetAgent = resolved.ID
+			if _, err := s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{AssignedAgent: &targetAgent}); err != nil {
+				return finish("queued", "Assistant routing could not be saved; no execution was started.")
+			}
+		}
+	}
 	runnerID := "cuan-runner"
 	if targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued" {
 		runnerID = "local_terminal"

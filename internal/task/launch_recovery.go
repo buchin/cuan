@@ -3,11 +3,26 @@ package task
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
 const MissingWorkspaceLaunchError = "Original task workspace is missing; its branch was retained for recovery"
 const missingWorkspaceRecoveryKey = "missing-workspace-v1"
+
+// Only known pre-reservation failures with a shipped repair are replayable.
+func UnstartedLaunchRecoveryKind(j TaskLaunch) string {
+	if j.SafeError == MissingWorkspaceLaunchError {
+		return missingWorkspaceRecoveryKey
+	}
+	if j.SafeError == "create attempt: Invalid task input" {
+		switch strings.ToLower(strings.TrimPrefix(j.AgentID, "@")) {
+		case "sm", "agent_sm", "dev", "agent_dev", "support", "agent_support":
+			return "legacy-agent-routing-v1"
+		}
+	}
+	return ""
+}
 
 type launchRecoveryStore interface {
 	RecoverUnstartedLaunch(context.Context, string, time.Time, time.Time) (bool, error)
@@ -27,8 +42,9 @@ func (m *MemoryStore) RecoverUnstartedLaunch(_ context.Context, id string, expec
 		return false, ErrTaskNotFound
 	}
 	t := m.tasks[j.TaskID]
-	key := id + "\x00" + missingWorkspaceRecoveryKey
-	if m.launchRecoveries[key] || j.State != "stopped" || j.SafeError != MissingWorkspaceLaunchError || !j.UpdatedAt.Equal(expected) || !j.ExpiresAt.After(now) || j.Revision == "" || t == nil || (t.Status != TaskStatusQueued && t.Status != TaskStatusBlocked) || t.ProjectID != j.ProjectID || LaunchInstructionsHash(t.Instructions) != j.InstructionsHash {
+	kind := UnstartedLaunchRecoveryKind(*j)
+	key := id + "\x00" + kind
+	if m.launchRecoveries[key] || j.State != "stopped" || kind == "" || !j.UpdatedAt.Equal(expected) || !j.ExpiresAt.After(now) || j.Revision == "" || t == nil || (t.Status != TaskStatusQueued && t.Status != TaskStatusBlocked) || t.ProjectID != j.ProjectID || LaunchInstructionsHash(t.Instructions) != j.InstructionsHash {
 		return false, nil
 	}
 	for _, other := range m.launches {
@@ -55,7 +71,7 @@ func (m *MemoryStore) RecoverUnstartedLaunch(_ context.Context, id string, expec
 		t.Status = TaskStatusQueued
 		t.UpdatedAt = now
 	}
-	activity := &TaskActivity{ID: generateID("act"), TaskID: t.ID, ActivityType: "execution_recovery", Author: "coordinator", NewStatus: TaskStatusQueued, Message: "Requeued the existing approved launch for one workspace recovery check. No execution attempt has started.", CreatedAt: now}
+	activity := &TaskActivity{ID: generateID("act"), TaskID: t.ID, ActivityType: "execution_recovery", Author: "coordinator", NewStatus: TaskStatusQueued, Message: "Requeued the existing approved launch for one repaired pre-launch check. No execution attempt has started.", CreatedAt: now}
 	m.activities[activity.ID] = activity
 	return true, nil
 }
@@ -66,8 +82,13 @@ func (s *DBStore) RecoverUnstartedLaunch(ctx context.Context, id string, expecte
 	}
 	defer tx.Rollback()
 	var taskID string
-	if err = tx.QueryRowContext(ctx, `SELECT task_id FROM task_launches WHERE id=$1`, id).Scan(&taskID); err != nil {
+	var observed TaskLaunch
+	if err = tx.QueryRowContext(ctx, `SELECT task_id,agent_id,safe_error FROM task_launches WHERE id=$1`, id).Scan(&taskID, &observed.AgentID, &observed.SafeError); err != nil {
 		return false, err
+	}
+	kind := UnstartedLaunchRecoveryKind(observed)
+	if kind == "" {
+		return false, nil
 	}
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+taskID); err != nil {
 		return false, err
@@ -87,14 +108,14 @@ func (s *DBStore) RecoverUnstartedLaunch(ctx context.Context, id string, expecte
  ), resumed AS (
  UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$4,updated_at=$4
  WHERE id IN (SELECT launch_id FROM receipt) RETURNING task_id
- ) UPDATE tasks SET status='queued',updated_at=$4 WHERE id IN (SELECT task_id FROM resumed) AND status IN ('queued','blocked') RETURNING id`, id, expected, MissingWorkspaceLaunchError, now, missingWorkspaceRecoveryKey).Scan(&recovered)
+ ) UPDATE tasks SET status='queued',updated_at=$4 WHERE id IN (SELECT task_id FROM resumed) AND status IN ('queued','blocked') RETURNING id`, id, expected, observed.SafeError, now, kind).Scan(&recovered)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO task_activities(id,task_id,activity_type,author,new_status,message,created_at) VALUES($1,$2,'execution_recovery','coordinator','queued',$3,$4)`, generateID("act"), taskID, "Requeued the existing approved launch for one workspace recovery check. No execution attempt has started.", now); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO task_activities(id,task_id,activity_type,author,new_status,message,created_at) VALUES($1,$2,'execution_recovery','coordinator','queued',$3,$4)`, generateID("act"), taskID, "Requeued the existing approved launch for one repaired pre-launch check. No execution attempt has started.", now); err != nil {
 		return false, err
 	}
 	return recovered != "", tx.Commit()

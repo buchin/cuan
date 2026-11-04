@@ -14,7 +14,7 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 	ctx := context.Background()
 	launches := store.(LaunchStore)
 	recovery := store.(launchRecoveryStore)
-	for _, scenario := range []string{"recover", "no-revision", "scope-changed", "newer-intent", "already-reserved", "active-attempt", "cancelled", "done", "expired", "stale-observation", "wrong-blocker"} {
+	for _, scenario := range []string{"recover", "legacy-agent", "custom-agent-error", "no-revision", "scope-changed", "newer-intent", "already-reserved", "active-attempt", "cancelled", "done", "expired", "stale-observation", "wrong-blocker"} {
 		t.Run(scenario, func(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Microsecond)
 			svc := NewService(store, nil)
@@ -27,6 +27,9 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 				t.Fatal(err)
 			}
 			input := TaskLaunch{TaskID: item.ID, ProjectID: project, RequestID: "recovery-" + item.ID, OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", SourceRequestID: "owner-approved", AgentID: "agent", InstructionsHash: LaunchInstructionsHash(item.Instructions), Revision: "Inspect retained work and verify original criteria", CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
+			if scenario == "legacy-agent" {
+				input.AgentID = "agent_sm"
+			}
 			if scenario == "no-revision" {
 				input.Revision = ""
 			}
@@ -55,6 +58,9 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 				}
 			}
 			reason := MissingWorkspaceLaunchError
+			if scenario == "legacy-agent" || scenario == "custom-agent-error" {
+				reason = "create attempt: Invalid task input"
+			}
 			if scenario == "wrong-blocker" {
 				reason = "The saved task scope has changed"
 			}
@@ -98,7 +104,7 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 				expected = expected.Add(-time.Second)
 			}
 			recovered, err := recovery.RecoverUnstartedLaunch(ctx, j.ID, expected, at)
-			if err != nil || recovered != (scenario == "recover") {
+			if err != nil || recovered != (scenario == "recover" || scenario == "legacy-agent") {
 				t.Fatalf("recovery %v: %v", recovered, err)
 			}
 			if !recovered {
@@ -122,7 +128,7 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 			if err != nil || owned == nil {
 				t.Fatal(owned, err)
 			}
-			if err = launches.FinishLaunch(ctx, owned.ID, owned.LeaseToken, "stopped", at, MissingWorkspaceLaunchError); err != nil {
+			if err = launches.FinishLaunch(ctx, owned.ID, owned.LeaseToken, "stopped", at, reason); err != nil {
 				t.Fatal(err)
 			}
 			failed, _ := launches.GetLaunch(ctx, j.ID)

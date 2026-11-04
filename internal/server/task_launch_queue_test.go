@@ -23,6 +23,9 @@ func TestQueuedLaunchRecoversAfterRouteReleaseAndReconstruction(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) { runQueuedLaunchScenario(t, scenario, nil) })
 	}
 }
+func TestLegacySavedLaunchRecoversCanonicalAssistantReservation(t *testing.T) {
+	runQueuedLaunchScenario(t, "legacy-agent", nil)
+}
 func runQueuedLaunchScenario(t *testing.T, scenario string, database *sql.DB) {
 	if testing.Short() {
 		t.Skip("skipping slow queued launch integration test in short mode")
@@ -101,6 +104,54 @@ while :;do sleep 1;done
 	detail, _ := s.taskSvc.GetTaskDetail(ctx, id)
 	if len(detail.Attempts) != 0 || detail.Launch == nil || detail.Launch.State != "queued" {
 		t.Fatal("attempt started before route available")
+	}
+	if scenario == "legacy-agent" {
+		current, err := s.agentRepo.GetAgentByID(ctx, "agent_queued")
+		if err != nil {
+			t.Fatal(err)
+		}
+		current.ID = db.AgentIDCuan
+		current.Name = "@teman"
+		current.ConnectionID = ""
+		if err := s.agentRepo.CreateAgent(ctx, current); err != nil {
+			t.Fatal(err)
+		}
+		alias := "agent_sm"
+		if _, err := s.taskSvc.UpdateTask(ctx, id, "coordinator", task.UpdateTaskRequest{AssignedAgent: &alias}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.taskSvc.FinishTaskLaunches(ctx, id, "stopped"); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Now().UTC()
+		job, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: id, ProjectID: detail.ProjectID, OwnerID: q.OwnerID, RoomID: q.RoomID, RequestID: db.GenerateUUID(), SourceRequestID: q.RequestID, AgentID: alias, Revision: "Verify original audit only. Do not deploy.", InstructionsHash: task.LaunchInstructionsHash(detail.Instructions), CreatedAt: at, AvailableAt: at, ExpiresAt: at.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claimed, err := s.taskSvc.ClaimLaunch(ctx, at, db.GenerateUUID(), job.ID)
+		if err != nil || claimed == nil {
+			t.Fatal(err)
+		}
+		if err := s.taskSvc.FinishLaunch(ctx, job.ID, claimed.LeaseToken, "stopped", at, "create attempt: Invalid task input"); err != nil {
+			t.Fatal(err)
+		}
+		s.deliverInboxTaskUpdates(ctx)
+		recovered, err := s.taskSvc.GetLaunch(ctx, job.ID)
+		if err != nil || recovered.State != "queued" {
+			t.Fatal("known pre-launch failure not recovered", err)
+		}
+		available = true
+		s.drainTaskLaunches(ctx, time.Now().UTC())
+		result, err := s.taskSvc.GetTaskDetail(ctx, id)
+		if err != nil || len(result.Attempts) != 1 || result.LatestAttempt.AgentName != db.AgentIDCuan || result.AssignedAgent != db.AgentIDCuan {
+			t.Fatal("canonical reservation rejected", result, err)
+		}
+		s.drainTaskLaunches(ctx, time.Now().UTC())
+		result, _ = s.taskSvc.GetTaskDetail(ctx, id)
+		if len(result.Attempts) != 1 {
+			t.Fatal("duplicate canonical reservation")
+		}
+		return
 	}
 	if scenario == "cancel" {
 		w := call("POST", "/api/v1/tasks/"+id+"/cancel", "")
