@@ -81,6 +81,7 @@ type SteerAttemptResponse struct {
 
 // ClaimTaskRequest is sent by a runner to acquire the next queued task attempt for available lanes.
 type ClaimTaskRequest struct {
+	SupportsLiveInspectionRecovery   bool     `json:"supports_live_inspection_recovery,omitempty"`
 	SupportsLiveInspection           bool     `json:"supports_live_inspection,omitempty"`
 	SupportsVerificationFinalization bool     `json:"supports_verification_finalization,omitempty"`
 	RunnerID                         string   `json:"runner_id"`

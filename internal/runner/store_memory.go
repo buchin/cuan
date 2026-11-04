@@ -267,12 +267,12 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 						continue
 					}
 				}
-				if ctx.Value(liveInspectionClaimKey{}) != true {
+				if ctx.Value(liveInspectionClaimKey{}) != true || ctx.Value(liveInspectionRecoveryClaimKey{}) != true {
 					proof, err := task.LiveInspectionForAttempt(ctx, m.taskStore, t, a.ID)
 					if err != nil {
 						return nil, nil, err
 					}
-					if proof != nil {
+					if proof != nil && (ctx.Value(liveInspectionClaimKey{}) != true || (proof.PreviousAttemptID != "" && ctx.Value(liveInspectionRecoveryClaimKey{}) != true)) {
 						continue
 					}
 				}

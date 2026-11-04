@@ -251,6 +251,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 
 	claimCtx := context.WithValue(ctx, verificationFinalizationClaimKey{}, req.SupportsVerificationFinalization)
 	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection)
+	claimCtx = context.WithValue(claimCtx, liveInspectionRecoveryClaimKey{}, req.SupportsLiveInspectionRecovery)
 	att, t, err := s.store.ClaimNextQueuedAttempt(claimCtx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
 	if err != nil {
 		return nil, fmt.Errorf("claim attempt: %w", err)
@@ -288,6 +289,9 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 	if inspection != nil && !req.SupportsLiveInspection {
 		return nil, fmt.Errorf("runner does not support live result inspection")
+	}
+	if inspection != nil && inspection.PreviousAttemptID != "" && !req.SupportsLiveInspectionRecovery {
+		return nil, fmt.Errorf("runner does not support live result inspection recovery")
 	}
 	if runtime := s.BrowserRuntime(ctx, req.RunnerID); runtime != nil {
 		raw, _ := json.Marshal(runtime)

@@ -16,26 +16,46 @@ import (
 var liveInspectionCheckProhibition = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang|tanpa|without)[^\n.!?]{0,40}\b(?:run|running|execute|jalankan|menjalankan|eksekusi)\b[^\n.!?]{0,40}\b(?:tests?|tes|pengujian)\b|(?:no|tanpa)\s+(?:tests?|tes|pengujian)\b)`)
 
 func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || d.Status != task.TaskStatusBlocked || d.LatestAttempt == nil || d.ResultKind != "implementation" || !releaseObjectID.MatchString(d.CommitSHA) || len(task.AcceptanceGaps(&d.Task)) > 0 || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
+	if d == nil || d.Status != task.TaskStatusBlocked || d.LatestAttempt == nil || !releaseObjectID.MatchString(d.CommitSHA) || len(task.AcceptanceGaps(&d.Task)) > 0 || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
 	}
 	a := d.LatestAttempt
-	if a.Status != task.AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != "Project verification failed" || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+	if a.Status != task.AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || inboxReportEvidence(d).Provenance != "current_attempt_report" {
 		return false
 	}
-	limits, err := s.taskPublicationPolicy(ctx, d)
+	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, a.ID)
+	if err != nil {
+		return false
+	}
+	sourceAttempt := a.ID
+	if previous != nil {
+		if previous.PreviousAttemptID != "" || a.ErrorMessage != "Live result inspection project checks did not pass" {
+			return false
+		}
+		sourceAttempt = previous.SourceAttemptID
+	} else if a.ErrorMessage != "Project verification failed" || d.ResultKind != "implementation" {
+		return false
+	}
+	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, sourceAttempt)
 	if err != nil || limits.ReadOnlyRepository {
 		return false
 	}
 	checkScope := project.TaskScopeInstructions(d.Instructions)
 	if launches, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
-		launch, err := launches.LaunchForAttempt(ctx, a.ID)
+		launch, err := launches.LaunchForAttempt(ctx, sourceAttempt)
 		if err != nil {
 			return false
 		}
 		if launch != nil {
 			checkScope += "\n" + launch.Revision
 		}
+	}
+	continuation, err := s.ownerContinuationLaunch(ctx, d)
+	if err != nil {
+		return false
+	}
+	if continuation != nil {
+		checkScope += "\n" + continuation.Revision
 	}
 	if liveInspectionCheckProhibition.MatchString(checkScope) {
 		return false
@@ -44,21 +64,27 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if observed == nil || observed.Commit == d.CommitSHA {
 		return false
 	}
+	if previous != nil && observed.Commit == previous.TargetCommit {
+		return false
+	}
 	_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
 		return false
 	}
-	proof := &task.LiveInspectionIntent{SourceAttemptID: a.ID, SourceCommit: d.CommitSHA, TargetCommit: observed.Commit, Repository: observed.Repository, OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), ObservedAt: observed.ObservedAt}
+	proof := &task.LiveInspectionIntent{SourceAttemptID: sourceAttempt, SourceCommit: d.CommitSHA, TargetCommit: observed.Commit, Repository: observed.Repository, OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), ObservedAt: observed.ObservedAt}
+	if previous != nil {
+		proof.PreviousAttemptID, proof.PreviousCommit = a.ID, previous.TargetCommit
+	}
 	if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, proof) != nil {
 		return false
 	}
-	id := task.LiveInspectionRequestID(d.ID, d.CommitSHA, proof.InstructionsHash)
-	previous, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
+	id := proof.RequestID(d.ID)
+	saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
 		return false
 	}
-	if previous != nil {
-		return previous.State == "queued" || previous.State == "claimed" || previous.State == "started"
+	if saved != nil {
+		return saved.State == "queued" || saved.State == "claimed" || saved.State == "started"
 	}
 	raw, _ := json.Marshal(proof)
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nInspect the already running result in the separate exact-commit snapshot. Do not resume or modify the old implementation workspace. Prior reports and failed tests are history, not proof of this result. Inspect the actual current implementation against every original requirement and run targeted read-only checks. The runner will independently run the fixed project verifier after your final report and verify unchanged state. Do not modify code, configuration, tests, documentation, git index or refs, install dependencies into the snapshot, publish, or repeat external effects. Use session artifacts for any required screenshots/reports. Report actual findings, original acceptance evidence and precise remaining gaps; never repair or waive missing implementation/publication. Reserve time for runner checks within this verification deadline."
@@ -118,7 +144,8 @@ func (s *Server) prepareLiveInspection(ctx context.Context, d *task.TaskDetailRe
 	if err != nil || proof == nil {
 		return "", proof, err
 	}
-	if d.LatestAttempt == nil || d.LatestAttempt.ID != proof.SourceAttemptID || !s.liveInspectionMatchesRelease(ctx, d, proof) {
+	expected := proof.PredecessorAttemptID()
+	if d.LatestAttempt == nil || d.LatestAttempt.ID != expected || !s.liveInspectionMatchesRelease(ctx, d, proof) {
 		return "", nil, errors.New("the saved result inspection no longer matches this task and running release")
 	}
 	if err := task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, proof); err != nil {

@@ -28,7 +28,20 @@ does not prove that this task deployed anything. A changed running release or
 missing receipt rejects acceptance even when the review model says pass.
 
 The original failed attempt remains failed. The durable source/scope key prevents
-deployments or restarts from creating repeated inspections. Immutable snapshot or
+deployments or restarts from creating repeated inspections. If the first live
+inspection itself finished with a final report but failed its fresh fixed project
+checks, one further inspection is available after the running commit changes.
+It retains the original implementation attempt and binds the failed inspection
+and its target commit. Saved runner-authored failed-check evidence is required;
+missing reports, cancellation and other failures do not qualify. The native
+runner verifies that both the original source and the previous inspected commit
+are ancestors of the new snapshot target. Older workers skip this follow-up
+before reservation. Its separate durable key allows at most one such recovery
+per source/scope, regardless of later deployments; it never resets correction
+budgets or rewrites old failures. Original criteria and independent acceptance
+remain mandatory.
+
+Immutable snapshot or
 authorization failures stop rather than remaining queued forever. No production
 task needs to be manually resumed to activate this reconciliation.
 

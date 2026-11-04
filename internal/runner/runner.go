@@ -449,6 +449,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	claimReq := ClaimTaskRequest{
+		SupportsLiveInspectionRecovery:   true,
 		SupportsLiveInspection:           true,
 		SupportsVerificationFinalization: true,
 		RunnerID:                         r.cfg.RunnerID,
@@ -743,6 +744,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			err = fmt.Errorf("verification snapshot client is unavailable")
 		} else {
 			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SourceCommit, claim.LiveInspection.TargetCommit)
+			if err == nil && claim.LiveInspection.PreviousCommit != "" {
+				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit)
+			}
 		}
 	} else if claim.Verification != nil {
 		base := r.cfg.WorkspacesDir

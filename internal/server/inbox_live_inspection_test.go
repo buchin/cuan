@@ -14,7 +14,7 @@ import (
 )
 
 func TestLiveResultInspectionLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed"} {
+	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, scenario, nil)
@@ -23,10 +23,14 @@ func TestLiveResultInspectionLifecycle(t *testing.T) {
 }
 
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	withPhasePostgres(t, func(database *sql.DB) {
-		s, origin, d := phaseLineageSetup(t, database)
-		liveInspectionContract(t, s, origin, d, "valid", database)
-	})
+	for _, scenario := range []string{"valid", "recover checks"} {
+		t.Run(scenario, func(t *testing.T) {
+			withPhasePostgres(t, func(database *sql.DB) {
+				s, origin, d := phaseLineageSetup(t, database)
+				liveInspectionContract(t, s, origin, d, scenario, database)
+			})
+		})
+	}
 }
 
 func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *task.TaskDetailResponse, scenario string, database *sql.DB) {
@@ -117,6 +121,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	}
 	req := runner.CompleteAttemptRequest{RunnerID: "live-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, LiveInspectionCommit: s.cfg.CommitSHA, SourceAncestryVerified: true, AgentReportRequired: true, AgentReportConfirmed: true, TestSummary: "Project verification: test.sh --fast (exit 0)\nFresh checks", RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("c", 64), Final: strings.Repeat("c", 64)}}
 	switch scenario {
+	case "recover checks":
+		req.Status, req.ErrorMessage = task.AttemptStatusFailed, "Live result inspection project checks did not pass"
+		req.TestSummary = "Project verification: test.sh --fast (exit 1)\nCheck timed out"
 	case "wrong commit":
 		req.LiveInspectionCommit = strings.Repeat("d", 40)
 	case "missing ancestry":
@@ -143,6 +150,76 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	}
 	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
+	}
+	if scenario == "recover checks" {
+		if err := store.(task.LaunchStore).FinishLaunch(ctx, launch.ID, claimed.LeaseToken, "stopped", time.Now(), "Execution finished"); err != nil {
+			t.Fatal(err)
+		}
+		after, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		if s.recoverLiveResultInspection(ctx, after, origin) {
+			t.Fatal("same failed release was retried")
+		}
+		s.cfg.CommitSHA = strings.Repeat("c", 40)
+		if err := store.CreateTask(ctx, &task.Task{ID: "recovery-blocker", ProjectID: d.ProjectID, Title: "Other work", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+			t.Fatal(err)
+		}
+		if !s.recoverLiveResultInspection(ctx, after, origin) {
+			t.Fatalf("changed running result did not recover failed checks: kind=%q gaps=%v report=%+v attempt=%+v", after.ResultKind, task.AcceptanceGaps(&after.Task), inboxReportEvidence(after), after.LatestAttempt)
+		}
+		proof := &task.LiveInspectionIntent{SourceCommit: d.CommitSHA, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), PreviousAttemptID: inspectionAttempt.ID}
+		recoveryID := proof.RequestID(d.ID)
+		recovery, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, recoveryID))
+		if err != nil || recovery == nil {
+			t.Fatal("missing durable check recovery", err)
+		}
+		if err := store.DeleteTask(ctx, "recovery-blocker"); err != nil {
+			t.Fatal(err)
+		}
+		binding, err := task.LiveInspectionForLaunch(&after.Task, recovery)
+		if err != nil || binding.PreviousAttemptID != inspectionAttempt.ID || binding.PreviousCommit != strings.Repeat("b", 40) || binding.SourceAttemptID != source.ID {
+			t.Fatal("recovery lost source and predecessor binding", err)
+		}
+		for _, mutate := range []func(*task.LiveInspectionIntent){func(p *task.LiveInspectionIntent) { p.PreviousCommit = strings.Repeat("d", 40) }, func(p *task.LiveInspectionIntent) { p.OwnerID = "foreign" }, func(p *task.LiveInspectionIntent) { p.PreviousAttemptID = source.ID }} {
+			bad := *binding
+			mutate(&bad)
+			if task.ValidateLiveInspectionSource(ctx, store, &after.Task, &bad) == nil {
+				t.Fatal("forged predecessor accepted")
+			}
+		}
+		secondLaunch, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "recovery-launch", recovery.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: recoveryID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true}, time.Minute)
+		if err != nil || old.Claimed {
+			t.Fatal("old inspection worker consumed recovery", err)
+		}
+		current, _ := store.GetLatestAttempt(ctx, d.ID)
+		if current.Status != task.AttemptStatusQueued {
+			t.Fatal("old worker reserved recovery")
+		}
+		claimed, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true}, time.Minute)
+		if err != nil || !claimed.Claimed || claimed.LiveInspection == nil {
+			t.Fatal("recovery was not claimable", err)
+		}
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "recovery-report", TaskID: d.ID, AttemptID: &second.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Second inspection complete", CreatedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Complete(ctx, second.ID, req); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.(task.LaunchStore).FinishLaunch(ctx, recovery.ID, secondLaunch.LeaseToken, "stopped", time.Now(), "Execution finished"); err != nil {
+			t.Fatal(err)
+		}
+		exhausted, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		s.cfg.CommitSHA = strings.Repeat("d", 40)
+		if s.recoverLiveResultInspection(ctx, exhausted, origin) {
+			t.Fatal("another deploy reset recovery budget")
+		}
 	}
 	if scenario == "release changed" {
 		key := "task-review:" + inspectionAttempt.ID

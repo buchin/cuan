@@ -149,7 +149,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
 		return finish("stopped", "The work was cancelled. A new user instruction is required to continue.")
 	}
-	if liveInspection != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != liveInspection.SourceAttemptID || !s.liveInspectionMatchesRelease(ctx, detail, liveInspection)) {
+	if liveInspection != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != liveInspection.PredecessorAttemptID() || !s.liveInspectionMatchesRelease(ctx, detail, liveInspection)) {
 		return finish("stopped", "The saved inspection is no longer current. Existing results and work were preserved.")
 	}
 	response := &delegationResponse{header: make(http.Header)}

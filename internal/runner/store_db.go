@@ -233,6 +233,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		WHERE a.status = 'queued'
  AND ($4 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan verification-only intent v1:%' AND l.revision LIKE '%"finalize_attempt_id":%'))
  AND ($5 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%'))
+ AND ($6 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"previous_attempt_id":%'))
 		  AND (
 		      ($1 = true AND COALESCE(t.execution_category, 'code') = 'code')
 		      OR ($2 = true AND COALESCE(t.execution_category, 'code') = 'ops')
@@ -332,7 +333,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 
 	var att task.TaskAttempt
 	var t task.Task
-	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true).Scan(
+	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true).Scan(
 		&att.ID,
 		&att.TaskID,
 		&att.RunnerID,
