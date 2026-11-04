@@ -23,7 +23,7 @@ import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
 import type { TaskAttempt } from '../../api/types'
 import type { Terminal } from '@xterm/xterm'
-import type { FitAddon } from '@xterm/addon-fit'
+import { terminalGrid, TerminalResizeGate } from './terminal/terminal-geometry'
 import '@xterm/xterm/css/xterm.css'
 import './task-workspace.css'
 import { MobileTerminalKeyboard } from './terminal/MobileTerminalKeyboard'
@@ -52,7 +52,7 @@ export function TaskTerminal({
   const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null)
   const term = useRef<Terminal | null>(null)
-  const fitRef = useRef<FitAddon | null>(null)
+  const fitTerminalRef = useRef<() => void>(() => {})
   const socket = useRef<WebSocket | null>(null)
   const inputQueue = useRef(new TerminalInputBuffer())
   const mobileInputFilter = useRef<TerminalHelperTextareaInputFilter | null>(null)
@@ -388,18 +388,7 @@ export function TaskTerminal({
   // Fullscreen resize re-fitting
   useEffect(() => {
     const timer = setTimeout(() => {
-      fitRef.current?.fit()
-      const ws = socket.current
-      const terminal = term.current
-      if (ws?.readyState === WebSocket.OPEN && terminal) {
-        ws.send(
-          JSON.stringify({
-            type: 'resize',
-            cols: terminal.cols,
-            rows: terminal.rows,
-          }),
-        )
-      }
+      fitTerminalRef.current()
     }, 60)
     return () => clearTimeout(timer)
   }, [isFullscreen])
@@ -412,6 +401,8 @@ export function TaskTerminal({
     let terminal: Terminal | undefined
     let linkDisposable: { dispose: () => void } | undefined
     let ptyResizeTimer: ReturnType<typeof setTimeout> | null = null
+    let fitTimer: ReturnType<typeof setTimeout> | null = null
+    const resizeGate = new TerminalResizeGate()
 
     setConnection('loading')
     setError('')
@@ -467,6 +458,7 @@ export function TaskTerminal({
       )
       socket.current = ws
       ws.binaryType = 'arraybuffer'
+      let handshakeReceived = false
 
       ws.onmessage = (event) => {
         if (disposed || !term.current) return
@@ -502,6 +494,10 @@ export function TaskTerminal({
           const rawText = String(event.data)
           const data = JSON.parse(rawText)
           if (data.type === 'connected') {
+            // One handshake per socket. A repeated control frame must not
+            // erase the rendered screen or disturb an active IME composition.
+            if (handshakeReceived) return
+            handshakeReceived = true
             const sameSession = Boolean(data.session_id && data.session_id === liveIdRef.current)
             const retainedInput = sameSession ? t.textarea?.value || '' : ''
             if (data.session_id) {
@@ -537,16 +533,7 @@ export function TaskTerminal({
             setConnection('connected')
             setNotice('')
             setError('')
-            fitRef.current?.fit()
-            if (t && ws.readyState === WebSocket.OPEN) {
-              ws.send(
-                JSON.stringify({
-                  type: 'resize',
-                  cols: t.cols,
-                  rows: t.rows,
-                }),
-              )
-            }
+            fitTerminalRef.current()
           } else if (data.type === 'status') {
             const enabled = data.mode === 'interactive'
             interactive.current = enabled
@@ -695,7 +682,6 @@ export function TaskTerminal({
         })
 
         const fit = new FitAddon()
-        fitRef.current = fit
         terminal.loadAddon(fit)
 
         // Clickable web links
@@ -748,73 +734,32 @@ export function TaskTerminal({
           terminal.textarea.setAttribute('spellcheck', 'false')
         }
 
-        // Live screen cell metrics helper
-        const cellMetrics = (t: Terminal) => {
-          const screen = t.element?.querySelector('.xterm-screen') as HTMLElement | null
-          if (screen && t.cols > 0 && t.rows > 0) {
-            try {
-              const rect = screen.getBoundingClientRect()
-              if (rect.width >= t.cols && rect.height >= t.rows) {
-                return {
-                  width: rect.width / t.cols,
-                  height: rect.height / t.rows,
-                }
-              }
-            } catch {}
-          }
-          const core = (t as any)._core
-          const width = core?._renderService?.dimensions?.css?.cell?.width ?? 0
-          const height = core?._renderService?.dimensions?.css?.cell?.height ?? 0
-          if (width > 0 && height > 0) return { width, height }
-          return { width: terminalFontSize * 0.6, height: terminalFontSize * 1.2 }
-        }
-
-        const schedulePtyResize = (cols: number, rows: number) => {
-          if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
-          ptyResizeTimer = setTimeout(() => {
-            const ws = socket.current
-            if (ws?.readyState === WebSocket.OPEN && terminal) {
-              ws.send(JSON.stringify({ type: 'resize', cols, rows }))
-            }
-          }, 60)
-        }
-
-        // Precision cell fitting with subpixel cell reclaim
+        // Match Fural's single measured-cell path. Mixing fit() with a
+        // second manual resize alternates the PTY grid and triggers TUI redraws.
         const fitTerminal = () => {
-          if (
-            disposed ||
-            !mount.current?.clientWidth ||
-            !mount.current?.clientHeight ||
-            !terminal
-          )
-            return
+          if (disposed || !terminal || !mount.current?.clientWidth || !mount.current?.clientHeight) return
           try {
-            const widthPx = mount.current.clientWidth
-            const heightPx = mount.current.clientHeight
-            const { width: cellW, height: cellH } = cellMetrics(terminal)
-            if (cellW > 0 && cellH > 0) {
-              let cols = Math.max(2, Math.floor(widthPx / cellW))
-              let rows = Math.max(1, Math.floor(heightPx / cellH))
-
-              if (widthPx - cols * cellW > cellW * (2 / 3)) {
-                cols += 1
-              }
-              if (heightPx - rows * cellH > cellH * (2 / 3)) {
-                rows += 1
-              }
-
-              if (terminal.cols !== cols || terminal.rows !== rows) {
-                terminal.resize(cols, rows)
-              }
-            } else {
-              fit.fit()
-            }
-            schedulePtyResize(terminal.cols, terminal.rows)
+            const cell = (terminal as any)._core?._renderService?.dimensions?.css?.cell
+            const measured = cell ? terminalGrid(mount.current.clientWidth, mount.current.clientHeight, cell.width, cell.height) : null
+            const next = measured || fit.proposeDimensions()
+            if (!next || next.cols < 2 || next.rows < 1) return
+            if (terminal.cols !== next.cols || terminal.rows !== next.rows) terminal.resize(next.cols, next.rows)
+            if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
+            ptyResizeTimer = setTimeout(() => {
+              const ws = socket.current
+              if (disposed || ws?.readyState !== WebSocket.OPEN || !terminal) return
+              resizeGate.send(ws, { cols: terminal.cols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
+            }, 80)
           } catch {}
         }
-
+        const scheduleFit = () => {
+          if (fitTimer) clearTimeout(fitTimer)
+          if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
+          fitTimer = setTimeout(fitTerminal, 100)
+        }
+        fitTerminalRef.current = scheduleFit
         fitTerminal()
-        resize = new ResizeObserver(fitTerminal)
+        resize = new ResizeObserver(scheduleFit)
         resize.observe(mount.current)
 
         // Touch scrolling & inertia handling
@@ -1073,6 +1018,7 @@ export function TaskTerminal({
       resize?.disconnect()
       linkDisposable?.dispose()
       if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
+      if (fitTimer) clearTimeout(fitTimer)
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
@@ -1083,7 +1029,7 @@ export function TaskTerminal({
       terminal?.dispose()
       mobileInputFilter.current = null
       if (term.current === terminal) term.current = null
-      fitRef.current = null
+      fitTerminalRef.current = () => {}
     }
   }, [taskId, attempt.id])
 
