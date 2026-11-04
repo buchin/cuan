@@ -760,6 +760,26 @@ func (s *DBStore) AppendLogs(ctx context.Context, attemptID string, logs []LogRe
 	return tx.Commit()
 }
 
+func (s *DBStore) GetRecentLogs(ctx context.Context, attemptID string, limit int) ([]*LogRecord, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, attempt_id, stream, line, logged_at FROM (SELECT id, attempt_id, stream, line, logged_at FROM agent_logs WHERE attempt_id = $1 ORDER BY id DESC LIMIT $2) recent ORDER BY id ASC`, attemptID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*LogRecord
+	for rows.Next() {
+		var rec LogRecord
+		if err := rows.Scan(&rec.ID, &rec.AttemptID, &rec.Stream, &rec.Line, &rec.LoggedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, &rec)
+	}
+	return result, rows.Err()
+}
+
 func (s *DBStore) GetLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 1000

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -268,7 +269,10 @@ func (r *Runner) streamOutputLogs(ctx context.Context, attemptID, stdout, stderr
 	}
 
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/logs", attemptID)
-	_, _ = r.doRequest(ctx, http.MethodPost, urlPath, payload)
+	if response, err := r.doRequest(ctx, http.MethodPost, urlPath, payload); err == nil {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		response.Body.Close()
+	}
 }
 
 func (r *Runner) streamLogLine(ctx context.Context, attemptID, stream, line string) {
@@ -284,7 +288,10 @@ func (r *Runner) streamLogLine(ctx context.Context, attemptID, stream, line stri
 		},
 	}
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/logs", attemptID)
-	_, _ = r.doRequest(ctx, http.MethodPost, urlPath, payload)
+	if response, err := r.doRequest(ctx, http.MethodPost, urlPath, payload); err == nil {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		response.Body.Close()
+	}
 }
 
 func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace, t *task.Task, att *task.TaskAttempt, claim ClaimTaskResponse, compReq *CompleteAttemptRequest, lane string) {

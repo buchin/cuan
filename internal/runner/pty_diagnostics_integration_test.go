@@ -17,7 +17,7 @@ import (
 )
 
 func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing.T) {
-	for _, scenario := range []string{"failure", "quota", "storage"} {
+	for _, scenario := range []string{"failure", "quota", "storage", "deadline"} {
 		t.Run(scenario, func(t *testing.T) {
 			directory := t.TempDir()
 			binary := filepath.Join(directory, "agy")
@@ -27,6 +27,9 @@ func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing
 			}
 			if scenario == "storage" {
 				script = "#!/bin/sh\nsleep 0.05\nwhile [ $# -gt 0 ]; do\n if [ \"$1\" = --log-file ]; then shift; diagnostic_path=$1; fi\n shift\ndone\nprintf 'E1104 18:49:38.610926 736 task_handle.go:150] failed mkdir %s/.gemini/antigravity-cli/brain/task: no space left on device\\n' \"$HOME\" > \"$diagnostic_path\"\nexit 2\n"
+			}
+			if scenario == "deadline" {
+				script = "#!/bin/sh\nprintf 'final cause without newline'\nexec sleep 10\n"
 			}
 			if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
 				t.Fatal(err)
@@ -54,7 +57,11 @@ func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing
 			attempt := &task.TaskAttempt{ID: "att-" + id, TaskID: id, AttemptNumber: 1}
 			claim := ClaimTaskResponse{Claimed: true, Task: current, Attempt: attempt, WorkingDir: directory}
 			var count int64
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			limit := 5 * time.Second
+			if scenario == "deadline" {
+				limit = 300 * time.Millisecond
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), limit)
 			defer cancel()
 			result, err := runner.executeWithPTY(ctx, claim, current, attempt, "fixture", directory, map[string]string{"HOME": directory}, 3*time.Second, &count)
 			if err != nil {
@@ -71,6 +78,19 @@ func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing
 					t.Fatalf("split quota waited for timeout: %+v", result)
 				}
 				return
+			}
+			if scenario == "deadline" {
+				if result.Status != "TIMEOUT" {
+					t.Fatalf("deadline lost its original outcome: %+v", result)
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				for _, record := range logs {
+					if record.Line == "final cause without newline" {
+						return
+					}
+				}
+				t.Fatal("deadline discarded the final partial diagnostic")
 			}
 			if result.Status != "FAILED" || result.ExitCode != 2 {
 				t.Fatalf("failure result changed: %+v", result)

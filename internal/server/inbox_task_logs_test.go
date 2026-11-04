@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,25 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
+
+func TestAttemptDiagnosticTailPostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) {
+		s, _, d := phaseLineageSetup(t, database)
+		ctx := context.Background()
+		var records []task.LogRecord
+		for i := 0; i < 1200; i++ {
+			records = append(records, task.LogRecord{Stream: "stdout", Line: fmt.Sprintf("step %d", i)})
+		}
+		records = append(records, task.LogRecord{Stream: "stderr", Line: "final verification failure"})
+		if err := s.taskSvc.AppendAttemptLogs(ctx, d.LatestAttempt.ID, records, 5000); err != nil {
+			t.Fatal(err)
+		}
+		output := s.formatAttemptTerminalLogs(ctx, d.LatestAttempt.ID, 50)
+		if !strings.HasSuffix(output, "final verification failure") || !strings.HasPrefix(output, "step 1151\n") || len(strings.Split(output, "\n")) != 50 {
+			t.Fatal("coordinator lost final failure beyond first query window", output)
+		}
+	})
+}
 
 func TestFormatAttemptTerminalLogs(t *testing.T) {
 	ctx := context.Background()
@@ -36,15 +56,15 @@ func TestFormatAttemptTerminalLogs(t *testing.T) {
 		t.Fatalf("create attempt failed: %v", err)
 	}
 
-	// Append 60 log lines
+	// Go beyond the old 500-row read window: the actual final failure must win.
 	var logRecords []task.LogRecord
-	for i := 1; i <= 60; i++ {
+	for i := 1; i <= 1200; i++ {
 		logRecords = append(logRecords, task.LogRecord{
 			Stream: "stdout",
 			Line:   fmt.Sprintf("Step %d execution log output trace", i),
 		})
 	}
-	if err := s.taskSvc.AppendAttemptLogs(ctx, attempt.ID, logRecords, 100); err != nil {
+	if err := s.taskSvc.AppendAttemptLogs(ctx, attempt.ID, logRecords, 5000); err != nil {
 		t.Fatalf("append logs failed: %v", err)
 	}
 
@@ -53,11 +73,11 @@ func TestFormatAttemptTerminalLogs(t *testing.T) {
 	if len(lines) != 50 {
 		t.Fatalf("expected 50 lines, got %d", len(lines))
 	}
-	if !strings.Contains(lines[0], "Step 11") {
-		t.Fatalf("expected first line to be Step 11, got: %s", lines[0])
+	if !strings.Contains(lines[0], "Step 1151") {
+		t.Fatalf("expected first line to be Step 1151, got: %s", lines[0])
 	}
-	if !strings.Contains(lines[len(lines)-1], "Step 60") {
-		t.Fatalf("expected last line to be Step 60, got: %s", lines[len(lines)-1])
+	if !strings.Contains(lines[len(lines)-1], "Step 1200") {
+		t.Fatalf("expected last line to be Step 1200, got: %s", lines[len(lines)-1])
 	}
 	if strings.Contains(formatted, "Step 1 execution log") {
 		t.Fatalf("older lines should be trimmed")

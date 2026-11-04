@@ -319,7 +319,7 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 			}
 		}
 		if latestProgress == "" && latestAttempt != nil && latestAttempt.Status == AttemptStatusRunning {
-			if logs, err := s.GetAttemptLogs(ctx, latestAttempt.ID, 0, 50); err == nil && len(logs) > 0 {
+			if logs, err := s.GetRecentAttemptLogs(ctx, latestAttempt.ID, 50); err == nil && len(logs) > 0 {
 				lines := make([]string, len(logs))
 				for i, l := range logs {
 					lines[i] = l.Line
@@ -1024,6 +1024,14 @@ func (s *Service) AppendAttemptLogs(ctx context.Context, attemptID string, logs 
 
 func (s *Service) GetAttemptLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error) {
 	return s.store.GetLogs(ctx, attemptID, afterID, limit)
+}
+
+func (s *Service) GetRecentAttemptLogs(ctx context.Context, attemptID string, limit int) ([]*LogRecord, error) {
+	reader, ok := s.store.(RecentLogStore)
+	if !ok {
+		return nil, fmt.Errorf("recent attempt log reads unavailable")
+	}
+	return reader.GetRecentLogs(ctx, attemptID, limit)
 }
 
 // RenewLocalAttemptLease keeps a known live local PTY valid without extending

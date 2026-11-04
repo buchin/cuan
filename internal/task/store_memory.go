@@ -407,6 +407,24 @@ func (m *MemoryStore) AppendLogs(ctx context.Context, attemptID string, logs []L
 	return nil
 }
 
+func (m *MemoryStore) GetRecentLogs(ctx context.Context, attemptID string, limit int) ([]*LogRecord, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if limit <= 0 || limit > 1000 {
+		limit = 1000
+	}
+	all := m.logs[attemptID]
+	if len(all) > limit {
+		all = all[len(all)-limit:]
+	}
+	result := make([]*LogRecord, 0, len(all))
+	for _, rec := range all {
+		cp := *rec
+		result = append(result, &cp)
+	}
+	return result, nil
+}
+
 func (m *MemoryStore) GetLogs(ctx context.Context, attemptID string, afterID int64, limit int) ([]*LogRecord, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

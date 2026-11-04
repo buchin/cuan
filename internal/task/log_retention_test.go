@@ -55,6 +55,14 @@ func TestRecentAttemptLogRetention(t *testing.T) {
 			if logs[0].Line != "progress 201" || logs[len(logs)-1].Line != "Individual quota reached" {
 				t.Fatal("latest diagnostic was lost")
 			}
+			tail, err := store.(RecentLogStore).GetRecentLogs(ctx, "run", 50)
+			if err != nil || len(tail) != 50 || tail[0].Line != "progress 1151" || tail[49].Line != "Individual quota reached" {
+				t.Fatal("recent read returned the beginning of retained history", err)
+			}
+			absent, err := store.(RecentLogStore).GetRecentLogs(ctx, "missing", 50)
+			if err != nil || len(absent) != 0 {
+				t.Fatal("missing attempt returned another execution's output", err)
+			}
 			cursor := logs[len(logs)-1].ID
 			appendLines("run", "continued after cursor")
 			next, err := store.GetLogs(ctx, "run", cursor, 1000)

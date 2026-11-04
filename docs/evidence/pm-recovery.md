@@ -1,5 +1,34 @@
 # Cuan project-management recovery — active investigation
 
+## Diagnostic tail and deadline preservation (2026-11-05)
+
+The official audit inspected184 task listings and21 nonfinal task details.
+Eleven latest executions were canceled and must not resume. Preview-card
+verification completed autonomously through the source-integrity finalizer and
+independent image review on release c24073a. Other retained failures remain
+unaccepted; historical prose is not proof of implementation or deployment.
+
+React investigation attempt7 retained5000 PTY redraw fragments ending about16
+minutes into a45-minute execution. These historical records cannot establish the
+final cause. Current PTY collection/rolling retention already address redraw
+volume, but a real process regression reproduced a remaining loss: a partial
+diagnostic without a newline was flushed with an expired execution context.
+Final-fragment delivery now has a separate five-second transport budget, without
+granting the agent more runtime or changing its timeout outcome.
+
+The coordinator's "last logs" helper also read the first500 records before
+trimming. Memory and SQL stores now expose a bounded direct tail read, preserving
+chronological order and incremental-log API semantics. Task-detail recent output
+uses the same read. Diagnostic HTTP responses are closed after a bounded drain.
+Tests cover1200 records, final failure selection, attempt isolation, SQLite and
+real PostgreSQL, plus actual native PTY deadline/partial-fragment behavior.
+
+Two older task branches failed the same database retry regression
+(`TestManualRetryPermitsUsageAndAgentFailures`); that test passes in the current
+main workspace. This does not prove those task branches or their original scope
+complete. No task workspace, production status, cancellation or execution budget
+was manually changed during this audit.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.

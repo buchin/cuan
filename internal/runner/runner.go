@@ -1336,13 +1336,13 @@ func (r *Runner) executeWithPTY(
 	var quotaReset string
 	var diagnostics ptyDiagnosticCollector
 	var logMu sync.Mutex
-	persistLines := func(lines []string) {
+	persistLines := func(logCtx context.Context, lines []string) {
 		if len(lines) == 0 {
 			return
 		}
 		atomic.AddInt64(liveStreamedCount, int64(len(lines)))
 		// One request per output batch instead of one per terminal redraw.
-		r.streamOutputLogs(ctx, att.ID, strings.Join(lines, "\n"), "")
+		r.streamOutputLogs(logCtx, att.ID, strings.Join(lines, "\n"), "")
 	}
 	consumeOutput := func(chunk []byte) {
 		logMu.Lock()
@@ -1356,12 +1356,16 @@ func (r *Runner) executeWithPTY(
 			cancelExec()
 			_ = sess.Close()
 		}
-		persistLines(lines)
+		persistLines(ctx, lines)
 	}
 	defer func() {
 		logMu.Lock()
 		defer logMu.Unlock()
-		persistLines(diagnostics.Flush())
+		// The execution deadline must stop the agent, not discard its final
+		// diagnostic fragment. This separate budget grants no execution time.
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		persistLines(flushCtx, diagnostics.Flush())
 	}()
 	consumeOutput(history)
 	loggerDone := make(chan struct{})

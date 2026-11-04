@@ -11,15 +11,15 @@ func (s *Server) formatAttemptTerminalLogs(ctx context.Context, attemptID string
 	if s == nil || s.taskSvc == nil || attemptID == "" {
 		return ""
 	}
-	logs, err := s.taskSvc.GetAttemptLogs(ctx, attemptID, 0, 500)
-	if err != nil || len(logs) == 0 {
-		return ""
-	}
 	if maxLines <= 0 {
 		maxLines = 50
 	}
-	if len(logs) > maxLines {
-		logs = logs[len(logs)-maxLines:]
+	if maxLines > 500 {
+		maxLines = 500
+	}
+	logs, err := s.taskSvc.GetRecentAttemptLogs(ctx, attemptID, maxLines)
+	if err != nil || len(logs) == 0 {
+		return ""
 	}
 	var sb strings.Builder
 	for _, l := range logs {
