@@ -26,7 +26,9 @@ This check also does not replace the separate review/apply lifecycle gates.
 Agent report submission does not trigger auto-apply: it precedes runner
 verification and cannot authorize publication by itself. The auto-apply helper
 also rejects missing, running, failed and cancelled attempts. Explicit owner
-apply and the remaining deployment lifecycle still require separate auditing;
+apply with auto-deploy enabled leaves the task in review and returns
+`deployment_pending=true`; a successful merge or restart does not mark it done.
+Automatic reconciliation of that pending deployment remains to be implemented;
 these guards do not establish end-to-end acceptance for every apply path.
 
 Verification:

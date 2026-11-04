@@ -68,8 +68,12 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Update task status to "done"
+	// Merge completion is not production acceptance. Keep auto-deploy work
+	// in review until its deployment has independently been verified.
 	doneStatus := "done"
+	if autoDeployTriggered {
+		doneStatus = task.TaskStatusReview
+	}
 	note := taskDetail.CompleteNote
 	if note != "" {
 		note += "\n\n"
@@ -84,7 +88,7 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		note += "🚀 Perubahan telah berhasil diterapkan."
 	}
 	if autoDeployTriggered {
-		note += " Otomatis memicu live deployment ke server (auto_deploy: true)."
+		note += " Verifikasi deployment production belum dikonfirmasi."
 	}
 
 	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{
@@ -96,11 +100,12 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"applied":     true,
-		"sha":         appliedSHA,
-		"auto_deploy": autoDeployTriggered,
-		"message":     "Perubahan berhasil diterapkan!",
-		"task":        updated,
+		"applied":            true,
+		"sha":                appliedSHA,
+		"auto_deploy":        autoDeployTriggered,
+		"deployment_pending": autoDeployTriggered,
+		"message":            "Perubahan berhasil diterapkan!",
+		"task":               updated,
 	})
 }
 
@@ -236,8 +241,8 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	} else {
 		note += "🚀 Perubahan telah berhasil diterapkan."
 	}
-	note += " Otomatis memicu live deployment ke server (auto_deploy: true)."
-	doneStatus := "done"
+	note += " Verifikasi deployment production belum dikonfirmasi."
+	doneStatus := task.TaskStatusReview
 	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
 		Status:       &doneStatus,
 		CompleteNote: &note,
