@@ -5,11 +5,14 @@ const fs=require('fs'),http=require('http'),path=require('path'),assert=require(
 const out=process.env.CUAN_REVIEW_EVIDENCE_DIR||'/home/dev/reports/cuan-pm-recovery/review-outcome',now=new Date().toISOString()
 const finding=process.env.CUAN_REVIEW_FINDING||''
 const verifying=process.env.CUAN_REVIEW_VERIFYING==='1'
+const accepted=process.env.CUAN_REVIEW_ACCEPTED==='1'
 const recovered=process.env.CUAN_REVIEW_RECOVERED_FILES==='1'
 const stopped=process.env.CUAN_REVIEW_OUTCOME||(verifying?'Cuan menyiapkan verifikasi tambahan pada hasil yang sama.':'Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.')
 const outcome=[finding,stopped].filter(Boolean).join('\n\n')
 Object.assign(task,{title:'Perbaiki navigasi',summary:'Verifikasi belum selesai.',status:verifying?'queued':'blocked',source_message_id:'reply',launch:{state:verifying?'queued':'stopped'},latest_attempt:{id:'attempt',status:finding?'succeeded':'failed'}})
+if(accepted)Object.assign(task,{summary:'Laporan tersedia.',status:'done',latest_attempt:{id:'attempt',status:'succeeded'}})
 const contact={id:'fixture',type:'agent',agent_id:'agent_cuan',agent_name:'@cuan',name:'Perbaikan navigasi',conversation_id:'fixture-room',last_message:outcome,failed_tasks:verifying?0:1,task_count:1,updated_at:now}
+if(accepted)contact.failed_tasks=0
 let browser,server
 async function api(route){
  const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
@@ -33,7 +36,7 @@ async function api(route){
   await page.addInitScript(({theme})=>{localStorage.setItem('cuan_token','fixture');localStorage.setItem('cuan-language','id');localStorage.setItem('cuan-theme',theme)},{theme:width===390?'dark':'light'})
   await page.route('**/api/**',api)
   await page.goto('http://127.0.0.1:4191/inbox/fixture-room')
-  await page.getByText(stopped,{exact:true}).filter({visible:true}).waitFor()
+  await page.getByRole('main').getByText(stopped,{exact:true}).filter({visible:true}).waitFor()
   if(finding)await page.getByText(finding,{exact:true}).filter({visible:true}).waitFor()
   await page.locator('[data-card=task-card]').first().waitFor()
   assert.equal(await page.getByText(/akan melanjutkan|I will continue/).count(),0)

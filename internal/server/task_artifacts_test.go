@@ -85,7 +85,7 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	s.taskSvc.UpdateTask(ctx, saved.ID, owner.ID, task.UpdateTaskRequest{Status: &doing})
 	s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 	workspace := t.TempDir()
-	original := "<!doctype html><title>Offline output</title><p>Works offline</p>"
+	original := "<!doctype html><title>Offline output</title><p>Works offline</p>" + strings.Repeat("<!-- long report body -->", 400) + "<p>FINAL_VERIFICATION_RESULT</p>"
 	os.WriteFile(filepath.Join(workspace, "output.html"), []byte(original), 0600)
 	env, _, capability, cleanup, err := s.issueTaskAgent(context.WithValue(ctx, taskAgentWorkspaceKey{}, workspace), saved.ID, a.ID, q.AgentID)
 	if err != nil {
@@ -137,6 +137,15 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	delivered, ok := assessment["delivered_files"].([]any)
 	if !ok || len(delivered) != 1 {
 		t.Fatal("coordinator did not receive real delivery metadata", assessment)
+	}
+	texts, ok := assessment["delivered_text"].([]any)
+	if !ok || len(texts) != 1 {
+		t.Fatal("coordinator did not receive delivered report text")
+	}
+	text := texts[0].(map[string]any)
+	excerpt, _ := text["untrusted_excerpt"].(string)
+	if !strings.Contains(excerpt, "Offline output") || !strings.Contains(excerpt, "FINAL_VERIFICATION_RESULT") || len(excerpt) > 6000 || text["excerpt_scope"] != "head_and_tail" {
+		t.Fatal("actual attachment review omitted final verification or hid truncation")
 	}
 	messages, err := s.getFormattedMessagesResult(ctx, q.RoomID, "")
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -86,13 +85,9 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 				if a, path, err := loadAttachment(owner, id); err == nil {
 					files = append(files, a)
 					if strings.HasPrefix(a.Type, "text/") && textBudget > 0 {
-						if f, err := os.Open(path); err == nil {
-							data, readErr := io.ReadAll(io.LimitReader(f, int64(min(6000, textBudget))))
-							f.Close()
-							if readErr == nil {
-								deliveredText = append(deliveredText, map[string]string{"attachment_id": a.ID, "name": a.Name, "untrusted_excerpt": string(data)})
-								textBudget -= len(data)
-							}
+						if excerpt, scope, err := reviewTextExcerpt(path, min(6000, textBudget)); err == nil && excerpt != "" {
+							deliveredText = append(deliveredText, map[string]string{"attachment_id": a.ID, "name": a.Name, "untrusted_excerpt": excerpt, "excerpt_scope": scope})
+							textBudget -= len(excerpt)
 						}
 					}
 				}
@@ -300,7 +295,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}
 		}
 	}
-	if decision.Decision == "pass" && inboxReportEvidence(d).Provenance == "current_runner_finalization" && strings.TrimSpace(decision.Finding) != "" {
+	if decision.Decision == "pass" && strings.TrimSpace(decision.Finding) != "" {
 		decision.Explanation = decision.Finding
 	}
 	if decision.Decision == "pass" {

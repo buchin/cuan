@@ -73,6 +73,31 @@ latest-report state, cancellation, lane contention, deduplication, unchanged
 budget/history and terminal no-chain behavior. Inbox/runner regressions pass.
 The short review notice was rendered and inspected at390px and1440px.
 
+## Live investigation recovery and clearer acceptance
+
+Production5bce6e6 automatically launched CuanAff attempt4
+`att_b370266a336496391f3dd08538d672ae`. It saved a progress checkpoint, delivered
+the15,180-byte investigation report to the original Inbox, and completed with
+an exact-attempt unchanged-repository receipt. Independent coordinator review
+`445c47e5-dae8-4cea-a9bc-5638e819d8a6` accepted the report and Cuan itself marked
+the task Done. The original failed attempt remains failed. The delivered file
+was downloaded through the official CLI and read; delivery is established, not
+publication of the recommended CuanAff patches. No administrative start/status
+edit, task-workspace modification or out-of-band customer message was used.
+
+The review pipeline exposed two further gaps. Text artifacts previously supplied
+only their first6000 bytes, hiding checks/conclusions at the end of long reports.
+Review now receives bounded head-and-tail excerpts, explicit omitted-middle
+markers and excerpt scope; short reports remain complete. Per-file6000 and
+total12000-byte context budgets are unchanged. A real task-report attachment
+regression verifies final-check visibility and immutable authorized downloads.
+
+Accepted chat outcomes now prefer the review's factual finding over its proposed
+next action, avoiding promises to send a report already delivered. Review and
+task-acceptance guards remain authoritative. Unicode/truncation, binary rejection,
+ordinary accepted-result copy and Inbox regressions pass;390/1440 accepted-outcome
+screenshots were rendered and inspected.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.
