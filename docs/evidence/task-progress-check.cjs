@@ -21,7 +21,7 @@ const contacts=[
  {id:'single',conversation_id:'single-room',name:'Satu tugas selesai',task_count:1,done_tasks:1,last_message:report('LULUS')},
  {id:'empty',conversation_id:'empty-room',name:'Diskusi ide baru',task_count:0,done_tasks:0,last_message:'Mari bahas kebutuhan Anda.'},
  {id:'unknown',conversation_id:'unknown-room',name:'Status belum tersedia',last_message:'Percakapan tanpa data progres.'},
-].map(c=>({...c,type:'agent',agent_id:'agent_cuan',agent_name:'@cuan',unread_count:0,status:'idle',updated_at:now}))
+].map(c=>({...c,type:'agent',agent_id:'agent_cuan',agent_name:'@cuan',unread_count:c.id==='problemplain'?3:c.id==='mixed'?2:0,status:'idle',updated_at:now}))
 const task={id:'msg_reply',title:'Siapkan panduan pelanggan',status:'done',project_id:'large',project_name:'Cuan',summary:'Panduan selesai dan telah diverifikasi.',source_message_id:'reply',created_at:now,updated_at:now,latest_attempt:{id:'attempt',status:'succeeded'}}
 let server,browser,debugPage
 async function routeAPI(route){
@@ -66,6 +66,7 @@ async function routeAPI(route){
   await page.screenshot({path:`${out}/square-account-${theme}-${width}.png`});await account.click()
 
   const initialURL=page.url()
+  const progressRow=rows.first(),progressBounds=await progressRow.locator('[data-task-progress]').boundingBox(),rowBounds=await progressRow.boundingBox();assert(progressBounds.x>=rowBounds.x+rowBounds.width-48,'pie stays in top-right action area');assert.equal(await page.locator('[data-unread-dot]').count(),0,'unread uses typography, not a second circle');
   const largeInbox=rows.first().locator('[data-task-progress]');assert.equal(await largeInbox.getAttribute('data-task-progress'),'partial')
   assert.equal(await row('Panduan penggunaan').locator('[data-task-progress]').getAttribute('data-task-progress'),'complete')
   const mixed=row('Pekerjaan tersisa selesai').locator('[data-task-progress]');assert.equal(await mixed.getAttribute('data-task-progress'),'complete-with-cancellations');assert((await mixed.getAttribute('class')).includes('text-muted-foreground'))
@@ -79,6 +80,7 @@ async function routeAPI(route){
   assert(await row('Rencana konten').getByText('Result ready for review.',{exact:true}).isVisible())
   assert.equal(await row('Rencana konten').getByTestId('task-badge-attention').count(),0)
   assert(await row('Koneksi perlu diperiksa').getByTestId('task-badge-attention').isVisible())
+  assert.equal(await row('Koneksi perlu diperiksa').getByText('3 unread messages',{exact:true}).count(),1);assert.equal(await row('Panduan penggunaan').locator('[data-unread-count]').count(),0);assert(Number(await row('Koneksi perlu diperiksa').getByText('Koneksi perlu diperiksa',{exact:true}).evaluate(el=>getComputedStyle(el).fontWeight))>=600)
   assert.equal(await row('Koneksi perlu diperiksa').locator('[data-task-progress]').count(),0)
   assert(await row('Koneksi perlu diperiksa').getByText('Saya sudah memeriksa koneksinya.',{exact:true}).isVisible())
   const menu=rows.first().locator('xpath=ancestor::*[@data-item-actions-quiet][1]').locator('[data-item-menu]');assert.equal(await menu.evaluate(el=>getComputedStyle(el).visibility),'hidden')
@@ -92,7 +94,8 @@ async function routeAPI(route){
   await mixed.click();const detail=page.getByRole('dialog',{name:'Task progress',exact:true});await detail.waitFor();assert(await detail.getByText('All remaining work completed',{exact:true}).isVisible());assert(await detail.getByText('Canceled',{exact:true}).isVisible());assert.equal(page.url(),initialURL)
   const rect=await detail.boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width)
   assert((await mixed.boundingBox()).width>=44);assert.equal(await mixed.locator('span').first().evaluate(el=>el.getBoundingClientRect().width),16)
-  await page.screenshot({path:`${out}/breakdown-${theme}-${width}.png`});await page.keyboard.press('Escape');await detail.waitFor({state:'detached'})
+  await page.screenshot({path:`${out}/breakdown-${theme}-${width}.png`});await page.keyboard.press('Escape');await detail.waitFor({state:'detached'});assert.equal(await row('Pekerjaan tersisa selesai').getByText('2 unread messages',{exact:true}).count(),1,'progress inspection must not mark conversation read')
+  if(width===1440)await page.mouse.move(0,0)
   await largeInbox.focus();await page.keyboard.press('Enter');await detail.waitFor();assert(await detail.getByText('Working',{exact:true}).isVisible());await page.keyboard.press('Escape');await detail.waitFor({state:'detached'})
   await page.goto('http://127.0.0.1:4183/projects');const project=page.locator('[data-project-row]').filter({hasText:'Cuan — banyak pekerjaan'});await project.waitFor();const large=project.locator('[data-task-progress]')
   assert.equal(await large.getAttribute('aria-label'),'1,001 of 5,002 tasks completed · 2,000 canceled')

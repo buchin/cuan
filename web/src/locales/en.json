@@ -274,5 +274,6 @@
   "Internal visibility": "Internal visibility",
   "Only you and your team can see this. The customer cannot see this message or attachment.": "Only you and your team can see this. The customer cannot see this message or attachment.",
   "Write a reply…": "Write a reply…",
-  "Internal message…": "Internal message…"
+  "Internal message…": "Internal message…",
+  "{{count}} unread messages": "{{count}} unread messages"
 }

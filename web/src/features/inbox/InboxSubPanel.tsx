@@ -211,17 +211,17 @@ export function ConversationItem({
 
         {/* Content Body */}
         <div className="flex-1 min-w-0 flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-1.5">
-            <div className={cn("flex items-center gap-1.5 min-w-0", showProgress && 'pl-9')}>
+          <div className={cn("flex items-center justify-between gap-1.5", showProgress && "pr-9")}>
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className={cn("text-sm truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
 
             </div>
-            <span className={cn("text-xs shrink-0 tabular-nums", unread > 0 ? "text-primary font-medium" : "text-muted-foreground")}>
+            <span className="text-xs shrink-0 tabular-nums text-muted-foreground">
               {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
             </span>
-            {unread > 0 && <span aria-label={`${unread} unread messages`} className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-foreground">{unread > 99 ? '99+' : unread}</span>}
+            {unread > 0 && <span data-unread-count className="sr-only">{t('{{count}} unread messages').replace('{{count}}', String(unread))}</span>}
           </div>
 
           {subject && (
@@ -265,7 +265,7 @@ export function ConversationItem({
         </div>
 
       </button>
-      {showProgress && <div className="absolute left-[50px] top-0 z-10"><TaskProgress {...progress} /></div>}
+      {showProgress && <div className="absolute right-0 top-0 z-10"><TaskProgress {...progress} /></div>}
       </div>
       {!isLast && (
         <div

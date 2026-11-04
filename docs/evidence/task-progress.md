@@ -73,3 +73,14 @@ and desktop1440px contexts in light/dark, including long press without navigatio
 keyboard,44px targets with16px glyphs, no nested buttons/links, mixed cancellation
 breakdown, zero-progress attention markers, truthful previews and live refresh.
 Screenshots inspected at `/home/dev/reports/cuan-inbox-noise/`.
+
+## Inbox top-right progress placement
+
+Progress now occupies the top-right position previously used by the row unread
+badge. Unread conversations use a bold name; exact unread message counts remain
+available to assistive technology and global Inbox totals remain unchanged.
+The focused browser fixture verifies pointer/keyboard progress inspection does
+not navigate or mark messages read, including mobile390px and desktop1440px.
+Rendered dark mobile and light desktop screenshots were visually inspected at
+`/home/dev/reports/cuan-pm-recovery/unread/`: no duplicate row unread indicator,
+no title overlap, quiet timestamp and existing exception labels preserved.
