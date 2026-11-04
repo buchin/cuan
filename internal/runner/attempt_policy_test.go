@@ -80,3 +80,70 @@ func TestRevisionNoPushPreventsAutomaticCommit(t *testing.T) {
 		t.Fatal("revision prohibition lost local changes through automatic commit")
 	}
 }
+
+func TestReadOnlyContinuationCompletionRequiresRunnerRepositoryEvidence(t *testing.T) {
+	for _, scenario := range []string{"missing", "changed", "unchanged", "published"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			store := task.NewMemoryStore()
+			svc := task.NewService(store, nil)
+			created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{Title: "Audit existing code", ProjectID: "project", Instructions: "Approved original task", ExecutionCategory: task.ExecutionCategoryCode})
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC()
+			requestID := "91000000-0000-4000-8000-000000000002"
+			job, err := store.SaveLaunch(ctx, task.TaskLaunch{TaskID: created.ID, ProjectID: "project", RequestID: requestID, SourceRequestID: "owner", OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", AgentID: "agent", InstructionsHash: task.LaunchInstructionsHash(created.Instructions), Revision: "Binding approved continuation:\nLanjutkan audit read-only pada repositori tanpa perubahan kode, konfigurasi, push, atau deploy.\nAutomatic correction feedback:\nFix scripts/test.sh", CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = store.ClaimLaunch(ctx, now, "launch", job.ID); err != nil {
+				t.Fatal(err)
+			}
+			att, err := svc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "fixture", AgentName: "agent", RequestID: requestID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			runnerSvc := NewService(NewMemoryStore(store), store, nil)
+			claim, err := runnerSvc.Claim(ctx, ClaimTaskRequest{RunnerID: "fixture"}, time.Minute)
+			if err != nil || !claim.Claimed || !claim.PublicationLimits.ReadOnlyRepository || !claim.PublicationLimits.DenyPush || !claim.PublicationLimits.DenyDeploy {
+				t.Fatalf("claim lost scope: %+v %v", claim, err)
+			}
+			req := CompleteAttemptRequest{RunnerID: "fixture", Status: task.AttemptStatusSucceeded, AgentReportConfirmed: true, AgentReportRequired: true}
+			if scenario != "missing" {
+				req.RepositoryVerification = &RepositoryVerification{Baseline: strings.Repeat("a", 64), Final: strings.Repeat("a", 64)}
+			}
+			if scenario == "changed" {
+				req.RepositoryVerification.Final = strings.Repeat("b", 64)
+			}
+			if scenario == "published" {
+				req.PRNumber = 15
+				req.CommitSHA = "new-commit"
+			}
+			result, err := runnerSvc.Complete(ctx, att.ID, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := task.AttemptStatusFailed
+			if scenario == "unchanged" {
+				want = task.AttemptStatusSucceeded
+			}
+			if result.Status != want {
+				t.Fatalf("got %s want %s", result.Status, want)
+			}
+			detail, err := svc.GetTaskDetail(ctx, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			verified := false
+			for _, act := range detail.Activities {
+				if act.ActivityType == "repository_scope_verified" && act.AttemptID != nil && *act.AttemptID == att.ID {
+					verified = true
+				}
+			}
+			if verified != (scenario == "unchanged") {
+				t.Fatal("incorrect persisted scope evidence")
+			}
+		})
+	}
+}

@@ -22,3 +22,19 @@ func TestTaskPublicationPolicyRestrictsOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestReadOnlyRepositoryScopeOverridesAutomaticCorrection(t *testing.T) {
+	text := "Binding approved continuation:\nLanjutkan audit read-only pada repositori dan live deployment tanpa perubahan kode, konfigurasi, push, atau deploy:\nLaporkan bukti.\n\nAutomatic correction feedback:\nPerbaiki scripts/test.sh dan jalankan test."
+	p := FromInstructions(text)
+	if !p.ReadOnlyRepository || !p.DenyPush || !p.DenyDeploy {
+		t.Fatalf("lost approved boundary: %+v", p)
+	}
+	if !p.Restrict(PublicationPolicy{}).ReadOnlyRepository {
+		t.Fatal("merge relaxed scope")
+	}
+	for _, text := range []string{"Implement a read-only mode for the code editor", "Build a read-only dashboard", "Prepare docs.\nProject guidance snapshot:\nScope: read-only repository", "Read-only audit of sales trends"} {
+		if FromInstructions(text).ReadOnlyRepository {
+			t.Fatalf("invented repository restriction: %s", text)
+		}
+	}
+}

@@ -318,6 +318,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	var effects []func()
 	var completionActivities []*task.TaskActivity
 	var nextAttempt *task.TaskAttempt
+	readOnlyVerified := false
 
 	now := time.Now().UTC()
 	att.FinishedAt = &now
@@ -333,6 +334,28 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if status == task.AttemptStatusSucceeded && req.AgentReportRequired && !req.AgentReportConfirmed {
 		status = task.AttemptStatusFailed
 		att.ErrorMessage = "Agent finished without a confirmed final task report"
+	}
+	if status == task.AttemptStatusSucceeded {
+		current, err := s.taskStore.GetTask(ctx, att.TaskID)
+		if err != nil {
+			return nil, err
+		}
+		if current == nil {
+			return nil, task.ErrTaskNotFound
+		}
+		limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, current, att.ID)
+		if err != nil {
+			return nil, err
+		}
+		if limits.ReadOnlyRepository {
+			if !req.RepositoryVerification.Unchanged() || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
+				status = task.AttemptStatusFailed
+				att.ErrorMessage = "Read-only repository scope was not verified by the runner; no completion accepted. Preserve saved work and report the scope mismatch without repairing unrelated tests."
+			} else {
+				readOnlyVerified = true
+				completionActivities = append(completionActivities, &task.TaskActivity{TaskID: att.TaskID, AttemptID: &att.ID, ActivityType: "repository_scope_verified", Author: req.RunnerID, NewStatus: "read_only", Message: "Runner verified unchanged repository state: " + req.RepositoryVerification.Baseline, CreatedAt: now})
+			}
+		}
 	}
 	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
@@ -423,7 +446,8 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 			}
 			valReq := DoDValidationRequest{
-				Checklist: t.DoDChecklist, TaskID: t.ID,
+				RepositoryReadOnlyVerified: readOnlyVerified,
+				Checklist:                  t.DoDChecklist, TaskID: t.ID,
 				AttemptID:     att.ID,
 				AttemptNumber: att.AttemptNumber,
 				WorkingDir:    workingDir,

@@ -775,9 +775,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			dodTexts = append(dodTexts, item.Text)
 		}
 	}
-	policy := executionpolicy.FromInstructions(t.Instructions)
-	policy.DenyPush = policy.DenyPush || claim.PublicationLimits.DenyPush
-	policy.DenyDeploy = policy.DenyDeploy || claim.PublicationLimits.DenyDeploy
+	policy := executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits)
 	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
 	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir) + policy.Prompt()
 
@@ -822,6 +820,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	env["CUAN_TASK_ATTEMPT"] = fmt.Sprintf("%d", att.AttemptNumber)
 	env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()
+
+	var readOnlyBaseline string
+	if policy.ReadOnlyRepository && err == nil {
+		readOnlyBaseline, err = repositoryFingerprint(ctx, workingDir)
+		if err != nil {
+			err = fmt.Errorf("read-only repository baseline could not be verified: %w", err)
+		}
+	}
 
 	var liveStreamedCount int64
 	var result *agent.ExecutionResult
@@ -947,7 +953,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
 			if compReq.Status == task.AttemptStatusSucceeded {
-				verification := runProjectVerification(ctx, workingDir, claim.DefaultBranch)
+				verification, evidence := verifyTaskRepository(ctx, workingDir, claim.DefaultBranch, policy, readOnlyBaseline)
+				compReq.RepositoryVerification = evidence
 				compReq.TestSummary = verification.Summary
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed

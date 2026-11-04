@@ -15,17 +15,18 @@ import (
 
 // DoDValidationRequest specifies input for autonomous DoD evaluation.
 type DoDValidationRequest struct {
-	Checklist     []task.DoDItem `json:"acceptance_checklist,omitempty"`
-	TaskID        string         `json:"task_id"`
-	AttemptID     string         `json:"attempt_id"`
-	AttemptNumber int            `json:"attempt_number"`
-	WorkingDir    string         `json:"working_dir"`
-	TaskTitle     string         `json:"task_title"`
-	Instructions  string         `json:"instructions"`
-	Summary       string         `json:"summary"`
-	CompleteNote  string         `json:"complete_note"`
-	ExecutionLane string         `json:"execution_lane"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
+	RepositoryReadOnlyVerified bool           `json:"repository_read_only_verified,omitempty"`
+	Checklist                  []task.DoDItem `json:"acceptance_checklist,omitempty"`
+	TaskID                     string         `json:"task_id"`
+	AttemptID                  string         `json:"attempt_id"`
+	AttemptNumber              int            `json:"attempt_number"`
+	WorkingDir                 string         `json:"working_dir"`
+	TaskTitle                  string         `json:"task_title"`
+	Instructions               string         `json:"instructions"`
+	Summary                    string         `json:"summary"`
+	CompleteNote               string         `json:"complete_note"`
+	ExecutionLane              string         `json:"execution_lane"`
+	Metadata                   map[string]any `json:"metadata,omitempty"`
 }
 
 // DoDValidationResult represents the objective verification outcome.
@@ -93,7 +94,7 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 	}
 
 	// Smart DoD Gate: Non-code, read-only, or investigation tasks pass DoD without requiring code modifications
-	isNonCodeOrInvestigation := req.ExecutionLane == task.ExecutionCategoryReadOnly ||
+	isNonCodeOrInvestigation := req.RepositoryReadOnlyVerified || req.ExecutionLane == task.ExecutionCategoryReadOnly ||
 		req.ExecutionLane == task.ExecutionCategoryOps ||
 		isInvestigationOrNonCode(req.TaskTitle, req.Instructions, req.Summary, req.CompleteNote)
 

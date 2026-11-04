@@ -19,7 +19,7 @@ func attemptPublicationPolicyContract(t *testing.T, store Store, projectID strin
 		t.Fatal(err)
 	}
 	launches := store.(LaunchStore)
-	old := TaskLaunch{TaskID: created.ID, ProjectID: projectID, RequestID: "limited-attempt", SourceRequestID: "owner", OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", AgentID: "agent", InstructionsHash: LaunchInstructionsHash(created.Instructions), Revision: "Do not deploy. Verify local evidence only.", CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
+	old := TaskLaunch{TaskID: created.ID, ProjectID: projectID, RequestID: "limited-attempt", SourceRequestID: "owner", OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", AgentID: "agent", InstructionsHash: LaunchInstructionsHash(created.Instructions), Revision: "Scope: read-only repository. Do not deploy. Verify local evidence only.", CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
 	if _, err = launches.SaveLaunch(ctx, old); err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func attemptPublicationPolicyContract(t *testing.T, store Store, projectID strin
 		deploy bool
 	}{{attemptRequestID(created.ID, old.RequestID), true}, {attemptRequestID(created.ID, next.RequestID), false}, {"unrelated-attempt", false}} {
 		policy, e := AttemptPublicationPolicy(ctx, store, created, c.id)
-		if e != nil || !policy.DenyPush || policy.DenyDeploy != c.deploy {
+		if e != nil || !policy.DenyPush || policy.DenyDeploy != c.deploy || policy.ReadOnlyRepository != c.deploy {
 			t.Fatalf("attempt %s: %+v %v", c.id, policy, e)
 		}
 	}

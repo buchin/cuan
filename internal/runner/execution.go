@@ -281,7 +281,7 @@ func (r *Runner) streamLogLine(ctx context.Context, attemptID, stream, line stri
 }
 
 func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace, t *task.Task, att *task.TaskAttempt, claim ClaimTaskResponse, compReq *CompleteAttemptRequest, lane string) {
-	if executionpolicy.FromInstructions(t.Instructions).DenyPush || claim.PublicationLimits.DenyPush {
+	if executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits).DenyPush {
 		r.streamLogLine(ctx, att.ID, "system", "Task scope forbids publication; local files retained without automatic commit, push or PR.")
 		return
 	}
@@ -442,7 +442,8 @@ func (r *Runner) processCompletionEventAndDoD(ctx context.Context, ws *git.TaskW
 	// 2. Background Autonomous DoD Evaluator validation
 	if r.dodEvaluator != nil {
 		evalReq := DoDValidationRequest{
-			Checklist: t.DoDChecklist, TaskID: t.ID,
+			RepositoryReadOnlyVerified: compReq.RepositoryVerification.Unchanged() && executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits).ReadOnlyRepository,
+			Checklist:                  t.DoDChecklist, TaskID: t.ID,
 			AttemptID:     att.ID,
 			AttemptNumber: att.AttemptNumber,
 			WorkingDir:    workingDir,

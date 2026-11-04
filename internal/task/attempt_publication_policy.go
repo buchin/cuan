@@ -20,8 +20,7 @@ func AttemptPublicationPolicy(ctx context.Context, store Store, t *Task, attempt
 		}
 		if launch != nil && launch.TaskID == t.ID {
 			revision := executionpolicy.FromInstructions(launch.Revision)
-			policy.DenyPush = policy.DenyPush || revision.DenyPush
-			policy.DenyDeploy = policy.DenyDeploy || revision.DenyDeploy
+			policy = policy.Restrict(revision)
 		}
 	}
 	return policy, nil
