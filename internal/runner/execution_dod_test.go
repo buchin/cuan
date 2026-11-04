@@ -10,7 +10,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-func TestRunnerService_DoDPass_AutoMarkDoneAndBusinessChat(t *testing.T) {
+func TestRunnerService_DoDPass_InboxAwaitsCoordinatorAcceptance(t *testing.T) {
 	taskStore := task.NewMemoryStore()
 	runnerStore := NewMemoryStore(taskStore)
 	svc := NewService(runnerStore, taskStore)
@@ -87,21 +87,21 @@ func TestRunnerService_DoDPass_AutoMarkDoneAndBusinessChat(t *testing.T) {
 		t.Fatalf("expected attempt status succeeded, got %s", completedAtt.Status)
 	}
 
-	// 1. Verify task is automatically marked 'done'
+	// 1. Worker evidence is ready for coordinator review, not final acceptance.
 	updatedTask, err := taskStore.GetTask(ctx, taskItem.ID)
 	if err != nil {
 		t.Fatalf("get task error: %v", err)
 	}
-	if updatedTask.Status != task.TaskStatusDone {
-		t.Fatalf("expected task status 'done', got %s", updatedTask.Status)
+	if updatedTask.Status != task.TaskStatusReview {
+		t.Fatalf("expected task status 'review', got %s", updatedTask.Status)
 	}
 	for _, item := range updatedTask.DoDChecklist {
 		if !item.Completed {
 			t.Fatalf("expected DoD item %q to be completed", item.Text)
 		}
 	}
-	if !strings.Contains(updatedTask.CompleteNote, "LULUS (100% Kriteria Terpenuhi)") {
-		t.Fatalf("expected complete note to record DoD pass, got:\n%s", updatedTask.CompleteNote)
+	if updatedTask.CompleteNote != taskItem.CompleteNote {
+		t.Fatal("worker replaced original report evidence")
 	}
 
 	// 2. Verify internal event task:attempt_succeeded was emitted
@@ -113,16 +113,11 @@ func TestRunnerService_DoDPass_AutoMarkDoneAndBusinessChat(t *testing.T) {
 		t.Fatalf("mismatched emitted event: %+v", emittedEvt)
 	}
 
-	// 3. Verify Proactive Business Chat was delivered to SourceRoomID
-	if capturedRoomID != "room_store_main" {
-		t.Fatalf("expected business chat to room_store_main, got %s", capturedRoomID)
+	// 3. Only the Inbox coordinator may announce acceptance.
+	if capturedRoomID != "" || capturedMsg != "" {
+		t.Fatal("worker announced acceptance before review")
 	}
-	if !strings.Contains(capturedMsg, "Halo! Kabar baik untuk toko Anda") {
-		t.Fatalf("expected friendly business greeting in chat message, got:\n%s", capturedMsg)
-	}
-	if strings.Contains(strings.ToLower(capturedMsg), "dod") || strings.Contains(strings.ToLower(capturedMsg), "scrum") {
-		t.Fatalf("found forbidden technical jargon in business chat:\n%s", capturedMsg)
-	}
+
 }
 
 func TestRunnerService_DoDFixableGap_AutoRequeueWithAdaptiveTimeout(t *testing.T) {
@@ -235,12 +230,10 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 	}
 	svc.SetDoDEvaluator(mockEval)
 
-	// Capture multi-room proactive review notifications
+	// Inbox owns review messaging; the runner must not prematurely ask the owner to intervene.
 	var capturedRooms []string
-	var capturedReviewMsg string
 	svc.SetChatNotifier(NewDefaultBusinessChatNotifier(func(ctx context.Context, roomID, messageContent string) error {
 		capturedRooms = append(capturedRooms, roomID)
-		capturedReviewMsg = messageContent
 		return nil
 	}))
 
@@ -285,16 +278,10 @@ func TestRunnerService_DoDMaxAttemptsReached_MoveToReview(t *testing.T) {
 		t.Fatalf("expected task status to be 'review' after reaching max attempts, got %s", updatedTask.Status)
 	}
 
-	// Verify multi-room proactive notification was delivered to both active room & source room
-	if len(capturedRooms) != 2 {
-		t.Fatalf("expected 2 rooms notified (source + active), got %d: %v", len(capturedRooms), capturedRooms)
+	if len(capturedRooms) != 0 {
+		t.Fatalf("runner bypassed coordinator review: %v", capturedRooms)
 	}
-	if !strings.Contains(capturedReviewMsg, "Pembaruan penting untuk toko Anda") {
-		t.Fatalf("expected warm business greeting in review notification, got:\n%s", capturedReviewMsg)
-	}
-	if !strings.Contains(capturedReviewMsg, "Opsi Tindak Lanjut") {
-		t.Fatalf("expected clear follow-up options in review message, got:\n%s", capturedReviewMsg)
-	}
+
 }
 
 func TestRunnerService_ValidateTaskTransition_StateMachineIntegration(t *testing.T) {

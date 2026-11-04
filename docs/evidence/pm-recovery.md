@@ -379,3 +379,28 @@ live terminal session, alongside independent draft actions, at390px/1440px in
 light/dark. Screenshots were visually inspected under card-actions and
 card-actions-working in the private evidence root. No secondary explanation text
 was added.
+
+Production7ac82fd is healthy. Actual mobile390/desktop1440 screenshots confirm
+right-aligned task/draft footer actions. The audit's previously rejected saved
+revision now has one queued attempt on agent_cuan, automatically reserved from
+its original launch; no manual prompt/status intervention occurred. It has not
+yet reached a verified final result. Other actual project work remains active;
+queued reservation is not evidence of completed execution.
+
+## Single owner of Inbox outcome announcements
+
+Runner failure/infra/DoD-review notifications were bypassing the coordinator and
+sending generic owner-intervention options before the coordinator determined
+whether the issue was agent-fixable. Inbox-linked tasks now use the coordinator
+for those outcome messages, matching the existing success-announcement rule.
+Runner completion state, activities and completion events are still persisted;
+tasks without a source Inbox retain their fallback notification. Behavioral tests
+cover failed, interrupted and canceled attempts, state-before-event ordering,
+normal fallback delivery, and successful worker results awaiting acceptance.
+
+Review instructions now request one to three user-facing sentences describing
+outcome, concrete remaining issue and next action. Technical diagnostic output
+and detailed revision steps remain in task evidence/revision. Existing structured
+and legacy review parsing continue to pass targeted regressions. Live model
+response clarity still requires observation; a prompt change is not proof that
+all future replies meet the product standard.

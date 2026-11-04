@@ -513,7 +513,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				if len(task.AcceptanceGaps(t)) > 0 {
 					t.Status = task.TaskStatusBlocked
 				}
-				if s.chatNotifier != nil {
+				if s.chatNotifier != nil && t.SourceRoomID == "" {
 					var gaps []string
 					if dodVal != nil {
 						gaps = dodVal.Gaps
@@ -539,7 +539,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			}
 		} else if status == task.AttemptStatusInterrupted || IsInfraFault(status, att.ErrorMessage, req.ExitCode) {
 			t.Status = task.TaskStatusBlocked
-			if s.chatNotifier != nil {
+			if s.chatNotifier != nil && t.SourceRoomID == "" {
 				errMsg := att.ErrorMessage
 				if errMsg == "" {
 					errMsg = "Koneksi runner terputus saat eksekusi (Needs Attention). Konteks dan pekerjaan tersimpan aman."
@@ -564,7 +564,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			}
 		} else if status == task.AttemptStatusFailed || status == task.AttemptStatusCanceled {
 			t.Status = task.TaskStatusBlocked
-			if s.chatNotifier != nil {
+			if s.chatNotifier != nil && t.SourceRoomID == "" {
 				errMsg := att.ErrorMessage
 				if errMsg == "" {
 					errMsg = "Pekerjaan terhenti dan memerlukan peninjauan lebih lanjut."
