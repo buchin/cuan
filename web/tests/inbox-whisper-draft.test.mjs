@@ -30,16 +30,18 @@ test('2. InboxView uses the shared internal visibility explanation', () => {
 test('3. InboxView renders ready-to-use customer draft reply card with Review & Use action', () => {
   const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
   assert.ok(inboxViewSrc.includes('msg.reply_draft'), 'InboxView must check msg.reply_draft')
+  const draftCardSrc = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/ReplyDraftCard.tsx'), 'utf8')
+  assert.ok(inboxViewSrc.includes('<ReplyDraftCard'), 'Inbox connects the separate draft attachment')
   assert.ok(
-    inboxViewSrc.includes("t('Customer reply draft · Not sent yet')"),
+    draftCardSrc.includes("t('Customer reply draft · Not sent yet')"),
     'InboxView must show draft title'
   )
   assert.ok(
-    inboxViewSrc.includes("t('Review & Use')"),
+    draftCardSrc.includes("t('Review & Use')"),
     'InboxView must have Review & Use button'
   )
   assert.ok(
-    inboxViewSrc.includes('setInputMessage(msg.reply_draft'),
+    inboxViewSrc.includes('setInputMessage(draft)'),
     'Clicking Review & Use must populate inputMessage with draft'
   )
 })
