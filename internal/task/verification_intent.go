@@ -117,8 +117,12 @@ func ProjectChecksPassed(d *TaskDetailResponse) bool {
 	if evidence.AttemptID != d.LatestAttempt.ID {
 		return false
 	}
-	first := strings.SplitN(evidence.Current, "\n", 2)[0]
-	return evidence.Author != "" && evidence.Author == d.LatestAttempt.RunnerID && (first == "Project verification: test.sh --fast (exit 0)" || first == "Project verification: go test ./... (exit 0)")
+	return evidence.Author != "" && evidence.Author == d.LatestAttempt.RunnerID && PassingProjectCheckSummary(evidence.Current)
+}
+
+func PassingProjectCheckSummary(summary string) bool {
+	first := strings.SplitN(summary, "\n", 2)[0]
+	return first == "Project verification: test.sh --fast (exit 0)" || first == "Project verification: go test ./... (exit 0)"
 }
 func VerificationSummaryHash(summary string) string {
 	sum := sha256.Sum256([]byte(summary))

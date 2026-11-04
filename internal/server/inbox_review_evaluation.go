@@ -24,6 +24,8 @@ verification_context, when present, binds previously completed implementation ch
 
 running_project_release identifies the currently running production process only when its build-time source repository matches the task project. It is not an ancestry check, a task deployment receipt, a feature test or proof that this task's result is present. Do not accept a failed execution or fill missing verification from build identity alone.
 
+live_result_context, when present, is distinct: the runner proved the task's source commit is contained in the exact inspected result commit, ran fresh fixed project checks for this attempt, and verified unchanged snapshot state. The server also matched that result to the current production process and source repository. The original implementation attempt may remain failed; do not attribute its old checks to this inspection. This evidence establishes the running revision and its fresh project checks, not feature correctness, requested external effects, or deployment performed by this task. Evaluate the actual current report and every original criterion without demanding a new deployment merely to repeat publication already evidenced by the running result. Missing feature or publication requirements still require revision; never issue publication commands in this read-only inspection.
+
 A report_provenance=current_runner_finalization is a server-validated machine report of source integrity and saved output references, not an AI report or a rerun of implementation tests. Its referenced images still require independent visual inspection. Do not require a second AI report merely to repeat these machine checks; original scope and publication requirements remain mandatory.
 
 execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
@@ -118,6 +120,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	}
 	raw, _ := json.Marshal(map[string]any{
 		"running_project_release":        s.runningProjectRelease(ctx, d),
+		"live_result_context":            s.liveInspectionReviewContext(ctx, d),
 		"delivered_text":                 deliveredText,
 		"staged_outputs_recovered":       recoveredVerificationOutputs(d),
 		"delivered_images":               s.inboxReviewImages(ctx, d),
@@ -305,6 +308,10 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		_, scopeVerified, scopeErr := s.inboxReviewRepositoryScope(ctx, d)
 		intent, intentErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 		if intentErr != nil || (intent != nil && s.verificationReviewContext(ctx, d) == nil) {
+			scopeVerified = false
+		}
+		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		if inspectionErr != nil || (inspection != nil && s.liveInspectionReviewContext(ctx, d) == nil) {
 			scopeVerified = false
 		}
 		if !inboxReviewExecutionSucceeded(d) || len(task.AcceptanceGaps(&d.Task)) > 0 || scopeErr != nil || !scopeVerified {

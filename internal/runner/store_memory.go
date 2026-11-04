@@ -267,6 +267,15 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 						continue
 					}
 				}
+				if ctx.Value(liveInspectionClaimKey{}) != true {
+					proof, err := task.LiveInspectionForAttempt(ctx, m.taskStore, t, a.ID)
+					if err != nil {
+						return nil, nil, err
+					}
+					if proof != nil {
+						continue
+					}
+				}
 
 				// Check agent compatibility if specified
 				targetAgent := a.AgentName

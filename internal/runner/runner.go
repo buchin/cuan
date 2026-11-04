@@ -449,6 +449,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	claimReq := ClaimTaskRequest{
+		SupportsLiveInspection:           true,
 		SupportsVerificationFinalization: true,
 		RunnerID:                         r.cfg.RunnerID,
 		SupportedAgents:                  []string{r.adapter.Name()},
@@ -709,7 +710,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	att := claim.Attempt
 	t := claim.Task
 	startTime := time.Now()
-	deadline := verificationDeadline(task.AttemptDeadline(t, att), startTime, claim.Verification != nil)
+	deadline := verificationDeadline(task.AttemptDeadline(t, att), startTime, claim.Verification != nil || claim.LiveInspection != nil)
 	if claim.Verification != nil && claim.Verification.FinalizeAttemptID != "" && startTime.Add(30*time.Second).Before(deadline) {
 		deadline = startTime.Add(30 * time.Second)
 	}
@@ -736,7 +737,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	var ws *git.TaskWorkspace
 	var err error
 	workingDir := ""
-	if claim.Verification != nil {
+	if claim.LiveInspection != nil {
+		workingDir = claim.WorkingDir
+		if r.gitClient == nil {
+			err = fmt.Errorf("verification snapshot client is unavailable")
+		} else {
+			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SourceCommit, claim.LiveInspection.TargetCommit)
+		}
+	} else if claim.Verification != nil {
 		base := r.cfg.WorkspacesDir
 		if base == "" {
 			base = filepath.Join("data", "workspaces")
@@ -919,6 +927,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
+	if claim.LiveInspection != nil && err == nil {
+		compReq.LiveInspectionCommit = claim.LiveInspection.TargetCommit
+		compReq.SourceAncestryVerified = true
+	}
 	compReq.VerificationRuntimeFingerprint = verificationRuntimeFingerprint
 	if claim.Verification != nil && readOnlyBaseline != "" {
 		compReq.VerifiedSourceCommit = claim.Verification.SourceCommit
@@ -1002,6 +1014,16 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				verification, evidence := verifyTaskRepository(ctx, workingDir, workspaceComparisonBase(ws, claim.DefaultBranch), policy, readOnlyBaseline)
 				compReq.RepositoryVerification = evidence
 				compReq.TestSummary = verification.Summary
+				if verification.Passed && claim.LiveInspection != nil {
+					fresh := runProjectVerification(ctx, workingDir)
+					compReq.TestSummary = fresh.Summary
+					if !fresh.Passed || !task.PassingProjectCheckSummary(fresh.Summary) {
+						verification.Passed = false
+						verification.Error = "Live result inspection project checks did not pass"
+					} else {
+						verification, compReq.RepositoryVerification = verifyTaskRepository(ctx, workingDir, "", policy, readOnlyBaseline)
+					}
+				}
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed
 					compReq.ErrorMessage = verification.Error

@@ -74,6 +74,26 @@ func TestVerificationSnapshotPreservesCacheAndOriginalTask(t *testing.T) {
 	if run(path, "rev-parse", "HEAD") != live || run(path, "remote") != "" {
 		t.Fatal("snapshot followed the wrong revision or retained a publication remote")
 	}
+	if _, err := os.Stat(filepath.Join(path, ".git", "objects", "info", "alternates")); !os.IsNotExist(err) {
+		t.Fatal("snapshot still depends on the cache object's lifetime")
+	}
+	if err := filepath.WalkDir(filepath.Join(path, ".git", "objects"), func(object string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(filepath.Join(path, ".git", "objects"), object)
+		if err != nil {
+			return err
+		}
+		original, originalErr := os.Stat(filepath.Join(source, ".git", "objects", rel))
+		copy, copyErr := os.Stat(object)
+		if originalErr == nil && copyErr == nil && os.SameFile(original, copy) {
+			t.Fatal("snapshot shares mutable cache object files")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if data, err := os.ReadFile(filepath.Join(path, "feature.txt")); err != nil || string(data) != "LIVE_RESULT" {
 		t.Fatal("snapshot did not contain the committed result", err)
 	}
@@ -181,5 +201,48 @@ func TestVerificationSnapshotWaitRespectsCancellationWithoutCreatingFiles(t *tes
 	}
 	if _, err := os.Stat(filepath.Dir(destination)); !os.IsNotExist(err) {
 		t.Fatal("canceled snapshot admission created directories")
+	}
+}
+
+func TestVerificationSnapshotExcludesUnrelatedCacheObjects(t *testing.T) {
+	source, _, original, live, run := snapshotFixture(t)
+	noise := filepath.Join(t.TempDir(), "old-build.bin")
+	if err := os.WriteFile(noise, []byte(strings.Repeat("UNRELATED_OLD_BUILD", 4096)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := run(source, "hash-object", "-w", noise)
+	path, err := NewClient().PrepareVerificationSnapshot(context.Background(), source, filepath.Join(t.TempDir(), "audit"), original, live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("git", "-C", path, "cat-file", "-e", unrelated).Run(); err == nil {
+		t.Fatal("snapshot copied unrelated cached build objects")
+	}
+}
+
+func TestVerificationSnapshotDoesNotTrustReplacedHistory(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	createTestBaseRepo(t, source)
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", source}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatal(err, string(out))
+		}
+		return strings.TrimSpace(string(out))
+	}
+	original := run("rev-parse", "HEAD")
+	run("checkout", "--orphan", "unrelated")
+	run("rm", "-rf", ".")
+	if err := os.WriteFile(filepath.Join(source, "other.txt"), []byte("UNRELATED"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("commit", "-m", "Unrelated root")
+	target := run("rev-parse", "HEAD")
+	run("replace", "--graft", target, original)
+	run("merge-base", "--is-ancestor", original, target)
+	if _, err := NewClient().PrepareVerificationSnapshot(context.Background(), source, filepath.Join(t.TempDir(), "audit"), original, target); err == nil {
+		t.Fatal("replacement history fabricated source ancestry")
 	}
 }

@@ -8,12 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var verificationSnapshotGate = make(chan struct{}, 1)
 var snapshotObjectID = regexp.MustCompile(`^[a-f0-9]{40}$`)
+var ErrVerificationCommitUnavailable = errors.New("verification source or target commit is unavailable in the project cache")
 
 type verificationSnapshotBinding struct {
 	Source       string `json:"source"`
@@ -37,18 +39,23 @@ func (o *snapshotOutput) Write(data []byte) (int, error) {
 	return n, nil
 }
 
+func verificationGitEnvironment() []string {
+	var environment []string
+	for _, key := range []string{"PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TMP", "TEMP", "LD_LIBRARY_PATH", "SystemRoot"} {
+		if value, ok := os.LookupEnv(key); ok {
+			environment = append(environment, key+"="+value)
+		}
+	}
+	return append(environment, "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "GIT_NO_REPLACE_OBJECTS=1", "GIT_GRAFT_FILE=/dev/null")
+}
+
 func (c *Client) snapshotGit(ctx context.Context, root string, args ...string) ([]byte, error) {
 	command := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"}
 	if root != "" {
 		command = append(command, "-C", root)
 	}
 	cmd := exec.CommandContext(ctx, c.gitBinary, append(command, args...)...)
-	for _, key := range []string{"PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TMP", "TEMP", "LD_LIBRARY_PATH", "SystemRoot"} {
-		if value, ok := os.LookupEnv(key); ok {
-			cmd.Env = append(cmd.Env, key+"="+value)
-		}
-	}
-	cmd.Env = append(cmd.Env, "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
+	cmd.Env = verificationGitEnvironment()
 	var output snapshotOutput
 	cmd.Stdout = &output
 	err := cmd.Run()
@@ -120,6 +127,14 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+	for _, commit := range []string{sourceCommit, targetCommit} {
+		if _, err := c.snapshotGit(ctx, source, "cat-file", "-e", commit+"^{commit}"); err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			return "", ErrVerificationCommitUnavailable
+		}
+	}
 	if _, err := c.snapshotGit(ctx, source, "merge-base", "--is-ancestor", sourceCommit, targetCommit); err != nil {
 		return "", errors.New("verification target does not contain the task source commit")
 	}
@@ -151,10 +166,20 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 		return "", err
 	}
 	defer os.RemoveAll(temporary)
-	if _, err := c.snapshotGit(ctx, "", "clone", "--shared", "--no-checkout", "--no-tags", "--", source, temporary); err != nil {
+	distanceRaw, err := c.snapshotGit(ctx, source, "rev-list", "--count", sourceCommit+".."+targetCommit)
+	if err != nil {
+		return "", errors.New("verification history could not be bounded")
+	}
+	distance, err := strconv.Atoi(strings.TrimSpace(string(distanceRaw)))
+	if err != nil || distance < 0 || distance == int(^uint(0)>>1) {
+		return "", errors.New("verification history could not be bounded")
+	}
+	if _, err := c.snapshotGit(ctx, "", "init", "--quiet", temporary); err != nil {
 		return "", errors.New("verification snapshot could not be created")
 	}
-	for _, args := range [][]string{{"remote", "remove", "origin"}, {"config", "core.hooksPath", "/dev/null"}, {"checkout", "--detach", targetCommit}} {
+	// Transfer only the target history needed to reach the source, rather than
+	// copying all cache branches, dangling objects and obsolete build artifacts.
+	for _, args := range [][]string{{"config", "core.hooksPath", "/dev/null"}, {"fetch", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", "--recurse-submodules=no", "--depth=" + strconv.Itoa(distance+1), "--", source, targetCommit}, {"checkout", "--detach", targetCommit}} {
 		if _, err := c.snapshotGit(ctx, temporary, args...); err != nil {
 			return "", errors.New("verification snapshot could not be prepared")
 		}
@@ -189,6 +214,9 @@ func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, 
 	if err != nil || !info.IsDir() {
 		return bad
 	}
+	if _, err := os.Lstat(filepath.Join(root, ".git", "objects", "info", "alternates")); !os.IsNotExist(err) {
+		return bad
+	}
 	path := filepath.Join(root, ".git", "cuan-verification.json")
 	info, err = os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Size() > 4096 {
@@ -199,8 +227,23 @@ func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, 
 	if err != nil || json.Unmarshal(raw, &binding) != nil || binding != expected {
 		return bad
 	}
+	if c.VerifySnapshotCommit(ctx, root, expected.SourceCommit, expected.TargetCommit) != nil {
+		return bad
+	}
+	return nil
+}
+
+// VerifySnapshotCommit checks actual code/ancestry without repairing the clone.
+func (c *Client) VerifySnapshotCommit(ctx context.Context, root, sourceCommit, targetCommit string) error {
+	bad := errors.New("verification snapshot commit, ancestry or clean state was not verified")
+	if !snapshotObjectID.MatchString(sourceCommit) || !snapshotObjectID.MatchString(targetCommit) {
+		return bad
+	}
 	head, err := c.snapshotGit(ctx, root, "rev-parse", "--verify", "HEAD")
-	if err != nil || strings.TrimSpace(string(head)) != expected.TargetCommit {
+	if err != nil || strings.TrimSpace(string(head)) != targetCommit {
+		return bad
+	}
+	if _, err := c.snapshotGit(ctx, root, "merge-base", "--is-ancestor", sourceCommit, targetCommit); err != nil {
 		return bad
 	}
 	status, err := c.snapshotGit(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")

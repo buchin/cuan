@@ -1,0 +1,108 @@
+package project
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestProjectVerificationSnapshotUsesOwnedConnectionAndPreservesWork(t *testing.T) {
+	for _, denied := range []bool{false, true} {
+		t.Run(map[bool]string{false: "connected", true: "denied"}[denied], func(t *testing.T) {
+			root := t.TempDir()
+			realGit, err := exec.LookPath("git")
+			if err != nil {
+				t.Fatal(err)
+			}
+			run := func(directory string, args ...string) string {
+				t.Helper()
+				out, err := exec.Command(realGit, append([]string{"-C", directory}, args...)...).CombinedOutput()
+				if err != nil {
+					t.Fatal(err, string(out))
+				}
+				return strings.TrimSpace(string(out))
+			}
+			remote, seed, cache := filepath.Join(root, "remote.git"), filepath.Join(root, "seed"), filepath.Join(root, "cache")
+			run(root, "init", "--bare", remote)
+			run(root, "init", "--initial-branch=main", seed)
+			run(seed, "config", "user.name", "Fixture")
+			run(seed, "config", "user.email", "fixture@example.invalid")
+			if err := os.WriteFile(filepath.Join(seed, "README.md"), []byte("SOURCE"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			run(seed, "add", ".")
+			run(seed, "commit", "-m", "Source")
+			original := run(seed, "rev-parse", "HEAD")
+			run(seed, "push", remote, "main")
+			run(root, "clone", "--branch", "main", remote, cache)
+			if err := os.WriteFile(filepath.Join(cache, "README.md"), []byte("KEEP_PENDING"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			run(cache, "add", "README.md")
+			indexBefore, err := os.ReadFile(filepath.Join(cache, ".git", "index"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			refs := run(cache, "for-each-ref", "--format=%(refname):%(objectname)")
+			if err := os.WriteFile(filepath.Join(seed, "feature.txt"), []byte("LIVE_RESULT"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			run(seed, "add", ".")
+			run(seed, "commit", "-m", "Published result")
+			live := run(seed, "rev-parse", "HEAD")
+			run(seed, "push", remote, "main")
+			quote := func(value string) string { raw, _ := json.Marshal(value); return string(raw) }
+			bin, calls := filepath.Join(root, "bin"), filepath.Join(root, "fetches")
+			if err := os.Mkdir(bin, 0700); err != nil {
+				t.Fatal(err)
+			}
+			script := "#!/usr/bin/python3\nimport os,sys,base64\na=sys.argv[1:]\nif 'fetch' in a and 'https://github.com/fixture/repo.git' in a:\n assert not os.environ.get('GH_TOKEN') and not os.environ.get('GITHUB_TOKEN') and not os.environ.get('SSH_AUTH_SOCK')\n assert os.environ.get('GIT_CONFIG_KEY_0')=='http.https://github.com/.extraheader'\n assert base64.b64decode(os.environ['GIT_CONFIG_VALUE_0'].split('Basic ')[1]).decode()=='x-access-token:fixture-project-token'\n assert not any('fixture-project-token' in x for x in a)\n assert '--no-write-fetch-head' in a and '--no-auto-maintenance' in a and '--recurse-submodules=no' in a\n with open(" + quote(calls) + ",'a') as f:f.write('fetch\\n')\n"
+			if denied {
+				script += " sys.stderr.write('authentication failed\\n')\n sys.exit(128)\n"
+			}
+			script += " a=[" + quote(remote) + " if x=='https://github.com/fixture/repo.git' else x for x in a]\nos.execv(" + quote(realGit) + ",['git']+a)\n"
+			if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+			for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN", "SSH_AUTH_SOCK"} {
+				t.Setenv(key, "unrelated-host-identity")
+			}
+			store := NewMemoryStore()
+			if err := store.CreateProject(context.Background(), &Project{ID: "fixture", Name: "Fixture", RepoURL: "https://github.com/fixture/repo", LocalPath: cache, DefaultBranch: "main"}); err != nil {
+				t.Fatal(err)
+			}
+			service := NewService(store, nil, "fixture-key", filepath.Join(root, "projects"))
+			service.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "fixture-project-token", nil })
+			path, err := service.VerificationSnapshot(context.Background(), "fixture", "task", original, live)
+			if denied {
+				if err == nil || !strings.Contains(err.Error(), "Connect GitHub") || path != "" {
+					t.Fatal("failed project connection became a ready snapshot", err)
+				}
+			} else {
+				if err != nil || run(path, "rev-parse", "HEAD") != live {
+					t.Fatal("project did not prepare the exact published revision", err)
+				}
+				service.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "", errors.New("connection no longer available") })
+				if again, err := service.VerificationSnapshot(context.Background(), "fixture", "task", original, live); err != nil || again != path {
+					t.Fatal("existing snapshot unnecessarily required another sign-in/fetch", err)
+				}
+			}
+			if data, err := os.ReadFile(filepath.Join(cache, "README.md")); err != nil || string(data) != "KEEP_PENDING" {
+				t.Fatal("snapshot fetching overwrote pending work", err)
+			}
+			if index, err := os.ReadFile(filepath.Join(cache, ".git", "index")); err != nil || !bytes.Equal(indexBefore, index) || run(cache, "rev-parse", "HEAD") != original || run(cache, "for-each-ref", "--format=%(refname):%(objectname)") != refs {
+				t.Fatal("snapshot fetch moved source HEAD/index/refs", err)
+			}
+			if data, err := os.ReadFile(calls); err != nil || string(data) != "fetch\n" {
+				t.Fatal("snapshot duplicated the fetch", err)
+			}
+		})
+	}
+}

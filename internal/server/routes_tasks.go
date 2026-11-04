@@ -510,7 +510,14 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {
 		resp.OwnerID, _ = s.authSvc.OwnerID(r.Context())
-		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), resp.Task.ID); err == nil {
+		claimRevision := ""
+		detail, detailErr := s.taskSvc.GetTaskDetail(r.Context(), resp.Task.ID)
+		if detailErr != nil && resp.LiveInspection != nil {
+			_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Inspection task context could not be verified; no model execution was started"})
+			respondJSONError(w, http.StatusServiceUnavailable, "Inspection task context is unavailable")
+			return
+		}
+		if detailErr == nil {
 			revision := ""
 			if launches, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
 				launch, launchErr := launches.LaunchForAttempt(r.Context(), resp.Attempt.ID)
@@ -520,15 +527,31 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 				}
 				if launch != nil {
 					revision = launch.Revision
+					claimRevision = launch.Revision
 				}
 			}
 			resp.RequiresVision = s.taskRequiresVision(r.Context(), resp.OwnerID, detail, "", revision)
+			if resp.LiveInspection != nil {
+				if !s.liveInspectionMatchesRelease(r.Context(), detail, resp.LiveInspection) {
+					_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "The running release changed before inspection; no model execution was started"})
+					respondJSONError(w, http.StatusConflict, "Inspection no longer matches the running release")
+					return
+				}
+				path, snapshotErr := s.projectSvc.VerificationSnapshot(r.Context(), detail.ProjectID, detail.ID, resp.LiveInspection.SourceCommit, resp.LiveInspection.TargetCommit)
+				if snapshotErr != nil {
+					_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "The prepared inspection snapshot changed or became unavailable; no model execution was started"})
+					respondJSONError(w, http.StatusServiceUnavailable, "Inspection snapshot could not be verified")
+					return
+				}
+				resp.WorkingDir, resp.Environment, resp.AutoDeploy = path, "", false
+				resp.OwnerID = resp.LiveInspection.OwnerID
+			}
 		}
 		claimCtx := r.Context()
 		if resp.WorkingDir != "" {
 			claimCtx = context.WithValue(claimCtx, taskAgentWorkspaceKey{}, resp.WorkingDir)
 		}
-		env, prompt, _, _, err := s.issueTaskAgent(claimCtx, resp.Task.ID, resp.Attempt.ID, resp.Attempt.AgentName)
+		env, prompt, _, _, err := s.issueTaskAgent(claimCtx, resp.Task.ID, resp.Attempt.ID, resp.Attempt.AgentName, claimRevision)
 		if err != nil {
 			respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("could not prepare task session: %v", err))
 			return

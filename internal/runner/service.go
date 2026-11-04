@@ -250,6 +250,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 
 	claimCtx := context.WithValue(ctx, verificationFinalizationClaimKey{}, req.SupportsVerificationFinalization)
+	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection)
 	att, t, err := s.store.ClaimNextQueuedAttempt(claimCtx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
 	if err != nil {
 		return nil, fmt.Errorf("claim attempt: %w", err)
@@ -281,6 +282,13 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	if verification != nil && verification.FinalizeAttemptID != "" && !req.SupportsVerificationFinalization {
 		return nil, fmt.Errorf("runner does not support verification finalization")
 	}
+	inspection, err := task.ValidateLiveInspection(ctx, s.taskStore, t, att.ID)
+	if err != nil {
+		return nil, fmt.Errorf("live result inspection cannot be claimed: %w", err)
+	}
+	if inspection != nil && !req.SupportsLiveInspection {
+		return nil, fmt.Errorf("runner does not support live result inspection")
+	}
 	if runtime := s.BrowserRuntime(ctx, req.RunnerID); runtime != nil {
 		raw, _ := json.Marshal(runtime)
 		if err = s.taskStore.CreateActivity(ctx, &task.TaskActivity{ID: "verification-runtime:" + att.ID, TaskID: t.ID, AttemptID: &att.ID, ActivityType: task.ActivityVerificationRuntime, Author: req.RunnerID, Message: string(raw), CreatedAt: time.Now().UTC()}); err != nil {
@@ -288,6 +296,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		}
 	}
 	resp := &ClaimTaskResponse{
+		LiveInspection:    inspection,
 		Verification:      verification,
 		Claimed:           true,
 		PublicationLimits: limits,
@@ -315,6 +324,10 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		resp.Environment = ""
 		resp.AutoDeploy = false
 		resp.OwnerID = verification.OwnerID
+	}
+	if inspection != nil {
+		resp.Environment = ""
+		resp.AutoDeploy = false
 	}
 	return resp, nil
 }
@@ -352,6 +365,10 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	if intentErr != nil {
 		return nil, intentErr
 	}
+	liveInspection, liveErr := task.LiveInspectionForAttempt(ctx, s.taskStore, currentTask, att.ID)
+	if liveErr != nil {
+		return nil, liveErr
+	}
 	var effects []func()
 	var completionActivities []*task.TaskActivity
 	var nextAttempt *task.TaskAttempt
@@ -383,6 +400,20 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, current, att.ID)
 		if err != nil {
 			return nil, err
+		}
+		if liveInspection != nil {
+			if _, err := task.ValidateLiveInspection(ctx, s.taskStore, current, att.ID); err != nil {
+				return nil, err
+			}
+			if !limits.ReadOnlyRepository || !req.RepositoryVerification.Unchanged() || !req.SourceAncestryVerified || req.LiveInspectionCommit != liveInspection.TargetCommit || !task.PassingProjectCheckSummary(req.TestSummary) || !req.AgentReportRequired || !req.AgentReportConfirmed || req.LiveDeploymentConfirmed || req.CommitSHA != "" || req.PRURL != "" || req.PRNumber != 0 || (req.HasCodeChanges != nil && *req.HasCodeChanges) {
+				status = task.AttemptStatusFailed
+				att.ErrorMessage = "Live result inspection lacks exact source ancestry, fresh project checks, final report or unchanged scope"
+			} else {
+				receipt := task.LiveInspectionReceipt{SourceAttemptID: liveInspection.SourceAttemptID, SourceCommit: liveInspection.SourceCommit, TargetCommit: liveInspection.TargetCommit, Repository: liveInspection.Repository, ProjectChecksHash: task.VerificationSummaryHash(req.TestSummary)}
+				raw, _ := json.Marshal(receipt)
+				completionActivities = append(completionActivities, &task.TaskActivity{ID: "live-result:" + att.ID, TaskID: att.TaskID, AttemptID: &att.ID, ActivityType: task.ActivityLiveInspection, Author: req.RunnerID, Message: string(raw), CreatedAt: now})
+				req.DoDValidation = &DoDValidationResult{Passed: false, Action: "review"}
+			}
 		}
 
 		proof, proofErr := task.ValidateVerificationSource(ctx, s.taskStore, current, att.ID)

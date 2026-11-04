@@ -1,5 +1,42 @@
 # Recovering unfinished task reviews
 
+## Inspecting an implementation already present in production
+
+A retained implementation whose final report was followed by `Project verification
+failed` can receive one automatic read-only inspection per source commit and
+approved instructions hash. This requires the original authorization, a finished
+exit-zero noncanceled source attempt, reported acceptance evidence, and a running
+build whose embedded repository matches the registered project. Canceled tasks
+and attempts, missing source commits, incomplete reported criteria, prohibited
+tests and investigation-only scopes are excluded.
+
+The inspection uses a separate detached snapshot of the exact running commit.
+Git verifies that it contains the task source commit. Its object store is private;
+bounded history avoids copying unrelated cache objects. Missing revisions are
+fetched only through the project's registered connection. Preparation preserves
+the old task's files, index and refs. Dirty or unowned snapshots are rejected,
+never reset. Old runners skip this execution mode before reserving it.
+
+The native runner verifies snapshot identity before execution, strips project
+environment and automatic deployment, and enforces the read-only fingerprint.
+After a final report it independently runs the fixed project checks and checks
+the fingerprint again. A typed receipt binds ancestry, exact result commit and
+fresh check summary to this attempt. A successful inspection enters Review,
+never Done directly. Independent review still checks every original criterion,
+feature evidence and any required visual/publication evidence; the running build
+does not prove that this task deployed anything. A changed running release or
+missing receipt rejects acceptance even when the review model says pass.
+
+The original failed attempt remains failed. The durable source/scope key prevents
+deployments or restarts from creating repeated inspections. Immutable snapshot or
+authorization failures stop rather than remaining queued forever. No production
+task needs to be manually resumed to activate this reconciliation.
+
+Targeted coverage: `TestLiveResultInspectionLifecycle`,
+`TestLiveResultInspectionPostgres`, native runner inspection tests, and project/Git
+snapshot tests. The notice is rendered by `review-outcome-check.cjs` at 390px and
+1440px; use `CUAN_REVIEW_VERIFYING=1` and `CUAN_REVIEW_OUTCOME` to inspect its text.
+
 A completed provider response is not necessarily an applied task decision.
 Historical reviews sometimes produced only a revision message, or stopped because
 of quota/timeout. The task then stayed in Review even after capacity recovered.

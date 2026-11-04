@@ -634,52 +634,70 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				}
 			}
 			if detail.ProjectID != "" && s.projectSvc != nil {
-				project, e := s.projectSvc.TaskWorkspace(r.Context(), detail.ProjectID, detail.Instructions)
-				if e != nil || project == nil {
-					respondJSONError(w, 409, "Task project is unavailable")
+				inspectionPath := ""
+				var inspection *task.LiveInspectionIntent
+				var inspectionErr error
+				if strings.Contains(payload.Revision, "Cuan live-result inspection") {
+					inspectionPath, inspection, inspectionErr = s.prepareLiveInspection(r.Context(), detail, payload.RequestID)
+				}
+				if inspectionErr != nil {
+					code, status := "inspection_unavailable", http.StatusConflict
+					if errors.Is(inspectionErr, cuangit.ErrRepositoryDownloadUnavailable) || errors.Is(inspectionErr, context.DeadlineExceeded) || errors.Is(inspectionErr, context.Canceled) {
+						code, status = "repository_preparing", http.StatusServiceUnavailable
+					}
+					respondJSON(w, status, map[string]string{"error": inspectionErr.Error(), "code": code})
 					return
 				}
-				if project.IsArchived {
-					respondJSONError(w, 409, "Restore the archived project before starting a task")
-					return
-				}
-				if project.RepoURL != "" || project.LocalPath != "" {
-					info, e := os.Stat(project.LocalPath)
-					if project.RepoURL != "" && (project.LocalPath == "" || e != nil || !info.IsDir() || project.CloneStatus != "synced") {
-						// Auto-sync repository workspace automatically before launching agent session
-						if synced, syncErr := s.projectSvc.Sync(r.Context(), detail.ProjectID); syncErr == nil && synced != nil {
-							project = synced
+				if inspection != nil {
+					workDir = inspectionPath
+				} else {
+					project, e := s.projectSvc.TaskWorkspace(r.Context(), detail.ProjectID, detail.Instructions)
+					if e != nil || project == nil {
+						respondJSONError(w, 409, "Task project is unavailable")
+						return
+					}
+					if project.IsArchived {
+						respondJSONError(w, 409, "Restore the archived project before starting a task")
+						return
+					}
+					if project.RepoURL != "" || project.LocalPath != "" {
+						info, e := os.Stat(project.LocalPath)
+						if project.RepoURL != "" && (project.LocalPath == "" || e != nil || !info.IsDir() || project.CloneStatus != "synced") {
+							// Auto-sync repository workspace automatically before launching agent session
+							if synced, syncErr := s.projectSvc.Sync(r.Context(), detail.ProjectID); syncErr == nil && synced != nil {
+								project = synced
+								info, e = os.Stat(project.LocalPath)
+							}
+						}
+						if project.RepoURL == "" && (e != nil || !info.IsDir()) && project.LocalPath != "" {
+							_ = os.MkdirAll(project.LocalPath, 0755)
 							info, e = os.Stat(project.LocalPath)
 						}
-					}
-					if project.RepoURL == "" && (e != nil || !info.IsDir()) && project.LocalPath != "" {
-						_ = os.MkdirAll(project.LocalPath, 0755)
-						info, e = os.Stat(project.LocalPath)
-					}
-					if project.LocalPath == "" || e != nil || !info.IsDir() {
-						respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
-						return
-					}
-					if detail.LatestAttempt != nil && detail.LatestAttempt.ErrorMessage == "Project verification failed" {
-						// A verifier from an old cache must not trap recovery on the
-						// same obsolete baseline. Refresh refs before reserving work;
-						// the retained edits and approved repository binding stay intact.
-						if e = s.projectSvc.RefreshExecutionBase(r.Context(), project); e != nil {
-							respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
+						if project.LocalPath == "" || e != nil || !info.IsDir() {
+							respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 							return
 						}
-					}
-					workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
-					if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) && revision != "" && detail.LatestAttempt != nil {
-						workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), taskID, project)
-					}
-					if e != nil {
-						if errors.Is(e, cuangit.ErrRepositoryDownloadUnavailable) {
-							respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
+						if detail.LatestAttempt != nil && detail.LatestAttempt.ErrorMessage == "Project verification failed" {
+							// A verifier from an old cache must not trap recovery on the
+							// same obsolete baseline. Refresh refs before reserving work;
+							// the retained edits and approved repository binding stay intact.
+							if e = s.projectSvc.RefreshExecutionBase(r.Context(), project); e != nil {
+								respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
+								return
+							}
+						}
+						workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
+						if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) && revision != "" && detail.LatestAttempt != nil {
+							workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), taskID, project)
+						}
+						if e != nil {
+							if errors.Is(e, cuangit.ErrRepositoryDownloadUnavailable) {
+								respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
+								return
+							}
+							respondJSONError(w, 409, e.Error())
 							return
 						}
-						respondJSONError(w, 409, e.Error())
-						return
 					}
 				}
 			}
