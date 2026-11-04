@@ -27,6 +27,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "integration" {
+		os.Exit(diagnostics.RunIntegrationCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "account" {
 		os.Exit(diagnostics.RunAccountCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}

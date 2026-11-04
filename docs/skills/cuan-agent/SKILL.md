@@ -165,3 +165,11 @@ and coordinator review; a successful tool response is not task acceptance.
 Use the same task read after an uncertain response before retrying. These tools
 are not advertised to ordinary Owner MCP sessions and never fall back to Owner
 credentials. The existing CLI remains available for the same reporting contract.
+
+## Resend administration
+
+`cuan integration resend show`, `set --key-from-env NAME --from-email EMAIL --from-name NAME`,
+and `validate` use the authenticated Settings API. Secrets are imported only by
+explicit environment variable name and omitted from output. Existing automatic
+email preferences are preserved; validation sends no email. See
+[Resend guide](../../guides/resend-integration.md).
