@@ -326,3 +326,8 @@ ikon16px, dan kontrol yang terpisah dari tombol/link pembuka percakapan/project.
 Menu titik tiga daftar Inbox tampil on-demand melalui hover, tekan lama, atau
 keyboard. Cuplikan laporan sistem menggunakan bahasa singkat dan kondisi terkini;
 pesan asli dan rincian laporan tetap utuh di dalam percakapan.
+
+Identitas avatar diperbarui sesuai persetujuan user: gunakan bentuk kotak untuk
+avatar Inbox dan account, termasuk menu akun. Ukuran36px pada trigger dan40px di
+menu tetap. Pie progres serta titik status tetap bulat sehingga tidak menyerupai
+identitas pengirim. Ketentuan terbaru ini menggantikan pengecualian avatar bulat.

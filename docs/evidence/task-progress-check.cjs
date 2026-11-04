@@ -60,6 +60,11 @@ async function routeAPI(route){
   if(width===390)await page.getByRole('button',{name:'Back to conversations',exact:true}).click()
   const rows=page.locator('[data-conversation-row]:visible'),row=name=>rows.filter({hasText:name})
   await rows.first().waitFor()
+  const avatar=rows.first().locator('[data-avatar]');assert.equal(await avatar.evaluate(el=>getComputedStyle(el).borderRadius),'0px')
+  const account=page.locator('button[aria-label="Account menu"]:visible').first();const accountAvatar=account.locator('[data-avatar]');assert.equal(await accountAvatar.evaluate(el=>getComputedStyle(el).borderRadius),'0px');assert.equal(Math.round((await accountAvatar.boundingBox()).width),36)
+  await account.click();const menuAvatar=page.locator('[data-account-popover] [data-avatar]');await menuAvatar.waitFor();assert.equal(await menuAvatar.evaluate(el=>getComputedStyle(el).borderRadius),'0px');assert.equal(Math.round((await menuAvatar.boundingBox()).width),40)
+  await page.screenshot({path:`${out}/square-account-${theme}-${width}.png`});await account.click()
+
   const initialURL=page.url()
   const largeInbox=rows.first().locator('[data-task-progress]');assert.equal(await largeInbox.getAttribute('data-task-progress'),'partial')
   assert.equal(await row('Panduan penggunaan').locator('[data-task-progress]').getAttribute('data-task-progress'),'complete')

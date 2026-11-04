@@ -117,7 +117,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 	if att.Status == task.AttemptStatusCanceled {
 		return inboxReviewEvaluation{Decision: "blocked", Explanation: "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tersimpan; laporan ini tidak memulai ulang pekerjaan."}
 	}
-	isSuccess := att.Status == task.AttemptStatusSucceeded && (att.ExitCode == nil || *att.ExitCode == 0)
+	isSuccess := inboxReviewExecutionSucceeded(d)
 
 	var sb strings.Builder
 	sb.WriteString("### Evaluasi Kriteria Selesai (Definition of Done)\n")
@@ -151,7 +151,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 		sb.WriteString("**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n")
 		sb.WriteString("- [ ] **Eksekusi Berhasil**: " + errMsg + "\n\n")
 
-		if att.AttemptNumber >= 3 {
+		if taskRevisionAttemptCount(d) >= 3 {
 			sb.WriteString("**Tindakan:** Memerlukan keputusan PO (telah mencapai batas 3 attempt perbaikan).")
 			return inboxReviewEvaluation{
 				Decision:    "blocked",
@@ -168,12 +168,12 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 		}
 	}
 
-	// Attempt succeeded (exit 0)
+	// A recorded success can include intentional PTY shutdown after a validated report.
 	hasVerification := len(task.AcceptanceGaps(&d.Task)) == 0
 	if !hasVerification {
 		sb.WriteString("**Status:** BELUM LULUS (Perlu Revisi)\n\n")
 		sb.WriteString("**Bukti yang Terverifikasi:**\n")
-		sb.WriteString("- [x] **Proses Selesai**: Attempt #" + strconv.Itoa(att.AttemptNumber) + " selesai (exit 0).\n\n")
+		sb.WriteString("- [x] **Proses Selesai**: Attempt #" + strconv.Itoa(att.AttemptNumber) + " selesai dengan laporan hasil yang tercatat.\n\n")
 		sb.WriteString("**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n")
 		sb.WriteString("- [ ] **Bukti Verifikasi DoD**: Belum ada catatan verifikasi atau bukti pengujian yang dilaporkan.\n\n")
 		sb.WriteString("**Tindakan:** Mengembalikan otomatis ke tim eksekusi untuk revisi.")
@@ -191,7 +191,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 			sb.WriteString("- [x] **" + item.Text + "**: Terverifikasi oleh tim eksekusi attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n")
 		}
 	} else {
-		sb.WriteString("- [x] **Kriteria Tugas**: Terverifikasi tuntas (exit 0) pada attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n")
+		sb.WriteString("- [x] **Kriteria Tugas**: Dilaporkan terverifikasi pada attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n")
 	}
 	if strings.TrimSpace(d.CompleteNote) != "" {
 		sb.WriteString("- [x] **Catatan Verifikasi**: " + strings.TrimSpace(d.CompleteNote) + "\n")
@@ -206,4 +206,27 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 		Explanation: sb.String(),
 		Revision:    "",
 	}
+}
+
+// FinishReportedAttempt intentionally preserves the real PTY shutdown code. A
+// nonzero exit is reviewable only with a matching final report, never a manually
+// changed success state or an older attempt's report. Acceptance still needs DoD.
+func inboxReviewExecutionSucceeded(d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+		return false
+	}
+	a := d.LatestAttempt
+	var final *task.TaskActivity
+	for _, activity := range d.Activities {
+		if activity != nil && activity.AttemptID != nil && *activity.AttemptID == a.ID && activity.ActivityType == "agent_report" && (final == nil || activity.CreatedAt.After(final.CreatedAt)) {
+			final = activity
+		}
+	}
+	if final != nil && final.NewStatus == task.TaskStatusBlocked {
+		return false
+	}
+	if a.ExitCode == nil || *a.ExitCode == 0 {
+		return true
+	}
+	return final != nil && (final.NewStatus == task.TaskStatusReview || final.NewStatus == task.TaskStatusDone) && strings.TrimSpace(d.Summary) != "" && strings.TrimSpace(d.CompleteNote) != ""
 }

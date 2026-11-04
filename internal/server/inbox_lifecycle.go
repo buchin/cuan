@@ -262,6 +262,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxCoordinatorTopicContext(ctx, q) + prompt
 						step("context", "Project context checked for analysis.")
 						var output, failure string
+						reviewApplied := false
 						snapshotReview := false
 						plan, planErr := s.inboxApprovedPlan(ctx, q)
 						if planErr != nil {
@@ -368,8 +369,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 						}
-						if output == "" && snapshotReview && !strings.Contains(failure, "tool permission was denied") {
+						if output == "" && snapshotReview && failure != inboxQuotaNoBackup && !strings.Contains(failure, "tool permission was denied") {
 							output = s.applyInboxReviewEvaluation(ctx, q, "")
+							reviewApplied = true
 							failure = ""
 						}
 						if output == "" {
@@ -380,7 +382,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							q.SafeError = failure
 						} else {
 							if snapshotReview {
-								if !strings.HasPrefix(output, "### Evaluasi Kriteria Selesai") {
+								if !reviewApplied {
 									output = s.applyInboxReviewEvaluation(ctx, q, output)
 								}
 							} else if strings.Contains(output, "```cuan-memory") {

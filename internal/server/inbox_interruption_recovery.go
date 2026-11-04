@@ -89,6 +89,12 @@ func taskRevisionAttemptCount(d *task.TaskDetailResponse) int {
 		if a.Status == task.AttemptStatusCanceled || a.CancelRequested || a.CanceledAt != nil {
 			continue
 		}
+		// Intentional PTY shutdown after a recorded success is a work attempt,
+		// not an infrastructure failure merely because its signal code is137.
+		if a.Status == task.AttemptStatusSucceeded {
+			count++
+			continue
+		}
 		var exitCode int
 		if a.ExitCode != nil {
 			exitCode = *a.ExitCode

@@ -412,7 +412,7 @@ body:has(.task-terminal-container),
   display: none !important;
 }
 
-/* Zero Border Radius Aesthetic (Precision Sharp Architecture, with circular avatars & status dots) */
+/* Zero Border Radius Aesthetic (Precision Sharp Architecture, with square avatars and circular progress/status indicators) */
 *,
 ::before,
 ::after {
@@ -434,7 +434,7 @@ body:has(.task-terminal-container),
 [data-avatar],
 .user-avatar,
 .agent-avatar {
-  border-radius: 9999px !important;
+  border-radius: 0px !important;
 }
 
 .status-dot,

@@ -229,7 +229,7 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 
 func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxRequest, raw string) string {
 	d := s.inboxReviewedTask(ctx, q)
-	if d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusCanceled {
+	if d != nil && d.Status != task.TaskStatusDone && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusCanceled {
 		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
 	}
 	decision, err := parseInboxReviewEvaluation(raw)
@@ -248,7 +248,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		return "Hasil pekerjaan sedang ditinjau ulang oleh tim. Konteks dan bukti pekerjaan tersimpan aman." + link
 	}
 	if decision.Decision == "pass" {
-		if d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || len(task.AcceptanceGaps(&d.Task)) > 0 {
+		if !inboxReviewExecutionSucceeded(d) || len(task.AcceptanceGaps(&d.Task)) > 0 {
 			decision.Decision = "revise"
 			decision.Revision = "Gap: a successful execution with evidence for every original acceptance criterion is not established. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
 			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Keberhasilan eksekusi dan bukti untuk setiap kriteria belum lengkap.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
@@ -271,7 +271,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			if d.Status != task.TaskStatusDone {
 				if d.Status != task.TaskStatusReview {
 					reviewStatus := task.TaskStatusReview
-					_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
+					if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err != nil {
+						return "Status pekerjaan berubah saat review. Hasil dan bukti tetap tersimpan; penerimaan belum dikonfirmasi.\n\n[View work](/tasks/" + d.ID + ")"
+					}
 				}
 				doneStatus := task.TaskStatusDone
 				updated, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{
@@ -280,6 +282,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 					CompleteNote: &completeNote,
 					DoDChecklist: &completedDoD,
 				})
+				if err != nil || updated == nil {
+					return "Hasil belum bisa ditandai diterima. Bukti tersimpan dan status perlu ditinjau kembali.\n\n[View work](/tasks/" + d.ID + ")"
+				}
 				if err == nil && updated != nil {
 					d.Status = task.TaskStatusDone
 					d.Summary = summary
@@ -316,11 +321,13 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			return decision.Explanation
 		}
 	}
+	if d.Status == task.TaskStatusDone {
+		return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+	}
 	if decision.Decision == "revise" {
-		// Guardrail: if task has failed multiple times or repeatedly timed out,
-		// do not auto-delegate into an infinite loop. Ask user to review or adjust.
-		hasRepeatedTimeout := d.LatestAttempt != nil && (strings.Contains(d.LatestAttempt.ErrorMessage, "timeout") || (d.LatestAttempt.ExitCode != nil && *d.LatestAttempt.ExitCode == 124)) && len(d.Attempts) >= 2
-		if hasRepeatedTimeout || len(d.Attempts) >= 3 {
+		// Infrastructure interruptions and canceled runs do not spend the business
+		// correction budget. A process ordinal is not a count of failed reviews.
+		if taskRevisionAttemptCount(d) >= 3 {
 			review := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review})
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"

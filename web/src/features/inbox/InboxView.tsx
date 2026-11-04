@@ -1267,7 +1267,7 @@ export function InboxView({
                 <div className="relative shrink-0">
                   <div
                     data-avatar="true"
-                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
+                    className="h-8 w-8 rounded-none bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
                   >
                     {activeContact.avatar ? (
                       <span>{activeContact.avatar}</span>

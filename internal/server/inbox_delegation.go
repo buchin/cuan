@@ -530,10 +530,12 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 // Queue one coordinator review per terminal attempt, including failures with no
 // final report. The synthetic input is system-authored, never user authorization.
 func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDetailResponse) {
-	// Lease cleanup is process bookkeeping, not a new rejection of accepted work.
-	if detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil && detail.LatestAttempt.ErrorMessage == task.AcceptedTaskLeaseCleanup {
+	// Accepted work is final until a fresh user instruction reopens it. A late
+	// review or repaired provider must never reject an already accepted result.
+	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone {
 		return
 	}
+
 	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
 		return
