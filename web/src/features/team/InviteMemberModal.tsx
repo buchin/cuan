@@ -150,12 +150,9 @@ export function InviteMemberModal({
                 <UserPlus className="h-5 w-5" />
               </div>
               <div>
-                <h2 id="invite-modal-title" className="text-lg font-semibold tracking-tight text-foreground">
+                <h2 id="invite-modal-title" className="pr-8 text-lg font-semibold tracking-tight text-foreground">
                   {t('Undang Anggota Tim')}
                 </h2>
-                <p className="text-xs text-muted-foreground">
-                  {t('Buat tautan undangan instan 1-klik untuk dikirim via WhatsApp tanpa perlu SMTP server.')}
-                </p>
               </div>
             </div>
 
@@ -296,8 +293,8 @@ export function InviteMemberModal({
                 <Check className="h-5 w-5" />
               </div>
               <div>
-                <h2 id="invite-modal-title" className="text-lg font-semibold tracking-tight text-foreground">
-                  {t('Tautan Undangan Siap Dikirim!')}
+                <h2 id="invite-modal-title" className="pr-8 text-lg font-semibold tracking-tight text-foreground">
+                  {t('Tautan Undangan Siap')}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   {t('Undangan untuk')} <strong className="text-foreground">{inviteResult.email}</strong> ({inviteResult.role === 'owner' ? t('Owner') : t('Member')}). {t('Berlaku selama 7 hari.')}
@@ -342,7 +339,7 @@ export function InviteMemberModal({
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#25D366] hover:bg-[#20ba59] text-white px-4 py-2 text-xs font-semibold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="action-secondary inline-flex min-h-11 items-center justify-center gap-2 px-4 text-xs font-semibold"
               >
                 <MessageSquare className="h-4 w-4" />
                 <span>{t('Kirim via WhatsApp')}</span>

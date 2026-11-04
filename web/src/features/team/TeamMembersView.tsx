@@ -132,9 +132,9 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
   return (
     <div className="w-full space-y-6 pb-8">
       {/* Header */}
-      {showHeading && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/40">
-          <div>
+      {(showHeading || isOwner) && (
+        <div className={showHeading ? "flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/40" : "flex justify-end"}>
+          {showHeading && <div>
             <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               <span>{t('Anggota Tim')}</span>
@@ -142,7 +142,7 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               {t('Kelola rekan kerja dan staf yang memiliki akses ke akun ruang kerja Cuan.')}
             </p>
-          </div>
+          </div>}
           {isOwner && (
             <button
               type="button"
