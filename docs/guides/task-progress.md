@@ -34,3 +34,8 @@ membuka rincian progres.
 Dalam chat, ekor kecil muncul pada bubble pertama dari pengirim yang sama.
 Pergantian pengirim, hari, atau jeda lima menit memulai rangkaian baru. Preview
 pekerjaan dan pesan yang hanya berisi lampiran tidak memakai ekor.
+
+Execution progress always belongs to the latest attempt. Retrying a task clears
+its current progress until that attempt reports or emits useful stdout. Earlier
+reports remain in its history. A queued attempt never borrows a previous run's
+“finished” message. Detail and list use the same progress source.

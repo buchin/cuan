@@ -295,7 +295,7 @@ export function TaskItemCard({
         <ListRowContent
           leading={<span className="flex h-5 w-5 items-center justify-center"><StatusDot status={dotVariant} size="sm" aria-label={t(status)} title={t(status)} /></span>}
           title={<span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{currentTask.title}</span>{showProject&&currentTask.project_name&&<span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">· {currentTask.project_name}</span>}</span>}
-          description={isWorking&&liveActivity?liveActivity:isQueued?<>{queuePosition? t('Antrean')+' #'+queuePosition+' · ':''}{currentTask.latest_progress?cleanTerminalText(currentTask.latest_progress):(summary||t('Menunggu giliran eksekusi runner...'))}</>:undefined}
+          description={isWorking&&liveActivity?liveActivity:isQueued?<>{queuePosition? t('Antrean')+' #'+queuePosition+' · ':''}{currentTask.latest_progress?cleanTerminalText(currentTask.latest_progress):t('Menunggu giliran eksekusi runner...')}</>:undefined}
           trailing={<time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()}>{t(relativeTime(currentTask.updated_at))}</time>}
         />
       </div>
@@ -482,7 +482,7 @@ export function TaskItemCard({
               {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
               {currentTask.latest_progress
                 ? cleanTerminalText(currentTask.latest_progress)
-                : (summary || t('Menunggu giliran eksekusi runner...'))}
+                : t('Menunggu giliran eksekusi runner...')}
             </span>
           </div>
         ) : summary ? (

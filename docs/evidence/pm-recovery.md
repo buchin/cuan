@@ -596,3 +596,28 @@ Focused regressions exercise manual/internal/automatic paths and unchanged task
 status/note, plus the unrestricted merge success case. This does not repair the
 remaining prose-based deployment evidence consumer or establish final backlog
 completion.
+
+## Progress must belong to the current attempt
+
+The live audit exposed `latest_progress` saying the audit was finished while its
+new attempt was running. Its selected progress activity belonged to an older
+attempt. Both detail and batch list selected the latest task-wide report;
+PostgreSQL fallback also collected logs from any running attempt and supplied
+newest-first lines to an extractor expecting chronological order.
+
+Progress reads now select the latest attempt (created_at then ID), accept only
+reports bound to that attempt and fall back only to its latest30 stdout lines
+when running. Detail and list use the same read model. Queued/new terminal
+attempts cannot inherit progress from earlier work; old reports remain in history.
+The shared memory/PostgreSQL contract covers late old reports, a newer queued
+attempt, old still-running logs, recent log ordering after40 earlier lines,
+stderr exclusion, current report precedence, new cancellation and unchanged
+historical reports. No production task/attempt/activity records are rewritten.
+
+Frontend fallback activity lookup also requires the current attempt ID. Queued
+rows/cards no longer substitute the previous completion summary when no current
+progress exists. Full frontend gate and build passed; actual built UI fixture
+`docs/evidence/attempt-progress-check.cjs` rendered390/1440 light/dark with a
+historical completion summary and new queued/running attempts. Mobile dark and
+desktop light screenshots were directly inspected under the private
+`attempt-progress/` evidence directory: no stale completion claim or overflow.

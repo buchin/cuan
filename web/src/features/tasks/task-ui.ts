@@ -310,7 +310,7 @@ export function taskLiveActivityText(task: Task | TaskDetail, fallbackText: stri
   if (activities && activities.length > 0) {
     for (let i = activities.length - 1; i >= 0; i--) {
       const act = activities[i]
-      if (act.activity_type === 'agent_report' && act.new_status === 'progress' && act.message) {
+      if (task.latest_attempt?.id && act.attempt_id === task.latest_attempt.id && act.activity_type === 'agent_report' && act.new_status === 'progress' && act.message) {
         const cleaned = cleanTerminalText(act.message.split('\n')[0])
         if (cleaned && !isTerminalNoiseLine(cleaned)) return cleaned
       }

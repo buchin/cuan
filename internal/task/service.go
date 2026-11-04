@@ -294,29 +294,38 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 	}
 
 	latestProgress := ""
-	var latestProgressTime time.Time
-	for _, a := range activities {
-		if a.ActivityType == "agent_report" && a.NewStatus == "progress" {
-			if a.CreatedAt.After(latestProgressTime) {
-				latestProgressTime = a.CreatedAt
-				msg := a.Message
-				if idx := strings.Index(msg, "\n"); idx != -1 {
-					msg = msg[:idx]
-				}
-				cleaned := CleanTerminalStatusLine(msg)
-				if cleaned != "" {
-					latestProgress = cleaned
+	// Detail and list share the same attempt-bound, bounded progress read model.
+	if reader, ok := s.store.(interface {
+		LatestProgresses(context.Context, []string) (map[string]string, error)
+	}); ok {
+		if progresses, err := reader.LatestProgresses(ctx, []string{id}); err == nil {
+			latestProgress = progresses[id]
+		}
+	} else {
+		var latestProgressTime time.Time
+		for _, a := range activities {
+			if latestAttempt != nil && a.AttemptID != nil && *a.AttemptID == latestAttempt.ID && a.ActivityType == "agent_report" && a.NewStatus == "progress" {
+				if a.CreatedAt.After(latestProgressTime) {
+					latestProgressTime = a.CreatedAt
+					msg := a.Message
+					if idx := strings.Index(msg, "\n"); idx != -1 {
+						msg = msg[:idx]
+					}
+					cleaned := CleanTerminalStatusLine(msg)
+					if cleaned != "" {
+						latestProgress = cleaned
+					}
 				}
 			}
 		}
-	}
-	if latestProgress == "" && latestAttempt != nil && latestAttempt.Status == AttemptStatusRunning {
-		if logs, err := s.GetAttemptLogs(ctx, latestAttempt.ID, 0, 50); err == nil && len(logs) > 0 {
-			lines := make([]string, len(logs))
-			for i, l := range logs {
-				lines[i] = l.Line
+		if latestProgress == "" && latestAttempt != nil && latestAttempt.Status == AttemptStatusRunning {
+			if logs, err := s.GetAttemptLogs(ctx, latestAttempt.ID, 0, 50); err == nil && len(logs) > 0 {
+				lines := make([]string, len(logs))
+				for i, l := range logs {
+					lines[i] = l.Line
+				}
+				latestProgress = ExtractRunnerLiveActivity(lines)
 			}
-			latestProgress = ExtractRunnerLiveActivity(lines)
 		}
 	}
 

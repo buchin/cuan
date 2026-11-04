@@ -281,7 +281,7 @@ func (m *MemoryStore) GetLatestAttempt(ctx context.Context, taskID string) (*Tas
 	var latest *TaskAttempt
 	for _, a := range m.attempts {
 		if a.TaskID == taskID {
-			if latest == nil || a.CreatedAt.After(latest.CreatedAt) {
+			if latest == nil || a.CreatedAt.After(latest.CreatedAt) || (a.CreatedAt.Equal(latest.CreatedAt) && a.ID > latest.ID) {
 				latest = a
 			}
 		}
@@ -498,45 +498,50 @@ func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[s
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	result := map[string]string{}
-	latestTime := map[string]time.Time{}
+	latest := map[string]*TaskAttempt{}
 	idSet := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		idSet[id] = true
 	}
-	for _, act := range m.activities {
-		if idSet[act.TaskID] && act.ActivityType == "agent_report" && act.NewStatus == "progress" {
-			if prev, ok := latestTime[act.TaskID]; !ok || act.CreatedAt.After(prev) {
-				latestTime[act.TaskID] = act.CreatedAt
-				msg := act.Message
-				if idx := strings.Index(msg, "\n"); idx != -1 {
-					msg = msg[:idx]
-				}
-				cleaned := CleanTerminalStatusLine(msg)
-				if cleaned != "" {
-					result[act.TaskID] = cleaned
-				}
-			}
+	for _, att := range m.attempts {
+		if !idSet[att.TaskID] {
+			continue
+		}
+		prev := latest[att.TaskID]
+		if prev == nil || att.CreatedAt.After(prev.CreatedAt) || (att.CreatedAt.Equal(prev.CreatedAt) && att.ID > prev.ID) {
+			latest[att.TaskID] = att
 		}
 	}
-	// Fallback to recent runner logs if no agent_report progress exists
+	progress := map[string]*TaskActivity{}
+	for _, act := range m.activities {
+		att := latest[act.TaskID]
+		if att == nil || act.AttemptID == nil || *act.AttemptID != att.ID || act.ActivityType != "agent_report" || act.NewStatus != "progress" {
+			continue
+		}
+		prev := progress[act.TaskID]
+		if prev == nil || act.CreatedAt.After(prev.CreatedAt) || (act.CreatedAt.Equal(prev.CreatedAt) && act.ID > prev.ID) {
+			progress[act.TaskID] = act
+		}
+	}
+	for id, act := range progress {
+		msg := strings.SplitN(act.Message, "\n", 2)[0]
+		result[id] = CleanTerminalStatusLine(msg)
+	}
 	for _, id := range ids {
-		if result[id] == "" {
-			// Find running attempt for this task
-			for _, att := range m.attempts {
-				if att.TaskID == id && att.Status == AttemptStatusRunning {
-					if logRecs, ok := m.logs[att.ID]; ok && len(logRecs) > 0 {
-						lines := make([]string, 0, len(logRecs))
-						for _, rec := range logRecs {
-							lines = append(lines, rec.Line)
-						}
-						if extracted := ExtractRunnerLiveActivity(lines); extracted != "" {
-							result[id] = extracted
-							break
-						}
-					}
-				}
+		att := latest[id]
+		if result[id] != "" || att == nil || att.Status != AttemptStatusRunning {
+			continue
+		}
+		var lines []string
+		for _, rec := range m.logs[att.ID] {
+			if rec.Stream == "stdout" {
+				lines = append(lines, rec.Line)
 			}
 		}
+		if len(lines) > 30 {
+			lines = lines[len(lines)-30:]
+		}
+		result[id] = ExtractRunnerLiveActivity(lines)
 	}
 	return result, nil
 }

@@ -504,7 +504,7 @@ func (s *DBStore) GetLatestAttempt(ctx context.Context, taskID string) (*TaskAtt
 			COALESCE(error_message, ''), created_at,request_hash,execution_deadline
 		FROM task_attempts
 		WHERE task_id = $1
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 		LIMIT 1
 	`
 	var a TaskAttempt
@@ -799,10 +799,12 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 		return result, nil
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT DISTINCT ON (task_id) task_id, message
-		FROM task_activities
-		WHERE task_id = ANY($1::text[]) AND activity_type = 'agent_report' AND new_status = 'progress'
-		ORDER BY task_id, created_at DESC, id DESC
+		SELECT DISTINCT ON (p.task_id) p.task_id, p.message
+		FROM (SELECT DISTINCT ON (task_id) id, task_id FROM task_attempts
+		      WHERE task_id = ANY($1::text[]) ORDER BY task_id, created_at DESC, id DESC) a
+		JOIN task_activities p ON p.task_id = a.task_id AND p.attempt_id = a.id
+		WHERE p.activity_type = 'agent_report' AND p.new_status = 'progress'
+		ORDER BY p.task_id, p.created_at DESC, p.id DESC
 	`, ids)
 	if err == nil {
 		defer rows.Close()
@@ -830,16 +832,17 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 	if len(missing) > 0 {
 		logRows, err := s.db.QueryContext(ctx, `
 			SELECT a.task_id, l.line
-			FROM task_attempts a
+			FROM (SELECT DISTINCT ON (task_id) id, task_id, status FROM task_attempts
+			      WHERE task_id = ANY($1::text[]) ORDER BY task_id, created_at DESC, id DESC) a
 			JOIN LATERAL (
-				SELECT line
+				SELECT id, line
 				FROM agent_logs
 				WHERE attempt_id = a.id AND stream = 'stdout'
 				ORDER BY id DESC
 				LIMIT 30
 			) l ON true
 			WHERE a.task_id = ANY($1::text[]) AND a.status = 'running'
-			ORDER BY a.task_id, a.started_at DESC
+			ORDER BY a.task_id, l.id ASC
 		`, missing)
 		if err == nil {
 			defer logRows.Close()
