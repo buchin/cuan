@@ -300,6 +300,8 @@ func TestWorkspaceRevisionResume(t *testing.T) {
 
 func TestPruneStaleWorkspaces(t *testing.T) {
 	tempDir := t.TempDir()
+	base := filepath.Join(tempDir, "backed-up-repo")
+	createTestBaseRepo(t, base)
 	workspacesDir := filepath.Join(tempDir, "workspaces")
 	if err := os.MkdirAll(workspacesDir, 0755); err != nil {
 		t.Fatalf("mkdir workspaces: %v", err)
@@ -314,11 +316,9 @@ func TestPruneStaleWorkspaces(t *testing.T) {
 
 	createWs := func(name string, modTime time.Time) string {
 		p := filepath.Join(workspacesDir, name)
-		if err := os.MkdirAll(p, 0755); err != nil {
-			t.Fatalf("mkdir ws %s: %v", name, err)
+		if out, err := exec.Command("git", "clone", base, p).CombinedOutput(); err != nil {
+			t.Fatalf("clone ws %s: %s", name, out)
 		}
-		testFile := filepath.Join(p, "file.txt")
-		_ = os.WriteFile(testFile, []byte("data"), 0644)
 		_ = os.Chtimes(p, modTime, modTime)
 		return p
 	}
@@ -422,7 +422,7 @@ func TestPrepareTaskWorkspace_AutomaticPruning(t *testing.T) {
 	client := NewClient()
 	ctx := context.Background()
 
-	// Pre-create an old workspace that should be pruned
+	// Age alone does not prove unknown workspace contents are disposable.
 	oldWsDir := filepath.Join(workspacesDir, "old_abandoned_task")
 	_ = os.MkdirAll(oldWsDir, 0755)
 	oldTime := time.Now().Add(-48 * time.Hour)
@@ -440,9 +440,9 @@ func TestPrepareTaskWorkspace_AutomaticPruning(t *testing.T) {
 		t.Fatalf("PrepareTaskWorkspace failed: %v", err)
 	}
 
-	// The old workspace should have been pruned automatically
-	if _, err := os.Stat(oldWsDir); !os.IsNotExist(err) {
-		t.Errorf("old_abandoned_task should have been automatically pruned by PrepareTaskWorkspace")
+	// Preserve unknown contents while preparing the next task normally.
+	if _, err := os.Stat(oldWsDir); err != nil {
+		t.Errorf("unknown abandoned workspace must be retained: %v", err)
 	}
 
 	// The new workspace must exist
@@ -450,4 +450,3 @@ func TestPrepareTaskWorkspace_AutomaticPruning(t *testing.T) {
 		t.Errorf("new workspace path %s does not exist: %v", ws.Path, err)
 	}
 }
-

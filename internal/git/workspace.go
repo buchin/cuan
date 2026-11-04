@@ -35,16 +35,16 @@ type TaskWorkspace struct {
 
 // WorkspaceConfig contains parameters needed to prepare an isolated task workspace.
 type WorkspaceConfig struct {
-	TaskID           string
-	ProjectID        string
-	BaseRepoDir      string
+	TaskID            string
+	ProjectID         string
+	BaseRepoDir       string
 	WorkspacesBaseDir string
-	BranchName       string
-	DefaultBranch    string
-	AuthorName       string
-	AuthorEmail      string
-	RemoteURL        string
-	Token            string
+	BranchName        string
+	DefaultBranch     string
+	AuthorName        string
+	AuthorEmail       string
+	RemoteURL         string
+	Token             string
 }
 
 // PrepareTaskWorkspace ensures an isolated workspace directory exists for the given task.
@@ -97,31 +97,20 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	}
 
 	gitDir := filepath.Join(workspacePath, ".git")
-	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
-		// Workspace exists -> resume cycle
-		// Ensure checked out to task branch
-		checkoutCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
-		if _, err := checkoutCmd.CombinedOutput(); err != nil {
-			// Self-heal: reset hard and clean untracked files in case of dirty workspace conflict
-			_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "reset", "--hard").Run()
-			_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "clean", "-fd").Run()
-			retryCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
-			if _, retryErr := retryCmd.CombinedOutput(); retryErr != nil {
-				// Corrupted workspace that cannot be recovered -> remove it to trigger fresh clone below
-				_ = os.RemoveAll(workspacePath)
-			} else {
-				_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
-				_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
-				c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
-				return ws, nil
-			}
-		} else {
-			// Re-ensure git config and pre-push hook
-			_ = c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail)
-			_ = c.installBranchProtectionHook(workspacePath, defaultBranch)
-			c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
-			return ws, nil
+	if _, err := os.Stat(gitDir); err == nil {
+		// Resume in place. A merge conflict is saved work, never permission to
+		// reset, clean, delete the workspace, or rewind the task branch.
+		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName); err != nil {
+			return nil, err
 		}
+		if err := c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail); err != nil {
+			return nil, err
+		}
+		if err := c.installBranchProtectionHook(workspacePath, defaultBranch); err != nil {
+			return nil, err
+		}
+		c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
+		return ws, nil
 	}
 
 	// New workspace -> Create parent directory
@@ -163,10 +152,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "remote", "set-url", "origin", cfg.RemoteURL).Run()
 	}
 
-	// Create and switch to task branch
-	checkoutCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "checkout", "-B", branchName)
-	if out, err := checkoutCmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("create task branch %s: %s", branchName, string(out))
+	// Recover an existing local/remote task branch before creating a new one.
+	if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName); err != nil {
+		return nil, err
 	}
 
 	// Configure human author identity
@@ -182,6 +170,36 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
 
 	return ws, nil
+}
+
+// checkoutRetainedTaskBranch never rewinds an existing branch or discards files.
+func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch string) error {
+	current, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD").Output()
+	if err == nil && strings.TrimSpace(string(current)) == branch {
+		return nil // Also preserve an in-progress merge/index on this branch.
+	}
+	args := []string{"-C", dir, "checkout"}
+	local := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	if err := local.Run(); err == nil {
+		args = append(args, branch)
+	} else {
+		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+			return errors.New("retained workspace branch could not be inspected; saved files were preserved")
+		}
+		remote := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+branch)
+		if err := remote.Run(); err == nil {
+			args = append(args, "-b", branch, "--track", "origin/"+branch)
+		} else {
+			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+				return errors.New("retained task branch could not be verified; saved files were preserved")
+			}
+			args = append(args, "-b", branch)
+		}
+	}
+	if err := exec.CommandContext(ctx, c.gitBinary, args...).Run(); err != nil {
+		return errors.New("task branch checkout needs reconciliation; saved files, commits and conflicts were preserved")
+	}
+	return nil
 }
 
 // configureWorkspaceGitIdentity sets user.name and user.email in local repository config.
@@ -420,9 +438,10 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 // It skips the current activeTaskID, hidden directories (such as .task-execution-locks),
 // and any workspace whose task execution lock is actively held.
 //
-// 1. Workspaces with modification time older than maxAge are removed.
-// 2. If the remaining count of workspaces still exceeds maxWorkspaces,
-// the oldest workspaces by modification time are pruned until count <= maxWorkspaces.
+// Age and count nominate candidates, but deletion additionally requires a clean
+// repository (including ignored files) and no commits beyond remote-tracking
+// refs. Unknown or protected work can therefore exceed the count/age targets.
+// The sweep is bounded to ten seconds and deletion holds the execution lock.
 //
 // Returns the number of workspaces pruned and any error encountered while reading the directory.
 func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duration, activeTaskID string, maxWorkspaces int) (int, error) {
@@ -439,6 +458,11 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 	}
 
 	locksDir := filepath.Join(workspacesBase, ".task-execution-locks")
+	if err := os.MkdirAll(locksDir, 0700); err != nil {
+		return 0, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	type candidate struct {
 		taskID  string
@@ -450,6 +474,9 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 	prunedCount := 0
 
 	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return prunedCount, nil
+		}
 		name := entry.Name()
 		// Skip files and hidden directories (e.g. .task-execution-locks)
 		if !entry.IsDir() || strings.HasPrefix(name, ".") {
@@ -485,9 +512,8 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 
 		// Phase 1: Prune if older than maxAge
 		if maxAge > 0 && time.Since(cand.modTime) > maxAge {
-			if rErr := os.RemoveAll(cand.path); rErr == nil {
+			if c.pruneRecreatableWorkspace(ctx, cand.path, lockFile) {
 				prunedCount++
-				_ = os.Remove(lockFile)
 			}
 			continue
 		}
@@ -504,10 +530,9 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 
 		excess := len(remaining) - maxWorkspaces
 		for i := 0; i < excess; i++ {
-			if rErr := os.RemoveAll(remaining[i].path); rErr == nil {
+			lockFile := filepath.Join(locksDir, remaining[i].taskID+".lock")
+			if c.pruneRecreatableWorkspace(ctx, remaining[i].path, lockFile) {
 				prunedCount++
-				lockFile := filepath.Join(locksDir, remaining[i].taskID+".lock")
-				_ = os.Remove(lockFile)
 			}
 		}
 	}
@@ -515,3 +540,27 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 	return prunedCount, nil
 }
 
+// Age/count alone never prove saved work is disposable. Keep unknown repos,
+// tracked/untracked/ignored files, conflicts, stashes and unpublished commits.
+// Hold the same execution lock throughout inspection and deletion; never unlink
+// its inode while another worker may be waiting to acquire it.
+func (c *Client) pruneRecreatableWorkspace(ctx context.Context, dir, lockPath string) bool {
+	absLock, err := filepath.Abs(lockPath)
+	if err != nil {
+		return false
+	}
+	lock, err := taskprocess.Acquire(absLock)
+	if err != nil {
+		return false
+	}
+	defer lock.Close()
+	status, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "status", "--porcelain", "--untracked-files=normal", "--ignored=matching").Output()
+	if err != nil || len(bytes.TrimSpace(status)) != 0 {
+		return false
+	}
+	local, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "rev-list", "--max-count=1", "--all", "HEAD", "--not", "--remotes").Output()
+	if err != nil || len(bytes.TrimSpace(local)) != 0 || ctx.Err() != nil {
+		return false
+	}
+	return os.RemoveAll(dir) == nil
+}
