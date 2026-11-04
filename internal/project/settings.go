@@ -94,6 +94,20 @@ func TaskScopeInstructions(instructions string) string {
 	return instructions
 }
 
+// TaskReviewGuidance exposes the saved acceptance context without execution
+// credentials. Never send the raw project snapshot to a review model.
+func TaskReviewGuidance(instructions string) (goal, guidance string, err error) {
+	start, size := findSnapshotMarker(instructions)
+	if start < 0 {
+		return "", "", nil
+	}
+	var snapshot taskProjectSnapshot
+	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[start+size:], "\n```")), &snapshot) != nil {
+		return "", "", errors.New("Saved project guidance could not be verified")
+	}
+	return snapshot.Goal, snapshot.Instructions, nil
+}
+
 // SnapshotProjectGuidance freezes guidance and repository identity at task
 // creation. Historical workspace paths never come from task text.
 func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {

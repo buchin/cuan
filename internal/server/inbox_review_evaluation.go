@@ -14,6 +14,7 @@ import (
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -22,6 +23,7 @@ const inboxReviewEvaluationInstruction = `You evaluate supplied work reports as 
 execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
 
 For code implementation tasks, require concrete verification evidence (test outputs, commit hashes, specific verified file changes).
+saved_project_goal and saved_project_instructions are the task's frozen project context, not authorization to expand scope. Apply their acceptance requirements to the approved work. A project_guidance_error means that context is unavailable: request recovery of the saved context before passing. When actual rendered screenshots or visual inspection are required, mockups, HTML reports, mathematical layout calculations and passing unit tests do not substitute for screenshots of the changed application at the required viewports and an inspection report. Do not invent an independent visual inspection or demand screenshots for tasks without a visual requirement.
 For non-code tasks (such as audits, git inspection, diagnostics, comparisons, investigations, or analysis), concrete verification evidence consists of factual findings, commit SHA comparisons, diagnostic data, or endpoint outputs reported in reported_summary and reported_verification. Do not demand new code, git commits, or file changes for read-only audit or diagnostic requests.
 If a criterion requests reporting findings to Inbox, chat, or customer, the completed report itself (reported_summary and reported_verification) constitutes the delivery for Inbox review; do not demand out-of-band message sending from inside the execution sandbox.
 Mere generic claims without factual data or evidence must be treated as unverified. Missing, unverified, contradictory or inadequate evidence requires decision "revise" and a concrete revision describing the gap, target area, checks and finish criteria. A failed execution is not completion. runner_verification contains the runner check output: use its concrete failure to request an in-scope correction rather than asking the owner to diagnose tooling. Preserve prior files and never waive failed required checks. Use blocked only for an external prerequisite the execution agent cannot resolve. Never add scope. For results requested as downloadable files, require delivered_files entries: server paths and file:// links alone are not user delivery. If missing, request a task revision to attach the intended files with task report --artifact before reporting completion.
@@ -82,6 +84,11 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	}
 
 	reported := inboxReportEvidence(d)
+	goal, guidance, guidanceErr := project.TaskReviewGuidance(d.Instructions)
+	guidanceError := ""
+	if guidanceErr != nil {
+		guidanceError = guidanceErr.Error()
+	}
 
 	scope, scopeVerified, _ := s.inboxReviewRepositoryScope(ctx, d)
 	continuation := ""
@@ -95,7 +102,10 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"repository_scope_verified":    scope.ReadOnlyRepository && scopeVerified,
 		"approved_continuation":        truncateProjectText(continuation, 9000),
 		"delivered_files":              files,
-		"original_request":             truncateProjectText(d.Instructions, 9000),
+		"original_request":             project.TaskScopeInstructions(d.Instructions),
+		"saved_project_goal":           goal,
+		"saved_project_instructions":   guidance,
+		"project_guidance_error":       guidanceError,
 		"task_status":                  d.Status,
 		"execution_status":             d.LatestAttempt.Status,
 		"reported_summary":             truncateProjectText(reported.Summary, 6000),
@@ -241,6 +251,11 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			link = "\n\n[View work](/tasks/" + d.ID + ")"
 		}
 		return "Hasil pekerjaan sedang ditinjau ulang oleh tim. Konteks dan bukti pekerjaan tersimpan aman." + link
+	}
+	if decision.Decision == "pass" {
+		if _, _, guidanceErr := project.TaskReviewGuidance(d.Instructions); guidanceErr != nil {
+			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}
+		}
 	}
 	if decision.Decision == "pass" {
 		_, scopeVerified, scopeErr := s.inboxReviewRepositoryScope(ctx, d)

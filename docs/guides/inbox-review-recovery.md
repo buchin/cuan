@@ -109,3 +109,19 @@ Tests cover retained historical context, missing-current reports across terminal
 states, progress versus final reports, foreign-task exclusion, stable ordering,
 legacy snapshots, canonical fresh-review binding, and one-time reconciliation
 without a new execution attempt.
+
+## Saved project acceptance context
+
+Review receives the complete approved task scope (within the task service's
+24,000-character input limit), plus the frozen project goal and instructions as
+separate fields. It does not receive the raw project snapshot or its environment
+credentials. This prevents a long task from silently losing acceptance rules
+under the former 9,000-character review truncation. Invalid saved guidance is
+reported explicitly and cannot pass acceptance; current settings must not replace
+historical approval.
+
+The reviewer must distinguish actual application screenshots and an inspection
+report from mockups, HTML reports or layout calculations when visual inspection
+is required. Passing project tests alone does not prove that visual requirement.
+This is a review instruction, not an independent screenshot authenticity check.
+Previously accepted tasks are not reopened or executed by this change.
