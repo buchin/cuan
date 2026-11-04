@@ -702,8 +702,8 @@ export function InboxView({
   // Auto-resize textarea
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
-    const scrollH = el.scrollHeight
     const minH = window.innerWidth < 640 ? 36 : 38
+    const scrollH = el.value.length ? el.scrollHeight : minH
     const cap = Math.max(
       minH,
       Math.min(
@@ -2196,8 +2196,8 @@ export function InboxView({
                       activeContact.type === 'agent'
                         ? t('Write a message…')
                         : whisperMode || inputMessage.trim().startsWith('@')
-                        ? t('Whisper to @cuan (invisible to visitor)…')
-                        : `Reply to ${activeContact.name} or type @cuan to whisper AI…`
+                        ? t('Internal message…')
+                        : t('Write a reply…')
                     }
                     className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug pl-1.5 pr-2 sm:pl-2 sm:pr-2.5"
                   />

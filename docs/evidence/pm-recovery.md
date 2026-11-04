@@ -238,3 +238,14 @@ execution completion without demanding prohibited deployment. A real local Git
 fixture verifies the automatic publication path preserves pending files and HEAD.
 Targeted server reporting/push/reconstruction regressions pass. Production proof
 on a new continuation remains required after deployment.
+
+## Compact empty composer
+
+The owner reported a three-line customer placeholder making the empty mobile
+composer tall. Public/internal customer placeholders are now short localized
+strings (Write a reply / Internal message; Tulis balasan / Pesan internal).
+Empty autosizing uses the one-line minimum rather than placeholder scrollHeight.
+Typed content still grows to the existing140px cap and clearing returns to one
+line. Real390px/1440px light/dark browser checks verify both modes, bounded growth,
+shrink after clear and the existing internal-visibility/header/task-card flows.
+Screenshots were rendered and inspected before deployment.

@@ -65,6 +65,11 @@ contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='her
  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedFixtureEmail=text}}}));
  await copy.click();assert.equal(await page.evaluate(()=>window.copiedFixtureEmail),'herusip10.dengan.email.panjang@example.com');
  const afterCopy=await header.boundingBox();assert.equal(afterCopy.height,headerBox.height,'copy feedback must not change header height');
+ const composer=page.locator('[data-primary-composer]');await composer.waitFor();assert.equal(await composer.getAttribute('placeholder'),'Write a reply…');
+ await composer.fill('');assert((await composer.boundingBox()).height<=40,'empty composer stays one line');
+ await composer.fill('Catatan panjang yang diketik pengguna\n'.repeat(16));await page.waitForTimeout(50);const expandedHeight=(await composer.boundingBox()).height;assert(expandedHeight>40&&expandedHeight<=140,'typed content grows to bounded height');
+ await composer.fill('');await page.waitForTimeout(50);assert((await composer.boundingBox()).height<=40,'clearing returns to one line');
+ await page.getByRole('button',{name:'Whisper @cuan',exact:true}).click();await composer.fill('');assert.equal(await composer.getAttribute('placeholder'),'Internal message…');assert((await composer.boundingBox()).height<=40);await page.getByRole('button',{name:'Public reply',exact:true}).click();
  const card=page.locator('[data-card=task-card]');await card.waitFor();assert.equal(await card.count(),1,'one task attachment in customer room');await card.scrollIntoViewIfNeeded();
  assert(await card.getByRole('button',{name:'Detail',exact:true}).isVisible());assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0)
  assert.equal(await page.locator('[data-message-id=reply] [data-card]').count(),1,'card belongs to agent delegation');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
