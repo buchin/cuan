@@ -608,6 +608,10 @@ func TestMemoryProjectStudioRepository_ConcurrencyThreadSafety(t *testing.T) {
 	var wg sync.WaitGroup
 	workers := 15
 	iterations := 40
+	if testing.Short() {
+		workers = 5
+		iterations = 10
+	}
 
 	// Concurrent Message Creators
 	for w := 0; w < workers; w++ {

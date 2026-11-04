@@ -594,8 +594,12 @@ func TestMemoryObservabilityRepository_ConcurrencyThreadSafety(t *testing.T) {
 	ctx := context.Background()
 	repo := NewMemoryObservabilityRepository()
 
-	const workers = 20
-	const iterations = 50
+	workers := 20
+	iterations := 50
+	if testing.Short() {
+		workers = 5
+		iterations = 10
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
