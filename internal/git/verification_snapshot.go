@@ -1,0 +1,211 @@
+package git
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
+)
+
+var verificationSnapshotGate = make(chan struct{}, 1)
+var snapshotObjectID = regexp.MustCompile(`^[a-f0-9]{40}$`)
+
+type verificationSnapshotBinding struct {
+	Source       string `json:"source"`
+	SourceCommit string `json:"source_commit"`
+	TargetCommit string `json:"target_commit"`
+}
+
+type snapshotOutput struct {
+	data     []byte
+	overflow bool
+}
+
+func (o *snapshotOutput) Write(data []byte) (int, error) {
+	n := len(data)
+	remaining := 64*1024 - len(o.data)
+	if len(data) > remaining {
+		o.overflow = true
+		data = data[:remaining]
+	}
+	o.data = append(o.data, data...)
+	return n, nil
+}
+
+func (c *Client) snapshotGit(ctx context.Context, root string, args ...string) ([]byte, error) {
+	command := []string{"-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"}
+	if root != "" {
+		command = append(command, "-C", root)
+	}
+	cmd := exec.CommandContext(ctx, c.gitBinary, append(command, args...)...)
+	for _, key := range []string{"PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TMP", "TEMP", "LD_LIBRARY_PATH", "SystemRoot"} {
+		if value, ok := os.LookupEnv(key); ok {
+			cmd.Env = append(cmd.Env, key+"="+value)
+		}
+	}
+	cmd.Env = append(cmd.Env, "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0")
+	var output snapshotOutput
+	cmd.Stdout = &output
+	err := cmd.Run()
+	if output.overflow {
+		return nil, errors.New("verification snapshot output exceeded its inspection budget")
+	}
+	return output.data, err
+}
+
+// Resolve the nearest existing parent before creating anything. A missing
+// destination below a symlink must not create directories inside the source.
+func snapshotDestination(source, destination string) (string, error) {
+	parent, suffix := filepath.Dir(destination), ""
+	for {
+		if _, err := os.Lstat(parent); os.IsNotExist(err) {
+			suffix = filepath.Join(filepath.Base(parent), suffix)
+			next := filepath.Dir(parent)
+			if next == parent {
+				return "", errors.New("verification snapshot parent is unavailable")
+			}
+			parent = next
+			continue
+		} else if err != nil {
+			return "", err
+		}
+		real, err := filepath.EvalSymlinks(parent)
+		if err != nil {
+			return "", err
+		}
+		result := filepath.Join(real, suffix, filepath.Base(destination))
+		if result == source || strings.HasPrefix(result, source+string(filepath.Separator)) {
+			return "", errors.New("verification snapshot must be separate from its source")
+		}
+		return result, nil
+	}
+}
+
+// PrepareVerificationSnapshot creates a separate detached local clone. It never
+// checks out, resets, cleans, commits or changes refs/files in the source repo.
+// The caller selects a separate owned audit directory. Existing destinations
+// are validated, never repaired or replaced.
+// Source commits must already be present; credentialed fetching belongs to the
+// project's normal repository connection, outside this local snapshot operation.
+func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destination, sourceCommit, targetCommit string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if !snapshotObjectID.MatchString(sourceCommit) || !snapshotObjectID.MatchString(targetCommit) || source == "" || destination == "" {
+		return "", errors.New("verification snapshot requires exact source and target commits")
+	}
+	source, err := filepath.EvalSymlinks(source)
+	if err != nil {
+		return "", errors.New("verification source repository is unavailable")
+	}
+	source, err = filepath.Abs(source)
+	if err != nil {
+		return "", err
+	}
+	destination, err = filepath.Abs(destination)
+	if err != nil || destination == source || strings.HasPrefix(destination, source+string(filepath.Separator)) {
+		return "", errors.New("verification snapshot must be separate from its source")
+	}
+	realDestination, err := snapshotDestination(source, destination)
+	if err != nil {
+		return "", err
+	}
+	select {
+	case verificationSnapshotGate <- struct{}{}:
+		defer func() { <-verificationSnapshotGate }()
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	if _, err := c.snapshotGit(ctx, source, "merge-base", "--is-ancestor", sourceCommit, targetCommit); err != nil {
+		return "", errors.New("verification target does not contain the task source commit")
+	}
+	binding := verificationSnapshotBinding{Source: source, SourceCommit: sourceCommit, TargetCommit: targetCommit}
+	if info, err := os.Lstat(destination); err == nil {
+		if !info.IsDir() {
+			return "", errors.New("saved verification snapshot is not an owned directory")
+		}
+		if err := c.validateVerificationSnapshot(ctx, destination, binding); err != nil {
+			return "", err
+		}
+		return destination, nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	parent := filepath.Dir(destination)
+	if err := os.MkdirAll(parent, 0700); err != nil {
+		return "", err
+	}
+	realParent, err := filepath.EvalSymlinks(parent)
+	if err != nil {
+		return "", err
+	}
+	if filepath.Join(realParent, filepath.Base(destination)) != realDestination {
+		return "", errors.New("verification snapshot parent changed; existing files were preserved")
+	}
+	temporary, err := os.MkdirTemp(parent, ".verification-preparing-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(temporary)
+	if _, err := c.snapshotGit(ctx, "", "clone", "--shared", "--no-checkout", "--no-tags", "--", source, temporary); err != nil {
+		return "", errors.New("verification snapshot could not be created")
+	}
+	for _, args := range [][]string{{"remote", "remove", "origin"}, {"config", "core.hooksPath", "/dev/null"}, {"checkout", "--detach", targetCommit}} {
+		if _, err := c.snapshotGit(ctx, temporary, args...); err != nil {
+			return "", errors.New("verification snapshot could not be prepared")
+		}
+	}
+	raw, _ := json.Marshal(binding)
+	receipt, err := os.OpenFile(filepath.Join(temporary, ".git", "cuan-verification.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return "", err
+	}
+	if _, err = receipt.Write(raw); err == nil {
+		err = receipt.Sync()
+	}
+	closeErr := receipt.Close()
+	if err != nil {
+		return "", err
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if err := c.validateVerificationSnapshot(ctx, temporary, binding); err != nil {
+		return "", err
+	}
+	if err := os.Rename(temporary, destination); err != nil {
+		return "", errors.New("verification snapshot could not be published; existing files were preserved")
+	}
+	return destination, nil
+}
+
+func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, expected verificationSnapshotBinding) error {
+	bad := errors.New("saved verification snapshot changed or could not be verified; existing files were preserved")
+	info, err := os.Lstat(filepath.Join(root, ".git"))
+	if err != nil || !info.IsDir() {
+		return bad
+	}
+	path := filepath.Join(root, ".git", "cuan-verification.json")
+	info, err = os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 4096 {
+		return bad
+	}
+	raw, err := os.ReadFile(path)
+	var binding verificationSnapshotBinding
+	if err != nil || json.Unmarshal(raw, &binding) != nil || binding != expected {
+		return bad
+	}
+	head, err := c.snapshotGit(ctx, root, "rev-parse", "--verify", "HEAD")
+	if err != nil || strings.TrimSpace(string(head)) != expected.TargetCommit {
+		return bad
+	}
+	status, err := c.snapshotGit(ctx, root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil || len(status) != 0 || ValidatePrivateBuildOutput(root) != nil {
+		return bad
+	}
+	return nil
+}

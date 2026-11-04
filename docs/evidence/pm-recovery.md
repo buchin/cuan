@@ -145,6 +145,37 @@ regressions. No production task workspace was manually repaired or restarted.
 The immutable live-result inspection remains required; this closes its build
 isolation prerequisite rather than declaring an old task complete.
 
+## Detached verification snapshot primitive (not yet scheduled)
+
+`git.Client.PrepareVerificationSnapshot` prepares a separate local detached
+checkout only after Git proves the requested task source is an ancestor of the
+exact target commit. It does not fetch or publish. New snapshots have no remote
+and contain an exclusively written, synced source/commit binding. Existing
+destinations must match that binding, target revision, clean working state and
+private build-output rules; dirty, unowned or changed snapshots are retained and
+rejected rather than reset. Publication uses an atomic rename of a private
+preparation directory.
+
+Commands use an allowlisted environment without ambient GitHub tokens, SSH
+agent or Git configuration; hooks, fsmonitor and global/system Git configuration
+are disabled for this local operation. Output is bounded to64KiB, preparation
+to30seconds, and waiting for snapshot admission honors cancellation. Aliased
+destination parents are resolved before creating directories so they cannot
+write beneath the source repository.
+
+Actual Git fixtures verify the target contents, ancestor relationship, detached
+checkout and removal of the publication remote; preserve source-cache and old
+task pending files, index bytes and refs; validate restart reuse; reject dirty,
+rewound, unrelated and unowned destinations; and prove credential/config
+isolation and canceled admission without filesystem writes. Related existing
+workspace/build-output tests pass.
+
+This primitive is not wired into native task claims or automatic scheduling yet.
+Production remains on9b19b1f. Original approval, project-connection fetching,
+current-release binding, fresh project checks and independent review must be
+integrated before enabling a live-result inspection. No production task state,
+workspace or execution was changed to exercise this component.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.
