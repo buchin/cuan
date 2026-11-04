@@ -137,6 +137,14 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 // The exact latest attempt supplies continuation restrictions. An unrelated
 // newer queued launch must neither remove nor add limits to the result applied.
 func (s *Server) taskPublicationPolicy(ctx context.Context, detail *task.TaskDetailResponse) (executionpolicy.PublicationPolicy, error) {
+	// Cancellation is authoritative even when an old report/merge callback is
+	// still pending. Recheck at each publication boundary, not just in the UI.
+	if detail == nil || detail.Status == "cancelled" || detail.Status == "canceled" {
+		return executionpolicy.PublicationPolicy{}, errors.New("Task was cancelled; no changes may be published")
+	}
+	if a := detail.LatestAttempt; a != nil && (a.CancelRequested || a.CanceledAt != nil || a.Status == task.AttemptStatusCanceled) {
+		return executionpolicy.PublicationPolicy{}, errors.New("Task execution was cancelled; no changes may be published")
+	}
 	if detail.LatestAttempt == nil {
 		return executionpolicy.FromInstructions(detail.Instructions), nil
 	}
