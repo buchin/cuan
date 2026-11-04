@@ -30,6 +30,9 @@ func TestWorkspaceUsesSelectedBaseInsteadOfCacheHEAD(t *testing.T) {
 	if retentionGit(t, base, "symbolic-ref", "--short", "HEAD") != "main\n" {
 		t.Fatal("source checkout changed")
 	}
+	if ws.BaseCommit != strings.TrimSpace(dev) {
+		t.Fatal("selected commit was not pinned", ws.BaseCommit)
+	}
 	if ws.BaseRef != "refs/remotes/cuan-base/dev" {
 		t.Fatal("missing explicit baseline", ws.BaseRef)
 	}
@@ -54,9 +57,12 @@ func TestBoundBaseEmptyDiffDoesNotReportPreviousCommit(t *testing.T) {
 	retentionGit(t, root, "add", ".")
 	retentionGit(t, root, "commit", "-m", "Upstream change")
 	retentionGit(t, root, "update-ref", "refs/remotes/cuan-base/main", "HEAD")
-	summary, err := NewClient().GetDiffSummary(context.Background(), root, "refs/remotes/cuan-base/main")
-	if err != nil || summary != "" {
-		t.Fatalf("upstream commit misreported as task work: %q %v", summary, err)
+	commit := strings.TrimSpace(retentionGit(t, root, "rev-parse", "HEAD"))
+	for _, base := range []string{"refs/remotes/cuan-base/main", commit} {
+		summary, err := NewClient().GetDiffSummary(context.Background(), root, base)
+		if err != nil || summary != "" {
+			t.Fatalf("upstream commit misreported as task work for %s: %q %v", base, summary, err)
+		}
 	}
 }
 
@@ -83,6 +89,9 @@ func TestWorkspaceImportsFreshCacheRefWithoutOverwritingRetainedTask(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	if again.BaseCommit != strings.TrimSpace(latest) || ws.BaseCommit != strings.TrimSpace(original) {
+		t.Fatal("preparing a new attempt changed the previous attempt baseline", ws.BaseCommit, again.BaseCommit)
+	}
 	if retentionGit(t, again.Path, "rev-parse", again.BaseRef) != latest {
 		t.Fatal("fresh remote-tracking ref was not imported")
 	}
@@ -94,5 +103,26 @@ func TestWorkspaceImportsFreshCacheRefWithoutOverwritingRetainedTask(t *testing.
 	}
 	if got := retentionGit(t, again.Path, "show", again.BaseRef+":verifier.txt"); got != "current verification contract" {
 		t.Fatal("fresh verifier unavailable", got)
+	}
+}
+
+func TestPinnedMissingCommitDoesNotFallbackToOtherHistory(t *testing.T) {
+	root := t.TempDir()
+	createTestBaseRepo(t, root)
+	_, err := NewClient().GetDiffSummary(context.Background(), root, strings.Repeat("0", 40))
+	if err == nil {
+		t.Fatal("unavailable pinned commit silently used another baseline")
+	}
+}
+func TestCommitHashRequiresFullObjectName(t *testing.T) {
+	for _, value := range []string{strings.Repeat("a", 40), strings.Repeat("f", 64)} {
+		if !IsCommitHash(value) {
+			t.Fatal("full object name rejected")
+		}
+	}
+	for _, value := range []string{"main", "refs/remotes/cuan-base/dev", "abcdef0", strings.Repeat("x", 40), ""} {
+		if IsCommitHash(value) {
+			t.Fatal("non-object ref treated as pinned commit", value)
+		}
 	}
 }

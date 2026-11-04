@@ -180,27 +180,36 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 
 // detectRepoCodeChanges inspects git status and diff in the workspace to determine if any code changes occurred.
 func workspaceComparisonBase(ws *git.TaskWorkspace, fallback string) string {
+	if ws != nil && ws.BaseCommit != "" {
+		return ws.BaseCommit
+	}
 	if ws != nil && ws.BaseRef != "" {
 		return ws.BaseRef
 	}
 	return fallback
 }
 
-func (r *Runner) detectRepoCodeChanges(ctx context.Context, ws *git.TaskWorkspace, defaultBranch string) (bool, string) {
+func (r *Runner) detectRepoCodeChanges(ctx context.Context, ws *git.TaskWorkspace, defaultBranch string) (bool, string, error) {
 	if ws == nil || r.gitClient == nil || ws.Path == "" {
-		return false, ""
+		return false, "", nil
 	}
 	if defaultBranch == "" {
 		defaultBranch = "main"
 	}
 	cmdStatus := exec.CommandContext(ctx, "git", "-C", ws.Path, "status", "--porcelain")
 	statusOut, err := cmdStatus.Output()
-	hasUncommitted := err == nil && len(strings.TrimSpace(string(statusOut))) > 0
+	if err != nil {
+		return false, "", fmt.Errorf("repository worktree state could not be verified: %w", err)
+	}
+	hasUncommitted := len(strings.TrimSpace(string(statusOut))) > 0
 
-	diffSummary, _ := r.gitClient.GetDiffSummary(ctx, ws.Path, workspaceComparisonBase(ws, defaultBranch))
+	diffSummary, err := r.gitClient.GetDiffSummary(ctx, ws.Path, workspaceComparisonBase(ws, defaultBranch))
+	if err != nil {
+		return false, "", fmt.Errorf("pinned repository baseline comparison could not be verified: %w", err)
+	}
 	hasCommittedDiff := len(strings.TrimSpace(diffSummary)) > 0
 
-	return (hasUncommitted || hasCommittedDiff), diffSummary
+	return (hasUncommitted || hasCommittedDiff), diffSummary, nil
 }
 
 func (r *Runner) streamOutputLogs(ctx context.Context, attemptID, stdout, stderr string) {

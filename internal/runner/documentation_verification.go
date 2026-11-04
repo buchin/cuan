@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	cuangit "github.com/buchin/cuan/internal/git"
 )
 
 // Only proven Markdown-only diffs take this path. Unknown git state or mixed
@@ -18,7 +20,7 @@ func verifyDocumentationChanges(ctx context.Context, root, branch string) *verif
 	}
 	base := ""
 	refs := []string{"refs/remotes/origin/" + branch, "refs/heads/" + branch}
-	if strings.HasPrefix(branch, "refs/") {
+	if strings.HasPrefix(branch, "refs/") || cuangit.IsCommitHash(branch) {
 		refs = []string{branch}
 	}
 	for _, ref := range refs {

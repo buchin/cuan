@@ -780,7 +780,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
 	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir)
 	if ws != nil && ws.BaseRef != "" {
-		prompt += "\n\nCurrent project baseline: " + ws.BaseRef + ". Inspect this ref before relying on retained test commands or earlier code structure. A resumed task may still have older commits and pending edits: reconcile only the approved changes while preserving saved work. Do not replace verification merely to hide failures. This baseline is context, not authorization to expand scope, change repository identity or publish.\n"
+		prompt += "\n\nCurrent project baseline: " + workspaceComparisonBase(ws, claim.DefaultBranch) + " (imported from " + ws.BaseRef + "). Inspect this commit before relying on retained test commands or earlier code structure. A resumed task may still have older commits and pending edits: reconcile only the approved changes while preserving saved work. Do not replace verification merely to hide failures. This baseline is context, not authorization to expand scope, change repository identity or publish.\n"
 	}
 	prompt += policy.Prompt()
 
@@ -967,37 +967,42 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				}
 			}
 			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {
-				hasCodeChanges, diffSummary := r.detectRepoCodeChanges(ctx, ws, claim.DefaultBranch)
-				compReq.HasCodeChanges = &hasCodeChanges
-				requiresDeploy := hasCodeChanges && lane == task.ExecutionCategoryCode
-				compReq.RequiresDeploy = &requiresDeploy
-				if diffSummary != "" && compReq.DiffSummary == "" {
-					compReq.DiffSummary = diffSummary
-				}
-
-				if requiresDeploy {
-					commit, commitErr := r.gitClient.GetLatestCommitSHA(ctx, workingDir)
-					clean, cleanErr := exec.CommandContext(ctx, "git", "-C", workingDir, "status", "--porcelain", "--untracked-files=normal").Output()
-					deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true, commit)
-					if commitErr != nil || cleanErr != nil || len(bytes.TrimSpace(clean)) != 0 {
-						deployed = false
-						errNote = "Kepatuhan auto_deploy: deployment evidence must match the committed repository state; uncommitted files are preserved for continuation"
-					}
-					if !deployed {
-						compReq.Status = task.AttemptStatusFailed
-						compReq.ErrorMessage = errNote
-					} else {
-						compReq.CommitSHA = commit
-						compReq.LiveDeploymentConfirmed = true
-					}
+				hasCodeChanges, diffSummary, comparisonErr := r.detectRepoCodeChanges(ctx, ws, claim.DefaultBranch)
+				if comparisonErr != nil {
+					compReq.Status = task.AttemptStatusFailed
+					compReq.ErrorMessage = "Repository change comparison could not be verified; saved work is preserved."
 				} else {
-					// Non-code or investigation tasks pass compliance without forcing fake live deploy
-					passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false, "")
-					if !passed {
-						compReq.Status = task.AttemptStatusFailed
-						compReq.ErrorMessage = errNote
+					compReq.HasCodeChanges = &hasCodeChanges
+					requiresDeploy := hasCodeChanges && lane == task.ExecutionCategoryCode
+					compReq.RequiresDeploy = &requiresDeploy
+					if diffSummary != "" && compReq.DiffSummary == "" {
+						compReq.DiffSummary = diffSummary
+					}
+
+					if requiresDeploy {
+						commit, commitErr := r.gitClient.GetLatestCommitSHA(ctx, workingDir)
+						clean, cleanErr := exec.CommandContext(ctx, "git", "-C", workingDir, "status", "--porcelain", "--untracked-files=normal").Output()
+						deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true, commit)
+						if commitErr != nil || cleanErr != nil || len(bytes.TrimSpace(clean)) != 0 {
+							deployed = false
+							errNote = "Kepatuhan auto_deploy: deployment evidence must match the committed repository state; uncommitted files are preserved for continuation"
+						}
+						if !deployed {
+							compReq.Status = task.AttemptStatusFailed
+							compReq.ErrorMessage = errNote
+						} else {
+							compReq.CommitSHA = commit
+							compReq.LiveDeploymentConfirmed = true
+						}
 					} else {
-						r.streamLogLine(ctx, att.ID, "system", "Tugas investigasi/non-kode tanpa modifikasi berkas repo: meloloskan gate kepatuhan auto_deploy tanpa deployment palsu.")
+						// Non-code or investigation tasks pass compliance without forcing fake live deploy
+						passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false, "")
+						if !passed {
+							compReq.Status = task.AttemptStatusFailed
+							compReq.ErrorMessage = errNote
+						} else {
+							r.streamLogLine(ctx, att.ID, "system", "Tugas investigasi/non-kode tanpa modifikasi berkas repo: meloloskan gate kepatuhan auto_deploy tanpa deployment palsu.")
+						}
 					}
 				}
 			}

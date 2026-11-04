@@ -25,6 +25,7 @@ var (
 // TaskWorkspace represents an isolated git checkout dedicated to a specific task.
 type TaskWorkspace struct {
 	BaseRef       string `json:"base_ref,omitempty"`
+	BaseCommit    string `json:"base_commit,omitempty"`
 	TaskID        string `json:"task_id"`
 	ProjectID     string `json:"project_id"`
 	Path          string `json:"path"`
@@ -103,9 +104,12 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		if err != nil {
 			return nil, err
 		}
+		if err := c.pinWorkspaceBase(ctx, ws); err != nil {
+			return nil, err
+		}
 		// Resume in place. A merge conflict is saved work, never permission to
 		// reset, clean, delete the workspace, or rewind the task branch.
-		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseRef); err != nil {
+		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseCommit); err != nil {
 			return nil, err
 		}
 		if err := c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail); err != nil {
@@ -163,7 +167,10 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		return nil, err
 	}
 	ws.BaseRef = baseRef
-	if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseRef); err != nil {
+	if err := c.pinWorkspaceBase(ctx, ws); err != nil {
+		return nil, err
+	}
+	if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseCommit); err != nil {
 		return nil, err
 	}
 
@@ -180,6 +187,23 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
 
 	return ws, nil
+}
+
+// Pin the imported branch before execution. Moving its remote-tracking alias
+// later must not change which code/verification contract this attempt compares.
+func (c *Client) pinWorkspaceBase(ctx context.Context, ws *TaskWorkspace) error {
+	if ws.BaseRef == "" {
+		return nil
+	}
+	raw, err := exec.CommandContext(ctx, c.gitBinary, "-C", ws.Path, "rev-parse", "--verify", "--end-of-options", ws.BaseRef+"^{commit}").Output()
+	if err != nil {
+		return errors.New("selected project baseline could not be pinned; saved task files were preserved")
+	}
+	ws.BaseCommit = strings.TrimSpace(string(raw))
+	if !IsCommitHash(ws.BaseCommit) {
+		return errors.New("selected project baseline commit is unavailable; saved task files were preserved")
+	}
+	return nil
 }
 
 // checkoutRetainedTaskBranch never rewinds an existing branch or discards files.
@@ -455,7 +479,7 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 	out, err := cmd.Output()
 	// A bound baseline is authoritative, including an empty diff. Never
 	// substitute an unrelated previous commit when no task changes exist.
-	if strings.HasPrefix(baseBranch, "refs/") {
+	if strings.HasPrefix(baseBranch, "refs/") || IsCommitHash(baseBranch) {
 		return strings.TrimSpace(string(out)), err
 	}
 	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
