@@ -39,10 +39,10 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 	timeout := task.DefaultMaxCapTimeout + task.GetGracePeriod()
 	deadlines := map[string]time.Time{}
 	if s.taskSvc != nil {
-		if tasks, e := s.taskSvc.ListTasks(ctx, task.TaskFilter{}); e == nil {
+		if tasks, e := s.taskSvc.RecoveryTasks(ctx); e == nil {
 			for _, t := range tasks {
 				if a, e := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); e == nil && a != nil && a.Status == task.AttemptStatusRunning {
-					deadlines[t.ID] = task.AttemptDeadline(&t.Task, a).Add(task.GetGracePeriod())
+					deadlines[t.ID] = task.AttemptDeadline(t, a).Add(task.GetGracePeriod())
 				}
 			}
 		}

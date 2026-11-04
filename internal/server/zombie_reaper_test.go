@@ -93,13 +93,13 @@ func TestZombieReaper_ReconcilesDeadProcessAndUnblocksProjectLane(t *testing.T) 
 		t.Fatalf("expected attempt status 'failed', got '%s'", reapedAttempt.Status)
 	}
 
-	// 7. Verify task was marked as failed
+	// 7. A failed execution leaves the task blocked for recovery.
 	reapedTask, err := s.taskSvc.Store().GetTask(ctx, taskID)
 	if err != nil {
 		t.Fatalf("failed to get reaped task: %v", err)
 	}
-	if reapedTask.Status != task.TaskStatusFailed {
-		t.Fatalf("expected task status 'failed', got '%s'", reapedTask.Status)
+	if reapedTask.Status != task.TaskStatusBlocked {
+		t.Fatalf("expected task status 'blocked', got '%s'", reapedTask.Status)
 	}
 
 	// 8. Verify launch was marked as stopped
@@ -172,8 +172,8 @@ func TestZombieReaper_ReconcilesHardTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get task: %v", err)
 	}
-	if reapedTask.Status != task.TaskStatusFailed {
-		t.Fatalf("expected task status 'failed', got '%s'", reapedTask.Status)
+	if reapedTask.Status != task.TaskStatusBlocked {
+		t.Fatalf("expected task status 'blocked', got '%s'", reapedTask.Status)
 	}
 
 	laneActive, err := s.taskSvc.IsProjectLaneActive(ctx, projectID, task.ExecutionCategoryCode, "")

@@ -72,3 +72,22 @@ The assistant name is editable in **Settings → Agent**. `@cuan` is only the
 default. Task guidance, session identity, and retry flows read the saved public
 name while routing through the stable internal public-assistant ID. Historical
 private assignees are not reused as the target of a new retry or follow-up.
+
+## Recovery sweep selection
+
+Local startup recovery, local lease recovery, zombie attempt reconciliation and
+host deadline discovery select task IDs from existing status indexes before
+loading task records. Candidates are board status `doing`, any running attempt,
+or a queued `local_terminal` attempt. This includes stale board states without
+loading settled history or enriched list/read models. The latest canonical
+attempt is still checked before any reconciliation; queue age is not execution
+time, and detached daemon workers remain governed by their leases/deadlines.
+An empty candidate set never becomes an unrestricted ID filter. Custom legacy
+stores without the selection interface retain their previous fallback behavior.
+
+The isolated PostgreSQL regression seeds 7,000 accepted tasks plus active/stale
+cases and selects only three recovery candidates; memory instrumentation verifies
+that the sweeps do not issue thousands of latest-attempt reads. Existing reaper
+checks still require failed attempts to leave a blocked task, stopped launch and
+available project lane. This optimization does not remove the separate Inbox
+result-delivery history scan; that remains a distinct performance concern.

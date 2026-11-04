@@ -1058,7 +1058,7 @@ func (s *Service) RenewLocalAttemptLease(ctx context.Context, attemptID string) 
 // left behind by a server restart or crash without waiting for lease expiration,
 // since local terminal PTY processes cannot survive across server restarts.
 func (s *Service) RecoverStartupLocalAttempts(ctx context.Context) error {
-	tasks, err := s.store.ListTasks(ctx, TaskFilter{})
+	tasks, err := s.RecoveryTasks(ctx)
 	if err != nil {
 		return err
 	}
@@ -1085,7 +1085,7 @@ func (s *Service) RecoverStartupLocalAttempts(ctx context.Context) error {
 // RecoverLocalAttempts exposes an unknown result after the local runner lease
 // expires. It never launches the previous attempt again.
 func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
-	tasks, err := s.store.ListTasks(ctx, TaskFilter{})
+	tasks, err := s.RecoveryTasks(ctx)
 	if err != nil {
 		return err
 	}
@@ -1122,7 +1122,7 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 	if timeout <= 0 {
 		timeout = 20 * time.Minute
 	}
-	tasks, err := s.store.ListTasks(ctx, TaskFilter{})
+	tasks, err := s.RecoveryTasks(ctx)
 	if err != nil {
 		return err
 	}
