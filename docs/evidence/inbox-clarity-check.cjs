@@ -40,11 +40,11 @@ async function api(route){
   await page.screenshot({path:`${out}/card-only-${language}-${width}.png`})
   await page.goto('http://127.0.0.1:4188/studio');const composer=page.locator('#studio-goal');await composer.waitFor()
   const top=await page.locator('[data-studio-goal-panel] h2').evaluate(el=>el.getBoundingClientRect().top)
-  if(width===390)assert(top<120,`Studio begins too low:${top}`)
+  if(width===390)assert(top>180 && top<400,`Studio should be vertically centered:${top}`)
   assert.equal(await page.getByText(/Tell Cuan your goal|Ceritakan tujuan Anda/).count(),0)
   await composer.fill('Ide yang belum rapi');await page.screenshot({path:`${out}/studio-${language}-${width}.png`})
   if(width===390){await page.setViewportSize({width,height:500});assert(await composer.isVisible());assert((await composer.boundingBox()).y<200);assert.equal(await composer.inputValue(),'Ide yang belum rapi')}
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await context.close()
  }
- console.log('390/1440 English/Indonesian: singular Assistant tab, concise preview, launch boilerplate removed, actual failure retained, card-only message, Studio top placement/draft preserved at short viewport; screenshots saved.')
+ console.log('390/1440 English/Indonesian: singular Assistant tab, concise preview, launch boilerplate removed, actual failure retained, card-only message, Studio centered/draft preserved at short viewport; screenshots saved.')
 })().catch(async e=>{console.error(e);if(page)await page.screenshot({path:out+'/error.png'}).catch(()=>{});process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})
