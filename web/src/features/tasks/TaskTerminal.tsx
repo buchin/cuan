@@ -1,4 +1,5 @@
 import { TerminalInputBuffer } from './terminal-input-buffer'
+import { TerminalHelperTextareaInputFilter, terminalInputInvalidatesHelperTextarea } from './terminal/mobile-input'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -54,6 +55,7 @@ export function TaskTerminal({
   const fitRef = useRef<FitAddon | null>(null)
   const socket = useRef<WebSocket | null>(null)
   const inputQueue = useRef(new TerminalInputBuffer())
+  const mobileInputFilter = useRef<TerminalHelperTextareaInputFilter | null>(null)
   const inputGeneration = taskId + ':' + attempt.id
   inputQueue.current.bind(inputGeneration)
 
@@ -154,6 +156,7 @@ export function TaskTerminal({
   const sendKey = useCallback((key: string) => {
     const ws = socket.current
     const terminal = term.current
+    if (terminalInputInvalidatesHelperTextarea(key)) mobileInputFilter.current?.reset()
     if (!interactive.current && ws?.readyState !== WebSocket.OPEN) return
     if (ws?.readyState === WebSocket.OPEN && !interactive.current) {
       if (terminal) terminal.options.disableStdin = false
@@ -499,6 +502,8 @@ export function TaskTerminal({
           const rawText = String(event.data)
           const data = JSON.parse(rawText)
           if (data.type === 'connected') {
+            const sameSession = Boolean(data.session_id && data.session_id === liveIdRef.current)
+            const retainedInput = sameSession ? t.textarea?.value || '' : ''
             if (data.session_id) {
               liveIdRef.current = data.session_id
               setAttachedSession({ generation: inputGeneration, id: data.session_id })
@@ -506,6 +511,14 @@ export function TaskTerminal({
 
             // Always reset terminal on connect so no stale ghost lines or duplicate logs remain
             t.reset()
+            // Screen replay must not discard Android's pending composition.
+            // Retain IME context only for the same PTY, never a new session.
+            if (sameSession) {
+              if (t.textarea) t.textarea.value = retainedInput
+              mobileInputFilter.current?.sync()
+            } else {
+              mobileInputFilter.current?.reset()
+            }
             isReconnecting.current = false
             retryCount.current = 0
 
@@ -723,6 +736,9 @@ export function TaskTerminal({
 
         terminal.open(mount.current)
         term.current = terminal
+        mobileInputFilter.current = navigator.maxTouchPoints > 0
+          ? new TerminalHelperTextareaInputFilter(() => terminal?.textarea)
+          : null
 
         // Prevent iOS Safari auto-zoom on textarea focus
         if (terminal.textarea) {
@@ -959,8 +975,10 @@ export function TaskTerminal({
         terminal.onData((data) => {
           const ws = socket.current
           if (!interactive.current) return
+          const payload = mobileInputFilter.current ? mobileInputFilter.current.filter(data) : data
+          if (payload === null) return
           const send = ws?.readyState === WebSocket.OPEN ? (value: string) => ws.send(JSON.stringify({ type: 'stdin', data: value })) : undefined
-          if (!inputQueue.current.write(inputGeneration, data, send)) setError('Terminal input is pending. Reconnect to the same session before typing more.')
+          if (!inputQueue.current.write(inputGeneration, payload, send)) setError('Terminal input is pending. Reconnect to the same session before typing more.')
         })
 
         // Incremental polling loop used exclusively as fallback when PTY socket is unavailable
@@ -1063,6 +1081,7 @@ export function TaskTerminal({
         socket.current = null
       }
       terminal?.dispose()
+      mobileInputFilter.current = null
       if (term.current === terminal) term.current = null
       fitRef.current = null
     }
