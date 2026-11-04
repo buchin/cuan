@@ -291,6 +291,11 @@ export function LandingPage() {
                 text: 'Monochromatic micro-tint chat bubbles, quiet muted date dividers with zero solid white pill glare, and borderless inline status and task cards.',
               },
               {
+                Icon: MessageSquare,
+                title: 'Chat Preview Cards & Room Deep Links.',
+                text: 'Rich interactive preview cards for internal conversation routes (/inbox/:id, /chat/:id, and cuan host URLs) with status indicators, one-click link copy, direct navigation, event isolation, and WCAG 44px touch targets.',
+              },
+              {
                 Icon: Sparkles,
                 title: 'SlideDrawer Progressive Disclosure.',
                 text: 'Tap task references directly inside chat bubbles to slide open rich task inspection on the right without interrupting or obscuring the conversation stream.',

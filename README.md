@@ -111,6 +111,10 @@ Transform customer interactions into structured business workflows:
   - Scans for unanswered customer inquiries (> 5-10 minutes idle) and dispatches responsive, branded HTML & plain-text email transcripts with direct 1-click links back to the Cuan Inbox.
   - Automatic debounce & smart cancellation: timers instantly cancel when an operator replies or marks the conversation as read.
   - Cooldown deduplication protects recipient inboxes from notification flooding.
+- **Interactive Chat Preview Cards & Room Deep Links**:
+  - Automatically parses internal conversation routes (`/inbox/:id`, `/chat/:id`) and internal host URLs (`cuan.dojo.cc`, `*.cuan.id`, `localhost`) inside chat streams.
+  - Renders rich, interactive `ChatPreviewCard` / `RoomCard` with online status indicators, room type badges (Customer Room vs Agent Room), last message snippet, 1-click link copying, and direct room navigation.
+  - Full WCAG 2.1 AA touch target compliance (>= 44x44px) and mobile responsiveness (360px–390px) with strict event bubbling isolation (`stopPropagation` and `preventDefault`) preventing accidental double navigation.
 
 ### 4. Extensibility & MCP Client Engine
 
@@ -388,6 +392,7 @@ For detailed operational procedures, see the [Deployment and Recovery Guide](doc
 - [Tasks Workspace & Lifecycle](docs/guides/tasks-workspace.md) — Task lifecycles, execution attempts, and sessions.
 - [Atomic Micro-Packages Architecture](docs/guides/atomic_micro_packages_guide.md) — Design principles, zero context overload, and standalone Go package specifications.
 - [GitHub Integration & PAT Setup](docs/guides/github_token_guide.md) — Connecting repositories and managing access tokens.
+- [Chat Preview Cards & Room Deep Links](docs/guides/chat_preview_card_guide.md) — Internal conversation route preview cards, WCAG 44px touch targets, event bubbling isolation, and autolinking.
 - [Deployment & Recovery Playbook](docs/guides/deployment_recovery_guide.md) — Production staging, automated backup, and rollback drills.
 - [Troubleshooting Playbook](docs/guides/troubleshooting.md) — Common operational issues, logs diagnosis, and service recovery.
 
