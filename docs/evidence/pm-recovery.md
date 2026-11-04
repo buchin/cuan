@@ -485,3 +485,26 @@ queued launch/recovery server flows pass. Existing saved execution categories ar
 not silently rewritten. Therefore this prevents new misclassification; old task
 scope and verification selection still require evidence-backed recovery rather
 than a manual category/status edit or bypass of required checks.
+
+## Carry approved continuation boundaries into automatic corrections
+
+The same persisted-owner launch lookup now supplies both review-cycle budgeting
+and the binding scope for newly saved automatic corrections. A reviewer-generated
+revision is appended after that approved continuation instead of replacing it.
+This preserves full read-only/no-push/no-deploy feedback in the launch record,
+runner context and existing exact-attempt publication policy. A genuine fresh
+owner turn remains distinct; system, unrelated, canceled, future and changed-scope
+messages cannot supply the owner basis. Storage failures stop preparation rather
+than silently dropping constraints. Oversized combined revisions fail existing
+validation instead of truncating approved instructions.
+
+Tests persist a real accepted owner continuation, queue a system correction behind
+an occupied project lane, inspect the saved launch's full read-only boundary and
+both publication prohibitions, and verify a new accepted owner turn is independent.
+Cancellation, queued launch, missing-workspace recovery and prior budget regressions
+pass. Existing already-reserved launches are not rewritten by this change: their
+historical authorization lineage and completion evidence still require audit.
+
+Classification release6654889 is healthy on the exact production SHA. The original
+audit's latest attempt remains queued at this observation; no final result or
+full backlog acceptance is claimed.

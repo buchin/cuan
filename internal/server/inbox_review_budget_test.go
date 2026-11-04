@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -44,7 +45,7 @@ func TestOwnerContinuationHasBoundedIndependentReviewBudget(t *testing.T) {
 				if scenario == "future" {
 					at = now.Add(time.Minute)
 				}
-				_, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, OwnerID: owner, RoomID: q.RoomID, RequestID: q.RequestID, SourceRequestID: "original", AgentID: q.AgentID, Revision: "Verify the original remaining work", InstructionsHash: hash, CreatedAt: at, AvailableAt: at, ExpiresAt: at.Add(time.Hour)})
+				_, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, OwnerID: owner, RoomID: q.RoomID, RequestID: q.RequestID, SourceRequestID: "original", AgentID: q.AgentID, Revision: "Read-only audit. Do not push. Do not deploy. Verify the original remaining work", InstructionsHash: hash, CreatedAt: at, AvailableAt: at, ExpiresAt: at.Add(time.Hour)})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -57,6 +58,41 @@ func TestOwnerContinuationHasBoundedIndependentReviewBudget(t *testing.T) {
 			scoped := s.reviewBudgetDetail(ctx, d)
 			want := 3
 			if scenario == "owner" {
+				// Keep launch preflight queued on a real occupied project lane. We test
+				// the persisted intent, not an external provider or a manufactured success.
+				if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy-task", ProjectID: d.ProjectID, Status: task.TaskStatusDoing}); err != nil {
+					t.Fatal(err)
+				}
+				review := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID()}
+				out := s.startAuthorizedLaunch(ctx, review, d, review.RequestID, "original", "Correct the missing check and report evidence.")
+				if !strings.Contains(out, "queued waiting") {
+					t.Fatal(out)
+				}
+				job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, review.RequestID))
+				if err != nil {
+					t.Fatal(err)
+				}
+				policy := executionpolicy.FromInstructions(job.Revision)
+				if !policy.DenyPush || !policy.DenyDeploy || !strings.Contains(job.Revision, "Read-only audit.") {
+					t.Fatal("automatic correction lost owner boundaries", job.Revision)
+				}
+				// A new accepted owner turn remains independent of prior revision text.
+				fresh := q
+				fresh.RequestID = db.GenerateUUID()
+				fresh.MessageID = db.GenerateUUID()
+				fresh.ReplyID = db.GenerateUUID()
+				fresh.CreatedAt = time.Now().UTC()
+				if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, fresh, &db.ProjectMessage{ID: fresh.MessageID, RoomID: fresh.RoomID, AuthorType: "user", CreatedAt: fresh.CreatedAt}); err != nil {
+					t.Fatal(err)
+				}
+				s.startAuthorizedLaunch(ctx, fresh, d, fresh.RequestID, "original", "Continue original approved scope.")
+				freshJob, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, fresh.RequestID))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(freshJob.Revision, "Binding approved continuation:") {
+					t.Fatal("old execution feedback replaced a new owner turn")
+				}
 				want = 1
 			}
 			if count := taskRevisionAttemptCount(scoped); count != want {

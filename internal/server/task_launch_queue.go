@@ -15,6 +15,23 @@ import (
 
 func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string) string {
 	now := time.Now().UTC()
+	// Automatic corrections inherit the owner's approved continuation. Feedback
+	// from a review cannot erase a prior no-push/no-deploy or read-only boundary.
+	ownerTurn := false
+	if launchID == q.RequestID && s.projectStudioRepo != nil {
+		if message, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID); err == nil && message != nil && message.AuthorType == "user" {
+			ownerTurn = true
+		}
+	}
+	if !ownerTurn {
+		basis, err := s.ownerContinuationLaunch(ctx, t)
+		if err != nil {
+			return "The approved continuation could not be checked. No execution was started."
+		}
+		if basis != nil && basis.OwnerID == q.OwnerID {
+			revision = "Binding approved continuation:\n" + basis.Revision + "\n\nAutomatic correction feedback:\n" + revision
+		}
+	}
 
 	launchAgent := q.AgentID
 	if t != nil && t.AssignedAgent != "" {
