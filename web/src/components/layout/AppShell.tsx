@@ -267,7 +267,7 @@ export function AppShell({
             <span
               data-testid="inbox-unread-badge-rail"
               aria-label={`${effectiveInboxUnread} unread messages`}
-              className="absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
+              className="absolute -right-2 -top-1.5 notification-count min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
             >
               {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
             </span>
@@ -524,7 +524,7 @@ export function AppShell({
                   <span
                     data-testid="inbox-unread-badge-bottom"
                     aria-label={`${effectiveInboxUnread} unread messages`}
-                    className="absolute -right-3 -top-2 min-w-4 rounded-full bg-primary px-1 text-[10px] font-bold font-mono leading-4 text-primary-foreground"
+                    className="absolute -right-3 -top-2 notification-count min-w-4 rounded-full bg-primary px-1 text-[10px] font-bold font-mono leading-4 text-primary-foreground"
                   >
                     {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
                   </span>

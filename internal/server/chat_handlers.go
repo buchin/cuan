@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1698,6 +1699,13 @@ func (s *Server) isCustomerRoom(ctx context.Context, roomID string) bool {
 
 // extractCustomerReplyDraft parses a ready-to-use customer response draft from agent content.
 func extractCustomerReplyDraft(content string) string {
+	_, draft := splitCustomerReplyDraft(content)
+	return draft
+}
+
+var internalDraftLink = regexp.MustCompile(`\[[^\]]*\]\(/(?:tasks|inbox|projects)/[^)]*\)`)
+
+func splitCustomerReplyDraft(content string) (string, string) {
 	lower := strings.ToLower(content)
 	markers := []string{
 		"**draf balasan untuk pengunjung:**",
@@ -1715,31 +1723,34 @@ func extractCustomerReplyDraft(content string) string {
 	}
 	for _, marker := range markers {
 		idx := strings.Index(lower, marker)
-		if idx != -1 {
-			remainder := strings.TrimSpace(content[idx+len(marker):])
-			lines := strings.Split(remainder, "\n")
-			var draftLines []string
-			for _, l := range lines {
-				trimmed := strings.TrimSpace(l)
-				if trimmed == "" && len(draftLines) == 0 {
-					continue
-				}
-				if strings.HasPrefix(trimmed, "**") || strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "---") {
-					break
-				}
-				cleanLine := strings.TrimPrefix(trimmed, ">")
-				cleanLine = strings.TrimSpace(cleanLine)
-				cleanLine = strings.Trim(cleanLine, "\"")
-				if cleanLine != "" {
-					draftLines = append(draftLines, cleanLine)
-				}
+		if idx < 0 {
+			continue
+		}
+		start := idx + len(marker)
+		lines := strings.SplitAfter(content[start:], "\n")
+		consumed := 0
+		var draftLines []string
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" && len(draftLines) == 0 {
+				consumed += len(line)
+				continue
 			}
-			if len(draftLines) > 0 {
-				return strings.Join(draftLines, " ")
+			if trimmed == "" || strings.HasPrefix(trimmed, "**") || strings.HasPrefix(trimmed, "##") || strings.HasPrefix(trimmed, "---") || strings.HasPrefix(trimmed, "[View work]") || strings.HasPrefix(trimmed, "[Tinjau rincian") {
+				break
 			}
+			clean := strings.Trim(strings.TrimSpace(strings.TrimPrefix(trimmed, ">")), "\"")
+			clean = strings.TrimSpace(internalDraftLink.ReplaceAllString(clean, ""))
+			if clean != "" {
+				draftLines = append(draftLines, clean)
+			}
+			consumed += len(line)
+		}
+		if len(draftLines) > 0 {
+			return strings.TrimSpace(content[:idx] + "\n\n" + content[start+consumed:]), strings.Join(draftLines, "\n")
 		}
 	}
-	return ""
+	return content, ""
 }
 
 func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string) []ChatMessageDTO {
@@ -1802,10 +1813,14 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 				isInternal = true
 			}
 		}
-		replyDraft := extractCustomerReplyDraft(m.Content)
+		messageContent := m.Content
+		replyDraft := ""
+		if m.AuthorType == "agent" {
+			messageContent, replyDraft = splitCustomerReplyDraft(messageContent)
+		}
 
 		var actionCard *AgentActionCard
-		content, draft := splitInboxTaskDraft(m.AuthorType, m.Content)
+		content, draft := splitInboxTaskDraft(m.AuthorType, messageContent)
 		content, approvalTitle := splitInboxApproval(m.AuthorType, content)
 		content, promptChoices := splitInboxPromptChoices(m.AuthorType, content)
 		var approvalPlan *inboxApprovalPlan

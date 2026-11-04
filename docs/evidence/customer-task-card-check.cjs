@@ -21,7 +21,7 @@ const contacts=[
  {id:'single',conversation_id:'single-room',name:'Satu tugas selesai',task_count:1,done_tasks:1,last_message:report('LULUS')},
  {id:'empty',conversation_id:'empty-room',name:'Diskusi ide baru',task_count:0,done_tasks:0,last_message:'Mari bahas kebutuhan Anda.'},
  {id:'unknown',conversation_id:'unknown-room',name:'Status belum tersedia',last_message:'Percakapan tanpa data progres.'},
-].map(c=>({...c,type:c.id==='contact'?'customer':'agent',agent_id:'agent_cuan',agent_name:'@cuan',unread_count:0,status:'idle',updated_at:now}))
+].map(c=>({...c,type:c.id==='contact'?'customer':'agent',agent_id:'agent_cuan',agent_name:'@cuan',unread_count:c.id==='complete'?7:0,status:'idle',updated_at:now}))
 const task={id:'msg_reply',title:'Siapkan panduan pelanggan',status:'done',project_id:'large',project_name:'Cuan',summary:'Panduan selesai dan telah diverifikasi.',source_message_id:'reply',created_at:now,updated_at:now,latest_attempt:{id:'attempt',status:'succeeded'}}
 let server,browser,debugPage
 async function routeAPI(route){
@@ -41,7 +41,7 @@ async function routeAPI(route){
  if(p==='/api/system/worker-health')return json({status:'ready',is_alive:true,running_count:0,queued_count:0})
  if(p==='/api/system/update')return json({current_version:'fixture',latest_version:'fixture',has_update:false})
   if(/chat\/conversations\/fixture-room\/(messages|events)$/.test(p)){
-   const data={conversation_id:'fixture-room',room_id:'fixture-room',contact:contacts[0],tasks:[task],messages:[{id:1,uuid:'message',author_type:'user',sender_type:'visitor',content:'Buatkan panduan untuk pelanggan.',created_at:now},{id:11,uuid:'user-followup',author_type:'user',sender_type:'visitor',content:'Gunakan bahasa yang sederhana.',created_at:now},{id:2,uuid:'reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Panduan sudah selesai dan diperiksa.\n\n[View work](/tasks/msg_reply)',created_at:now},{id:3,uuid:'agent-followup',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'Silakan cek file hasilnya.',created_at:now},{id:4,uuid:'file-only',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'',message:'',attachments:[{id:'fixture-file',name:'panduan.md',type:'text/markdown',size:1024,url:'/api/v1/chat/attachments/private-file'}],created_at:now},{id:5,uuid:'user-later',author_type:'user',sender_type:'visitor',content:'Terima kasih, hasilnya sudah sesuai.',created_at:new Date(Date.parse(now)+360000).toISOString()}],requests:[]}
+   const data={conversation_id:'fixture-room',room_id:'fixture-room',contact:contacts[0],tasks:[task],messages:[{id:1,uuid:'message',author_type:'user',sender_type:'visitor',content:'Buatkan panduan untuk pelanggan.',created_at:now},{id:11,uuid:'user-followup',author_type:'user',sender_type:'visitor',content:'Gunakan bahasa yang sederhana.',created_at:now},{id:2,uuid:'reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Panduan sudah selesai dan diperiksa.\n\n[View work](/tasks/msg_reply)',created_at:now},{id:3,uuid:'agent-followup',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'Silakan cek file hasilnya.',created_at:now},{id:4,uuid:'file-only',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'',message:'',attachments:[{id:'fixture-file',name:'panduan.md',type:'text/markdown',size:1024,url:'/api/v1/chat/attachments/private-file'}],created_at:now},{id:5,uuid:'user-later',author_type:'user',sender_type:'visitor',content:'Terima kasih, hasilnya sudah sesuai.',created_at:new Date(Date.parse(now)+360000).toISOString()} ,{id:6,uuid:'draft-reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Kami sudah meninjau laporan Anda.',reply_draft:'Terima kasih sudah menunggu. Kami sedang memeriksa kendalanya.',created_at:now}],requests:[]}
    return p.endsWith('/events')?route.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: '+JSON.stringify(data)+'\n\n'}):json(data)
   } return json({})
 }
@@ -82,9 +82,20 @@ contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='her
  const rect=await popover.boundingBox();assert(rect.x>=0&&rect.x+rect.width<=width);await page.screenshot({path:out+'/privacy-'+theme+'-'+width+'.png'});await page.keyboard.press('Escape');await popover.waitFor({state:'detached'});
  await privacy.focus();await page.keyboard.press('Enter');await popover.waitFor();await page.keyboard.press('Escape');assert(await privacy.evaluate(el=>el===document.activeElement));
  const file=page.locator('[data-message-id=file-only]');assert.equal(await file.locator('[data-internal-visibility]').count(),1,'file-only message has one marker');await file.getByRole('button',{name:'Preview panduan.md',exact:true}).click();const preview=page.locator('dialog[open]');await preview.waitFor();const previewPrivacy=preview.locator('[data-internal-visibility]');await previewPrivacy.click();await popover.waitFor();assert(await preview.locator('[role=dialog][aria-label="Internal visibility"]').isVisible(),'popover stays in native dialog top layer');await page.keyboard.press('Escape');assert(await preview.isVisible(),'Escape dismisses privacy without closing preview');await page.keyboard.press('Escape');await preview.waitFor({state:'detached'});
+ const draftCard=page.locator('[data-card=reply-draft]');await draftCard.scrollIntoViewIfNeeded();
+ assert.equal(await page.locator('.wa-message-bubble [data-card=reply-draft]').count(),0,'draft is outside speech bubble');
+ assert.equal(await draftCard.locator('[data-internal-visibility]').count(),1);
+ assert.equal(await page.getByText('Terima kasih sudah menunggu. Kami sedang memeriksa kendalanya.',{exact:true}).count(),1,'one draft preview');
+ const use=draftCard.getByRole('button',{name:'Review & Use',exact:true}),footer=draftCard.locator('[data-draft-footer]');
+ const buttonBox=await use.boundingBox(),footerBox=await footer.boundingBox();assert(buttonBox.height>=44);assert(footerBox.height-buttonBox.height<=2,'footer has no extra vertical padding');
+ await page.screenshot({path:out+'/draft-'+theme+'-'+width+'.png'});
+ await page.getByRole('button',{name:'Whisper @cuan',exact:true}).click();await use.click();assert.equal(await composer.inputValue(),'Terima kasih sudah menunggu. Kami sedang memeriksa kendalanya.');assert.equal(await composer.getAttribute('placeholder'),'Write a reply…');await composer.fill('');
+
  await card.scrollIntoViewIfNeeded();
  await page.screenshot({path:out+'/customer-'+theme+'-'+width+'.png'});
- await card.getByRole('button',{name:'Detail',exact:true}).click();assert(page.url().includes('/inbox/fixture-room'));await context.close()
+ await card.getByRole('button',{name:'Detail',exact:true}).click();assert(page.url().includes('/inbox/fixture-room'));
+ if(width===390){await page.goto('http://127.0.0.1:4183/inbox');const badge=page.getByTestId('inbox-unread-badge-bottom');const geometry=await badge.evaluate(el=>({radius:getComputedStyle(el).borderRadius,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}));assert.equal(geometry.width,geometry.height,'single digit badge is circular');assert(parseFloat(geometry.radius)>=geometry.height/2);await page.screenshot({path:out+'/badge-'+theme+'-'+width+'.png'});}
+ await context.close()
  }
  console.log('Customer-room attachment390/1440 light/dark: exactly one card, Detail preserves Inbox, no false Terminal.')
 })().catch(async e=>{console.error(e);if(debugPage)await debugPage.screenshot({path:out+'/error.png'});process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})

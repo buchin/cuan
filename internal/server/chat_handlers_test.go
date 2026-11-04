@@ -746,7 +746,7 @@ Fix checkout 500 error
 	_ = json.Unmarshal(recInternal2.Body.Bytes(), &internalResp)
 	var foundAgentReply *ChatMessageDTO
 	for _, m := range internalResp.Messages {
-		if m.AuthorType == "agent" && strings.Contains(m.Message, "Draf Balasan") {
+		if m.AuthorType == "agent" && strings.Contains(m.Message, "Here is a proposed plan") {
 			mCopy := m
 			foundAgentReply = &mCopy
 			break

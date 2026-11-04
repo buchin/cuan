@@ -1,3 +1,4 @@
+import { ReplyDraftCard } from './ReplyDraftCard'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { workStatus } from '../tasks/task-ui'
 import { startsMessageGroup } from './message-group'
@@ -5,7 +6,6 @@ import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
 import { IconButton } from '../../components/ui/IconButton'
 import { updateItemPreference } from '../../hooks/useArchivedItems'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { Button } from "../../components/ui/button"
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import {
@@ -1733,36 +1733,6 @@ export function InboxView({
                         </div>
                       )}
 
-                      {/* Ready-to-Use Customer Draft Reply Card */}
-                      {msg.reply_draft && (
-                        <div className="mt-3 p-3 rounded-xl bg-card border border-primary/30 shadow-xs text-foreground space-y-2">
-                          <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
-                            <div className="flex items-center gap-1.5 font-semibold text-xs text-primary">
-                              <Sparkles className="h-3.5 w-3.5" />
-                              <span>{t('Customer reply draft · Not sent yet')}</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setInputMessage(msg.reply_draft || '')
-                                textareaRef.current?.focus()
-                                if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-                              }}
-                              className="h-7 text-xs font-medium px-2.5 py-1 gap-1 cursor-pointer"
-                            >
-                              <Send className="h-3 w-3" />
-                              <span>{t('Review & Use')}</span>
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground italic bg-muted/40 p-2.5 rounded-lg border border-border/40 whitespace-pre-wrap leading-relaxed">
-                            "{msg.reply_draft}"
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {t('Click "Review & Use" to load into the message composer for the visitor.')}
-                          </p>
-                        </div>
-                      )}
-
                       {isAgentMessage && msg.approval_plan && (
                         <ApprovalCard
                           plan={msg.approval_plan}
@@ -1872,6 +1842,15 @@ export function InboxView({
                       )}
                     </div>
                     </ItemActions>
+                    {msg.reply_draft && (
+                      <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true} onUse={(draft) => {
+                        setWhisperMode(false)
+                        setWhisperHandle('')
+                        setInputMessage(draft)
+                        textareaRef.current?.focus()
+                        if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                      }} />
+                    )}
                       {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (
                         <InboxTaskAction
                           linkedTask={linkedTaskForMsg}

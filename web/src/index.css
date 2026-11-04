@@ -426,7 +426,7 @@ body:has(.task-terminal-container),
 .rounded-xl,
 .rounded-2xl,
 .rounded-3xl,
-.rounded-full:not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar) {
+.rounded-full:not(.notification-count):not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar) {
   border-radius: 0px !important;
 }
 
@@ -508,3 +508,6 @@ body:has(.task-terminal-container),
     background: oklch(var(--background));
   }
 }
+
+/* Unread counts are notifications, distinct from square identity avatars. */
+.notification-count { border-radius: 9999px !important; }
