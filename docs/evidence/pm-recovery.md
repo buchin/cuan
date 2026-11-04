@@ -621,3 +621,28 @@ progress exists. Full frontend gate and build passed; actual built UI fixture
 historical completion summary and new queued/running attempts. Mobile dark and
 desktop light screenshots were directly inspected under the private
 `attempt-progress/` evidence directory: no stale completion claim or overflow.
+
+## Worker output was being inserted as an Owner instruction
+
+The audit room's12:54 report appeared on the outgoing side as author_type=user,
+sender_type=visitor, author_name=Owner while its attempt was still running.
+Saved worker output includes a `send_inbox_message` call. That tool sends through
+an ambient owner API client, or (if unconfigured) directly inserts a synthetic
+Owner/user message into project_messages. Neither path is task reporting.
+Historical messages are retained; no manual author/status rewrite was performed.
+
+Bound task sessions now reject Owner writes before cached API clients or database
+fallbacks are used. This covers message/conversation creation, task creation/status
+changes, skill mutation, config writes and non-read-only owner API requests.
+The MCP tool list omits Owner mutations; stale direct tool calls receive a clear
+`task report` redirect. Session guidance explicitly separates worker reports from
+owner commands. Sending an unauthenticated Inbox message no longer has a raw
+synthetic-Owner database fallback, even outside task mode. Read-only inspection
+remains available for authorized audits; this is not a host-code sandbox.
+
+Diagnostics tests cover both capability formats (including malformed/missing
+files), cached owner credentials, zero HTTP mutations/database connections,
+MCP tool discovery and direct calls, unchanged host config, read-only inspection,
+normal authenticated owner sending and scoped task reporting. No production test
+messages were sent. Original audit acceptance and full backlog completion remain
+unproven; the existing posted report is not treated as owner approval here.

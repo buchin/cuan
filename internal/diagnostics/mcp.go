@@ -572,9 +572,18 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		resp.Result = map[string]any{}
 
 	case "tools/list":
-		resp.Result = map[string]any{
-			"tools": nativeMCPTools,
+		tools := nativeMCPTools
+		if boundTaskSession() {
+			tools = make([]mcpToolDefinition, 0, len(nativeMCPTools))
+			for _, tool := range nativeMCPTools {
+				switch tool.Name {
+				case "send_inbox_message", "create_inbox_conversation", "create_task_draft", "update_task_status", "toggle_agent_skill", "update_project_environment":
+					continue
+				}
+				tools = append(tools, tool)
+			}
 		}
+		resp.Result = map[string]any{"tools": tools}
 
 	case "resources/list":
 		resp.Result = map[string]any{

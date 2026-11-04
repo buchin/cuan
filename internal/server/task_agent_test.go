@@ -63,7 +63,7 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 		t.Fatal("session guidance must be private", err)
 	}
 	guide, err := os.ReadFile(guidePath)
-	if err != nil || !strings.Contains(string(guide), "A greeting or question is not a request to build") || !strings.Contains(string(guide), "Do not inspect, reverse-engineer") {
+	if err != nil || !strings.Contains(string(guide), "A greeting or question is not a request to build") || !strings.Contains(string(guide), "Do not inspect, reverse-engineer") || !strings.Contains(string(guide), "Never use chat send, send_inbox_message") {
 		t.Fatal("missing proportional task guidance", err)
 	}
 	if len(visiblePrompt) > 220 || strings.Contains(visiblePrompt, "Task reporting tool") || strings.Contains(string(guide), token) {

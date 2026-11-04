@@ -50,6 +50,10 @@ Example:
 		return 0
 
 	case "set":
+		if err := taskSessionOwnerWriteError(); err != nil {
+			fmt.Fprintln(errOut, err)
+			return 1
+		}
 		if len(args) < 3 {
 			fmt.Fprintln(errOut, "Usage: cuan config set <key> <value>")
 			return 2

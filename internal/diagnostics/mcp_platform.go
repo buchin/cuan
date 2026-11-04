@@ -367,6 +367,10 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 
 // CreateTaskDraft proposes or creates a new task draft for user approval or queueing.
 func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priority string, dodChecklist []string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return nil, fmt.Errorf("title is required")
@@ -1116,6 +1120,10 @@ func ListSkills(ctx context.Context) (any, error) {
 
 // ToggleAgentSkill activates or deactivates a skill for an agent.
 func ToggleAgentSkill(ctx context.Context, agentID, skillID string, enabled bool) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+
 	reg := mcp.GetDefaultRegistry()
 	if err := reg.ToggleAgentSkill(agentID, skillID, enabled); err != nil {
 		return nil, err
@@ -1135,6 +1143,10 @@ func ToggleAgentSkill(ctx context.Context, agentID, skillID string, enabled bool
 
 // CreateInboxConversation creates a new discussion room or agent topic conversation.
 func CreateInboxConversation(ctx context.Context, agentID, projectID, title string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+
 	if client := GetCuanClient(); client != nil && client.IsConfigured() {
 		return client.CreateConversation(ctx, agentID, projectID, title)
 	}
@@ -1176,6 +1188,10 @@ func CreateInboxConversation(ctx context.Context, agentID, projectID, title stri
 
 // SendInboxMessage sends a user message to an inbox conversation and optionally waits for the agent's reply.
 func SendInboxMessage(ctx context.Context, roomID, message string, waitForReply bool, waitSeconds int) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+
 	roomID = strings.TrimSpace(roomID)
 	if roomID == "" {
 		return nil, fmt.Errorf("room_id is required")
@@ -1230,29 +1246,17 @@ func SendInboxMessage(ctx context.Context, roomID, message string, waitForReply 
 		}, nil
 	}
 
-	db := getPlatformDB()
-	if db == nil {
-		return nil, fmt.Errorf("cuan client is not configured and database connection is unavailable")
-	}
-
-	msgID := dbPkg.GenerateUUID()
-	now := time.Now().UTC()
-	_, err := db.ExecContext(ctx, "INSERT INTO project_messages (id, room_id, author_type, author_id, author_name, content, created_at, updated_at) VALUES ($1, $2, 'user', 'operator_user', 'Owner', $3, $4, $4)",
-		msgID, roomID, message, now)
-	if err != nil {
-		return nil, fmt.Errorf("insert message: %w", err)
-	}
-
-	return map[string]any{
-		"status":     "sent_to_db",
-		"message_id": msgID,
-		"room_id":    roomID,
-		"note":       "Message stored in database. To trigger active agent execution, configure CUAN_API_URL and CUAN_AUTH_TOKEN.",
-	}, nil
+	// A database connection is not an authenticated owner identity. Inserting an
+	// artificial Owner/user message would also forge a source of authorization.
+	return nil, fmt.Errorf("sending an owner message requires an authenticated Cuan API client; worker results must use task report")
 }
 
 // UpdateTaskStatus updates status, summary, and verification evidence for a task.
 func UpdateTaskStatus(ctx context.Context, taskID, status, summary, completeNote string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		return nil, fmt.Errorf("task_id is required")

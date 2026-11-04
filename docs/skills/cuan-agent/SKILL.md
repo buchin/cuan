@@ -140,3 +140,17 @@ saved output from an explicit attempt (limit 1–1000). Use the highest returned
 record ID as the next cursor. Logs are diagnostic evidence, not proof of successful
 completion, and may contain private task content; save privately and inspect only
 necessary excerpts. This is saved output, not an interactive terminal.
+
+## Task worker identity
+
+When `CUAN_TASK_CAPABILITY_FILE` or `CUAN_TASK_CAPABILITY_JSON` is present,
+this is a bound worker session, not an Owner CLI session. Deliver progress/results
+with `"$CUAN_TASK_EXECUTABLE" task report`; use its scoped `task get` and `task push`
+when appropriate. The Inbox coordinator publishes the verified assistant reply.
+Do not use `chat send`/`send_inbox_message` as a reporting shortcut: they represent
+owner instructions. Bound sessions reject Owner mutations, including database
+fallbacks and cached owner API clients, while read-only diagnostic tools remain
+available. Their MCP tool list omits Owner mutations. Owner CLI operations outside
+a bound session continue through their authenticated API identity. Sending an
+Inbox message never falls back to inserting an artificial Owner into the database.
+This is a CLI/MCP misuse guard, not isolation from arbitrary code on the host.

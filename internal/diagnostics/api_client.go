@@ -148,6 +148,12 @@ func (c *CuanClient) IsConfigured() bool {
 }
 
 func (c *CuanClient) doRequest(ctx context.Context, method, endpoint string, body any) (*http.Response, error) {
+	if method != http.MethodGet && method != http.MethodHead {
+		if err := taskSessionOwnerWriteError(); err != nil {
+			return nil, err
+		}
+	}
+
 	u := c.BaseURL + endpoint
 
 	var bodyReader io.Reader
