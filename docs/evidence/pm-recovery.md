@@ -435,3 +435,35 @@ Desktop avatar sizing is preserved. Real390px light/dark Projects and Account
 screenshots plus1440px desktop were rendered and visually inspected under
 account-nav. Browser assertions verify28px avatar geometry, aligned labels,
 active aria-current, icon opacity and minimum touch height.
+
+## Current acceptance audit — overall goal remains active
+
+Productiona4a6f02 health matches the exact release SHA. Loaded (not skeleton)
+Projects and Account pages were rendered and inspected at390px, plus loaded
+Projects at1440px. Mobile Account is28px with aligned labels and distinct active
+state; desktop remains36px. The new grounded customer result path is shipped.
+
+Still required for the full project-manager outcome:
+- Observe the original audit revision through real execution, concrete checks,
+  coordinator acceptance and Inbox delivery; its latest observed attempt is queued.
+- Demonstrate the full approved Cuan backlog advancing sequentially, not just a
+  single recovered launch. A Dracin completion followed by a Dojo running task is
+  observed handoff evidence, not independent acceptance of all their criteria.
+- Replace keyword/prose deployment proof with trusted task/attempt/commit-bound
+  live release evidence. Heru PR9 remains open and unmerged; genericHTTP200 does
+  not establish deployment of its task commit. The native activation script still
+  pre-marks task deployment before checking health and requires correction.
+- Audit narrowed owner intent across automatic revisions. Exact-attempt policy is
+  implemented, but a later generated revision may omit a prior owner's additional
+  no-push/no-deploy limits. Preserve that authorization lineage without importing
+  restrictions from a newer unrelated intent or silently expanding approved scope.
+- Correct classification of audit-only work: inference currently sees snapshotted
+  project metadata and incidental deployment words, which can select the code lane
+  and require irrelevant project tests. Do not waive actual required checks; prove
+  the execution scope and real changes before selecting verification.
+- Observe real concise coordinator responses and absence of premature owner-help
+  templates after failure. Fixture tests and prompt text are not universal proof.
+
+No production backlog statuses, owner resume messages or visitor replies were
+manually written in these recovery fixes. Keep canceled work stopped and retain
+original files, approval and evidence while repairing the product itself.
