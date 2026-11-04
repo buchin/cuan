@@ -1277,44 +1277,53 @@ func (r *Runner) executeWithPTY(
 
 	var quotaHit atomic.Bool
 	var quotaReset string
-	var logBuf bytes.Buffer
+	var diagnostics ptyDiagnosticCollector
 	var logMu sync.Mutex
+	persistLines := func(lines []string) {
+		if len(lines) == 0 {
+			return
+		}
+		atomic.AddInt64(liveStreamedCount, int64(len(lines)))
+		// One request per output batch instead of one per terminal redraw.
+		r.streamOutputLogs(ctx, att.ID, strings.Join(lines, "\n"), "")
+	}
 	consumeOutput := func(chunk []byte) {
 		logMu.Lock()
-		logBuf.Write(chunk)
-		for {
-			line, lErr := logBuf.ReadString('\n')
-			if len(line) > 0 {
-				clean := strings.TrimRight(line, "\r\n")
-				if clean != "" {
-					atomic.AddInt64(liveStreamedCount, 1)
-					r.streamLogLine(ctx, att.ID, "stdout", clean)
-
-					// Quota limit / exhaustion detection: fail fast to avoid interactive terminal hang
-					if strings.Contains(clean, "Individual quota reached") ||
-						strings.Contains(clean, "Resource has been exhausted") ||
-						strings.Contains(clean, "Quota exceeded") ||
-						strings.Contains(clean, "rate_limit_exceeded") {
-						quotaHit.Store(true)
-						if _, reset, ok := agent.ParseProviderQuotaResetDuration(clean); ok {
-							quotaReset = reset
-						}
-						r.streamLogLine(ctx, att.ID, "system", "AI capacity limit detected. Preserving work before selecting another available route.")
-						cancelExec()
-						_ = sess.Close()
-					}
-				}
+		defer logMu.Unlock()
+		lines, quota := diagnostics.Feed(chunk)
+		if quota != "" && !quotaHit.Swap(true) {
+			if _, reset, ok := agent.ParseProviderQuotaResetDuration(quota); ok {
+				quotaReset = reset
 			}
-			if lErr != nil {
-				break
-			}
+			r.streamLogLine(ctx, att.ID, "system", "AI capacity limit detected. Preserving work before selecting another available route.")
+			cancelExec()
+			_ = sess.Close()
 		}
-		logMu.Unlock()
+		persistLines(lines)
 	}
+	defer func() {
+		logMu.Lock()
+		defer logMu.Unlock()
+		persistLines(diagnostics.Flush())
+	}()
 	consumeOutput(history)
+	loggerDone := make(chan struct{})
 	go func() {
+		defer close(loggerDone)
 		for {
 			select {
+			case <-logSub.CloseChan:
+				if !sess.IsClosed() {
+					r.streamLogLine(ctx, att.ID, "system", "Diagnostic log viewer fell behind and detached. Retained output may be incomplete; live execution continues.")
+				}
+				for {
+					select {
+					case chunk := <-logSub.SendChan:
+						consumeOutput(chunk)
+					default:
+						return
+					}
+				}
 			case <-execCtx.Done():
 				return
 			case chunk, ok := <-logSub.SendChan:
@@ -1351,6 +1360,11 @@ func (r *Runner) executeWithPTY(
 	// Wait for PTY process completion or context cancellation
 	waitErr := proc.Wait()
 	exitCode := proc.ExitCode()
+	// Give the existing reader a bounded opportunity to persist the final batch.
+	select {
+	case <-loggerDone:
+	case <-time.After(2 * time.Second):
+	}
 
 	res := &agent.ExecutionResult{
 		Status:   "SUCCESS",
