@@ -73,9 +73,21 @@ func (c *ptyDiagnosticCollector) keep(raw string) string {
 	}
 	spinner := strings.IndexFunc(raw, func(r rune) bool { return r >= 0x2800 && r <= 0x28ff }) >= 0
 	key := strings.ToLower(strings.TrimRight(clean, ". …"))
+	if spinner && len(key) >= 4 {
+		for _, status := range []string{"running command", "reading", "reading file", "thinking", "working", "managing tasks"} {
+			if strings.HasPrefix(status, key) {
+				key = status
+				// Reading and Reading file share one redraw state.
+				if strings.HasPrefix(key, "reading") {
+					key = "reading"
+				}
+				break
+			}
+		}
+	}
 	// Collapse only recognized animated status redraws. Identical factual lines,
 	// commands and errors remain separate diagnostic records.
-	if spinner && (key == "running command" || key == "reading" || key == "thinking" || key == "working") {
+	if spinner && (key == "running command" || key == "reading" || key == "thinking" || key == "working" || key == "managing tasks") {
 		if c.lastSpinner == key {
 			return ""
 		}

@@ -82,3 +82,26 @@ func TestPTYDiagnosticsKeepsUTF8ValidAtBoundedFragmentBoundary(t *testing.T) {
 		t.Fatal("UTF-8 bytes changed")
 	}
 }
+
+func TestPTYDiagnosticsCollapsesPartialStatusRedrawsButKeepsSpecificWork(t *testing.T) {
+	var c ptyDiagnosticCollector
+	var lines []string
+	for _, status := range []string{"Running command", "Reading file", "Managing tasks"} {
+		for cycle := 0; cycle < 1000; cycle++ {
+			for length := 4; length <= len(status); length++ {
+				out, _ := c.Feed([]byte("\r⣯  " + status[:length] + "\b\b\r"))
+				lines = append(lines, out...)
+			}
+		}
+	}
+	for _, factual := range []string{"⣯ Reading failed: permission denied", "⣯ Running command npm test", "Reading", "Reading", "ERROR: failed", "ERROR: failed"} {
+		out, _ := c.Feed([]byte(factual + "\n"))
+		lines = append(lines, out...)
+	}
+	if len(lines) != 9 {
+		t.Fatalf("partial redraws evicted evidence or factual lines collapsed: %d", len(lines))
+	}
+	if !strings.Contains(lines[3], "permission denied") || lines[7] != "ERROR: failed" || lines[8] != "ERROR: failed" {
+		t.Fatalf("specific evidence lost: %q", lines)
+	}
+}

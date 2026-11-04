@@ -47,3 +47,19 @@ UTF-8 fragment boundaries, split quota phrases, and real PTY processes that emit
 split failures and final messages without newline. A real split-quota process
 must stop as quota-limited before its execution deadline. Existing interactive
 PTY/socket tests continue to check terminal input and output independently.
+
+## Partial redraws and terminal outcomes
+
+Recognized spinner statuses also arrive as progressively painted prefixes such
+as `Running comm`, `Reading file` and `Managing tasks`, interleaved with
+backspaces. Prefixes of at least four characters map to the same known status for
+consecutive redraw suppression. Specific commands, error suffixes, ordinary
+non-spinner text and repeated factual failures remain separate records. The live
+terminal stream is unchanged. Other unrecognized TUI repaint patterns can still
+produce noise; this is not a complete terminal screen emulator.
+
+The final attempt status log uses a separate three-second delivery context after
+execution ends, including cancellation and deadline expiry. A slow log endpoint
+cannot consume the completion API's independent fifteen-second delivery budget.
+This improves subsequent diagnosis; it cannot restore discarded historical output
+or establish the causes of the existing exit-2 and timeout failures.

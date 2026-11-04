@@ -1021,8 +1021,12 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		r.processCompletionEventAndDoD(ctx, ws, t, att, claim, &compReq, lane, workingDir)
 	}
 
-	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",
+	// Execution cancellation must not discard its final diagnostic. Bound this
+	// separately so an unavailable log endpoint cannot spend completion's budget.
+	diagnosticCtx, cancelDiagnostic := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	r.streamLogLine(diagnosticCtx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",
 		att.ID, compReq.Status, compReq.ExitCode, duration.Round(time.Millisecond), compReq.PeakRSSBytes))
+	cancelDiagnostic()
 
 	// Send complete notification to server
 	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/complete", att.ID)
