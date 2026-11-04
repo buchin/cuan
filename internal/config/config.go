@@ -19,6 +19,7 @@ var GitCommit = ""
 var SourceRepository = ""
 
 var buildSourceIdentity = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$`)
+var buildRevision = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
 func (c *Config) SourceRepositoryURL() string {
 	if c == nil || !buildSourceIdentity.MatchString(c.SourceRepository) {
@@ -68,6 +69,10 @@ type Config struct {
 }
 
 func Load() *Config {
+	sourceRepository := SourceRepository
+	if !buildRevision.MatchString(GitCommit) {
+		sourceRepository = "" // Runtime/fallback revisions are not build provenance.
+	}
 	env := getEnv("CUAN_ENV", "development")
 	port := getEnv("PORT", "8080")
 	dbURL := getEnv("DATABASE_URL", "postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable")
@@ -191,7 +196,7 @@ func Load() *Config {
 		ProjectsDir:               projectsDir,
 		AppVersion:                appVersion,
 		CommitSHA:                 commitSHA,
-		SourceRepository:          SourceRepository,
+		SourceRepository:          sourceRepository,
 		DojoWebhookSecret:         dojoWebhookSecret,
 		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,
 		DojoCheckoutURL:           dojoCheckoutURL,
