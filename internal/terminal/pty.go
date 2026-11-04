@@ -236,6 +236,9 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 			_ = proc.ptyFile.Close()
 		}
 		proc.mu.Unlock()
+		// The leader can exit while commands that ignored TERM/HUP remain in
+		// its owned group. Clean that group before publishing execution completion.
+		terminateOwnedPTYGroup(cmd.Process.Pid)
 		close(proc.waitDone)
 	}()
 
@@ -353,6 +356,7 @@ func (p *PTYProcess) Kill() error {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
+		<-p.waitDone
 		return nil
 	}
 	p.closed = true
@@ -387,6 +391,40 @@ func (p *PTYProcess) Kill() error {
 
 	<-p.waitDone
 	return nil
+}
+
+// Only the fresh session/process group created by SpawnPTY is signalled. This
+// does not discover daemonized children that explicitly leave that group.
+func terminateOwnedPTYGroup(pid int) {
+	if pid <= 0 || syscall.Kill(-pid, 0) == syscall.ESRCH {
+		return
+	}
+	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	if waitPTYGroupExit(pid, 200*time.Millisecond) {
+		return
+	}
+	_ = syscall.Kill(-pid, syscall.SIGKILL)
+	// Signal delivery is asynchronous. Give the owned group a bounded period to
+	// exit before the caller can release its execution slot. Orphan zombies may
+	// still await OS/PID1 reaping; they cannot continue task work.
+	waitPTYGroupExit(pid, 200*time.Millisecond)
+}
+
+func waitPTYGroupExit(pid int, timeout time.Duration) bool {
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	poll := time.NewTicker(10 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		if syscall.Kill(-pid, 0) == syscall.ESRCH {
+			return true
+		}
+		select {
+		case <-poll.C:
+		case <-deadline.C:
+			return false
+		}
+	}
 }
 
 // Close is an alias for Kill.
