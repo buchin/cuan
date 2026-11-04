@@ -24,6 +24,8 @@ func RunChatCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "retry":
+		return runChatRetry(ctx, extraArgs, out, errOut)
 	case "download":
 		return runChatDownload(ctx, extraArgs, out, errOut)
 	case "new", "create":
@@ -48,6 +50,7 @@ Usage:
   cuan chat send <room-id> "<message>" [--wait] [--timeout 30] [--json]
   cuan chat list [--project default] [--limit 20] [--json]
   cuan chat messages <room-id> [--limit 30] [--json]
+  cuan chat retry <room-id> <request-id>
   cuan chat download <attachment-id> --output PATH
 
 Subcommands:

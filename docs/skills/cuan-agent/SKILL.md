@@ -118,6 +118,13 @@ Read-only MCP equivalents: `list_provider_accounts` and `get_provider_account_us
 
 `cuan chat messages ROOM_ID --json` preserves request state/recovery metadata and task count, not only message text. Inspect the same request after a wait timeout; do not blindly resend. See [routing recovery](../../guides/agent-routing-recovery.md).
 
+`cuan chat retry ROOM_ID REQUEST_ID` explicitly retries the saved original
+message through the Owner API. It returns the deduplicated child request ID and
+state; inspect that request via `chat messages --json` rather than sending the
+message again. Uncertain prior activity starts fresh reconciliation, not a replay
+of previous effects. Active/canceled turns remain protected. See
+[retry reconciliation](../../guides/inbox-retry-reconciliation.md).
+
 ### Cancel active task execution
 
 For explicitly approved cleanup of obsolete test data, use
