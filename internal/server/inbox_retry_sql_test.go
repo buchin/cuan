@@ -127,8 +127,13 @@ func TestInboxRetryPostgres(t *testing.T) {
 	if err := repo.FinishInboxRequest(ctx, child, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := repo.RetryInboxRequest(ctx, room, child.RequestID, source.OwnerID); err == nil {
-		t.Fatal("unknown result retried")
+	if reevaluated, fresh, err := repo.RetryInboxRequest(ctx, room, child.RequestID, source.OwnerID); err != nil || !fresh || !db.InboxRetryNeedsReconciliation(reevaluated) {
+		t.Fatal("unknown result must use reconciliation rather than replay", err)
+	} else {
+		reevaluated.State = "completed"
+		if err := repo.FinishInboxRequest(ctx, reevaluated, nil); err != nil {
+			t.Fatal(err)
+		}
 	}
 	capped := accept(3 * time.Millisecond)
 	if _, ok, err := repo.ClaimInboxRequest(ctx, room, capped.RequestID); err != nil || !ok {

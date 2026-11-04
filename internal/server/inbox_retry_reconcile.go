@@ -1,0 +1,5 @@
+package server
+
+type inboxRetryReconcileKey struct{}
+
+const inboxRetryReconcileInstruction = `The user pressed Try again on a saved reply whose earlier activity has an uncertain outcome. This is a NEW evaluation of current recorded state, not a replay of that process. Answer the original target message using supplied conversation, current project/task snapshots and recorded outcomes. Do not call tools or repeat external effects. Completed work stays completed; canceled work stays canceled; queued/running work is monitored rather than relaunched. Preserve existing task identity and approved scope. Never invent successful actions or checks. If previous effects cannot be verified from the supplied evidence, explain the specific uncertainty plainly and what verification is still needed; do not ask the user to copy logs, inspect code or do technical troubleshooting. Use the user's language. Return exactly one coordinator schema object with action:null and topic_title:"". No application mutation is authorized by this evaluation.`

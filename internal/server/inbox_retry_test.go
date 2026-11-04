@@ -111,3 +111,43 @@ func TestInboxRetryCompletesOnceWithOriginalContext(t *testing.T) {
 		t.Fatal("retry lost context or duplicated provider execution", err)
 	}
 }
+
+func TestInboxUncertainRetryReevaluatesOldMessageOnce(t *testing.T) {
+	s, token, call, home := inboxFixture(t)
+	ctx := context.Background()
+	owner, _ := s.authSvc.ValidateToken(ctx, token)
+	conversation := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{OwnerID: owner.ID, AgentID: "agent_lifecycle", RoomID: conversation.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), PayloadHash: "retained-original", State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	store := s.projectStudioRepo.(db.InboxLifecycleRepository)
+	if _, _, err := store.AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", Content: "OLD_ORIGINAL_QUESTION", CreatedAt: now.Add(-time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 25; i++ {
+		if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{ID: db.GenerateUUID(), RoomID: q.RoomID, AuthorType: "agent", Content: "Later context", CreatedAt: now.Add(time.Duration(i) * time.Millisecond)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store.AppendInboxStep(ctx, q.RoomID, q.RequestID, "runtime_tool_started", "Uncertain previous action")
+	q.State = "failed"
+	q.SafeError = "The provider reached a usage limit after tool activity that cannot be safely repeated."
+	if err := store.FinishInboxRequest(ctx, q, nil); err != nil {
+		t.Fatal(err)
+	}
+	path := "/api/v1/chat/conversations/" + q.RoomID + "/requests/" + q.RequestID + "/retry"
+	for i := 0; i < 3; i++ {
+		w := call("POST", path, "{}")
+		if w.Code != 200 && w.Code != 202 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	waitInboxState(t, s, q.RoomID, db.InboxRetryID(q.RequestID), "completed")
+	rows, _ := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, q.RoomID)
+	if len(rows) != 2 || !db.InboxRetryNeedsReconciliation(rows[1]) {
+		t.Fatal("reconciliation was duplicated or lost", len(rows))
+	}
+	prompt, err := os.ReadFile(filepath.Join(home, "prompts"))
+	if err != nil || strings.Count(string(prompt), "---TURN---") != 1 || !strings.Contains(string(prompt), "OLD_ORIGINAL_QUESTION") || !strings.Contains(string(prompt), inboxRetryReconcileInstruction) {
+		t.Fatal("fresh original-context evaluation missing", err)
+	}
+}

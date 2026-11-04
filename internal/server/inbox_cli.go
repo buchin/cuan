@@ -111,6 +111,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
+	reconcileRetry, _ := ctx.Value(inboxRetryReconcileKey{}).(bool)
+	directCoordinator = directCoordinator || reconcileRetry
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
@@ -125,6 +127,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if analysisRecovery {
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nContext data:\n" + prompt
 	}
+	if reconcileRetry {
+		system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxAnalysisRecoverySchema + "\n\nContext data:\n" + prompt
+	}
 	if snapshotReview {
 		system = inboxReviewEvaluationInstruction + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
 	}
@@ -135,10 +140,10 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if !coordinator {
 			return reply, ""
 		}
-		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery)
+		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry)
 		if err != nil {
 			if alreadyRepaired || normHarness == "commandcode" {
-				return recoverCoordinatorReply(reply, analysisRecovery)
+				return recoverCoordinatorReply(reply, analysisRecovery || reconcileRetry)
 			}
 			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 		}
@@ -173,7 +178,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
-		} else if analysisRecovery {
+		} else if analysisRecovery || reconcileRetry {
 			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)

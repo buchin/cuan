@@ -140,9 +140,22 @@ type InboxRetryRepository interface {
 
 func retryRequest(q InboxRequest) InboxRequest {
 	now := time.Now().UTC()
-	return InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: InboxRetryID(q.RequestID),
+	child := InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: InboxRetryID(q.RequestID),
 		PayloadHash: q.PayloadHash, MessageID: q.MessageID, ReplyID: GenerateUUID(), State: "queued", CreatedAt: now, Deadline: now.Add(24 * time.Hour),
 		Steps: []InboxStep{{Seq: 1, Kind: "retry", Text: "A new attempt was requested for the saved message.", At: now}}}
+	if InboxRetryNeedsReconciliation(q) || InboxRecoveryAction(q) == "check_status" || q.State == "interrupted" {
+		child.Steps[0].Kind = "retry_reconcile"
+		child.Steps[0].Text = "Re-evaluate the saved message from current recorded state; do not replay uncertain actions."
+	}
+	return child
+}
+
+func InboxRetryNeedsReconciliation(q InboxRequest) bool {
+	return len(q.Steps) > 0 && q.Steps[0].Kind == "retry_reconcile"
+}
+
+func manualInboxRetryAllowed(q InboxRequest) bool {
+	return q.State == "failed" || q.State == "interrupted"
 }
 
 func (r *MemoryProjectStudioRepository) RetryInboxRequest(ctx context.Context, room, source, owner string) (InboxRequest, bool, error) {
@@ -179,8 +192,7 @@ func (r *MemoryProjectStudioRepository) retryInboxRequest(ctx context.Context, r
 			return q, false, ErrInboxRetryUnavailable
 		}
 	} else {
-		action := InboxRecoveryAction(q)
-		if action != "try_again" && action != "continue_analysis" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
+		if !manualInboxRetryAllowed(q) {
 			return q, false, ErrInboxRetryUnavailable
 		}
 	}
@@ -268,8 +280,7 @@ func (r *SQLProjectStudioRepository) retryInboxRequest(ctx context.Context, room
 			return q, false, ErrInboxRetryUnavailable
 		}
 	} else {
-		action := InboxRecoveryAction(q)
-		if action != "try_again" && action != "continue_analysis" && action != "check_usage" && action != "check_agent" && q.State != "interrupted" {
+		if !manualInboxRetryAllowed(q) {
 			return q, false, ErrInboxRetryUnavailable
 		}
 	}

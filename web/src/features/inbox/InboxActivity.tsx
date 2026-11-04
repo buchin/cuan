@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { InboxRequest } from '../../api/chat'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { inboxRecoveryControls } from './inbox-recovery'
 
 export function evaluateInboxQuotaStatus(q: {
   steps?: { seq: number; kind: string; text: string; at: string }[]
@@ -90,12 +91,16 @@ export function InboxActivity({
   const [copyStatus, setCopyStatus] = useState('')
   const [recovering, setRecovering] = useState(false)
   const [recoveryStatus, setRecoveryStatus] = useState('')
+  const [retryUnavailable, setRetryUnavailable] = useState(false)
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
   const isToolBudget = recovery === 'continue_analysis' || /tool budget/i.test(q.safe_error || '') || q.steps?.some((step) => step.kind === 'runtime_tool_budget_exceeded' || /tool budget|tool limit/i.test(step.text))
 
   const { accessBlocked } = evaluateInboxQuotaStatus(q)
+  const { canRetry: retryPermitted, waitingForCapacity: capacityPending } = inboxRecoveryControls(q.state, q.recovery_action, accessBlocked)
+  const canRetry = retryPermitted && !retryUnavailable
+  const waitingForCapacity = capacityPending && !retryUnavailable
   const recover = async (action: () => Promise<void>) => {
     if (recovering) return
     setRecovering(true)
@@ -105,7 +110,8 @@ export function InboxActivity({
     catch (err: any) {
       const msg = err?.message || ''
       if (/cannot be safely repeated/i.test(msg)) {
-        setError(t('This attempt cannot be safely repeated. Check its status and details.'))
+        setRetryUnavailable(true)
+        setExpanded(true)
       } else {
         setError(t('Could not confirm recovery. Check status before trying again.'))
       }
@@ -179,7 +185,7 @@ export function InboxActivity({
         step.kind !== 'provider_result' && step.kind !== 'runtime_session' && step.kind !== 'recovery_policy',
     ) || []
   const Icon =
-    (autoPending || accessBlocked) ? Clock3 : q.state === 'queued'
+    (autoPending || waitingForCapacity) ? Clock3 : q.state === 'queued'
       ? Clock3
       : active
         ? LoaderCircle
@@ -204,7 +210,7 @@ export function InboxActivity({
               'h-4 w-4 shrink-0 ' +
               ((active && q.state !== 'queued') || autoPending
                 ? 'animate-spin'
-                : q.state === 'failed' && !accessBlocked
+                : q.state === 'failed' && !waitingForCapacity
                   ? 'text-destructive'
                   : '')
             }
@@ -219,7 +225,7 @@ export function InboxActivity({
               : q.state === 'running'
               ? activityText
               : q.state === 'failed'
-                ? (accessBlocked ? t('Waiting for AI capacity') : t('Could not reply'))
+                ? (waitingForCapacity ? t('Waiting for AI capacity') : t('Could not reply'))
                 : q.state === 'interrupted' ? t('Reply interrupted') : t(label)}
           </span>
           {!autoPending && seconds !== null && (
@@ -253,7 +259,7 @@ export function InboxActivity({
             )}
             {!bubble && !compact && (
               <Icon
-                className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' && !accessBlocked ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
+                className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' && !waitingForCapacity ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
                 aria-hidden="true"
               />
             )}
@@ -488,10 +494,12 @@ export function InboxActivity({
             {t(
               recovery === 'recovering'
                 ? 'Your message is saved.'
-                : accessBlocked
+                : waitingForCapacity
                   ? 'AI capacity was unavailable. Your message is saved.'
                   : isToolBudget
                     ? 'The tool budget was reached for this turn. Your message is saved.'
+                    : recovery === 'check_status' || retryUnavailable
+                      ? 'Your message is saved.'
                     : recovery === 'check_agent'
                       ? 'Check the agent connection before trying again.'
                       : q.safe_error
@@ -501,7 +509,7 @@ export function InboxActivity({
                           : 'Your reply stopped. Your message is saved.'
             )}
           </p>
-          {!accessBlocked && isToolBudget && onRetry ? (
+          {!waitingForCapacity && canRetry && isToolBudget && onRetry ? (
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -512,16 +520,8 @@ export function InboxActivity({
                 {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
                 {t(recovering ? 'Continuing analysis…' : 'Continue analysis')}
               </button>
-              <button
-                type="button"
-                disabled={recovering}
-                className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
-                onClick={() => void recover(onRetry)}
-              >
-                {t(recovering ? 'Trying again…' : 'Try again')}
-              </button>
             </div>
-          ) : !accessBlocked && recovery === 'try_again' && onRetry ? (
+          ) : !waitingForCapacity && canRetry && recovery === 'try_again' && onRetry ? (
             <button
               type="button"
               disabled={recovering}
@@ -531,13 +531,13 @@ export function InboxActivity({
               {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
               {t(recovering ? 'Trying again…' : 'Try again')}
             </button>
-          ) : !accessBlocked && recovery === 'check_agent' ? (
+          ) : !waitingForCapacity && recovery === 'check_agent' ? (
             <Link to="/settings/agents" className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4">
               {t('Check agent')}
             </Link>
-          ) : !accessBlocked && !autoPending && (onCheckStatus || onRetry) ? (
+          ) : !waitingForCapacity && !autoPending && (onCheckStatus || (canRetry && onRetry)) ? (
             <div className="flex flex-wrap items-center gap-3">
-              {onCheckStatus && (
+              {onCheckStatus && !canRetry && (
                 <button
                   type="button"
                   disabled={recovering}
@@ -547,7 +547,7 @@ export function InboxActivity({
                   {t(recovering ? 'Checking…' : 'Check status')}
                 </button>
               )}
-              {onRetry && (q.state === 'interrupted' || q.state === 'failed') && (
+              {onRetry && canRetry && (
                 <button
                   type="button"
                   disabled={recovering}
@@ -560,7 +560,7 @@ export function InboxActivity({
               )}
             </div>
           ) : null}
-          {accessBlocked && onRetry && (
+          {waitingForCapacity && canRetry && onRetry && (
             <button
               type="button"
               disabled={recovering}
@@ -568,7 +568,7 @@ export function InboxActivity({
               onClick={() => void recover(onRetry)}
             >
               {recovering ? <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw aria-hidden className="h-3.5 w-3.5" />}
-              {t(recovering ? 'Trying again…' : 'Retry saved message')}
+              {t(recovering ? 'Trying again…' : 'Try again')}
             </button>
           )}
           {recoveryStatus && <p role="status" className="text-xs text-muted-foreground">{recoveryStatus}</p>}

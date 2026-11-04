@@ -144,8 +144,8 @@ test('4. Heuristic: Non-quota technical failure without past cooldown never trig
 test('5. InboxActivity component source code: Selective quota warning and humanized error feedback architecture', () => {
   // Selective quota warning in bubble / header status
   assert.ok(
-    inboxActivitySource.includes("accessBlocked ? t('Waiting for AI capacity') : t('Could not reply')"),
-    'InboxActivity must display "Waiting for AI capacity" ONLY when accessBlocked is true',
+    inboxActivitySource.includes("waitingForCapacity ? t('Waiting for AI capacity') : t('Could not reply')"),
+    'Capacity waiting must follow the server recovery action',
   )
 
   // True error feedback priority in failure description
@@ -156,8 +156,8 @@ test('5. InboxActivity component source code: Selective quota warning and humani
 
   // Retry button available for non-quota failures
   assert.ok(
-    inboxActivitySource.includes('!accessBlocked && !autoPending && (onCheckStatus || onRetry)'),
-    'InboxActivity must provide retry capability when non-quota technical error occurs',
+    inboxActivitySource.includes('!waitingForCapacity && !autoPending && (onCheckStatus || (canRetry && onRetry))'),
+    'Unknown activity must offer fresh server-side reconciliation',
   )
 
   // Touch target accessibility standard
