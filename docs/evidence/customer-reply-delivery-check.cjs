@@ -3,7 +3,7 @@ const {chromium}=require('/home/dev/.local/lib/node_modules/playwright')
 const {routeAPI,task}=require('./customer-task-card-check.cjs')
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('node:assert/strict')
 const out=process.env.CUAN_REPLY_EVIDENCE_DIR||'/home/dev/reports/cuan-pm-recovery/customer-reply-ui'
-const now=new Date().toISOString(),draft='Halo Pak Agus, hasil pemeriksaan menunjukkan kendala pada paket CLI dan pemeriksaan versi PHP. PHP 8.3 didukung, sedangkan PHP 8.2 belum didukung. Investigasi sudah selesai; perbaikan paket belum dirilis.'
+const now=new Date().toISOString(),draft='Halo Pak Agus, hasil pemeriksaan menunjukkan kendala pada paket CLI dan pemeriksaan versi PHP. PHP 8.3 didukung, sedangkan PHP 8.2 belum didukung. Investigasi sudah selesai; perbaikan paket belum dirilis.'+'\n\n'+'Rincian pemeriksaan tersimpan di laporan. '.repeat(40)
 const contact={id:'customer',conversation_id:'fixture-room',type:'customer',name:'Agus',email:'customer@example.com',task_count:1,done_tasks:1,unread_count:0,last_message:'Draf balasan tersedia.',updated_at:now}
 let browser,server,debugPage,writes=0
 async function api(route){
@@ -31,11 +31,11 @@ async function api(route){
   await page.route('**/api/**',api)
   await page.goto('http://127.0.0.1:4192/inbox/fixture-room')
   const card=page.locator('[data-card=reply-draft]');await card.waitFor();await card.scrollIntoViewIfNeeded()
-  assert.equal(await card.count(),1);assert(await card.locator('[data-internal-visibility]').count()>0)
+  assert.equal(await card.count(),1);assert((await card.boundingBox()).height<500,'long draft has a bounded preview');assert(await card.locator('[data-internal-visibility]').count()>0)
   const use=card.getByRole('button',{name:'Review & Use',exact:true});assert((await use.boundingBox()).height>=44)
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))
   await page.screenshot({path:out+'/draft-'+width+'.png'})
-  const before=writes;await use.click();assert.equal(await page.locator('[data-primary-composer]').inputValue(),draft)
+  await card.getByRole('button',{name:'Read more',exact:true}).click();assert((await card.boundingBox()).height>300);const before=writes;await use.click();assert.equal(await page.locator('[data-primary-composer]').inputValue(),draft)
   assert.equal(writes,before,'review only fills composer; it must not send a customer message')
   await context.close()
  }

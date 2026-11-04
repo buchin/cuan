@@ -2,6 +2,7 @@ import { CardActions } from './CardActions'
 import { FileText } from 'lucide-react'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useLanguage } from '../../context/LanguageContext'
+import { CollapsibleChatText } from './CollapsibleChatText'
 
 export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; internal: boolean; onUse: (draft: string) => void }) {
   const { t } = useLanguage()
@@ -12,7 +13,9 @@ export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; inte
         <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>{t('Customer reply draft · Not sent yet')}</span>
       </div>
-      <p className="px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words">{draft}</p>
+      <div data-reply-draft-body className="px-3 py-3 text-sm leading-relaxed break-words">
+        <CollapsibleChatText content={draft} hideTaskCard />
+      </div>
       <CardActions data-draft-footer className="px-3">
         <button type="button" onClick={() => onUse(draft)} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
           <FileText className="h-4 w-4" aria-hidden="true" />
