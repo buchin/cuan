@@ -338,8 +338,8 @@ test('11. Chat timeout & interrupted reply recovery handling', () => {
   const inboxActivityPath = path.join(rootDir, 'src/features/inbox/InboxActivity.tsx')
   const inboxActivityContent = fs.readFileSync(inboxActivityPath, 'utf8')
 
-  // Interrupted chat replies must offer Try again alongside Check status when onRetry is available
-  assert.match(inboxActivityContent, /q\.state === 'interrupted' \|\| q\.state === 'failed'/, 'Interrupted state must allow explicit retry')
+  // Functional failed/interrupted cases live in inbox-recovery-controls.test.mjs.
+  assert.match(inboxActivityContent, /inboxRecoveryControls\(q.state, q.recovery_action, accessBlocked\)/, 'Reply recovery must use the shared policy')
   assert.match(inboxActivityContent, /t\(recovering \? 'Trying again…' : 'Try again'\)/, 'Try again action must be rendered')
 })
 
