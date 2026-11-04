@@ -58,6 +58,9 @@ export function TaskSessionPage({
     [terminalControls, setTerminalControls] = useState<HTMLDivElement | null>(
       null,
     ),
+    [mobileControls, setMobileControls] = useState<HTMLDivElement | null>(
+      null,
+    ),
     [terminalConnection, setTerminalConnection] = useState(''),
     [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
@@ -393,26 +396,26 @@ export function TaskSessionPage({
     : !latest
       ? attemptLabel(attempt)
       : isWorking
-        ? (language === 'id' ? 'Berjalan' : 'Live')
+        ? (language === 'id' ? 'Berjalan' : 'Working')
         : status
 
   const statusBadge = (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium shadow-xs transition-colors select-none',
         isWorking && isConnected
           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
           : workStatusBadgeClass(status)
       )}
       title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
     >
-      <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 items-center justify-center">
+      <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
         {isWorking && isConnected && (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
         )}
         <span
           className={cn(
-            'relative inline-flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full',
+            'relative inline-flex h-2 w-2 rounded-full',
             isConnected
               ? 'bg-emerald-500'
               : isConnecting
@@ -427,7 +430,7 @@ export function TaskSessionPage({
           )}
         />
       </span>
-      <span className="truncate max-w-[70px] min-[380px]:max-w-[100px] min-[440px]:max-w-none">{statusLabel}</span>
+      <span>{statusLabel}</span>
     </span>
   )
 
@@ -437,13 +440,13 @@ export function TaskSessionPage({
       className="flex h-full min-h-0 flex-col bg-background overscroll-contain"
     >
       <GitHubPrerequisite task={detail} />
+      {/* Tier 1: Primary Navigation, Title & Status Badge */}
       <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2 select-none">
-        {/* Navigation & Task Title */}
         <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
           <Link
             to={backURL}
             state={state}
-            className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
+            className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground active:bg-muted/50 transition-colors"
             aria-label={
               backURL.startsWith('/inbox/')
                 ? 'Back to conversation'
@@ -461,7 +464,7 @@ export function TaskSessionPage({
             <span className="flex h-5 w-5 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded bg-muted/60 text-muted-foreground">
               <Terminal className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground/80" />
             </span>
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
               <h2
                 className="truncate text-xs sm:text-sm font-semibold text-foreground min-w-0 tracking-tight"
                 title={detail.title}
@@ -471,14 +474,14 @@ export function TaskSessionPage({
                   : detail.title}
               </h2>
               {detail.branch_name && (
-                <span className="hidden xs:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/80 text-muted-foreground shrink-0 max-w-[120px] truncate border border-border/40">
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/80 text-muted-foreground shrink-0 max-w-[120px] truncate border border-border/40">
                   <GitBranch className="h-2.5 w-2.5 shrink-0" />
                   <span className="truncate">{detail.branch_name}</span>
                 </span>
               )}
-              {(assistantName) && (
+              {assistantName && (
                 <span
-                  className="hidden xs:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary shrink-0 border border-primary/20 max-w-[110px] truncate"
+                  className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary shrink-0 border border-primary/20 max-w-[110px] truncate"
                   title={`Agent: ${assistantName}`}
                 >
                   <Bot className="h-2.5 w-2.5 shrink-0" />
@@ -489,7 +492,7 @@ export function TaskSessionPage({
           </div>
         </div>
 
-        {/* Action and status controls: clean single row, mobile-safe (< 360px) */}
+        {/* Action and status controls: unified badge + desktop actions */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           {statusBadge}
           <div ref={setTerminalControls} className="hidden sm:flex shrink-0 items-center gap-1" />
@@ -518,7 +521,7 @@ export function TaskSessionPage({
           {active && (
             <button
               type="button"
-              className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
+              className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors hidden sm:inline-flex"
               aria-label="Cancel session"
               title={t('Cancel session')}
               onClick={() => setCancel(true)}
@@ -528,7 +531,7 @@ export function TaskSessionPage({
           )}
           <button
             type="button"
-            className="icon-action shrink-0 text-muted-foreground hover:text-foreground"
+            className="icon-action shrink-0 text-muted-foreground hover:text-foreground hidden sm:inline-flex"
             aria-label="Detail"
             title={t('Detail')}
             onClick={() => setShowDetail(true)}
@@ -537,6 +540,59 @@ export function TaskSessionPage({
           </button>
         </div>
       </header>
+
+      {/* Tier 2: Mobile Action Toolbar (Hidden on desktop via sm:hidden) */}
+      <div className="flex h-11 items-center justify-between border-b border-border/30 bg-muted/20 px-2 select-none sm:hidden">
+        {/* Left: Contextual info */}
+        <div className="flex items-center gap-1.5 min-w-0 pr-2">
+          {assistantName ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 max-w-[130px] truncate"
+              title={`Agent: ${assistantName}`}
+            >
+              <Bot className="h-3 w-3 shrink-0" />
+              <span className="truncate">{assistantName}</span>
+            </span>
+          ) : detail.branch_name ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-muted/80 text-muted-foreground border border-border/40 max-w-[130px] truncate"
+              title={`Branch: ${detail.branch_name}`}
+            >
+              <GitBranch className="h-3 w-3 shrink-0" />
+              <span className="truncate">{detail.branch_name}</span>
+            </span>
+          ) : (
+            <span className="text-[11px] font-mono text-muted-foreground/80 truncate">
+              {taskRef(detail.id)}
+            </span>
+          )}
+        </div>
+
+        {/* Right: Touch-friendly mobile action buttons with min-h-11 min-w-11 (44px) */}
+        <div className="flex shrink-0 items-center gap-1">
+          <div ref={setMobileControls} className="flex shrink-0 items-center gap-1" />
+          <button
+            type="button"
+            className="icon-action shrink-0 text-muted-foreground hover:text-foreground active:bg-muted/50 transition-colors"
+            aria-label="Detail"
+            title={t('Detail')}
+            onClick={() => setShowDetail(true)}
+          >
+            <Info className="h-4 w-4" />
+          </button>
+          {active && (
+            <button
+              type="button"
+              className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
+              aria-label="Cancel session"
+              title={t('Cancel session')}
+              onClick={() => setCancel(true)}
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          )}
+        </div>
+      </div>
       {(error || runtimeError) && (
         <p role="alert" className="shrink-0 px-3 text-xs text-destructive">
           {error || runtimeError}
@@ -589,6 +645,7 @@ export function TaskSessionPage({
                 live={live}
                 onRefresh={() => void refresh()}
                 controlsTarget={terminalControls}
+                mobileControlsTarget={mobileControls}
                 onConnectionChange={setTerminalConnection}
               />
             </Suspense>

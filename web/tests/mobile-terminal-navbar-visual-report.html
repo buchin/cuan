@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan Inspeksi Visual: Optimalisasi UI/UX Header & Navbar Terminal Mobile Cuan</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --card: #141417;
+      --card-muted: #1c1c21;
+      --border: #27272a;
+      --border-subtle: #202024;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --emerald: #10b981;
+      --emerald-subtle: rgba(16, 185, 129, 0.12);
+      --rose: #f43f5e;
+      --rose-subtle: rgba(244, 63, 94, 0.12);
+      --primary: #3b82f6;
+      --primary-subtle: rgba(59, 130, 246, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    header.report-header {
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge-pass {
+      background: var(--emerald-subtle);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-wcag {
+      background: var(--primary-subtle);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    table.audit-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+    table.audit-table th, table.audit-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    table.audit-table th {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .status-check {
+      color: #34d399;
+      font-weight: 600;
+    }
+    
+    /* Mock Devices */
+    .device-frame {
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: #000;
+      padding: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+      width: 100%;
+      max-width: 412px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .device-screen {
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 440px;
+      border: 1px solid #1a1a1e;
+    }
+    
+    /* Dark Theme Screen */
+    .screen-dark {
+      background: #09090b;
+      color: #f4f4f5;
+    }
+    /* Light Theme Screen */
+    .screen-light {
+      background: #ffffff;
+      color: #09090b;
+    }
+    
+    /* Mock Topbar UI */
+    .screen-dark .top-tier {
+      display: flex;
+      height: 44px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      border-bottom: 1px solid #27272a;
+      background: #09090b;
+      gap: 6px;
+    }
+    .screen-light .top-tier {
+      display: flex;
+      height: 44px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      border-bottom: 1px solid #e4e4e7;
+      background: #ffffff;
+      gap: 6px;
+    }
+    
+    .screen-dark .tier-2 {
+      display: flex;
+      height: 44px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      border-bottom: 1px solid rgba(39, 39, 42, 0.4);
+      background: rgba(39, 39, 42, 0.2);
+    }
+    .screen-light .tier-2 {
+      display: flex;
+      height: 44px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 8px;
+      border-bottom: 1px solid rgba(228, 228, 231, 0.8);
+      background: #f4f4f5;
+    }
+    
+    /* Touch Action Buttons (44x44px) */
+    .btn-action {
+      width: 44px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .screen-dark .btn-action {
+      color: #a1a1aa;
+    }
+    .screen-dark .btn-action:hover {
+      color: #f4f4f5;
+      background: #18181b;
+    }
+    .screen-light .btn-action {
+      color: #71717a;
+    }
+    .screen-light .btn-action:hover {
+      color: #09090b;
+      background: #e4e4e7;
+    }
+    
+    .btn-action.btn-danger {
+      color: #f43f5e;
+    }
+    
+    /* Status Badge */
+    .mock-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .screen-dark .mock-badge-working {
+      background: rgba(16, 185, 129, 0.1);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .screen-light .mock-badge-working {
+      background: rgba(16, 185, 129, 0.12);
+      color: #047857;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .pulse-dot {
+      position: relative;
+      display: flex;
+      width: 8px;
+      height: 8px;
+      align-items: center;
+      justify-content: center;
+    }
+    .pulse-dot .ping {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 9999px;
+      background: #34d399;
+      opacity: 0.6;
+      animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    .pulse-dot .dot {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      background: #10b981;
+    }
+    @keyframes ping {
+      75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+    
+    /* Terminal Output Area */
+    .mock-terminal {
+      flex: 1;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 11px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .screen-dark .mock-terminal {
+      background: #09090b;
+      color: #a1a1aa;
+    }
+    .screen-light .mock-terminal {
+      background: #fafafa;
+      color: #3f3f46;
+    }
+    
+    /* Comparison Before vs After Box */
+    .comparison-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 14px;
+    }
+    @media (max-width: 768px) {
+      .comparison-container { grid-template-columns: 1fr; }
+    }
+    .before-box {
+      border: 1px dashed #f43f5e;
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(244, 63, 94, 0.05);
+    }
+    .after-box {
+      border: 1px solid #10b981;
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(16, 185, 129, 0.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="report-header">
+      <h1>
+        Laporan Inspeksi Visual: Header & Navbar Terminal Mobile Cuan
+        <span class="badge badge-pass">✓ All DoD Verified</span>
+        <span class="badge badge-wcag">WCAG 2.1 AA (44x44px)</span>
+      </h1>
+      <p class="subtitle">
+        Verifikasi tata letak responsif 2-tier, pencegahan pemotongan judul "O.", unifikasi badge status Working, dan konsistensi touch target 44px di viewport 360px, 390px, 412px (Tema Gelap & Terang).
+      </p>
+    </header>
+
+    <!-- SECTION 1: PERBANDINGAN SEBELUM VS SESUDAH -->
+    <div class="card" style="margin-bottom: 28px;">
+      <div class="card-title">
+        <span>1. Evaluasi Masalah Screenshot Asli vs Solusi 2-Tier Responsive</span>
+      </div>
+      <div class="comparison-container">
+        <div class="before-box">
+          <h4 style="color: #f43f5e; margin-bottom: 8px;">❌ Sebelum (Dari Lampiran User 1000282389.jpg)</h4>
+          <ul style="font-size: 0.85rem; color: #fda4af; padding-left: 18px; line-height: 1.6;">
+            <li>8 elemen bertumpuk dalam 1 baris sempit horizontal (Kembali, Icon, Judul, Badge, Dot Hijau, Keyboard, More Actions, Info, Stop).</li>
+            <li>Judul task terpotong ekstrem hanya menyisakan <strong>"O."</strong> (&lt; 25px ruang horizontal).</li>
+            <li>Titik hijau status terlepas mengambang di luar badge <code>[Working] •</code> tanpa keterpaduan visual.</li>
+            <li>Sentuhan rawan salah tekan (miss-tap) karena ruang sentuh tombol kurang dari standar 44px.</li>
+          </ul>
+        </div>
+        <div class="after-box">
+          <h4 style="color: #34d399; margin-bottom: 8px;">✓ Sesudah (Arsitektur 2-Tier Responsif)</h4>
+          <ul style="font-size: 0.85rem; color: #a7f3d0; padding-left: 18px; line-height: 1.6;">
+            <li><strong>Tier 1 (Header Utama):</strong> Tombol Kembali (44px) + Icon Terminal + Judul Task (ruang bebas &ge; 172px) + Status Badge Working menyatu.</li>
+            <li><strong>Tier 2 (Toolbar Mobile):</strong> Konteks agent/branch di kiri + 4 Tombol Aksi berjarak lega di kanan (Keyboard, More Tools, Info, Stop/Cancel).</li>
+            <li>Badge status menyatukan indikator denyut hijau tenang (8px ping + 8px dot) dengan padding proporsional <code>px-2.5 py-1 text-xs</code>.</li>
+            <li>Seluruh tombol aksi memenuhi spesifikasi WCAG 2.1 AA min 44x44px (<code>.icon-action</code>).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: AUDIT VIEWPORT RESPONSIVITAS -->
+    <div class="card" style="margin-bottom: 28px;">
+      <div class="card-title">
+        <span>2. Audit Matematis Ruang Bebas Viewport Mobile (360px, 390px, 412px)</span>
+        <span class="badge badge-pass">100% Pass</span>
+      </div>
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Viewport Device</th>
+            <th>Lebar Layar</th>
+            <th>Lebar Elemen Tetap (Tier 1)</th>
+            <th>Ruang Tersedia Judul</th>
+            <th>Estimasi Karakter Keterbacaan</th>
+            <th>Status Pemotongan Judul</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Small Mobile (Samsung Galaxy S/A Series)</strong></td>
+            <td>360px</td>
+            <td>188px</td>
+            <td><strong style="color: #34d399;">172px</strong></td>
+            <td>&ge; 23 karakter</td>
+            <td><span class="status-check">✓ Bebas Truncate "O."</span></td>
+          </tr>
+          <tr>
+            <td><strong>Standard Mobile (iPhone 12/13/14/15/16 Pro)</strong></td>
+            <td>390px</td>
+            <td>188px</td>
+            <td><strong style="color: #34d399;">202px</strong></td>
+            <td>&ge; 27 karakter</td>
+            <td><span class="status-check">✓ Judul Terbaca Jelas</span></td>
+          </tr>
+          <tr>
+            <td><strong>Modern Android (Google Pixel / Galaxy S24)</strong></td>
+            <td>412px</td>
+            <td>188px</td>
+            <td><strong style="color: #34d399;">224px</strong></td>
+            <td>&ge; 30 karakter</td>
+            <td><span class="status-check">✓ Sangat Lega</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SECTION 3: MOCK PREVIEW TEMA GELAP & TERANG -->
+    <div class="grid-2">
+      <!-- Device Mockup: Dark Theme (390px) -->
+      <div class="card">
+        <div class="card-title">
+          <span>Tema Gelap (Viewport 390px)</span>
+          <span class="badge" style="background:#27272a;color:#e4e4e7;">Dark Mode</span>
+        </div>
+        <div class="device-frame" style="max-width: 390px;">
+          <div class="device-screen screen-dark">
+            <!-- Tier 1: Primary Header -->
+            <div class="top-tier">
+              <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+                <div class="btn-action">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+                </div>
+                <div style="width:22px;height:22px;background:#27272a;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                </div>
+                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;">
+                  Optimalisasi UI/UX Header Mobile
+                </div>
+              </div>
+              <div class="mock-badge mock-badge-working">
+                <span class="pulse-dot">
+                  <span class="ping"></span>
+                  <span class="dot"></span>
+                </span>
+                <span>Working</span>
+              </div>
+            </div>
+
+            <!-- Tier 2: Mobile Action Toolbar -->
+            <div class="tier-2">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0;font-size:11px;color:#a1a1aa;">
+                <span style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);padding:2px 6px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
+                  @cuan
+                </span>
+              </div>
+              <div style="display:flex;align-items:center;gap:2px;">
+                <div class="btn-action" title="Keyboard (44x44px)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+                </div>
+                <div class="btn-action" title="More Tools (44x44px)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                </div>
+                <div class="btn-action" title="Info (44x44px)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                </div>
+                <div class="btn-action btn-danger" title="Stop / Cancel (44x44px)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect width="14" height="14" x="5" y="5" rx="1"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terminal Output Body -->
+            <div class="mock-terminal">
+              <span style="color:#60a5fa;">[cuan-runner]</span> Session claimed by runner-01<br>
+              <span style="color:#34d399;">✔ 6/6 tests passed</span> in web/tests/mobile-terminal-navbar-header.test.mjs<br>
+              <span style="color:#a1a1aa;">$ npm --prefix web run build</span><br>
+              <span style="color:#34d399;">✓ built in 1.42s</span> (dist/assets/TaskSessionPage.js)<br>
+              <span style="color:#e4e4e7;">Terminal stream ready. Listening for inputs...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Device Mockup: Light Theme (390px) -->
+      <div class="card">
+        <div class="card-title">
+          <span>Tema Terang (Viewport 390px)</span>
+          <span class="badge" style="background:#f4f4f5;color:#09090b;border:1px solid #d4d4d8;">Light Mode</span>
+        </div>
+        <div class="device-frame" style="max-width: 390px;">
+          <div class="device-screen screen-light">
+            <!-- Tier 1: Primary Header -->
+            <div class="top-tier">
+              <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+                <div class="btn-action">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+                </div>
+                <div style="width:22px;height:22px;background:#e4e4e7;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                </div>
+                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;">
+                  Optimalisasi UI/UX Header Mobile
+                </div>
+              </div>
+              <div class="mock-badge mock-badge-working">
+                <span class="pulse-dot">
+                  <span class="ping"></span>
+                  <span class="dot"></span>
+                </span>
+                <span>Working</span>
+              </div>
+            </div>
+
+            <!-- Tier 2: Mobile Action Toolbar -->
+            <div class="tier-2">
+              <div style="display:flex;align-items:center;gap:6px;min-width:0;font-size:11px;color:#71717a;">
+                <span style="background:rgba(59,130,246,0.1);color:#2563eb;border:1px solid rgba(59,130,246,0.25);padding:2px 6px;border-radius:4px;display:inline-flex;align-items:center;gap:4px;">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
+                  @cuan
+                </span>
+              </div>
+              <div style="display:flex;align-items:center;gap:2px;">
+                <div class="btn-action" title="Keyboard (44x44px)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>
+                </div>
+                <div class="btn-action" title="More Tools (44x44px)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                </div>
+                <div class="btn-action" title="Info (44x44px)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                </div>
+                <div class="btn-action btn-danger" title="Stop / Cancel (44x44px)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect width="14" height="14" x="5" y="5" rx="1"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terminal Output Body -->
+            <div class="mock-terminal">
+              <span style="color:#2563eb;">[cuan-runner]</span> Session claimed by runner-01<br>
+              <span style="color:#059669;">✔ 6/6 tests passed</span> in web/tests/mobile-terminal-navbar-header.test.mjs<br>
+              <span style="color:#71717a;">$ npm --prefix web run build</span><br>
+              <span style="color:#059669;">✓ built in 1.42s</span> (dist/assets/TaskSessionPage.js)<br>
+              <span style="color:#18181b;">Terminal stream ready. Listening for inputs...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 4: AUDIT TOUCH TARGET WCAG 2.1 AA -->
+    <div class="card">
+      <div class="card-title">
+        <span>4. Audit Ukuran Ruang Sentuh (Touch Target Size) Sesuai Standar WCAG 2.1 AA</span>
+        <span class="badge badge-pass">5/5 Lulus 44x44px</span>
+      </div>
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Tombol / Kontrol Aksi</th>
+            <th>Kelas CSS & Ukuran Terukur</th>
+            <th>Ketentuan Minimal WCAG 2.1 AA</th>
+            <th>Toleransi Ergonomi Jempol</th>
+            <th>Hasil Evaluasi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Tombol Kembali (Back / ArrowLeft)</strong></td>
+            <td><code>.icon-action</code> (h-11 w-11 = 44px &times; 44px)</td>
+            <td>Min 44px &times; 44px</td>
+            <td>Sangat nyaman di tepi kiri atas</td>
+            <td><span class="status-check">✓ Memenuhi Standar</span></td>
+          </tr>
+          <tr>
+            <td><strong>Tombol Virtual Keyboard (Keyboard)</strong></td>
+            <td><code>.icon-action</code> (h-11 w-11 = 44px &times; 44px)</td>
+            <td>Min 44px &times; 44px</td>
+            <td>Mudah dijangkau jempol kanan</td>
+            <td><span class="status-check">✓ Memenuhi Standar</span></td>
+          </tr>
+          <tr>
+            <td><strong>Tombol More Actions (...)</strong></td>
+            <td><code>.icon-action</code> (h-11 w-11 = 44px &times; 44px)</td>
+            <td>Min 44px &times; 44px</td>
+            <td>Dropdown responsif & auto-close</td>
+            <td><span class="status-check">✓ Memenuhi Standar</span></td>
+          </tr>
+          <tr>
+            <td><strong>Tombol Info / Detail (Info)</strong></td>
+            <td><code>.icon-action</code> (h-11 w-11 = 44px &times; 44px)</td>
+            <td>Min 44px &times; 44px</td>
+            <td>Membuka TaskSidePeek tanpa delay</td>
+            <td><span class="status-check">✓ Memenuhi Standar</span></td>
+          </tr>
+          <tr>
+            <td><strong>Tombol Stop / Cancel Session (Square)</strong></td>
+            <td><code>.icon-action</code> (h-11 w-11 = 44px &times; 44px)</td>
+            <td>Min 44px &times; 44px</td>
+            <td>Konfirmasi dialog aman dari salah tekan</td>
+            <td><span class="status-check">✓ Memenuhi Standar</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

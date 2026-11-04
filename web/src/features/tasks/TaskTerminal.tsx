@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Keyboard,
   MoreHorizontal,
   WifiOff,
   Ban,
@@ -17,6 +18,7 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react'
+import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
@@ -38,6 +40,7 @@ export function TaskTerminal({
   live,
   onRefresh,
   controlsTarget,
+  mobileControlsTarget,
   onConnectionChange,
 }: {
   taskId: string
@@ -45,10 +48,12 @@ export function TaskTerminal({
   live: LiveTaskSession | null
   onRefresh: () => void
   controlsTarget?: HTMLElement | null
+  mobileControlsTarget?: HTMLElement | null
   onConnectionChange?: (connection: string) => void
 }) {
   const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
+  const mobileMenu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null)
   const terminalRoot = useRef<HTMLElement>(null)
   const term = useRef<Terminal | null>(null)
@@ -351,6 +356,20 @@ export function TaskTerminal({
       document.removeEventListener('focusin', update)
       document.removeEventListener('focusout', update)
     }
+  }, [])
+
+  const showKeyboard = useCallback(() => {
+    setIsMobileKeyboardActive((prev) => !prev)
+    const ws = socket.current
+    const terminal = term.current
+    if (ws?.readyState !== WebSocket.OPEN || !terminal) return
+    if (!interactive.current) {
+      terminal.options.disableStdin = false
+      interactive.current = true
+      setInput(true)
+      ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
+    }
+    terminal.focus()
   }, [])
 
   // Ref to hold connectSocket so reconnect and event listeners can call it
@@ -1045,12 +1064,19 @@ export function TaskTerminal({
       if (menu.current?.open && !menu.current.contains(event.target as Node)) {
         menu.current.open = false
       }
+      if (mobileMenu.current?.open && !mobileMenu.current.contains(event.target as Node)) {
+        mobileMenu.current.open = false
+      }
     }
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (menu.current?.open) {
           menu.current.open = false
           menu.current.querySelector<HTMLElement>('summary')?.focus()
+        }
+        if (mobileMenu.current?.open) {
+          mobileMenu.current.open = false
+          mobileMenu.current.querySelector<HTMLElement>('summary')?.focus()
         }
         if (isFullscreen) {
           setIsFullscreen(false)
@@ -1082,55 +1108,39 @@ export function TaskTerminal({
       }
     >
       <div className="flex items-center gap-1.5 min-w-0">
-        {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
-            role="status"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
-          </span>
-        ) : (
-          <span
-            role="status"
-            className={
-              controlsTarget && !isFullscreen
-                ? 'sr-only'
-                : 'min-w-0 flex-1 truncate text-xs text-muted-foreground'
-            }
-          >
-            {
-              (
-                {
-                  loading: t('Loading output…'),
-                  connecting: t('Connecting to existing session…'),
-                  connected: input
-                    ? t('Connected · input enabled')
-                    : t('Connected · read-only'),
-                  streaming: t('Streaming live logs…'),
-                  saved: t('Saved output'),
-                  disconnected: t(
-                    'Disconnected · task status is checked separately',
-                  ),
-                  error: t('Output unavailable'),
-                } as Record<string, string>
-              )[connection]
-            }
-          </span>
-        )}
-        {(!controlsTarget || isFullscreen) && !(isTaskActive && (connection === 'streaming' || connection === 'connected')) && (
-          <span
-            aria-hidden
-            className={
-              'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
-              (connection === 'connected' || connection === 'streaming'
-                ? 'bg-emerald-500 animate-pulse'
-                : connection === 'saved'
-                  ? 'bg-muted-foreground'
-                  : 'bg-amber-500')
-            }
-            title={connection}
-          />
+        {(!controlsTarget || isFullscreen) && (
+          isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
+              role="status"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
+            </span>
+          ) : (
+            <span
+              role="status"
+              className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+            >
+              {
+                (
+                  {
+                    loading: t('Loading output…'),
+                    connecting: t('Connecting to existing session…'),
+                    connected: input
+                      ? t('Connected · input enabled')
+                      : t('Connected · read-only'),
+                    streaming: t('Streaming live logs…'),
+                    saved: t('Saved output'),
+                    disconnected: t(
+                      'Disconnected · task status is checked separately',
+                    ),
+                    error: t('Output unavailable'),
+                  } as Record<string, string>
+                )[connection]
+              }
+            </span>
+          )
         )}
       </div>
 
@@ -1175,6 +1185,23 @@ export function TaskTerminal({
           )}
         </button>
 
+        {/* Mobile keyboard trigger for standalone / fullscreen */}
+        {(!controlsTarget || isFullscreen) && (
+          <button
+            type="button"
+            className={cn(
+              'icon-action sm:hidden transition-colors',
+              isMobileKeyboardActive
+                ? 'text-emerald-500 bg-emerald-500/15 border border-emerald-500/30 dark:text-emerald-400'
+                : 'text-muted-foreground hover:text-foreground active:bg-muted/50'
+            )}
+            aria-label={t('Show keyboard')}
+            title={t('Show keyboard')}
+            onClick={showKeyboard}
+          >
+            <Keyboard className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Details dropdown for extra tools */}
@@ -1293,6 +1320,151 @@ export function TaskTerminal({
     </div>
   )
 
+  const mobileControls = (
+    <div className="flex items-center gap-1">
+      {/* Mobile keyboard trigger */}
+      <button
+        type="button"
+        className={cn(
+          'icon-action shrink-0 transition-colors',
+          isMobileKeyboardActive
+            ? 'text-emerald-500 bg-emerald-500/15 border border-emerald-500/30 dark:text-emerald-400'
+            : 'text-muted-foreground hover:text-foreground active:bg-muted/50'
+        )}
+        aria-label={t('Show keyboard')}
+        title={t('Show keyboard')}
+        onClick={showKeyboard}
+      >
+        <Keyboard className="h-4 w-4" />
+      </button>
+
+      {/* Details dropdown for extra tools */}
+      <details ref={mobileMenu} className="relative shrink-0">
+        <summary
+          aria-label={t('Terminal tools')}
+          title={t('Terminal tools')}
+          className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden text-muted-foreground hover:text-foreground active:bg-muted/50 transition-colors"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </summary>
+        <div className="absolute right-0 top-full z-30 mt-1 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+          <div className="flex flex-wrap justify-end gap-1">
+            <button
+              type="button"
+              className="icon-action"
+              aria-label={t('Reconnect terminal')}
+              title={t('Reconnect to this session')}
+              onClick={handleReconnect}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="icon-action"
+              aria-label={t('Copy output')}
+              title={t('Copy output')}
+              onClick={handleCopy}
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="icon-action"
+              aria-label={t('Download output')}
+              title={t('Download output')}
+              onClick={() => {
+                const url = URL.createObjectURL(
+                  new Blob([bufferText()], {
+                    type: 'text/plain;charset=utf-8',
+                  }),
+                )
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `task-${taskId}-session-${attempt.attempt_number}.txt`
+                a.click()
+                setTimeout(() => URL.revokeObjectURL(url), 1000)
+              }}
+            >
+              <Download className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="icon-action"
+              aria-label={t('Clear terminal')}
+              title={t('Clear terminal')}
+              onClick={handleClear}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <label className="relative min-w-0 flex-1">
+              <Search
+                aria-hidden
+                className="absolute left-2 top-3.5 h-4 w-4 text-muted-foreground"
+              />
+              <input
+                className="field-control pl-8 text-sm"
+                aria-label={t('Search output…')}
+                placeholder={t('Search output…')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    find(e.shiftKey ? -1 : 1)
+                  }
+                }}
+              />
+            </label>
+            {search && (
+              <>
+                <span
+                  role="status"
+                  className="max-w-20 text-xs text-muted-foreground"
+                >
+                  {match}
+                </span>
+                <button
+                  type="button"
+                  className="icon-action"
+                  aria-label={t('Previous match')}
+                  title={t('Previous match')}
+                  onClick={() => find(-1)}
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-action"
+                  aria-label={t('Next match')}
+                  title={t('Next match')}
+                  onClick={() => find(1)}
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="action-secondary px-2 text-xs"
+              aria-pressed={follow}
+              onClick={() => {
+                const next = !follow
+                following.current = next
+                setFollow(next)
+                if (next) term.current?.scrollToBottom()
+              }}
+            >
+              <ArrowDown className="h-4 w-4" />
+              {t('Follow')}
+            </button>
+          </div>
+        </div>
+      </details>
+    </div>
+  )
+
   return (
     <section
       ref={terminalRoot}
@@ -1305,7 +1477,12 @@ export function TaskTerminal({
     >
       {controlsTarget && !isFullscreen
         ? createPortal(controls, controlsTarget)
-        : controls}
+        : null}
+      {mobileControlsTarget && !isFullscreen
+        ? createPortal(mobileControls, mobileControlsTarget)
+        : null}
+      {!controlsTarget && !mobileControlsTarget && controls}
+      {isFullscreen && controls}
 
       {showDisconnectBanner && (
         <div
