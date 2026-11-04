@@ -125,3 +125,20 @@ review evaluation, original scope and exactly one same-Inbox outcome. Existing
 pending-work recovery and review/capacity regressions pass. Fixture reports use
 review before coordinator acceptance; accepted done work must not be re-reviewed.
 Production audit recovery remains to be demonstrated after deployment.
+
+## Historical persona routing held the next instruction
+
+After reconstruction deployment c261607, the same-room queue exposed a legacy
+agent_sm request repeatedly waiting for capacity ahead of the owner's new
+agent_cuan continuation. A current owned account reports available model capacity;
+legacy persona configuration must not pin historical Inbox work to its old
+connection when the editable public assistant exists.
+
+Runtime agent resolution for known sm/dev/support/cuan aliases now prefers the
+current public assistant in both Inbox coordination and task execution, while
+preserving saved request/task identity. Custom agents and fixture identities are
+not remapped, and a disabled public assistant is not bypassed through a legacy
+persona. Regression tests cover existing conflicting legacy records, editable
+public name/connection, custom identities and disabled-state preservation; facade,
+failover and missing-worktree flow regressions pass. The pending production
+requests remain the same: no resend/replacement is required after deployment.

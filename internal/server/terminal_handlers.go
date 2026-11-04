@@ -406,7 +406,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		respondJSONError(w, http.StatusServiceUnavailable, "Agent registry unavailable")
 		return
 	}
-	registeredAgent, err := s.agentRepo.GetAgentByID(r.Context(), agentID)
+	registeredAgent, err := s.runtimeAgent(r.Context(), agentID)
 	if (err != nil || registeredAgent == nil) && s.agentRepo != nil {
 		cleanID := strings.TrimPrefix(agentID, "@")
 		if ag, e := s.agentRepo.GetAgentByID(r.Context(), "agent_"+cleanID); e == nil && ag != nil {

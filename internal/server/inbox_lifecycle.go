@@ -212,7 +212,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		} else if s.agentRepo == nil {
 			q.SafeError = "Agent list is unavailable."
 		} else {
-			registered, err := s.agentRepo.GetAgentByID(ctx, q.AgentID)
+			registered, err := s.runtimeAgent(ctx, q.AgentID)
 			if err != nil || registered == nil || !registered.Enabled {
 				if allAgents, lErr := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); lErr == nil {
 					for _, a := range allAgents {
