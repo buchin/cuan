@@ -519,7 +519,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDetailResponse) {
 	// Accepted work is final until a fresh user instruction reopens it. A late
 	// review or repaired provider must never reject an already accepted result.
-	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone {
+	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == task.TaskStatusQueued || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
 		return
 	}
 
@@ -597,22 +597,35 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {
 		return
 	}
+	recoverSnapshot := s.reviewSnapshotRecoveryAuthorized(ctx, detail, *origin)
 	key := "task-review:" + detail.LatestAttempt.ID
 	requestID := delegationMessageID(key)
-	// One bounded snapshot-only follow-up can repair a legacy review that
-	// stopped on a denied tool. Never replay the original user execution.
+	// Reconcile terminal legacy reviews using current snapshots, with deterministic
+	// keys and a bounded retry. Never replay the original provider or user execution.
 	for _, q := range requests {
 		if q.RequestID == requestID {
+			previous, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+			if err != nil || previous == nil || previous.AuthorType != "system" || previous.AuthorID != "cuan_work_review" || !strings.Contains(previous.Content, "/tasks/"+detail.ID) {
+				return
+			}
 			if q.State == "completed" {
-				previous, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
-				if err == nil && previous != nil && inboxReviewEvidenceChanged(detail, previous.Content) {
+				if !strings.Contains(previous.Content, "Review evidence digest: ") && recoverSnapshot {
+					// Historical text-only reviews did not reliably apply their decision.
+					// Evaluate the current snapshot once under the tool-free contract.
+					key += ":reconcile:" + inboxReviewEvidenceDigest(detail)
+					requestID = delegationMessageID(key)
+				} else if recoverSnapshot && inboxReviewEvidenceChanged(detail, previous.Content) {
 					key += ":evidence:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else {
 					return
 				}
-			} else if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") {
+			} else if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && recoverSnapshot {
 				key += ":snapshot"
+				requestID = delegationMessageID(key)
+			} else if (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+				// This does not replay the failed provider prompt or execute work.
+				key += ":reconcile:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else {
 				return
@@ -622,8 +635,11 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	}
 	for _, q := range requests {
 		if q.RequestID == requestID {
-			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") {
+			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") && recoverSnapshot {
 				key += ":evaluation"
+				requestID = delegationMessageID(key)
+			} else if strings.Contains(key, ":reconcile:") && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+				key += ":retry"
 				requestID = delegationMessageID(key)
 			} else {
 				return

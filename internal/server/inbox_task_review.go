@@ -51,3 +51,25 @@ func (s *Server) inboxStaleReviewOutcome(ctx context.Context, q db.InboxRequest)
 	}
 	return fallback
 }
+
+// Re-evaluation is a fresh, tool-free task snapshot, never a replay of an old
+// provider process. Cancellation and current execution remain authoritative.
+func reviewSnapshotRecoveryAllowed(d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil || d.Status == task.TaskStatusDone || d.Status == task.TaskStatusQueued || d.Status == "cancelled" || d.Status == "canceled" {
+		return false
+	}
+	a := d.LatestAttempt
+	if a.CancelRequested || a.CanceledAt != nil || a.Status == task.AttemptStatusCanceled || a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued {
+		return false
+	}
+	return d.Launch == nil || (d.Launch.State != "queued" && d.Launch.State != "claimed" && d.Launch.State != "cancelled")
+}
+
+// Fresh evaluation never manufactures missing or cancelled owner authorization.
+func (s *Server) reviewSnapshotRecoveryAuthorized(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
+	if !reviewSnapshotRecoveryAllowed(d) || s.projectStudioRepo == nil || origin.OwnerID == "" || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || origin.State == "cancelled" || origin.State == "canceled" || origin.State == "cancelling" {
+		return false
+	}
+	message, err := s.projectStudioRepo.GetMessageByID(ctx, origin.MessageID)
+	return err == nil && message != nil && message.RoomID == origin.RoomID && message.AuthorType == "user"
+}

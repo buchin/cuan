@@ -54,7 +54,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 		if err != nil || d == nil || d.LatestAttempt == nil {
 			continue
 		}
-		for _, suffix := range []string{"", ":snapshot", ":snapshot:evaluation", ":evidence:" + inboxReviewEvidenceDigest(d)} {
+		for _, suffix := range []string{"", ":snapshot", ":snapshot:evaluation", ":evidence:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d) + ":retry"} {
 			key := "task-review:" + d.LatestAttempt.ID + suffix
 			if q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input") {
 				return d
