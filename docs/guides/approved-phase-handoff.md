@@ -48,3 +48,7 @@ go test ./internal/server -run 'TestApprovedPhase|TestApplyInboxReviewEvaluation
 migrations including pgcrypto in an isolated schema, validates durable launch
 authorization after reconstruction and checks replay without duplicate tasks.
 Never run that fixture against production.
+
+### Recovery boundary
+
+`attemptInboxAutoDelegation` returns persistence errors separately from the Inbox explanation. Rejected or changed consent returns `phaseAuthorizationError`; callers must not infer retry eligibility from reply text. Every replay revalidates the original approval and deterministic phase identity. This error boundary alone does not schedule recovery: failures before the durable launch exists still need a persisted handoff job. The compatibility wrapper currently preserves the existing synchronous behavior.

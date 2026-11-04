@@ -457,22 +457,32 @@ func (s *Server) detectNextMultiPhase(ctx context.Context, d *task.TaskDetailRes
 }
 
 func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, explanation string) string {
+	text, _ := s.attemptInboxAutoDelegation(ctx, q, d, explanation)
+	return text
+}
+
+// Errors describe persistence/authorization outcomes independently of Inbox prose.
+// A durable recovery worker must revalidate approval before retrying this attempt.
+func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, explanation string) (string, error) {
 	var handoff *db.ProjectMessage
-	fail := func(reason string) string {
+	fail := func(reason string, cause error) (string, error) {
+		if cause == nil {
+			cause = phaseDenied(reason)
+		}
 		text := explanation + "\n\n" + reason + " No new phase was started."
 		if handoff != nil {
 			handoff.Content = text
 			handoff.UpdatedAt = time.Now().UTC()
 			_ = s.projectStudioRepo.UpdateMessage(ctx, handoff)
 		}
-		return text
+		return text, cause
 	}
 	approval, err := s.phaseApproval(ctx, d, q.OwnerID, q.RoomID)
 	if err != nil {
-		return fail("The original plan approval could not be verified.")
+		return fail("The original plan approval could not be verified.", err)
 	}
 	if d.Status != task.TaskStatusDone || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil {
-		return fail("The preceding phase has not been accepted.")
+		return fail("The preceding phase has not been accepted.", nil)
 	}
 	approved := *d
 	approved.Title = fmt.Sprintf("Phase %d: current", approval.Phase)
@@ -480,11 +490,11 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	approved.SourceMessageID = ""
 	target, ok := s.detectNextMultiPhase(ctx, &approved)
 	if !ok {
-		return explanation
+		return explanation, nil
 	}
 	policy, err := s.taskPublicationPolicy(ctx, d)
 	if err != nil {
-		return fail("The approved execution limits could not be verified.")
+		return fail("The approved execution limits could not be verified.", err)
 	}
 	limits := ""
 	if policy.ReadOnlyRepository {
@@ -502,27 +512,27 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	now := time.Now().UTC()
 	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
-		return fail("Conversation storage is unavailable.")
+		return fail("Conversation storage is unavailable.", nil)
 	}
 	nextReq := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: requestID, MessageID: inputMsgID, ReplyID: inputMsgID, PayloadHash: requestID, State: "completed", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	msg := &db.ProjectMessage{ID: inputMsgID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_auto_delegation", AuthorName: "Cuan", Content: fmt.Sprintf("Phase %d verified complete. Preparing %s.", approval.Phase, nextTitle), CreatedAt: now, UpdatedAt: now}
 	accepted, fresh, err := store.AcceptInboxRequest(ctx, nextReq, msg)
 	if err != nil {
-		return fail("The phase handoff could not be saved.")
+		return fail("The phase handoff could not be saved.", err)
 	}
 	if accepted.OwnerID != q.OwnerID || accepted.RoomID != q.RoomID || accepted.MessageID != inputMsgID {
-		return fail("The saved handoff identity differs.")
+		return fail("The saved handoff identity differs.", nil)
 	}
 	if !fresh {
 		stored, e := s.projectStudioRepo.GetMessageByID(ctx, inputMsgID)
 		if e != nil || stored == nil || stored.AuthorType != "system" || stored.AuthorID != "cuan_auto_delegation" {
-			return fail("The saved handoff message differs.")
+			return fail("The saved handoff message differs.", e)
 		}
 		msg = stored
 	}
 	handoff = msg
 	if accepted.State == "cancelled" || accepted.State == "canceled" || accepted.State == "cancelling" {
-		return fail("The phase handoff was cancelled.")
+		return fail("The phase handoff was cancelled.", nil)
 	}
 	inherited := phaseTaskInstructions(approval.Root.Instructions)
 	if approval.Plan.Plan.Description != "" {
@@ -531,19 +541,19 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\n%s\n\nApproved phase: %s\n\nOriginal approved plan:\n%s\n\nHistorical root context (reference only; the active approved phase above controls):\n%s\n\nApproval message: %s\nConversation: %s\nExecute only the active phase and report actual verification evidence.", target.NextPhase, limits, nextTitle, approval.Plan.Plan.Description, inherited, approval.Root.SourceMessageID, q.RoomID)
 	created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: nextTitle, Instructions: nextInstructions, AssignedAgent: q.AgentID, ExecutionCategory: d.ExecutionCategory})
 	if err != nil || created == nil {
-		return fail("The next phase task could not be saved.")
+		return fail("The next phase task could not be saved.", err)
 	}
 	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
-	if err != nil || detail.ProjectID != d.ProjectID || detail.SourceRoomID != q.RoomID || detail.SourceMessageID != inputMsgID || phaseTaskInstructions(detail.Instructions) != nextInstructions || detail.ExecutionCategory != d.ExecutionCategory {
-		return fail("The saved phase scope differs from the approved handoff.")
+	if err != nil || detail == nil || detail.ProjectID != d.ProjectID || detail.SourceRoomID != q.RoomID || detail.SourceMessageID != inputMsgID || phaseTaskInstructions(detail.Instructions) != nextInstructions || detail.ExecutionCategory != d.ExecutionCategory {
+		return fail("The saved phase scope differs from the approved handoff.", err)
 	}
 	if err := s.savePhaseLineage(ctx, detail, d, approval, q.OwnerID, q.RoomID); err != nil {
-		return fail("The next phase authorization could not be saved.")
+		return fail("The next phase authorization could not be saved.", err)
 	}
 	// Refresh the receipt-bearing detail before launch authorization reads it.
 	detail, err = s.taskSvc.GetTaskDetail(ctx, created.ID)
-	if err != nil {
-		return fail("The saved phase authorization could not be read.")
+	if err != nil || detail == nil {
+		return fail("The saved phase authorization could not be read.", err)
 	}
 	outcome := s.startAuthorizedLaunch(ctx, accepted, detail, requestID, approval.Request.RequestID, "")
 	status := fmt.Sprintf("Phase %d verified complete. Next phase: %s.\n\n%s", approval.Phase, nextTitle, outcome)
@@ -551,17 +561,17 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	if !fresh {
 		stored, e := s.projectStudioRepo.GetMessageByID(ctx, inputMsgID)
 		if e != nil || stored == nil {
-			return fail("The phase status could not be read.")
+			return fail("The phase status could not be read.", e)
 		}
 		msg = stored
 		msg.Content = status
 	}
 	msg.UpdatedAt = time.Now().UTC()
 	if err := s.projectStudioRepo.UpdateMessage(ctx, msg); err != nil {
-		return explanation + "\n\n" + outcome + "\n\nThe phase status could not be saved."
+		return explanation + "\n\n" + outcome + "\n\nThe phase status could not be saved.", err
 	}
 	s.publishInbox(q.RoomID)
-	return explanation + "\n\n" + status
+	return explanation + "\n\n" + status, nil
 }
 
 func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxRequest) (string, bool) {

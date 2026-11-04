@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -193,5 +194,39 @@ func TestApprovedPhaseRejectsChangedAuthorization(t *testing.T) {
 				t.Fatal("invalid scope incorrectly classified as transient storage failure", err)
 			}
 		})
+	}
+}
+
+// A transient lookup must remain distinguishable from rejected consent without
+// parsing the user-facing explanation. No child may be created on either path.
+type phaseLookupFailureRepository struct {
+	db.ProjectStudioRepository
+	failure error
+}
+
+func (r phaseLookupFailureRepository) GetMessageByID(context.Context, string) (*db.ProjectMessage, error) {
+	return nil, r.failure
+}
+func TestApprovedPhaseHandoffReturnsTypedFailure(t *testing.T) {
+	s, q, parent, _, _ := phaseLineageFixture(t)
+	original := s.projectStudioRepo
+	outage := errors.New("temporary storage failure")
+	s.projectStudioRepo = phaseLookupFailureRepository{ProjectStudioRepository: original, failure: outage}
+	_, err := s.attemptInboxAutoDelegation(context.Background(), q, parent, "Phase accepted")
+	if !errors.Is(err, outage) {
+		t.Fatalf("lost persistence failure: %v", err)
+	}
+	var denied *phaseAuthorizationError
+	if errors.As(err, &denied) {
+		t.Fatal("temporary outage classified as rejected approval")
+	}
+	s.projectStudioRepo = original
+	_, err = s.attemptInboxAutoDelegation(context.Background(), db.InboxRequest{OwnerID: "other", RoomID: q.RoomID}, parent, "Phase accepted")
+	if !errors.As(err, &denied) {
+		t.Fatalf("changed owner did not return authorization failure: %v", err)
+	}
+	text, err := s.attemptInboxAutoDelegation(context.Background(), q, parent, "Phase accepted")
+	if err != nil || !strings.Contains(text, "Phase 2: API") {
+		t.Fatalf("valid replay failed: %v %s", err, text)
 	}
 }
