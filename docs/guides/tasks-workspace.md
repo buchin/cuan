@@ -298,3 +298,18 @@ Node module as `CUAN_BROWSER_MODULE`. `PLAYWRIGHT_BROWSERS_PATH` points to the
 service browser cache independently of the leased AI account's private HOME.
 Visual tasks receive this tool context automatically; they should not search
 entire filesystems or install duplicate browsers when the platform tool exists.
+
+Delivered images are sent to an independent vision-capable reviewer with their
+server-resolved paths and decoded pixel dimensions. Filenames and worker claims
+are not image inspection. Review may read those delivered images with bounded
+native image tools; it cannot implement work or execute commands. Acceptance
+requires a recorded description of what is actually visible. Generated mockups,
+unrelated UI and unsupported viewport claims do not satisfy application screenshot
+requirements.
+
+The visual evidence policy rechecks previously accepted supplemental verifier
+attempts once if their images were accepted without an inspection record. It
+returns those results to review while preserving files, commit, execution history
+and correction limits. Ordinary accepted task history and cancellations are not
+reopened. The PostgreSQL candidate query selects only this affected verification
+mode and excludes already audited attempts.

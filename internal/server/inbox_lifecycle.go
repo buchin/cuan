@@ -334,7 +334,11 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 							if output == "" {
-								output, failure = s.executeInboxWithFailover(inferenceCtx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, s.inboxAttachmentPaths(ctx, q)...)
+								attachments := s.inboxAttachmentPaths(ctx, q)
+								if snapshotReview {
+									attachments = s.inboxReviewImagePaths(ctx, q)
+								}
+								output, failure = s.executeInboxWithFailover(inferenceCtx, q.OwnerID, registered, prompt, home, workspace, status == "quota_limited", step, attachments...)
 							}
 						}
 						output, topicTitle = extractTopicTitle(output)

@@ -195,7 +195,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	default:
 		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, Codex, or CommandCode agent."
 	}
-	if (answerOnly || snapshotReview || directCoordinator) && binary == "claude" {
+	if snapshotReview && len(attachmentPaths) > 0 && binary == "claude" {
+		args = []string{"-p", "--tools", "Read", "--allowedTools", "Read", "--output-format", "text", system}
+	} else if (answerOnly || snapshotReview || directCoordinator) && binary == "claude" {
 		args = []string{"-p", "--tools", "", "--output-format", "text", system}
 	}
 	for _, file := range attachmentPaths {
@@ -303,15 +305,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
 		maxTools := 0
+		if snapshotReview {
+			maxTools = len(attachmentPaths) + 1
+		}
 		if coordinator && !directCoordinator {
 			maxTools = getChatToolBudget()
 		}
 		runtime = &inboxRuntimeStream{
 			step:                  step,
 			maxToolCalls:          maxTools,
-			adaptiveBatching:      true,
+			adaptiveBatching:      !snapshotReview,
 			inspectionBatchFactor: getChatInspectionBatchFactor(),
-			disallowTools:         directCoordinator,
+			disallowTools:         directCoordinator || (snapshotReview && len(attachmentPaths) == 0),
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()

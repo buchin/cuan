@@ -109,9 +109,20 @@ func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDeta
 
 func TestVerificationReviewRequiresBackendSourceReceipt(t *testing.T) {
 	s, d, q := stalledReviewFixture(t, "completed")
+	verificationReviewReceiptContract(t, s, d, q)
+}
+func TestVisualAcceptanceAuditPostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) {
+		s, q, d := phaseLineageSetup(t, database)
+		verificationReviewReceiptContract(t, s, d, q)
+	})
+}
+func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest) {
+	t.Helper()
 	verificationFollowupQueueContract(t, s, d, q)
 	ctx := context.Background()
 	store := s.taskSvc.Store()
+	_ = store.DeleteTask(ctx, "phase-blocker")
 	if err := store.DeleteTask(ctx, "busy"); err != nil {
 		t.Fatal(err)
 	}
@@ -156,6 +167,35 @@ func TestVerificationReviewRequiresBackendSourceReceipt(t *testing.T) {
 	}
 	if task.AttemptVerificationEvidence(d).Current == evidence["source_project_checks"] {
 		t.Fatal("historical source tests attributed to verifier")
+	}
+	// Model reports once accepted without reading delivered images must return
+	// to review automatically, preserving source, artifacts and execution count.
+	publishReviewFixtureImage(t, s, d)
+	q.RequestID = db.GenerateUUID()
+	if _, err = s.saveReviewAssessment(ctx, d, q, inboxReviewEvaluation{Decision: "pass", Explanation: "Old text-only acceptance", RemainingWork: "none"}); err != nil {
+		t.Fatal(err)
+	}
+	row, err := store.GetTask(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row.Status = task.TaskStatusDone
+	if err = store.UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := store.(task.VerificationAcceptanceAuditStore).UninspectedVerificationTaskIDs(ctx)
+	if err != nil || len(candidates) != 1 {
+		t.Fatal("missing exact accepted verifier candidate", candidates, err)
+	}
+	s.reconcileVisualAcceptances(ctx)
+	s.reconcileVisualAcceptances(ctx)
+	audited, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil || audited.Status != task.TaskStatusReview || audited.CommitSHA != d.CommitSHA || len(audited.Attempts) != 4 {
+		t.Fatal("audit altered execution or accepted unchecked images", err)
+	}
+	candidates, err = store.(task.VerificationAcceptanceAuditStore).UninspectedVerificationTaskIDs(ctx)
+	if err != nil || len(candidates) != 0 {
+		t.Fatal("completed audit scanned repeatedly", candidates, err)
 	}
 	for _, a := range d.Activities {
 		if a.ActivityType == "verification_source_verified" {

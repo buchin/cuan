@@ -445,6 +445,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		return
 	}
 	s.recoverPhaseHandoffs(ctx)
+	s.reconcileVisualAcceptances(ctx)
 	items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
 	if err != nil {
 		return
@@ -636,6 +637,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 					// or additional correction budget. The review remains tool-free.
 					key += ":assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
+				} else if recoverSnapshot && len(s.inboxReviewImages(ctx, detail)) > 0 && !strings.Contains(previous.Content, inboxVisualReviewPolicy) {
+					key += ":visual-assessment:" + inboxReviewEvidenceDigest(detail)
+					requestID = delegationMessageID(key)
 				} else if recoverSnapshot && verificationClassificationMissing(detail) && !strings.Contains(previous.Content, inboxVerificationReviewPolicy) {
 					key += ":verification-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
@@ -668,7 +672,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") && recoverSnapshot {
 				key += ":evaluation"
 				requestID = delegationMessageID(key)
-			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
 				key += ":retry"
 				requestID = delegationMessageID(key)
 			} else {
@@ -691,6 +695,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	content += "\n" + inboxReportProvenancePolicy
 	content += "\n" + inboxReviewAssessmentPolicy
 	content += "\n" + inboxVerificationReviewPolicy
+	content += "\n" + inboxVisualReviewPolicy
 	content += taskRecoveryContext(detail)
 	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: targetRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now}
