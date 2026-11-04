@@ -170,4 +170,17 @@ Mulai Sprint 58, tata letak antarmuka obrolan Conversational Inbox ditingkatkan 
   - **Transisi Mulus ke `TaskCompletionCard`:** Saat tugas selesai (`done` atau `review`), `TaskCard` bertransisi secara mulus (*smooth transition with fade-in animation*) menjadi `TaskCompletionCard` interaktif yang menampilkan ringkasan bisnis bebas jargon, rekap checklist kriteria DoD, serta tombol pintas "Lanjutkan Diskusi" dan "Buka Detail Tugas".
 - **Polling Mandiri:** `TaskCard` yang terpasang di thread percakapan secara otomatis memperbarui statusnya setiap 3.5 detik saat tugas sedang aktif (*in-flight*), menjamin transisi otomatis ke kartu penyelesaian tanpa me-reload halaman.
 
+### 8.3 Clickable Task & Room Cards dengan Event Isolation dan Relaksasi Scope Tim
+- **Nested Click Collision Prevention:**
+  - Card dibuat interaktif (*clickable*) untuk membuka detail tugas atau ruangan secara langsung.
+  - Seluruh tombol aksi internal (`Copy link`, `Open task`, `Open room`, `Retry`, dll.) dibungkus isolasi event dengan `e.stopPropagation()` dan `e.preventDefault()`. Hal ini menjamin klik tombol internal mengeksekusi aksinya secara mandiri tanpa memicu navigasi utama container card.
+- **Standar Aksesibilitas Touch Target & Responsivitas Mobile:**
+  - Touch target memenuhi standar WCAG 2.1 AA dengan dimensi minimum 44×44px (`min-h-[44px] min-w-[44px]`).
+  - Aman pada layar ponsel sempit (360px–390px) dengan `w-full max-w-full break-words flex-wrap` tanpa blowout horizontal.
+- **Deteksi Deep Link Otomatis di Chat:**
+  - Tautan internal `/tasks/:id` dan `/inbox/:id` dalam pesan obrolan secara otomatis dideteksi dan dirender sebagai visual card interaktif (`TaskCard` dan `RoomCard`).
+- **Relaksasi Scope Delegasi Tugas Lintas Ruangan:**
+  - Pelonggaran validasi scope runtime di `internal/server/inbox_delegation.go` mengizinkan Owner dan Tim mendelegasikan perbaikan/revisi tugas lintas room dan sesi obrolan tanpa penolakan kaku *scope mismatch*.
+
+
 

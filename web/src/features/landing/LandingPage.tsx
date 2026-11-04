@@ -342,8 +342,8 @@ export function LandingPage() {
               },
               {
                 Icon: Sparkles,
-                title: 'De-cluttered chat & self-contained task cards.',
-                text: 'Clean, distraction-free chat with self-contained task cards handling queued states, live pulse & duration timers, and seamless transitions to actionable completion cards.',
+                title: 'Clickable Task & Room cards with event isolation.',
+                text: 'Interactive embedded Task and Room cards with seamless click-through, WCAG-compliant touch targets (44px), event bubbling isolation, and flexible cross-room team delegation.',
               },
               {
                 Icon: Volume2,
