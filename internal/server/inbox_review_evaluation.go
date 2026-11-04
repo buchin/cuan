@@ -276,6 +276,16 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			if completeNote == "" {
 				completeNote = decision.Explanation
 			}
+			acceptedSnapshot := *d
+			acceptedSnapshot.Summary = summary
+			acceptedSnapshot.CompleteNote = completeNote
+			acceptedSnapshot.DoDChecklist = completedDoD
+			if err := s.savePhaseHandoffIntent(ctx, q, d, &acceptedSnapshot, decision); err != nil {
+				if retry, ok := ctx.Value(inboxHandoffPersistenceKey{}).(*bool); ok {
+					*retry = true
+				}
+				return "Hasil dan bukti tersimpan. Penerimaan akan diperiksa kembali sebelum pekerjaan berikutnya dimulai.\n\n[View work](/tasks/" + d.ID + ")"
+			}
 			if d.Status != task.TaskStatusDone {
 				if d.Status != task.TaskStatusReview {
 					reviewStatus := task.TaskStatusReview
@@ -465,11 +475,17 @@ func (s *Server) enqueueInboxAutoDelegation(ctx context.Context, q db.InboxReque
 // A durable recovery worker must revalidate approval before retrying this attempt.
 func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, explanation string) (string, error) {
 	var handoff *db.ProjectMessage
+	launchRecorded := false
 	fail := func(reason string, cause error) (string, error) {
 		if cause == nil {
 			cause = phaseDenied(reason)
 		}
-		text := explanation + "\n\n" + reason + " No new phase was started."
+		text := explanation + "\n\n" + reason
+		if launchRecorded {
+			text += " The saved launch remains responsible for execution."
+		} else {
+			text += " No new phase was started."
+		}
 		if handoff != nil {
 			handoff.Content = text
 			handoff.UpdatedAt = time.Now().UTC()
@@ -556,6 +572,12 @@ func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxReque
 		return fail("The saved phase authorization could not be read.", err)
 	}
 	outcome := s.startAuthorizedLaunch(ctx, accepted, detail, requestID, approval.Request.RequestID, "")
+	// The launch text is presentation only. Recovery ownership transfers only
+	// after the durable launch can actually be read.
+	if _, launchErr := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, requestID)); launchErr != nil {
+		return explanation + "\n\n" + outcome, launchErr
+	}
+	launchRecorded = true
 	status := fmt.Sprintf("Phase %d verified complete. Next phase: %s.\n\n%s", approval.Phase, nextTitle, outcome)
 	msg.Content = status
 	if !fresh {

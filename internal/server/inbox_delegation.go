@@ -444,6 +444,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	if s.taskSvc == nil || s.projectStudioRepo == nil {
 		return
 	}
+	s.recoverPhaseHandoffs(ctx)
 	items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
 	if err != nil {
 		return

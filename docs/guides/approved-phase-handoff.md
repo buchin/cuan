@@ -49,6 +49,37 @@ migrations including pgcrypto in an isolated schema, validates durable launch
 authorization after reconstruction and checks replay without duplicate tasks.
 Never run that fixture against production.
 
-### Recovery boundary
+### Durable handoff recovery
 
-`attemptInboxAutoDelegation` returns persistence errors separately from the Inbox explanation. Rejected or changed consent returns `phaseAuthorizationError`; callers must not infer retry eligibility from reply text. Every replay revalidates the original approval and deterministic phase identity. This error boundary alone does not schedule recovery: failures before the durable launch exists still need a persisted handoff job. The compatibility wrapper currently preserves the existing synchronous behavior.
+Before accepting a verified review, the coordinator writes a `phase_handoff_pending`
+activity. It binds the saved pass decision and original review identity to the exact
+parent attempt, instructions hash, and before/after acceptance evidence digests.
+If this first write fails, the original review stays queued with backoff instead of
+publishing a final reply. The review may be evaluated again; no work attempt is replayed.
+
+The existing task-update worker reads at most 20 pending intents using a partial
+PostgreSQL index. It does not scan accepted tasks or call an AI provider to recover
+an already saved decision. Failed recovery is delayed five minutes, for at most 24
+hours, and writes a bounded retry record. A finished activity removes the intent
+from subsequent pending reads. Restart does not erase either record.
+
+Recovery rechecks the parent attempt, cancellation, scope, evidence and original
+approval. If acceptance itself failed, it reuses the saved coordinator decision
+through the original review binding and acceptance gates. Changed evidence or
+scope stops that intent. Deterministic phase IDs prevent duplicate child tasks.
+The handoff is complete only after the durable child launch can be read; launch
+recovery then owns execution. A cancelled or stopped launch is never replaced.
+The worker does not manually merge, deploy, or change an accepted parent's attempt.
+
+`attemptInboxAutoDelegation` returns persistence errors separately from Inbox prose.
+Rejected or changed consent returns `phaseAuthorizationError`. Recovery never parses
+reply text to decide whether retry is safe. Storage failure while saving status
+cannot falsely claim that a persisted launch did not exist.
+
+This applies to newly recorded decisions; it does not invent handoff approval for
+historical tasks. Expired recovery is recorded in the task activity history; a
+separate proactive Inbox notice for expiration is not yet implemented.
+
+Verification includes restart after launch persistence failure, acceptance write
+failure, retry cooldown, unchanged publication limits, cancellation, scope/evidence
+changes, expiry, and real PostgreSQL migrations and launch records.

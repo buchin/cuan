@@ -14,7 +14,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-func phaseLineageFixture(t *testing.T, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse, *task.TaskDetailResponse, *task.TaskLaunch) {
+func phaseLineageSetup(t *testing.T, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse) {
 	t.Helper()
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()
@@ -59,6 +59,14 @@ func phaseLineageFixture(t *testing.T, databases ...*sql.DB) (*Server, db.InboxR
 	if err != nil {
 		t.Fatal(err)
 	}
+	return s, q, detail
+}
+
+func phaseLineageFixture(t *testing.T, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse, *task.TaskDetailResponse, *task.TaskLaunch) {
+	t.Helper()
+	s, q, detail := phaseLineageSetup(t, databases...)
+	ctx := context.Background()
+	parent := &detail.Task
 	text := s.enqueueInboxAutoDelegation(ctx, q, detail, "Phase accepted")
 	if strings.Contains(text, "without stopping") || !strings.Contains(text, "Phase 2: API") || strings.Contains(text, "INVENTED SCOPE") {
 		t.Fatal("untruthful or unapproved phase result", text)

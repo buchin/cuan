@@ -11,7 +11,8 @@ import (
 	"github.com/buchin/cuan/internal/db"
 )
 
-func TestApprovedPhasePostgres(t *testing.T) {
+func withPhasePostgres(t *testing.T, check func(*sql.DB)) {
+	t.Helper()
 	dsn := os.Getenv("CUAN_LIFECYCLE_SQL_DSN")
 	if dsn == "" {
 		t.Skip("requires disposable PostgreSQL DSN")
@@ -48,15 +49,27 @@ func TestApprovedPhasePostgres(t *testing.T) {
 			t.Fatalf("migration %s: %v", migration.Version, err)
 		}
 	}
-	s, q, parent, child, launch := phaseLineageFixture(t, database)
-	restarted := &Server{taskSvc: s.taskSvc, projectStudioRepo: s.projectStudioRepo, projectSvc: s.projectSvc}
-	_, authorized, err := restarted.authorizeSavedTaskLaunch(ctx, *launch, child)
-	if err != nil || !authorized {
-		t.Fatal("Postgres phase approval failed", err)
-	}
-	_ = s.enqueueInboxAutoDelegation(ctx, q, parent, "Phase accepted")
-	var count int
-	if err = database.QueryRowContext(ctx, `SELECT COUNT(*) FROM tasks WHERE source_room_id=$1`, q.RoomID).Scan(&count); err != nil || count != 2 {
-		t.Fatal("phase replay duplicated tasks", count, err)
-	}
+	check(database)
+}
+
+func TestApprovedPhasePostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) {
+		ctx := context.Background()
+		s, q, parent, child, launch := phaseLineageFixture(t, database)
+		restarted := &Server{taskSvc: s.taskSvc, projectStudioRepo: s.projectStudioRepo, projectSvc: s.projectSvc}
+		_, authorized, err := restarted.authorizeSavedTaskLaunch(ctx, *launch, child)
+		if err != nil || !authorized {
+			t.Fatal("Postgres phase approval failed", err)
+		}
+		_ = s.enqueueInboxAutoDelegation(ctx, q, parent, "Phase accepted")
+		var count int
+		if err = database.QueryRowContext(ctx, `SELECT COUNT(*) FROM tasks WHERE source_room_id=$1`, q.RoomID).Scan(&count); err != nil || count != 2 {
+			t.Fatal("phase replay duplicated tasks", count, err)
+		}
+
+	})
+}
+
+func TestApprovedPhaseRecoveryPostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) { phaseHandoffRecoveryContract(t, database) })
 }

@@ -192,6 +192,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), lifecycleTimeout)
+	handoffPersistenceRetry := false
+	ctx = context.WithValue(ctx, inboxHandoffPersistenceKey{}, &handoffPersistenceRetry)
 	if db.InboxRetryNeedsReconciliation(q) {
 		ctx = context.WithValue(ctx, inboxRetryReconcileKey{}, true)
 	}
@@ -444,13 +446,19 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 			}
 		}
 	}
+	if handoffPersistenceRetry {
+		q.SafeError = inboxHandoffPersistenceWaiting
+		reply = nil
+	}
 	if q.SafeError != "" {
 		q.State = "failed"
-		if q.SafeError == inboxQuotaNoBackup && time.Since(q.CreatedAt) < 24*time.Hour {
+		if (q.SafeError == inboxQuotaNoBackup || q.SafeError == inboxHandoffPersistenceWaiting) && time.Since(q.CreatedAt) < 24*time.Hour {
 			q.State = "queued"
 			q.Deadline = time.Now().Add(24 * time.Hour)
 		} else if q.SafeError == inboxQuotaNoBackup {
 			q.SafeError = "AI capacity is still unavailable. Your message is saved; retry when you are ready."
+		} else if q.SafeError == inboxHandoffPersistenceWaiting {
+			q.SafeError = "The verified handoff could not be saved. The result remains available; acceptance has not been confirmed."
 		}
 	}
 	if ctx.Err() != nil {
@@ -832,7 +840,7 @@ func (s *Server) inboxLinkedTasks(ctx context.Context, room string) ([]*task.Tas
 // A durable queued request can wait for capacity without creating another
 // message, task or provider session. Cancellation remains available while waiting.
 func inboxCapacityWaiting(q db.InboxRequest, now time.Time) bool {
-	if q.State != "queued" || q.SafeError != inboxQuotaNoBackup {
+	if q.State != "queued" || (q.SafeError != inboxQuotaNoBackup && q.SafeError != inboxHandoffPersistenceWaiting) {
 		return false
 	}
 	for i := len(q.Steps) - 1; i >= 0; i-- {
