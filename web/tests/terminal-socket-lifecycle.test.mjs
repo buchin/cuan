@@ -37,7 +37,7 @@ test('active socket output still reaches the terminal', () => {
   const code = ts.transpileModule(`const callback = ${callbacks.get('ws.onmessage')}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText
-  const callback = new Function('disposed','socket','ws','term','following',`${code}; return callback`)(false,{current:ws},ws,term,{current:false})
+  const callback = new Function('disposed','socket','ws','term','following',`let outputSequence=0;const acknowledgeOutput=false;${code}; return callback`)(false,{current:ws},ws,term,{current:false})
   const output = 'live output\r\n\x1b[2K{"type":"stdin","data":"valid terminal output"}\r\n日本語🙂'
   const bytes = new TextEncoder().encode(output)
   // Deliberately split inside multibyte UTF-8. Each PTY byte must survive;
@@ -47,4 +47,22 @@ test('active socket output still reaches the terminal', () => {
   callback({data:bytes.slice(split).buffer})
   assert(writes.every(x=>x instanceof Uint8Array))
   assert.deepEqual(Buffer.concat(writes.map(x=>Buffer.from(x))),Buffer.from(bytes))
+})
+
+test('output credit waits for xterm parsing and yields without touching pending input', () => {
+  const callbacksPending=[],scheduled=[],sent=[]
+  const ws={readyState:1,send:data=>sent.push(JSON.parse(data))},socket={current:null};socket.current=ws
+  const term={current:{textarea:{value:'pending composition'},write(data,done){callbacksPending.push(done)}}}
+  const code=ts.transpileModule(`const callback = ${callbacks.get('ws.onmessage')}`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText
+  const callback=new Function('disposed','socket','ws','term','following','setTimeout','WebSocket',`let outputSequence=0;const acknowledgeOutput=true;${code};return callback`)(false,socket,ws,term,{current:false},fn=>scheduled.push(fn),{OPEN:1})
+  callback({data:new TextEncoder().encode('output').buffer})
+  assert.equal(sent.length,0)
+  callbacksPending.shift()()
+  assert.equal(sent.length,0,'credit must yield to input before admitting more output')
+  scheduled.shift()()
+  assert.deepEqual(sent,[{type:'output_ack',sequence:1}])
+  callback({data:new TextEncoder().encode('more').buffer});callbacksPending.shift()()
+  socket.current={};scheduled.shift()()
+  assert.equal(sent.length,1,'replaced socket cannot receive stale credit')
+  assert.equal(term.current.textarea.value,'pending composition')
 })

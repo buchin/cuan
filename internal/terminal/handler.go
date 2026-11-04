@@ -29,14 +29,15 @@ const (
 
 // TerminalMessage represents control payloads exchanged over the WebSocket connection.
 type TerminalMessage struct {
-	Type    string `json:"type"`              // "resize", "stdin", "input", "mode", "ping", "pong", "connected", "error", "status"
-	Cols    uint16 `json:"cols,omitempty"`    // for "resize"
-	Rows    uint16 `json:"rows,omitempty"`    // for "resize"
-	Data    string `json:"data,omitempty"`    // for "stdin" / "input"
-	Mode    string `json:"mode,omitempty"`    // for "mode" ("watch" | "interactive")
-	Message string `json:"message,omitempty"` // for "error" or info
-	TaskID  string `json:"task_id,omitempty"`
-	Session string `json:"session_id,omitempty"`
+	Type     string `json:"type"`              // "resize", "stdin", "input", "mode", "ping", "pong", "connected", "error", "status"
+	Cols     uint16 `json:"cols,omitempty"`    // for "resize"
+	Rows     uint16 `json:"rows,omitempty"`    // for "resize"
+	Data     string `json:"data,omitempty"`    // for "stdin" / "input"
+	Mode     string `json:"mode,omitempty"`    // for "mode" ("watch" | "interactive")
+	Message  string `json:"message,omitempty"` // for "error" or info
+	TaskID   string `json:"task_id,omitempty"`
+	Session  string `json:"session_id,omitempty"`
+	Sequence uint64 `json:"sequence,omitempty"`
 }
 
 // HandlerConfig provides dependencies for the terminal WebSocket handler.
@@ -494,6 +495,8 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	defer unixConn.Close()
 
 	q := r.URL.Query()
+	ackOutput := q.Get("output_ack") == "1"
+	outputFlow := newTerminalOutputFlow()
 	var cols uint16 = 80
 	if cStr := q.Get("cols"); cStr != "" {
 		if c, err := strconv.ParseUint(cStr, 10, 16); err == nil && c > 0 {
@@ -527,7 +530,7 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Send handshake connected message
-	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session_id":"%s","task_id":"%s","mode":"interactive","cols":%d,"rows":%d}`, socketID, taskID, cols, rows)))
+	_ = writeWS(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"connected","session_id":"%s","task_id":"%s","mode":"interactive","cols":%d,"rows":%d,"output_ack":%t}`, socketID, taskID, cols, rows, ackOutput)))
 
 	// Setup ping/pong
 	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -553,7 +556,14 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 		for {
 			n, rErr := unixConn.Read(buf)
 			if n > 0 {
-				if err := writeWS(websocket.BinaryMessage, buf[:n]); err != nil {
+				send := func() error { return writeWS(websocket.BinaryMessage, buf[:n]) }
+				var err error
+				if ackOutput {
+					err = outputFlow.write(done, pongWait, send)
+				} else {
+					err = send()
+				}
+				if err != nil {
 					return
 				}
 			}
@@ -592,6 +602,13 @@ func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 			break
 		}
 		if msgType == websocket.TextMessage || msgType == websocket.BinaryMessage {
+			if ackOutput && msgType == websocket.TextMessage {
+				var control TerminalMessage
+				if json.Unmarshal(data, &control) == nil && control.Type == "output_ack" {
+					outputFlow.acknowledge(control.Sequence)
+					continue // Browser paint credit is never PTY input.
+				}
+			}
 			toWrite := data
 			trimmed := bytes.TrimLeft(data, " \t\r\n")
 			if len(trimmed) > 0 && trimmed[0] == '{' && !bytes.HasSuffix(data, []byte("\n")) {

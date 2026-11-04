@@ -95,3 +95,23 @@ overflow case, healthy-viewer isolation and retained-history replay. This is
 gap detection and recovery, not Fural's full render-credit protocol or a soft
 reconnect implementation. Sustained overload can still cause reconnects, and
 history remains bounded to the existing retention window.
+
+## Negotiated runner output credit
+
+The browser requests `output_ack=1`. The runner WebSocket bridge advertises
+`output_ack: true` only when it supports this mode. It sends at most one 4096-byte
+binary PTY frame until the browser acknowledges its sequence after xterm's write
+callback and a task yield. Keyboard input and heartbeat use independent readers
+and remain available while output waits. Duplicate, stale and future credits
+cannot release another frame, and credit messages never reach the PTY.
+
+Unacknowledged frames expire with the connection timeout; disconnect also
+unblocks the sender. Legacy clients and the managed-session path keep their
+existing transport unless support is explicitly negotiated. The upstream
+subscriber queue is still bounded: sustained slow rendering can cause the
+overflow recovery above, rather than silently corrupting terminal output.
+
+`TestRunnerOutputCreditDoesNotBlockKeyboardOrLeakIntoPTY` exercises a real Unix
+socket and WebSocket. Browser evidence checks actual xterm acknowledgements at
+390px and 1440px. This limits rendering backlog; it does not implement lossless
+soft reconnect or prove the physical Android keyboard issue resolved.

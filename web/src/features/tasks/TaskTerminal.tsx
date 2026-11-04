@@ -439,6 +439,7 @@ export function TaskTerminal({
       )
       url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
       url.searchParams.set('mode', 'interactive')
+      url.searchParams.set('output_ack', '1')
       if (currentLiveId) {
         url.searchParams.set('attach', '1')
         url.searchParams.set('session_id', currentLiveId)
@@ -459,16 +460,27 @@ export function TaskTerminal({
       socket.current = ws
       ws.binaryType = 'arraybuffer'
       let handshakeReceived = false
+      let acknowledgeOutput = false
+      let outputSequence = 0
 
       ws.onmessage = (event) => {
         if (disposed || socket.current !== ws || !term.current) return
         const t = term.current
 
         if (event.data instanceof ArrayBuffer) {
+          const sequence = ++outputSequence
           // Binary frames are raw PTY bytes, including legitimate JSON output.
           // Preserve UTF-8 and ANSI sequences across frames for xterm to decode.
           t.write(new Uint8Array(event.data), () => {
             if (following.current) t.scrollToBottom()
+            if (acknowledgeOutput) {
+              // Yield between parsed output frames so keyboard events can run.
+              setTimeout(() => {
+                if (!disposed && socket.current === ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'output_ack', sequence }))
+                }
+              }, 0)
+            }
           })
           return
         }
@@ -481,6 +493,7 @@ export function TaskTerminal({
             // erase the rendered screen or disturb an active IME composition.
             if (handshakeReceived) return
             handshakeReceived = true
+            acknowledgeOutput = data.output_ack === true
             const sameSession = Boolean(data.session_id && data.session_id === liveIdRef.current)
             const retainedInput = sameSession ? t.textarea?.value || '' : ''
             if (data.session_id) {

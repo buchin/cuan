@@ -37,8 +37,8 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
  if(p==='/api/v1/notifications')return json({notifications:[],unread_count:0})
  return json({})
  })
- task.status='doing';task.latest_attempt.status='running';const terminalInput=[],terminalResizes=[];let terminalSocket,terminalConnections=0
- await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{terminalSocket=ws;terminalConnections++;ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive'}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='stdin')terminalInput.push(data.data);if(data.type==='resize')terminalResizes.push({connection:terminalConnections,...data})})})
+ task.status='doing';task.latest_attempt.status='running';const terminalInput=[],terminalResizes=[],outputCredits=[];let terminalSocket,terminalConnections=0
+ await page.routeWebSocket(/\/api\/v1\/tasks\/msg_reply\/terminal/,ws=>{terminalSocket=ws;terminalConnections++;ws.send(JSON.stringify({type:'connected',session_id:'attempt',mode:'interactive',output_ack:true}));ws.send(Buffer.from('Actual terminal fixture\r\n'));ws.onMessage(m=>{const data=JSON.parse(String(m));if(data.type==='output_ack')outputCredits.push({connection:terminalConnections,...data});if(data.type==='stdin')terminalInput.push(data.data);if(data.type==='resize')terminalResizes.push({connection:terminalConnections,...data})})})
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/inbox/fixture-room')
   const card=page.locator('[data-card="task-card"]');await card.getByRole('button',{name:'Terminal',exact:true}).click()
@@ -56,6 +56,7 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
   const currentConnection=terminalConnections;
   const initialResizes=terminalResizes.filter(x=>x.connection===currentConnection);
   assert.equal(initialResizes.length,1,'initial attach must settle on one PTY grid: '+JSON.stringify(initialResizes));
+  const credits=outputCredits.filter(x=>x.connection===currentConnection);assert(credits.length>=1,'xterm must acknowledge parsed frames');assert.deepEqual(credits.map(x=>x.sequence),credits.map((_,i)=>i+1),'output credits preserve frame order');
   const beforeNoop=terminalResizes.length;
   await page.evaluate(()=>{for(let n=0;n<20;n++)window.__terminalResizeObservers.forEach(poke=>poke())});
   await page.waitForTimeout(450);
