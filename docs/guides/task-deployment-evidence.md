@@ -23,6 +23,12 @@ Other deployment integrations need their own authoritative receipt producer
 before they can satisfy this check; free-form deployment claims are insufficient.
 This check also does not replace the separate review/apply lifecycle gates.
 
+Agent report submission does not trigger auto-apply: it precedes runner
+verification and cannot authorize publication by itself. The auto-apply helper
+also rejects missing, running, failed and cancelled attempts. Explicit owner
+apply and the remaining deployment lifecycle still require separate auditing;
+these guards do not establish end-to-end acceptance for every apply path.
+
 Verification:
 
 ```sh

@@ -204,6 +204,9 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskDetail == nil {
 		return
 	}
+	if taskDetail.LatestAttempt == nil || taskDetail.LatestAttempt.Status != task.AttemptStatusSucceeded {
+		return // Never publish from an unverified agent report or failed attempt.
+	}
 	policy, err := s.taskPublicationPolicy(ctx, taskDetail)
 	if err != nil || taskApplyPermission(policy) != nil {
 		return

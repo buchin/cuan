@@ -334,17 +334,8 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if report.State == "review" || report.State == "blocked" || report.State == "done" {
-		if report.State == "done" && s.projectSvc != nil {
-			if latest, err := s.taskSvc.GetTaskDetail(context.Background(), g.TaskID); err == nil && latest != nil {
-				if proj, err := s.projectSvc.Get(context.Background(), latest.ProjectID); err == nil && proj != nil {
-					settings := project.SettingsFromMetadata(proj.Metadata)
-					limits, policyErr := s.taskSvc.AttemptPublicationPolicy(context.Background(), g.TaskID, g.AttemptID)
-					if policyErr == nil && settings.IsAutoDeployEnabled() && !limits.DenyDeploy && !limits.DenyPush {
-						go s.autoApplyAndDeployTask(context.Background(), g.TaskID, latest.ProjectID)
-					}
-				}
-			}
-		}
+		// A report is a claim, not acceptance. Publication must not race the
+		// runner's process-exit, repository verification and deployment gates.
 		// Return the tool response before closing its parent PTY. Never stop a later
 		// attempt or convert an independently failed process into successful work.
 		acceptedAt := time.Now()
