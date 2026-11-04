@@ -33,3 +33,12 @@ Fixtures cover concurrent scans, failed/interrupted/legacy-completed source
 reviews, current snapshot binding, applied acceptance, bounded retry, new versus
 administrative evidence changes, missing/canceled authorization, cancellation and
 new execution. No production task status or message is changed by the tests.
+
+A reply turn checks at most8 account/model routes. Exhausting that bounded check
+while allowed routes remain is a capacity wait, not a permanent failure. The same
+request stays queued with backoff. Persisted cooldowns let the next turn reach
+remaining routes without repeating the failed ones. Genuine non-quota errors and
+unknown tool effects retain their existing failure/safety behavior.
+`TestInboxBoundedQuotaRouteCheckKeepsWorkPending` uses10 explicit model routes:
+8 fail with quota, the request retains the queued sentinel, and the next turn
+succeeds on a previously untried model. No task execution is replayed.

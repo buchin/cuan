@@ -249,10 +249,11 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		return "", restriction
 	}
 	if len(routes) > 0 {
-		if hadQuotaFailure {
-			return "", "Provider quota is limited. Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
+		if step != nil {
+			step("recovery_safe", "The bounded route check ended after safe reply activity; remaining allowed routes will be checked later.")
+			step("capacity_wait", "Waiting to check remaining AI capacity.")
 		}
-		return "", "Recovery paused after the bounded route check. Your message and approved work are saved; not all available routes were tried."
+		return "", inboxQuotaNoBackup
 	}
 	if step != nil {
 		step("recovery_safe", "Only safe reply activity occurred; no unfinished external operation will be replayed.")

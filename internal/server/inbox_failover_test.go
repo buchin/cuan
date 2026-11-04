@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -794,5 +795,70 @@ func TestFacadeRunsNewBrainWithoutCreatingPersona(t *testing.T) {
 		if current.AgentID != "" || current.ConnectionID != "" || current.AllowModelFallback || current.AllowFailover {
 			t.Fatal("routing altered user settings", current)
 		}
+	}
+}
+
+func TestInboxBoundedQuotaRouteCheckKeepsWorkPending(t *testing.T) {
+	s, _, registered, primary, _, home, _ := setupFailoverFixture(t)
+	owner := primary.OwnerID
+	if _, err := agent.SetProviderAccountModelFallback(owner, primary.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	models := []agent.ModelUsage{}
+	for i := 0; i < 10; i++ {
+		models = append(models, agent.ModelUsage{Model: fmt.Sprintf("gemini-test-%02d", i), Remaining: 90 - float64(i)})
+	}
+	registered.ModelID = models[0].Model
+	oldFetch := fetchInboxModelUsage
+	defer func() { fetchInboxModelUsage = oldFetch }()
+	fetchInboxModelUsage = func(context.Context, string, string) agent.AccountModelUsage {
+		return agent.AccountModelUsage{Available: true, Models: models}
+	}
+	if err := os.WriteFile(filepath.Join(home, "limited"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+	raw, err := os.ReadFile(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recording := "#!/bin/sh\nlast=''\nfor arg in \"$@\"; do last=\"$arg\"; done\nprintf '%s\\n' \"$last\" >> \"$HOME/models\"\n"
+	if err := os.WriteFile(binary, []byte(strings.Replace(string(raw), "#!/bin/sh\n", recording, 1)), 0700); err != nil {
+		t.Fatal(err)
+	}
+	routes := s.providerRoutes(context.Background(), owner, registered, home, false)
+	if len(routes) != 10 {
+		t.Fatalf("expected10 model routes, got%d", len(routes))
+	}
+	var steps []string
+	out, failure := s.executeInboxWithFailover(context.Background(), owner, registered, "Evaluate the saved task report", home, t.TempDir(), false, func(kind, _ string) { steps = append(steps, kind) })
+	if out != "" || failure != inboxQuotaNoBackup {
+		t.Fatalf("bounded quota check became permanent failure: output=%q failure=%q", out, failure)
+	}
+	calls, _ := os.ReadFile(filepath.Join(home, "calls"))
+	if len(calls) != 8 {
+		t.Fatalf("wrong bounded route budget: attempts%d", len(calls))
+	}
+	if !strings.Contains(strings.Join(steps, ","), "capacity_wait") {
+		t.Fatal("no capacity backoff evidence")
+	}
+	if err := os.Remove(filepath.Join(home, "limited")); err != nil {
+		t.Fatal(err)
+	}
+	out, failure = s.executeInboxWithFailover(context.Background(), owner, registered, "Evaluate the saved task report", home, t.TempDir(), false, nil)
+	if out != "Same agent backup answer" || failure != "" {
+		t.Fatalf("remaining route never reached: %q %q", out, failure)
+	}
+	triedRaw, _ := os.ReadFile(filepath.Join(home, "models"))
+	tried := strings.Fields(string(triedRaw))
+	seen := map[string]bool{}
+	if len(tried) != 9 {
+		t.Fatalf("expected8 failed models +1 remaining success, got%d", len(tried))
+	}
+	for _, model := range tried {
+		if seen[model] {
+			t.Fatal("cooled-down model was replayed", model)
+		}
+		seen[model] = true
 	}
 }
