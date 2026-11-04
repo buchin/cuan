@@ -508,3 +508,24 @@ historical authorization lineage and completion evidence still require audit.
 Classification release6654889 is healthy on the exact production SHA. The original
 audit's latest attempt remains queued at this observation; no final result or
 full backlog acceptance is claimed.
+
+## Native activation no longer pre-completes deployment tasks
+
+Removed the native activation's pre-health writes that set attempts succeeded,
+moved tasks to review, supplied success prose and stopped launches. A healthy
+binary must now expose exactly the target SHA (missing SHA is a failure), with
+existing readiness and HTML checks still required. After successful activation,
+an optional task/attempt-bound deployment_verified receipt records that external
+fact without changing work state. Deterministic receipt IDs make repeated writes
+idempotent; an attempt belonging to another task is rejected. Missing evidence
+never fabricates task acceptance, and receipt-storage failure still permits
+worker drain cleanup without rolling back a healthy application release.
+
+All19 activation safety tests pass, including failed-health/no-receipt ordering,
+missing binding and exact SHA requirements. A real isolated PostgreSQL fixture
+calls the actual receipt writer twice, checks the structured receipt, rejects a
+foreign task binding, and compares full task/attempt/launch records before/after
+byte-for-byte. Existing shared launch contracts also pass in that database.
+Private log: native-receipt-postgres.log. This repairs native publication facts;
+the runner's keyword-based deployment-proof consumer and generic external
+provider attestation remain unfinished and must not be described as solved.

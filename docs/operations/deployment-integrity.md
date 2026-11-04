@@ -77,3 +77,28 @@ Starting with the Detached Worker Process architecture, task worker execution is
 2. **Instant Pipeline Deploy (Zero-Wait)**: Pipeline deploy restarts the supervisor daemon (`systemctl restart cuan-runner`) in <1 second without waiting for in-flight tasks.
 3. **Zero-Kill Execution**: Child workers continue running independently until task completion (LLM/tool execution, git commit, project verification, DoD evaluation, and database updates finish uninterrupted). Users never encounter interrupted or stopped states during deployments.
 4. **Startup Reconciliation & Double-Claim Prevention**: When the new supervisor starts, it scans active worker records, verifies process liveness via PID, adopts in-flight attempts into its heartbeat reporting to renew leases, locks occupied lanes, and claims subsequent queued tasks immediately using the new release binary.
+
+## Deployment evidence and task acceptance
+
+Native activation does not complete task attempts, move tasks to Review, close
+launches or fabricate a final agent report. After the running binary matches the
+full release SHA, readiness matches the current schema and the served HTML matches
+the retained payload, activation may record one `deployment_verified` activity
+bound to the exact task and attempt supplied by the task capability/launch.
+Repeating the same task/attempt/release reuses its receipt identity. A missing
+attempt binding produces no receipt. A failed health check produces no receipt
+and follows the normal rollback path.
+
+The receipt is an external deployment fact, not acceptance of the task's other
+criteria. Normal reporting, cancellation, recovery and coordinator review remain
+responsible for that acceptance. A receipt storage failure does not roll back an
+otherwise healthy release or complete a task; it logs that evidence is missing
+and allows normal drain cleanup. Static-only activation does not attest a server
+binary deployment. Historical task records are not rewritten.
+
+Run `python3 scripts/test-activate-release.py` for activation safety. The focused
+`scripts/test-deployment-receipt-postgres.py` integration check requires an already
+migrated, disposable local `cuan_launch_queue_*` database selected through
+`CUAN_LAUNCH_TEST_DATABASE_URL`, with the standard launch-contract fixture loaded.
+It verifies exact task/attempt binding, retry idempotency and unchanged task,
+attempt and launch records. Never point this fixture at production.

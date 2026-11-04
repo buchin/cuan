@@ -18,6 +18,41 @@ class Response:
     def read(self): return self.body
 
 class Gates(unittest.TestCase):
+    def test_failed_health_never_records_task_completion(self):
+        with patch.object(a, 'restart_and_check', return_value=False), patch.object(a, 'record_task_deployment') as record:
+            self.assertFalse(a.verify_and_record_task_deployment({}, 'a'*40))
+            record.assert_not_called()
+
+    def test_task_evidence_is_recorded_only_after_matching_release_health(self):
+        sequence = []
+        def check(sha):
+            sequence.append('health:' + sha)
+            return True
+        def record(env, sha): sequence.append('receipt:' + sha)
+        with patch.object(a, 'restart_and_check', side_effect=check), patch.object(a, 'record_task_deployment', side_effect=record):
+            self.assertTrue(a.verify_and_record_task_deployment({}, 'a'*40))
+        self.assertEqual(sequence, ['health:'+'a'*40, 'receipt:'+'a'*40])
+
+    def test_receipt_failure_does_not_trigger_healthy_release_rollback(self):
+        with patch.object(a, 'restart_and_check', return_value=True), patch.object(a, 'record_task_deployment', side_effect=RuntimeError('database unavailable')):
+            self.assertTrue(a.verify_and_record_task_deployment({}, 'a'*40))
+
+    def test_receipt_requires_exact_task_and_attempt_binding(self):
+        with patch.dict(a.os.environ, {'CUAN_DEPLOY_EXCLUDE_TASK':'task-fixture'}, clear=True), patch.object(a, 'database_scalar') as query:
+            self.assertIsNone(a.record_task_deployment({}, 'a'*40))
+            query.assert_not_called()
+        with patch.dict(a.os.environ, {'CUAN_DEPLOY_EXCLUDE_TASK':"bad'input", 'CUAN_DEPLOY_EXCLUDE_ATTEMPT':'attempt-fixture'}, clear=True), patch.object(a, 'database_scalar') as query:
+            with self.assertRaises(ValueError): a.record_task_deployment({}, 'a'*40)
+            query.assert_not_called()
+        with patch.dict(a.os.environ, {'CUAN_DEPLOY_EXCLUDE_TASK':'task-fixture', 'CUAN_DEPLOY_EXCLUDE_ATTEMPT':'attempt-fixture'}, clear=True), patch.object(a, 'database_scalar', return_value='t'):
+            first = a.record_task_deployment({}, 'a'*40)
+            self.assertEqual(first, a.record_task_deployment({}, 'a'*40))
+            self.assertNotEqual(first, a.record_task_deployment({}, 'b'*40))
+
+    def test_target_sha_cannot_be_missing_from_health_response(self):
+        with patch.object(a.urllib.request, 'urlopen', return_value=Response(b'{"status":"healthy"}')):
+            self.assertFalse(a.healthy(target_sha='a'*40))
+
     def test_release_schema_count_matches_repository_migrations(self):
         migrations = Path(__file__).resolve().parent.parent / 'migrations'
         versions = [int(path.name.split('_', 1)[0]) for path in migrations.glob('*.up.sql')]

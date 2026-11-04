@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Activate or roll back a versioned native Cuan release (run as root on VPS)."""
 import argparse
+import hashlib
 import fcntl
 import json
 import os
@@ -33,7 +34,7 @@ def healthy(target_sha=None):
                 if endpoint == 'healthz':
                     if body.get('status') not in (None, 'healthy'):
                         return False
-                    if target_sha and body.get('commit_sha') and body.get('commit_sha') != target_sha:
+                    if target_sha and body.get('commit_sha') != target_sha:
                         return False
                 elif endpoint == 'readyz' and (body.get('migrations_count') != SCHEMA_COUNT or body.get('status') != 'ready' or body.get('database') != 'connected'):
                     return False
@@ -286,60 +287,56 @@ def restart_worker_service():
         print(f'==> Notice: Could not restart cuan-runner: {e}')
 
 
-def mark_task_deploy_complete(env, release_sha):
+def record_task_deployment(env, release_sha):
     cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
     task_id = os.environ.get('CUAN_DEPLOY_EXCLUDE_TASK', '').strip()
     attempt_id = os.environ.get('CUAN_DEPLOY_EXCLUDE_ATTEMPT', '').strip()
     if cap_file and Path(cap_file).is_file():
-        try:
-            cap_data = json.loads(Path(cap_file).read_text())
-            if not task_id:
-                task_id = str(cap_data.get('task_id', '')).strip()
-            if not attempt_id:
-                attempt_id = str(cap_data.get('attempt_id', '')).strip()
-        except Exception:
-            pass
-    if not task_id:
-        return
+        cap_data = json.loads(Path(cap_file).read_text())
+        task_id = task_id or str(cap_data.get('task_id', '')).strip()
+        attempt_id = attempt_id or str(cap_data.get('attempt_id', '')).strip()
+    if not task_id and not attempt_id:
+        return None
+    # A deployment is an external fact, not a task completion report. A missing
+    # attempt binding cannot be repaired by updating whichever task is running.
+    if not task_id or not attempt_id:
+        return None
+    if not re.fullmatch(r'[a-zA-Z0-9_-]{1,128}', task_id) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,128}', attempt_id):
+        raise ValueError('Invalid task deployment binding')
+    if not re.fullmatch(r'[0-9a-f]{40}', release_sha or ''):
+        raise ValueError('Invalid verified release SHA')
+    receipt_id = 'act_deploy_' + hashlib.sha256((task_id+'\0'+attempt_id+'\0'+release_sha).encode()).hexdigest()[:32]
+    payload = json.dumps(dict(version=1, task_id=task_id, attempt_id=attempt_id,
+                              commit_sha=release_sha, release_sha=release_sha,
+                              environment='production', health='healthy'), separators=(',', ':'))
+    query = f"""
+    WITH receipt AS (
+      INSERT INTO task_activities(id,task_id,attempt_id,activity_type,author,message,created_at)
+      SELECT '{receipt_id}',t.id,a.id,'deployment_verified','cuan-deploy','{payload}',NOW()
+      FROM tasks t JOIN task_attempts a ON a.task_id=t.id
+      WHERE t.id='{task_id}' AND a.id='{attempt_id}'
+      ON CONFLICT(id) DO NOTHING RETURNING id
+    ) SELECT EXISTS(SELECT id FROM receipt UNION ALL SELECT id FROM task_activities WHERE id='{receipt_id}');
+    """
+    if database_scalar(query, env) != 't':
+        raise RuntimeError('Verified deployment could not be bound to its task attempt')
+    print('==> Recorded verified deployment evidence; task acceptance remains separate.')
+    return receipt_id
 
-    try:
-        safe_sha = release_sha[:12] if release_sha else 'latest'
-        summary_text = f"Release {safe_sha} successfully deployed and activated in production."
-        complete_text = f"Verified and activated release {release_sha} in production."
-        q = f"""
-        DO $$
-        DECLARE
-            v_tid text := '{task_id}';
-            v_aid text := '{attempt_id}';
-        BEGIN
-            IF v_aid <> '' THEN
-                UPDATE task_attempts 
-                SET status = 'succeeded', finished_at = NOW() 
-                WHERE id = v_aid AND status IN ('running', 'queued');
-            END IF;
-            
-            UPDATE tasks 
-            SET status = 'review', 
-                commit_sha = COALESCE(NULLIF(commit_sha, ''), '{release_sha}'),
-                summary = CASE WHEN COALESCE(btrim(summary), '') = '' THEN '{summary_text}' ELSE summary END,
-                complete_note = CASE WHEN COALESCE(btrim(complete_note), '') = '' THEN '{complete_text}' ELSE complete_note END,
-                updated_at = NOW()
-            WHERE id = v_tid AND status IN ('doing', 'queued', 'working');
-            
-            UPDATE task_launches 
-            SET state = 'stopped', safe_error = 'Completed release activation.', lease_token = '', lease_until = NULL, updated_at = NOW()
-            WHERE task_id = v_tid AND state IN ('queued', 'claimed', 'started');
-            
-            IF v_aid <> '' THEN
-                INSERT INTO task_activities (id, task_id, attempt_id, activity_type, author, old_status, new_status, message, created_at)
-                VALUES ('act_deploy_' || substr(md5(random()::text), 1, 16), v_tid, v_aid, 'agent_report', 'cuan-deploy', 'doing', 'review', 'Release {safe_sha} deployed and activated in production.', NOW());
-            END IF;
-        END $$;
-        """
-        database_scalar(q, env)
-        print(f"==> Pre-marked deploying task {task_id} as review before service reload.")
-    except Exception as e:
-        print(f"==> Notice: Could not pre-mark task deploy completion: {e}", file=sys.stderr)
+
+def verify_and_record_task_deployment(env, release_sha, no_restart=False):
+    check = healthy if no_restart else restart_and_check
+    if not check(release_sha):
+        return False
+    # Static-only activation cannot establish which server binary is running.
+    if release_sha and not no_restart:
+        try:
+            record_task_deployment(env, release_sha)
+        except Exception:
+            # A receipt write cannot turn a healthy release into a rollback or
+            # strand the worker drain. Missing evidence never completes a task.
+            print('==> Deployment evidence was not saved; no task was accepted.')
+    return True
 
 
 def main():
@@ -443,10 +440,7 @@ def main():
         signal_worker_drain()
         switch(current, target)
         target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
-        if target_sha and not args.no_restart:
-            mark_task_deploy_complete(retained_environment, target_sha)
-        check_healthy = (lambda: healthy(target_sha)) if args.no_restart else (lambda: restart_and_check(target_sha))
-        if not check_healthy():
+        if not verify_and_record_task_deployment(retained_environment, target_sha, args.no_restart):
             cleanup_worker_drain()
             restart_worker_service()
             old_manifest = json.loads((old / 'release.json').read_text())
