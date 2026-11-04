@@ -1,3 +1,4 @@
+import { CardActions } from './CardActions'
 import { FileText } from 'lucide-react'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useLanguage } from '../../context/LanguageContext'
@@ -12,12 +13,12 @@ export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; inte
         <span>{t('Customer reply draft · Not sent yet')}</span>
       </div>
       <p className="px-3 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words">{draft}</p>
-      <div data-draft-footer className="border-t border-border/40 px-1">
-        <button type="button" onClick={() => onUse(draft)} className="inline-flex min-h-11 items-center gap-2 px-2 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
+      <CardActions data-draft-footer className="px-3">
+        <button type="button" onClick={() => onUse(draft)} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
           <FileText className="h-4 w-4" aria-hidden="true" />
           {t('Review & Use')}
         </button>
-      </div>
+      </CardActions>
     </div>
   )
 }

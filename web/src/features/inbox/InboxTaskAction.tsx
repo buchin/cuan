@@ -1,3 +1,4 @@
+import { CardActions } from './CardActions'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
@@ -110,12 +111,12 @@ export function InboxTaskAction({
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">{state === 'Working' ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
-      <footer className="-mx-4 flex items-center gap-4 border-t border-border/30 px-4 py-1">
+      <CardActions className="-mx-4 px-4">
         {onViewTask ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
         {hasLiveTerminal && (onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>)}
-      </footer>
+      </CardActions>
     </section>
   }
   return (

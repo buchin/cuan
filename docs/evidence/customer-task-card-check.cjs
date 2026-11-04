@@ -23,6 +23,7 @@ const contacts=[
  {id:'unknown',conversation_id:'unknown-room',name:'Status belum tersedia',last_message:'Percakapan tanpa data progres.'},
 ].map(c=>({...c,type:c.id==='contact'?'customer':'agent',agent_id:'agent_cuan',agent_name:'@cuan',unread_count:c.id==='complete'?7:0,status:'idle',updated_at:now}))
 const task={id:'msg_reply',title:'Siapkan panduan pelanggan',status:'done',project_id:'large',project_name:'Cuan',summary:'Panduan selesai dan telah diverifikasi.',source_message_id:'reply',created_at:now,updated_at:now,latest_attempt:{id:'attempt',status:'succeeded'}}
+const working=process.env.CUAN_CARD_STATUS==='working';if(working){task.status='doing';task.latest_attempt.status='running'}
 let server,browser,debugPage
 async function routeAPI(route){
  const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
@@ -32,7 +33,7 @@ async function routeAPI(route){
  if(p.startsWith('/api/v1/projects/'))return json(projects.find(x=>x.id===p.split('/')[4])||{})
  if(p==='/api/v1/tasks')return json({tasks:[task]})
  if(p==='/api/v1/tasks/msg_reply')return json({...task,attempts:[task.latest_attempt],activities:[]})
- if(p.endsWith('/run-agent/history'))return json({history:[],live_session:null})
+ if(p.endsWith('/run-agent/history'))return json({history:[],live_session:working?{attempt_id:'attempt'}:null})
  if(p==='/api/v1/chat/contacts')return json({contacts})
  if(p==='/api/v1/contacts')return json({contacts:[]})
  if(p==='/api/v1/item-preferences')return json({items:{}})
@@ -71,7 +72,7 @@ contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='her
  await composer.fill('');await page.waitForTimeout(50);assert((await composer.boundingBox()).height<=40,'clearing returns to one line');
  await page.getByRole('button',{name:'Whisper @cuan',exact:true}).click();await composer.fill('');assert.equal(await composer.getAttribute('placeholder'),'Internal message…');assert((await composer.boundingBox()).height<=40);await page.getByRole('button',{name:'Public reply',exact:true}).click();
  const card=page.locator('[data-card=task-card]');await card.waitFor();assert.equal(await card.count(),1,'one task attachment in customer room');await card.scrollIntoViewIfNeeded();
- assert(await card.getByRole('button',{name:'Detail',exact:true}).isVisible());assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),0)
+ assert(await card.getByRole('button',{name:'Detail',exact:true}).isVisible());if(working)await card.getByRole('button',{name:'Terminal',exact:true}).waitFor();const taskAction=working?card.getByRole('button',{name:'Terminal',exact:true}):card.getByRole('button',{name:'Detail',exact:true}),taskFooter=card.locator('[data-card-actions]'),taskActionBox=await taskAction.boundingBox(),taskFooterBox=await taskFooter.boundingBox();assert(Math.abs(taskActionBox.x+taskActionBox.width-(taskFooterBox.x+taskFooterBox.width-16))<=2,'task action sits at footer right');assert(taskFooterBox.height-taskActionBox.height<=2,'task footer has no extra vertical padding');assert.equal(await card.getByRole('button',{name:'Terminal',exact:true}).count(),working?1:0)
  assert.equal(await page.locator('[data-message-id=reply] [data-card]').count(),1,'card belongs to agent delegation');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const reply=page.locator('[data-message-id=reply]'),privacy=reply.locator('.wa-message-bubble [data-internal-visibility]');assert.equal(await privacy.count(),1);
  assert.equal(await page.locator('[data-message-id=message] [data-internal-visibility]').count(),0,'public customer text has no internal marker');
@@ -87,7 +88,7 @@ contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='her
  assert.equal(await draftCard.locator('[data-internal-visibility]').count(),1);
  assert.equal(await page.getByText('Terima kasih sudah menunggu. Kami sedang memeriksa kendalanya.',{exact:true}).count(),1,'one draft preview');
  const use=draftCard.getByRole('button',{name:'Review & Use',exact:true}),footer=draftCard.locator('[data-draft-footer]');
- const buttonBox=await use.boundingBox(),footerBox=await footer.boundingBox();assert(buttonBox.height>=44);assert(footerBox.height-buttonBox.height<=2,'footer has no extra vertical padding');
+ const buttonBox=await use.boundingBox(),footerBox=await footer.boundingBox();assert(buttonBox.height>=44);assert(Math.abs(buttonBox.x+buttonBox.width-(footerBox.x+footerBox.width-12))<=2,'draft action sits at footer right');assert(footerBox.height-buttonBox.height<=2,'footer has no extra vertical padding');
  await page.screenshot({path:out+'/draft-'+theme+'-'+width+'.png'});
  await page.getByRole('button',{name:'Whisper @cuan',exact:true}).click();await use.click();assert.equal(await composer.inputValue(),'Terima kasih sudah menunggu. Kami sedang memeriksa kendalanya.');assert.equal(await composer.getAttribute('placeholder'),'Write a reply…');await composer.fill('');
 
