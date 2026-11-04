@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 	"testing"
 	"time"
@@ -89,5 +91,24 @@ func TestProviderLimitRecoveryRequiresRecordedStoppedFailure(t *testing.T) {
 				t.Fatal("unsafe provider recovery eligibility", scenario, got)
 			}
 		})
+	}
+}
+
+func TestInfrastructureRecoveryHasIndependentFiniteLimit(t *testing.T) {
+	d := &task.TaskDetailResponse{Task: task.Task{Status: task.TaskStatusBlocked}}
+	for i := 0; i < 5; i++ {
+		a := &task.TaskAttempt{ID: fmt.Sprint(i), Status: task.AttemptStatusInterrupted, ErrorMessage: runner.StorageInterruptionMessage}
+		d.Attempts = append(d.Attempts, a)
+		d.LatestAttempt = a
+		if got := interruptedInboxTaskCanResume(d); got != (i < 4) {
+			t.Fatalf("interruption %d recovery=%t", i+1, got)
+		}
+	}
+	if taskRevisionAttemptCount(d) != 0 {
+		t.Fatal("storage interruption spent business correction budget")
+	}
+	d.LatestAttempt.CancelRequested = true
+	if interruptedInboxTaskCanResume(d) {
+		t.Fatal("cancellation bypassed")
 	}
 }

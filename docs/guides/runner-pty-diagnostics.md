@@ -63,3 +63,8 @@ execution ends, including cancellation and deadline expiry. A slow log endpoint
 cannot consume the completion API's independent fifteen-second delivery budget.
 This improves subsequent diagnosis; it cannot restore discarded historical output
 or establish the causes of the existing exit-2 and timeout failures.
+
+Provider-owned CLI logs can contain failure details absent from the TUI stream.
+See [storage pressure](storage-pressure.md) for the confirmed preview storage
+failure and bounded attempt-specific provider log classification. Generic exit
+codes alone still do not establish a cause.

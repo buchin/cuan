@@ -7,6 +7,7 @@ import time
 import unittest
 import hashlib
 import shutil
+import subprocess
 spec=importlib.util.spec_from_file_location('prune',Path(__file__).with_name('prune-release-artifacts.py'))
 prune=importlib.util.module_from_spec(spec);spec.loader.exec_module(prune)
 class ReleaseRetention(unittest.TestCase):
@@ -45,4 +46,21 @@ class ReleaseRetention(unittest.TestCase):
    self.assertEqual(prune.staging_candidates(base,staging,keep=2,now=now),[staging/format(5,'040x')])
    os.utime(staging/format(5,'040x'),(now,now))
    self.assertEqual(prune.staging_candidates(base,staging,keep=2,now=now,only_names={format(5,'040x')}),[])
+class FrequentDeploymentRetention(unittest.TestCase):
+ def test_same_day_releases_keep_five_rollback_and_live_process(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   base=Path(tmp); releases=base/'releases'; releases.mkdir(); now=time.time(); paths=[]
+   for i in range(12):
+    path=releases/format(i,'040x'); path.mkdir()
+    (path/'release.json').write_text(json.dumps({'sha':path.name}))
+    os.utime(path,(now-7200+i,now-7200+i)); paths.append(path)
+   (base/'current').symlink_to(paths[0]); (base/'previous').symlink_to(paths[1])
+   process=subprocess.Popen(['sleep','30'],cwd=paths[2])
+   try:
+    self.assertEqual(set(prune.candidates(base,now=now)),set(paths[3:7]))
+    os.utime(paths[3],(now-1800,now-1800))
+    self.assertNotIn(paths[3],prune.candidates(base,now=now))
+    self.assertTrue(paths[2].exists())
+   finally:
+    process.terminate(); process.wait()
 unittest.main()

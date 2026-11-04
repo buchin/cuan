@@ -17,13 +17,16 @@ import (
 )
 
 func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing.T) {
-	for _, scenario := range []string{"failure", "quota"} {
+	for _, scenario := range []string{"failure", "quota", "storage"} {
 		t.Run(scenario, func(t *testing.T) {
 			directory := t.TempDir()
 			binary := filepath.Join(directory, "agy")
 			script := "#!/bin/sh\nprintf 'fatal: diag'\nsleep 0.05\nprintf 'nostic failure\\nfinal cause without newline'\nexit 2\n"
 			if scenario == "quota" {
 				script = "#!/bin/sh\nprintf 'Quota ex'\nsleep 0.05\nprintf 'ceeded'\nsleep 10\n"
+			}
+			if scenario == "storage" {
+				script = "#!/bin/sh\nsleep 0.05\nwhile [ $# -gt 0 ]; do\n if [ \"$1\" = --log-file ]; then shift; diagnostic_path=$1; fi\n shift\ndone\nprintf 'E1104 18:49:38.610926 736 task_handle.go:150] failed mkdir %s/.gemini/antigravity-cli/brain/task: no space left on device\\n' \"$HOME\" > \"$diagnostic_path\"\nexit 2\n"
 			}
 			if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
 				t.Fatal(err)
@@ -53,9 +56,15 @@ func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing
 			var count int64
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			result, err := runner.executeWithPTY(ctx, claim, current, attempt, "fixture", directory, nil, 3*time.Second, &count)
+			result, err := runner.executeWithPTY(ctx, claim, current, attempt, "fixture", directory, map[string]string{"HOME": directory}, 3*time.Second, &count)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if scenario == "storage" {
+				if result.Status != "INTERRUPTED" || result.Error != StorageInterruptionMessage || result.ExitCode != 2 {
+					t.Fatalf("local storage failure lost its cause: %+v", result)
+				}
+				return
 			}
 			if scenario == "quota" {
 				if result.Status != "QUOTA_LIMITED" || result.ExitCode != 75 {

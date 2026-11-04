@@ -9,8 +9,8 @@ func TestTaskStorageAdmissionUsesAvailableBytes(t *testing.T) {
 		blocked   bool
 	}{
 		{"no unreserved space", ServerTelemetry{DiskTotalBytes: 50 << 30, DiskFreeBytes: 0}, true},
-		{"below admission floor", ServerTelemetry{DiskTotalBytes: 50 << 30, DiskFreeBytes: (256 << 20) - 1}, true},
-		{"at floor", ServerTelemetry{DiskTotalBytes: 50 << 30, DiskFreeBytes: 256 << 20}, false},
+		{"below admission floor", ServerTelemetry{DiskTotalBytes: 50 << 30, DiskFreeBytes: (2 << 30) - 1}, true},
+		{"at floor", ServerTelemetry{DiskTotalBytes: 50 << 30, DiskFreeBytes: 2 << 30}, false},
 		{"high usage but usable space", ServerTelemetry{DiskTotalBytes: 1 << 40, DiskFreeBytes: 4 << 30, DiskUsedPercent: 99.6}, false},
 		{"unsupported telemetry is not measured zero space", ServerTelemetry{}, false},
 	} {

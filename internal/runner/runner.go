@@ -1202,6 +1202,16 @@ func (r *Runner) executeWithPTY(
 		"--prompt-interactive", prompt,
 		"--add-dir", workingDir,
 	}
+	diagnosticDir, err := os.MkdirTemp("", "cuan-provider-log-")
+	if err != nil {
+		if errors.Is(err, syscall.ENOSPC) {
+			return nil, errors.New(StorageInterruptionMessage)
+		}
+		return nil, fmt.Errorf("prepare private provider diagnostics: %w", err)
+	}
+	defer os.RemoveAll(diagnosticDir)
+	diagnosticPath := filepath.Join(diagnosticDir, "provider.log")
+	ptyArgs = append(ptyArgs, "--log-file", diagnosticPath)
 
 	if model := env["CUAN_BRAIN_MODEL"]; model != "" {
 		ptyArgs = append(ptyArgs, "--model", model)
@@ -1415,6 +1425,10 @@ func (r *Runner) executeWithPTY(
 			res.Error += " Resets in " + quotaReset + "."
 		}
 		logMu.Unlock()
+	}
+	if res.Status == "FAILED" && ctx.Err() == nil && providerStorageExhausted(diagnosticPath, env["HOME"]) {
+		res.Status = "INTERRUPTED"
+		res.Error = StorageInterruptionMessage
 	}
 	return res, nil
 }

@@ -1,0 +1,59 @@
+# Storage pressure and execution recovery
+
+Cuan must pause new executions before disk exhaustion rather than spending the
+user's code-correction budget on an infrastructure failure.
+
+## Admission and retention
+
+New terminal/task execution waits through the existing `execution_storage`
+admission path when measured filesystem space available to the service user is
+below 2 GiB. This excludes filesystem reserves. It is an admission floor, not a
+promise that any build fits or a reservation for concurrent writes. Existing
+executions are not killed by the admission check.
+
+The native deployment path and hourly maintenance use
+`scripts/prune-release-artifacts.py`. Retention keeps five newest releases,
+current and previous rollback targets, releases referenced by live process
+executables or working directories, and all payloads younger than one hour.
+Previously the minimum age was 24 hours, allowing frequent deployments to retain
+many gigabytes within a single day. The activation lock still serializes cleanup
+with switching and rollback. Unknown directories remain protected. Staged uploads
+require byte-verified installed counterparts before cleanup. Application data,
+provider profiles, workspaces and database backups are outside this pruner.
+
+## Provider failure classification
+
+Each PTY provider execution receives an official `--log-file` path inside a new
+private temporary directory. Only the bounded final 128 KiB are inspected after a
+failed exit. Recognized provider warning/error records must identify a local
+`.gemini/antigravity-cli/` path under that exact leased profile and end with
+`no space left on device`. Ordinary quoted text, another profile, generic exit
+codes and unrelated paths cannot establish this cause. Raw provider logs are not
+published; the temporary directory is removed when execution returns.
+
+A matching failure becomes an interrupted infrastructure execution with preserved
+files. Normal approval, publication, cancellation, workspace and storage admission
+guards still control continuation. Infrastructure failures do not spend the
+business correction budget, but automatic interruption recovery stops at five
+recorded infrastructure attempts. Existing historical failures are not rewritten
+or automatically reclassified by this change.
+
+## Evidence and limits
+
+The 2026-11-04 preview attempt `att_c262e67d48cdf2f3010867cac68bbed3`
+started at 18:47:49 +08. Its provider log identified the exact task workspace and
+reported repeated local write/mkdir failures due to exhausted disk from 18:49:38
+through 18:49:46, immediately before its exit 2 at 18:49:47. This establishes a
+local storage failure during that execution. It does not prove the task's code
+was correct or justify accepting its results.
+
+The native React attempt had a provider 503 before timeout. That alone does not
+establish the cause of its entire stalled interval. Neither historical task is
+manually resumed by this patch. Provider profiles, backups, application data and
+other host logs still need their own appropriate retention policies; the release
+pruner is not a complete host disk manager.
+
+Verification covers rapid same-day deployment retention with a live process,
+rollback protection, admission boundary values, bounded profile-specific provider
+log classification, a real PTY fixture writing a storage failure, quota and
+ordinary failure preservation, and the independent interruption recovery limit.

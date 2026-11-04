@@ -24,6 +24,9 @@ func interruptedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
 	if d.CommitSHA != "" && len(d.CommitSHA) >= 7 {
 		return false
 	}
+	if taskInfrastructureAttemptCount(d) >= 5 {
+		return false
+	}
 	if a.Status == task.AttemptStatusInterrupted {
 		return taskRevisionAttemptCount(d) < 5
 	}
@@ -54,6 +57,10 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	if d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusInterrupted {
 		gap = "the previous execution was interrupted during server restart or system update; working tree and files are preserved"
 		notice = "Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis..."
+		if d.LatestAttempt.ErrorMessage == runner.StorageInterruptionMessage {
+			gap = "the provider could not save its local execution files because server storage was exhausted; preserve files and reconcile prior effects before continuing when storage admission permits"
+			notice = "Penyimpanan server sempat penuh. Pekerjaan tersimpan dan menunggu ruang tersedia untuk dilanjutkan."
+		}
 	} else if providerLimitedInboxTaskCanResume(d) {
 		key = "task-provider-recovery:" + d.LatestAttempt.ID
 		gap = "the provider stopped the previous execution because of an access limit; its failed route is cooling down"
@@ -70,6 +77,37 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	}
 	saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, delegationMessageID(key)))
 	return err == nil && saved != nil && (saved.State == "queued" || saved.State == "claimed" || saved.State == "started")
+}
+
+// Infrastructure failures do not spend the business correction budget, but
+// still need their own finite recovery bound.
+func taskInfrastructureAttemptCount(d *task.TaskDetailResponse) int {
+	if d == nil {
+		return 0
+	}
+	count := 0
+	seenLatest := false
+	for _, a := range d.Attempts {
+		if a == nil {
+			continue
+		}
+		if d.LatestAttempt != nil && (a == d.LatestAttempt || (a.ID != "" && a.ID == d.LatestAttempt.ID)) {
+			seenLatest = true
+		}
+		if a.Status != task.AttemptStatusSucceeded && a.Status != task.AttemptStatusCanceled && !a.CancelRequested && a.CanceledAt == nil {
+			exit := 0
+			if a.ExitCode != nil {
+				exit = *a.ExitCode
+			}
+			if runner.IsInfraFault(a.Status, a.ErrorMessage, exit) {
+				count++
+			}
+		}
+	}
+	if !seenLatest && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusInterrupted && !d.LatestAttempt.CancelRequested && d.LatestAttempt.CanceledAt == nil {
+		count++
+	}
+	return count
 }
 
 // Cancellation already requires a fresh authenticated user instruction. It is

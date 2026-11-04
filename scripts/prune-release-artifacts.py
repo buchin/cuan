@@ -56,7 +56,7 @@ def staging_candidates(base, staging, keep=5, now=None, only_names=None):
     return result
 
 
-def candidates(base, keep=5, min_age_hours=24, now=None):
+def candidates(base, keep=5, min_age_hours=1, now=None):
     now = time.time() if now is None else now
     releases = base / 'releases'
     protected = set()
@@ -93,12 +93,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', type=Path, default=Path('/opt/cuan'))
     parser.add_argument('--keep', type=int, default=5)
-    parser.add_argument('--min-age-hours', type=float, default=24)
+    parser.add_argument('--min-age-hours', type=float, default=1)
     parser.add_argument('--apply', action='store_true', help='Delete eligible payloads; default is a dry run')
     parser.add_argument('--staging', type=Path, help='Also prune verified redundant upload copies older than one hour')
     args = parser.parse_args()
-    if args.keep < 2 or args.min_age_hours < 24:
-        parser.error('Retain at least two releases and a minimum age of 24 hours')
+    if args.keep < 2 or args.min_age_hours < 1:
+        parser.error('Retain at least two releases and a minimum age of one hour')
     args.base = args.base.resolve()
     if args.staging:
         args.staging = args.staging.resolve()
