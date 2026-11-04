@@ -56,6 +56,9 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 		if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
 			return false // A supplemental verification has no automatic execution replay.
 		}
+		if proof, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
+			return false // Live inspections use their own exact-result recovery contract.
+		}
 	}
 	if (!interruptedInboxTaskCanResume(d) && !providerLimitedInboxTaskCanResume(d)) || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") {
 		return false

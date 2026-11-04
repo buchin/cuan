@@ -151,6 +151,22 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
 	}
+	if scenario == "valid" {
+		limited := *after
+		attempt := *after.LatestAttempt
+		attempt.Status, attempt.ErrorMessage = task.AttemptStatusFailed, "The AI provider reported a usage limit. The run was stopped; saved work preserved"
+		limited.Status, limited.LatestAttempt, limited.Attempts = task.TaskStatusBlocked, &attempt, nil
+		if !providerLimitedInboxTaskCanResume(&limited) {
+			t.Fatal("fixture did not reach generic provider recovery eligibility")
+		}
+		if s.recoverInterruptedInboxTask(ctx, &limited, origin) {
+			t.Fatal("live inspection replayed as implementation after provider limit")
+		}
+		ordinaryID := delegationMessageID("task-provider-recovery:" + attempt.ID)
+		if launch, _ := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, ordinaryID)); launch != nil {
+			t.Fatal("live inspection created an ordinary execution launch")
+		}
+	}
 	if scenario == "recover checks" {
 		if err := store.(task.LaunchStore).FinishLaunch(ctx, launch.ID, claimed.LeaseToken, "stopped", time.Now(), "Execution finished"); err != nil {
 			t.Fatal(err)
