@@ -102,3 +102,16 @@ migrated, disposable local `cuan_launch_queue_*` database selected through
 `CUAN_LAUNCH_TEST_DATABASE_URL`, with the standard launch-contract fixture loaded.
 It verifies exact task/attempt binding, retry idempotency and unchanged task,
 attempt and launch records. Never point this fixture at production.
+
+### Approved task scope at apply time
+
+Apply/merge publishes repository changes, so an explicit task prohibition on push
+also prevents manual and automatic apply. A deployment prohibition prevents
+apply/merge and runtime deployment. The apply endpoint returns a JSON 403 with
+the reason, leaving the task's status and delivery note unchanged. The internal
+merge boundary re-reads persisted instructions and validates the project rather
+than relying only on a caller's older snapshot. Runtime restart separately checks
+the current task's deployment prohibition and project binding. These restrictions
+can narrow project defaults; they never grant permission or verify a release.
+
+Regression check: `go test ./internal/server -run 'Test(HandleApplyTask|ApplyTask)'`.

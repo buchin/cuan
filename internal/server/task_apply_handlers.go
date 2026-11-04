@@ -36,7 +36,8 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if executionpolicy.FromInstructions(taskDetail.Instructions).DenyDeploy {
+	if err := taskApplyPermission(taskDetail.Instructions); err != nil {
+		respondJSONError(w, http.StatusForbidden, err.Error())
 		return
 	}
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
@@ -100,6 +101,18 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 
 // applyTaskInternal merges the task pull request or task branch into the project default branch.
 func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title, summary, branchName string, prNumber int) (*git.MergePullRequestResult, error) {
+	// Re-read the persisted scope at the publication boundary. Callers may hold
+	// a stale detail from before an owner narrowed the approved work.
+	detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if detail.ProjectID != projectID {
+		return nil, errors.New("task project changed; reload before applying")
+	}
+	if err := taskApplyPermission(detail.Instructions); err != nil {
+		return nil, err
+	}
 	commitTitle := fmt.Sprintf("Apply Task %s: %s", taskID, title)
 	commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply.\n\nTask: %s\nSummary: %s", taskID, summary)
 
@@ -112,8 +125,24 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 	return nil, errors.New("neither pull request nor task branch is available")
 }
 
+func taskApplyPermission(instructions string) error {
+	policy := executionpolicy.FromInstructions(instructions)
+	if policy.DenyPush {
+		return errors.New("Scope task melarang publikasi perubahan ke repository; perubahan belum diterapkan")
+	}
+	if policy.DenyDeploy {
+		return errors.New("Scope task melarang deployment dan apply/merge; perubahan belum diterapkan")
+	}
+	return nil
+}
+
 // triggerAutoDeploy initiates automated live deployment when project auto_deploy is enabled.
 func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string) {
+	// A project default never overrides the approved task's publication limits.
+	detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil || detail.ProjectID != projectID || executionpolicy.FromInstructions(detail.Instructions).DenyDeploy {
+		return
+	}
 	log.Printf("[AutoDeploy] Automated live deployment triggered for project %s (task %s)", projectID, taskID)
 
 	if s.scriptDeployRepo != nil && s.deployerDriver != nil {
@@ -146,7 +175,7 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskDetail == nil {
 		return
 	}
-	if executionpolicy.FromInstructions(taskDetail.Instructions).DenyDeploy {
+	if taskApplyPermission(taskDetail.Instructions) != nil {
 		return
 	}
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {

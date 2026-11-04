@@ -578,3 +578,21 @@ visually inspected, including Inbox identity and desktop badge. All frontend gat
 tests pass. Fixture mutations are isolated; no production task was deleted or
 canceled for verification. Project-prefixed sequential references remain the next
 approved UI/data change and are not implemented by this menu change.
+
+## Apply publication boundary follow-up
+
+Production33efe7e exact-SHA activation passed; real390px/1440px production
+navigation/avatar checks passed and rendered screenshots were inspected. The
+original audit advanced from queued to running on its existing attempt
+`att_dc0bf9c1fdb1c1d93bb0bc3888aff364` without an administrative status change or
+resume prompt. This is execution evidence, not final acceptance.
+
+A separate authorization gap remained in apply: a no-deploy task returned an
+empty HTTP200, while no-push tasks could still be merged remotely. Apply now
+returns explicit JSON403 for publication restrictions; automatic apply uses the
+same policy. The merge boundary re-reads stored scope and rejects stale project
+bindings. Runtime deployment rechecks current deployment policy and project.
+Focused regressions exercise manual/internal/automatic paths and unchanged task
+status/note, plus the unrestricted merge success case. This does not repair the
+remaining prose-based deployment evidence consumer or establish final backlog
+completion.

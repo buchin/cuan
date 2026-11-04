@@ -129,3 +129,59 @@ func TestHandleApplyTask_Success(t *testing.T) {
 		t.Fatalf("expected completion note to mention applied, got '%s'", updatedTask.CompleteNote)
 	}
 }
+
+// Publication restrictions must stop before touching provider/project services.
+// Leaving projectSvc nil makes accidental execution fail instead of passing a
+// test that only checks a message after a merge already happened.
+func TestApplyTaskRespectsPublicationScope(t *testing.T) {
+	for _, instructions := range []string{"Do not push this branch.", "No deployment. Keep local work.", "Do not push or deploy."} {
+		t.Run(instructions, func(t *testing.T) {
+			ctx := context.Background()
+			svc := task.NewService(task.NewMemoryStore(), nil)
+			created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "project", Title: "Local work", Instructions: instructions})
+			if err != nil {
+				t.Fatal(err)
+			}
+			branch, status, note := "task/local", "review", "Local artifact verified."
+			if _, err := svc.UpdateTask(ctx, created.ID, "runner", task.UpdateTaskRequest{BranchName: &branch, Status: &status, CompleteNote: &note}); err != nil {
+				t.Fatal(err)
+			}
+			s := &Server{taskSvc: svc}
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+created.ID+"/apply", nil)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", created.ID)
+			req = req.WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			rec := httptest.NewRecorder()
+			s.handleApplyTask(rec, req)
+			if rec.Code != http.StatusForbidden || !json.Valid(rec.Body.Bytes()) {
+				t.Fatalf("expected explicit JSON denial: %d %s", rec.Code, rec.Body.String())
+			}
+			if _, err := s.applyTaskInternal(ctx, created.ID, "project", "stale title", "stale summary", branch, 0); err == nil {
+				t.Fatal("internal merge ignored persisted scope")
+			}
+			s.autoApplyAndDeployTask(ctx, created.ID, "project")
+			s.triggerAutoDeploy(ctx, "project", created.ID)
+			after, err := svc.GetTaskDetail(ctx, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Status != status || after.CompleteNote != note {
+				t.Fatalf("denied publication changed task: %s %s", after.Status, after.CompleteNote)
+			}
+		})
+	}
+}
+
+func TestApplyTaskRejectsChangedProjectBeforePublication(t *testing.T) {
+	ctx := context.Background()
+	svc := task.NewService(task.NewMemoryStore(), nil)
+	created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "current", Title: "Work", Instructions: "Implement feature"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{taskSvc: svc}
+	if _, err := s.applyTaskInternal(ctx, created.ID, "stale", "Work", "", "branch", 0); err == nil {
+		t.Fatal("stale project accepted")
+	}
+	s.triggerAutoDeploy(ctx, "stale", created.ID)
+}
