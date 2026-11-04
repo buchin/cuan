@@ -862,7 +862,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 	var readOnlyBaseline string
 	if policy.ReadOnlyRepository && err == nil {
-		readOnlyBaseline, err = repositoryFingerprint(ctx, workingDir)
+		err = git.ValidatePrivateBuildOutput(workingDir)
+		if err == nil {
+			readOnlyBaseline, err = repositoryFingerprint(ctx, workingDir)
+		}
 		if err != nil {
 			err = fmt.Errorf("read-only repository baseline could not be verified: %w", err)
 		}

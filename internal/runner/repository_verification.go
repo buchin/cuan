@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/git"
 )
 
 // RepositoryVerification is runner evidence, not an agent's completion claim.
@@ -118,8 +119,15 @@ func repositoryFingerprint(parent context.Context, root string) (string, error) 
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 func verifyTaskRepository(ctx context.Context, root, branch string, policy executionpolicy.PublicationPolicy, baseline string) (verificationResult, *RepositoryVerification) {
+	if err := git.ValidatePrivateBuildOutput(root); err != nil {
+		return verificationResult{Error: "Repository build output is shared or unavailable; existing files were preserved."}, nil
+	}
 	if !policy.ReadOnlyRepository {
-		return runProjectVerification(ctx, root, branch), nil
+		result := runProjectVerification(ctx, root, branch)
+		if result.Passed && git.ValidatePrivateBuildOutput(root) != nil {
+			return verificationResult{Error: "Project verification left a shared build output; existing files were preserved."}, nil
+		}
+		return result, nil
 	}
 	final, err := repositoryFingerprint(ctx, root)
 	evidence := &RepositoryVerification{Baseline: baseline, Final: final}
@@ -133,6 +141,9 @@ func verifyTaskRepository(ctx context.Context, root, branch string, policy execu
 func verifySourceRepository(parent context.Context, root, commit string) error {
 	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	defer cancel()
+	if err := git.ValidatePrivateBuildOutput(root); err != nil {
+		return err
+	}
 	head, err := fingerprintGit(ctx, root, "rev-parse", "--verify", "HEAD")
 	if err != nil || strings.TrimSpace(string(head)) != commit {
 		return fmt.Errorf("verification source commit differs from the approved implementation")

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/buchin/cuan/internal/executionpolicy"
 )
 
 func TestVerificationSourceRequiresExactCleanCommit(t *testing.T) {
@@ -43,5 +45,40 @@ func TestVerificationDeadlineNeverExtendsExecution(t *testing.T) {
 		if got := verificationDeadline(start.Add(c.existing), start, c.enabled); !got.Equal(start.Add(c.want)) {
 			t.Fatalf("deadline %v", got)
 		}
+	}
+}
+
+func TestVerificationRejectsIgnoredSharedBuildWithoutChangingIt(t *testing.T) {
+	root := documentationFixture(t)
+	head, err := fingerprintGit(context.Background(), root, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "web"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".git", "info", "exclude"), []byte("web/dist\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	shared := t.TempDir()
+	if err := os.WriteFile(filepath.Join(shared, "index.html"), []byte("LIVE_RELEASE"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := repositoryFingerprint(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(shared, filepath.Join(root, "web", "dist")); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySourceRepository(context.Background(), root, strings.TrimSpace(string(head))); err == nil {
+		t.Fatal("clean Git status hid a shared build output")
+	}
+	result, _ := verifyTaskRepository(context.Background(), root, "dev", executionpolicy.PublicationPolicy{ReadOnlyRepository: true}, baseline)
+	if result.Passed {
+		t.Fatal("final read-only verification accepted a newly added ignored shared output")
+	}
+	if data, err := os.ReadFile(filepath.Join(shared, "index.html")); err != nil || string(data) != "LIVE_RELEASE" {
+		t.Fatal("verification modified the shared build", err)
 	}
 }

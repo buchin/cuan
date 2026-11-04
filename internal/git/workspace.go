@@ -118,6 +118,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		if err := c.installBranchProtectionHook(workspacePath, defaultBranch); err != nil {
 			return nil, err
 		}
+		if err := c.isolateBuildOutput(ctx, workspacePath, cfg.BaseRepoDir); err != nil {
+			return nil, err
+		}
 		c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
 		return ws, nil
 	}
@@ -184,6 +187,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		return nil, err
 	}
 
+	if err := c.isolateBuildOutput(ctx, workspacePath, cfg.BaseRepoDir); err != nil {
+		return nil, err
+	}
 	c.linkWorkspaceDependencies(workspacePath, cfg.BaseRepoDir)
 
 	return ws, nil
@@ -352,23 +358,6 @@ func (c *Client) linkWorkspaceDependencies(workspacePath, baseRepoDir string) {
 		}
 	}
 
-	targetDist := filepath.Join(webDir, "dist")
-	if _, err := os.Lstat(targetDist); err != nil {
-		candidates := []string{
-			filepath.Join(baseRepoDir, "web", "dist"),
-			os.Getenv("CUAN_STATIC_DIR"),
-			"/opt/cuan/current/web/dist",
-			"/opt/cuan/data/projects/default/web/dist",
-		}
-		for _, cand := range candidates {
-			if cand != "" {
-				if fi, sErr := os.Stat(cand); sErr == nil && fi.IsDir() {
-					_ = os.Symlink(cand, targetDist)
-					break
-				}
-			}
-		}
-	}
 }
 
 // CommitChanges stages all changes in workspace and commits with configured author identity.

@@ -120,6 +120,31 @@ source ancestry, project checks and task deployment receipts. No source checks,
 successful execution or acceptance are synthesized. This supplies the missing
 project/release identity boundary for subsequent live-result verification.
 
+## Build-output isolation before live-result verification
+
+The workspace dependency linker also symlinked `web/dist` to shared project or
+production assets. A read-only host inspection found retained production task
+links pointing to `/opt/cuan/data/projects/default/web/dist`, including the
+tool-budget and response-card tasks. That shared directory is currently separate
+from the active release; these observations do not establish production damage.
+The implementation additionally permitted linking directly to active release
+assets through its fallback candidates.
+
+An actual two-task Git fixture reproduced one build overwriting the source cache
+and another task's output. The fix removes output linking, preserves ordinary
+task output, and detaches only recognized untracked legacy Cuan links at normal
+preparation. Targets are never deleted or modified. Tracked/custom links and
+symlinked web roots fail closed without rewriting saved files. Read-only source
+checks, repository baselines and completion checks reject shared outputs even
+when ignored by Git, so another build's assets cannot masquerade as this source.
+
+Tests reproduce the pre-fix overwrite, verify independent output for two real Git
+task clones, preserve the shared target and user links, reject ignored shared
+output at read-only acceptance, and exercise existing runner/workspace/reporting
+regressions. No production task workspace was manually repaired or restarted.
+The immutable live-result inspection remains required; this closes its build
+isolation prerequisite rather than declaring an old task complete.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.

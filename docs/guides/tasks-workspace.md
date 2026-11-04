@@ -1,5 +1,20 @@
 # Tasks workspace
 
+## Private build output
+
+Each task owns its `web/dist` output. Cuan never links build output to another
+task, the project cache, or an active release. Builds and rendered verification
+must use the task's own source and output.
+
+During normal task preparation, an untracked legacy output link created by
+Cuan's former linker is detached without deleting or modifying its target.
+Existing ordinary output directories are preserved. Tracked links, custom links
+and a symlinked web directory are left intact and rejected for execution rather
+than silently rewritten. Read-only verifiers reject shared output before running
+and before accepting results, including links hidden by Git ignore rules.
+
+## Task sessions
+
 Open a task to enter its latest session. A task without a session shows the
 original request and an explicit **Start** action with an agent selector.
 Opening or refreshing a task never starts execution.
