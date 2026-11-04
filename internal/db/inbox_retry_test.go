@@ -272,7 +272,8 @@ func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
 		t.Fatalf("expected manual retry to succeed for check_usage, got child=%+v, created=%v, err=%v", child, created, err)
 	}
 
-	// 2. Unsafe failure (check_status) must be rejected for both manual and auto
+	// 2. Unknown effects reject automatic replay. An explicit owner retry creates
+	// a read-only reconciliation request, preserving the original failed record.
 	unsafeReq := InboxRequest{
 		RoomID:    "room2",
 		RequestID: "req-unsafe",
@@ -289,8 +290,28 @@ func TestManualRetryPermitsUsageAndAgentFailures(t *testing.T) {
 	}
 	r.AcceptInboxRequest(ctx, unsafeReq, &ProjectMessage{ID: unsafeReq.MessageID, RoomID: unsafeReq.RoomID, Content: "test unsafe", CreatedAt: now})
 
-	if _, _, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
-		t.Fatalf("expected ErrInboxRetryUnavailable for manual retry on check_status, got %v", err)
+	if _, _, err := r.AutoRetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID); !errors.Is(err, ErrInboxRetryUnavailable) {
+		t.Fatalf("unknown effects must not be replayed automatically: %v", err)
+	}
+	reconciled, fresh, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID)
+	if err != nil || !fresh || reconciled.State != "queued" || !InboxRetryNeedsReconciliation(reconciled) {
+		t.Fatalf("manual retry must reconcile unknown effects without replay: child=%+v fresh=%t err=%v", reconciled, fresh, err)
+	}
+	if reconciled.MessageID != unsafeReq.MessageID || reconciled.RequestID != InboxRetryID(unsafeReq.RequestID) || reconciled.OwnerID != unsafeReq.OwnerID {
+		t.Fatal("reconciliation lost original owner/message identity")
+	}
+	rows, err := r.ListInboxRequests(ctx, unsafeReq.RoomID)
+	if err != nil || len(rows) != 2 {
+		t.Fatal("reconciliation changed request count", len(rows), err)
+	}
+	for _, row := range rows {
+		if row.RequestID == unsafeReq.RequestID && (row.State != "failed" || row.Steps[0].Kind != "runtime_tool_started") {
+			t.Fatal("reconciliation overwrote unknown original effects")
+		}
+	}
+	again, duplicate, err := r.RetryInboxRequest(ctx, unsafeReq.RoomID, unsafeReq.RequestID, unsafeReq.OwnerID)
+	if err != nil || duplicate || again.RequestID != reconciled.RequestID {
+		t.Fatal("manual reconciliation was not idempotent", err)
 	}
 
 	// 3. Interrupted request allows manual retry but rejects auto-retry
