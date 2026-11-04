@@ -87,3 +87,9 @@ it. The continuation must inspect saved files and reconcile uncertain effects.
 Unmatched logs, another owner's profile, changed instructions, invalid receipts
 or cancellation cannot authorize recovery. Other opaque exit codes and timeouts
 are not automatically reclassified by this mechanism.
+
+Recovery compares the saved approval's agent identity through the same registered
+runtime alias resolution as normal execution. A historical `agent_sm` approval
+therefore remains valid for the canonical `agent_cuan` identity after migration.
+Missing canonical agents, unknown identities and unrelated agents still fail the
+identity guard; owner/message/room/publication checks are unchanged.

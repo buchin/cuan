@@ -52,7 +52,7 @@ func providerLimitedInboxTaskCanResume(d *task.TaskDetailResponse) bool {
 }
 
 func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if (!interruptedInboxTaskCanResume(d) && !providerLimitedInboxTaskCanResume(d)) || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || origin.AgentID != d.AssignedAgent || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") {
+	if (!interruptedInboxTaskCanResume(d) && !providerLimitedInboxTaskCanResume(d)) || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") {
 		return false
 	}
 	key := "task-interruption-recovery:" + d.LatestAttempt.ID

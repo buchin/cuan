@@ -20,3 +20,21 @@ func (s *Server) runtimeAgent(ctx context.Context, id string) (*db.Agent, error)
 	}
 	return s.agentRepo.GetAgentByID(ctx, id)
 }
+
+func (s *Server) sameRuntimeAgent(ctx context.Context, left, right string) bool {
+	if left == "" || right == "" {
+		return false
+	}
+	if left == right {
+		return true
+	}
+	if s.agentRepo == nil {
+		return false
+	}
+	a, err := s.runtimeAgent(ctx, left)
+	if err != nil || a == nil {
+		return false
+	}
+	b, err := s.runtimeAgent(ctx, right)
+	return err == nil && b != nil && a.ID == b.ID
+}
