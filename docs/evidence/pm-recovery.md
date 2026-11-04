@@ -663,3 +663,21 @@ unmerged changes and a concise report. No test requirement appears in that task
 scope. Its older verifier failure references removed packages. A scope-aware
 verification solution remains outstanding; no required test or production task
 category was manually waived/changed in this follow-up.
+
+## Scoped MCP reporting replaces the Owner-message shortcut
+
+Worker MCP previously advertised Owner messages/task updates without task-bound
+reporting. New bound-only `get_current_task`, `report_current_task` and
+`push_current_task` reuse taskcli's private loopback capability, redirect policy
+and authenticated task endpoint. Arguments cannot replace IDs, credentials,
+endpoints or human instructions. Reports preserve original checklist evidence
+and artifact paths, with bounded private temporary payload files removed on all
+outcomes. Unbound calls have no Owner fallback.
+
+Full diagnostics/taskcli tests pass for file/inline capabilities, current-task
+routing, exact scoped Authorization, no Owner requests, payload/unknown-field
+rejection, error propagation, private-file cleanup and MCP error envelopes.
+A real scoped server regression verifies progress, rejects incomplete completion,
+records a report on the correct attempt, preserves instructions/doing until
+reconciliation and reaches Review rather than bypassing coordinator acceptance.
+No production report was injected to test this behavior.

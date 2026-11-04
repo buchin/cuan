@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/diagnostics"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
 	"github.com/buchin/cuan/internal/terminal"
@@ -369,4 +371,82 @@ func TestTaskAgentPushHonorsTaskPublicationLimit(t *testing.T) {
 	if w.Code != 403 {
 		t.Fatal(w.Code, w.Body.String())
 	}
+}
+
+func TestTaskMCPReportingRetainsCoordinatorAcceptance(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	created := workspaceTask(t, call)
+	ctx := context.Background()
+	attempt, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "agent_lifecycle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := task.TaskStatusDoing
+	if _, err := s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning}); err != nil {
+		t.Fatal(err)
+	}
+	api := httptest.NewServer(s.Router())
+	defer api.Close()
+	s.taskAgentURL = api.URL
+	env, _, _, cleanup, err := s.issueTaskAgent(ctx, created.ID, attempt.ID, "agent_lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", strings.TrimPrefix(env[0], "CUAN_TASK_CAPABILITY_FILE="))
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
+	invoke := func(name string, arguments map[string]any, wantError bool) {
+		t.Helper()
+		raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": name, "arguments": arguments}})
+		var out, errOut bytes.Buffer
+		if diagnostics.RunMCP(strings.NewReader(string(raw)+"\n"), &out, &errOut) != 0 {
+			t.Fatal(errOut.String())
+		}
+		var response struct {
+			Result struct {
+				IsError bool `json:"isError"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(out.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Result.IsError != wantError {
+			t.Fatalf("unexpected tool outcome for %s: %s", name, out.String())
+		}
+	}
+	invoke("get_current_task", map[string]any{}, false)
+	invoke("report_current_task", map[string]any{"state": "progress", "progress": "Checking actual result"}, false)
+	invoke("report_current_task", map[string]any{"state": "done"}, true)
+	invoke("report_current_task", map[string]any{"state": "review", "summary": "Fixture result", "complete_note": "Observed local output"}, false)
+	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Status != task.TaskStatusDoing || detail.Instructions != created.Instructions {
+		t.Fatal("MCP bypassed acceptance or scope")
+	}
+	found := false
+	for _, activity := range detail.Activities {
+		if activity.ActivityType == "agent_report" && activity.AttemptID != nil && *activity.AttemptID == attempt.ID && activity.NewStatus == "review" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("report not attributed to worker attempt")
+	}
+	zero := 0
+	if _, err := s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, zero); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.ReconcileLocalTask(ctx, created.ID, attempt.ID); err != nil {
+		t.Fatal(err)
+	}
+	detail, err = s.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil || detail.Status != task.TaskStatusReview {
+		t.Fatal("report did not reach review", err)
+	}
+	invoke("report_current_task", map[string]any{"progress": "late"}, true)
 }

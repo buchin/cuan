@@ -582,6 +582,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				}
 				tools = append(tools, tool)
 			}
+			tools = append(tools, taskSessionMCPTools...)
 		}
 		resp.Result = map[string]any{"tools": tools}
 
@@ -613,6 +614,8 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		var toolErr error
 
 		switch callParams.Name {
+		case "get_current_task", "report_current_task", "push_current_task":
+			toolResult, toolErr = callTaskSessionTool(callParams.Name, callParams.Arguments)
 		case "inspect_git_status":
 			toolResult, toolErr = InspectGitStatus(ctx, pathVal)
 		case "inspect_git_log":

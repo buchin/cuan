@@ -154,3 +154,14 @@ available. Their MCP tool list omits Owner mutations. Owner CLI operations outsi
 a bound session continue through their authenticated API identity. Sending an
 Inbox message never falls back to inserting an artificial Owner into the database.
 This is a CLI/MCP misuse guard, not isolation from arbitrary code on the host.
+
+Bound worker MCP sessions expose `get_current_task`, `report_current_task`, and
+`push_current_task`. These reuse the private task capability and CLI transport;
+no task/attempt ID, endpoint or credential is accepted as a tool argument.
+`report_current_task` accepts progress, state, summary, complete_note,
+result_kind, metadata, dod_checklist with original criteria/evidence, and
+workspace-relative artifacts. It sends a worker report for normal verification
+and coordinator review; a successful tool response is not task acceptance.
+Use the same task read after an uncertain response before retrying. These tools
+are not advertised to ordinary Owner MCP sessions and never fall back to Owner
+credentials. The existing CLI remains available for the same reporting contract.
