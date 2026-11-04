@@ -404,3 +404,22 @@ and detailed revision steps remain in task evidence/revision. Existing structure
 and legacy review parsing continue to pass targeted regressions. Live model
 response clarity still requires observation; a prompt change is not proof that
 all future replies meet the product standard.
+
+## Grounded customer outcomes instead of repair templates
+
+Accepted customer tasks previously received a hardcoded visitor draft claiming
+that video playback or general service access had been restored, regardless of
+the task's actual outcome. That template is removed. The customer-room result
+uses the coordinator's accepted explanation and an actual saved draft from report
+evidence, with internal task links kept outside the draft. An audit or unresolved
+provider outage no longer invents a repair, release or visitor response. Historical
+stored messages are unchanged. Parser, customer-result, Inbox review, same-task
+recovery and cancellation regressions pass. This prevents new template claims;
+it does not establish trustworthy deployment provenance for past acceptance.
+
+Production83de458 is healthy and owns Inbox failure messages through coordinator
+review. Official account diagnostics show one verified account, five quota-limited
+accounts and two requiring login. Official runtime inspection confirmed a busy
+runner with fresh heartbeat and output. The audit revision remains queued; this
+is not a completed task, and no account preference, cancellation or task status
+was manually changed to force it through.

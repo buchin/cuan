@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
-	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -242,7 +241,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		if !inboxReviewExecutionSucceeded(d) || len(task.AcceptanceGaps(&d.Task)) > 0 {
 			decision.Decision = "revise"
 			decision.Revision = "Gap: a successful execution with evidence for every original acceptance criterion is not established. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
-			decision.Explanation = "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** BELUM LULUS (Perlu Revisi)\n\n**Bukti yang Terverifikasi:**\n- [x] **Pelaksanaan tugas**: Dicatat oleh runner.\n\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n- [ ] **Verifikasi Kriteria**: Keberhasilan eksekusi dan bukti untuk setiap kriteria belum lengkap.\n\n**Tindakan:** Mengembalikan tugas secara otomatis ke tim eksekusi untuk diselesaikan sesuai kriteria."
+			decision.Explanation = "Hasilnya belum bisa diterima karena eksekusi atau bukti kriterianya belum lengkap. Saya kembalikan ke agent untuk dilengkapi."
 		} else {
 			completedDoD := make([]task.DoDItem, len(d.DoDChecklist))
 			for i, item := range d.DoDChecklist {
@@ -296,16 +295,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			}
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 			if s.isCustomerRoom(ctx, q.RoomID) {
-				friendlyMsg, _ := runner.FormatBusinessFriendlyMessage(d.Title, d.Summary, d.ProjectName)
-				if !strings.Contains(strings.ToLower(friendlyMsg), "draf balasan") {
-					domainName := d.ProjectName
-					if domainName == "" || strings.EqualFold(domainName, "default") {
-						domainName = "toko Anda"
-					}
-					friendlyMsg += fmt.Sprintf("\n\n**Draf Balasan untuk Pengunjung:**\n> \"Halo kak, mohon maaf atas kendalanya ya. Masalah terkait sudah berhasil kami perbaiki dan layanan sudah bisa diakses kembali secara normal di %s. Silakan dicoba kembali ya kak! Terima kasih banyak atas kesabarannya.\"", domainName)
-				}
-				return friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", d.ID)
+				return acceptedCustomerTaskResult(d, decision.Explanation)
 			}
+
 			if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
 				return decision.Explanation + taskLink
 			}
