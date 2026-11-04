@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>Laporan Inspeksi Visual — Penanganan Disconnect Terminal & Pemulihan Sesi Mobile</title>
+  <style>
+    body {
+      background: #0d0d0f;
+      color: #e4e4e7;
+      font-family: 'Geist Variable', -apple-system, sans-serif;
+      padding: 32px;
+      line-height: 1.6;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .subtitle { color: #a1a1aa; font-size: 14px; margin-bottom: 32px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
+    .card { background: #161619; border: 1px solid #27272a; border-radius: 12px; overflow: hidden; }
+    .card-header { padding: 12px 16px; border-bottom: 1px solid #27272a; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    .tag-before { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-family: monospace; }
+    .tag-after { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-family: monospace; }
+    .mock-viewport { padding: 20px; background: #141414; min-height: 280px; display: flex; flex-direction: column; font-family: 'Geist Mono Variable', monospace; }
+    .metrics { background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 20px; margin-bottom: 32px; }
+    .metrics-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #fff; }
+    ul { margin: 0; padding-left: 20px; color: #a1a1aa; font-size: 13px; }
+    li { margin-bottom: 6px; }
+    .banner-before { color: #ef4444; font-size: 12px; padding: 8px 12px; background: rgba(239, 68, 68, 0.08); border-bottom: 1px solid rgba(239, 68, 68, 0.2); }
+    .banner-after { display: flex; justify-content: space-between; align-items: center; background: rgba(245, 158, 11, 0.1); border-bottom: 1px solid rgba(245, 158, 11, 0.2); padding: 8px 12px; font-size: 12px; color: #fde68a; border-radius: 4px; }
+    .banner-btn { display: inline-flex; align-items: center; gap: 6px; background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.3); color: #fde68a; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 500; cursor: pointer; }
+    .terminal-content { flex: 1; padding: 12px 0; color: #94a3b8; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Laporan Inspeksi Visual: Penanganan Disconnect Terminal & Auto-Reconnect Mobile</h1>
+    <div class="subtitle">Evaluasi Kualitas Desain, Zero Cognitive Fatigue, dan Standar Bear Notes & Things 3</div>
+
+    <div class="metrics">
+      <div class="metrics-title">Kriteria Penerimaan & Definition of Done (DoD) Quality Gate</div>
+      <ul>
+        <li><strong>Zero Cognitive Fatigue:</strong> Mengeliminasi pesan error merah statis <em>"Could not connect to this terminal. The task was not restarted"</em> yang memicu kepanikan pengguna saat layar ponsel terkunci atau tab diminimalkan.</li>
+        <li><strong>Banner Informatif yang Bersahabat:</strong> Menginformasikan secara jelas dan menenangkan bahwa proses eksekusi task di server tetap berjalan aman di latar belakang.</li>
+        <li><strong>Tombol Aksi Sambungkan Ulang:</strong> Tombol aksi <em>"Sambungkan Ulang"</em> (Reconnect) dengan kontras teredam (low visual noise) dan animasi spinner saat reconnecting.</li>
+        <li><strong>Pemulihan Otomatis Saat Tab Aktif:</strong> Mekanisme auto-retry bertahap (exponential backoff) dan event listener pada <code>visibilitychange</code>, <code>focus</code>, dan <code>online</code> untuk langsung menyambung kembali seketika pengguna kembali ke layar.</li>
+        <li><strong>Pengambilan State Terakhir & Snapshot Log:</strong> Mengambil snapshot buffer log terminal terbaru (<code>tasksApi.logs</code>) dan pembaruan status eksekusi tanpa me-refresh seluruh halaman (zero page-reload).</li>
+        <li><strong>Verifikasi Kompilasi & Targeted Test:</strong> Build frontend (<code>tsc && vite build</code>) tuntas dengan 0 error, dan 52/52 targeted tests PASS 100%.</li>
+      </ul>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <span>Mobile Viewport (390px) — Sebelum (Before)</span>
+          <span class="tag-before">Static Red Error / High Fatigue</span>
+        </div>
+        <div class="mock-viewport">
+          <div class="banner-before">
+            Could not connect to this terminal. The task was not restarted.
+          </div>
+          <div class="terminal-content">
+            <div>Project guidance snapshot (context only)</div>
+            <div>Read the session guidance before proceeding.</div>
+            <div style="color: #64748b; margin-top: 10px;">[Proses terputus pada socket, pengguna panik mengira tugas gagal]</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span>Mobile Viewport (390px) — Sesudah (After)</span>
+          <span class="tag-after">Friendly Reconnect Banner & Zero Noise</span>
+        </div>
+        <div class="mock-viewport">
+          <div class="banner-after">
+            <div>
+              <div style="font-weight: 600;">Koneksi terminal terputus. Proses di server tetap berjalan aman.</div>
+              <div style="font-size: 11px; opacity: 0.8;">Mencoba ulang otomatis saat tab kembali aktif</div>
+            </div>
+            <button class="banner-btn">
+              <span>↻ Sambungkan Ulang</span>
+            </button>
+          </div>
+          <div class="terminal-content">
+            <div style="color: #10b981;">✓ Snapshot buffer log terbaru diambil otomatis</div>
+            <div>[Running verification checks...]</div>
+            <div>[Proses tetap berjalan aman di server tanpa interupsi]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

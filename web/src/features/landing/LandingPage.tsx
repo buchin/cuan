@@ -267,8 +267,8 @@ export function LandingPage() {
               },
               {
                 Icon: Terminal,
-                title: 'Pure Live PTY Terminal, Deep Payload Formatter & Mobile Safe-Area Ergonomics.',
-                text: 'Pure full-viewport xterm.js terminal with deep runner payload parsing (human-readable action cards), graceful stream resilience on decoupled runners, calm Things 3 status indicator, mid-run steering bridge, and comfortable mobile safe-area touch ergonomics.',
+                title: 'Live Terminal Resilience & Mobile Auto-Reconnect.',
+                text: 'Pure full-viewport xterm.js terminal with graceful disconnect recovery banner, safe background execution assurance, snapshot buffer recovery without page reloads, and automatic reconnection on tab reactivation.',
               },
               {
                 Icon: Zap,

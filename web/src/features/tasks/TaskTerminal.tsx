@@ -347,26 +347,58 @@ export function TaskTerminal({
   const connectSocketRef = useRef<() => void>(() => {})
   const pollNextLogsRef = useRef<() => void>(() => {})
 
-  const handleReconnect = useCallback(() => {
+  const handleReconnect = useCallback(async () => {
     setError('')
     setNotice('')
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current)
+      reconnectTimer.current = null
+    }
     retryCount.current = 0
     isReconnecting.current = true
-    setConnection(isTaskActiveRef.current ? 'streaming' : 'connecting')
-    onRefresh()
-    connectSocketRef.current()
-  }, [onRefresh])
+    setConnection('connecting')
 
-  // Handle active / online recovery
+    // 1. Ambil status eksekusi task terbaru tanpa me-refresh seluruh halaman
+    try {
+      onRefresh()
+    } catch {}
+
+    // 2. Ambil snapshot buffer log terminal terbaru dari server tanpa me-refresh halaman
+    try {
+      const lastId = logs.current.length > 0 ? logs.current[logs.current.length - 1].id : 0
+      const result = await tasksApi.logs(taskId, attempt.id, lastId)
+      const nextLogs = result.logs || []
+      const activeTerm = term.current
+      if (nextLogs.length > 0 && activeTerm) {
+        logs.current.push(...nextLogs)
+        activeTerm.write(nextLogs.map((l) => formatLogLineForTerminal(l.line)).join('\r\n') + '\r\n')
+        if (following.current) {
+          activeTerm.scrollToBottom()
+        }
+      }
+    } catch {
+      // Ignore transient log snapshot error
+    }
+
+    // 3. Sambungkan ulang WebSocket socket
+    connectSocketRef.current()
+  }, [taskId, attempt.id, onRefresh])
+
+  // Handle active / online recovery & auto-retry on tab reactivation (visibilitychange)
   const lastAutoRetry = useRef(0)
   useEffect(() => {
     const handleActive = () => {
       if (document.visibilityState !== 'visible') return
       if (!isTaskActiveRef.current) return
-      // If task is actively streaming or connected, maintain calm Things 3 serenity
-      if (connection === 'streaming' || connection === 'connected') return
-      if (connection !== 'disconnected' && connection !== 'error') return
+      // If task is actively connected with open socket, maintain calm Things 3 serenity
+      const isSocketOpen = socket.current?.readyState === WebSocket.OPEN
+      if (connection === 'connected' && isSocketOpen) return
+      if (connection !== 'disconnected' && connection !== 'error' && connection !== 'connecting') {
+        if (!isSocketOpen) {
+          handleReconnect()
+        }
+        return
+      }
 
       const now = Date.now()
       if (now - lastAutoRetry.current < 2000) return
@@ -561,7 +593,8 @@ export function TaskTerminal({
       ws.onerror = () => {
         if (!disposed && socket.current === ws) {
           if (isTaskActiveRef.current) {
-            setConnection('streaming')
+            setError('')
+            setConnection('disconnected')
           } else {
             setConnection('disconnected')
           }
@@ -603,7 +636,8 @@ export function TaskTerminal({
             return
           }
 
-          // If real unexpected drop on active task, retry quietly while maintaining streaming view
+          // Real unexpected drop on active task, retry gradually with auto-retry
+          setConnection('disconnected')
           if (event.code !== 1000 && retryCount.current < 5) {
             const delay = Math.min(
               1000 * Math.pow(1.5, retryCount.current),
@@ -611,18 +645,15 @@ export function TaskTerminal({
             )
             retryCount.current++
             isReconnecting.current = true
-            setConnection('streaming')
             if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
             reconnectTimer.current = setTimeout(() => {
               if (!disposed && isTaskActiveRef.current) {
-                refreshRef.current?.()
-                connectSocket()
+                handleReconnect()
               }
             }, delay)
             return
           }
 
-          setConnection(retainInput ? 'disconnected' : 'streaming')
           setNotice(retainInput ? t('Connection paused. Reconnect to send pending input to this session.') : '')
         } else {
           setConnection('saved')
@@ -1059,13 +1090,23 @@ export function TaskTerminal({
     }
   }, [isFullscreen])
 
+  // Informative recovery banner for active tasks during disconnect or reconnect,
+  // or inactive tasks when reconnect has been triggered.
+  // Replaces the static red error with reassurance that the server process is running safely.
+  const isDisconnectedOrRecovering =
+    isTaskActive &&
+    (connection === 'disconnected' ||
+      (connection === 'connecting' && isReconnecting.current) ||
+      connection === 'error')
+
   // Eliminate false "Terminal disconnected" yellow banners when task is actively running.
   // When runner daemon executes decoupled, xterm gracefully consumes the live log stream without disruption.
   const showDisconnectBanner =
-    !isTaskActive &&
-    (connection === 'disconnected' || connection === 'connecting') &&
-    retryCount.current > 0 &&
-    !logs.current.length
+    (!isTaskActive &&
+      (connection === 'disconnected' || connection === 'connecting') &&
+      retryCount.current > 0 &&
+      !logs.current.length) ||
+    isDisconnectedOrRecovering
 
   const controls = (
     <div
@@ -1313,7 +1354,7 @@ export function TaskTerminal({
       {showDisconnectBanner && (
         <div
           role="status"
-          className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+          className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
         >
           <div className="flex min-w-0 items-center gap-2">
             <WifiOff className="h-4 w-4 shrink-0 text-amber-400" />
@@ -1321,9 +1362,7 @@ export function TaskTerminal({
               <p className="font-medium text-amber-200">
                 {connection === 'connecting'
                   ? t('Reconnecting to terminal…')
-                  : t(
-                      'Terminal disconnected. The task is still running in the background.',
-                    )}
+                  : t('Terminal disconnected. The task is still running in the background.')}
               </p>
               <p className="text-[11px] text-amber-300/80">
                 {connection === 'connecting'
@@ -1336,22 +1375,24 @@ export function TaskTerminal({
             type="button"
             disabled={connection === 'connecting'}
             onClick={handleReconnect}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-xs font-medium text-amber-200 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
             aria-label={language === 'id' ? 'Sambungkan Ulang' : t('Reconnect')}
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${connection === 'connecting' ? 'animate-spin' : ''}`}
             />
-            {connection === 'connecting'
-              ? t('Connecting…')
-              : language === 'id'
-                ? 'Sambungkan Ulang'
-                : t('Reconnect')}
+            <span>
+              {connection === 'connecting'
+                ? t('Connecting…')
+                : language === 'id'
+                  ? 'Sambungkan Ulang'
+                  : t('Reconnect')}
+            </span>
           </button>
         </div>
       )}
 
-      {error && !showDisconnectBanner && (
+      {error && !showDisconnectBanner && !error.includes('Could not connect to this terminal') && !error.includes('not restarted') && (
         <p
           role="alert"
           className="shrink-0 px-3 py-1.5 text-xs text-destructive"

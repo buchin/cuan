@@ -69,3 +69,19 @@ Cuan's runner bridge unconditionally replays scrollback before live output.
 Simply removing the browser reset would duplicate that history. Adopting this
 behavior requires an ordered replay/catch-up contract across the bridge, rather
 than a browser-only change that could silently miss output during disconnection.
+
+## Mobile terminal disconnect & session recovery
+
+When mobile devices lock the screen, switch tabs, or experience transient network drops, the terminal socket connection closes. Instead of showing an alarming static red error ('Could not connect to this terminal. The task was not restarted'), Cuan provides:
+
+1. **Reassuring Informative Banner**:
+   A low-noise Things 3 / Bear Notes styled banner informs the user that task execution on the server continues safely in the background.
+
+2. **Manual and Gradual Reconnection**:
+   An explicit "Sambungkan Ulang" (Reconnect) action button allows manual session recovery at any time, while background reconnection gradually retries with exponential backoff.
+
+3. **Lifecycle Tab Reactivation**:
+   An event listener on `visibilitychange` (and `focus`/`online`) automatically triggers seamless reconnection as soon as the browser tab or mobile screen becomes active again.
+
+4. **Zero-Reload State Synchronization**:
+   During reconnection, Cuan snapshots the latest execution status and fetches incremental buffer logs (`tasksApi.logs`) without performing a full-page reload (`window.location.reload()`), preserving screen state and unsent inputs.
