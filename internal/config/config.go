@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,19 @@ import (
 // GitCommit can be populated at build time using ldflags:
 // -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=abc1234"
 var GitCommit = ""
+
+// SourceRepository is embedded by release builders, never project environment.
+// An unknown source stays empty and cannot identify a project's live result.
+var SourceRepository = ""
+
+var buildSourceIdentity = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$`)
+
+func (c *Config) SourceRepositoryURL() string {
+	if c == nil || !buildSourceIdentity.MatchString(c.SourceRepository) {
+		return ""
+	}
+	return "https://github.com/" + c.SourceRepository
+}
 
 type Config struct {
 	Environment               string
@@ -39,6 +53,7 @@ type Config struct {
 	ProjectsDir               string
 	AppVersion                string
 	CommitSHA                 string
+	SourceRepository          string
 	DojoWebhookSecret         string
 	DojoWaitingListWebhookURL string
 	DojoCheckoutURL           string
@@ -176,6 +191,7 @@ func Load() *Config {
 		ProjectsDir:               projectsDir,
 		AppVersion:                appVersion,
 		CommitSHA:                 commitSHA,
+		SourceRepository:          SourceRepository,
 		DojoWebhookSecret:         dojoWebhookSecret,
 		DojoWaitingListWebhookURL: dojoWaitingListWebhookURL,
 		DojoCheckoutURL:           dojoCheckoutURL,

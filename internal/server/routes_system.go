@@ -236,11 +236,15 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 	version := "0.1.0"
 	commitSHA := ""
+	repository := "https://github.com/buchin/cuan"
 	if s.cfg != nil {
 		if s.cfg.AppVersion != "" {
 			version = s.cfg.AppVersion
 		}
 		commitSHA = s.cfg.CommitSHA
+		if source := s.cfg.SourceRepositoryURL(); source != "" {
+			repository = source
+		}
 	}
 	resp := map[string]interface{}{
 		"name":          "Cuan",
@@ -248,7 +252,7 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		"commit_sha":    commitSHA,
 		"description":   "Agentic project management for self-hosted teams",
 		"license":       "Apache-2.0",
-		"repository":    "https://github.com/buchin/cuan",
+		"repository":    repository,
 		"documentation": "https://github.com/buchin/cuan#readme",
 		"release_stage": "release-candidate",
 		"author":        "Buchin <buchin@dropsugar.com>",
@@ -427,16 +431,16 @@ func (s *Server) handleTriggerScheduledTask(w http.ResponseWriter, r *http.Reque
 
 // WorkerHealthResponse represents health metrics and queue depth of cuan-runner daemon.
 type WorkerHealthResponse struct {
-	Status             string    `json:"status"`               // "ready" (green), "busy" (yellow), "attention" (red)
-	RunnerID           string    `json:"runner_id"`            // "cuan-runner" or matched runner ID
-	RunnerName         string    `json:"runner_name"`          // Human-readable runner name
+	Status             string    `json:"status"`      // "ready" (green), "busy" (yellow), "attention" (red)
+	RunnerID           string    `json:"runner_id"`   // "cuan-runner" or matched runner ID
+	RunnerName         string    `json:"runner_name"` // Human-readable runner name
 	Hostname           string    `json:"hostname,omitempty"`
-	IsAlive            bool      `json:"is_alive"`             // true if heartbeat received within threshold (45s)
+	IsAlive            bool      `json:"is_alive"` // true if heartbeat received within threshold (45s)
 	LastHeartbeatAt    time.Time `json:"last_heartbeat_at"`
 	LastSeenSecondsAgo int64     `json:"last_seen_seconds_ago"`
-	QueuedCount        int       `json:"queued_count"`         // Tasks with status queued or pending
-	RunningCount       int       `json:"running_count"`        // Tasks currently doing / running
-	QueueDepth         int       `json:"queue_depth"`          // queued_count + running_count
+	QueuedCount        int       `json:"queued_count"`  // Tasks with status queued or pending
+	RunningCount       int       `json:"running_count"` // Tasks currently doing / running
+	QueueDepth         int       `json:"queue_depth"`   // queued_count + running_count
 	Timestamp          time.Time `json:"timestamp"`
 }
 

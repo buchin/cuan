@@ -98,6 +98,28 @@ task-acceptance guards remain authoritative. Unicode/truncation, binary rejectio
 ordinary accepted-result copy and Inbox regressions pass;390/1440 accepted-outcome
 screenshots were rendered and inspected.
 
+## Matching the running release to its source project
+
+Read-only GitHub comparison establishes tool-budget source687045 as an ancestor
+of the current production branch (274 subsequent commits at the observation).
+The task's old database retry failure and targeted budget/batching/fallback/loop
+checks pass on current dev. This does not validate the old branch or satisfy its
+original live-result criteria; no task state was changed from these observations.
+
+Native deployment now embeds a normalized, credential-free GitHub repository
+identity alongside its commit in all three binaries. Local builds use it when
+available; unknown source remains unknown. Repository parser tests cover HTTPS
+credentials, SSH, forks, wrong hosts, invalid paths and linker-input rejection.
+The public info response identifies a known built fork instead of hardcoding
+upstream. Runtime project environment cannot supply this build identity.
+
+Review receives a current-process release observation only for production builds
+whose source matches the task's project repository. Unknown builds, malformed
+commits and other projects receive no observation. It is expressly separate from
+source ancestry, project checks and task deployment receipts. No source checks,
+successful execution or acceptance are synthesized. This supplies the missing
+project/release identity boundary for subsequent live-result verification.
+
 Goal: resolve why authorized Inbox work remains unfinished, let Cuan process the
 existing work sequentially, verify actual results and report to its originating
 Inbox. The goal is active; an isolated successful task does not prove completion.

@@ -89,12 +89,17 @@ func main() {
 
 	if *showInfo {
 		cfg := config.Load()
+		repository := cfg.SourceRepositoryURL()
+		if repository == "" {
+			repository = "https://github.com/buchin/cuan"
+		}
 		fmt.Printf("================================================================================\n")
 		fmt.Printf("Cuan Server — Agentic Project Management for Self-Hosted Teams\n")
 		fmt.Printf("================================================================================\n")
 		fmt.Printf("Version:        %s\n", cfg.AppVersion)
+		fmt.Printf("Commit:         %s\n", cfg.CommitSHA)
 		fmt.Printf("License:        Apache-2.0\n")
-		fmt.Printf("Repository:     https://github.com/buchin/cuan\n")
+		fmt.Printf("Repository:     %s\n", repository)
 		fmt.Printf("Documentation:  https://github.com/buchin/cuan#readme\n")
 		fmt.Printf("Author:         Buchin <buchin@dropsugar.com>\n")
 		fmt.Printf("Release Stage:  Release Candidate (Sprint 1)\n")

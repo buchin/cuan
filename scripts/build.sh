@@ -41,9 +41,11 @@ if [[ "$TARGET" == "all" || "$TARGET" == "backend" ]]; then
   echo "==> Compiling Go binaries into bin/..."
   mkdir -p "$ROOT_DIR/bin"
   GIT_COMMIT="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo '')"
-  go -C "$ROOT_DIR" build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=${GIT_COMMIT}" -o "$ROOT_DIR/bin/cuan-server" ./cmd/server
-  go -C "$ROOT_DIR" build -o "$ROOT_DIR/bin/cuan-runner" ./cmd/runner
-  go -C "$ROOT_DIR" build -o "$ROOT_DIR/bin/cuan-migrate" ./cmd/migrate
+  SOURCE_REPOSITORY="$(cd "$ROOT_DIR" && python3 scripts/release-repository.py 2>/dev/null || true)"
+  BUILD_LINKER_FLAGS="-X github.com/buchin/cuan/internal/config.GitCommit=${GIT_COMMIT} -X github.com/buchin/cuan/internal/config.SourceRepository=${SOURCE_REPOSITORY}"
+  go -C "$ROOT_DIR" build -ldflags "$BUILD_LINKER_FLAGS" -o "$ROOT_DIR/bin/cuan-server" ./cmd/server
+  go -C "$ROOT_DIR" build -ldflags "$BUILD_LINKER_FLAGS" -o "$ROOT_DIR/bin/cuan-runner" ./cmd/runner
+  go -C "$ROOT_DIR" build -ldflags "$BUILD_LINKER_FLAGS" -o "$ROOT_DIR/bin/cuan-migrate" ./cmd/migrate
   ln -sf cuan-server "$ROOT_DIR/bin/cuan"
   echo "✓ Go backend binaries built: bin/cuan-server, bin/cuan-runner, bin/cuan-migrate, bin/cuan"
 fi

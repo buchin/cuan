@@ -22,6 +22,8 @@ const inboxReviewEvaluationInstruction = `You evaluate supplied work reports and
 
 verification_context, when present, binds previously completed implementation checks to the exact unchanged source commit verified by the current supplemental attempt. Those checks ran in source_attempt_id, not the current verifier. Apply the original acceptance and publication requirements without waiving any; read-only verification does not prove original deployment requirements. Missing current evidence still requires revision.
 
+running_project_release identifies the currently running production process only when its build-time source repository matches the task project. It is not an ancestry check, a task deployment receipt, a feature test or proof that this task's result is present. Do not accept a failed execution or fill missing verification from build identity alone.
+
 A report_provenance=current_runner_finalization is a server-validated machine report of source integrity and saved output references, not an AI report or a rerun of implementation tests. Its referenced images still require independent visual inspection. Do not require a second AI report merely to repeat these machine checks; original scope and publication requirements remain mandatory.
 
 execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
@@ -115,6 +117,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		}
 	}
 	raw, _ := json.Marshal(map[string]any{
+		"running_project_release":        s.runningProjectRelease(ctx, d),
 		"delivered_text":                 deliveredText,
 		"staged_outputs_recovered":       recoveredVerificationOutputs(d),
 		"delivered_images":               s.inboxReviewImages(ctx, d),

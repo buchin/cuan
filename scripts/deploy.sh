@@ -151,13 +151,15 @@ if [[ "$frontend_only" == 1 ]]; then
 fi
 
 release_dir="$HOME/.local/share/cuan-releases/$release_sha"
+release_repository="$(python3 scripts/release-repository.py)"
+release_linker_flags="-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha -X github.com/buchin/cuan/internal/config.SourceRepository=$release_repository"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 echo "==> Compiling Go backend binaries in parallel for $release_sha..."
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-server" ./cmd/server &
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-server" ./cmd/server &
 pid_server=$!
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-migrate" ./cmd/migrate &
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-migrate" ./cmd/migrate &
 pid_migrate=$!
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha" -o "$release_dir/bin/cuan-runner" ./cmd/runner &
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-runner" ./cmd/runner &
 pid_runner=$!
 wait "$pid_server" "$pid_migrate" "$pid_runner"
 echo "✓ Backend binaries compiled successfully."
