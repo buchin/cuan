@@ -17,10 +17,10 @@
 ### 1.1 Kondisi Runner Cuan Saat Ini (`internal/runner` & `cmd/runner`)
 Pada implementasi runner saat ini:
 1. **Model Proses Monolitik Tunggal**:
-   - Daemon [`cmd/runner/main.go`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/cmd/runner/main.go) berjalan sebagai satu proses Go tunggal yang hidup terus menerus (*long-running process*).
-   - Ketika ada task antrean yang diklaim di [`pollAndExecute`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/internal/runner/runner.go#L164-L280), runner menjalankan `go func(...)` goroutine di dalam proses daemon yang sama.
+   - Daemon [`cmd/runner/main.go`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/cmd/runner/main.go) berjalan sebagai satu proses Go tunggal yang hidup terus menerus (*long-running process*).
+   - Ketika ada task antrean yang diklaim di [`pollAndExecute`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/internal/runner/runner.go#L164-L280), runner menjalankan `go func(...)` goroutine di dalam proses daemon yang sama.
 2. **Signal Handling Merusak (Abrupt Termination)**:
-   - Pada [`cmd/runner/main.go#L78-L82`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/cmd/runner/main.go#L78-L82):
+   - Pada [`cmd/runner/main.go#L78-L82`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/cmd/runner/main.go#L78-L82):
      ```go
      go func() {
          sig := <-shutdown
@@ -28,14 +28,14 @@ Pada implementasi runner saat ini:
          cancel() // Segera membatalkan root context
      }()
      ```
-   - Pembatalan `cancel()` langsung memicu [`r.cancelCurrentExecution()`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/internal/runner/runner.go#L98) yang memanggil `cancelFunc()` untuk seluruh task aktif yang sedang berjalan.
-   - Dampaknya: di [`runner.go#L382-L386`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/internal/runner/runner.go#L382-L386), task yang sedang melakukan kompilasi, verifikasi test, atau git commit langsung dihentikan paksa dengan status `canceled` (exit code 130).
+   - Pembatalan `cancel()` langsung memicu [`r.cancelCurrentExecution()`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/internal/runner/runner.go#L98) yang memanggil `cancelFunc()` untuk seluruh task aktif yang sedang berjalan.
+   - Dampaknya: di [`runner.go#L382-L386`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/internal/runner/runner.go#L382-L386), task yang sedang melakukan kompilasi, verifikasi test, atau git commit langsung dihentikan paksa dengan status `canceled` (exit code 130).
 3. **Akumulasi Memori & RSS Creep pada VPS Terbatas**:
    - Eksekusi AI Coding Agent melibatkan ribuan baris log ANSI I/O, subprocess (`agy`, Node.js CLI, git CLI, Go compiler), diff buffer besar, dan caching memori.
    - Meskipun Go memiliki Garbage Collector, memori heap yang telah terfragmentasi pada sistem operasi Linux sering kali tidak langsung dikembalikan ke OS (*glibc/madvise retention*). Akibatnya, pada VPS dengan RAM 1 GB – 2 GB, akumulasi RSS menyebabkan daemon terkena *OOM Killer (Out Of Memory)* secara mendadak.
 4. **Perilaku Deployment Platform Saat Ini**:
-   - Skrip deployment [`scripts/activate-release.py`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/scripts/activate-release.py#L48-L58) memanggil `systemctl restart cuan`.
-   - Method [`server.PrepareGracefulShutdown`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/internal/server/server.go#L615-L627) hanya memberi jeda 200 ms sebelum memanggil `CloseAll()` yang membunuh sesi PTY secara mendadak.
+   - Skrip deployment [`scripts/activate-release.py`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/scripts/activate-release.py#L48-L58) memanggil `systemctl restart cuan`.
+   - Method [`server.PrepareGracefulShutdown`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/internal/server/server.go#L615-L627) hanya memberi jeda 200 ms sebelum memanggil `CloseAll()` yang membunuh sesi PTY secara mendadak.
 
 ### 1.2 Inspirasi Pola Graceful Worker & Lifecycle ala Laravel / Horizon
 Di ekosistem Laravel Queue & Horizon:
@@ -574,7 +574,7 @@ func (w *Worker) Execute(ctx context.Context) error {
 
 ### 5.5 Integrasi Deployment Zero-Downtime (`scripts/deploy.sh` & `scripts/activate-release.py`)
 Saat deployment platform Cuan berlangsung di VPS:
-1. Skrip [`scripts/activate-release.py`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/scripts/activate-release.py) tidak lagi memanggil `systemctl restart cuan` secara membabi-buta bila ada attempt berjalan.
+1. Skrip [`scripts/activate-release.py`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/scripts/activate-release.py) tidak lagi memanggil `systemctl restart cuan` secara membabi-buta bila ada attempt berjalan.
 2. Skrip mengirimkan sinyal `SIGUSR2` ke unit service `cuan-runner.service`:
    ```bash
    systemctl kill -s SIGUSR2 cuan-runner.service || true
@@ -609,7 +609,7 @@ Saat deployment platform Cuan berlangsung di VPS:
 Untuk memvalidasi spesifikasi arsitektur ini sebelum implementasi penuh:
 
 1. **Targeted Verification Sintaks & Blueprint Review**:
-   - Verifikasi bahwa struktur modul baru tidak merusak API contract antarmuka [`agent.Adapter`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/internal/agent/adapter.go) dan [`task.Store`](file:///opt/cuan/data/projects/task-workspaces/222278de015663e5fae4d4264c238d670aabcba6db621a2bf7c32d71674126c0/internal/task/store.go).
+   - Verifikasi bahwa struktur modul baru tidak merusak API contract antarmuka [`agent.Adapter`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/internal/agent/adapter.go) dan [`task.Store`](file:///opt/cuan/data/workspaces/msg_8ec1aa38-73c7-4755-9c87-32237e265e9d/internal/task/store.go).
    - Pengujian unit test targeted pada `internal/runner` tetap lulus 100%.
 2. **Kesesuaian Guardrail Auto-Deploy & Restriksi Scope**:
    - Scope tugas ini secara eksplisit adalah perancangan spesifikasi arsitektur dan blueprint teknis (*"Hasil Akhir: Dokumen blueprint arsitektur dan spesifikasi implementasi teknis untuk runner Cuan tanpa downtime saat deploy"*).
