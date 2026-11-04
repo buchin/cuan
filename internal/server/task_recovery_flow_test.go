@@ -28,6 +28,9 @@ func TestApprovedRepositoryRecoveryPreservesPendingGitWork(t *testing.T) {
 func TestApprovedRepositoryReconstructsMissingWorktree(t *testing.T) {
 	runInboxProcessLossRecovery(t, true, true, true)
 }
+func TestInboxAutomaticallyRecoversStoppedMissingWorkspaceLaunch(t *testing.T) {
+	runInboxProcessLossRecovery(t, true, true, true, true)
+}
 func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reconstruct ...bool) {
 	missing := len(reconstruct) > 0 && reconstruct[0]
 	if testing.Short() {
@@ -167,6 +170,38 @@ esac
 		if err := os.RemoveAll(strings.TrimSpace(string(original))); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if len(reconstruct) > 1 && reconstruct[1] {
+		// Reproduce a saved revision stopped by the old missing-workspace gate.
+		// No additional owner message is submitted to recover this intent.
+		now := time.Now().UTC()
+		requests, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, accepted.Request.RoomID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, q := range requests {
+			if q.RequestID == accepted.Request.RequestID {
+				accepted.Request = q
+				break
+			}
+		}
+		job, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: failed.ID, ProjectID: failed.ProjectID, RequestID: db.GenerateUUID(), SourceRequestID: accepted.Request.RequestID, OwnerID: accepted.Request.OwnerID, RoomID: accepted.Request.RoomID, AgentID: accepted.Request.AgentID, Revision: "Verify the saved artifact and checkpoint; preserve completed work. Report verified result without deployment.", InstructionsHash: task.LaunchInstructionsHash(failed.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claimed, err := s.taskSvc.ClaimLaunch(ctx, now, db.GenerateUUID(), job.ID)
+		if err != nil || claimed == nil {
+			t.Fatal("fixture launch claim", err)
+		}
+		if err := s.taskSvc.FinishLaunch(ctx, claimed.ID, claimed.LeaseToken, "stopped", now, task.MissingWorkspaceLaunchError); err != nil {
+			t.Fatal(err)
+		}
+		s.deliverInboxTaskUpdates(ctx)
+		recovered, err := s.taskSvc.GetLaunch(ctx, job.ID)
+		if err != nil || recovered.State != "queued" {
+			t.Fatal("saved intent not recovered", recovered, err)
+		}
+		s.drainTaskLaunches(ctx, time.Now().UTC())
 	}
 	s.deliverInboxTaskUpdates(ctx)
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")

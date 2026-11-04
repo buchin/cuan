@@ -492,6 +492,9 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		if err == nil {
 			if launch, e := s.taskSvc.LatestLaunch(ctx, item.ID); e == nil && launch != nil && (launch.State == "stopped" || launch.State == "cancelled") {
+				if s.recoverUnstartedInboxTask(ctx, detail, *launch) {
+					continue
+				}
 				shouldReport := true
 				if launch.State == "stopped" && detail != nil {
 					if detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusDone {

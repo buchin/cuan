@@ -272,3 +272,24 @@ remains OPEN, mergeCommit/mergedAt are null. Its report's HTTP200/live-readiness
 wording alone does not prove that task commit f628a6d is deployed. Correct the
 systemic evidence gate and autonomous correction path; do not manually rewrite
 that task into apparent success or use a fresh resume prompt as the solution.
+
+## Automatic recovery of stopped pre-launch workspace checks
+
+The coordinator now revisits a latest stopped launch with the exact known
+missing-workspace error, a concrete saved revision and an unexpired approval.
+It validates persisted owner messages, cancellation and unchanged scope before
+atomically requeuing that same intent. A durable recovery receipt limits this to
+one check; reserved attempts, newer launches, active execution, canceled work and
+accepted completion cannot be replayed. Migration33 stores receipts with launch
+cascade deletion. No production task status or owner prompt is injected manually.
+
+The new server flow fixture exercises a real Git worktree loss, a stopped saved
+revision with no reserved attempt, ordinary Inbox delivery recovery and launch
+dispatch, actual fixture execution/reporting, and coordinator acceptance in the
+same conversation. It verifies one task, two total attempts, one original side
+effect and one verified final outcome; staged evidence is preserved and missing
+untracked work is disclosed. Targeted authorization tests reject missing approval,
+system messages, foreign owners, future messages and canceled requests. Memory
+and isolated PostgreSQL contracts cover stale observations, changed scope, newer
+intent, expiration and consumed receipts. These tests prove this recovery path,
+not general autonomous backlog management or deployment evidence correctness.

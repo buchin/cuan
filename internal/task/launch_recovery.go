@@ -1,0 +1,101 @@
+package task
+
+import (
+	"context"
+	"database/sql"
+	"time"
+)
+
+const MissingWorkspaceLaunchError = "Original task workspace is missing; its branch was retained for recovery"
+const missingWorkspaceRecoveryKey = "missing-workspace-v1"
+
+type launchRecoveryStore interface {
+	RecoverUnstartedLaunch(context.Context, string, time.Time, time.Time) (bool, error)
+}
+
+func (s *Service) RecoverUnstartedLaunch(ctx context.Context, id string, expected, now time.Time) (bool, error) {
+	if store, ok := s.store.(launchRecoveryStore); ok {
+		return store.RecoverUnstartedLaunch(ctx, id, expected, now)
+	}
+	return false, nil
+}
+func (m *MemoryStore) RecoverUnstartedLaunch(_ context.Context, id string, expected, now time.Time) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	j := m.launches[id]
+	if j == nil {
+		return false, ErrTaskNotFound
+	}
+	t := m.tasks[j.TaskID]
+	key := id + "\x00" + missingWorkspaceRecoveryKey
+	if m.launchRecoveries[key] || j.State != "stopped" || j.SafeError != MissingWorkspaceLaunchError || !j.UpdatedAt.Equal(expected) || !j.ExpiresAt.After(now) || j.Revision == "" || t == nil || (t.Status != TaskStatusQueued && t.Status != TaskStatusBlocked) || t.ProjectID != j.ProjectID || LaunchInstructionsHash(t.Instructions) != j.InstructionsHash {
+		return false, nil
+	}
+	for _, other := range m.launches {
+		if other.TaskID == j.TaskID && (other.CreatedAt.After(j.CreatedAt) || (other.CreatedAt.Equal(j.CreatedAt) && other.ID > j.ID)) {
+			return false, nil
+		}
+	}
+	for _, a := range m.attempts {
+		if a.TaskID == j.TaskID && (a.ID == attemptRequestID(j.TaskID, j.RequestID) || a.Status == AttemptStatusQueued || a.Status == AttemptStatusRunning) {
+			return false, nil
+		}
+	}
+	if m.launchRecoveries == nil {
+		m.launchRecoveries = make(map[string]bool)
+	}
+	m.launchRecoveries[key] = true
+	j.State = "queued"
+	j.SafeError = ""
+	j.LeaseToken = ""
+	j.LeaseUntil = nil
+	j.AvailableAt = now
+	j.UpdatedAt = now
+	if t.Status == TaskStatusBlocked {
+		t.Status = TaskStatusQueued
+		t.UpdatedAt = now
+	}
+	activity := &TaskActivity{ID: generateID("act"), TaskID: t.ID, ActivityType: "execution_recovery", Author: "coordinator", NewStatus: TaskStatusQueued, Message: "Requeued the existing approved launch for one workspace recovery check. No execution attempt has started.", CreatedAt: now}
+	m.activities[activity.ID] = activity
+	return true, nil
+}
+func (s *DBStore) RecoverUnstartedLaunch(ctx context.Context, id string, expected, now time.Time) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var taskID string
+	if err = tx.QueryRowContext(ctx, `SELECT task_id FROM task_launches WHERE id=$1`, id).Scan(&taskID); err != nil {
+		return false, err
+	}
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+taskID); err != nil {
+		return false, err
+	}
+	var recovered string
+	err = tx.QueryRowContext(ctx, `WITH eligible AS (
+ SELECT j.id,j.task_id FROM task_launches j JOIN tasks t ON t.id=j.task_id
+ WHERE j.id=$1 AND j.updated_at=$2 AND j.state='stopped' AND j.safe_error=$3 AND j.expires_at>$4 AND btrim(j.revision)<>''
+ AND t.status IN ('queued','blocked') AND COALESCE(t.project_id,'')=j.project_id
+ AND j.instructions_hash=encode(digest(t.instructions,'sha256'),'hex')
+ AND j.id=(SELECT id FROM task_launches WHERE task_id=j.task_id ORDER BY created_at DESC,id DESC LIMIT 1)
+ AND NOT EXISTS(SELECT 1 FROM task_attempts a WHERE a.task_id=j.task_id AND (a.id=j.attempt_id OR a.status IN ('queued','running')))
+ FOR UPDATE OF j,t
+ ), receipt AS (
+ INSERT INTO task_launch_recoveries(launch_id,recovery_key,created_at)
+ SELECT id,$5,$4 FROM eligible ON CONFLICT DO NOTHING RETURNING launch_id
+ ), resumed AS (
+ UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$4,updated_at=$4
+ WHERE id IN (SELECT launch_id FROM receipt) RETURNING task_id
+ ) UPDATE tasks SET status='queued',updated_at=$4 WHERE id IN (SELECT task_id FROM resumed) AND status IN ('queued','blocked') RETURNING id`, id, expected, MissingWorkspaceLaunchError, now, missingWorkspaceRecoveryKey).Scan(&recovered)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO task_activities(id,task_id,activity_type,author,new_status,message,created_at) VALUES($1,$2,'execution_recovery','coordinator','queued',$3,$4)`, generateID("act"), taskID, "Requeued the existing approved launch for one workspace recovery check. No execution attempt has started.", now); err != nil {
+		return false, err
+	}
+	return recovered != "", tx.Commit()
+}

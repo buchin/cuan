@@ -93,38 +93,9 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if e != nil || detail.ProjectID != job.ProjectID || task.LaunchInstructionsHash(detail.Instructions) != job.InstructionsHash {
 		return finish("stopped", "The saved task scope has changed; check the current instructions before continuing.")
 	}
-	reader, ok := s.projectStudioRepo.(db.InboxRequestRepository)
-	if !ok {
-		return finish("stopped", "Conversation approval is unavailable.")
-	}
-	requests, e := reader.ListInboxRequests(ctx, job.RoomID)
-	if e != nil {
+	trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
+	if authErr != nil {
 		return finish("queued", "Conversation storage is temporarily unavailable.")
-	}
-	if detail.SourceRoomID != "" && detail.SourceRoomID != job.RoomID {
-		if srcReqs, err := reader.ListInboxRequests(ctx, detail.SourceRoomID); err == nil {
-			requests = append(requests, srcReqs...)
-		}
-	}
-	var trigger db.InboxRequest
-	for _, q := range requests {
-		if q.RequestID == job.RequestID && q.OwnerID == job.OwnerID {
-			trigger = q
-			break
-		}
-	}
-	authorized := false
-	for _, q := range requests {
-		isOriginalMatch := q.RequestID == job.SourceRequestID && q.MessageID == detail.SourceMessageID
-		isContinuationMatch := (q.RequestID == job.RequestID || q.RequestID == job.SourceRequestID) && trigger.MessageID != "" && q.MessageID == trigger.MessageID
-		if (isOriginalMatch || isContinuationMatch) && q.OwnerID == job.OwnerID && q.State != "cancelled" && q.State != "canceled" && q.State != "cancelling" {
-			authorized = true
-		}
-	}
-	if !authorized {
-		if strings.Contains(job.RequestID, "task-review:") || strings.Contains(job.SourceRequestID, "task-review:") || (job.OwnerID != "" && job.TaskID != "") {
-			authorized = true
-		}
 	}
 	if !authorized {
 		return finish("stopped", "The original user authorization is unavailable or cancelled.")

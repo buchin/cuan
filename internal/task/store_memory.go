@@ -9,25 +9,27 @@ import (
 )
 
 type MemoryStore struct {
-	launches     map[string]*TaskLaunch
-	mu           sync.RWMutex
-	tasks        map[string]*Task
-	attempts     map[string]*TaskAttempt
-	activities   map[string]*TaskActivity
-	logs         map[string][]*LogRecord
-	nextLogID    int64
-	taskProjects map[string][]string
+	launches         map[string]*TaskLaunch
+	launchRecoveries map[string]bool
+	mu               sync.RWMutex
+	tasks            map[string]*Task
+	attempts         map[string]*TaskAttempt
+	activities       map[string]*TaskActivity
+	logs             map[string][]*LogRecord
+	nextLogID        int64
+	taskProjects     map[string][]string
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		launches:     make(map[string]*TaskLaunch),
-		tasks:        make(map[string]*Task),
-		attempts:     make(map[string]*TaskAttempt),
-		activities:   make(map[string]*TaskActivity),
-		logs:         make(map[string][]*LogRecord),
-		nextLogID:    0,
-		taskProjects: make(map[string][]string),
+		launches:         make(map[string]*TaskLaunch),
+		launchRecoveries: make(map[string]bool),
+		tasks:            make(map[string]*Task),
+		attempts:         make(map[string]*TaskAttempt),
+		activities:       make(map[string]*TaskActivity),
+		logs:             make(map[string][]*LogRecord),
+		nextLogID:        0,
+		taskProjects:     make(map[string][]string),
 	}
 }
 
@@ -199,6 +201,11 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 	for launchID, j := range m.launches {
 		if j.TaskID == id {
 			delete(m.launches, launchID)
+			for key := range m.launchRecoveries {
+				if strings.HasPrefix(key, launchID+"\x00") {
+					delete(m.launchRecoveries, key)
+				}
+			}
 		}
 	}
 
