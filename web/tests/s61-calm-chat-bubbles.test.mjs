@@ -118,7 +118,7 @@ test('4. S61-T2: Streamlined Agent Process Card & Assigned to Task Badge', () =>
   // Agent response progress placeholder in InboxView must be borderless
   assert.ok(
     inboxView.includes('aria-label="Agent response progress"') &&
-      inboxView.includes('!bg-transparent !border-0 !shadow-none !p-0'),
+      inboxView.includes('className="inbox-attachment relative"'),
     'Agent response progress wrapper must be borderless and transparent'
   )
 

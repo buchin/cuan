@@ -715,3 +715,25 @@ Task/Project screenshots were rendered and directly inspected. Existing row-menu
 copy, confirmation, delete/cancel and keyboard checks still pass after the paging
 fixture contract update. Whole frontend gate currently passes429 tests. These
 changes do not establish autonomous audit acceptance or final backlog completion.
+
+## Production performance and incoming attachment width follow-up
+
+Release0a1c6d6484482bfe9752f38502b5387f6661ed10 passed exact-SHA production
+health. Real390/1440 task paging smoke verified25-row pages, full-scope counts,
+compact previews and page2 without mutations; both screenshots were inspected.
+The same six-route production sample dropped completed JSON bytes61–73% versus
+7178510. The remaining364KB shared contact response duplicated the same array as
+both contacts and conversations. UI now opts into `view=list` to retain one array;
+legacy callers retain the old envelope. A server regression with a long Unicode
+last message proves byte-identical contacts/counts, tail search, unread and saved
+history, while removing roughly half the envelope bytes. No content clipping or
+search downgrade was used.
+
+The user requested that task previews match the left bubble width. Direct task
+previews, reply drafts, progress placeholders and standalone task frames now share
+`inbox-attachment` at92% of the row. Standalone wrappers no longer imitate speech
+bubbles. Existing task footer actions and drawers are retained. The shared
+customer fixture supports focused attached/standalone geometry checks at
+360/390/1440 light/dark: left alignment, equal width to long speech, no nested
+speech wrapper,44px Detail and no horizontal overflow. Actual dark390 attached,
+dark390 standalone and desktop light screenshots were directly inspected.

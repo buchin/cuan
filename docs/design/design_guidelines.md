@@ -327,10 +327,16 @@ Menu titik tiga daftar Inbox tampil on-demand melalui hover, tekan lama, atau
 keyboard. Cuplikan laporan sistem menggunakan bahasa singkat dan kondisi terkini;
 pesan asli dan rincian laporan tetap utuh di dalam percakapan.
 
-Identitas avatar diperbarui sesuai persetujuan user: gunakan bentuk kotak untuk
-avatar Inbox dan account, termasuk menu akun. Ukuran36px pada trigger dan40px di
-menu tetap. Pie progres serta titik status tetap bulat sehingga tidak menyerupai
-identitas pengirim. Ketentuan terbaru ini menggantikan pengecualian avatar bulat.
+Sesuai persetujuan user terbaru, avatar Inbox dan account kembali bulat,
+termasuk menu akun. Trigger account berukuran36px di desktop,28px di mobile,
+dan40px di menu. Pie progres dan titik status tetap bulat. Ketentuan ini
+menggantikan aturan avatar kotak sebelumnya.
+
+Preview task dan draf balasan merupakan lampiran terpisah yang rata kiri.
+Gunakan frame `inbox-attachment` dengan batas lebar92% yang sama seperti
+pesan incoming. Jangan membungkus task standalone dengan bubble kosong atau
+mengembangkan kartu hingga memenuhi kolom percakapan. Footer tetap ringkas
+dengan target aksi44px.
 
 ### 7.8. Internal visibility markers
 

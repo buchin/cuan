@@ -64,3 +64,9 @@ modules. No new dependency or public package is required for paging. Shared
 components (`TaskPagePager`, `useTaskPage`) serve Tasks and Project activity;
 extracting a public library should follow a stable, proven contract rather than
 copying application-specific authorization or orchestration into a generic SDK.
+
+The UI requests `GET /api/v1/chat/contacts?view=list` for a single canonical
+`contacts` array. Legacy responses retain the identical `conversations` alias.
+No preview text is truncated; names, last-message search, unread/task counts and
+message history are unchanged. This removes the duplicated array from every
+shared contact refresh without breaking existing CLI consumers.

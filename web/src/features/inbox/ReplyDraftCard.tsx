@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext'
 export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; internal: boolean; onUse: (draft: string) => void }) {
   const { t } = useLanguage()
   return (
-    <div data-card="reply-draft" className="mt-2 w-full max-w-xl min-w-0 bg-card/40 text-foreground">
+    <div data-card="reply-draft" className="inbox-attachment mt-2 bg-card/40 text-foreground">
       <div className="flex items-center gap-2 px-3 pt-3 text-xs text-muted-foreground">
         {internal && <InternalVisibility className="-ml-3 -my-2" />}
         <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />

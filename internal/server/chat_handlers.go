@@ -924,6 +924,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	sort.SliceStable(contacts, func(i, j int) bool { return contacts[i].UpdatedAt.After(contacts[j].UpdatedAt) })
+	// UI consumers need one representation, not a duplicate compatibility alias.
+	// Keep the legacy envelope for existing CLI/integration consumers.
+	if r.URL.Query().Get("view") == "list" {
+		respondJSON(w, http.StatusOK, map[string]any{"contacts": contacts, "total": len(contacts)})
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"contacts":      contacts,
 		"conversations": contacts,

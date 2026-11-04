@@ -26,7 +26,7 @@ const contacts=[
 const task={id:'msg_reply',title:'Siapkan panduan pelanggan',status:'done',project_id:'large',project_name:'Cuan',summary:'Panduan selesai dan telah diverifikasi.',source_message_id:'reply',created_at:now,updated_at:now,latest_attempt:{id:'attempt',status:'succeeded'}}
 const working=process.env.CUAN_CARD_STATUS==='working';if(working){task.status='doing';task.latest_attempt.status='running'}
 let server,browser,debugPage
-async function routeAPI(route){
+async function routeAPI(route,{standalone=false,wideSpeech=false}={}){
  const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(taskPageFixture(route.request().url(),body))})
  if(p.endsWith('/auth/status'))return json({setup_required:false})
  if(p.endsWith('/auth/me'))return json({owner:{id:'fixture',username:'Owner',role:'owner'}})
@@ -44,11 +44,13 @@ async function routeAPI(route){
  if(p==='/api/system/update')return json({current_version:'fixture',latest_version:'fixture',has_update:false})
   if(/chat\/conversations\/fixture-room\/(messages|events)$/.test(p)){
    const data={conversation_id:'fixture-room',room_id:'fixture-room',contact:contacts[0],tasks:[task],messages:[{id:1,uuid:'message',author_type:'user',sender_type:'visitor',content:'Buatkan panduan untuk pelanggan.',created_at:now},{id:11,uuid:'user-followup',author_type:'user',sender_type:'visitor',content:'Gunakan bahasa yang sederhana.',created_at:now},{id:2,uuid:'reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Panduan sudah selesai dan diperiksa.\n\n[View work](/tasks/msg_reply)',created_at:now},{id:3,uuid:'agent-followup',author_type:'agent',sender_type:'operator',author_name:'@cuan',content:'Silakan cek file hasilnya.',created_at:now},{id:4,uuid:'file-only',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'',message:'',attachments:[{id:'fixture-file',name:'panduan.md',type:'text/markdown',size:1024,url:'/api/v1/chat/attachments/private-file'}],created_at:now},{id:5,uuid:'user-later',author_type:'user',sender_type:'visitor',content:'Terima kasih, hasilnya sudah sesuai.',created_at:new Date(Date.parse(now)+360000).toISOString()} ,{id:6,uuid:'draft-reply',author_type:'agent',is_internal:true,sender_type:'operator',author_name:'@cuan',content:'Kami sudah meninjau laporan Anda.',reply_draft:'Terima kasih sudah menunggu. Kami sedang memeriksa kendalanya.',created_at:now}],requests:[]}
+   if(wideSpeech){const speech=data.messages.find(message=>message.uuid==='reply');if(speech)speech.content='Laporan pekerjaan yang telah diperiksa bersama tim. '.repeat(20)+'\n\n[View work](/tasks/msg_reply)'}
+   if(standalone)data.messages=data.messages.filter(message=>message.uuid!=='reply')
    return p.endsWith('/events')?route.fulfill({contentType:'text/event-stream',body:'event: snapshot\ndata: '+JSON.stringify(data)+'\n\n'}):json(data)
   } return json({})
 }
 contacts[0].name='Heru Purwanto dengan nama yang panjang';contacts[0].email='herusip10.dengan.email.panjang@example.com'
-;(async()=>{
+async function runCustomerCardCheck(){
  fs.mkdirSync(out,{recursive:true})
  server=http.createServer((req,res)=>{let p=path.join(process.cwd(),'web/dist',req.url.split('?')[0]);if(!path.extname(p))p=path.join(process.cwd(),'web/dist/index.html');try{res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':p.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(p))}catch{res.writeHead(404);res.end()}})
  await new Promise(r=>server.listen(4183,'127.0.0.1',r))
@@ -102,4 +104,7 @@ if(width===390){await page.goto('http://127.0.0.1:4183/inbox');const badge=page.
  await context.close()
  }
  console.log('Customer-room attachment390/1440 light/dark: exactly one card, Detail preserves Inbox, no false Terminal.')
-})().catch(async e=>{console.error(e);if(debugPage)await debugPage.screenshot({path:out+'/error.png'});process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})
+}
+if(require.main===module)runCustomerCardCheck().catch(async e=>{console.error(e);if(debugPage)await debugPage.screenshot({path:out+'/error.png'});process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})
+
+module.exports={routeAPI,task}

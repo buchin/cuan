@@ -58,8 +58,8 @@ test('2. S60-T4: Seamless Borderless Artifacts in chat-calm.css and InboxView.ts
   assert.ok(css.includes('padding: 8px 14px 8px'), 'Messages retain readable padding')
   // Standalone completed tasks in InboxView eliminates duplicate borders
   assert.ok(
-    inboxView.includes('!bg-transparent !border-0 !shadow-none !p-0'),
-    'InboxView standalone completed tasks bubble wrapper must eliminate duplicate nested borders'
+    inboxView.includes('className="inbox-attachment relative"'),
+    'Standalone task previews use a plain attachment frame without a second speech surface'
   )
 })
 

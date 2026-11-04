@@ -1898,7 +1898,7 @@ export function InboxView({
                           aria-label="Agent response progress"
                           className="mt-2.5 flex w-full self-stretch flex-col items-start"
                         >
-                          <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
+                          <div className="inbox-attachment relative">
                             {activity}
                           </div>
                         </div>
@@ -1918,7 +1918,7 @@ export function InboxView({
                   key={`standalone-active-${t.id}`}
                   className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
                 >
-                  <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
+                  <div className="inbox-attachment relative">
                     <TaskCard
                       taskId={t.id}
                       initialTask={t}
@@ -1940,7 +1940,7 @@ export function InboxView({
                   key={`standalone-completed-${completedTask.id}`}
                   className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
                 >
-                  <div className="wa-message-bubble wa-incoming !bg-transparent !border-0 !shadow-none !p-0 relative min-w-0 max-w-xl w-full">
+                  <div className="inbox-attachment relative">
                     <TaskCompletionCard
                       task={completedTask}
                       conversationId={

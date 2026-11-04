@@ -107,7 +107,7 @@ export function InboxTaskAction({
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
     const StateIcon = state === 'Completed' ? Check : state === 'Queued' ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
 
-    return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="mt-2.5 w-full max-w-xl space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
+    return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1">{state === 'Working' ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
@@ -122,7 +122,7 @@ export function InboxTaskAction({
   return (
     <form
       aria-label="Draft task"
-      className="mt-3 w-full min-w-0 max-w-md space-y-3 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
+      className="inbox-attachment mt-3 space-y-3 rounded-lg border border-border bg-card p-3 text-sm text-card-foreground"
       onSubmit={async (e) => {
         e.preventDefault()
         if (busy || loading || !ready) return

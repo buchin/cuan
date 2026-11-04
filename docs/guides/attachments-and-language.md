@@ -10,6 +10,14 @@ Draft attachment selections survive reload in the current browser. Retrying an u
 
 Attachments are private owner uploads. Customer live-chat widget uploads and visitor downloads are outside this first release; existing customer conversations are unchanged. Do not send credentials in reference files.
 
+## Preview layout
+
+Task previews and unsent reply drafts are separate incoming attachments. Their
+shared width frame follows the same92% limit and left alignment as speech,
+instead of filling the conversation column. Standalone task previews use that
+frame directly, without an extra speech bubble. Footer actions retain their44px
+targets and open Detail/Terminal without replacing the conversation.
+
 ## Agent access
 
 Original files are stored on disk and referenced by immutable IDs in the saved message. Display text is separate from the persisted attachment envelope. The agent receives authenticated conversation references, bounded text excerpts, and absolute paths to the original files. Images are provided through Codex's native image input; agy/Claude receive explicit attachment-directory read access and instructions to use their native image/PDF tools. Unsupported provider formats must produce a clear limitation instead of a claim to have inspected the file.

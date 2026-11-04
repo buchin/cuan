@@ -223,7 +223,7 @@ export const chatApi = {
     type?: string
     q?: string
   }): Promise<ChatContact[]> => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams({ view: 'list' })
     if (filter?.type && filter.type !== 'all') {
       params.set('type', filter.type)
     }
