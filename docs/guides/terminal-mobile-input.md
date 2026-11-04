@@ -54,3 +54,18 @@ node docs/evidence/terminal-geometry-check.cjs
 This tests the real xterm component with fixture transport at390/1440px, not the
 complete Android/SwiftKey OS composition lifecycle. It does not prove that every
 redraw inside a provider TUI preserves that provider's own edit buffer.
+
+## Replaced connection events
+
+All WebSocket message, error and close callbacks are bound to the currently
+active socket. A delayed handshake or close from a replaced connection must not
+reset the screen, write old output, disable stdin or start another reconnect.
+`web/tests/terminal-socket-lifecycle.test.mjs` executes the component callbacks
+against replaced and active sockets. This closes a connection race; it does not
+establish the root cause of the remaining physical-keyboard report.
+
+Fural also preserves its canvas on soft reconnect by skipping the history seed.
+Cuan's runner bridge unconditionally replays scrollback before live output.
+Simply removing the browser reset would duplicate that history. Adopting this
+behavior requires an ordered replay/catch-up contract across the bridge, rather
+than a browser-only change that could silently miss output during disconnection.

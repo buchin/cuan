@@ -461,7 +461,7 @@ export function TaskTerminal({
       let handshakeReceived = false
 
       ws.onmessage = (event) => {
-        if (disposed || !term.current) return
+        if (disposed || socket.current !== ws || !term.current) return
         const t = term.current
 
         if (event.data instanceof ArrayBuffer) {
@@ -559,7 +559,7 @@ export function TaskTerminal({
       }
 
       ws.onerror = () => {
-        if (!disposed) {
+        if (!disposed && socket.current === ws) {
           if (isTaskActiveRef.current) {
             setConnection('streaming')
           } else {
@@ -569,7 +569,7 @@ export function TaskTerminal({
       }
 
       ws.onclose = async (event) => {
-        if (disposed) return
+        if (disposed || socket.current !== ws) return
         const retainInput = interactive.current && isTaskActiveRef.current && event.code !== 1000
         if (!retainInput) {
           interactive.current = false
