@@ -1,3 +1,4 @@
+const taskPageFixture=require('./task-page-fixture.cjs')
 // Real frontend build, isolated fixture APIs. No production messages/tasks are created.
 const { chromium } = require('/home/dev/.local/lib/node_modules/playwright')
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('node:assert/strict')
@@ -27,7 +28,7 @@ const working=process.env.CUAN_CARD_STATUS==='working';if(working){task.status='
 const taskWrites=[];let deleted=false,cancelled=false;const activeTask={...task,id:"msg_active",title:"Active work",status:"doing",latest_attempt:{id:"active-attempt",status:"running"}};
 let server,browser,debugPage
 async function routeAPI(route){
- const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
+ const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(taskPageFixture(route.request().url(),body))})
  if(p.endsWith('/auth/status'))return json({setup_required:false})
  if(p.endsWith('/auth/me'))return json({owner:{id:'fixture',username:'Owner',role:'owner'}})
  if(p==='/api/v1/projects')return json({projects})

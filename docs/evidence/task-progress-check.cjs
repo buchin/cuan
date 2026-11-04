@@ -1,3 +1,4 @@
+const taskPageFixture=require('./task-page-fixture.cjs')
 // Real frontend build, isolated fixture APIs. No production messages/tasks are created.
 const { chromium } = require('/home/dev/.local/lib/node_modules/playwright')
 const fs=require('fs'),path=require('path'),http=require('http'),assert=require('node:assert/strict')
@@ -25,7 +26,7 @@ const contacts=[
 const task={id:'msg_reply',title:'Siapkan panduan pelanggan',status:'done',project_id:'large',project_name:'Cuan',summary:'Panduan selesai dan telah diverifikasi.',source_message_id:'reply',created_at:now,updated_at:now,latest_attempt:{id:'attempt',status:'succeeded'}}
 let server,browser,debugPage
 async function routeAPI(route){
- const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
+ const p=new URL(route.request().url()).pathname,json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(taskPageFixture(route.request().url(),body))})
  if(p.endsWith('/auth/status'))return json({setup_required:false})
  if(p.endsWith('/auth/me'))return json({owner:{id:'fixture',username:'Owner',role:'owner'}})
  if(p==='/api/v1/projects')return json({projects})

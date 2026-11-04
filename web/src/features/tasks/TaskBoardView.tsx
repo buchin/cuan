@@ -1,7 +1,10 @@
+import { useMediaQuery } from '../../hooks/useMediaQuery'
+import { TaskPagePager } from './TaskPagePager'
+import { useTaskPage } from './useTaskPage'
 import { TaskRowActions } from './TaskRowActions'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   SlidersHorizontal,
@@ -14,8 +17,6 @@ import {
   Clock,
   X,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   PlusCircle,
   ArrowDown,
   ArrowRight,
@@ -28,7 +29,6 @@ import {
   taskStatus,
   taskRef,
   relativeTime,
-  getQueuedTasksPositions,
 } from './task-ui'
 import { TaskItemCard } from './TaskItemCard'
 import { HairlineList } from '../../components/layout/HairlineList'
@@ -36,10 +36,6 @@ import { cn } from '../../lib/utils'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 interface Props {
-  loading?: boolean
-  error?: string
-  onRetry?: () => void
-  tasks: Task[]
   projects: Project[]
   activeProject?: Project
   selectedStatusFilter?: string
@@ -52,26 +48,23 @@ interface Props {
 export const TASK_FILTERS = ['All', ...TASK_STATUSES.map((s) => s.label)]
 export const visibleTaskStatus = taskStatus
 export function TaskBoardView({
-  tasks,
   projects,
   activeProject,
   onSelectTask,
   onStatusFilterChange,
   onDeleteTask,
   onRunAgent,
-  loading = false,
-  error = '',
-  onRetry,
 }: Props) {
   const { t } = useLanguage()
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [params, setParams] = useSearchParams(),
     [filtersOpen, setFiltersOpen] = useState(false),
     [sortOpen, setSortOpen] = useState(false),
     [saving, setSaving] = useState(''),
     [actionError, setActionError] = useState(''),
     [selectedRows, setSelectedRows] = useState<Set<string>>(new Set()),
-    [limit, setLimit] = useState(100),
     [currentPage, setCurrentPage] = useState(1)
+  useEffect(() => setSelectedRows(new Set()), [currentPage])
   const toggleSelectAll = (totalRows: Task[]) => {
     if (selectedRows.size === totalRows.length) {
       setSelectedRows(new Set())
@@ -128,11 +121,8 @@ export function TaskBoardView({
   }
   useEffect(() => {
     setCurrentPage(1)
+    setSelectedRows(new Set())
   }, [query, status, project, priority, sort])
-  useEffect(
-    () => setLimit(100),
-    [query, status, project, priority, sort],
-  )
   const projectName = (t: Task) =>
     t.project_name ||
     projects.find((p) => p.id === t.project_id || t.project_ids?.includes(p.id))
@@ -147,126 +137,38 @@ export function TaskBoardView({
       ? text
       : ''
   }
-  const scoped = useMemo(
-    () =>
-      tasks.filter(
-        (t) =>
-          project === 'all' ||
-          (project === 'none'
-            ? !t.project_id && !t.project_ids?.length
-            : t.project_id === project || t.project_ids?.includes(project)),
-      ),
-    [tasks, project],
-  )
-  const isTaskActive = (t: Task) => {
-    const s = taskStatus(t.status)
-    return (
-      ['doing', 'queued', 'todo', 'backlog'].includes(s) ||
-      ['running', 'queued'].includes(t.latest_attempt?.status || '')
-    )
-  }
-  const isTaskDone = (t: Task) => taskStatus(t.status) === 'done'
-  const isTaskReviewOrCancelled = (t: Task) => {
-    const s = taskStatus(t.status)
-    return (
-      ['review', 'blocked', 'failed', 'cancelled'].includes(s) ||
-      ['failed', 'canceled', 'cancelled'].includes(
-        t.latest_attempt?.status || '',
-      )
-    )
-  }
-
-  const matchesStatus = (t: Task) => {
-    if (!status || status === 'all') return true
-    if (status === 'active' || status === 'aktif') {
-      return isTaskActive(t)
-    }
-    if (status === 'done' || status === 'selesai') {
-      return isTaskDone(t)
-    }
-    if (
-      status === 'dibatalkan_review' ||
-      status === 'dibatalkan' ||
-      status === 'review_or_blocked'
-    ) {
-      return isTaskReviewOrCancelled(t)
-    }
-    return taskStatus(t.status) === status
-  }
-
+  const { data, counts, loading, error, refresh: onRetry } = useTaskPage({ project_id: project, search: query, status, priority, sort, page: currentPage, page_size: 25 })
+  const tasks = data?.tasks || []
+  const total = data?.total || 0
+  useEffect(() => {
+    if (data && data.page !== currentPage) setCurrentPage(data.page)
+  }, [data?.page, currentPage])
   const mobileFilterChips = [
     {
       id: 'all',
       label: t('Semua'),
-      count: scoped.length,
+      count: counts.all || 0,
     },
     {
       id: 'active',
       label: t('Aktif'),
-      count: scoped.filter(isTaskActive).length,
+      count: counts.active || 0,
     },
     {
       id: 'done',
       label: t('Selesai'),
-      count: scoped.filter(isTaskDone).length,
+      count: counts.done || 0,
     },
     {
       id: 'dibatalkan_review',
       label: t('Dibatalkan/Review'),
-      count: scoped.filter(isTaskReviewOrCancelled).length,
+      count: counts.review_or_blocked || 0,
     },
   ]
 
-  const rows = scoped
-    .filter(
-      (t) =>
-        matchesStatus(t) &&
-        (priority === 'all' || t.priority === priority) &&
-        [t.id, taskRef(t.id), t.title, t.description, projectName(t)]
-          .join(' ')
-          .toLowerCase()
-          .includes(query.trim().toLowerCase()),
-    )
-    .sort((a, b) => {
-      if (sort === 'priority') {
-        const ranks: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
-        const diff = (ranks[a.priority] ?? 2) - (ranks[b.priority] ?? 2)
-        if (diff) return diff
-      } else if (sort === 'priority-desc') {
-        const ranks: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
-        const diff = (ranks[b.priority] ?? 2) - (ranks[a.priority] ?? 2)
-        if (diff) return diff
-      } else if (sort === 'title') {
-        const diff = a.title.localeCompare(b.title)
-        if (diff) return diff
-      } else if (sort === 'title-desc') {
-        const diff = b.title.localeCompare(a.title)
-        if (diff) return diff
-      } else if (sort === 'task' || sort === 'id') {
-        const diff = a.id.localeCompare(b.id)
-        if (diff) return diff
-      } else if (sort === 'task-desc' || sort === 'id-desc') {
-        const diff = b.id.localeCompare(a.id)
-        if (diff) return diff
-      } else if (sort === 'status') {
-        const diff = (a.status || 'backlog').localeCompare(b.status || 'backlog')
-        if (diff) return diff
-      } else if (sort === 'status-desc') {
-        const diff = (b.status || 'backlog').localeCompare(a.status || 'backlog')
-        if (diff) return diff
-      } else if (sort === 'updated-asc') {
-        const diff = (Date.parse(a.updated_at) || 0) - (Date.parse(b.updated_at) || 0)
-        if (diff) return diff
-      }
-      const key = sort === 'created' ? 'created_at' : 'updated_at'
-      return (
-        (Date.parse(b[key]) || 0) - (Date.parse(a[key]) || 0) ||
-        a.id.localeCompare(b.id)
-      )
-    })
-  const pageSize = 25
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
-  const paginatedRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const rows = tasks
+  const pageSize = data?.page_size || 25
+  const paginatedRows = rows
   const filterCount =
     Number(project !== 'all' && !activeProject) +
     Number(priority !== 'all')
@@ -458,14 +360,7 @@ export function TaskBoardView({
       className="flex h-full min-h-0 flex-col gap-2.5"
       aria-label="Task list"
     >
-      <div className="hidden sm:flex items-center justify-between pb-0.5">
-        <div>
-          <h2 className="sr-only">{t('Tasks')}</h2>
-          <p className="text-muted-foreground text-xs">
-            {t("Here's a list of your tasks for this workspace!")}
-          </p>
-        </div>
-      </div>
+      <h2 className="sr-only">{t('Tasks')}</h2>
       <div className="flex items-center gap-2">
         <ListSearch containerClassName="sm:max-w-xs lg:max-w-sm" aria-label={t('Search tasks')} placeholder={t('Search tasks…')} value={query} onChange={event=>update('q',event.target.value)} />
         <button
@@ -553,7 +448,7 @@ export function TaskBoardView({
 
       {/* Desktop Horizontal Category Chips */}
       <ListTabs className="hidden sm:flex" aria-label={t('Filter task status')}>
-        {[{id:'all',label:t('All')},...TASK_STATUSES].map(item=><ListTab key={item.id} selected={status===item.id} count={item.id==='all'?scoped.length:scoped.filter(entry=>taskStatus(entry.status)===item.id).length} onClick={()=>{update('status',item.id);onStatusFilterChange?.(item.id)}}>{t(item.label)}</ListTab>)}
+        {[{id:'all',label:t('All')},...TASK_STATUSES].map(item=><ListTab key={item.id} selected={status===item.id} count={counts[item.id] || 0} onClick={()=>{update('status',item.id);onStatusFilterChange?.(item.id)}}>{t(item.label)}</ListTab>)}
       </ListTabs>
       {chips.length > 0 && (
         <div
@@ -588,7 +483,7 @@ export function TaskBoardView({
         <span role="status">
           {saving
             ? 'Saving changes…'
-            : `${rows.length} ${rows.length === 1 ? 'task' : 'tasks'}${filtered ? ` of ${scoped.length}` : ''}`}
+            : `${total} ${total === 1 ? 'task' : 'tasks'}`}
         </span>
         {filtered && (
           <button
@@ -625,7 +520,7 @@ export function TaskBoardView({
         <p role="status" className="p-4 text-sm text-muted-foreground">
           Loading tasks…
         </p>
-      ) : rows.length === 0 ? (
+      ) : error && !data ? null : rows.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/40 bg-muted/10 p-8 text-center">
           <Circle className="h-7 w-7 text-muted-foreground" />
           <h2 className="font-medium">
@@ -644,7 +539,7 @@ export function TaskBoardView({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="hidden overflow-hidden rounded-md border border-border/40 bg-card/30 lg:block shadow-2xs">
+          {isDesktop && <div className="hidden overflow-hidden rounded-md border border-border/40 bg-card/30 lg:block shadow-2xs">
             <table className="w-full table-fixed text-left text-sm">
               <thead className="sticky top-0 z-10 bg-muted/40 text-xs font-medium text-muted-foreground border-b border-border/40">
                 <tr>
@@ -652,7 +547,7 @@ export function TaskBoardView({
                     <input
                       type="checkbox"
                       aria-label="Select all tasks"
-                      checked={rows.length > 0 && selectedRows.size === rows.length}
+                      checked={rows.length > 0 && rows.every(row => selectedRows.has(row.id))}
                       onChange={() => toggleSelectAll(rows)}
                       className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-ring"
                     />
@@ -795,54 +690,17 @@ export function TaskBoardView({
                 ))}
               </tbody>
             </table>
-            <div className="hidden lg:flex items-center justify-between border-t border-border/40 px-3 py-2 text-xs text-muted-foreground bg-muted/10">
-              <div className="flex-1">
-                {selectedRows.size > 0
-                  ? `${selectedRows.size} of ${rows.length} row(s) selected.`
-                  : rows.length === 0
-                    ? `0 tasks found.`
-                    : `Showing ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, rows.length)} of ${rows.length} ${rows.length === 1 ? 'task' : 'tasks'}.`}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-xs">{t('Page')} {currentPage} {t('of')} {totalPages}</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className={cn(
-                      "inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-colors",
-                      currentPage <= 1 ? "opacity-40 cursor-not-allowed" : "hover:bg-muted hover:text-foreground cursor-pointer"
-                    )}
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className={cn(
-                      "inline-flex h-7 w-7 items-center justify-center rounded-md border border-border/40 bg-transparent text-muted-foreground transition-colors",
-                      currentPage >= totalPages ? "opacity-40 cursor-not-allowed" : "hover:bg-muted hover:text-foreground cursor-pointer"
-                    )}
-                    aria-label="Next page"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <HairlineList className="lg:hidden">
+            {selectedRows.size > 0 && <p className="px-3 py-2 text-xs text-muted-foreground">{selectedRows.size} / {rows.length}</p>}
+            <TaskPagePager className="hidden border-t border-border/40 px-3 lg:flex" page={currentPage} pageSize={pageSize} total={total} onPage={setCurrentPage} />
+          </div>}
+          {!isDesktop && <HairlineList className="lg:hidden">
             {(() => {
-              const queuedPositions = getQueuedTasksPositions(rows)
-              return rows.slice(0, limit).map((t) => (
+              return rows.map((t) => (
                 <TaskRowActions key={t.id} task={t} onDelete={onDeleteTask} onChanged={onRetry}>
                 <TaskItemCard
                   task={t}
+                  managedUpdates
                   variant="row"
-                  queuePosition={queuedPositions.get(t.id)}
                   showProject={!activeProject}
                   onClick={onSelectTask}
                   onDelete={onDeleteTask ? () => onDeleteTask(t.id) : undefined}
@@ -850,15 +708,8 @@ export function TaskBoardView({
                 </TaskRowActions>
               ))
             })()}
-          </HairlineList>
-          {rows.length > limit && (
-            <button
-              className="action-secondary m-3"
-              onClick={() => setLimit((n) => n + 100)}
-            >
-              Show more ({rows.length - limit} remaining)
-            </button>
-          )}
+          </HairlineList>}
+          <TaskPagePager className="px-3 lg:hidden" page={currentPage} pageSize={pageSize} total={total} onPage={setCurrentPage} />
         </div>
       )}
       <ActionDialog
@@ -924,7 +775,7 @@ export function TaskBoardView({
               className="action-primary"
               onClick={() => setFiltersOpen(false)}
             >
-              Show {rows.length} {rows.length === 1 ? 'task' : 'tasks'}
+              Show {total} {total === 1 ? 'task' : 'tasks'}
             </button>
           </div>
         </div>

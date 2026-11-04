@@ -65,7 +65,20 @@ export function estimateViewportTerminalDimensions(): { cols: number; rows: numb
   const rows = Math.max(10, Math.min(80, Math.floor(availableHeight / lineHeight)))
   return { cols, rows }
 }
+export interface TaskPageOptions {
+  exclude_terminals?: boolean; project_id?: string; search?: string; status?: string; priority?: string; sort?: string; page?: number; page_size?: number
+}
+export interface TaskPage {
+  tasks: Task[]; total: number; scope_total: number; counts: Record<string, number>; page: number; page_size: number
+}
 export const tasksApi = {
+  page: async (options: TaskPageOptions, signal?: AbortSignal): Promise<TaskPage> => {
+    const query = new URLSearchParams({ view: 'board' })
+    for (const [key,value] of Object.entries(options)) if (value !== undefined && value !== '' && value !== 'all') query.set(key,String(value))
+    const res = await apiFetch<TaskPage>('/api/v1/tasks?' + query.toString(), { signal })
+    if (!Number.isInteger(res.total) || res.total < 0 || !Number.isInteger(res.page) || res.page < 1 || !Number.isInteger(res.page_size) || res.page_size < 1 || res.page_size > 100 || !res.counts || !Array.isArray(res.tasks) || res.tasks.length > res.page_size) throw new Error('Invalid task page response')
+    return { ...res, tasks: (res.tasks || []).map(normalize) }
+  },
   list: async (projectId?: string): Promise<Task[]> => {
     const res = await apiFetch<{ tasks: Task[] }>(
       `/api/v1/tasks${projectId ? '?project_id=' + encodeURIComponent(projectId) : ''}`,

@@ -131,6 +131,18 @@ func (s *Server) registerTasksV1Routes(r chi.Router) {
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("view") == "board" {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		size, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+		result, err := s.taskSvc.ListTaskPage(r.Context(), task.PageOptions{ProjectID: r.URL.Query().Get("project_id"), Search: r.URL.Query().Get("search"), Status: r.URL.Query().Get("status"), Priority: r.URL.Query().Get("priority"), Sort: r.URL.Query().Get("sort"), Page: page, PageSize: size, ExcludeTerminals: r.URL.Query().Get("exclude_terminals") == "true"})
+		if err != nil {
+			respondJSONError(w, http.StatusInternalServerError, "Could not load task page")
+			return
+		}
+		respondJSON(w, http.StatusOK, result)
+		return
+	}
+
 	var projectIDs []string
 	if pids := r.URL.Query().Get("project_ids"); pids != "" {
 		for _, id := range strings.Split(pids, ",") {

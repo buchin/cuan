@@ -1,3 +1,4 @@
+const taskPageFixture=require('./task-page-fixture.cjs')
 // Render actual frontend with isolated APIs; never mutates production data.
 const {chromium}=require('/home/dev/.local/lib/node_modules/playwright')
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('node:assert/strict')
@@ -24,7 +25,7 @@ const tasks=[{id:'queued',title:'Audit ulang navigasi',status:'queued',summary:'
  if(p==='/api/v1/agents')body={agents:[]}
  if(p==='/api/v1/notifications')body={notifications:[],unread_count:0}
  if(p==='/api/v1/item-preferences')body={items:{}}
- return route.fulfill({contentType:'application/json',body:JSON.stringify(body)})
+ return route.fulfill({contentType:'application/json',body:JSON.stringify(taskPageFixture(route.request().url(),body))})
  })
  await page.goto('http://127.0.0.1:4184/tasks')
  await page.getByText('Audit ulang navigasi',{exact:true}).filter({visible:true}).waitFor()

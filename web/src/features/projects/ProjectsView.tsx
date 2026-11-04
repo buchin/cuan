@@ -43,7 +43,9 @@ export function ProjectsView({
   const { t } = useLanguage()
 
   const handleOpenProjectTerminal = async (projId: string) => {
-    const projTasks = tasks.filter((item) => item.project_id === projId)
+    let projTasks: Task[]
+    try { projTasks = (await tasksApi.page({ project_id: projId, search: 'Terminal ·', status: 'active', page_size: 100 })).tasks }
+    catch { setError(t('Could not load project terminal. Try again.')); return }
     // 1. Reconnect to an already active dedicated project terminal session if alive
     const activeTerminalTask = projTasks.find(
       (item) =>

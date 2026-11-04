@@ -89,6 +89,9 @@ func (m *MemoryStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task
 	searchLower := strings.ToLower(strings.TrimSpace(filter.Search))
 
 	for _, t := range m.tasks {
+		if filter.IDs != nil && !oneOf(t.ID, filter.IDs...) {
+			continue
+		}
 		if filter.SourceRoomID != "" && t.SourceRoomID != filter.SourceRoomID {
 			continue
 		}

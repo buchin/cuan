@@ -1,3 +1,5 @@
+import { useTaskPage } from '../tasks/useTaskPage'
+import { TaskPagePager } from '../tasks/TaskPagePager'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import {
@@ -14,16 +16,16 @@ import { tasksApi } from '../../api/tasks'
 import { TaskSessionPage } from '../tasks/TaskSessionPage'
 import { TaskStartingPage } from '../tasks/TaskStartingPage'
 import { TaskItemCard } from '../tasks/TaskItemCard'
-import { tasksForProject, workStatus, taskRef, taskSummaryText, getQueuedTasksPositions } from '../tasks/task-ui'
+import { workStatus, taskRef, taskSummaryText } from '../tasks/task-ui'
 
 export function ProjectWorkView({
   project,
   tasks,
   taskId,
   sessionId,
-  loading,
-  error,
-  onRetry,
+  loading: projectLoading,
+  error: projectError,
+  onRetry: retryProject,
 }: {
   project: Project
   tasks: Task[]
@@ -43,20 +45,30 @@ export function ProjectWorkView({
   const [filter, setFilter] = useState('all')
   const location = useLocation()
   const base = '/projects/' + encodeURIComponent(project.id) + '/tasks'
-  const allTasks = tasksForProject(tasks, project.id)
-  const scoped = allTasks.filter(
-    (task) => !task.title.startsWith('Terminal ·') || task.id === taskId,
-  )
-  const filters = [
-    { id: 'all', label: 'All', matches: (_task: Task) => true },
-    { id: 'active', label: 'Active', matches: (task: Task) => ['Working', 'Waiting to start', 'Not started'].includes(workStatus(task)) },
-    { id: 'attention', label: 'Needs attention', matches: (task: Task) => ['Needs attention', 'Not running', 'Ready for review'].includes(workStatus(task)) },
-    { id: 'completed', label: 'Completed', matches: (task: Task) => ['Completed', 'Answered'].includes(workStatus(task)) },
-  ]
-  const searched = scoped.filter(task =>
-    [task.title, taskRef(task.id), task.status, workStatus(task), taskSummaryText(task), task.latest_attempt?.agent_name]
-      .join(' ').toLowerCase().includes(query.toLowerCase().trim()))
-  const visible = searched.filter(task => (filters.find(item => item.id === filter) || filters[0]).matches(task))
+  const [page, setPage] = useState(1)
+  const [extensionRevision, setExtensionRevision] = useState(0)
+  useEffect(() => setPage(1), [project.id, query, filter])
+  const result = useTaskPage({ project_id: project.id, search: query, status: filter, page, page_size: 25, exclude_terminals: true })
+  const loading = projectLoading || result.loading
+  const error = projectError || result.error
+  const onRetry = () => { retryProject(); result.refresh(); setExtensionRevision(value => value + 1) }
+  const scoped = result.data?.tasks || []
+  const [extensionTasks, setExtensionTasks] = useState<Task[] | null>(null)
+  const [extensionError, setExtensionError] = useState('')
+  useEffect(() => {
+    if (!extensionView) { setExtensionTasks(null); setExtensionError(''); return }
+    let current = true
+    void tasksApi.list(project.id).then(items => { if (current) { setExtensionTasks(items); setExtensionError('') } }).catch(() => { if (current) setExtensionError('Could not load this project view. Try again.') })
+    return () => { current = false }
+  }, [extensionView?.id, project.id, result.data, extensionRevision])
+  const visible = extensionView ? (extensionTasks || []).filter(task => !task.title.startsWith('Terminal ·')).filter(task =>
+    [task.title, taskRef(task.id), task.status, workStatus(task), taskSummaryText(task), task.latest_attempt?.agent_name].join(' ').toLowerCase().includes(query.toLowerCase().trim()) &&
+    (filter === 'all' || (filter === 'work_active' && ['Working','Waiting to start','Not started'].includes(workStatus(task))) || (filter === 'attention' && ['Needs attention','Not running','Ready for review'].includes(workStatus(task))) || (filter === 'completed' && ['Completed','Answered'].includes(workStatus(task))))) : scoped
+  const counts = result.counts
+  const total = result.data?.total || 0
+  const currentPage = result.data?.page || page
+  const pager = <TaskPagePager className="shrink-0 px-3 sm:px-5" page={currentPage} pageSize={25} total={total} onPage={setPage} />
+  const filters = [{id:'all',label:'All'}, {id:'work_active',label:'Active'}, {id:'attention',label:'Needs attention'}, {id:'completed',label:'Completed'}]
   const selected = scoped.find((t) => t.id === taskId)
   const relocated = taskId && !selected ? tasks.find(task => task.id === taskId && task.project_id && task.project_id !== project.id) : undefined
 
@@ -220,10 +232,10 @@ export function ProjectWorkView({
     )
   }
   if (!taskId && extensionView) {
-    if (loading || error) return (
-      <div className="p-5 text-sm" role={error ? 'alert' : 'status'}>
-        <p>{error || t('Loading work…')}</p>
-        {error && <button className="action-secondary mt-3" onClick={onRetry}>{t('Try again')}</button>}
+    if (loading || error || extensionError || !extensionTasks) return (
+      <div className="p-5 text-sm" role={error || extensionError ? 'alert' : 'status'}>
+        <p>{error || extensionError || t('Loading work…')}</p>
+        {(error || extensionError) && <button className="action-secondary mt-3" onClick={onRetry}>{t('Try again')}</button>}
       </div>
     )
     const View = extensionView.component
@@ -302,13 +314,13 @@ export function ProjectWorkView({
         <h3 className="text-sm font-semibold">
           {t('Tasks')}{' '}
           <span className="ml-1 text-xs font-normal text-muted-foreground">
-            {scoped.length}
+            {result.scopeTotal}
           </span>
         </h3>
         <ListSearch containerClassName="sm:max-w-64" aria-label={t('Search project work')} placeholder={t('Search tasks…')} value={query} onChange={event=>setQuery(event.target.value)} />
       </div>
       <ListTabs aria-label={t('Task filters')} className="px-4">
-        {filters.filter(item=>item.id==='all'||item.id===filter||searched.some(item.matches)).map(item=><ListTab key={item.id} selected={filter===item.id} count={searched.filter(item.matches).length} onClick={()=>setFilter(item.id)}>{t(item.label)}</ListTab>)}
+        {filters.filter(item=>item.id==='all'||item.id===filter||(counts[item.id] || 0)>0).map(item=><ListTab key={item.id} selected={filter===item.id} count={counts[item.id] || 0} onClick={()=>setFilter(item.id)}>{t(item.label)}</ListTab>)}
       </ListTabs>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4 sm:px-5">
         {error ? (
@@ -333,7 +345,6 @@ export function ProjectWorkView({
         ) : (
           <div className="space-y-3 pt-3">
             {(() => {
-              const queuedPositions = getQueuedTasksPositions(visible)
               return visible.map((item) => (
                 <ItemActions
                   key={item.id}
@@ -354,7 +365,7 @@ export function ProjectWorkView({
                 >
                   <TaskItemCard
                     task={item}
-                    queuePosition={queuedPositions.get(item.id)}
+                    managedUpdates
                     showProject={false}
                     showActions={true}
                     returnTo={base}
@@ -365,6 +376,7 @@ export function ProjectWorkView({
           </div>
         )}
       </div>
+      {pager}
     </section>
   )
 }

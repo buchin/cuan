@@ -62,6 +62,7 @@ export interface TaskItemCardProps {
   task: Task
   returnTo?: string
   showProject?: boolean
+  managedUpdates?: boolean
   showActions?: boolean
   variant?: 'card' | 'row'
   className?: string
@@ -77,6 +78,7 @@ export function TaskItemCard({
   returnTo,
   showProject = true,
   showActions = true,
+  managedUpdates = false,
   variant = 'card',
   className,
   queuePosition,
@@ -113,7 +115,7 @@ export function TaskItemCard({
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
 
   useEffect(() => {
-    if (!isRunning) return
+    if (!isRunning || managedUpdates) return
     let active = true
     const interval = setInterval(async () => {
       try {
@@ -138,7 +140,7 @@ export function TaskItemCard({
       active = false
       clearInterval(interval)
     }
-  }, [isRunning, currentTask.id])
+  }, [isRunning, currentTask.id, managedUpdates])
   const agent =
     currentTask.latest_attempt?.agent_name || currentTask.assignee_id || currentTask.assignee
   const statusBadgeClass = workStatusBadgeClass(status)
@@ -554,7 +556,7 @@ export function TaskItemCard({
                 <RefreshCw className={cn('h-3.5 w-3.5 shrink-0', retrying && 'animate-spin')} />
                 <span>{retrying ? t('Retrying...') : t('Retry')}</span>
               </button>
-            ) : isRunning ? (
+            ) : isWorking ? (
               <Link
                 to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}
@@ -587,7 +589,7 @@ export function TaskItemCard({
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                 <span>{t('View result')}</span>
               </Link>
-            ) : (
+            ) : isQueued ? null : (
               <Link
                 to={terminalUrl}
                 state={{ taskReturnTo: currentReturnTo }}

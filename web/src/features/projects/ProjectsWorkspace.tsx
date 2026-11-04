@@ -16,7 +16,7 @@ import { ProjectWorkView } from './ProjectWorkView'
 export function ProjectsWorkspace({
   projects,
   project,
-  tasks,
+  tasks = [],
   taskId,
   sessionId,
   loading,
@@ -30,7 +30,7 @@ export function ProjectsWorkspace({
   settingsContent?: ReactNode
   projects: Project[]
   project?: Project
-  tasks: Task[]
+  tasks?: Task[]
   taskId?: string
   sessionId?: string
   loading: boolean
@@ -79,7 +79,10 @@ export function ProjectsWorkspace({
   }
 
   const handleOpenProjectTerminal = async (projId: string) => {
-    const projTasks = tasks.filter((item) => item.project_id === projId)
+    setSaveError('')
+    let projTasks: Task[]
+    try { projTasks = (await tasksApi.page({ project_id: projId, search: 'Terminal ·', status: 'active', page_size: 100 })).tasks }
+    catch { setSaveError(t('Could not load project terminal. Try again.')); return }
     // 1. Reconnect to an already active dedicated project terminal session if alive
     const activeTerminalTask = projTasks.find(
       (item) =>
@@ -215,9 +218,9 @@ export function ProjectsWorkspace({
             </div>
             </ItemActions>
           ))}
-          {error && !project && (
+          {(error || saveError) && !project && (
             <div role="alert" className="p-3 text-sm">
-              <p>{t(error)}</p>
+              <p>{t(error || saveError)}</p>
               <button className="action-secondary mt-2" onClick={onRetry}>
                 {t('Try again')}
               </button>

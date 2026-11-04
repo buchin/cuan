@@ -51,4 +51,9 @@ func TestLaunchPostgresContract(t *testing.T) {
 	unstartedWorkspaceRecoveryContract(t, store, "launch-project")
 	localInboxAcceptanceContract(t, store, "launch-project")
 	latestProgressAttemptContract(t, store, "launch-project")
+	if _, e := db.ExecContext(ctx, `INSERT INTO projects(id,name,repo_url) VALUES('page-project','Page fixture','')`); e != nil {
+		t.Fatal(e)
+	}
+	taskPageContract(t, store, "page-project")
+	taskPageScalePostgres(t, db, store)
 }

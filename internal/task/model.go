@@ -223,6 +223,7 @@ type UpdateAttemptRequest struct {
 }
 
 type TaskFilter struct {
+	IDs          []string
 	SourceRoomID string
 	ProjectID    string
 	ProjectIDs   []string

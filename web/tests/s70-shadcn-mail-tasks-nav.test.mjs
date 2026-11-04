@@ -66,8 +66,8 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
 
   // Verify Page Header
   assert.ok(
-    taskBoardSource.includes("Here's a list of your tasks for this workspace!"),
-    'TaskBoardView must render shadcn Tasks page subtitle'
+    !taskBoardSource.includes("Here's a list of your tasks for this workspace!") && taskBoardSource.includes('aria-label="Task list"'),
+    'Task list has a clear accessible identity without a redundant subtitle'
   )
 
   // Verify Faceted Filter Buttons
@@ -100,18 +100,9 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
     'Task rows must use the shared action menu rather than opening task details'
   )
 
-  // Verify Pagination Footer
-  assert.ok(
-    taskBoardSource.includes('row(s) selected.') ||
-    taskBoardSource.includes('tasks found.') ||
-    taskBoardSource.includes('Showing'),
-    'TaskBoardView must render pagination selection and count summary'
-  )
-  assert.ok(
-    taskBoardSource.includes('totalPages') &&
-    taskBoardSource.includes('currentPage'),
-    'TaskBoardView must render page indicator'
-  )
+  const pagerSource = fs.readFileSync(new URL('../src/features/tasks/TaskPagePager.tsx', import.meta.url), 'utf8')
+  assert.ok(taskBoardSource.includes('<TaskPagePager') && taskBoardSource.includes('total={total}'), 'Task board delegates server totals to shared pagination')
+  assert.ok(pagerSource.includes("t('Previous page')") && pagerSource.includes("t('Next page')") && pagerSource.includes('disabled={page >= last}'), 'Shared pager supports accessible page navigation with correct limits')
 })
 
 test('3. S70-T3: Shadcn Mail Multi-Pane & Thread Format Layout', () => {

@@ -372,6 +372,22 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 		}
 		progresses, _ = reader.LatestProgresses(ctx, ids)
 	}
+	latestAttempts := map[string]*TaskAttempt{}
+	batchAttempts := false
+	if reader, ok := s.store.(interface {
+		LatestAttempts(context.Context, []string) (map[string]*TaskAttempt, error)
+	}); ok {
+		ids := make([]string, 0, len(tasks))
+		for _, t := range tasks {
+			ids = append(ids, t.ID)
+		}
+		latestAttempts, err = reader.LatestAttempts(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("list latest attempts: %w", err)
+		}
+		batchAttempts = true
+	}
+
 	// Cache project names to avoid duplicate lookups
 	projectNames := make(map[string]string)
 
@@ -401,7 +417,10 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 			}
 		}
 
-		latestAttempt, _ := s.store.GetLatestAttempt(ctx, t.ID)
+		latestAttempt := latestAttempts[t.ID]
+		if !batchAttempts {
+			latestAttempt, _ = s.store.GetLatestAttempt(ctx, t.ID)
+		}
 		items = append(items, &TaskItemResponse{
 			ResultKind:     resultKindForAttempt(classifications[t.ID], latestAttempt),
 			Task:           *t,

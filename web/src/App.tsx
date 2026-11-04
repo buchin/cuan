@@ -172,9 +172,6 @@ export function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsError, setProjectsError] = useState('')
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [tasksLoading, setTasksLoading] = useState(true)
-  const [tasksError, setTasksError] = useState('')
   const [contacts, setContacts] = useState<ChatContact[]>([])
   const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
   const [agentsLoaded, setAgentsLoaded] = useState(false)
@@ -239,13 +236,13 @@ export function App() {
   const refreshProjects = useCallback(async () => {
     try {
       const data = await projectsApi.list()
-      setProjects(data)
+      setProjects(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data)
       setProjectsError('')
-      setActiveProject((previous) =>
-        previous
-          ? data.find((p) => p.id === previous.id) || previous
-          : undefined,
-      )
+      setActiveProject(previous => {
+        if (!previous) return undefined
+        const next = data.find(project => project.id === previous.id) || previous
+        return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+      })
     } catch (err) {
       setProjectsError(
         'Could not load projects. Check your connection and try again.',
@@ -256,50 +253,29 @@ export function App() {
   }, [])
 
   const refreshTasks = useCallback(async () => {
-    try {
-      const data = await tasksApi.list()
-      setTasks(data)
-      setTasksError('')
-    } catch {
-      setTasksError(
-        'Could not load tasks. Check your connection and try again.',
-      )
-    } finally {
-      setTasksLoading(false)
-    }
+    window.dispatchEvent(new Event('cuan:tasks-changed'))
   }, [])
 
   const refreshContacts = useCallback(async () => {
-    const [list, agents] = await Promise.allSettled([
-      chatApi.listContacts(),
-      agentsApi.list(),
-    ])
-    if (list.status === 'fulfilled') {
-      setContacts((previous) =>
-        JSON.stringify(previous) === JSON.stringify(list.value)
-          ? previous
-          : list.value,
-      )
+    try {
+      const list = await chatApi.listContacts()
+      setContacts(previous => JSON.stringify(previous) === JSON.stringify(list) ? previous : list)
       setContactsError('')
-    } else
-      setContactsError(
-        'Could not load contacts. Check your connection and try again.',
-      )
-    if (agents.status === 'fulfilled') {
+    } catch { setContactsError('Could not load contacts. Check your connection and try again.') }
+    finally { setContactsLoading(false) }
+  }, [])
+  const refreshAgents = useCallback(async () => {
+    try {
+      const agents = await agentsApi.list()
       setAgentsError(false)
-      setDirectoryAgents((previous) =>
-        JSON.stringify(previous) === JSON.stringify(agents.value)
-          ? previous
-          : agents.value,
-      )
-    } else setAgentsError(true)
-    setAgentsLoaded(true)
-    setContactsLoading(false)
+      setDirectoryAgents(previous => JSON.stringify(previous) === JSON.stringify(agents) ? previous : agents)
+    } catch { setAgentsError(true) }
+    finally { setAgentsLoaded(true) }
   }, [])
 
   useEffect(() => {
     if (isAuthenticated) {
-      Promise.allSettled([refreshProjects(), refreshTasks(), refreshContacts()])
+      Promise.allSettled([refreshProjects(), refreshContacts(), refreshAgents()])
       let refreshing = false
       const refresh = async () => {
         if (document.hidden || refreshing) return
@@ -311,20 +287,22 @@ export function App() {
         }
       }
       const interval = setInterval(() => void refresh(), 5000)
+      const agentInterval = setInterval(() => { if (!document.hidden) void refreshAgents() }, 60000)
       document.addEventListener('visibilitychange', refresh)
       return () => {
         clearInterval(interval)
+        clearInterval(agentInterval)
         document.removeEventListener('visibilitychange', refresh)
       }
     }
-  }, [isAuthenticated, refreshProjects, refreshTasks, refreshContacts])
+  }, [isAuthenticated, refreshProjects, refreshContacts, refreshAgents])
 
   // Task/session completion must become visible without reopening the list.
   useEffect(() => {
     if (
       !isAuthenticated ||
       isTerminalSession ||
-      !['tasks', 'projects'].includes(currentTab)
+      currentTab !== 'projects'
     )
       return
     let refreshing = false
@@ -337,7 +315,7 @@ export function App() {
         refreshing = false
       }
     }
-    if (!tasksLoading) void refresh()
+    void refresh()
     const timer = setInterval(() => void refresh(), 5000)
     const resume = () => void refresh()
     window.addEventListener('focus', resume)
@@ -390,11 +368,6 @@ export function App() {
       return
     }
     if (!isAuthenticated) return
-    const matched = tasks.find((task) => task.id === activeDetailTaskId)
-    if (matched) {
-      setSelectedTask(matched)
-      setIsSidePeekOpen(true)
-    } else
       tasksApi
         .get(activeDetailTaskId)
         .then((task) => {
@@ -413,7 +386,7 @@ export function App() {
     return () => {
       current = false
     }
-  }, [activeDetailTaskId, tasks, isAuthenticated, rootSegment])
+  }, [activeDetailTaskId, isAuthenticated, rootSegment])
 
   // Deep Link Synchronization: /projects/:projectId
   useEffect(() => {
@@ -895,7 +868,7 @@ export function App() {
                   directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
                     ? 'ready' : 'needed'
                 }
-                firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+                firstGoal={!projectsLoading && !projectsError && projects.every(project => project.task_progress?.total === 0)}
                 hasProject={
                   projectsLoading || !!projectsError ||
                   projects.some((p) => p.id !== 'default' || !!p.repo_url)
@@ -945,7 +918,7 @@ export function App() {
                 directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
                   ? 'ready' : 'needed'
               }
-              firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+              firstGoal={!projectsLoading && !projectsError && projects.every(project => project.task_progress?.total === 0)}
               hasProject={
                 projectsLoading || !!projectsError ||
                 projects.some((p) => p.id !== 'default' || !!p.repo_url)
@@ -990,7 +963,7 @@ export function App() {
                 directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
                   ? 'ready' : 'needed'
               }
-              firstGoal={!tasksLoading && !tasksError && tasks.length === 0}
+              firstGoal={!projectsLoading && !projectsError && projects.every(project => project.task_progress?.total === 0)}
               hasProject={
                 projectsLoading || !!projectsError ||
                 projects.some((p) => p.id !== 'default' || !!p.repo_url)
@@ -1025,10 +998,6 @@ export function App() {
                 </p>
               )}
               <TaskBoardView
-                tasks={tasks}
-                loading={tasksLoading}
-                error={tasksError}
-                onRetry={() => void refreshTasks()}
                 projects={projects}
                 selectedStatusFilter={selectedTaskStatus}
                 onStatusFilterChange={setSelectedTaskStatus}
@@ -1073,7 +1042,6 @@ export function App() {
                   onNewProject={() => openNew('project')}
                   projects={projects}
                   project={activeProject}
-                  tasks={tasks}
                   loading={projectsLoading}
                   error={projectsError}
                   onRetry={() => void refreshProjects()}
@@ -1096,15 +1064,14 @@ export function App() {
                   onArchiveProject={handleArchiveProject}
                   onNewTask={() => openNew('task')}
                   project={activeProject}
-                  tasks={tasks}
                   taskId={
                     pathSegments[2] === 'tasks' ? pathSegments[3] : undefined
                   }
                   sessionId={
                     pathSegments[4] === 'sessions' ? pathSegments[5] : undefined
                   }
-                  loading={tasksLoading}
-                  error={tasksError}
+                  loading={projectsLoading}
+                  error={projectsError}
                   onRetry={() => void refreshTasks()}
                 />
               )
@@ -1112,9 +1079,8 @@ export function App() {
               <ProjectsWorkspace
                   onNewProject={() => openNew('project')}
                 projects={projects}
-                tasks={tasks}
-                loading={projectsLoading || tasksLoading}
-                error={projectsError || tasksError}
+                loading={projectsLoading}
+                error={projectsError}
                 onRetry={() => {
                   void refreshProjects()
                   void refreshTasks()

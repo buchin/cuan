@@ -176,9 +176,10 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR LOWER(title) LIKE '%' || LOWER($3) || '%' OR LOWER(instructions) LIKE '%' || LOWER($3) || '%')
 		AND ($4='' OR source_room_id::text=$4)
+ AND ($5::text[] IS NULL OR id=ANY($5::text[]))
  ORDER BY created_at DESC
 	`
-	rows, err := s.db.QueryContext(ctx, query, filter.ProjectID, filter.Status, filter.Search, filter.SourceRoomID)
+	rows, err := s.db.QueryContext(ctx, query, filter.ProjectID, filter.Status, filter.Search, filter.SourceRoomID, filter.IDs)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
@@ -222,7 +223,11 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 	}
 
 	if len(result) > 0 {
-		tpRows, tpErr := s.db.QueryContext(ctx, `SELECT task_id, project_id FROM task_projects ORDER BY created_at ASC`)
+		ids := make([]string, 0, len(result))
+		for _, t := range result {
+			ids = append(ids, t.ID)
+		}
+		tpRows, tpErr := s.db.QueryContext(ctx, `SELECT task_id, project_id FROM task_projects WHERE task_id=ANY($1::text[]) ORDER BY created_at ASC`, ids)
 		if tpErr == nil {
 			defer tpRows.Close()
 			pidsMap := make(map[string][]string)

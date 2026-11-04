@@ -681,3 +681,37 @@ A real scoped server regression verifies progress, rejects incomplete completion
 records a report on the correct attempt, preserves instructions/doing until
 reconciliation and reaches Review rather than bypassing coordinator acceptance.
 No production report was injected to test this behavior.
+
+## Task and shared-page performance
+
+User approved server pagination/filter/sort and improving other pages. Production
+baseline7178510 cold-context observations showed one global task-list request on
+each of Studio, Inbox, Tasks, Projects, Contacts and Settings. Completed JSON bytes
+in the sampled windows ranged roughly1.18–1.56MB. The first incomplete capture
+missed still-pending requests; the corrected capture records initiated requests
+separately and excludes SSE. Private baseline: `page-performance-before-v2.json`.
+
+Default Tasks and Project activity now use bounded server pages with full-scope
+counts and compact previews. Memory/PostgreSQL share pagination/group contracts;
+latest attempts are batched, and project associations load only returned IDs.
+Tests cover74 tasks across pages, stale page clamp, literal wildcard search,
+filter/sort/count behavior, answered/canceled/failed attempts and preserved Done.
+A real PostgreSQL7000-task run returned25 items, total7000,21053-byte JSON in
+about80ms in the disposable local environment.1000-task service regression proves
+one batch read and zero per-task latest-attempt reads.
+
+App no longer eagerly loads all tasks, agent-directory refresh is separate from
+contact/unread refresh, and same-identity concurrent GETs share their request.
+Writes and caller-controlled cancellation are not coalesced; changed identity
+never shares a read or loses its token due to an older401. Stalled shared reads
+release their entry. Task cards under paged lists use parent refresh; hidden
+alternate layouts are not mounted. Project extension data remains on-demand and
+retains its prior full-project contract. Queued cards do not offer a live terminal
+or a duplicate session start, and partial pages do not invent queue ranks.
+
+The actual build fixture verifies390/1440 light/dark page/search behavior and
+zero per-card polling, plus zero task-list requests from five unrelated routes.
+Task/Project screenshots were rendered and directly inspected. Existing row-menu
+copy, confirmation, delete/cancel and keyboard checks still pass after the paging
+fixture contract update. Whole frontend gate currently passes429 tests. These
+changes do not establish autonomous audit acceptance or final backlog completion.
