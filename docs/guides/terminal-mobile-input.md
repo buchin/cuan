@@ -115,3 +115,17 @@ overflow recovery above, rather than silently corrupting terminal output.
 socket and WebSocket. Browser evidence checks actual xterm acknowledgements at
 390px and 1440px. This limits rendering backlog; it does not implement lossless
 soft reconnect or prove the physical Android keyboard issue resolved.
+
+## Shared composer and automatic accessory keys
+
+Inbox and terminal use the same `ComposerInput` and textarea sizing function.
+The terminal composer keeps its own PTY send, attachment, slash-command and
+draft behavior, with one compact row instead of a full-width input above buttons.
+
+On touch mobile screens, terminal accessory keys appear when an editable input
+inside the terminal is focused and the visible viewport shrinks substantially.
+They disappear when the keyboard closes or focus leaves the terminal. A hardware
+keyboard alone does not show the bar. There is no separate keyboard-toggle button.
+The browser fixture tests viewport shrink/restore with a preserved draft; actual
+OS keyboard behavior still needs device verification, particularly after rotation
+or when a terminal is mounted with the keyboard already open.

@@ -1,3 +1,4 @@
+import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { workStatus } from '../tasks/task-ui'
@@ -671,20 +672,7 @@ export function InboxView({
 
   // Auto-resize textarea
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
-    el.style.height = 'auto'
-    const minH = window.innerWidth < 640 ? 36 : 38
-    const scrollH = el.value.length ? el.scrollHeight : minH
-    const cap = Math.max(
-      minH,
-      Math.min(
-        140,
-        Math.max(120, (window.visualViewport?.height || window.innerHeight) * 0.35),
-      ),
-    )
-    const newH = Math.min(Math.max(scrollH, minH), cap)
-    el.style.height = newH + 'px'
-    el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
-    setIsMultiline(newH > minH + 4)
+    setIsMultiline(resizeComposerInput(el))
   }
 
   useEffect(() => {
@@ -2079,7 +2067,7 @@ export function InboxView({
                     compact
                     disableImages={activeContact.type === 'agent' && !contactSupportsVision}
                   />
-                  <textarea
+                  <ComposerInput
                     ref={textareaRef}
                     data-primary-composer
                     aria-label={t('Message')}
@@ -2099,7 +2087,6 @@ export function InboxView({
                         ? t('Internal message…')
                         : t('Write a reply…')
                     }
-                    className="wa-input min-w-0 flex-1 min-h-[36px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2 sm:py-2 text-[15px] sm:text-sm leading-5 sm:leading-snug pl-1.5 pr-2 sm:pl-2 sm:pr-2.5"
                   />
 
                   {activeContact.type === 'customer' && (

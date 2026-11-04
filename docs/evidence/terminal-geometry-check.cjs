@@ -79,6 +79,25 @@ const accounts=[{id:'signed',label:'Personal account',provider:'agy',credentials
   await page.screenshot({path:out+'/task-terminal-'+width+'.png'});await drawer.getByRole('button',{name:'Close drawer',exact:true}).click()
   await card.getByRole('button',{name:'Detail',exact:true}).click();await drawer.waitFor();assert.equal(await drawer.locator('.xterm-screen').count(),0);await drawer.getByRole('button',{name:'Close drawer',exact:true}).click()
  }
+ for(const width of [390,1440]){
+  await page.setViewportSize({width,height:900});await page.goto('http://127.0.0.1:4182/tasks/msg_reply/sessions/attempt');
+  const composer=page.locator('#terminal_composer_input');await composer.waitFor();await composer.scrollIntoViewIfNeeded();
+  const box=await composer.boundingBox();const attachment=page.getByRole('button',{name:'Add attachment',exact:true});const attachBox=await attachment.boundingBox();
+  assert(Math.abs((box.y+box.height/2)-(attachBox.y+attachBox.height/2))<8,'input and attachment share one compact row');
+  assert(box.height<=44,'empty terminal composer matches Inbox scale');
+  await composer.fill('Inspect current progress');await page.screenshot({path:out+'/terminal-composer-'+width+'.png'});
+  if(width===390){
+    const keys=page.getByRole('toolbar',{name:'Terminal Mobile Toolbar'});
+    assert.equal(await keys.count(),0,'accessory keys stay hidden without software keyboard');
+    await composer.focus();await page.setViewportSize({width,height:500});await keys.waitFor();
+    assert.equal(await page.getByRole('button',{name:'Toggle terminal keys',exact:true}).count(),0);
+    assert.equal(await composer.inputValue(),'Inspect current progress');
+    await page.screenshot({path:out+'/terminal-composer-keyboard-390.png'});
+    await page.setViewportSize({width,height:900});await keys.waitFor({state:'detached'});
+  }
+
+  await composer.fill('');
+ }
  assert(terminalInput.length>=2,'Terminal must transmit real stdin frames in the fixture')
  assert.deepEqual(errors,[]);fs.writeFileSync(out+'/result.json',JSON.stringify({passed:true,viewports:[390,1440],catalogCalls},null,2));console.log('PASS terminal grid stability, IME, streaming output and reconnect: '+out)
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{await browser?.close();server?.close()})

@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Keyboard,
   MoreHorizontal,
   WifiOff,
   Ban,
@@ -51,6 +50,7 @@ export function TaskTerminal({
   const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null)
+  const terminalRoot = useRef<HTMLElement>(null)
   const term = useRef<Terminal | null>(null)
   const fitTerminalRef = useRef<() => void>(() => {})
   const socket = useRef<WebSocket | null>(null)
@@ -324,23 +324,33 @@ export function TaskTerminal({
     find(1)
   }, [search, find])
 
-  const showKeyboard = useCallback(() => {
-    setIsMobileKeyboardActive(true)
-    const ws = socket.current
-    const terminal = term.current
-    if (ws?.readyState !== WebSocket.OPEN || !terminal) return
-    if (!interactive.current) {
-      terminal.options.disableStdin = false
-      interactive.current = true
-      setInput(true)
-      ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
+  useEffect(() => {
+    const viewport = window.visualViewport
+    let baseline = Math.max(window.innerHeight, viewport?.height || 0)
+    const update = () => {
+      const height = viewport?.height || window.innerHeight
+      baseline = Math.max(baseline, height)
+      const active = document.activeElement
+      const editing = active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement || (active instanceof HTMLElement && active.isContentEditable)
+      const mobile = navigator.maxTouchPoints > 0 && window.matchMedia('(max-width: 639px)').matches
+      const open = mobile && editing && Boolean(active && terminalRoot.current?.contains(active)) &&
+        (!viewport || viewport.scale === 1) && baseline - height > Math.max(120, baseline * 0.2)
+      setIsMobileKeyboardActive(Boolean(open))
     }
-    terminal.focus()
-  }, [])
-
-  const hideMobileKeyboard = useCallback(() => {
-    setIsMobileKeyboardActive(false)
-    term.current?.blur()
+    const rotate = () => { baseline = viewport?.height || window.innerHeight; update() }
+    update()
+    viewport?.addEventListener('resize', update)
+    window.addEventListener('resize', update)
+    window.screen.orientation?.addEventListener('change', rotate)
+    document.addEventListener('focusin', update)
+    document.addEventListener('focusout', update)
+    return () => {
+      viewport?.removeEventListener('resize', update)
+      window.removeEventListener('resize', update)
+      window.screen.orientation?.removeEventListener('change', rotate)
+      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusout', update)
+    }
   }, [])
 
   // Ref to hold connectSocket so reconnect and event listeners can call it
@@ -1165,16 +1175,6 @@ export function TaskTerminal({
           )}
         </button>
 
-        {/* Mobile keyboard trigger - Active without legacy liveId gate */}
-        <button
-          type="button"
-          className="icon-action sm:hidden"
-          aria-label={t('Show keyboard')}
-          title={t('Show keyboard')}
-          onClick={showKeyboard}
-        >
-          <Keyboard className="h-4 w-4" />
-        </button>
       </div>
 
       {/* Details dropdown for extra tools */}
@@ -1295,6 +1295,7 @@ export function TaskTerminal({
 
   return (
     <section
+      ref={terminalRoot}
       aria-label={t('Session terminal')}
       className={
         isFullscreen
@@ -1423,8 +1424,6 @@ export function TaskTerminal({
           onStop={handleStop}
           onClearScreen={handleClear}
           onInterrupt={handleInterrupt}
-          onToggleMobileKbd={() => setIsMobileKeyboardActive((prev) => !prev)}
-          isMobileKbdActive={isMobileKeyboardActive}
           disabled={false}
           className={
             isMobileKeyboardActive
@@ -1435,14 +1434,12 @@ export function TaskTerminal({
       )}
 
       {/* Mobile Accessory Keyboard Bar (Blink & Developer style) - Conditional on active focus/toggle with safe-area padding */}
-      {liveId && isMobileKeyboardActive && (
+      {isMobileKeyboardActive && (
         <MobileTerminalKeyboard
           onInject={sendKey}
           onCopy={handleCopy}
           onPaste={handlePaste}
           onClear={handleClear}
-          onToggleKeyboard={showKeyboard}
-          onClose={hideMobileKeyboard}
           disabled={false}
           compact
           className="pb-[max(0.75rem,env(safe-area-inset-bottom))]"

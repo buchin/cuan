@@ -1,3 +1,4 @@
+import { ComposerInput, resizeComposerInput } from '../../../components/ui/ComposerInput'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Camera,
@@ -11,7 +12,6 @@ import {
   GitBranch,
   Trash2,
   Ban,
-  Keyboard,
   Sparkles,
   Loader2,
   LoaderCircle,
@@ -34,8 +34,6 @@ export type TerminalComposerProps = {
   onStop?: () => void
   onClearScreen: () => void
   onInterrupt: () => void
-  onToggleMobileKbd?: () => void
-  isMobileKbdActive?: boolean
   showQuickActions?: boolean
   disabled?: boolean
   className?: string
@@ -61,8 +59,6 @@ export function TerminalComposer({
   onStop,
   onClearScreen,
   onInterrupt,
-  onToggleMobileKbd,
-  isMobileKbdActive = false,
   showQuickActions = false,
   disabled = false,
   className = '',
@@ -126,19 +122,7 @@ export function TerminalComposer({
 
   // Auto-resize textarea to match Inbox experience (min 38-44px, max 140px, auto overflow)
   const autoResizeTextarea = (el: HTMLTextAreaElement) => {
-    el.style.height = 'auto'
-    const scrollH = el.scrollHeight
-    const minH = window.innerWidth < 640 ? 44 : 38
-    const cap = Math.max(
-      minH,
-      Math.min(
-        140,
-        Math.max(120, (window.visualViewport?.height || window.innerHeight) * 0.35),
-      ),
-    )
-    const newH = Math.min(Math.max(scrollH, minH), cap)
-    el.style.height = newH + 'px'
-    el.style.overflowY = scrollH > cap ? 'auto' : 'hidden'
+    resizeComposerInput(el)
   }
 
   // Restore draft prompt from localStorage on mount
@@ -672,23 +656,7 @@ export function TerminalComposer({
           aria-label="Terminal Quick Action Chips"
           className="flex items-center gap-1.5 overflow-x-auto select-none py-0.5 px-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         >
-          {onToggleMobileKbd && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={onToggleMobileKbd}
-              className={`inline-flex min-h-[44px] min-w-[44px] sm:min-h-7 sm:min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-mono font-semibold transition-colors disabled:opacity-40 cursor-pointer ${
-                isMobileKbdActive
-                  ? 'border-emerald-500 bg-emerald-600 text-white shadow-xs'
-                  : 'border-neutral-700 bg-neutral-800 text-emerald-400 hover:bg-neutral-700 active:bg-neutral-600'
-              }`}
-              title="Toggle extra virtual keys drawer (ESC, Arrows, CTRL, ALT)"
-              aria-label="Toggle extra virtual keys drawer"
-            >
-              <Keyboard className="h-3.5 w-3.5" />
-              <span>Kbd</span>
-            </button>
-          )}
+
 
           <button
             type="button"
@@ -802,7 +770,7 @@ export function TerminalComposer({
       <div
         role="group"
         aria-label="Terminal input composer"
-        className="wa-input-capsule flex flex-wrap sm:flex-nowrap min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
+        className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
       >
         {/* Attachment Picker Button (WCAG >= 44x44px touch target on mobile) */}
         <button
@@ -821,8 +789,8 @@ export function TerminalComposer({
         </button>
 
         {/* Multiline Command / Text Input (Auto-expanding like Inbox with min-h-[44px] on mobile) */}
-        <div className="relative order-first w-full flex-none min-w-0 flex items-center sm:order-none sm:w-auto sm:flex-1">
-          <textarea
+        <div className="relative min-w-0 flex flex-1 items-center">
+          <ComposerInput
             ref={textareaRef}
             rows={1}
             name="terminal_query"
@@ -845,7 +813,7 @@ export function TerminalComposer({
             data-form-type="other"
             data-lpignore="true"
             data-1p-ignore="true"
-            className="wa-input w-full min-w-0 min-h-[44px] sm:min-h-[38px] max-h-[140px] resize-none overflow-hidden py-2.5 px-3 pr-8 text-base sm:text-sm font-mono leading-relaxed"
+            className="w-full pr-8"
           />
           {text && (
             <button
@@ -866,24 +834,6 @@ export function TerminalComposer({
             </button>
           )}
         </div>
-
-        {/* Mobile Terminal Keys Toggle (Right side before send button; hidden when typing to give input maximum width) */}
-        {onToggleMobileKbd && !text.trim() && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onToggleMobileKbd}
-            className={`sm:hidden min-h-[44px] min-w-[44px] h-11 w-11 flex items-center justify-center rounded-full transition-all shrink-0 mb-0.5 cursor-pointer ${
-              isMobileKbdActive
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'text-neutral-400 hover:text-emerald-400 active:bg-neutral-800'
-            }`}
-            title="Toggle terminal keys (ESC, TAB, Arrows)"
-            aria-label="Toggle terminal keys"
-          >
-            <Keyboard className="h-5 w-5" />
-          </button>
-        )}
 
         {/* Voice Dictation (Speech-to-Text) Button (Shown when not typing; replaces send on empty text) */}
         {speechSupported && !text.trim() && (

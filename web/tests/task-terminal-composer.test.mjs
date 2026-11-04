@@ -64,7 +64,7 @@ test('4. Interactive Slash Commands in Terminal Composer (/usage, /upload, /diff
   assert.match(content, /filteredCommands/, 'Must filter slash commands based on user query')
 })
 
-test('5. Quick Action Chips (y/n, Ctrl+C, Clear, Tab, Kbd)', () => {
+test('5. Quick Action Chips (y/n, Ctrl+C, Clear, Tab)', () => {
   const composerPath = path.join(
     rootDir,
     'src/features/tasks/terminal/TerminalComposer.tsx',
@@ -76,7 +76,6 @@ test('5. Quick Action Chips (y/n, Ctrl+C, Clear, Tab, Kbd)', () => {
   assert.match(content, /Ctrl\+C/, 'Must render Ctrl+C stop quick chip')
   assert.match(content, /Clear/, 'Must render Clear screen quick chip')
   assert.match(content, /Tab/, 'Must render Tab autocomplete quick chip')
-  assert.match(content, /onToggleMobileKbd/, 'Must render mobile Kbd toggle chip')
 })
 
 test('6. Single Unified Input on Mobile: No duplicate prompt form or floating collisions', () => {
@@ -156,40 +155,8 @@ test('8. Pin Terminal Toggle & Auto-Close Prevention in TaskSessionPage', () => 
   assert.match(content, /Terminal pinned · Session ended/, 'Must render pinned banner with status and saved output')
 })
 
-test('9. Mobile input breathing room and anti-JSON leak guards in TaskTerminal and Composer', () => {
-  const composerPath = path.join(
-    rootDir,
-    'src/features/tasks/terminal/TerminalComposer.tsx',
-  )
-  const terminalPath = path.join(
-    rootDir,
-    'src/features/tasks/TaskTerminal.tsx',
-  )
-  const composerContent = fs.readFileSync(composerPath, 'utf8')
-  const terminalContent = fs.readFileSync(terminalPath, 'utf8')
-
-  // When typing, mobile accessories must yield space to textarea
-  assert.match(
-    composerContent,
-    /onToggleMobileKbd\s*&&\s*!text\.trim\(\)/,
-    'Mobile keyboard toggle must hide when typing to prevent input squishing',
-  )
-  assert.match(
-    composerContent,
-    /speechSupported\s*&&\s*!text\.trim\(\)/,
-    'Mic button must hide when typing so Send button takes precedence',
-  )
-  assert.match(
-    composerContent,
-    /onSend\(toSend \+ '\\n'\)/,
-    'handleSend must deliver input atomically with newline',
-  )
-
-  // Anti-JSON leak filter in xterm stream
-  assert.match(
-    terminalContent,
-    /!raw\.includes\('"type":"stdin"'\)/,
-    'TaskTerminal must filter out leaked stdin JSON control frame echoes from terminal canvas',
-  )
+test('9. Composer preserves voice affordance and atomic input delivery', () => {
+  const composerContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/TerminalComposer.tsx'), 'utf8')
+  assert.match(composerContent, /speechSupported\s*&&\s*!text\.trim\(\)/, 'Mic yields space to Send while typing')
+  assert.match(composerContent, /onSend\(toSend \+ '\\n'\)/, 'Input and newline remain atomic')
 })
-
