@@ -646,3 +646,20 @@ MCP tool discovery and direct calls, unchanged host config, read-only inspection
 normal authenticated owner sending and scoped task reporting. No production test
 messages were sent. Original audit acceptance and full backlog completion remain
 unproven; the existing posted report is not treated as owner approval here.
+
+## Apply must retain exact-attempt continuation limits
+
+The previous apply guard read only original task instructions; runner completion
+already merged those with the exact attempt launch revision. Apply now uses that
+same task-service policy in manual/internal/automatic merge and runtime deploy.
+A newer unstarted launch cannot loosen restrictions on the completed result.
+Storage failures stop publication; manual Apply returns retryable503 instead of
+claiming permission. Regressions cover no-push/no-deploy continuations with newer
+unstarted launches, original scope restrictions, unavailable policy storage,
+unchanged denied task status/note and unrestricted merge compatibility.
+
+The original audit's approved criteria request git history, live-release comparison,
+unmerged changes and a concise report. No test requirement appears in that task
+scope. Its older verifier failure references removed packages. A scope-aware
+verification solution remains outstanding; no required test or production task
+category was manually waived/changed in this follow-up.

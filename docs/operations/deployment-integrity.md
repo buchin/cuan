@@ -115,3 +115,10 @@ the current task's deployment prohibition and project binding. These restriction
 can narrow project defaults; they never grant permission or verify a release.
 
 Regression check: `go test ./internal/server -run 'Test(HandleApplyTask|ApplyTask)'`.
+
+Apply and runtime deployment also read publication restrictions from the exact
+latest attempt's launch revision, using the same policy as runner completion.
+A newer unstarted launch does not replace the limits attached to the existing
+result. If the attempt policy cannot be read, manual Apply returns503 and all
+publication paths stop before a provider action. Initial task instructions still
+apply when no execution attempt exists.

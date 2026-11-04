@@ -185,3 +185,111 @@ func TestApplyTaskRejectsChangedProjectBeforePublication(t *testing.T) {
 	}
 	s.triggerAutoDeploy(ctx, "stale", created.ID)
 }
+
+func TestApplyTaskUsesExactAttemptContinuationLimits(t *testing.T) {
+	for _, revision := range []string{"Do not push this result.", "Do not deploy. Verify local evidence only."} {
+		t.Run(revision, func(t *testing.T) {
+			ctx := context.Background()
+			store := task.NewMemoryStore()
+			svc := task.NewService(store, nil)
+			created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "project", Title: "Implement scoped feature", Instructions: "Implement feature and report evidence"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC().Add(-time.Minute)
+			launch := task.TaskLaunch{TaskID: created.ID, ProjectID: "project", RequestID: "91000000-0000-4000-8000-000000000011", OwnerID: "owner", RoomID: "room", SourceRequestID: "approval", AgentID: "agent", Revision: revision, InstructionsHash: task.LaunchInstructionsHash(created.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
+			if _, err := svc.SaveLaunch(ctx, launch); err != nil {
+				t.Fatal(err)
+			}
+			if job, err := svc.ClaimLaunch(ctx, time.Now().UTC(), "fixture", task.LaunchID(created.ID, launch.RequestID)); err != nil || job == nil {
+				t.Fatalf("claim launch: %v", err)
+			}
+			if _, err := svc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RequestID: launch.RequestID, AgentName: "agent"}); err != nil {
+				t.Fatal(err)
+			}
+			resultAttempt, err := store.GetLatestAttempt(ctx, created.ID)
+			if err != nil || resultAttempt == nil {
+				t.Fatal("missing result attempt", err)
+			}
+			resultAttempt.Status = task.AttemptStatusSucceeded
+			if err := store.UpdateAttempt(ctx, resultAttempt); err != nil {
+				t.Fatal(err)
+			}
+			// Newer intent without an attempt must not loosen limits on this result.
+			newer := launch
+			newer.RequestID = "91000000-0000-4000-8000-000000000012"
+			newer.Revision = "Continue approved work"
+			newer.CreatedAt = now.Add(time.Second)
+			newer.AvailableAt = newer.CreatedAt
+			if _, err := svc.SaveLaunch(ctx, newer); err != nil {
+				t.Fatal(err)
+			}
+			status, branch, note := "review", "task/scoped", "Local checks passed."
+			if _, err := svc.UpdateTask(ctx, created.ID, "runner", task.UpdateTaskRequest{Status: &status, BranchName: &branch, CompleteNote: &note}); err != nil {
+				t.Fatal(err)
+			}
+			s := &Server{taskSvc: svc}
+			detail, err := svc.GetTaskDetail(ctx, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy, err := s.taskPublicationPolicy(ctx, detail)
+			if err != nil || (!policy.DenyPush && !policy.DenyDeploy) {
+				t.Fatalf("lost exact-attempt limits: %+v %v", policy, err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/tasks/"+created.ID+"/apply", nil)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", created.ID)
+			req = req.WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+			rec := httptest.NewRecorder()
+			s.handleApplyTask(rec, req)
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("continuation bypass: %d %s", rec.Code, rec.Body.String())
+			}
+			if _, err := s.applyTaskInternal(ctx, created.ID, "project", created.Title, "", branch, 0); err == nil {
+				t.Fatal("internal merge bypassed continuation")
+			}
+			s.autoApplyAndDeployTask(ctx, created.ID, "project")
+			s.triggerAutoDeploy(ctx, "project", created.ID)
+			after, err := svc.GetTaskDetail(ctx, created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Status != status || after.CompleteNote != note {
+				t.Fatal("refused apply changed task")
+			}
+		})
+	}
+}
+
+type unavailableApplyPolicyStore struct{ *task.MemoryStore }
+
+func (s *unavailableApplyPolicyStore) LaunchForAttempt(context.Context, string) (*task.TaskLaunch, error) {
+	return nil, fmt.Errorf("fixture policy storage unavailable")
+}
+func TestApplyTaskFailsClosedWhenAttemptPolicyUnavailable(t *testing.T) {
+	ctx := context.Background()
+	svc := task.NewService(&unavailableApplyPolicyStore{task.NewMemoryStore()}, nil)
+	created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: "project", Title: "Work", Instructions: "Implement feature"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{AgentName: "agent"}); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{taskSvc: svc}
+	req := httptest.NewRequest(http.MethodPost, "/tasks/"+created.ID+"/apply", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", created.ID)
+	req = req.WithContext(context.WithValue(ctx, chi.RouteCtxKey, rctx))
+	rec := httptest.NewRecorder()
+	s.handleApplyTask(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected retryable failure: %d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := s.applyTaskInternal(ctx, created.ID, "project", "Work", "", "branch", 0); err == nil {
+		t.Fatal("lookup error permitted merge")
+	}
+	s.autoApplyAndDeployTask(ctx, created.ID, "project")
+	s.triggerAutoDeploy(ctx, "project", created.ID)
+}

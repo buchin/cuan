@@ -36,7 +36,12 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := taskApplyPermission(taskDetail.Instructions); err != nil {
+	policy, err := s.taskPublicationPolicy(r.Context(), taskDetail)
+	if err != nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "Task publication limits could not be verified; no changes were applied")
+		return
+	}
+	if err := taskApplyPermission(policy); err != nil {
 		respondJSONError(w, http.StatusForbidden, err.Error())
 		return
 	}
@@ -110,7 +115,11 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 	if detail.ProjectID != projectID {
 		return nil, errors.New("task project changed; reload before applying")
 	}
-	if err := taskApplyPermission(detail.Instructions); err != nil {
+	policy, err := s.taskPublicationPolicy(ctx, detail)
+	if err != nil {
+		return nil, err
+	}
+	if err := taskApplyPermission(policy); err != nil {
 		return nil, err
 	}
 	commitTitle := fmt.Sprintf("Apply Task %s: %s", taskID, title)
@@ -125,8 +134,16 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 	return nil, errors.New("neither pull request nor task branch is available")
 }
 
-func taskApplyPermission(instructions string) error {
-	policy := executionpolicy.FromInstructions(instructions)
+// The exact latest attempt supplies continuation restrictions. An unrelated
+// newer queued launch must neither remove nor add limits to the result applied.
+func (s *Server) taskPublicationPolicy(ctx context.Context, detail *task.TaskDetailResponse) (executionpolicy.PublicationPolicy, error) {
+	if detail.LatestAttempt == nil {
+		return executionpolicy.FromInstructions(detail.Instructions), nil
+	}
+	return s.taskSvc.AttemptPublicationPolicy(ctx, detail.ID, detail.LatestAttempt.ID)
+}
+
+func taskApplyPermission(policy executionpolicy.PublicationPolicy) error {
 	if policy.DenyPush {
 		return errors.New("Scope task melarang publikasi perubahan ke repository; perubahan belum diterapkan")
 	}
@@ -140,7 +157,11 @@ func taskApplyPermission(instructions string) error {
 func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string) {
 	// A project default never overrides the approved task's publication limits.
 	detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
-	if err != nil || detail.ProjectID != projectID || executionpolicy.FromInstructions(detail.Instructions).DenyDeploy {
+	if err != nil || detail.ProjectID != projectID {
+		return
+	}
+	policy, err := s.taskPublicationPolicy(ctx, detail)
+	if err != nil || policy.DenyDeploy {
 		return
 	}
 	log.Printf("[AutoDeploy] Automated live deployment triggered for project %s (task %s)", projectID, taskID)
@@ -175,7 +196,8 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskDetail == nil {
 		return
 	}
-	if taskApplyPermission(taskDetail.Instructions) != nil {
+	policy, err := s.taskPublicationPolicy(ctx, taskDetail)
+	if err != nil || taskApplyPermission(policy) != nil {
 		return
 	}
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
