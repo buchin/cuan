@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 //go:embed agents_guidance.md
@@ -89,14 +90,19 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 				sb.WriteString(fmt.Sprintf("- [ ] %s\n", trimmed))
 			}
 		}
-		sb.WriteString("\n=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===\n")
+	}
+	if !strings.Contains(sb.String(), "=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===") {
+		sb.WriteString("\n\n=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===\n")
 		sb.WriteString("Before concluding, you MUST state your verification evidence (exact test outputs, commit SHA, and verified behavior).\n")
-		sb.WriteString("Map your verification evidence directly to the criteria above.\n")
+		sb.WriteString("Map verification to the original approved requirements, including any supplied acceptance checklist. An empty checklist does not waive verification or reporting.\n")
 		sb.WriteString("For investigation/audit tasks, provide factual findings, commit SHAs, or diagnostic outputs.\n")
 		sb.WriteString("If using the cuan CLI in workspace, report completion using:\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")
 		sb.WriteString("Or provide itemized criteria verification using repeatable flags:\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --summary \"<summary>\" --dod-item \"<original criterion>\" --dod-evidence \"<observed result>\"\n")
+		sb.WriteString("Save a factual checkpoint before broad investigation, before slow or risky steps, and at least every five minutes during substantial work:\n")
+		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state progress --progress \"<observed findings, checks, saved files, uncertainty and next concrete step>\"\n")
+		sb.WriteString("A progress report is not completion. Continue the approved task afterward. Keep checkpoints concise and do not report guesses as findings.\n")
 	}
 
 	if agentPrompt != "" {
@@ -111,6 +117,16 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 	}
 
 	return sb.String()
+}
+
+// ExecutionBudget states the runner's actual deadline, not a new model-selected
+// time limit or permission to skip required verification.
+func ExecutionBudget(deadline, now time.Time) string {
+	remaining := deadline.Sub(now)
+	if remaining < 0 {
+		remaining = 0
+	}
+	return fmt.Sprintf("\n\n=== EXECUTION TIME BUDGET ===\nExecution deadline: %s. Remaining at dispatch: %s. This is the runner's existing deadline; do not extend it or treat it as task acceptance.\nFor an investigation, establish a reproducible failure or a specific falsifiable hypothesis early. By halfway through the remaining time, save a checkpoint with concrete evidence and the next decisive check. If broad searches add no evidence, narrow or change the hypothesis instead of repeatedly scanning the repository. Preserve existing work and reconcile prior effects.\nReserve the final part of the budget for targeted verification and reporting. Before the deadline, save findings, changed files, actual checks and the exact remaining gap through the task capability. Never replace missing evidence with a completion claim, expand scope, or ask the user to operate the tools.\n", deadline.UTC().Format(time.RFC3339), remaining.Round(time.Second))
 }
 
 // BuildRunnerPrompt calls BuildRunnerPromptWithDoD with no explicit DoD checklist for backward compatibility.

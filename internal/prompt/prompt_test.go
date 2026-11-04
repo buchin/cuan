@@ -3,6 +3,7 @@ package prompt
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetAgentsGuidance(t *testing.T) {
@@ -89,7 +90,7 @@ func TestBuildRunnerPromptWithDoD(t *testing.T) {
 			t.Errorf("expected result to contain DoD item %q", item)
 		}
 	}
-	if !strings.Contains(result, "cuan task report --summary") {
+	if !strings.Contains(result, `"$CUAN_TASK_EXECUTABLE" task report --summary`) {
 		t.Errorf("expected result to contain task reporting instructions")
 	}
 }
@@ -122,5 +123,32 @@ func TestBuildChatSystemPrompt(t *testing.T) {
 	}
 	if !strings.Contains(result, "=== AGENTIC SCRUM RULES (§1–§13) ===") {
 		t.Errorf("expected result to contain Scrum Rules banner")
+	}
+}
+
+func TestTaskWithoutChecklistStillRequiresCheckpointAndFinalEvidence(t *testing.T) {
+	prompt := BuildRunnerPromptWithDoD("Investigate a UI crash", "Original approved scope", "", nil)
+	for _, required := range []string{`"$CUAN_TASK_EXECUTABLE" task report --state progress --progress`, "An empty checklist does not waive verification or reporting", "Continue the approved task afterward", "Original approved scope"} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("missing execution contract %q", required)
+		}
+	}
+	repeated := BuildRunnerPrompt("Title", prompt, "")
+	if strings.Count(repeated, "=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===") != 1 {
+		t.Fatal("recovery duplicated reporting contract")
+	}
+}
+
+func TestExecutionBudgetUsesExactDeadlineAndNeverGrantsCompletion(t *testing.T) {
+	now := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	for _, remaining := range []time.Duration{20 * time.Minute, -time.Minute} {
+		deadline := now.Add(remaining)
+		text := ExecutionBudget(deadline, now)
+		if !strings.Contains(text, deadline.Format(time.RFC3339)) || !strings.Contains(text, "do not extend it or treat it as task acceptance") || !strings.Contains(text, "actual checks") {
+			t.Fatal("budget lost deadline or evidence boundary", text)
+		}
+		if remaining < 0 && !strings.Contains(text, "Remaining at dispatch: 0s") {
+			t.Fatal("expired attempt gained execution time")
+		}
 	}
 }

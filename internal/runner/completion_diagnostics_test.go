@@ -15,11 +15,17 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-type canceledDiagnosticAdapter struct{ cancel context.CancelFunc }
+type canceledDiagnosticAdapter struct {
+	cancel context.CancelFunc
+	t      *testing.T
+}
 
 func (a *canceledDiagnosticAdapter) Name() string             { return "diagnostic-fixture" }
 func (a *canceledDiagnosticAdapter) Version() (string, error) { return "1", nil }
 func (a *canceledDiagnosticAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+	if !strings.Contains(req.Prompt, "=== EXECUTION TIME BUDGET ===") || !strings.Contains(req.Prompt, `"$CUAN_TASK_EXECUTABLE" task report --state progress --progress`) {
+		a.t.Error("dispatched task without a checklist lost checkpoint/deadline instructions")
+	}
 	a.cancel()
 	return nil, context.Canceled
 }
@@ -50,7 +56,7 @@ func TestRunnerFinalDiagnosticSurvivesExecutionCancellation(t *testing.T) {
 	defer api.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL}, &canceledDiagnosticAdapter{cancel: cancel}, api.Client())
+	runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL}, &canceledDiagnosticAdapter{cancel: cancel, t: t}, api.Client())
 	now := time.Now().UTC()
 	claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: t.TempDir(), Task: &task.Task{ID: "cancel-diagnostic", Title: "Inspect", ExecutionCategory: task.ExecutionCategoryReadOnly}, Attempt: &task.TaskAttempt{ID: "attempt", TaskID: "cancel-diagnostic", AttemptNumber: 1, CreatedAt: now}}
 	runner.runAttempt(ctx, claim)

@@ -779,6 +779,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	policy := executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits)
 	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
 	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, t.Instructions, claim.AgentPrompt, dodTexts, workingDir)
+	prompt += cuanPrompt.ExecutionBudget(deadline, time.Now())
 	if ws != nil && ws.BaseRef != "" {
 		prompt += "\n\nCurrent project baseline: " + workspaceComparisonBase(ws, claim.DefaultBranch) + " (imported from " + ws.BaseRef + "). Inspect this commit before relying on retained test commands or earlier code structure. A resumed task may still have older commits and pending edits: reconcile only the approved changes while preserving saved work. Do not replace verification merely to hide failures. This baseline is context, not authorization to expand scope, change repository identity or publish.\n"
 	}
