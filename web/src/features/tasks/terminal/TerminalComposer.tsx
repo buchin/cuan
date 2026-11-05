@@ -1,4 +1,4 @@
-import { Composer, ComposerSendButton } from '../../../components/ui/Composer'
+import { Composer, ComposerAccessory, ComposerSendButton } from '../../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../../components/ui/ComposerInput'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -770,11 +770,12 @@ export function TerminalComposer({
       {/* ── Inbox-Style Capsule Composer (Div container to prevent browser/Android autofill bars) ── */}
       <Composer role="group" aria-label="Terminal input composer">
         {/* Attachment Picker Button (WCAG >= 44x44px touch target on mobile) */}
+        <ComposerAccessory>
         <button
           type="button"
           disabled={disabled || uploading}
           onClick={() => setShowAttachmentMenu(true)}
-          className="wa-action-btn min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40 mb-0.5 cursor-pointer"
+          className="wa-action-btn min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-all shrink-0 disabled:opacity-40 cursor-pointer"
           title="Upload file ke workspace tugas (/upload)"
           aria-label={t('Add attachment')}
         >
@@ -784,6 +785,7 @@ export function TerminalComposer({
             <Paperclip className="h-5 w-5" />
           )}
         </button>
+        </ComposerAccessory>
 
         {/* Multiline Command / Text Input (Auto-expanding like Inbox with min-h-[44px] on mobile) */}
         <div className="relative min-w-0 flex flex-1 items-center">

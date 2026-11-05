@@ -382,3 +382,7 @@ There are no outer top/right/bottom gaps. Multiline input grows within the exist
 bounded height. This user-approved edge action supersedes the earlier circular
 send-button treatment. Public/internal modes and terminal input routing retain
 their existing semantics. Streaming terminal output must never clear typed input.
+
+ComposerAccessory centers attachment/quick-reply icons in a44px accessory row.
+For single-line input their centers align with Send; for multiline input the
+accessory row remains at the bottom. Inbox and terminal use the same primitive.

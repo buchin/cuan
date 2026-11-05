@@ -1,4 +1,4 @@
-import { Composer, ComposerSendButton } from '../../components/ui/Composer'
+import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
@@ -2061,6 +2061,7 @@ export function InboxView({
                     activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@')) ? 'ring-1 ring-amber-500/50 border-amber-500/40' : ''
                   }`}
                 >
+                  <ComposerAccessory>
                   <AttachmentPicker
                     key={activeContact.conversation_id || activeContact.id}
                     uploads={uploads}
@@ -2068,6 +2069,7 @@ export function InboxView({
                     compact
                     disableImages={activeContact.type === 'agent' && !contactSupportsVision}
                   />
+                  </ComposerAccessory>
                   <ComposerInput
                     ref={textareaRef}
                     data-primary-composer
@@ -2091,6 +2093,7 @@ export function InboxView({
                   />
 
                   {activeContact.type === 'customer' && (
+                    <ComposerAccessory>
                     <CannedResponsesPicker
                       inputMessage={inputMessage}
                       onSelect={(content) => {
@@ -2105,6 +2108,7 @@ export function InboxView({
                       onOpenManage={() => setShowCannedManageModal(true)}
                       disabled={sending}
                     />
+                    </ComposerAccessory>
                   )}
 
                   <ComposerSendButton
