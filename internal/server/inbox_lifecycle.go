@@ -199,6 +199,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	}
 	ctx, cancel := context.WithDeadline(context.Background(), inboxRequestExecutionDeadline(time.Now(), q.Deadline, lifecycleTimeout))
 	ctx = context.WithValue(ctx, inboxRequestTraceKey{}, inboxRequestTrace{RequestID: q.RequestID, RoomID: q.RoomID, AgentID: q.AgentID})
+	ctx = context.WithValue(ctx, tasteMemberKey{}, q.OwnerID)
+	s.learnInboxPreferences(ctx, q)
 	handoffPersistenceRetry := false
 	ctx = context.WithValue(ctx, inboxHandoffPersistenceKey{}, &handoffPersistenceRetry)
 	if db.InboxRetryNeedsReconciliation(q) {

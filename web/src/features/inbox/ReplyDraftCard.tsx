@@ -1,10 +1,10 @@
 import { CardActions } from './CardActions'
-import { FileText } from 'lucide-react'
+import { FileText, RefreshCw } from 'lucide-react'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useLanguage } from '../../context/LanguageContext'
 import { CollapsibleChatText } from './CollapsibleChatText'
 
-export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; internal: boolean; onUse: (draft: string) => void }) {
+export function ReplyDraftCard({ draft, internal, onUse, onRegenerate, regenerating = false, regenerateDisabled = false }: { draft: string; internal: boolean; onUse: (draft: string) => void; onRegenerate?: () => void; regenerating?: boolean; regenerateDisabled?: boolean }) {
   const { t } = useLanguage()
   return (
     <div data-card="reply-draft" className="inbox-attachment mt-2 bg-card/40 text-foreground">
@@ -17,6 +17,10 @@ export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; inte
         <CollapsibleChatText content={draft} hideTaskCard />
       </div>
       <CardActions data-draft-footer className="px-3">
+        {onRegenerate && <button type="button" onClick={onRegenerate} disabled={regenerateDisabled || regenerating} aria-busy={regenerating} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer disabled:opacity-50 disabled:cursor-default">
+          <RefreshCw className={`h-4 w-4${regenerating ? ' animate-spin' : ''}`} aria-hidden="true" />
+          {t(regenerating ? 'Regenerating…' : 'Regenerate')}
+        </button>}
         <button type="button" data-primary-action onClick={() => onUse(draft)} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
           <FileText className="h-4 w-4" aria-hidden="true" />
           {t('Review & Use')}

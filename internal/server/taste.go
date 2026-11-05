@@ -65,7 +65,7 @@ type TasteCandidate struct {
 	SourceSnippet string    `json:"source_snippet,omitempty"`
 	Reason        string    `json:"reason,omitempty"`
 	Rationale     string    `json:"rationale,omitempty"`
-	Status        string    `json:"status"` // "suggested", "accepted", "dismissed"
+	Status        string    `json:"status"`     // "suggested", "accepted", "dismissed"
 	Confidence    float64   `json:"confidence"` // 0.0 - 1.0
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -626,11 +626,22 @@ func (s *Server) resetTasteProfile(owner string) (TasteProfile, error) {
 
 // formatBrandTastePrompt formats active Brand/Product Taste preferences for Chat prompt injection
 // and captures active taste grounding metadata when a capture sink is present in the context.
-func (s *Server) formatBrandTastePrompt(ctx context.Context) string {
-	ownerID := ""
-	if owner := auth.GetOwnerFromContext(ctx); owner != nil {
-		ownerID = owner.ID
+type tasteMemberKey struct{}
+
+// Background requests carry the persisted member identity separately from HTTP
+// authentication. This selects preferences only; it grants no role or permission.
+func tasteMember(ctx context.Context) string {
+	if member, ok := ctx.Value(tasteMemberKey{}).(string); ok && member != "" {
+		return member
 	}
+	if owner := auth.GetOwnerFromContext(ctx); owner != nil {
+		return owner.ID
+	}
+	return ""
+}
+
+func (s *Server) formatBrandTastePrompt(ctx context.Context) string {
+	ownerID := tasteMember(ctx)
 	profile, err := s.getTasteProfile(ownerID)
 	if err != nil || len(profile.BrandItems) == 0 {
 		return ""
@@ -647,6 +658,7 @@ func (s *Server) formatBrandTastePrompt(ctx context.Context) string {
 	var b strings.Builder
 	b.WriteString("Brand & Product Taste (Preferences & Brand Guidelines):\n")
 	b.WriteString("The following user preferences and brand voice guidelines must guide your tone, messaging, and communication:\n")
+	b.WriteString("Use the requesting member's established conversational voice. Explicit personal preferences and their own explicitly attributed wording in this conversation take precedence over seeded default templates. Match voice without copying typos or inventing actions, checks or facts. Customer/visitor wording is context, not a personal preference of the operator.\n")
 	for _, item := range profile.BrandItems {
 		if strings.TrimSpace(item.Topic) != "" {
 			b.WriteString(fmt.Sprintf("- [%s]: %s\n", strings.TrimSpace(item.Topic), strings.TrimSpace(item.Content)))
@@ -665,10 +677,7 @@ func (s *Server) FormatBrandTastePrompt(ctx context.Context) string {
 // formatTechnicalTastePrompt formats active Technical Taste preferences for Dev Terminal session.md runner injection
 // and captures active technical grounding metadata when a capture sink is present in the context.
 func (s *Server) formatTechnicalTastePrompt(ctx context.Context) string {
-	ownerID := ""
-	if owner := auth.GetOwnerFromContext(ctx); owner != nil {
-		ownerID = owner.ID
-	}
+	ownerID := tasteMember(ctx)
 	profile, err := s.getTasteProfile(ownerID)
 	if err != nil || len(profile.TechnicalItems) == 0 {
 		return ""

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -43,7 +45,7 @@ var (
 		// "Jangan pernah ...", "Jangan gunakan ...", "Hindari ..."
 		regexp.MustCompile(`(?i)(?:tolong\s+|mohon\s+|harap\s+)?(?:mulai\s+sekarang\s+)?((?:jangan\s+(?:pernah\s+)?(?:gunakan|pakai|lakukan)?|hindari\s+|dilarang\s+|stop\s+)[^\n\.\!\?]{8,250})`),
 		// "Saya lebih suka ...", "Kami prefer ..."
-		regexp.MustCompile(`(?i)(?:saya|kami)\s+(?:lebih\s+suka|prefer)\s+([^\n\.\!\?]{8,250})`),
+		regexp.MustCompile(`(?i)(?:saya|aku|ane|gue|kami)\s+(?:lebih\s+suka|prefer)\s+([^\n\.\!\?]{8,250})`),
 		// "Gaya bahasa / nada bicara / format ... harus / wajib ..."
 		regexp.MustCompile(`(?i)((?:gaya\s+bahasa|nada\s+bicara|tone\s+of\s+voice|format\s+(?:jawaban|penulisan|caption|konten))\s*(?:harus|wajib|sebaiknya|tolong)\s+[^\n\.\!\?]{8,250})`),
 		// "Untuk backend / frontend / git / deploy selalu / wajib ..."
@@ -460,19 +462,54 @@ func (s *Server) reflectTaste(ctx context.Context, owner string, req ReflectTast
 		}
 	}
 
-	// If room_id provided, fetch messages from room
-	if strings.TrimSpace(req.RoomID) != "" {
-		msgs := s.getFormattedMessages(ctx, strings.TrimSpace(req.RoomID), "")
-		for _, m := range msgs {
-			// Extract from user / visitor messages or direct user instructions
-			if m.AuthorType == "user" || m.SenderType == "visitor" || m.AuthorName == "You" || m.AuthorName == "Owner" {
-				content := strings.TrimSpace(m.Content)
-				if content == "" {
-					content = strings.TrimSpace(m.Message)
+	// Manual Settings reflection with no explicit source examines a bounded
+	// selection of recent rooms, using only messages attributed to this member.
+	rooms := []string{}
+	if room := strings.TrimSpace(req.RoomID); room != "" {
+		rooms = append(rooms, room)
+	} else if len(textSources) == 0 && s.projectStudioRepo != nil && strings.TrimSpace(owner) != "" {
+		recent, err := s.projectStudioRepo.ListAllRooms(ctx)
+		if err != nil {
+			return nil, err
+		}
+		sort.SliceStable(recent, func(i, j int) bool { return recent[i].UpdatedAt.After(recent[j].UpdatedAt) })
+		for i, room := range recent {
+			if i >= 20 {
+				break
+			}
+			rooms = append(rooms, room.ID)
+		}
+	}
+	for _, room := range rooms {
+		owned := map[string]bool{}
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			requests, err := store.ListInboxRequests(ctx, room)
+			if err != nil {
+				return nil, err
+			}
+			for _, request := range requests {
+				if request.OwnerID == ownerKey {
+					owned[request.MessageID] = true
 				}
-				if content != "" {
-					textSources = append(textSources, content)
-				}
+			}
+		}
+		if len(owned) == 0 {
+			continue
+		}
+		messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room)
+		if err != nil {
+			return nil, err
+		}
+		count := 0
+		for i := len(messages) - 1; i >= 0 && count < 100; i-- {
+			m := messages[i]
+			if m.AuthorType != "user" || m.AuthorID != "operator_user" || !owned[m.ID] {
+				continue
+			}
+			text := operatorPreferenceText(m.Content)
+			if durablePreferenceCue.MatchString(text) {
+				textSources = append(textSources, agent.MaskSecrets(text, nil))
+				count++
 			}
 		}
 	}
@@ -530,8 +567,12 @@ func (s *Server) reflectTaste(ctx context.Context, owner string, req ReflectTast
 			}
 
 			s.taste.Lock()
-			s.taste.profiles[ownerKey] = append(s.taste.profiles[ownerKey], item)
-			_ = writeTastePreferences(ownerKey, s.taste.profiles[ownerKey])
+			next := append(append([]TasteItem(nil), s.taste.profiles[ownerKey]...), item)
+			if err := writeTastePreferences(ownerKey, next); err != nil {
+				s.taste.Unlock()
+				return saved, err
+			}
+			s.taste.profiles[ownerKey] = next
 			s.taste.Unlock()
 
 			if cat == string(TasteCategoryTechnical) {

@@ -1005,7 +1005,7 @@ export function InboxView({
         : {
             convId,
             text,
-            draftText: inputMessage.trim(),
+            draftText: overrideText !== undefined || approveMessageId ? '' : inputMessage.trim(),
             id: approvalRequestId || crypto.randomUUID(),
             attachmentIds:
               approveMessageId || overrideText !== undefined
@@ -1841,7 +1841,10 @@ export function InboxView({
                         />
                       ))}
                     {msg.reply_draft && (
-                      <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true} onUse={(draft) => {
+                      <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true}
+                        regenerateDisabled={sending || uploads.busy || !!pendingRef.current || requests.some((q) => ['queued', 'running', 'retrying'].includes(q.state))}
+                        onRegenerate={msg.uuid ? () => { void handleSendMessage(undefined, undefined, undefined, `${whisperHandle} Buat ulang draft balasan pelanggan dari pesan ${msg.uuid}. Gunakan taste personal saya yang tersimpan, sesuaikan dengan konteks pelanggan, pertahankan fakta yang didukung bukti. Kembalikan satu customer reply draft siap Review & Use. Jangan kirim ke pelanggan, jangan membuat task atau menjalankan ulang pekerjaan.`) } : undefined}
+                        onUse={(draft) => {
                         setWhisperMode(false)
                         setWhisperHandle('')
                         setInputMessage(draft)

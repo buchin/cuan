@@ -214,3 +214,26 @@ session:mobile.png`. The same `session:PATH` form works in `report_current_task`
 artifacts. The root belongs to the exact authenticated attempt and cannot be
 chosen by the caller. Ordinary paths stay workspace-relative; all sources share
 the existing file/count/size limits. This is file delivery, not task acceptance.
+
+## Personal writing preferences
+
+`cuan taste show` reads the authenticated member's profile, and `cuan taste config`
+reads its automatic approval setting and confidence threshold. Save an explicitly
+authorized preference with `cuan taste add --category brand --topic "Writing voice"
+--content "Use concise conversational language"`. These preferences are personal;
+never copy one member's profile into another member's account. Bound task sessions
+cannot mutate owner preferences.
+
+Chat workers select Taste using the durable request's member identity. Automatic
+learning processes explicit durable instructions from that member's own operator
+message, excludes quoted/code content, and follows the existing auto-approval
+threshold and quota. Confidence is a phrase-based heuristic, not a measurement of
+how well the agent knows someone. Ordinary chat, visitor speech, and AI drafts do
+not automatically become preferences. Manual reflection reviews attributed member
+messages from up to 20 recent rooms. Inferred style from repeated behavior and draft
+edits is not implemented yet.
+
+Customer reply drafts offer Regenerate beside Review & Use. Regenerate requests a
+new private draft using personal Taste and conversation evidence. It does not send
+the draft or authorize task execution. Review & Use still loads text into the
+public composer for editing and a separate send action.

@@ -30,6 +30,7 @@ type inboxAccountRoute struct {
 // No native conversation is resumed under a different profile: the same durable
 // Cuan conversation context is supplied to a fresh CLI turn, with the same agent.
 func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, registered *db.Agent, prompt, home, workspace string, limited bool, step func(string, string), attachments ...string) (string, string) {
+	ctx = context.WithValue(ctx, tasteMemberKey{}, owner)
 	hasImageAttachment := false
 	for _, file := range attachments {
 		ext := strings.ToLower(filepath.Ext(file))
