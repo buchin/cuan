@@ -256,3 +256,14 @@ for artifact finalization, and never longer than the ordinary task budget.
 Deadline display, completion guards and abandoned-runner reconciliation therefore
 share the same immutable deadline. Queue waiting does not consume execution time;
 this change does not rewrite deadlines of already claimed historical attempts.
+
+For a current-outcome inspection that requires visual evidence, the runner
+prepares locked npm dependencies in the owned snapshot before dispatching the
+agent. Only root or `web` manifests with modern npm lockfiles and credential-free
+HTTPS package sources qualify. Linked/shared dependency directories, local/Git
+sources and embedded credentials are rejected. Installation uses `npm ci` with
+lifecycle scripts, audits and funding queries disabled, an isolated temporary npm
+home/config/cache, no provider/task credentials and a two-minute bound within the
+existing inspection deadline. The runner revalidates the exact clean source
+commit afterward. Setup is not feature verification, does not reset recovery
+budgets and does not resume an old failed attempt.

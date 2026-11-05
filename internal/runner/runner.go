@@ -873,6 +873,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			verificationRuntimeFingerprint = evidence.Fingerprint
 		}
 	}
+	if err == nil && claim.LiveInspection != nil && claim.LiveInspection.Purpose == task.CurrentOutcomeInspection && claim.RequiresVision {
+		r.streamLogLine(ctx, att.ID, "system", "Preparing locked frontend dependencies in the private inspection snapshot.")
+		err = prepareInspectionDependencies(ctx, workingDir)
+		if err == nil {
+			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SnapshotSourceCommit(), claim.LiveInspection.TargetCommit)
+		}
+	}
 	var readOnlyBaseline string
 	if policy.ReadOnlyRepository && err == nil {
 		err = git.ValidatePrivateBuildOutput(workingDir)
