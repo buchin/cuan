@@ -93,3 +93,9 @@ turn into successful completion merely because the summary was already saved.
 Artifact identities remain stable across retries. If delivery succeeds but final
 report persistence fails, inspect the task and retry the same report rather than
 creating another file delivery or assuming acceptance.
+
+After decoding an authenticated report and its files, the reporting endpoint
+uses a separate five-second persistence budget. A client disconnect during
+delivery cannot discard an accepted result. Requests disconnected before this
+window do not start a write. Active-attempt, scope and evidence validation still
+apply, and this budget cannot extend execution or prevent cancellation.

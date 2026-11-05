@@ -341,11 +341,19 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if r.Context().Err() != nil {
+		return // No accepted write to finish after an already disconnected request.
+	}
+	// Once the scoped report and its files are decoded, give persistence a
+	// bounded completion window independent of the client's connection. This
+	// grants no execution time and never bypasses the active-attempt checks.
+	reportCtx, cancelReport := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+	defer cancelReport()
 	saveReport := s.taskSvc.ReportAgent
 	if len(artifacts) > 0 {
 		saveReport = s.taskSvc.StageAgentReport
 	}
-	updated, e := saveReport(r.Context(), g.TaskID, g.AttemptID, g.AgentID, report.AgentReport)
+	updated, e := saveReport(reportCtx, g.TaskID, g.AttemptID, g.AgentID, report.AgentReport)
 	if e != nil {
 		code := 500
 		if errors.Is(e, task.ErrInvalidTaskInput) {
@@ -357,12 +365,12 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, code, e.Error())
 		return
 	}
-	if e = s.publishTaskArtifacts(r.Context(), latest, artifactOwner, artifacts); e != nil {
+	if e = s.publishTaskArtifacts(reportCtx, latest, artifactOwner, artifacts); e != nil {
 		respondJSONError(w, 503, "The result checkpoint is saved, but file delivery was not confirmed. Retry the same report before exiting.")
 		return
 	}
 	if len(artifacts) > 0 {
-		updated, e = s.taskSvc.ReportAgent(r.Context(), g.TaskID, g.AttemptID, g.AgentID, report.AgentReport)
+		updated, e = s.taskSvc.ReportAgent(reportCtx, g.TaskID, g.AttemptID, g.AgentID, report.AgentReport)
 		if e != nil {
 			code := http.StatusServiceUnavailable
 			if errors.Is(e, task.ErrAttemptFinal) || errors.Is(e, task.ErrRequestConflict) {

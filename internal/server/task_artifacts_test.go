@@ -23,12 +23,12 @@ type artifactDeliveryRepository interface {
 
 type observedArtifactDeliveryRepository struct {
 	artifactDeliveryRepository
-	beforeDelivery func() error
+	beforeDelivery func(context.Context) error
 }
 
 func (r observedArtifactDeliveryRepository) CreateMessage(ctx context.Context, m *db.ProjectMessage) error {
 	if r.beforeDelivery != nil {
-		if err := r.beforeDelivery(); err != nil {
+		if err := r.beforeDelivery(ctx); err != nil {
 			return err
 		}
 	}
@@ -133,8 +133,16 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 		// Reopen both roots from the durable encrypted grant, as after restart.
 		s.forgetTaskGrant(sha256.Sum256([]byte(capability)))
 	}
-	report := func(paths string) *httptest.ResponseRecorder {
+	var disconnectReport context.CancelFunc
+	report := func(paths string, disconnected ...bool) *httptest.ResponseRecorder {
 		request := httptest.NewRequest("POST", "/api/v1/task-agent/"+saved.ID, strings.NewReader(`{"state":"done","summary":"HTML ready","complete_note":"Verified offline file","artifacts":`+paths+`}`))
+		requestCtx, cancel := context.WithCancel(request.Context())
+		defer cancel()
+		disconnectReport = cancel
+		request = request.WithContext(requestCtx)
+		if len(disconnected) > 0 && disconnected[0] {
+			cancel()
+		}
 		request.Header.Set("Authorization", "Bearer "+capability)
 		w := httptest.NewRecorder()
 		s.Router().ServeHTTP(w, request)
@@ -143,14 +151,28 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	if w := report(`["../private.txt"]`); w.Code != 400 {
 		t.Fatal("escaped output accepted", w.Code, w.Body.String())
 	}
+	report(paths, true)
+	beforeDelivery, err := s.taskSvc.GetTaskDetail(ctx, saved.ID)
+	if err != nil || beforeDelivery.Summary != "" || beforeDelivery.CompleteNote != "" {
+		t.Fatal("disconnected request started writing a report", err)
+	}
 	deliveryCalls := 0
 	originalRepository := s.projectStudioRepo
 	s.projectStudioRepo = observedArtifactDeliveryRepository{
 		artifactDeliveryRepository: originalRepository.(artifactDeliveryRepository),
-		beforeDelivery: func() error {
+		beforeDelivery: func(deliveryCtx context.Context) error {
 			ready, err := s.taskSvc.AgentReviewReady(ctx, saved.ID, a.ID)
 			if err != nil || ready {
 				t.Fatal("runner could stop before file delivery was confirmed", ready, err)
+			}
+			// The report was accepted. Losing its client connection must not
+			// cancel delivery or the final persistence that follows it.
+			disconnectReport()
+			if deliveryCtx.Err() != nil {
+				t.Fatal("accepted report still depends on the client connection")
+			}
+			if deadline, ok := deliveryCtx.Deadline(); !ok || time.Until(deadline) > 5*time.Second {
+				t.Fatal("accepted report has no bounded finalization deadline")
 			}
 			deliveryCalls++
 			if deliveryCalls == 1 {
