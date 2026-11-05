@@ -33,15 +33,17 @@ The authorization must identify an actual user message in this conversation. Tas
 A task result review must never add scope or retry blindly. After three attempts, report a concrete blocker instead.`
 
 type inboxDelegation struct {
-	Action          string `json:"action,omitempty"`
-	Title           string `json:"title"`
-	Description     string `json:"description"`
-	ProjectID       string `json:"project_id"`
-	ProjectName     string `json:"project_name,omitempty"`
-	AuthorizationID string `json:"authorization_message_id"`
-	TaskID          string `json:"task_id,omitempty"`
-	Revision        string `json:"revision,omitempty"`
-	AgentID         string `json:"agent_id,omitempty"`
+	Reconcile         bool   `json:"reconcile,omitempty"`
+	ExecutionCategory string `json:"execution_category,omitempty"`
+	Action            string `json:"action,omitempty"`
+	Title             string `json:"title"`
+	Description       string `json:"description"`
+	ProjectID         string `json:"project_id"`
+	ProjectName       string `json:"project_name,omitempty"`
+	AuthorizationID   string `json:"authorization_message_id"`
+	TaskID            string `json:"task_id,omitempty"`
+	Revision          string `json:"revision,omitempty"`
+	AgentID           string `json:"agent_id,omitempty"`
 }
 
 func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
@@ -74,6 +76,15 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 		return "", nil, bad
 	}
 	if d.Action != "" && d.Action != "run" && d.Action != "save" || d.TaskID != "" && d.Action == "save" {
+		return "", nil, bad
+	}
+	if d.ExecutionCategory != "" {
+		d.ExecutionCategory = task.NormalizeExecutionCategory(d.ExecutionCategory)
+		if d.ExecutionCategory == "" {
+			return "", nil, bad
+		}
+	}
+	if d.Reconcile && len([]rune(d.Revision))+len([]rune(inboxReconciliationExecutionContract))+2 > 6000 {
 		return "", nil, bad
 	}
 	if (d.TaskID == "" && d.ProjectID == "" && strings.TrimSpace(d.ProjectName) == "") || len([]rune(d.ProjectName)) > 100 || (d.TaskID == "" && d.AuthorizationID == "") || len([]rune(d.Title)) > 200 || len([]rune(d.Description)) > 6000 || len([]rune(d.Revision)) > 6000 {
@@ -142,6 +153,9 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	}
 	fail := func(message string) string {
 		return wrapResult("I could not start the work: " + message + " No new execution was started.")
+	}
+	if d.Reconcile != db.InboxRetryNeedsReconciliation(q) {
+		return fail("the retry reconciliation contract does not match this request")
 	}
 	if ctx.Err() != nil {
 		return fail("the request was canceled")
@@ -247,6 +261,15 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		expected := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName}
 		if d.Action == "save" || d.Title != expected.Title || d.Description != expected.Description || d.ProjectID != expected.ProjectID || d.ProjectName != expected.ProjectName {
 			return fail("the delegation differs from the approved plan")
+		}
+	}
+	if d.Reconcile {
+		status, reconcileErr := s.prepareReconciliationDelegation(ctx, q, d)
+		if reconcileErr != nil {
+			return fail(reconcileErr.Error())
+		}
+		if status != "" {
+			return status
 		}
 	}
 	room, err := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)
@@ -386,14 +409,21 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
 		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope."
+		if d.Reconcile {
+			instructions += "\n\n" + inboxReconciliationExecutionContract
+			if d.ExecutionCategory == "" {
+				d.ExecutionCategory = task.InferExecutionCategory(d.Title, d.Description)
+			}
+		}
 		dodChecklist := extractDoDFromDescription(d.Description)
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
-			SourceRoomID:  q.RoomID,
-			ProjectID:     d.ProjectID,
-			Title:         d.Title,
-			Instructions:  instructions,
-			AssignedAgent: targetAgent,
-			DoDChecklist:  dodChecklist,
+			SourceRoomID:      q.RoomID,
+			ProjectID:         d.ProjectID,
+			Title:             d.Title,
+			Instructions:      instructions,
+			AssignedAgent:     targetAgent,
+			ExecutionCategory: d.ExecutionCategory,
+			DoDChecklist:      dodChecklist,
 		})
 		if e != nil {
 			return fail("the task could not be saved")
@@ -414,7 +444,11 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if d.Action == "save" {
 		return wrapResult("The work is saved and has not been started.\n\n[View work](/tasks/" + t.ID + ")")
 	}
+	s.publishInbox(q.RoomID)
 	launchID := q.RequestID
+	if d.Reconcile {
+		d.Revision = inboxReconciliationExecutionContract + "\n\n" + d.Revision
+	}
 	sourceRequestID := authorizationRequestID
 	if d.TaskID != "" {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {

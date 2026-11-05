@@ -159,6 +159,6 @@ this limit does not reduce the task runner's execution budget.
 
 When a safe read-only turn exhausts its tools, one tool-free coordinator response
 may delegate using the supplied conversation/task context. Its outer deadline is
-45 seconds, capped by the original request deadline. Failed recovery remains a
+125 seconds (120 seconds native), capped by the original request deadline. Failed recovery remains a
 failed request, with no fabricated findings or renewed approval request. Unsafe
 or uncertain child activity prevents declaring the original turn replay-safe.

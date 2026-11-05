@@ -19,3 +19,17 @@ func TestInboxFormatRepairPromptIsCandidateOnlyAndPreservesReadOnlyMode(t *testi
 		t.Fatal("read-only repair acquired actions")
 	}
 }
+
+func TestInboxReconciliationFormatRepairCannotBroadenActions(t *testing.T) {
+	candidate := coordinatorJSON("Verify the saved state first.", "delegation", inboxDelegation{Reconcile: true, Title: "Original work", Description: "Finish only the remaining approved work.", ProjectID: "registered", AuthorizationID: "owner-source"})
+	prompt := inboxFormatRepairPrompt(candidate, true, true)
+	if !strings.Contains(prompt, inboxRetryReconcileSchema) || !strings.Contains(prompt, "Never add an action absent from the candidate") || strings.Contains(prompt, "AGENTIC SCRUM RULES") {
+		t.Fatal("reconciliation formatter lost scope")
+	}
+	if _, err := decodeInboxCoordinatorResponseForMode(candidate, false); err == nil {
+		t.Fatal("ordinary transport accepted retry-only delegation")
+	}
+	if _, err := decodeInboxCoordinatorResponseForMode(candidate, true, true); err != nil {
+		t.Fatal("explicit reconciliation delegation rejected", err)
+	}
+}

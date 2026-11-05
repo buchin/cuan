@@ -95,7 +95,9 @@ belongs in an authorized task, whose execution budget is independent of chat.
 - The configured budget and five consecutive tool failures stop runaway loops.
 - A safe read-only turn that reaches its budget can make one tool-free
   coordinator response, using the supplied conversation and task evidence.
-  Its outer deadline is 45 seconds or the earlier original request deadline.
+  It has a 120-second native budget and 125-second outer deadline, capped by
+  the original request deadline. This fresh evaluation is distinct from the
+  candidate-only 40/45-second format-repair stage.
   Scope, project and original authorization still undergo normal validation.
 - Failed recovery stays failed and does not publish fabricated findings or ask
   for renewed authorization. Unsafe child activity cannot enable a safe replay.

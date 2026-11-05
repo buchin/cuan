@@ -300,12 +300,16 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 				if err != nil {
 					q.SafeError = "The agent connection is not ready. Check its sign-in status."
 				} else {
-					prompt, err := s.inboxContext(ctx, q)
+					prompt, err := s.inboxContext(ctx, q, db.InboxRetryNeedsReconciliation(q))
 					if err != nil {
 						q.SafeError = "Could not read conversation context. Your message is saved."
 					} else {
-						workspace, projectContext := s.inboxProjectContext(ctx, q)
-						prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxCoordinatorTopicContext(ctx, q) + prompt
+						workspace := ""
+						if !db.InboxRetryNeedsReconciliation(q) {
+							var projectContext string
+							workspace, projectContext = s.inboxProjectContext(ctx, q)
+							prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxCoordinatorTopicContext(ctx, q) + prompt
+						}
 						step("context", "Project context checked for analysis.")
 						var output, failure string
 						reviewApplied := false
@@ -416,18 +420,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 							directCancel()
-							if output == "" && strings.Contains(strings.ToLower(failure), "tool budget") {
-								fallbackReply := "Berdasarkan analisis konteks proyek dan riwayat yang terkumpul, investigasi telah berhasil memetakan struktur kode yang relevan. Seluruh konteks percakapan Anda tersimpan dengan aman. Anda dapat memilih **Lanjutkan Analisis** atau memberikan instruksi lanjutan untuk melanjutkan pekerjaan."
-								fallbackJSON, _ := json.Marshal(map[string]any{
-									"reply":       fallbackReply,
-									"topic_title": "",
-									"action":      nil,
-								})
-								if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), false); decodeErr == nil && out != "" {
-									output = out
-									failure = ""
-								}
-							}
+
 						}
 						if output == "" && snapshotReview && failure != inboxQuotaNoBackup && !strings.Contains(failure, "tool permission was denied") {
 							output = s.applyInboxReviewEvaluation(ctx, q, "")
@@ -452,6 +445,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							} else if strings.Contains(output, "```cuan-task-reopen") {
 								output = s.applyInboxTaskReopen(ctx, q, output)
 							} else {
+								if strings.Contains(output, "```cuan-delegate") {
+									step("delegation", "Preparing the approved work.")
+								}
 								output = s.applyInboxDelegation(ctx, q, output)
 							}
 							now := time.Now().UTC()
@@ -506,7 +502,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 
 // Build a bounded, chronological history ending at this message. Later follow-ups
 // must not leak into an earlier turn; replies to earlier turns may occur later.
-func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, error) {
+func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest, reconciliation ...bool) (string, error) {
 	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID)
 	if err != nil {
 		return "", err
@@ -607,7 +603,15 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest) (string, e
 			}
 		}
 	}
-	b.WriteString(s.inboxActiveProjectAndTaskContext(ctx, q))
+	if len(reconciliation) > 0 && reconciliation[0] {
+		facts, err := s.inboxReconciliationTaskContext(ctx, q)
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(facts)
+	} else {
+		b.WriteString(s.inboxActiveProjectAndTaskContext(ctx, q))
+	}
 	b.WriteString(s.inboxContactMemoryContext(ctx, q, selected))
 	b.WriteString(attachmentContext(q.OwnerID, s.inboxAttachmentIDs(ctx, q)))
 	fmt.Fprintf(&b, "\nTarget message ID: %s", q.MessageID)

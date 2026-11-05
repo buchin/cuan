@@ -217,7 +217,8 @@ func decodeInboxCoordinatorResponse(raw string) (string, error) {
 	return decodeInboxCoordinatorResponseForMode(raw, false)
 }
 
-func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (string, error) {
+func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool, reconciliation ...bool) (string, error) {
+	reconcile := len(reconciliation) > 0 && reconciliation[0]
 	bad := errors.New("invalid coordinator response")
 	if len(raw) > 40000 {
 		return "", bad
@@ -267,7 +268,7 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 		return "", bad
 	}
 	output := value.Reply
-	if analysisOnly && (value.Action != nil || value.TopicTitle != "") {
+	if analysisOnly && (value.TopicTitle != "" || (value.Action != nil && (!reconcile || value.Action.Kind != "delegation"))) {
 		return "", bad
 	}
 	if !analysisOnly && isExplicitChoicePrompt(value.Reply) && (value.Action == nil || value.Action.Kind != "prompt_choices") {
@@ -338,6 +339,9 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 		case "delegation":
 			_, delegation, err := parseInboxDelegation(output)
 			if err != nil || delegation == nil {
+				return "", bad
+			}
+			if reconcile != delegation.Reconcile || (reconcile && (delegation.Action == "save" || delegation.ProjectID == "" || delegation.ProjectName != "")) {
 				return "", bad
 			}
 			if delegation.ProjectID != "" && strings.TrimSpace(delegation.ProjectName) != "" && !strings.EqualFold(delegation.ProjectID, delegation.ProjectName) {

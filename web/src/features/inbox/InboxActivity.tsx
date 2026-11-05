@@ -46,6 +46,7 @@ export function evaluateInboxQuotaStatus(q: {
         'runtime_tool_started',
         'output',
         'result_validation',
+        'delegation',
       ].includes(step.kind),
     ) ?? false)
 
@@ -143,6 +144,7 @@ export function InboxActivity({
         'runtime_permission_denied',
         'runtime_tool_budget_exceeded',
         'result_validation',
+        'delegation',
         'persistence',
       ].includes(step.kind),
     )

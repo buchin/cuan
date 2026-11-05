@@ -9,18 +9,37 @@ clicks idempotent. A second failure is retried from that newer failed request.
 
 Known safe failures retain the existing coordinator retry. If recorded activity
 has an uncertain outcome, storage marks the child `retry_reconcile`. This starts
-a fresh evaluation of supplied conversation outcomes and current project/task
-snapshots; it does not replay the earlier provider process or an approved-plan
-shortcut. The original target remains present beyond the recent20-message
-window. Tool calls are disallowed by the existing direct-response runtime
-contract and validated replies require `action:null`, so this evaluation cannot
-create another task, reopen canceled work, apply a memory mutation, or repeat
-an external effect. Reconciliation remains in effect across later quota failures.
+a fresh evaluation of the supplied conversation, current task state and recorded
+outcomes. It never blindly replays a provider process or approved-plan shortcut.
+The original target and attachments remain available beyond the recent20-message
+window. Reconciliation stays in effect across later quota failures.
 
-This restores the ability to obtain a useful new answer. It does not prove an
-unknown external effect succeeded, or restart an execution task merely because
-the user retried its chat reply. Any missing verification remains explicit.
-Automatic retries keep their existing opt-in, freshness and boundedness rules.
+Native chat tools remain disabled. A conversational answer has `action:null`.
+For unfinished work explicitly authorized in the original owner message, the
+response may request a delegation with `reconcile:true`, an existing project and
+the original authorization/task identity. Other mutations, unmarked delegation
+and borrowing approval from another scope are rejected. No new project can be
+created by this mode.
+
+The application checks current task state before mutation. Completed/canceled
+work stays unchanged; active/queued work is monitored. An existing task is reused,
+and a new one uses the original message's canonical idempotency key. Both task
+instructions and launch revision require inspection of actual current state
+before any remaining authorized effect. Uncertain effects cannot be repeated;
+ambiguous identity, payment, resource or evidence requires a concrete decision.
+Original approval, attachments, acceptance criteria and attempt limits remain
+binding. The retry does not itself mark payment or grant access.
+
+The fresh response receives conversation history, registered project IDs and only
+this room's task snapshots; unrelated project backlog and code/host inspection
+context are excluded. Native evaluation gets120 seconds with a125-second outer
+bound, respecting the original durable deadline. Candidate-only format repair
+retains its40/45-second limit and cannot invent a missing action or scope.
+Failed recovery remains failed, without fabricated investigation findings.
+
+Automatic retries retain their existing opt-in, freshness and boundedness rules.
+This is an orchestration recovery path, not proof of an external result. The task
+must still complete its original acceptance checks and coordinator review.
 
 Validation:
 

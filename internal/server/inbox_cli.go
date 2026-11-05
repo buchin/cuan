@@ -29,6 +29,19 @@ func inboxFormatRepairContext(parent context.Context) (context.Context, context.
 	return context.WithTimeout(parent, 45*time.Second)
 }
 
+func inboxDirectReplyBudget() time.Duration {
+	for _, key := range []string{"INBOX_CLI_DIRECT_RECOVERY_TIMEOUT", "INBOX_DIRECT_RECOVERY_TIMEOUT"} {
+		if value, err := time.ParseDuration(os.Getenv(key)); err == nil && value > 0 {
+			return value
+		}
+	}
+	return 120 * time.Second
+}
+
+func inboxDirectReplyContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, inboxDirectReplyBudget()+5*time.Second)
+}
+
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
 type commandCodeAPIKeyContext struct{}
@@ -129,9 +142,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
 	formatCandidate, formatRepair := ctx.Value(inboxFormatRepairKey{}).(string)
 	parentStageContext := ctx
-	if formatRepair || directCoordinator {
+	if formatRepair {
 		var cancel context.CancelFunc
 		ctx, cancel = inboxFormatRepairContext(ctx)
+		defer cancel()
+	} else if directCoordinator {
+		var cancel context.CancelFunc
+		ctx, cancel = inboxDirectReplyContext(ctx)
 		defer cancel()
 	}
 	if formatRepair {
@@ -144,6 +161,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		phase = "format_repair"
 	case analysisRecovery:
 		phase = "analysis_recovery"
+	case reconcileRetry:
+		phase = "retry_reconciliation"
 	case directCoordinator:
 		phase = "direct_recovery"
 	case snapshotReview:
@@ -157,7 +176,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	var system string
 	if formatRepair {
-		system = inboxFormatRepairPrompt(formatCandidate, analysisRecovery || reconcileRetry)
+		system = inboxFormatRepairPrompt(formatCandidate, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
 	} else {
 		brandTaste := s.formatBrandTastePrompt(ctx)
 		if brandTaste != "" && !strings.Contains(prompt, brandTaste) {
@@ -170,8 +189,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if analysisRecovery {
 			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nContext data:\n" + prompt
 		}
-		if reconcileRetry {
-			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxAnalysisRecoverySchema + "\n\nContext data:\n" + prompt
+		if reconcileRetry && !analysisRecovery {
+			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
 		}
 		if snapshotReview {
 			system = inboxReviewEvaluationInstruction + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
@@ -194,12 +213,15 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if !coordinator {
 			return reply, ""
 		}
-		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry)
+		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
 		if err != nil {
 			if step != nil {
 				step("response_contract", inboxResponseDiagnostic(reply))
 			}
 			if alreadyRepaired || normHarness == "commandcode" {
+				if reconcileRetry {
+					return "", "The retry response could not be validated. Your original request is saved; no new execution was started."
+				}
 				return recoverCoordinatorReply(reply, analysisRecovery || reconcileRetry)
 			}
 			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
@@ -221,10 +243,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			timeout = v
 		}
 		if directCoordinator {
-			timeout = "120s"
-			if v := os.Getenv("INBOX_CLI_DIRECT_RECOVERY_TIMEOUT"); v != "" {
-				timeout = v
-			}
+			timeout = strconv.FormatFloat(inboxDirectReplyBudget().Seconds(), 'f', -1, 64) + "s"
 		}
 		if formatRepair {
 			// Let the native formatter stop cleanly before the outer 45s cap.
@@ -239,8 +258,10 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
-		} else if analysisRecovery || reconcileRetry {
+		} else if analysisRecovery {
 			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
+		} else if reconcileRetry {
+			args = append(args, "--json-schema", inboxRetryReconcileSchema)
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
 		}
