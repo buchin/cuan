@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,67 @@ import (
 	"testing"
 	"time"
 )
+
+func TestTaskSessionsLeaveChatCapacityWithoutOversubscribingAccount(t *testing.T) {
+	for _, chatFirst := range []bool{false, true} {
+		t.Run(fmt.Sprint(chatFirst), func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "4")
+			t.Setenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS", "1")
+			a, err := CreateProviderAccount("owner", "fixture")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var releaseChat func()
+			if chatFirst {
+				releaseChat, err = TryLeaseProviderAccount("owner", a.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer releaseChat()
+			}
+			for i := 0; i < 3; i++ {
+				release, err := TryLeaseProviderAccountForTask("owner", a.ID)
+				if err != nil {
+					t.Fatal("chat consumed task reservation unexpectedly", i, err)
+				}
+				defer release()
+			}
+			if release, err := TryLeaseProviderAccountForTask("owner", a.ID); !errors.Is(err, ErrAccountBusy) {
+				if release != nil {
+					release()
+				}
+				t.Fatal("tasks consumed interactive reservation", err)
+			}
+			if !chatFirst {
+				releaseChat, err = TryLeaseProviderAccount("owner", a.ID)
+				if err != nil {
+					t.Fatal("chat blocked by long tasks", err)
+				}
+				defer releaseChat()
+			}
+			if release, err := TryLeaseProviderAccount("owner", a.ID); !errors.Is(err, ErrAccountBusy) {
+				if release != nil {
+					release()
+				}
+				t.Fatal("account capacity exceeded", err)
+			}
+		})
+	}
+}
+
+func TestTaskReservationKeepsSingleSessionAccountsUsable(t *testing.T) {
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "1")
+	t.Setenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS", "1")
+	if providerTaskSessionLimit() != 1 {
+		t.Fatal("single-session tasks starved")
+	}
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "4")
+	t.Setenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS", "0")
+	if providerTaskSessionLimit() != 4 {
+		t.Fatal("explicit reservation override ignored")
+	}
+}
 
 func init() {
 	if len(os.Args) > 1 && os.Args[1] == "--test-account-slot" {

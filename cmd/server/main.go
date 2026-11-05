@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -63,6 +65,8 @@ func main() {
 		os.Exit(diagnostics.RunMCP(os.Stdin, os.Stdout, os.Stderr))
 	}
 	showHelp := flag.Bool("help", false, "Show help message")
+	chatWorker := flag.Bool("chat-worker", false, "Run the durable Inbox worker without an HTTP server")
+	externalChatWorker := flag.Bool("external-chat-worker", false, "Accept Inbox work for a separately supervised chat worker")
 	showVersion := flag.Bool("version", false, "Show Cuan server version")
 	showInfo := flag.Bool("info", false, "Show Cuan server metadata and release information")
 	healthCheck := flag.Bool("healthcheck", false, "Perform local health check against running server")
@@ -75,6 +79,9 @@ func main() {
 	memberIDFlag := flag.String("member-id", "buchin", "Member ID authorizing the agent")
 	providerFlag := flag.String("provider", "antigravity", "Agent provider (antigravity, claude, shell)")
 	flag.Parse()
+	if *chatWorker && *externalChatWorker {
+		log.Fatal("Choose either chat-worker or external-chat-worker")
+	}
 
 	if *showHelp {
 		printUsage()
@@ -198,6 +205,13 @@ func main() {
 	}
 
 	cfg := config.Load()
+	if *chatWorker {
+		cfg.InboxExecutionRole = "worker"
+		cfg.AutoMigrate = false
+	}
+	if *externalChatWorker {
+		cfg.InboxExecutionRole = "api"
+	}
 
 	// Initialize database connection and pool if configured
 	var dbConn *sql.DB
@@ -218,7 +232,47 @@ func main() {
 		}
 	}
 
+	if *chatWorker {
+		if dbConn == nil {
+			log.Fatal("Chat worker requires a durable PostgreSQL connection")
+		}
+		check, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := dbConn.PingContext(check)
+		cancel()
+		if err != nil {
+			log.Fatal("Chat worker database is unavailable")
+		}
+	}
 	srv := server.NewServer(cfg, dbConn)
+	if *chatWorker {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		shutdown := make(chan os.Signal, 1)
+		signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+		srv.StartInboxEvents(ctx)
+		srv.StartInboxDispatcher(ctx)
+		if ready := os.Getenv("CUAN_CHAT_WORKER_READY_FILE"); ready != "" {
+			data, _ := json.Marshal(map[string]any{"release": cfg.CommitSHA, "pid": os.Getpid()})
+			temporary := filepath.Join(filepath.Dir(ready), ".ready.next")
+			if err := os.WriteFile(temporary, data, 0600); err != nil {
+				log.Fatal("Chat worker readiness could not be saved")
+			}
+			if err := os.Rename(temporary, ready); err != nil {
+				log.Fatal("Chat worker readiness could not be published")
+			}
+		}
+		log.Printf("Cuan chat worker running (release=%s)", cfg.CommitSHA)
+		<-shutdown
+		log.Print("Chat worker draining accepted work")
+		drain, stop := context.WithTimeout(context.Background(), 7*time.Minute)
+		if err := srv.DrainInboxWorker(drain); err != nil {
+			log.Print("Chat worker drain deadline reached; unfinished outcomes remain unconfirmed")
+		}
+		stop()
+		cancel()
+		_ = dbConn.Close()
+		return
+	}
 
 	// Start background remote worker health poller if configured
 	if srv.HealthPoller() != nil {
@@ -232,6 +286,7 @@ func main() {
 
 	inboxCtx, stopInbox := context.WithCancel(context.Background())
 	defer stopInbox()
+	srv.StartInboxEvents(inboxCtx)
 	srv.StartInboxDispatcher(inboxCtx)
 	srv.StartZombieReaper(inboxCtx)
 	srv.StartNotificationDispatcher(inboxCtx)
@@ -369,6 +424,8 @@ Subcommands:
   mcp               Model Context Protocol (MCP) stdio server for Agent function calling
 
 Flags:
+	--chat-worker            Run Inbox processing without an HTTP server
+	--external-chat-worker   Accept Inbox messages for a separate chat worker
   --healthcheck     Perform local liveness health check (/healthz) (exits 0 on 200 OK)
   --readycheck      Perform local readiness check (/readyz) (exits 0 on 200 OK)
   --sync-sponsors   Synchronize README.md and permanent sponsors archive directory

@@ -95,6 +95,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if retrySafe != nil {
 		*retrySafe = false
 	}
+	if !s.executesInbox() {
+		return "", "Inbox execution is handled by the chat worker. Your saved request remains in its chat queue."
+	}
 	normHarness := db.NormalizeHarness(harness, "")
 	for _, file := range attachmentPaths {
 		ext := strings.ToLower(filepath.Ext(file))

@@ -1035,7 +1035,7 @@ func InspectAppLogs(ctx context.Context, lines int, filter string) (any, error) 
 	queryCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
-	cmdArgs := []string{"-u", "cuan", "-n", fmt.Sprintf("%d", lines), "--no-pager"}
+	cmdArgs := []string{"-u", "cuan", "-u", "cuan-chat@*.service", "-u", "cuan-runner", "-n", fmt.Sprintf("%d", lines), "--no-pager"}
 	if filter != "" {
 		cmdArgs = append(cmdArgs, "-g", filter)
 	}

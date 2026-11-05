@@ -1227,7 +1227,7 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 	r.mu.Unlock()
 	tried := map[string]bool{}
 	for len(tried) < 8 && routed.Err() == nil {
-		home, brain, release, err := agent.LeaseHealthyBrain(claim.OwnerID, tried, claim.RequiresVision)
+		home, brain, release, err := agent.LeaseHealthyBrainForTask(claim.OwnerID, tried, claim.RequiresVision)
 		if err != nil {
 			return &agent.ExecutionResult{Status: "QUOTA_LIMITED", ExitCode: 75, Error: agent.ErrBrainCapacity.Error()}, nil
 		}

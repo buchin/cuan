@@ -23,9 +23,10 @@ func (s *Server) publishInbox(room string) {
 	if s.roomEventBroker != nil {
 		s.roomEventBroker.Broadcast(room, "inbox.updated", nil)
 	}
+	s.notifyInboxProcess(room)
 }
 func (s *Server) kickInboxRoom(room string) {
-	if s.inboxStopping.Load() {
+	if !s.executesInbox() || s.inboxStopping.Load() {
 		return
 	}
 	if _, loaded := s.inboxWorkers.LoadOrStore(room, true); loaded {
@@ -41,31 +42,36 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 		tick := time.NewTicker(5 * time.Second)
 		defer tick.Stop()
 		scan := func() {
-			if s.taskSvc != nil {
-				if s.terminalManager != nil {
-					for _, session := range s.terminalManager.ActiveSessions() {
-						history := s.terminalManager.GetTaskHistory(session.TaskID())
-						if len(history) == 0 {
-							continue
-						}
-						latest := history[len(history)-1]
-						if latest.SessionID == session.ID() && latest.AttemptID != "" && latest.Status == "running" {
-							if err := s.taskSvc.RenewLocalAttemptLease(ctx, latest.AttemptID); err != nil {
-								log.Print("local attempt heartbeat unavailable")
+			if s.cfg == nil || s.cfg.InboxExecutionRole != "worker" {
+				if s.taskSvc != nil {
+					if s.terminalManager != nil {
+						for _, session := range s.terminalManager.ActiveSessions() {
+							history := s.terminalManager.GetTaskHistory(session.TaskID())
+							if len(history) == 0 {
+								continue
+							}
+							latest := history[len(history)-1]
+							if latest.SessionID == session.ID() && latest.AttemptID != "" && latest.Status == "running" {
+								if err := s.taskSvc.RenewLocalAttemptLease(ctx, latest.AttemptID); err != nil {
+									log.Print("local attempt heartbeat unavailable")
+								}
 							}
 						}
 					}
+					if err := s.taskSvc.RecoverLocalAttempts(ctx); err != nil {
+						log.Print("local attempt recovery unavailable")
+					}
+					_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
+					_ = s.ReconcileZombies(ctx)
 				}
-				if err := s.taskSvc.RecoverLocalAttempts(ctx); err != nil {
-					log.Print("local attempt recovery unavailable")
+				if s.runnerSvc != nil {
+					_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
 				}
-				_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
-				_ = s.ReconcileZombies(ctx)
+				s.kickTaskLaunches()
 			}
-			if s.runnerSvc != nil {
-				_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
+			if !s.executesInbox() {
+				return
 			}
-			s.kickTaskLaunches()
 			if s.projectStudioRepo == nil {
 				return
 			}
@@ -113,7 +119,7 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 // delivery scan runs at a time, independently of the bounded chat worker slots.
 func (s *Server) kickInboxTaskUpdates(parent context.Context) {
 	const key = "__inbox_task_updates"
-	if s.inboxStopping.Load() {
+	if !s.executesInbox() || s.inboxStopping.Load() {
 		return
 	}
 	if _, loaded := s.inboxWorkers.LoadOrStore(key, true); loaded {

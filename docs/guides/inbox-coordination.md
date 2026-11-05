@@ -12,6 +12,10 @@ checks results and reports progress. Task agents implement approved work in its
 bound project workspace. These internal roles follow Agentic Scrum without
 requiring users to learn its terminology or participate in technical ceremonies.
 
+Native releases run Inbox in a [separate chat worker](chat-worker.md), with its
+own queue/concurrency and reserved account capacity. The API and task runner
+have separate lifetimes; API deployment does not terminate chat execution.
+
 The runtime embeds `internal/workflow/coordinator.md` and `developer.md` as the
 respective role contracts. Inbox native tools are for analysis: AGY uses plan
 mode with terminal sandbox restrictions; Claude uses read-only file tools and

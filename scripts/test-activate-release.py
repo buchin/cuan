@@ -19,6 +19,38 @@ class Response:
     def read(self): return self.body
 
 class Gates(unittest.TestCase):
+    def test_external_worker_does_not_wait_for_active_chat_during_api_switch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'admission.lock'
+            with patch.object(a,'inbox_admission_lock',side_effect=lambda:path.open('a+')), patch.object(a,'database_environment',return_value={}), patch.object(a,'database_scalar') as query:
+                with a.drain_inbox_admission(wait_active=False):
+                    with path.open('a+') as other:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(other,fcntl.LOCK_SH|fcntl.LOCK_NB)
+                query.assert_not_called()
+
+    def test_chat_worker_uses_pinned_release_and_drains_independently(self):
+        text=a.chat_worker_unit(Path('/opt/cuan'),'cuan','ubuntu')
+        self.assertIn('ExecStart=/opt/cuan/releases/%i/bin/cuan-server --chat-worker',text)
+        self.assertIn('KillMode=mixed',text)
+        self.assertIn('TimeoutStopSec=430',text)
+        self.assertIn('RuntimeDirectory=cuan-chat-%i',text)
+        self.assertNotIn('PartOf=',text)
+        self.assertNotIn('Requires=cuan',text)
+        self.assertTrue(a.supports_chat_worker({'features':{'inbox_worker':1}}))
+        self.assertFalse(a.supports_chat_worker({'features':{}}))
+
+    def test_rolling_worker_update_stops_only_old_managed_instances(self):
+        old='cuan-chat@'+'a'*40+'.service'
+        new='cuan-chat@'+'b'*40+'.service'
+        result=type('Result',(),{'stdout':old+' loaded active running\n'+new+' loaded active running\nother.service loaded active running\n'})()
+        with patch.object(a,'SERVICE','cuan'),patch.object(a.subprocess,'run',return_value=result) as command:
+            a.drain_old_chat_workers(keep=new)
+        calls=[call.args[0] for call in command.call_args_list]
+        self.assertIn(['systemctl','stop','--no-block',old],calls)
+        self.assertNotIn(['systemctl','stop','--no-block',new],calls)
+        self.assertFalse(any('other.service' in call for call in calls))
+
     def test_inbox_drain_waits_for_live_turns_and_holds_claim_barrier(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'admission.lock'

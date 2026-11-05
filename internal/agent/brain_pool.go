@@ -14,6 +14,14 @@ var ErrBrainCapacity = errors.New("AI capacity is temporarily full. Your work is
 // Cross-process leases prevent oversubscribing a brain; cooldowns prevent repeatedly
 // routing to an exhausted account. Identity and conversation stay in Cuan.
 func LeaseHealthyBrain(owner string, excluded map[string]bool, requiresVision ...bool) (string, *ProviderAccount, func(), error) {
+	return leaseHealthyBrain(owner, excluded, TryLeaseProviderAccount, requiresVision...)
+}
+
+func LeaseHealthyBrainForTask(owner string, excluded map[string]bool, requiresVision ...bool) (string, *ProviderAccount, func(), error) {
+	return leaseHealthyBrain(owner, excluded, TryLeaseProviderAccountForTask, requiresVision...)
+}
+
+func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string, string) (func(), error), requiresVision ...bool) (string, *ProviderAccount, func(), error) {
 	if owner == "" {
 		return "", nil, nil, ErrBrainCapacity
 	}
@@ -43,7 +51,7 @@ func LeaseHealthyBrain(owner string, excluded map[string]bool, requiresVision ..
 		if time.Now().Before(p.ModelCooldowns[""]) {
 			continue
 		}
-		release, err := TryLeaseProviderAccount(owner, p.ID)
+		release, err := lease(owner, p.ID)
 		if err != nil {
 			continue
 		}

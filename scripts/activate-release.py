@@ -160,7 +160,7 @@ def inbox_admission_lock():
 
 
 @contextmanager
-def drain_inbox_admission(no_restart=False, timeout=660):
+def drain_inbox_admission(no_restart=False, timeout=660, wait_active=True):
     if no_restart:
         yield
         return
@@ -178,7 +178,7 @@ def drain_inbox_admission(no_restart=False, timeout=660):
         # Queued requests are durable and must not prevent activation. This gate
         # is mandatory even when resumable task work is explicitly permitted.
         try:
-            while True:
+            while wait_active:
                 if database_scalar("SELECT to_regclass('public.inbox_requests') IS NOT NULL", env) != 't':
                     break
                 active = int(database_scalar("SELECT count(*) FROM inbox_requests WHERE state IN ('running','cancelling')", env))
@@ -341,6 +341,86 @@ def restart_worker_service():
         print(f'==> Notice: Could not restart cuan-runner: {e}')
 
 
+def supports_chat_worker(manifest):
+    return (manifest or {}).get('features', {}).get('inbox_worker') == 1
+
+
+def configure_api_release(chat_worker=False):
+    unit_dir = Path('/etc/systemd/system/' + SERVICE + '.service.d')
+    unit_dir.mkdir(exist_ok=True)
+    (BASE / 'release.env').write_text(
+        'PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
+        f'CUAN_STATIC_DIR={BASE}/current/web/dist\nCUAN_AUTO_MIGRATE=false\n')
+    flag = ' --external-chat-worker' if chat_worker else ''
+    (unit_dir / 'release.conf').write_text(
+        f'[Service]\nEnvironmentFile={BASE}/release.env\nWorkingDirectory={BASE}/current\nExecStart=\n'
+        f'ExecStart={BASE}/current/bin/cuan-server{flag}\n'
+        'Environment=PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
+        f'Environment=CUAN_STATIC_DIR={BASE}/current/web/dist\nEnvironment=CUAN_AUTO_MIGRATE=false\n')
+
+
+def chat_worker_unit(base, service, user, group=''):
+    if not re.fullmatch(r'[a-zA-Z_][a-zA-Z0-9_-]*', user):
+        raise RuntimeError('Chat worker requires an explicit service user')
+    if group and not re.fullmatch(r'[a-zA-Z_][a-zA-Z0-9_-]*', group):
+        raise RuntimeError('Chat worker service group is invalid')
+    return ('# Managed by Cuan release activation: Inbox worker v1\n'
+        '[Unit]\nDescription=Cuan chat worker %i\nAfter=network-online.target\nWants=network-online.target\n'
+        'StartLimitIntervalSec=0\n\n[Service]\nType=simple\nUser='+user+'\n'+('Group='+group+'\n' if group else '')+
+        f'WorkingDirectory={base}/releases/%i\nEnvironmentFile={base}/.env\nEnvironmentFile={base}/release.env\n'
+        f'ExecStart={base}/releases/%i/bin/cuan-server --chat-worker\n'
+        f'RuntimeDirectory={service}-chat-%i\nEnvironment=CUAN_CHAT_WORKER_READY_FILE=/run/{service}-chat-%i/ready.json\n'
+        'UMask=0077\nRestart=on-failure\nRestartSec=2\nKillMode=mixed\nTimeoutStopSec=430\n\n'
+        '[Install]\nWantedBy=multi-user.target\n')
+
+
+def start_chat_worker(manifest, timeout=45):
+    sha = manifest.get('sha', '')
+    if not re.fullmatch(r'[0-9a-f]{40}', sha):
+        raise RuntimeError('Chat worker requires a verified release identity')
+    if not (BASE / '.env').is_file():
+        raise RuntimeError('Chat worker requires the retained native environment file')
+    props = subprocess.check_output(['systemctl','show',SERVICE,'-p','User','-p','Group'],text=True)
+    identity = dict(line.split('=',1) for line in props.splitlines() if '=' in line)
+    template = Path('/etc/systemd/system/'+SERVICE+'-chat@.service')
+    text = chat_worker_unit(BASE, SERVICE, identity.get('User',''), identity.get('Group',''))
+    if template.is_symlink() or (template.exists() and not template.read_text().startswith('# Managed by Cuan release activation: Inbox worker v1\n')):
+        raise RuntimeError('An unrelated chat worker service exists; no unit was overwritten')
+    template.write_text(text)
+    subprocess.run(['systemctl','daemon-reload'],check=True)
+    instance = SERVICE+'-chat@'+sha+'.service'
+    try:
+        subprocess.run(['systemctl','enable','--now',instance],check=True)
+        deadline = time.monotonic()+timeout
+        ready_file = Path('/run')/(SERVICE+'-chat-'+sha)/'ready.json'
+        while time.monotonic()<deadline:
+            try:
+                ready = json.loads(ready_file.read_text())
+                pid = subprocess.check_output(['systemctl','show',instance,'-p','MainPID','--value'],text=True).strip()
+                if ready.get('release')==sha and str(ready.get('pid'))==pid and Path('/proc',pid,'exe').resolve()==BASE/'releases'/sha/'bin/cuan-server':
+                    return instance
+            except (OSError, ValueError):
+                pass
+            time.sleep(.2)
+        raise RuntimeError('Chat worker did not become ready; activation needs rollback')
+    except Exception:
+        subprocess.run(['systemctl','disable','--now',instance],check=False)
+        raise
+
+
+def drain_old_chat_workers(keep=None):
+    result = subprocess.run(['systemctl','list-units',SERVICE+'-chat@*.service','--all','--no-legend','--plain'],capture_output=True,text=True,check=True)
+    pattern = re.compile(re.escape(SERVICE)+r'-chat@[0-9a-f]{40}\.service')
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if not parts or not pattern.fullmatch(parts[0]) or parts[0]==keep:
+            continue
+        subprocess.run(['systemctl','disable',parts[0]],check=True,capture_output=True)
+        # SIGTERM goes only to the supervisor. Existing providers finish while
+        # the ready new generation admits other conversations immediately.
+        subprocess.run(['systemctl','stop','--no-block',parts[0]],check=True)
+
+
 def record_task_deployment(env, release_sha):
     cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
     task_id = os.environ.get('CUAN_DEPLOY_EXCLUDE_TASK', '').strip()
@@ -469,22 +549,14 @@ def main():
             for name in ('data', 'sponsors'):
                 if not (release / name).exists():
                     (release / name).symlink_to(BASE / name)
-        unit_dir = Path('/etc/systemd/system/' + SERVICE + '.service.d')
-        unit_dir.mkdir(exist_ok=True)
-        # systemd EnvironmentFile overrides Environment, even in drop-ins.
-        # Load these non-secret release settings after the retained private .env.
-        (BASE / 'release.env').write_text(
-            'PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
-            f'CUAN_STATIC_DIR={BASE}/current/web/dist\nCUAN_AUTO_MIGRATE=false\n')
-        (unit_dir / 'release.conf').write_text(
-            f'[Service]\nEnvironmentFile={BASE}/release.env\nWorkingDirectory={BASE}/current\nExecStart=\n'
-            f'ExecStart={BASE}/current/bin/cuan-server\n'
-            'Environment=PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
-            f'Environment=CUAN_STATIC_DIR={BASE}/current/web/dist\n'
-            'Environment=CUAN_AUTO_MIGRATE=false\n')
+        old_manifest = json.loads((old / 'release.json').read_text()) if (old / 'release.json').exists() else {}
+        chat_worker = supports_chat_worker(manifest)
+        if args.no_restart and chat_worker != supports_chat_worker(old_manifest):
+            raise RuntimeError('Changing Inbox process roles requires a supervised activation, not a static-only switch')
+        configure_api_release(chat_worker)
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         retained_environment = database_environment()
-        with drain_inbox_admission(args.no_restart):
+        with drain_inbox_admission(args.no_restart, wait_active=not (chat_worker and supports_chat_worker(old_manifest))):
             assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
             cuan_bin = target / 'bin' / 'cuan'
             if not cuan_bin.exists() and not cuan_bin.is_symlink():
@@ -495,17 +567,30 @@ def main():
             signal_worker_drain()
             switch(current, target)
             target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
-            if not verify_and_record_task_deployment(retained_environment, target_sha, args.no_restart):
+            chat_instance = None
+            activation_ok = False
+            try:
+                if chat_worker and not args.no_restart:
+                    chat_instance = start_chat_worker(manifest)
+                activation_ok = verify_and_record_task_deployment(retained_environment, target_sha, args.no_restart)
+            except Exception:
+                print('==> Worker or API activation failed; restoring the prior release.', flush=True)
+            if not activation_ok:
+                if chat_instance:
+                    subprocess.run(['systemctl','disable','--now',chat_instance],check=False)
                 cleanup_worker_drain()
-                restart_worker_service()
-                old_manifest = json.loads((old / 'release.json').read_text())
+                configure_api_release(supports_chat_worker(old_manifest))
+                subprocess.run(['systemctl','daemon-reload'],check=True)
                 assert_project_workspace_support(old_manifest, retained_environment)
                 assert_task_worktree_support(old_manifest, retained_environment)
                 switch(current, old)
                 old_sha = old_manifest.get('sha')
                 old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
                 recovered = old_healthy()
+                restart_worker_service()
                 raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
+            if not args.no_restart:
+                drain_old_chat_workers(keep=chat_instance)
             cleanup_worker_drain()
             restart_worker_service()
             switch(previous, old)

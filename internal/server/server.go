@@ -500,7 +500,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 			return err
 		},
 	})
-	sched.Start(context.Background())
+	if cfg.InboxExecutionRole != "worker" {
+		sched.Start(context.Background())
+	}
 
 	taskMgr := scheduler.NewTaskManager(filepath.Join("data", "scheduled_tasks.json"), func(ctx context.Context, task *scheduler.ScheduledTask) error {
 		return nil
@@ -669,7 +671,9 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	s.routes()
 	s.setupStaticRoutes()
 	s.SetExtensionRegistry(s.extensions)
-	s.reconcileStartupState(context.Background())
+	if cfg.InboxExecutionRole != "worker" {
+		s.reconcileStartupState(context.Background())
+	}
 	return s
 }
 

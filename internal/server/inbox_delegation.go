@@ -447,7 +447,7 @@ func delegationMessageID(key string) string {
 // Durable messages act as delivery receipts. Reconnect/restart cannot duplicate
 // notifications; the dispatcher never restarts a terminal attempt.
 func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
-	if s.taskSvc == nil || s.projectStudioRepo == nil {
+	if !s.executesInbox() || s.taskSvc == nil || s.projectStudioRepo == nil {
 		return
 	}
 	s.recoverPhaseHandoffs(ctx)

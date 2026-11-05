@@ -29,6 +29,9 @@ func (c *Config) SourceRepositoryURL() string {
 }
 
 type Config struct {
+	// Empty keeps standalone/embedded operation. Native installations use
+	// "api" and a separately supervised "worker" for Inbox execution.
+	InboxExecutionRole        string
 	Environment               string
 	ServerPort                string
 	DatabaseURL               string

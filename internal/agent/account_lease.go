@@ -49,6 +49,30 @@ func releaseAccountFiles(files ...*os.File) func() {
 // Sessions share the existing gate, then claim one cross-process slot. Keeping
 // the old gate path also prevents overlap with old exclusive-lease releases.
 func TryLeaseProviderAccount(owner, id string) (func(), error) {
+	return tryLeaseProviderAccount(owner, id, false)
+}
+
+// Long tasks leave interactive capacity available. Both classes still use the
+// same cross-process locks and provider quota; no account limit is increased.
+func TryLeaseProviderAccountForTask(owner, id string) (func(), error) {
+	return tryLeaseProviderAccount(owner, id, true)
+}
+
+func providerTaskSessionLimit() int {
+	limit := ProviderAccountSessionLimit()
+	reserved := 1
+	if raw := os.Getenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n >= 0 {
+			reserved = n
+		}
+	}
+	if reserved >= limit {
+		reserved = limit - 1
+	}
+	return limit - reserved
+}
+
+func tryLeaseProviderAccount(owner, id string, task bool) (func(), error) {
 	if id == "" {
 		return func() {}, nil
 	}
@@ -67,7 +91,15 @@ func TryLeaseProviderAccount(owner, id string) (func(), error) {
 		}
 		return nil, ErrAccountBusy
 	}
-	for i := 0; i < ProviderAccountSessionLimit(); i++ {
+	limit := ProviderAccountSessionLimit()
+	if task {
+		limit = providerTaskSessionLimit()
+	}
+	for offset := 0; offset < limit; offset++ {
+		i := offset
+		if !task {
+			i = limit - 1 - offset
+		}
 		slot, err := accountLeaseFile(filepath.Join(dir, ".session-"+strconv.Itoa(i)+".lock"))
 		if err != nil {
 			releaseAccountFiles(gate)()
