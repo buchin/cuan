@@ -1,6 +1,7 @@
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
+import { useMessageReceipts } from './useMessageReceipts'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { workStatus } from '../tasks/task-ui'
 import { startsMessageGroup } from './message-group'
@@ -435,6 +436,7 @@ export function InboxView({
     olderAnchor.current = null
   }, [activeContact?.id])
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  useMessageReceipts(activeContact?.conversation_id || activeContact?.id, activeContact?.type === 'customer', messages)
 
   const latestMessageIdPerTask = useMemo(
     () => taskMessageBindings(linkedTasks, messages, requests, activeContact?.type === 'customer'),
@@ -545,6 +547,10 @@ export function InboxView({
                 a.content !== b.content ||
                 a.message !== b.message ||
                 a.created_at !== b.created_at ||
+                a.delivered_at !== b.delivered_at ||
+                a.read_confirmed_at !== b.read_confirmed_at ||
+                a.email_delivery?.status !== b.email_delivery?.status ||
+                a.email_delivery?.recipient_type !== b.email_delivery?.recipient_type ||
                 a.reply_draft !== b.reply_draft ||
                 a.plan_deferred !== b.plan_deferred ||
                 a.approval_accepted !== b.approval_accepted
@@ -1529,15 +1535,21 @@ export function InboxView({
                 const showMessageSurface = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices)
                 const metadata = (
                   <span className="wa-message-meta">
+                    {msg.email_delivery && !msg.is_internal && <span title={t(msg.email_delivery.recipient_type === 'operator' ? 'Email notification to your team; independent of chat read status' : 'Email delivery to customer; independent of chat read status')}>
+                      {msg.email_delivery.recipient_type === 'operator' ? t('Team') + ' · ' : ''}{t(({ sent: 'Email sent', delivered: 'Email delivered', delivery_delayed: 'Email delayed', bounced: 'Email bounced', failed: 'Email failed', complained: 'Email reported', suppressed: 'Email suppressed' } as Record<string, string>)[msg.email_delivery.status] || 'Email status unavailable')}
+                    </span>}
                     <time dateTime={msg.created_at}>
                       {formatMessageTime(msg.created_at)}
                     </time>
                     {isOutgoing && (
-                      <Check
-                        className="h-3.5 w-3.5"
-                        role="img"
-                        aria-label="Message saved"
-                      />
+                      (() => {
+                        const publicCustomerMessage = activeContact.type === 'customer' && !msg.is_internal
+                        const read = publicCustomerMessage && !!msg.read_confirmed_at
+                        const delivered = publicCustomerMessage && !!msg.delivered_at
+                        const ReceiptIcon = read || delivered ? CheckCheck : Check
+                        const label = read ? t('Read in chat') : delivered ? t('Delivered to chat') : t('Message saved')
+                        return <span title={label}><ReceiptIcon className={cn('h-3.5 w-3.5', read && 'text-[#4384ad] dark:text-[#7da6c1]')} role="img" aria-label={label} /></span>
+                      })()
                     )}
                   </span>
                 )

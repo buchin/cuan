@@ -67,6 +67,8 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
+	db.MessageReceipt
+	EmailDelivery      *ChatEmailDelivery       `json:"email_delivery,omitempty"`
 	PlanDeferred       bool                     `json:"plan_deferred,omitempty"`
 	PlanDeferRequestID string                   `json:"plan_defer_request_id,omitempty"`
 	ApprovalRequestID  string                   `json:"approval_request_id,omitempty"`
@@ -380,16 +382,23 @@ func (s *Server) handleVisitorGetMessages(w http.ResponseWriter, r *http.Request
 
 	allMessages := s.getFormattedMessages(r.Context(), sessionUUID, product)
 	filtered := make([]ChatMessageDTO, 0)
+	receipts := make([]map[string]any, 0)
 	for _, m := range allMessages {
 		if m.ID > afterID && !m.IsInternal {
 			filtered = append(filtered, m)
 		}
+		if !m.IsInternal && m.SenderType == "visitor" && (m.DeliveredAt != nil || m.ReadConfirmedAt != nil) {
+			receipts = append(receipts, map[string]any{"uuid": m.UUID, "id": m.ID, "delivered_at": m.DeliveredAt, "read_confirmed_at": m.ReadConfirmedAt})
+		}
+	}
+	if len(receipts) > 500 {
+		receipts = receipts[len(receipts)-500:]
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":       true,
 		"messages": filtered,
-		"receipts": []interface{}{},
+		"receipts": receipts,
 	})
 }
 
@@ -576,10 +585,7 @@ func (s *Server) handleVisitorPageTelemetry(w http.ResponseWriter, r *http.Reque
 
 // POST /api/chat/receipts
 func (s *Server) handleVisitorReceipts(w http.ResponseWriter, r *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"ok":       true,
-		"receipts": []interface{}{},
-	})
+	s.handleChatReceipts(w, r, false)
 }
 
 // ============================================================================
@@ -1800,6 +1806,20 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		}
 	}
 	dtos := make([]ChatMessageDTO, 0, len(rawMsgs))
+	emailDeliveries := map[string]*ChatEmailDelivery{}
+	if isCustomer {
+		emailDeliveries, err = s.chatEmailDeliveries(ctx, roomID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	receipts := map[string]db.MessageReceipt{}
+	if store, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok && isCustomer {
+		receipts, err = store.MessageReceipts(ctx, roomID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	for _, m := range rawMsgs {
 		// Filter out internal synthetic review trigger prompts from client chat timeline
 		if internalInboxReviewInput(m) {
@@ -1889,6 +1909,8 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		}
 
 		dtos = append(dtos, ChatMessageDTO{
+			MessageReceipt:    receipts[m.ID],
+			EmailDelivery:     emailDeliveries[m.ID],
 			ID:                int64(len(dtos) + 1), // Monotonic numeric ID for Dojo widget
 			UUID:              m.ID,
 			ApprovalRequestID: approvalRequestID,

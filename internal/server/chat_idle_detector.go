@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	chatIdleDetectorMu     sync.RWMutex
-	chatIdleHistory        = make(map[string]chatIdleNotificationRecord)
-	chatIdleTimers         = make(map[string]*time.Timer)
-	chatIdleRoomLocksMu    sync.Mutex
-	chatIdleRoomLocks      = make(map[string]*sync.Mutex)
+	chatIdleDetectorMu  sync.RWMutex
+	chatIdleHistory     = make(map[string]chatIdleNotificationRecord)
+	chatIdleTimers      = make(map[string]*time.Timer)
+	chatIdleRoomLocksMu sync.Mutex
+	chatIdleRoomLocks   = make(map[string]*sync.Mutex)
 )
 
 type chatIdleNotificationRecord struct {
@@ -312,6 +312,15 @@ func (s *Server) TriggerRoomIdleNotification(ctx context.Context, roomID string)
 	chatIdleDetectorMu.Unlock()
 
 	// Persist to audit log table if DB is available
+	messageIDs := make([]string, 0, len(unreadCustomerMsgs))
+	for _, message := range unreadCustomerMsgs {
+		messageIDs = append(messageIDs, message.ID)
+	}
+	// This email is an operator notification, never customer delivery or a chat read.
+	if err := s.recordChatEmail(ctx, roomID, resp.ID, messageIDs, "operator"); err != nil {
+		// Sending already succeeded. Do not replay the email to repair tracking.
+		fmt.Printf("[chat] could not save email receipt mapping for room %s\n", roomID)
+	}
 	if s.db != nil {
 		_, _ = s.db.ExecContext(ctx, `
 			INSERT INTO resend_email_logs (id, room_id, recipient_email, subject, resend_email_id, message_count, status, sent_at)

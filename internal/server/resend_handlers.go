@@ -21,6 +21,7 @@ var resendSettingsMu sync.RWMutex
 
 // ResendSettings represents the internal configuration for Resend email provider.
 type ResendSettings struct {
+	WebhookSecret        string     `json:"webhook_secret,omitempty"`
 	APIKey               string     `json:"api_key"` // Plain text in memory when decrypted, never exposed in API DTO
 	FromEmail            string     `json:"from_email"`
 	FromName             string     `json:"from_name"`
@@ -33,6 +34,7 @@ type ResendSettings struct {
 
 // ResendSettingsDTO is the public transfer object for Resend settings with zero secret leakage.
 type ResendSettingsDTO struct {
+	HasWebhookSecret     bool       `json:"has_webhook_secret"`
 	HasAPIKey            bool       `json:"has_api_key"`
 	MaskedAPIKey         string     `json:"masked_api_key"`
 	FromEmail            string     `json:"from_email"`
@@ -69,6 +71,7 @@ func (s *ResendSettings) ToDTO() ResendSettingsDTO {
 	}
 
 	return ResendSettingsDTO{
+		HasWebhookSecret:     s.WebhookSecret != "",
 		HasAPIKey:            hasKey,
 		MaskedAPIKey:         masked,
 		FromEmail:            fromEmail,
@@ -243,12 +246,13 @@ func (s *Server) handleGetResendSettings(w http.ResponseWriter, r *http.Request)
 // Route: POST /api/v1/settings/resend, PATCH /api/v1/settings/resend
 func (s *Server) handleSaveResendSettings(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		APIKey               string `json:"api_key"`
-		FromEmail            string `json:"from_email"`
-		FromName             string `json:"from_name"`
-		NotificationEmail    string `json:"notification_email"`
-		IdleThresholdMinutes int    `json:"idle_threshold_minutes"`
-		Enabled              *bool  `json:"enabled"`
+		WebhookSecret        *string `json:"webhook_secret"`
+		APIKey               string  `json:"api_key"`
+		FromEmail            string  `json:"from_email"`
+		FromName             string  `json:"from_name"`
+		NotificationEmail    string  `json:"notification_email"`
+		IdleThresholdMinutes int     `json:"idle_threshold_minutes"`
+		Enabled              *bool   `json:"enabled"`
 	}
 
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384)).Decode(&input); err != nil {
@@ -263,6 +267,16 @@ func (s *Server) handleSaveResendSettings(w http.ResponseWriter, r *http.Request
 	}
 
 	// Update API key if non-empty string provided
+	if input.WebhookSecret != nil {
+		secret := strings.TrimSpace(*input.WebhookSecret)
+		if secret != "" {
+			if _, err := newResendWebhook(secret); err != nil {
+				respondJSONError(w, 400, "Invalid webhook signing secret")
+				return
+			}
+		}
+		current.WebhookSecret = secret
+	}
 	rawKey := strings.TrimSpace(input.APIKey)
 	if rawKey != "" {
 		// Basic format sanity check for Resend API keys

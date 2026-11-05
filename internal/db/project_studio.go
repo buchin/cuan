@@ -1289,6 +1289,7 @@ type MemoryProjectStudioRepository struct {
 	messages map[string]*ProjectMessage
 	tasks    map[string]*ProjectTask
 	requests map[string]InboxRequest
+	receipts map[string]MessageReceipt
 }
 
 // NewMemoryProjectStudioRepository creates a new thread-safe in-memory ProjectStudioRepository.

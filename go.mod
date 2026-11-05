@@ -11,6 +11,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/svix/svix-webhooks v1.99.1
 	golang.org/x/crypto v0.58.0
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.60.1

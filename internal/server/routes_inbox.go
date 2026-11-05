@@ -8,6 +8,7 @@ import (
 
 // registerVisitorChatRoutes mounts public Dojo-compatible live chat widget and visitor APIs.
 func (s *Server) registerVisitorChatRoutes(r chi.Router) {
+	r.Post("/api/webhooks/resend", s.handleResendReceiptWebhook)
 	r.With(chatCORSMiddleware).Get("/chat/widget.js", s.handleChatWidgetJS)
 	r.With(chatCORSMiddleware).Options("/chat/widget.js", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -71,6 +72,7 @@ func (s *Server) registerInboxRoutes(pr chi.Router) {
 	pr.Post("/chat/attachments", s.handleUploadConversationAttachment)
 	pr.Get("/chat/attachments/{id}", s.handleDownloadConversationAttachment)
 	pr.Get("/chat/conversations/{id}/messages", s.handleInternalGetConversationMessages)
+	pr.Post("/chat/conversations/{id}/receipts", s.handleOwnerChatReceipts)
 	pr.Get("/chat/conversations/{id}/grounding", s.handleGetConversationTasteGrounding)
 	pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
 	pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)

@@ -65,6 +65,37 @@
   let unreadCount = 0;
   let isSending = false;
   let pollInterval = null;
+  const acknowledgedDelivery = new Set();
+  const acknowledgedRead = new Set();
+  let receiptsPending = false;
+  let receiptTimer = null;
+
+  function scheduleReceipts() {
+    clearTimeout(receiptTimer);
+    receiptTimer = setTimeout(acknowledgeMessages, 120);
+  }
+  async function acknowledgeMessages() {
+    if (!sessionUUID || receiptsPending) return;
+    const delivered = [], read = [];
+    const bounds = messagesStreamEl.getBoundingClientRect();
+    for (const m of messages) {
+      if (!m.uuid || m.is_internal || m.sender_type !== 'operator') continue;
+      if (!acknowledgedDelivery.has(m.uuid)) delivered.push(m.uuid);
+      if (!isOpen || document.visibilityState !== 'visible' || acknowledgedRead.has(m.uuid)) continue;
+      const node = messagesStreamEl.querySelector(`[data-message-id="${CSS.escape(m.uuid)}"]`);
+      if (!node) continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.height > 0 && rect.bottom > Math.max(0, bounds.top) && rect.top < Math.min(innerHeight, bounds.bottom) && rect.right > Math.max(0, bounds.left) && rect.left < Math.min(innerWidth, bounds.right)) read.push(m.uuid);
+    }
+    if (!delivered.length && !read.length) return;
+    const d = delivered.slice(0,500), r = read.slice(0,500);
+    receiptsPending = true;
+    try {
+      const response = await fetch(`${apiBase}/api/chat/receipts`, { method: 'POST', signal: AbortSignal.timeout(10000), headers: {'Content-Type':'application/json'}, body: JSON.stringify({session_uuid: sessionUUID, guest_uuid: guestUUID, delivered_ids:d, read_ids:r}) });
+      if (response.ok) { d.forEach(id => acknowledgedDelivery.add(id)); r.forEach(id => { acknowledgedRead.add(id); acknowledgedDelivery.add(id); }); }
+    } catch (_) { /* Retry on the next poll or visibility change. */ }
+    finally { receiptsPending = false; }
+  }
 
   // Create Host and Attach Shadow DOM
   const host = document.createElement('div');
@@ -440,6 +471,8 @@
   const iconCloseEl = shadow.getElementById('icon-close');
   const badgeEl = shadow.getElementById('badge');
   const messagesStreamEl = shadow.getElementById('messages-stream');
+  messagesStreamEl.addEventListener('scroll', scheduleReceipts, {passive:true});
+  document.addEventListener('visibilitychange', scheduleReceipts);
   const textareaEl = shadow.getElementById('input-textarea');
   const sendBtnEl = shadow.getElementById('send-btn');
   const attachBtnEl = shadow.getElementById('attach-btn');
@@ -515,6 +548,13 @@
       if (res.ok) {
         const data = await res.json();
         const incoming = data.messages || [];
+        let receiptChanged = false;
+        for (const receipt of data.receipts || []) {
+          const message = messages.find(m => m.uuid === receipt.uuid);
+          if (message && (message.delivered_at !== receipt.delivered_at || message.read_confirmed_at !== receipt.read_confirmed_at)) {
+            Object.assign(message, receipt); receiptChanged = true;
+          }
+        }
         if (incoming.length > 0) {
           let hasNew = false;
           for (let i = 0; i < incoming.length; i++) {
@@ -535,6 +575,8 @@
             updateBadge();
           }
         }
+        if (receiptChanged) renderMessages(true);
+        scheduleReceipts();
       }
     } catch (err) {
       // Network hiccup, ignore
@@ -542,7 +584,8 @@
   }
 
   // Render Messages
-  function renderMessages() {
+  function renderMessages(preserveScroll = false) {
+    const previousScroll = messagesStreamEl.scrollTop;
     messagesStreamEl.innerHTML = '';
     // Welcome message
     const welcomeDiv = document.createElement('div');
@@ -557,6 +600,7 @@
       const div = document.createElement('div');
       const isVisitor = m.sender_type ? m.sender_type === 'visitor' : m.author_type === 'user';
       div.className = `dojo-msg ${isVisitor ? 'visitor' : 'operator'}`;
+      if (m.uuid) div.dataset.messageId = m.uuid;
 
       const text = m.message || m.content || '';
       const timeStr = formatTime(m.created_at);
@@ -573,12 +617,13 @@
 
       div.innerHTML = `
         <div class="dojo-msg-bubble">${escapeHTML(text)}${attachmentHtml}</div>
-        <span class="dojo-msg-meta">${timeStr}</span>
+        <span class="dojo-msg-meta">${timeStr}${isVisitor ? ` <span aria-label="${m.read_confirmed_at ? 'Read in chat' : m.delivered_at ? 'Delivered to chat' : 'Message saved'}" title="${m.read_confirmed_at ? 'Read in chat' : m.delivered_at ? 'Delivered to chat' : 'Message saved'}" style="${m.read_confirmed_at ? 'color:#4384ad' : ''}">${m.read_confirmed_at || m.delivered_at ? '✓✓' : '✓'}</span>` : ''}</span>
       `;
       messagesStreamEl.appendChild(div);
     });
 
-    messagesStreamEl.scrollTop = messagesStreamEl.scrollHeight;
+    messagesStreamEl.scrollTop = preserveScroll ? previousScroll : messagesStreamEl.scrollHeight;
+    scheduleReceipts();
   }
 
   function updateBadge() {

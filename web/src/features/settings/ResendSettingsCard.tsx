@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { Mail, ShieldCheck, CheckCircle2, AlertTriangle, Key, Send, RefreshCw, Eye, EyeOff } from 'lucide-react'
 
 export interface ResendSettingsDTO {
+  has_webhook_secret?: boolean
   has_api_key: boolean
   masked_api_key: string
   from_email: string
@@ -20,6 +21,7 @@ export function ResendSettingsCard() {
 
   const [settings, setSettings] = useState<ResendSettingsDTO | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [fromName, setFromName] = useState('')
   const [fromEmail, setFromEmail] = useState('')
@@ -83,6 +85,7 @@ export function ResendSettingsCard() {
       if (apiKeyInput.trim()) {
         payload.api_key = apiKeyInput.trim()
       }
+      if (webhookSecret.trim()) payload.webhook_secret = webhookSecret.trim()
 
       const res = await apiFetch<{ status: string; message: string; settings: ResendSettingsDTO }>(
         '/api/v1/settings/resend',
@@ -94,6 +97,7 @@ export function ResendSettingsCard() {
 
       setSettings(res.settings)
       setApiKeyInput('')
+      setWebhookSecret('')
       setFeedback({
         type: 'success',
         message: t('Pengaturan Resend berhasil disimpan dengan aman dalam vault terenkripsi!'),
@@ -307,6 +311,14 @@ export function ResendSettingsCard() {
         </div>
 
         {/* Sender details: From Name & From Email */}
+        <details className="text-sm">
+          <summary className="cursor-pointer py-3 text-muted-foreground">{t('Email delivery tracking')}</summary>
+          <div className="space-y-2 pb-3">
+            <label htmlFor="resend-webhook-secret" className="block font-medium">{t('Webhook signing secret')}</label>
+            <input id="resend-webhook-secret" type="password" autoComplete="new-password" className="field-control w-full min-h-11 text-sm" value={webhookSecret} onChange={e => setWebhookSecret(e.target.value)} placeholder={settings?.has_webhook_secret ? t('Signing secret saved') : 'whsec_…'} />
+            <p className="text-xs text-muted-foreground">{t('Resend webhook URL')}: <code>{window.location.origin}/api/webhooks/resend</code></p>
+          </div>
+        </details>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <label className="block text-sm font-medium">{t('Nama Pengirim (From Name)')}</label>

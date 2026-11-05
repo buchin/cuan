@@ -71,6 +71,9 @@ export interface PromptChoices {
 }
 
 export interface ChatMessage {
+  delivered_at?: string
+  read_confirmed_at?: string
+  email_delivery?: { status: string; recipient_type: 'operator' | 'visitor' }
   plan_deferred?: boolean
   plan_defer_request_id?: string
   approval_accepted?: boolean

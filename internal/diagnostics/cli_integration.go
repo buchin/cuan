@@ -12,6 +12,7 @@ import (
 )
 
 type resendPublicSettings struct {
+	HasWebhookSecret     bool       `json:"has_webhook_secret"`
 	HasAPIKey            bool       `json:"has_api_key"`
 	FromEmail            string     `json:"from_email"`
 	FromName             string     `json:"from_name"`
@@ -36,7 +37,7 @@ func RunIntegrationCLI(args []string, out, errOut io.Writer) int {
 	const help = `Usage:
 	cuan integration github show
   cuan integration resend show
-  cuan integration resend set [--key-from-env NAME] [--from-email EMAIL] [--from-name NAME] [--notification-email EMAIL]
+  cuan integration resend set [--key-from-env NAME] [--webhook-secret-from-env NAME] [--from-email EMAIL] [--from-name NAME] [--notification-email EMAIL]
   cuan integration resend validate
 Set preserves automatic-email preferences and other omitted settings.
 Secret values are never accepted as arguments or returned in output.
@@ -69,6 +70,7 @@ Validate checks credentials without sending email.`
 	fs := flag.NewFlagSet("integration resend", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	keyEnv := fs.String("key-from-env", "", "Explicit secret environment variable")
+	webhookEnv := fs.String("webhook-secret-from-env", "", "Explicit Resend webhook signing secret variable for this Cuan installation")
 	from := fs.String("from-email", "", "Sender address")
 	name := fs.String("from-name", "", "Sender name")
 	notify := fs.String("notification-email", "", "Notification address")
@@ -94,6 +96,13 @@ Validate checks credentials without sending email.`
 	case "show":
 	case "set":
 		payload := map[string]string{}
+		if *webhookEnv != "" {
+			if !environmentKey.MatchString(*webhookEnv) || os.Getenv(*webhookEnv) == "" {
+				fmt.Fprintln(errOut, "Named webhook secret variable is invalid or empty.")
+				return 2
+			}
+			payload["webhook_secret"] = os.Getenv(*webhookEnv)
+		}
 		if *keyEnv != "" {
 			if !environmentKey.MatchString(*keyEnv) {
 				fmt.Fprintln(errOut, "Invalid secret variable name.")
