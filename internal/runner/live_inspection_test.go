@@ -19,7 +19,7 @@ import (
 )
 
 func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T) {
-	for _, scenario := range []string{"valid", "current outcome", "current outcome unpublished", "failed checks", "changed source", "valid recovery", "unavailable previous"} {
+	for _, scenario := range []string{"valid", "current outcome", "current outcome unpublished", "failed checks", "changed source", "valid recovery", "unavailable previous", "verification deadline"} {
 		t.Run(scenario, func(t *testing.T) {
 			source := documentationFixture(t)
 			run := func(args ...string) string {
@@ -35,7 +35,11 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			if scenario == "failed checks" {
 				exit = "4"
 			}
-			if err := os.WriteFile(filepath.Join(source, "scripts", "test.sh"), []byte("#!/bin/sh\nprintf 'LIVE_MACHINE_CHECK\\n'\nexit "+exit+"\n"), 0700); err != nil {
+			delay := ""
+			if scenario == "verification deadline" {
+				delay = "sleep 2\n"
+			}
+			if err := os.WriteFile(filepath.Join(source, "scripts", "test.sh"), []byte("#!/bin/sh\nprintf 'LIVE_MACHINE_CHECK\\n'\n"+delay+"exit "+exit+"\n"), 0700); err != nil {
 				t.Fatal(err)
 			}
 			run("add", ".")
@@ -87,6 +91,10 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			if scenario == "unavailable previous" {
 				claim.LiveInspection.PreviousCommit = strings.Repeat("f", 40)
 			}
+			if scenario == "verification deadline" {
+				deadline := time.Now().Add(800 * time.Millisecond)
+				claim.Attempt.ExecutionDeadline = &deadline
+			}
 			runner.runAttempt(context.Background(), claim)
 			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "valid recovery" || strings.HasPrefix(scenario, "current outcome")) {
 				t.Fatal("snapshot verification outcome incorrect", completion.Status, completion.ErrorMessage)
@@ -99,6 +107,9 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			}
 			if strings.HasPrefix(scenario, "current outcome") && (!completion.CurrentOutcomeVerified || completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {
 				t.Fatal("current outcome must establish current evidence without source ancestry")
+			}
+			if scenario == "verification deadline" && (completion.ErrorMessage != "Live result inspection deadline expired during independent project verification; checks are incomplete" || task.PassingProjectCheckSummary(completion.TestSummary)) {
+				t.Fatal("deadline was misreported as a functional check failure", completion)
 			}
 			if completion.CommitSHA != "" || completion.PRURL != "" || completion.LiveDeploymentConfirmed {
 				t.Fatal("read-only inspection fabricated publication")

@@ -1060,6 +1060,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					if !fresh.Passed || !task.PassingProjectCheckSummary(fresh.Summary) {
 						verification.Passed = false
 						verification.Error = "Live result inspection project checks did not pass"
+						if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+							verification.Error = "Live result inspection deadline expired during independent project verification; checks are incomplete"
+						}
 					} else {
 						verification, compReq.RepositoryVerification = verifyTaskRepository(ctx, workingDir, "", policy, readOnlyBaseline)
 					}

@@ -450,3 +450,10 @@ approval. It does not rerun implementation, recreate the project, deploy, overwr
 configuration, reset correction budgets, or change either historical attempt.
 The new inspection must read real deliverables and report actual observations;
 normal independent review still decides whether the original setup is complete.
+
+Independent inspection checks that are interrupted by the stored execution
+deadline remain incomplete, rather than being reported as functional test
+failures. The runner retains partial output and the historical attempt state;
+this classification grants no new execution allowance. Visual inspection prompts
+prefer existing real-component verification scripts and explicitly reject images
+produced by reconstructed DOM or library-only rendering as application evidence.
