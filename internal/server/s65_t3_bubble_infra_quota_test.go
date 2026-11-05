@@ -96,9 +96,9 @@ func TestS65T3_InfraFault_ScrumEngineClassification(t *testing.T) {
 
 	res := evaluateTaskDoDDeterministic(d)
 
-	// Decision must be "review" (Needs Attention)
-	if res.Decision != "review" {
-		t.Fatalf("expected decision 'review' for infra fault, got '%s'", res.Decision)
+	// Infrastructure failure remains blocked without a business correction.
+	if res.Decision != "blocked" {
+		t.Fatalf("expected decision 'blocked' for infra fault, got '%s'", res.Decision)
 	}
 
 	// Must NOT be classified as "BELUM LULUS (Perlu Revisi)"
@@ -106,9 +106,9 @@ func TestS65T3_InfraFault_ScrumEngineClassification(t *testing.T) {
 		t.Fatalf("infra fault must not be classified as 'BELUM LULUS', got:\n%s", res.Explanation)
 	}
 
-	// Must contain clear Needs Attention / connection issue classification
-	if !strings.Contains(res.Explanation, "PERLU PERHATIAN") || !strings.Contains(res.Explanation, "Needs Attention") {
-		t.Fatalf("expected 'PERLU PERHATIAN (Needs Attention)' in explanation, got:\n%s", res.Explanation)
+	// Explain the observed interruption without inventing a connection cause.
+	if !strings.Contains(res.Explanation, "terhenti") || strings.Contains(res.Explanation, "Koneksi Runner") {
+		t.Fatalf("expected a readable interruption outcome, got:\n%s", res.Explanation)
 	}
 
 	// Must NOT claim that 3 revision attempts were exhausted

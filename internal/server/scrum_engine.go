@@ -119,9 +119,6 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 	}
 	isSuccess := inboxReviewExecutionSucceeded(d)
 
-	var sb strings.Builder
-	sb.WriteString("### Evaluasi Kriteria Selesai (Definition of Done)\n")
-
 	if !isSuccess {
 		errMsg := att.ErrorMessage
 		if errMsg == "" {
@@ -132,79 +129,28 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 			exitCode = *att.ExitCode
 		}
 		if att.Status == task.AttemptStatusInterrupted || runner.IsInfraFault(att.Status, att.ErrorMessage, exitCode) {
-			sb.WriteString("**Status:** PERLU PERHATIAN (Kendala Koneksi Runner / Needs Attention)\n\n")
-			sb.WriteString("**Bukti yang Terverifikasi:**\n")
-			sb.WriteString("- [x] **Penyimpanan Konteks**: Konteks pekerjaan dan perubahan tersimpan aman.\n\n")
-			sb.WriteString("**Catatan Teknis (Infra):**\n")
-			sb.WriteString("- [ ] **Koneksi Runner**: " + errMsg + "\n\n")
-			sb.WriteString("**Tindakan:** Tugas memerlukan perhatian teknis dan dapat dijalankan ulang secara manual tanpa mengurangi kuota 3x revisi bisnis.")
-			return inboxReviewEvaluation{
-				Decision:    "blocked",
-				Explanation: sb.String(),
-				Revision:    "",
-			}
+			return inboxReviewEvaluation{Decision: "blocked", Explanation: "Eksekusi terhenti sebelum hasilnya dapat diverifikasi."}
 		}
-
-		sb.WriteString("**Status:** BELUM LULUS (Perlu Revisi)\n\n")
-		sb.WriteString("**Bukti yang Terverifikasi:**\n")
-		sb.WriteString("- [x] **Pencatatan Eksekusi**: Runner mencatat proses attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n\n")
-		sb.WriteString("**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n")
-		sb.WriteString("- [ ] **Eksekusi Berhasil**: " + errMsg + "\n\n")
-
 		if taskRevisionAttemptCount(d) >= 3 {
-			return inboxReviewEvaluation{
-				Decision:    "blocked",
-				Explanation: inboxCorrectionLimitExplanation,
-				Revision:    "",
-			}
+			return inboxReviewEvaluation{Decision: "blocked", Explanation: inboxCorrectionLimitExplanation}
 		}
-
-		sb.WriteString("**Tindakan:** Mengembalikan otomatis ke tim eksekusi untuk revisi.")
 		return inboxReviewEvaluation{
 			Decision:    "revise",
-			Explanation: sb.String(),
+			Explanation: "Pengerjaan gagal sebelum hasilnya bisa diverifikasi.",
 			Revision:    "Perbaiki kegagalan eksekusi pada attempt #" + strconv.Itoa(att.AttemptNumber) + ": " + errMsg,
 		}
 	}
-
-	// A recorded success can include intentional PTY shutdown after a validated report.
-	hasVerification := len(task.AcceptanceGaps(&d.Task)) == 0
-	if !hasVerification {
-		sb.WriteString("**Status:** BELUM LULUS (Perlu Revisi)\n\n")
-		sb.WriteString("**Bukti yang Terverifikasi:**\n")
-		sb.WriteString("- [x] **Proses Selesai**: Attempt #" + strconv.Itoa(att.AttemptNumber) + " selesai dengan laporan hasil yang tercatat.\n\n")
-		sb.WriteString("**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n")
-		sb.WriteString("- [ ] **Bukti Verifikasi DoD**: Belum ada catatan verifikasi atau bukti pengujian yang dilaporkan.\n\n")
-		sb.WriteString("**Tindakan:** Mengembalikan otomatis ke tim eksekusi untuk revisi.")
+	// Acceptance still uses the full saved checklist and report. The chat copy
+	// is a readable outcome, not another copy of the internal review document.
+	if len(task.AcceptanceGaps(&d.Task)) != 0 {
 		return inboxReviewEvaluation{
 			Decision:    "revise",
-			Explanation: sb.String(),
+			Explanation: "Hasil pekerjaan sudah dilaporkan, tetapi bukti pemeriksaannya belum lengkap.",
 			Revision:    "Laporkan bukti pengujian konkret, verifikasi keluaran, dan penuhi seluruh kriteria Definition of Done sebelum menyatakan selesai.",
 		}
 	}
+	return inboxReviewEvaluation{Decision: "pass", Explanation: "Hasil pekerjaan memenuhi kriteria yang disepakati."}
 
-	sb.WriteString("**Status:** LULUS\n\n")
-	sb.WriteString("**Bukti yang Terverifikasi:**\n")
-	if len(d.DoDChecklist) > 0 {
-		for _, item := range d.DoDChecklist {
-			sb.WriteString("- [x] **" + item.Text + "**: Terverifikasi oleh tim eksekusi attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n")
-		}
-	} else {
-		sb.WriteString("- [x] **Kriteria Tugas**: Dilaporkan terverifikasi pada attempt #" + strconv.Itoa(att.AttemptNumber) + ".\n")
-	}
-	if strings.TrimSpace(d.CompleteNote) != "" {
-		sb.WriteString("- [x] **Catatan Verifikasi**: " + strings.TrimSpace(d.CompleteNote) + "\n")
-	}
-
-	sb.WriteString("\n**Belum Terbukti / Gap yang Perlu Diperbaiki:**\n")
-	sb.WriteString("- [ ] **Tidak ada**: Seluruh kriteria Definition of Done terpenuhi.\n\n")
-	sb.WriteString("**Tindakan:** Menyatakan selesai.")
-
-	return inboxReviewEvaluation{
-		Decision:    "pass",
-		Explanation: sb.String(),
-		Revision:    "",
-	}
 }
 
 // FinishReportedAttempt intentionally preserves the real PTY shutdown code. A

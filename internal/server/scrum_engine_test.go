@@ -100,18 +100,18 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	}
 	foundReview := false
 	for _, m := range messages {
-		if strings.Contains(m.Content, "Evaluasi Kriteria Selesai (Definition of Done)") && strings.Contains(m.Content, "LULUS") {
+		if strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria yang disepakati.") && !strings.Contains(m.Content, "### Evaluasi") {
 			foundReview = true
 			break
 		}
 	}
 	if !foundReview {
-		t.Errorf("expected DoD review message with LULUS in room messages")
+		t.Errorf("expected readable accepted outcome in room messages")
 	}
 }
 
 func TestAutonomousScrumEngine_AttemptFailed_TriggersRequeue(t *testing.T) {
-	srv, _ := setupTestChatServer(t)
+	srv, token := setupTestChatServer(t)
 	ctx := context.Background()
 
 	// 1. Setup a chat room with valid UUID
@@ -133,15 +133,36 @@ func TestAutonomousScrumEngine_AttemptFailed_TriggersRequeue(t *testing.T) {
 		t.Fatalf("failed to create room: %v", err)
 	}
 
+	// A correction requires genuine saved owner authorization. Hold the code
+	// lane busy so this fixture verifies durable queueing without provider work.
+	owner, err := srv.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved := cuanDB.InboxRequest{OwnerID: owner.ID, AgentID: "scrum_master", RoomID: room.ID, RequestID: cuanDB.GenerateUUID(), MessageID: cuanDB.GenerateUUID(), ReplyID: cuanDB.GenerateUUID(), PayloadHash: "approved-fix", State: "queued", CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour)}
+	requestStore := srv.projectStudioRepo.(cuanDB.InboxRequestRepository)
+	if _, _, err := requestStore.AcceptInboxRequest(ctx, approved, &cuanDB.ProjectMessage{ID: approved.MessageID, RoomID: room.ID, AuthorType: "user", Content: "Fix compiler syntax bug in handler.", CreatedAt: approved.CreatedAt}); err != nil {
+		t.Fatal(err)
+	}
+	approved.State = "completed"
+	if err := requestStore.FinishInboxRequest(ctx, approved, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy-scrum-lane", ProjectID: "default", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+		t.Fatal(err)
+	}
+
 	// 2. Setup a task bound to this room
 	taskID := "task-scrum-engine-fail"
 	tItem := &task.Task{
-		ID:           taskID,
-		Title:        "Feature Beta: Fix syntax bug",
-		Instructions: "Fix compiler syntax bug in handler.",
-		ProjectID:    "default",
-		SourceRoomID: room.ID,
-		Status:       task.TaskStatusDoing,
+		ID:                taskID,
+		Title:             "Feature Beta: Fix syntax bug",
+		Instructions:      "Fix compiler syntax bug in handler.",
+		ProjectID:         "default",
+		SourceRoomID:      room.ID,
+		SourceMessageID:   approved.MessageID,
+		ExecutionCategory: task.ExecutionCategoryCode,
+		Status:            task.TaskStatusDoing,
 		DoDChecklist: []task.DoDItem{
 			{Text: "Syntax error fixed", Completed: false},
 		},
@@ -184,20 +205,24 @@ func TestAutonomousScrumEngine_AttemptFailed_TriggersRequeue(t *testing.T) {
 		t.Errorf("expected task status 'queued' after auto-requeue, got '%s'", detail.Status)
 	}
 
-	// 7. Verify review message posted into chat room indicating BELUM LULUS
+	// 7. Chat shows the outcome; the launch retains the full correction.
 	messages, err := srv.projectStudioRepo.ListMessagesByRoomID(ctx, room.ID)
 	if err != nil {
 		t.Fatalf("failed to list messages: %v", err)
 	}
 	foundReview := false
 	for _, m := range messages {
-		if strings.Contains(m.Content, "BELUM LULUS") && strings.Contains(m.Content, "undefined variable foo") {
+		if strings.Contains(m.Content, "Pengerjaan gagal sebelum hasilnya bisa diverifikasi.") && !strings.Contains(m.Content, "undefined variable foo") {
 			foundReview = true
 			break
 		}
 	}
 	if !foundReview {
-		t.Errorf("expected DoD review message with BELUM LULUS in room messages")
+		t.Errorf("expected readable failure outcome without raw technical diagnostics")
+	}
+	launch, err := srv.taskSvc.LatestLaunch(ctx, taskID)
+	if err != nil || launch == nil || !strings.Contains(launch.Revision, "undefined variable foo") || len(detail.Attempts) != 1 {
+		t.Fatal("chat simplification lost correction detail or started another execution", err)
 	}
 }
 
@@ -343,5 +368,24 @@ func TestCancelledTaskReviewNeverClaimsAcceptanceOrRequestsRevision(t *testing.T
 	result := evaluateTaskDoDDeterministic(d)
 	if result.Decision != "blocked" || result.Revision != "" || strings.Contains(result.Explanation, "[x]") || strings.Contains(result.Explanation, "PO") || !strings.Contains(result.Explanation, "dibatalkan") {
 		t.Fatalf("misleading canceled review: %+v", result)
+	}
+}
+
+func TestScrumFallbackChatCopyPreservesFullEvidenceAndTechnicalRevision(t *testing.T) {
+	d := &task.TaskDetailResponse{Task: task.Task{Summary: "Saved result", CompleteNote: "INTERNAL_EVIDENCE_ONLY: full verification report", DoDChecklist: []task.DoDItem{{Text: "Original criterion", Completed: true, Evidence: "INTERNAL_EVIDENCE_ONLY: observed expected output"}}}, LatestAttempt: &task.TaskAttempt{ID: "attempt", Status: task.AttemptStatusSucceeded, AttemptNumber: 1}}
+	decision := evaluateTaskDoDDeterministic(d)
+	if decision.Decision != "pass" || strings.Contains(decision.Explanation, "INTERNAL_EVIDENCE_ONLY") || strings.Contains(decision.Explanation, "###") || strings.Contains(decision.Explanation, "[x]") {
+		t.Fatal("chat repeated internal review document", decision)
+	}
+	if d.DoDChecklist[0].Evidence != "INTERNAL_EVIDENCE_ONLY: observed expected output" || !d.DoDChecklist[0].Completed {
+		t.Fatal("chat simplification lost evidence")
+	}
+	exit := 1
+	d.LatestAttempt.Status = task.AttemptStatusFailed
+	d.LatestAttempt.ExitCode = &exit
+	d.LatestAttempt.ErrorMessage = "INTERNAL_DIAGNOSTIC_ONLY: undefined variable foo"
+	decision = evaluateTaskDoDDeterministic(d)
+	if decision.Decision != "revise" || !strings.Contains(decision.Revision, "undefined variable foo") || strings.Contains(decision.Explanation, "INTERNAL_DIAGNOSTIC_ONLY") || strings.Contains(decision.Explanation, "otomatis") {
+		t.Fatal("lost correction detail or promised an unrecorded launch", decision)
 	}
 }

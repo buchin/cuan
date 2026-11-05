@@ -395,22 +395,11 @@ func TestCoordinatorAdvisoryModeAllowsNullActionForComponentQuestions(t *testing
 	}
 }
 
-func TestCoordinatorInstructionMobileSafeLayoutsAndFeasibilityMatrix(t *testing.T) {
-	for name, prompt := range map[string]string{
-		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
-		"workflow.Coordinator":        workflow.Coordinator,
-	} {
-		t.Run(name, func(t *testing.T) {
-			for _, required := range []string{
-				"mobile-safe",
-				"code peeking",
-				"pre-flight technical impact",
-			} {
-				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
-					t.Fatalf("%s missing required directive %q", name, required)
-				}
-			}
-		})
+func TestCoordinatorInstructionDoesNotForceMeetingDocumentsForLayoutAdvice(t *testing.T) {
+	for name, prompt := range map[string]string{"inboxCoordinatorInstruction": inboxCoordinatorInstruction, "workflow.Coordinator": workflow.Coordinator} {
+		if strings.Contains(prompt, "Include a concise Pre-Flight Technical Impact Matrix") || strings.Contains(prompt, "cite exact code line numbers and JSX hierarchy") || strings.Contains(prompt, "Present a clean, mobile-safe visual simulation") {
+			t.Fatal(name, "forces routine chat into a technical presentation")
+		}
 	}
 }
 

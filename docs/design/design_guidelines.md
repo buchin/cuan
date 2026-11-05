@@ -457,3 +457,25 @@ is reading older events. Opening a stopped response starts at its summary.
 Panel and card variants retain their hierarchy; compact/normal presets control
 spacing instead of arbitrary per-screen pixel values. `SlideDrawer` and Inbox
 task attachments reuse it. Close controls retain a minimum 44px touch target.
+
+### 7.14. Chat readability
+
+Inbox is a conversation, not a meeting or status report. The shared
+`prompt.ConversationStyle` guides coordinator replies and result-review messages.
+Adapt depth to the current question and known context instead of enforcing a
+character, word, sentence or paragraph quota. Lead with the answer or decision,
+keep one idea per paragraph, and use readable sentences and useful whitespace.
+Use lists for actual options or steps; headings and diagrams are optional tools
+for an explanation that benefits from them, rather than a mandatory template.
+
+Do not repeat an earlier catalogue, force a technical impact matrix into a small
+UI question, or read repository files to answer a purely conceptual follow-up.
+Current implementation claims still require relevant source evidence. Preserve
+the reason, material tradeoff, limitation and next step needed to understand the
+answer; brevity must not discard important context.
+
+Review fallbacks publish a plain outcome without copying the full DoD document
+or promising an automatic correction before launch admission. Full checklists,
+verification notes and diagnostic correction instructions remain on the task.
+Only substantive progress, obstacles, outcomes or decisions warrant a new chat
+update. Historical messages remain unchanged.
