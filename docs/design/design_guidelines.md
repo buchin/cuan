@@ -367,5 +367,6 @@ on list rows. Do not infer a live terminal from task status alone.
 
 Task previews use a softly tinted identity header. Content and footer share the
 same surface; CardActions separates the footer with a hairline and gives its
-buttons a distinct muted background, without extra vertical button padding.
+buttons a distinct muted background with a4px vertical footer inset. Status
+labels use icon and text without a button-shaped background.
 Reply drafts use the same action treatment.
