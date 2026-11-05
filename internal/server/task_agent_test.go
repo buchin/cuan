@@ -450,3 +450,48 @@ func TestTaskMCPReportingRetainsCoordinatorAcceptance(t *testing.T) {
 	}
 	invoke("report_current_task", map[string]any{"progress": "late"}, true)
 }
+
+func TestTaskAgentCompletionOutlivesCanceledStartRequest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("interactive task completion fixture")
+	}
+	s, token, call, _ := inboxFixture(t)
+	api := httptest.NewServer(s.Router())
+	defer api.Close()
+	s.taskAgentURL = api.URL
+	script := `#!/bin/sh
+read -r finish
+"$CUAN_TASK_EXECUTABLE" task report --state review --result-kind answer --summary 'Recorded after HTTP cancellation' --complete-note 'The original start request ended before the final report' >/dev/null || exit 21
+printf 'FINAL_AFTER_HTTP_CANCEL\n'
+while :; do sleep 1; done
+`
+	if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	item := workspaceTask(t, call)
+	start, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest("POST", "/api/v1/tasks/"+item.ID+"/run-agent", strings.NewReader(`{"agent_id":"agent_lifecycle","request_id":"98000000-0000-4000-8000-000000000001","runner_id":"local_terminal"}`)).WithContext(start)
+	req.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	s.Router().ServeHTTP(response, req)
+	if response.Code != 200 {
+		t.Fatal(response.Code, response.Body.String())
+	}
+	cancel()
+	session, ok := s.terminalManager.GetSession(item.ID)
+	if !ok {
+		t.Fatal("missing accepted task session")
+	}
+	if _, err := session.PTY().Write([]byte("finish\n")); err != nil {
+		t.Fatal(err)
+	}
+	result := waitWorkspaceTask(t, s, item.ID, task.AttemptStatusSucceeded)
+	if result.Status != task.TaskStatusReview || result.Summary != "Recorded after HTTP cancellation" {
+		t.Fatal("lost completion after request ended", result.Status)
+	}
+	histories := s.terminalManager.GetTaskHistory(item.ID)
+	if len(histories) != 1 || histories[0].EndReason != "agent_report" {
+		t.Fatal("final report did not have an explicit completion receipt")
+	}
+}

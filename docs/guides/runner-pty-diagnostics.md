@@ -68,3 +68,18 @@ Provider-owned CLI logs can contain failure details absent from the TUI stream.
 See [storage pressure](storage-pressure.md) for the confirmed preview storage
 failure and bounded attempt-specific provider log classification. Generic exit
 codes alone still do not establish a cause.
+
+## Final reports and intentional shutdown
+
+A saved final report does not turn an unexpected non-zero process exit into
+success. Native PTY execution records when the runner itself initiates closure
+after a still-current final report, then normalizes only the expected signal
+exits from that closure. The native signal remains in attempt diagnostics.
+Readiness is rechecked after output drain so a newer progress report can keep the
+session alive. Report polling is canceled and joined before execution returns.
+
+An explicit final blocker also closes the idle CLI instead of occupying an AI
+slot until the hard deadline. Its result stays blocked and cannot pass acceptance
+or trigger project publication. Timeout and user cancellation remain authoritative.
+The local terminal completion callback uses its own bounded context, so the HTTP
+request that originally opened the terminal does not own final reconciliation.

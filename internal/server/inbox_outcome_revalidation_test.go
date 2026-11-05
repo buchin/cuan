@@ -89,7 +89,8 @@ func testChangedOutcomeRevalidation(t *testing.T, s *Server, origin db.InboxRequ
 	if err := store.DeleteTask(ctx, "revalidation-blocker"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "revalidation-launch", launch.ID); err != nil {
+	claimedLaunch, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "revalidation-launch", launch.ID)
+	if err != nil {
 		t.Fatal("claim revalidation", err)
 	}
 	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID})
@@ -103,6 +104,20 @@ func testChangedOutcomeRevalidation(t *testing.T, s *Server, origin db.InboxRequ
 	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.AutoDeploy || claim.Environment != "" {
 		t.Fatal("revalidation lost native scope isolation", err)
+	}
+	beforeMessages, _ := s.projectStudioRepo.ListMessagesByRoomID(ctx, origin.RoomID)
+	s.executeQueuedTaskLaunch(ctx, *claimedLaunch, true)
+	reconciled, err := s.taskSvc.GetLaunch(ctx, launch.ID)
+	if err != nil || reconciled.State != "started" || reconciled.SafeError != "" {
+		t.Fatal("same active attempt was treated as stale", err)
+	}
+	current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if len(current.Attempts) != before+1 || current.LatestAttempt.ID != attempt.ID || current.LatestAttempt.Status != task.AttemptStatusRunning {
+		t.Fatal("lost launch response created or stopped an attempt")
+	}
+	afterMessages, _ := s.projectStudioRepo.ListMessagesByRoomID(ctx, origin.RoomID)
+	if len(afterMessages) != len(beforeMessages) {
+		t.Fatal("launch reconstruction emitted a false failure bubble")
 	}
 	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "revalidated-report", TaskID: d.ID, AttemptID: &attempt.ID, ActivityType: "agent_report", Author: origin.AgentID, NewStatus: task.TaskStatusReview, Message: "Exact changed revision checked", CreatedAt: time.Now()}); err != nil {
 		t.Fatal("save new final report", err)

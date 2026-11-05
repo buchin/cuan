@@ -333,3 +333,10 @@ It must report fresh evidence for every original criterion and undergo ordinary
 independent review. It does not reset the implementation correction budget, turn
 the old failed execution into a success, or accept a result from file changes alone.
 Failed inspections and an already used revalidation cannot chain into another one.
+
+A reclaimed inspection launch may already own the latest queued/running attempt
+because its initial response was lost. The dispatcher checks the exact stored
+attempt-to-launch binding before comparing the predecessor. It reconciles that
+launch without creating another attempt or publishing a stale-admission error as
+an execution failure. Once an attempt exists, its actual result governs task
+outcomes; a stopped launch's old admission diagnostic is not a second outcome.

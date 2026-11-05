@@ -514,6 +514,13 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 				}
 				shouldReport := true
 				if launch.State == "stopped" && detail != nil {
+					recorded, readErr := s.launchOwnsLatestAttempt(ctx, launch, detail)
+					if readErr != nil || recorded {
+						shouldReport = false
+					}
+					if a := detail.LatestAttempt; a != nil && (a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued) {
+						shouldReport = false
+					}
 					if detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusDone {
 						shouldReport = false
 					}

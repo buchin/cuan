@@ -49,17 +49,22 @@ func runProjectVerification(parent context.Context, workingDir string, defaultBr
 }
 
 func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {
+	state := r.finalAgentReportState(ctx, claim)
+	return state == task.TaskStatusReview || state == task.TaskStatusDone
+}
+
+func (r *Runner) finalAgentReportState(ctx context.Context, claim ClaimTaskResponse) string {
 	if claim.TaskAgent == nil || claim.TaskAgent.API == "" || claim.TaskAgent.Token == "" || claim.Attempt == nil || claim.Task == nil {
-		return false
+		return ""
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, claim.TaskAgent.API, nil)
 	if err != nil {
-		return false
+		return ""
 	}
 	request.Header.Set("Authorization", "Bearer "+claim.TaskAgent.Token)
 	response, err := r.httpClient.Do(request)
 	if err != nil {
-		return false
+		return ""
 	}
 	if (response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden) && r.cfg.RunnerToken != "" {
 		// A restarted server can lose its ephemeral agent grant. The worker may
@@ -68,12 +73,12 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 		query := url.Values{"task_id": {claim.Task.ID}, "runner_id": {r.cfg.RunnerID}}
 		response, err = r.doRequest(ctx, http.MethodGet, "/api/v1/runner/attempts/"+url.PathEscape(claim.Attempt.ID)+"/report?"+query.Encode(), nil)
 		if err != nil {
-			return false
+			return ""
 		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false
+		return ""
 	}
 	var snapshot struct {
 		Checklist    []task.DoDItem `json:"dod_checklist"`
@@ -86,24 +91,24 @@ func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse
 		} `json:"activities"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
-		return false
+		return ""
 	}
 	if strings.TrimSpace(snapshot.Summary) == "" || strings.TrimSpace(snapshot.CompleteNote) == "" {
-		return false
+		return ""
 	}
 	for i := len(snapshot.Activities) - 1; i >= 0; i-- {
 		activity := snapshot.Activities[i]
 		if activity.AttemptID != nil && *activity.AttemptID == claim.Attempt.ID && activity.ActivityType == "agent_report" {
-			if activity.NewStatus != "review" && activity.NewStatus != "done" {
-				return false
+			if activity.NewStatus != "review" && activity.NewStatus != "done" && activity.NewStatus != "blocked" {
+				return ""
 			}
 			claim.Task.Summary = snapshot.Summary
 			claim.Task.CompleteNote = snapshot.CompleteNote
 			claim.Task.DoDChecklist = snapshot.Checklist
-			return true
+			return activity.NewStatus
 		}
 	}
-	return false
+	return ""
 }
 
 func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse, hasCodeChanges bool, expectedCommit string) (bool, string) {

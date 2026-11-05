@@ -88,3 +88,65 @@ func TestSavedWorkCompletionReachesInboxWithoutInventingAnAttempt(t *testing.T) 
 		t.Fatal("completion invented an execution")
 	}
 }
+
+func TestStoppedLaunchDoesNotMisreportRecordedExecution(t *testing.T) {
+	for _, state := range []string{task.AttemptStatusRunning, task.AttemptStatusFailed} {
+		t.Run(state, func(t *testing.T) {
+			s, _, _, _ := inboxFixture(t)
+			s.inboxStopping.Store(true)
+			ctx := context.Background()
+			room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+			now := time.Now().UTC()
+			origin := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: room.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), PayloadHash: "fixture", State: "completed", CreatedAt: now.Add(-time.Minute), Deadline: now.Add(time.Hour)}
+			if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, origin, &db.ProjectMessage{ID: origin.MessageID, RoomID: room.RoomID, AuthorType: "user", Content: "Original approved work", CreatedAt: origin.CreatedAt}); err != nil {
+				t.Fatal(err)
+			}
+			item := &task.Task{ID: "recorded-execution", ProjectID: "default", SourceRoomID: room.RoomID, SourceMessageID: origin.MessageID, AssignedAgent: origin.AgentID, Instructions: "Cuan managed delegation v1.\nOriginal scope", Status: task.TaskStatusBlocked, CreatedAt: now}
+			if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			job, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: item.ID, ProjectID: item.ProjectID, RequestID: db.GenerateUUID(), OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, AgentID: origin.AgentID, InstructionsHash: task.LaunchInstructionsHash(item.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			leased, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "fixture-launch", job.ID)
+			if err != nil || leased == nil {
+				t.Fatal(err)
+			}
+			attempt, err := s.taskSvc.CreateAttempt(ctx, item.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "fixture", AgentName: origin.AgentID, RequestID: job.RequestID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning}); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.taskSvc.FinishLaunch(ctx, job.ID, leased.LeaseToken, "stopped", time.Now(), "STALE_LAUNCH_ADMISSION_ERROR"); err != nil {
+				t.Fatal(err)
+			}
+			if state == task.AttemptStatusFailed {
+				if _, err := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			blocked := task.TaskStatusBlocked
+			if _, err := s.taskSvc.UpdateTask(ctx, item.ID, "owner", task.UpdateTaskRequest{Status: &blocked}); err != nil {
+				t.Fatal(err)
+			}
+
+			s.deliverInboxTaskUpdates(ctx)
+			messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room.RoomID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, message := range messages {
+				if strings.Contains(message.Content, "STALE_LAUNCH_ADMISSION_ERROR") {
+					t.Fatal("admission diagnostic misreported a recorded attempt")
+				}
+			}
+			current, _ := s.taskSvc.GetTaskDetail(ctx, item.ID)
+			if len(current.Attempts) != 1 || current.LatestAttempt.ID != attempt.ID || current.LatestAttempt.Status != state {
+				t.Fatal("delivery changed execution state")
+			}
+		})
+	}
+}

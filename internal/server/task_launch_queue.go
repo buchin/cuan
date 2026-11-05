@@ -149,6 +149,29 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
 		return finish("stopped", "The work was cancelled. A new user instruction is required to continue.")
 	}
+	// A launch response can be lost after its exact attempt was reserved. Once
+	// that attempt exists, it is no longer supposed to match its predecessor.
+	// Reconcile ownership rather than declaring the active inspection stale or
+	// replaying it; completion/acceptance still belongs to the ordinary pipeline.
+	if liveInspection != nil && detail.LatestAttempt != nil {
+		recorded, err := s.launchOwnsLatestAttempt(ctx, &job, detail)
+		if err != nil {
+			return finish("queued", "Saved execution identity is temporarily unavailable.")
+		}
+		if recorded {
+			state := "stopped"
+			a := detail.LatestAttempt
+			if !a.CancelRequested && a.CanceledAt == nil && (a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued) {
+				state = "started"
+			}
+			save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+			defer cancel()
+			if err := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC(), ""); err != nil {
+				return "The saved execution is being reconciled. No replacement was started." + link
+			}
+			return "This request already has a recorded execution. No replacement was started." + link
+		}
+	}
 	if liveInspection != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != liveInspection.PredecessorAttemptID() || !s.liveInspectionMatchesRelease(ctx, detail, liveInspection)) {
 		return finish("stopped", "The saved inspection is no longer current. Existing results and work were preserved.")
 	}
@@ -360,4 +383,17 @@ func agentEntitySupportsVision(a *db.Agent) bool {
 		return true
 	}
 	return false
+}
+
+// A launch describes admission; its bound attempt owns execution and outcome.
+func (s *Server) launchOwnsLatestAttempt(ctx context.Context, job *task.TaskLaunch, detail *task.TaskDetailResponse) (bool, error) {
+	if job == nil || detail == nil || detail.LatestAttempt == nil {
+		return false, nil
+	}
+	reader, ok := s.taskSvc.Store().(task.AttemptLaunchStore)
+	if !ok {
+		return false, errors.New("saved execution identity unavailable")
+	}
+	bound, err := reader.LaunchForAttempt(ctx, detail.LatestAttempt.ID)
+	return bound != nil && bound.ID == job.ID, err
 }

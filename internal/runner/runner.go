@@ -1475,6 +1475,20 @@ func (r *Runner) executeWithPTY(
 		}
 	}()
 
+	// Only a runner-initiated reported stop may normalize a signal exit.
+	// A final report alone cannot turn a genuinely failed process into success.
+	var reportedStop atomic.Bool
+	var stoppedReport atomic.Value
+	var reportMu sync.Mutex
+	reportState := func() string {
+		reportMu.Lock()
+		defer reportMu.Unlock()
+		return r.finalAgentReportState(execCtx, claim)
+	}
+	reportReady := func() bool {
+		state := reportState()
+		return state == task.TaskStatusReview || state == task.TaskStatusDone
+	}
 	// Monitor agent task report completion in background
 	reportCheckTicker := time.NewTicker(500 * time.Millisecond)
 	defer reportCheckTicker.Stop()
@@ -1487,15 +1501,31 @@ func (r *Runner) executeWithPTY(
 			case <-execCtx.Done():
 				return
 			case <-reportCheckTicker.C:
-				if r.confirmAgentReport(ctx, claim) {
-					// Agent has completed task report, flush output and stop
-					time.Sleep(1500 * time.Millisecond)
+				if state := reportState(); state != "" {
+					// Drain final output, but do not stop a newer progress turn.
+					drain := time.NewTimer(1500 * time.Millisecond)
+					select {
+					case <-execCtx.Done():
+						drain.Stop()
+						return
+					case <-drain.C:
+					}
+					if current := reportState(); current == "" || current != state {
+						continue
+					}
+					if sess.IsClosed() {
+						return
+					}
+					stoppedReport.Store(state)
+					reportedStop.Store(true)
 					_ = sess.Close()
 					return
 				}
 			}
 		}
 	}()
+
+	defer func() { cancelExec(); <-doneChan }()
 
 	// Wait for PTY process completion or context cancellation
 	waitErr := proc.Wait()
@@ -1511,10 +1541,14 @@ func (r *Runner) executeWithPTY(
 		ExitCode: exitCode,
 		Duration: timeoutDuration,
 	}
+	finalState := ""
+	if reportedStop.Load() || exitCode == 0 {
+		finalState = reportState()
+	}
 	if exitCode != 0 {
-		// If the agent already submitted and confirmed its final task report, the process
-		// termination (e.g. exit code -1 via signal when sess.Close() is called) is normal completion.
-		if r.confirmAgentReport(ctx, claim) {
+		// Preserve real process failures, even when a final report was saved.
+		if reportedStop.Load() && reportedStopExit(exitCode) && finalState != "" && stoppedReport.Load() == finalState {
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Confirmed final report; runner closed the terminal (native exit %d).", exitCode))
 			res.Status = "SUCCESS"
 			res.ExitCode = 0
 			res.Error = ""
@@ -1522,6 +1556,10 @@ func (r *Runner) executeWithPTY(
 			res.Status = "FAILED"
 			res.Error = fmt.Sprintf("exit code %d", exitCode)
 		}
+	}
+	if res.Status == "SUCCESS" && finalState == task.TaskStatusBlocked {
+		res.Status = "BLOCKED"
+		res.Error = "Agent reported a blocker; saved findings require review."
 	}
 	if waitErr != nil && errors.Is(execCtx.Err(), context.DeadlineExceeded) {
 		res.Status = "TIMEOUT"
@@ -1531,8 +1569,12 @@ func (r *Runner) executeWithPTY(
 		res.Error = "execution canceled"
 	}
 
+	if res.Status == "BLOCKED" {
+		return res, nil
+	}
+
 	if quotaHit.Load() && ctx.Err() == nil {
-		if r.confirmAgentReport(ctx, claim) {
+		if (exitCode == 0 || (reportedStop.Load() && reportedStopExit(exitCode))) && reportReady() {
 			res.Status = "SUCCESS"
 			res.ExitCode = 0
 			res.Error = ""
@@ -1552,4 +1594,8 @@ func (r *Runner) executeWithPTY(
 		res.Error = StorageInterruptionMessage
 	}
 	return res, nil
+}
+
+func reportedStopExit(code int) bool {
+	return code == -1 || code == 128+int(syscall.SIGTERM) || code == 128+int(syscall.SIGKILL)
 }
