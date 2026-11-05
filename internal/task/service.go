@@ -318,15 +318,6 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 				}
 			}
 		}
-		if latestProgress == "" && latestAttempt != nil && latestAttempt.Status == AttemptStatusRunning {
-			if logs, err := s.GetRecentAttemptLogs(ctx, latestAttempt.ID, 50); err == nil && len(logs) > 0 {
-				lines := make([]string, len(logs))
-				for i, l := range logs {
-					lines[i] = l.Line
-				}
-				latestProgress = ExtractRunnerLiveActivity(lines)
-			}
-		}
 	}
 
 	return &TaskDetailResponse{

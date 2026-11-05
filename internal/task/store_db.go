@@ -847,45 +847,6 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 		}
 	}
 
-	missing := make([]string, 0, len(ids))
-	for _, id := range ids {
-		if result[id] == "" {
-			missing = append(missing, id)
-		}
-	}
-
-	if len(missing) > 0 {
-		logRows, err := s.db.QueryContext(ctx, `
-			SELECT a.task_id, l.line
-			FROM (SELECT DISTINCT ON (task_id) id, task_id, status FROM task_attempts
-			      WHERE task_id = ANY($1::text[]) ORDER BY task_id, created_at DESC, id DESC) a
-			JOIN LATERAL (
-				SELECT id, line
-				FROM agent_logs
-				WHERE attempt_id = a.id AND stream = 'stdout'
-				ORDER BY id DESC
-				LIMIT 30
-			) l ON true
-			WHERE a.task_id = ANY($1::text[]) AND a.status = 'running'
-			ORDER BY a.task_id, l.id ASC
-		`, missing)
-		if err == nil {
-			defer logRows.Close()
-			taskLines := map[string][]string{}
-			for logRows.Next() {
-				var tid, line string
-				if err := logRows.Scan(&tid, &line); err == nil {
-					taskLines[tid] = append(taskLines[tid], line)
-				}
-			}
-			for tid, lines := range taskLines {
-				if extracted := ExtractRunnerLiveActivity(lines); extracted != "" {
-					result[tid] = extracted
-				}
-			}
-		}
-	}
-
 	return result, nil
 }
 

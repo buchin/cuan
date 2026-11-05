@@ -548,22 +548,6 @@ func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[s
 		msg := strings.SplitN(act.Message, "\n", 2)[0]
 		result[id] = CleanTerminalStatusLine(msg)
 	}
-	for _, id := range ids {
-		att := latest[id]
-		if result[id] != "" || att == nil || att.Status != AttemptStatusRunning {
-			continue
-		}
-		var lines []string
-		for _, rec := range m.logs[att.ID] {
-			if rec.Stream == "stdout" {
-				lines = append(lines, rec.Line)
-			}
-		}
-		if len(lines) > 30 {
-			lines = lines[len(lines)-30:]
-		}
-		result[id] = ExtractRunnerLiveActivity(lines)
-	}
 	return result, nil
 }
 

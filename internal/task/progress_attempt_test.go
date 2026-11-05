@@ -78,7 +78,7 @@ func latestProgressAttemptContract(t *testing.T, store Store, project string) {
 	if err := store.AppendLogs(ctx, current.ID, logs, 100); err != nil {
 		t.Fatal(err)
 	}
-	check("Memeriksa hasil audit terbaru")
+	check("") // Terminal output is diagnostic data, not a published progress report.
 	add("_progress_new", current.ID, "Menyiapkan laporan terbaru", now.Add(3*time.Minute))
 	check("Menyiapkan laporan terbaru")
 	activities, err := store.ListActivities(ctx, created.ID)

@@ -102,3 +102,10 @@ belongs in an authorized task, whose execution budget is independent of chat.
 - Failed recovery stays failed and does not publish fabricated findings or ask
   for renewed authorization. Unsafe child activity cannot enable a safe replay.
   Tool findings not persisted in the supplied context are not recovered evidence.
+
+### Published task progress
+
+Task cards use explicit progress reports from the latest attempt. Native terminal
+stdout, keyboard shortcuts, tool summaries and reasoning fragments stay in the
+Terminal; they are never guessed to be user-facing progress. Without an explicit
+report, the card retains its live work status rather than inventing an update.
