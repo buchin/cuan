@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Activate or roll back a versioned native Cuan release (run as root on VPS)."""
 import argparse
+from contextlib import contextmanager
 import hashlib
 import fcntl
 import json
@@ -137,6 +138,59 @@ def assert_idle_work(no_restart=False):
                     raise RuntimeError('Active or waiting work exists; finish or cancel it before changing release')
 
     assert_no_github_login()
+
+
+def inbox_admission_lock():
+    pid = subprocess.check_output(['systemctl', 'show', SERVICE, '-p', 'MainPID', '--value'], text=True).strip()
+    process = Path('/proc') / pid
+    config = dict(entry.decode().split('=', 1) for entry in (process / 'environ').read_bytes().split(b'\0') if b'=' in entry)
+    workspace = Path(config.get('CUAN_WORKSPACES_DIR', 'data/workspaces'))
+    if not workspace.is_absolute():
+        workspace = (process / 'cwd').resolve() / workspace
+    path = workspace.parent / 'inbox-admission.lock'
+    descriptor = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o660)
+    # The first activation may create the file as root before the server does.
+    try:
+        identity = process.stat()
+        os.fchown(descriptor, identity.st_uid, identity.st_gid)
+        return os.fdopen(descriptor, 'a+')
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+@contextmanager
+def drain_inbox_admission(no_restart=False, timeout=660):
+    if no_restart:
+        yield
+        return
+    env = database_environment()
+    deadline = time.monotonic() + timeout
+    with inbox_admission_lock() as admission:
+        while True:
+            try:
+                fcntl.flock(admission, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Inbox admission did not drain; release was not switched')
+                time.sleep(1)
+        # Queued requests are durable and must not prevent activation. This gate
+        # is mandatory even when resumable task work is explicitly permitted.
+        try:
+            while True:
+                if database_scalar("SELECT to_regclass('public.inbox_requests') IS NOT NULL", env) != 't':
+                    break
+                active = int(database_scalar("SELECT count(*) FROM inbox_requests WHERE state IN ('running','cancelling')", env))
+                if active == 0:
+                    break
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Active Inbox conversations did not finish; release was not switched')
+                print(f'==> Waiting for {active} active Inbox conversation(s); new messages remain queued.', flush=True)
+                time.sleep(1)
+            yield
+        finally:
+            fcntl.flock(admission, fcntl.LOCK_UN)
 
 
 def assert_project_workspace_support(manifest, retained_environment=None):
@@ -430,31 +484,33 @@ def main():
             'Environment=CUAN_AUTO_MIGRATE=false\n')
         subprocess.run(['systemctl', 'daemon-reload'], check=True)
         retained_environment = database_environment()
-        assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
-        cuan_bin = target / 'bin' / 'cuan'
-        if not cuan_bin.exists() and not cuan_bin.is_symlink():
-            try:
-                cuan_bin.symlink_to('cuan-server')
-            except Exception:
-                pass
-        signal_worker_drain()
-        switch(current, target)
-        target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
-        if not verify_and_record_task_deployment(retained_environment, target_sha, args.no_restart):
+        with drain_inbox_admission(args.no_restart):
+            assert_idle_work(args.no_restart)  # Recheck after backup and unit preparation.
+            cuan_bin = target / 'bin' / 'cuan'
+            if not cuan_bin.exists() and not cuan_bin.is_symlink():
+                try:
+                    cuan_bin.symlink_to('cuan-server')
+                except Exception:
+                    pass
+            signal_worker_drain()
+            switch(current, target)
+            target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
+            if not verify_and_record_task_deployment(retained_environment, target_sha, args.no_restart):
+                cleanup_worker_drain()
+                restart_worker_service()
+                old_manifest = json.loads((old / 'release.json').read_text())
+                assert_project_workspace_support(old_manifest, retained_environment)
+                assert_task_worktree_support(old_manifest, retained_environment)
+                switch(current, old)
+                old_sha = old_manifest.get('sha')
+                old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
+                recovered = old_healthy()
+                raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
             cleanup_worker_drain()
             restart_worker_service()
-            old_manifest = json.loads((old / 'release.json').read_text())
-            assert_project_workspace_support(old_manifest, retained_environment)
-            assert_task_worktree_support(old_manifest, retained_environment)
-            switch(current, old)
-            old_sha = old_manifest.get('sha')
-            old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
-            recovered = old_healthy()
-            raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
-        cleanup_worker_drain()
-        restart_worker_service()
-        switch(previous, old)
-        print(json.dumps({'release': target.name, 'previous': old.name, 'health': 'healthy', 'migrations': SCHEMA_COUNT}))
+            switch(previous, old)
+            print(json.dumps({'release': target.name, 'previous': old.name, 'health': 'healthy', 'migrations': SCHEMA_COUNT}))
+
 
 
 if __name__ == '__main__':

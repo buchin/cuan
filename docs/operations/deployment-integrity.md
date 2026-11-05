@@ -4,6 +4,29 @@
 
 Cuan employs an atomic, versioned deployment system on native host environments (such as systemd services on Linux VPS). To prevent deployment regressions, stale process execution, or pseudo-releases where symlinks point to new directories while stale processes run in memory, the following integrity controls are enforced.
 
+### Inbox admission during native activation
+
+Before switching a binary release, the activator takes an exclusive filesystem
+lock on `inbox-admission.lock` beside the configured workspace root. The server
+takes its shared side only while claiming a durable Inbox request. This closes
+the gap between checking for active conversations and starting a new one.
+Existing turns retain their deadlines and finish normally. Incoming messages
+are still accepted into the durable queue and resume under their original IDs
+after the lock is released and the dispatcher scans again.
+
+The gate waits only for `running`/`cancelling` Inbox requests; queued requests do
+not block a release. It remains mandatory when `CUAN_DEPLOY_ALLOW_RESUME` permits
+resumable task work. A bounded eleven-minute wait aborts activation rather than
+cancelling conversations. Exceptions, health failure/rollback and successful
+activation release the lock. Static-only `--no-restart` releases do not pause
+Inbox admission. All server instances on this native host must use the same
+configured workspace root and support the claim lock. For the first rollout
+from an older binary, its existing Inbox must be idle before activation; that
+older dispatcher cannot participate in the new admission lock.
+
+Targeted verification: `python3 scripts/test-activate-release.py` and
+`go test ./internal/server -run TestInboxDeploymentGatePreservesActiveAndQueuedRequests`.
+
 ---
 
 ## 2. Commit SHA Health Verification Contract

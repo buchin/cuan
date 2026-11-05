@@ -174,7 +174,7 @@ func (s *Server) drainInboxRoom(room string) {
 			return
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-		q, claimed, err := store.ClaimInboxRequest(ctx, room, next.RequestID)
+		q, claimed, err := s.claimInboxForDispatch(ctx, store, room, next.RequestID)
 		cancel()
 		if err != nil || !claimed {
 			<-s.inboxSlots

@@ -1,5 +1,6 @@
 """Targeted release safety tests; no system service/database mutations."""
 import importlib.util
+import fcntl
 import json
 import tempfile
 import subprocess
@@ -18,6 +19,35 @@ class Response:
     def read(self): return self.body
 
 class Gates(unittest.TestCase):
+    def test_inbox_drain_waits_for_live_turns_and_holds_claim_barrier(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'admission.lock'
+            with patch.object(a, 'inbox_admission_lock', side_effect=lambda: path.open('a+')), patch.object(a, 'database_environment', return_value={}), patch.object(a, 'database_scalar', side_effect=['t','1','t','0']) as query, patch.object(a.time, 'sleep') as sleep:
+                with a.drain_inbox_admission(timeout=3):
+                    with path.open('a+') as other:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(other, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    self.assertIn("state IN ('running','cancelling')", query.call_args.args[0])
+                sleep.assert_called_once_with(1)
+            with path.open('a+') as other:
+                fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_inbox_drain_timeout_does_not_activate_and_releases_barrier(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'admission.lock'
+            with patch.object(a, 'inbox_admission_lock', side_effect=lambda: path.open('a+')), patch.object(a, 'database_environment', return_value={}), patch.object(a, 'database_scalar', side_effect=['t','1']), patch.object(a.time, 'monotonic', side_effect=[0,2]):
+                with self.assertRaisesRegex(RuntimeError, 'release was not switched'):
+                    with a.drain_inbox_admission(timeout=1):
+                        self.fail('activation proceeded with an active turn')
+            with path.open('a+') as other:
+                fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_static_only_release_does_not_pause_inbox(self):
+        with patch.object(a, 'inbox_admission_lock') as lock, patch.object(a, 'database_environment') as database:
+            with a.drain_inbox_admission(no_restart=True):
+                pass
+            lock.assert_not_called()
+            database.assert_not_called()
     def test_failed_health_never_records_task_completion(self):
         with patch.object(a, 'restart_and_check', return_value=False), patch.object(a, 'record_task_deployment') as record:
             self.assertFalse(a.verify_and_record_task_deployment({}, 'a'*40))
