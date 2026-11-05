@@ -94,7 +94,8 @@ This adopts Fural's correlation, phase timing, failure grouping and explicit
 stop-source practices without adding a telemetry service or changing the chat
 layout. `TestInboxResponseStageCarriesCorrelationWithoutPrivateContext` verifies
 identity/release linkage, bounded fields, grouping and exactly one terminal record.
-# Native runtime diagnostics
+
+## Native runtime diagnostics
 
 Server logs include one `inbox runtime summary` per completed native process,
 correlated by `request_id`, stage and release. `tool_calls` and `tool_failures`
@@ -110,3 +111,16 @@ No file contents, paths, arguments, error bodies or reasoning are archived by
 this summary. The summary's `reason` describes stream validation; final response
 validation and provider-stage outcome remain separate records.
 
+## Bounded chat investigation
+
+Chat defaults to 12 tool calls, counting each inspection once. Explicit
+`CUAN_CHAT_TOOL_BUDGET` (legacy `INBOX_TOOL_BUDGET`) and
+`CUAN_CHAT_INSPECTION_BATCH_FACTOR` overrides remain available. Deep investigation
+belongs in a task with its original project, authorization and attachments;
+this limit does not reduce the task runner's execution budget.
+
+When a safe read-only turn exhausts its tools, one tool-free coordinator response
+may delegate using the supplied conversation/task context. Its outer deadline is
+45 seconds, capped by the original request deadline. Failed recovery remains a
+failed request, with no fabricated findings or renewed approval request. Unsafe
+or uncertain child activity prevents declaring the original turn replay-safe.

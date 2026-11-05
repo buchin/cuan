@@ -82,9 +82,17 @@ from the coordinator's acceptance decision.
 
 ## Tool turn budget, adaptive batching, and infinite-loop guards
 
-During chat analysis and proposal stages, Inbox coordinator agents call read-only tools to inspect repository source files, git histories, and system status. To prevent runaway token consumption or infinite tool loops while enabling comprehensive code analysis:
+Chat tools resolve missing context for a reply or delegation. Deep investigation
+belongs in an authorized task, whose execution budget is independent of chat.
 
-- **Configurable Tool Budget**: The base tool call limit defaults to 50 turn units (increased from 12 and 25), and can be customized via the `CUAN_CHAT_TOOL_BUDGET` (or `INBOX_TOOL_BUDGET`) environment variable.
-- **Adaptive Batching for Inspection**: Read-only inspection tools (`read_file`, `view_file`, `grep_search`, `list_dir`, `find_by_name`, `inspect_git_*`, `inspect_system_*`, and MCP queries) are adaptively batched with a 5:1 factor (up to 5 inspection calls count as 1 turn unit, configurable via `CUAN_CHAT_INSPECTION_BATCH_FACTOR`). This allows coordinators to inspect up to 250 files and components in a single analysis turn without premature interruption.
-- **Infinite Loop Guard**: Runaway execution is bounded by an absolute hard ceiling (e.g. 250 calls) and consecutive failure detection (5 consecutive tool errors stop the runaway loop).
-- **Graceful Recovery Synthesis**: If the tool turn budget is ever reached, Cuan does not terminate the chat abruptly. Instead, it enters direct coordinator synthesis mode, instructing the agent to synthesize all inspected findings from the conversation and gathered files into an actionable summary, eliminating jarring quota cut-off error messages.
+- Chat defaults to 12 tool calls. Each inspection counts once. Operators can
+  override `CUAN_CHAT_TOOL_BUDGET` (legacy `INBOX_TOOL_BUDGET`) and explicitly
+  configure batching with `CUAN_CHAT_INSPECTION_BATCH_FACTOR`.
+- The configured budget and five consecutive tool failures stop runaway loops.
+- A safe read-only turn that reaches its budget can make one tool-free
+  coordinator response, using the supplied conversation and task evidence.
+  Its outer deadline is 45 seconds or the earlier original request deadline.
+  Scope, project and original authorization still undergo normal validation.
+- Failed recovery stays failed and does not publish fabricated findings or ask
+  for renewed authorization. Unsafe child activity cannot enable a safe replay.
+  Tool findings not persisted in the supplied context are not recovered evidence.

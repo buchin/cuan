@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -214,9 +215,9 @@ fi
 	}
 }
 
-func TestInboxCLIToolBudgetExceededFallbackWhenRecoveryFails(t *testing.T) {
+func TestInboxCLIToolBudgetExceededDoesNotInventSuccessWhenRecoveryFails(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
-	// Mock agy: both attempts exceed budget / fail. Fallback should still synthesize safely with action: null.
+	// Both attempts fail. Keep the failure visible; no fabricated findings.
 	script := `#!/bin/sh
 i=1
 while [ "$i" -le 13 ]; do
@@ -238,21 +239,15 @@ exit 0
 	safe := false
 	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Quick filter perlu perbaikan?", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) }, &safe)
 
-	if failure != "" {
-		t.Fatalf("expected graceful fallback without fatal failure, got failure: %q", failure)
-	}
-	if out == "" || !strings.Contains(out, "Berdasarkan analisis konteks proyek dan riwayat yang terkumpul") {
-		t.Fatalf("expected graceful fallback message in output, got: %q", out)
-	}
-	if strings.Contains(out, "```cuan-") {
-		t.Fatalf("expected action: null with no action markers, got: %q", out)
+	if failure == "" || out != "" {
+		t.Fatalf("failed recovery became a successful reply: out=%q failure=%q", out, failure)
 	}
 }
 
 func TestInboxCLIAdaptiveBatchingCodeInspection(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
-	// Mock agy: executes 50 inspection read_file calls (which would fail on old limits)
-	// With adaptive batching (factor 5) and default 50 turn budget (250 capacity), it completes cleanly on 1st invocation.
+	// Explicit operator overrides remain supported; large chat sweeps are no
+	// longer the default. Deep investigation normally belongs in a task.
 	script := `#!/bin/sh
 i=1
 while [ "$i" -le 50 ]; do
@@ -268,8 +263,8 @@ exit 0
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
-	// Ensure default budget is used without override
-	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "50")
+	t.Setenv("CUAN_CHAT_INSPECTION_BATCH_FACTOR", "5")
 	t.Setenv("INBOX_TOOL_BUDGET", "")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string
@@ -288,5 +283,49 @@ exit 0
 	}
 	if strings.Contains(joined, "response_recovery") {
 		t.Fatalf("did not expect response recovery during normal 50-file inspection, got trace: %s", joined)
+	}
+}
+
+func TestInboxChatDefaultBudgetStopsReadLoop(t *testing.T) {
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "")
+	t.Setenv("INBOX_TOOL_BUDGET", "")
+	t.Setenv("CUAN_CHAT_INSPECTION_BATCH_FACTOR", "")
+	canceled := false
+	stream := &inboxRuntimeStream{maxToolCalls: getChatToolBudget(), inspectionBatchFactor: getChatInspectionBatchFactor(), adaptiveBatching: true, cancel: func() { canceled = true }}
+	for i := 0; i < 12; i++ {
+		stream.Write([]byte(fmt.Sprintf(`{"event":"step_update","step_update":{"step_index":%d,"state":"DONE","step_type":"tool","tool_name":"read_file"}}`+"\n", i)))
+	}
+	if canceled {
+		t.Fatal("context inspection stopped before configured budget")
+	}
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":13,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}` + "\n"))
+	if !canceled || !stream.toolBudgetExceeded {
+		t.Fatal("default chat budget still allows read loops")
+	}
+}
+
+func TestInboxBudgetRecoveryDoesNotLoseUnsafeChildEvidence(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+if [ -f "$HOME/first-call" ]; then
+ printf '%s\n' '{"event":"step_update","step_update":{"step_index":1,"state":"ACTIVE","step_type":"tool","tool_name":"run_command"}}'
+else
+ touch "$HOME/first-call"
+ printf '%s\n' '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"read_file"}}' '{"event":"step_update","step_update":{"step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"read_file"}}'
+fi
+sleep 2
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	t.Setenv("CUAN_CHAT_TOOL_BUDGET", "1")
+	t.Setenv("CUAN_CHAT_INSPECTION_BATCH_FACTOR", "1")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	safe := true
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Read-only question", home, workspace, nil, &safe)
+	if failure == "" || out != "" || safe {
+		t.Fatalf("unsafe child hidden: out=%q failure=%q safe=%v", out, failure, safe)
 	}
 }

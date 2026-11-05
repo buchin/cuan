@@ -79,7 +79,7 @@ func getChatToolBudget() int {
 			return n
 		}
 	}
-	return 50 // increased from 12 -> 25 -> 50 base turns (allowing up to 250 inspection calls)
+	return 12 // Chat resolves context; deep investigation belongs in a scoped task.
 }
 
 func getChatInspectionBatchFactor() int {
@@ -88,7 +88,7 @@ func getChatInspectionBatchFactor() int {
 			return n
 		}
 	}
-	return 5 // 5:1 factor allowing up to 250 inspection calls per turn
+	return 1 // Every inspection consumes budget; batching must not hide read loops.
 }
 
 func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), retrySafe *bool, attachmentPaths ...string) (outputResult string, failureResult string) {
@@ -126,10 +126,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
 	formatCandidate, formatRepair := ctx.Value(inboxFormatRepairKey{}).(string)
 	parentStageContext := ctx
-	if formatRepair {
+	if formatRepair || directCoordinator {
 		var cancel context.CancelFunc
 		ctx, cancel = inboxFormatRepairContext(ctx)
 		defer cancel()
+	}
+	if formatRepair {
 		workspace = ""
 		attachmentPaths = nil
 	}
@@ -475,24 +477,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			repairCtx = context.WithValue(repairCtx, inboxCoordinatorDirectKey{}, true)
 			recoverySafe := false
 			output, err := s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, &recoverySafe, attachmentPaths...)
+			// A failed recovery must not regain replay safety from its safe
+			// parent. Unknown/unsafe child activity remains uncertain.
+			runtime.unsafeTool = runtime.unsafeTool || !recoverySafe
 			if err == "" && output != "" {
 				return output, ""
 			}
-			if reason == "tool_budget_exceeded" {
-				// Prevent fatal rejection: synthesize a safe graceful response directly with action: null.
-				fallbackReply := "Berdasarkan analisis konteks proyek dan riwayat yang terkumpul, investigasi awal telah berhasil memetakan struktur kode yang relevan. Seluruh konteks telah tersimpan dengan aman di percakapan ini. Jika Anda ingin melanjutkan ke eksekusi implementasi atau inspeksi yang lebih mendalam, Anda dapat menginstruksikan **'lanjut'** atau **'gas'** agar tim pengembang dapat mengerjakannya secara tuntas."
-				fallbackJSON, _ := json.Marshal(map[string]any{
-					"reply":       fallbackReply,
-					"topic_title": "",
-					"action":      nil,
-				})
-				if out, decodeErr := decodeInboxCoordinatorResponseForMode(string(fallbackJSON), false); decodeErr == nil && out != "" {
-					if step != nil {
-						step("response_recovery_fallback", "Tool budget was reached. Synthesized a safe graceful response from available context.")
-					}
-					return out, ""
-				}
+			// Preserve the failed outcome and retry UI. Never fabricate findings,
+			// hide child failure, or ask for authorization already supplied.
+			if err == "" {
+				err = "The agent could not complete the reply. Your message is saved; task execution has not been confirmed."
 			}
+			return "", err
 		}
 
 		lowerDiagnostic := strings.ToLower(stderr.String())

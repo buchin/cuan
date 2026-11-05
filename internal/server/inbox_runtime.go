@@ -286,9 +286,6 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 							effectiveTurns := s.nonInspectionCalls + (s.inspectionCalls+factor-1)/factor
 							// Absolute safety ceiling to protect against infinite loops
 							hardCeiling := s.maxToolCalls * factor
-							if hardCeiling < 50 && s.maxToolCalls >= 10 {
-								hardCeiling = 50
-							}
 							if s.toolCalls > hardCeiling || effectiveTurns > s.maxToolCalls {
 								budgetExceeded = true
 							}
