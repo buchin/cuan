@@ -19,3 +19,18 @@ func TestInboxResponseDiagnosticNeverIncludesCandidateData(t *testing.T) {
 		}
 	}
 }
+
+func TestInboxReconciliationDiagnosticIdentifiesContractWithoutValues(t *testing.T) {
+	for _, item := range []struct{ raw, want string }{
+		{`{"reply":"PRIVATE_DATA","topic_title":"PRIVATE_DATA","action":null}`, "topic"},
+		{coordinatorJSON("PRIVATE_DATA", "memory", map[string]string{"content": "PRIVATE_DATA"}), "unsupported action"},
+		{coordinatorJSON("PRIVATE_DATA", "delegation", map[string]any{"reconcile": true, "scope": "PRIVATE_DATA"}), "unsupported payload"},
+		{coordinatorJSON("PRIVATE_DATA", "delegation", inboxDelegation{Title: "PRIVATE_DATA"}), "marker missing"},
+		{coordinatorJSON("PRIVATE_DATA", "delegation", inboxDelegation{Reconcile: true, ProjectID: "PRIVATE_DATA", AuthorizationID: "PRIVATE_DATA"}), "title or description missing"},
+	} {
+		diagnostic := inboxReconciliationResponseDiagnostic(item.raw)
+		if !strings.Contains(diagnostic, item.want) || strings.Contains(diagnostic, "PRIVATE_DATA") {
+			t.Fatal(diagnostic)
+		}
+	}
+}

@@ -32,3 +32,37 @@ func inboxResponseDiagnostic(raw string) string {
 	}
 	return "Response format: action payload or response contract rejected."
 }
+
+// Only fixed labels are retained, never provider values or private content.
+func inboxReconciliationResponseDiagnostic(raw string) string {
+	var response inboxCoordinatorResponse
+	if strictCoordinatorJSON([]byte(raw), &response) != nil {
+		return inboxResponseDiagnostic(raw)
+	}
+	if response.TopicTitle != "" {
+		return "Retry contract: topic must remain unchanged."
+	}
+	if response.Action == nil {
+		return inboxResponseDiagnostic(raw)
+	}
+	if response.Action.Kind != "delegation" {
+		return "Retry contract: unsupported action kind."
+	}
+	var payload inboxDelegation
+	if strictCoordinatorJSON(response.Action.Payload, &payload) != nil {
+		return "Retry contract: unsupported payload fields or types."
+	}
+	if !payload.Reconcile {
+		return "Retry contract: explicit reconciliation marker missing."
+	}
+	if payload.ProjectID == "" || payload.AuthorizationID == "" {
+		return "Retry contract: original project or authorization binding missing."
+	}
+	if payload.TaskID == "" && (payload.Title == "" || payload.Description == "") {
+		return "Retry contract: self-contained task title or description missing."
+	}
+	if payload.ProjectName != "" || payload.Action == "save" {
+		return "Retry contract: unsupported project creation or save action."
+	}
+	return "Retry contract: task payload or response constraints rejected."
+}

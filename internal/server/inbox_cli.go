@@ -221,7 +221,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
 		if err != nil {
 			if step != nil {
-				step("response_contract", inboxResponseDiagnostic(reply))
+				diagnostic := inboxResponseDiagnostic(reply)
+				if reconcileRetry {
+					diagnostic = inboxReconciliationResponseDiagnostic(reply)
+				}
+				step("response_contract", diagnostic)
 			}
 			if alreadyRepaired || normHarness == "commandcode" {
 				if reconcileRetry {
@@ -266,7 +270,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		} else if analysisRecovery {
 			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
 		} else if reconcileRetry {
-			args = append(args, "--json-schema", inboxRetryReconcileSchema)
+			args = append(args, "--json-schema", inboxRetryReconcileTransportSchema)
 		} else if coordinator {
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -250,5 +251,67 @@ func TestInboxReplyWorkspaceIsIsolatedAndTrusted(t *testing.T) {
 	}
 	if _, err := prepareInboxReplyWorkspace(home); err == nil {
 		t.Fatal("symlinked workspace accepted")
+	}
+}
+
+func TestInboxReconciliationInvalidFormatDoesNotRepeatEvaluation(t *testing.T) {
+	s, token, _, _, _, home, backupHome := setupFailoverFixture(t)
+	call := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		res := httptest.NewRecorder()
+		s.Router().ServeHTTP(res, req)
+		return res
+	}
+	s.cfg.InboxExecutionRole = "api"
+	accepted := call("POST", "/api/v1/chat/conversations/agent_main/messages", `{"request_id":"`+db.GenerateUUID()+`","message":"Inspect the saved work; no external effects."}`)
+	if accepted.Code != 202 {
+		t.Fatal(accepted.Code)
+	}
+	var body struct{ Request db.InboxRequest }
+	if err := json.Unmarshal(accepted.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	store := s.projectStudioRepo.(db.InboxLifecycleRepository)
+	original := body.Request
+	owner, err := s.authSvc.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original.OwnerID = owner.ID
+	original.State = "interrupted"
+	if err := store.FinishInboxRequest(context.Background(), original, nil); err != nil {
+		t.Fatal(err)
+	}
+	retry, _, err := s.projectStudioRepo.(db.InboxRetryRepository).RetryInboxRequest(context.Background(), original.RoomID, original.RequestID, original.OwnerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"reply":"Checking saved work.","topic_title":"","action":{"kind":"delegation","payload":{"reconcile":true,"scope":"unsupported PRIVATE_DATA"}}}}`}})
+	binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+	script := "#!/bin/sh\nprintf x >> \"$HOME/retry-calls\"\ncat <<'RESULT'\n" + string(response) + "\nRESULT\n"
+	if err := os.WriteFile(binary, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.InboxExecutionRole = "worker"
+	q, claimed, err := store.ClaimInboxRequest(context.Background(), retry.RoomID, retry.RequestID)
+	if err != nil || !claimed {
+		t.Fatal("claim failed", err)
+	}
+	s.runInboxRequest(store, q)
+	waitInboxState(t, s, q.RoomID, q.RequestID, "failed")
+	calls, _ := os.ReadFile(filepath.Join(home, "retry-calls"))
+	backupCalls, _ := os.ReadFile(filepath.Join(backupHome, "retry-calls"))
+	if len(calls)+len(backupCalls) != 2 {
+		requests, _ := store.ListInboxRequests(context.Background(), q.RoomID)
+		t.Fatal("expected one evaluation and one format repair", len(calls), len(backupCalls), requests)
+	}
+	requests, _ := store.ListInboxRequests(context.Background(), q.RoomID)
+	for _, request := range requests {
+		for _, step := range request.Steps {
+			if strings.Contains(step.Text, "PRIVATE_DATA") {
+				t.Fatal("private response escaped diagnostics")
+			}
+		}
 	}
 }

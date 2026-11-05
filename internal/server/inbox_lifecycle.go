@@ -393,7 +393,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						} else {
 							output = clean
 						}
-						if s.inboxReviewedTask(ctx, q) == nil && output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow") || strings.Contains(strings.ToLower(failure), "could not be validated") || strings.Contains(strings.ToLower(failure), "tool budget")) {
+						if !db.InboxRetryNeedsReconciliation(q) && s.inboxReviewedTask(ctx, q) == nil && output == "" && ctx.Err() == nil && (strings.Contains(strings.ToLower(failure), "tool permission") || strings.Contains(strings.ToLower(failure), "action outside the chat workflow") || strings.Contains(strings.ToLower(failure), "could not be validated") || strings.Contains(strings.ToLower(failure), "tool budget")) {
 							step("response_recovery", "A tool or validation issue occurred. Answering directly from conversation context with structured actions.")
 							directRecoveryTimeout := 120 * time.Second
 							if v := os.Getenv("INBOX_DIRECT_RECOVERY_TIMEOUT"); v != "" {

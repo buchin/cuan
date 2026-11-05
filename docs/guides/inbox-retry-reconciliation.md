@@ -39,7 +39,10 @@ not provider HOME; finish/format-response is permitted while inspection and
 execution tools remain forbidden. Native evaluation gets120 seconds with a125-second outer
 bound, respecting the original durable deadline. Candidate-only format repair
 retains its40/45-second limit and cannot invent a missing action or scope.
-Failed recovery remains failed, without fabricated investigation findings.
+Failed recovery remains failed, without fabricated investigation findings or a
+second full evaluation after format repair. The prompt documents the complete
+delegation payload while native transport uses the ordinary shallow envelope.
+Contract diagnostics retain fixed rejection reasons only, never payload values.
 
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
