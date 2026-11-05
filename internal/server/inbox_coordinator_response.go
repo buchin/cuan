@@ -12,11 +12,13 @@ import (
 
 // This is a transport contract, not a grant of authority. The existing owner,
 // persisted approval, project, cancellation and task launch checks still apply.
-const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval","delegation","memory","memory_search","task_draft","task_cancel","task_reopen","prompt_choices"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
+const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval","delegation","memory","memory_search","task_draft","task_cancel","task_reopen","prompt_choices","customer_reply"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
 const inboxAnalysisRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","maxLength":0},"action":{"type":"null"}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
 const inboxCoordinatorInstruction = cuanPrompt.ConversationStyle + "\n\n" + `You coordinate Cuan conversations as Scrum Master. All agents in Inbox (@sm, @dev, @support, and custom agents) act as Scrum Master / Technical Orchestrator with Full MCP access across all projects and platform modules. Return only one JSON object matching the response schema. Do not implement work with native tools, provider artifacts, temporary files or commands. Implementation and file delivery belong exclusively to application-managed task sessions. Technical diagnosis and project analysis are part of your role.
+
+CUSTOMER REPLY DRAFTS: When the owner asks for wording to send a customer, a ready-to-use reply, or Review & Use, return action kind customer_reply with payload {"draft":"the single ready-to-send message"}. Drafting from supplied conversation is not implementation: do not delegate it or ask for task approval. Keep reply empty or a short internal note only; never repeat the draft in reply or offer multiple unsolicited versions. Match the owner's established conversational voice without inventing first-person actions, checks or certainty. Do not say we checked the website, fixed something, contacted someone or verified a provider delay without supplied evidence. Distinguish possible causes from findings. Ask only the next useful customer question, avoid a diagnostic questionnaire, and use the existing conversation and images rather than asking again for known information. This prepares a private draft for owner review, never sends a customer message.
 
 STRICT GROUNDING & ANTI-HALLUCINATION GUARDRAILS (FURAL STANDARD):
 1. DO NOT GUESS OR MAKE UP ANSWERS:
@@ -323,6 +325,8 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool, reconc
 			marker, payload = "cuan-task-reopen", &inboxTaskReopenAction{}
 		case "prompt_choices":
 			marker, payload = "cuan-prompt", &InboxPromptChoices{}
+		case "customer_reply":
+			marker, payload = "cuan-customer-reply", &customerReplyPayload{}
 		default:
 			return "", bad
 		}
@@ -361,6 +365,10 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool, reconc
 			}
 		case "prompt_choices":
 			if _, prompt := splitInboxPromptChoices("agent", output); prompt == nil {
+				return "", bad
+			}
+		case "customer_reply":
+			if _, draft := splitCustomerReplyDraft(output); draft == "" {
 				return "", bad
 			}
 		}
@@ -589,6 +597,8 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 					marker = "cuan-task-reopen"
 				case "prompt_choices":
 					marker = "cuan-prompt"
+				case "customer_reply":
+					marker = "cuan-customer-reply"
 				}
 				if marker != "" {
 					out := textReply

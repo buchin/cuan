@@ -1726,7 +1726,25 @@ func extractCustomerReplyDraft(content string) string {
 
 var internalDraftLink = regexp.MustCompile(`\[[^\]]*\]\(/(?:tasks|inbox|projects)/[^)]*\)`)
 
+type customerReplyPayload struct {
+	Draft string `json:"draft"`
+}
+
 func splitCustomerReplyDraft(content string) (string, string) {
+	const marker = "```cuan-customer-reply\n"
+	if start := strings.Index(content, marker); start >= 0 {
+		body := start + len(marker)
+		if end := strings.Index(content[body:], "```"); end >= 0 {
+			var payload customerReplyPayload
+			if strictCoordinatorJSON([]byte(content[body:body+end]), &payload) == nil {
+				draft := strings.TrimSpace(internalDraftLink.ReplaceAllString(payload.Draft, ""))
+				if draft != "" && len(draft) <= 6000 && !strings.Contains(draft, "```cuan-") {
+					return strings.TrimSpace(content[:start] + content[body+end+3:]), draft
+				}
+			}
+		}
+		return content, ""
+	}
 	lower := strings.ToLower(content)
 	markers := []string{
 		"**draf balasan untuk pengunjung:**",

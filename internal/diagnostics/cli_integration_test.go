@@ -65,3 +65,28 @@ func TestResendCLIRejectsUnsafeInputAndFailureBody(t *testing.T) {
 		}
 	}
 }
+
+func TestResendCLIChangesEnabledOnlyExplicitly(t *testing.T) {
+	for _, state := range []string{"true", "false"} {
+		t.Run(state, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var payload map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Fatal(err)
+				}
+				if len(payload) != 1 || payload["enabled"] != (state == "true") {
+					t.Fatal("unexpected settings change", payload)
+				}
+				w.Write([]byte(`{"settings":{"has_api_key":true}}`))
+			}))
+			defer server.Close()
+			previous := globalCuanClient
+			globalCuanClient = &CuanClient{BaseURL: server.URL, AuthToken: "fixture", HTTPClient: server.Client()}
+			defer func() { globalCuanClient = previous }()
+			var out, errs bytes.Buffer
+			if code := RunIntegrationCLI([]string{"resend", "set", "--enabled=" + state}, &out, &errs); code != 0 {
+				t.Fatal(code, errs.String())
+			}
+		})
+	}
+}

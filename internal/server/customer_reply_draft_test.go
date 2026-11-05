@@ -25,3 +25,23 @@ func TestCustomerReplyDraftSeparatesInternalReportAndLinks(t *testing.T) {
 		t.Fatal(report, draft)
 	}
 }
+
+func TestCoordinatorCustomerReplyPreservesParagraphsWithoutSending(t *testing.T) {
+	draft := "Halo sob, boleh cek status domainnya sudah Approved?\n\nSekalian info format iklan yang dipakai ya."
+	out, err := decodeInboxCoordinatorResponse(coordinatorJSON("", "customer_reply", customerReplyPayload{Draft: draft}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, got := splitCustomerReplyDraft(out)
+	if note != "" || got != draft {
+		t.Fatal("draft lost or repeated", note, got)
+	}
+	for _, payload := range []any{customerReplyPayload{}, map[string]any{"draft": "Halo", "send": true}} {
+		if _, err := decodeInboxCoordinatorResponse(coordinatorJSON("", "customer_reply", payload)); err == nil {
+			t.Fatal("invalid draft action accepted")
+		}
+	}
+	if _, err := decodeInboxCoordinatorResponseForMode(coordinatorJSON("", "customer_reply", customerReplyPayload{Draft: draft}), true); err == nil {
+		t.Fatal("analysis-only recovery gained an action")
+	}
+}

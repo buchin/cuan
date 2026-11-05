@@ -32,12 +32,12 @@ type resendValidationResult struct {
 
 // RunIntegrationCLI uses authenticated Settings endpoints. Secrets are imported
 // only by explicitly named env variables; neither request bodies nor API errors
-// are printed. It never sends test mail or changes automatic notification policy.
+// are printed. It never sends test mail; notification policy changes are explicit.
 func RunIntegrationCLI(args []string, out, errOut io.Writer) int {
 	const help = `Usage:
 	cuan integration github show
   cuan integration resend show
-  cuan integration resend set [--key-from-env NAME] [--webhook-secret-from-env NAME] [--from-email EMAIL] [--from-name NAME] [--notification-email EMAIL]
+  cuan integration resend set [--key-from-env NAME] [--webhook-secret-from-env NAME] [--from-email EMAIL] [--from-name NAME] [--notification-email EMAIL] [--enabled=true|false]
   cuan integration resend validate
 Set preserves automatic-email preferences and other omitted settings.
 Secret values are never accepted as arguments or returned in output.
@@ -74,6 +74,7 @@ Validate checks credentials without sending email.`
 	from := fs.String("from-email", "", "Sender address")
 	name := fs.String("from-name", "", "Sender name")
 	notify := fs.String("notification-email", "", "Notification address")
+	enabled := fs.Bool("enabled", false, "Explicitly enable or disable automatic email")
 	if err := fs.Parse(args[2:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -95,7 +96,12 @@ Validate checks credentials without sending email.`
 	switch args[1] {
 	case "show":
 	case "set":
-		payload := map[string]string{}
+		payload := map[string]any{}
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == "enabled" {
+				payload["enabled"] = *enabled
+			}
+		})
 		if *webhookEnv != "" {
 			if !environmentKey.MatchString(*webhookEnv) || os.Getenv(*webhookEnv) == "" {
 				fmt.Fprintln(errOut, "Named webhook secret variable is invalid or empty.")

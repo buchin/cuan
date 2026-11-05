@@ -35,3 +35,12 @@ or Owner, create the invitation, and share its link. Creating the link does not
 send an email. Members cannot create invitations. Browser coverage:
 `node docs/evidence/team-invite-check.cjs`; server authorization and invite
 acceptance: `go test ./internal/server -run TestTeam_`.
+
+Automatic email can be changed explicitly with
+`cuan integration resend set --enabled=true` (or `--enabled=false`). Omitting
+this flag preserves the current preference. Enabling delivery does not backfill
+historical sent/delivered claims. Signed receipt events use the installation's
+own Resend webhook at `/api/webhooks/resend`; configure email sent, delivered,
+delayed, failed, bounced, complained and suppressed events. Import its signing
+secret with `--webhook-secret-from-env NAME`. Chat read status remains separate
+from email delivery, and email open tracking is not enabled.
