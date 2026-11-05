@@ -155,6 +155,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			}
 		}
 		attemptCtx := context.WithValue(ctx, inboxModelKey{}, route.model)
+		attemptCtx = context.WithValue(attemptCtx, inboxProviderAccountTraceKey{}, route.accountID)
 		safe := false
 		output, failure := func() (string, string) {
 			defer release()

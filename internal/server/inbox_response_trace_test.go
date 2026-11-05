@@ -41,9 +41,11 @@ func TestInboxResponseStageCarriesCorrelationWithoutPrivateContext(t *testing.T)
 	ctx := context.WithValue(context.Background(), inboxRequestTraceKey{}, inboxRequestTrace{RequestID: "request-fixture", RoomID: "room-fixture", AgentID: "agent-fixture"})
 	type privateKey struct{}
 	ctx = context.WithValue(ctx, privateKey{}, "PRIVATE_PROMPT_AND_PROFILE")
+	ctx = context.WithValue(ctx, inboxProviderAccountTraceKey{}, "acct-fixture")
+	ctx = context.WithValue(ctx, inboxModelKey{}, "model-fixture")
 	stage, cancel := inboxFormatRepairContext(ctx)
 	defer cancel()
-	finish := traceInboxResponseStage(ctx, stage, "format_repair", "agy", "release-fixture")
+	finish := traceInboxResponseStage(ctx, stage, "format_repair", "agy", "release-fixture", inboxResponseInput{PromptBytes: 2048, CandidateBytes: 100})
 	finish(true)
 	finish(false)
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
@@ -57,6 +59,9 @@ func TestInboxResponseStageCarriesCorrelationWithoutPrivateContext(t *testing.T)
 		}
 		if record.RequestID != "request-fixture" || record.RoomID != "room-fixture" || record.AgentID != "agent-fixture" || record.Release != "release-fixture" || record.Stage != "format_repair" || record.BudgetMS > 45000 {
 			t.Fatal("lost correlation", record)
+		}
+		if record.AccountID != "acct-fixture" || record.RequestedModel != "model-fixture" || record.PromptBytes != 2048 || record.ContextBytes != 0 || record.CandidateBytes != 100 {
+			t.Fatal("lost route or context metrics", record)
 		}
 		if i == 0 && record.Outcome != "started" || i == 1 && (record.Outcome != "failed" || record.FailureKey != "inbox_response:agy:format_repair:failed") {
 			t.Fatal("incorrect stage outcome", record)

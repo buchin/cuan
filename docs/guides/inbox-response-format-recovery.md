@@ -74,6 +74,14 @@ double-counted. Deadline, cancellation, ordinary failure and completion are
 separate outcomes; `failure_key` groups equivalent provider/stage failures
 independently of a specific request or release.
 
+Records also carry the internal routed `account_id`, `requested_model`, and
+numeric `prompt_bytes`, `context_bytes` and (for formatting) `candidate_bytes`.
+Byte counts measure UTF-8 input size, not billed tokens. `requested_model=auto`
+means the CLI/provider chooses the model; it does not identify which model the
+provider ultimately used. These private operational fields do not expose the
+backing accounts in ordinary chat. Formatter context size is zero because the
+original conversation/project context is excluded from that stage.
+
 The original request's durable steps retain the native session identifiers and
 response-contract category. Start from `cuan chat messages ROOM_ID --json`, find
 the exact request, then correlate its ID with the structured stage records.
