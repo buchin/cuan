@@ -58,6 +58,48 @@ func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
 	}
 }
 
+func TestCoordinatorExplicitChoiceRequiresStructuredOptionsWithoutApproval(t *testing.T) {
+	reply := "Saya merekomendasikan laravel-traffic-guardian; alternatifnya laravel-botbuster.\n\nSilakan pilih nama repositori yang ingin kita tetapkan di bawah ini untuk lanjut ke langkah berikutnya:"
+	if _, err := decodeInboxCoordinatorResponse(coordinatorJSON(reply, "", nil)); err == nil {
+		t.Fatal("missing choice buttons accepted")
+	}
+	wrong := coordinatorJSON(reply, "approval", inboxApprovalPlan{Title: "Choose a name", Description: "Create and publish a repository", ProjectID: "default"})
+	if _, err := decodeInboxCoordinatorResponse(wrong); err == nil {
+		t.Fatal("preference choice promoted to executable approval")
+	}
+	if out, failure := recoverCoordinatorReply(wrong, false); failure == "" || parseInboxApprovalPlan(out) != nil {
+		t.Fatal("recovery promoted preference to approval")
+	}
+	if out, failure := recoverCoordinatorReply(coordinatorJSON(reply, "", nil), false); failure == "" || parseInboxApprovalPlan(out) != nil {
+		t.Fatal("missing choices became executable approval", out)
+	}
+	choices := InboxPromptChoices{Options: []InboxPromptOption{{ID: "guardian", Label: "Pakai laravel-traffic-guardian", Variant: "primary"}, {ID: "botbuster", Label: "Pakai laravel-botbuster"}}, AllowOther: true}
+	out, err := decodeInboxCoordinatorResponse(coordinatorJSON(reply, "prompt_choices", choices))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, parsed := splitInboxPromptChoices("agent", out)
+	if parsed == nil || len(parsed.Options) != 2 || !parsed.AllowOther || parseInboxApprovalPlan(out) != nil {
+		t.Fatal("lost choice semantics", out)
+	}
+	// A supported native provider may return a JSON-string payload or extra
+	// transport fields. Recovery preserves choices instead of dropping them.
+	payload, _ := json.Marshal(choices)
+	lenient, _ := json.Marshal(map[string]any{"reply": reply, "extra": "transport", "action": map[string]any{"kind": "prompt_choices", "payload": string(payload)}})
+	out, failure := recoverCoordinatorReply(string(lenient), false)
+	if _, parsed := splitInboxPromptChoices("agent", out); failure != "" || parsed == nil || len(parsed.Options) != 2 {
+		t.Fatal("recovery lost structured choices", failure, out)
+	}
+	if out, err := decodeInboxCoordinatorResponseForMode(coordinatorJSON(reply, "", nil), true); err != nil || out != reply {
+		t.Fatal("read-only analysis gained an action", err)
+	}
+	for _, text := range []string{"Here is the requested naming recommendation.", "> Please choose one was quoted in the original document."} {
+		if _, err := decodeInboxCoordinatorResponse(coordinatorJSON(text, "", nil)); err != nil {
+			t.Fatal("ordinary answer rejected", text)
+		}
+	}
+}
+
 func TestCoordinatorResponseRejectsAmbiguousOrUnmanagedActions(t *testing.T) {
 	valid := coordinatorJSON("Ready", "approval", inboxApprovalPlan{Title: "Calculator", Description: "Approved scope", ProjectID: "default"})
 	cases := []string{
@@ -287,7 +329,7 @@ func TestCoordinatorResponseSynthesizesApprovalForConfirmationQuestions(t *testi
 func TestCoordinatorInstructionAutonomousErrorTriage(t *testing.T) {
 	for name, prompt := range map[string]string{
 		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
-		"workflow.Coordinator":       workflow.Coordinator,
+		"workflow.Coordinator":        workflow.Coordinator,
 	} {
 		t.Run(name, func(t *testing.T) {
 			for _, required := range []string{
@@ -307,7 +349,7 @@ func TestCoordinatorInstructionAutonomousErrorTriage(t *testing.T) {
 func TestCoordinatorInstructionAffirmativeTriggersAndProactivePlan(t *testing.T) {
 	for name, prompt := range map[string]string{
 		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
-		"workflow.Coordinator":       workflow.Coordinator,
+		"workflow.Coordinator":        workflow.Coordinator,
 	} {
 		t.Run(name, func(t *testing.T) {
 			for _, required := range []string{
@@ -356,7 +398,7 @@ func TestCoordinatorAdvisoryModeAllowsNullActionForComponentQuestions(t *testing
 func TestCoordinatorInstructionMobileSafeLayoutsAndFeasibilityMatrix(t *testing.T) {
 	for name, prompt := range map[string]string{
 		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
-		"workflow.Coordinator":       workflow.Coordinator,
+		"workflow.Coordinator":        workflow.Coordinator,
 	} {
 		t.Run(name, func(t *testing.T) {
 			for _, required := range []string{

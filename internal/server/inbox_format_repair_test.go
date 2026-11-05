@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,5 +58,32 @@ fi
 				t.Fatal("missing safe trace or leaked candidate", joined)
 			}
 		})
+	}
+}
+
+func TestInboxChoiceFormatRepairUsesExistingNamedOptions(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	reply := "Saya merekomendasikan laravel-traffic-guardian; alternatifnya laravel-botbuster. Silakan pilih nama repositori di bawah ini."
+	choices := InboxPromptChoices{Options: []InboxPromptOption{{ID: "guardian", Label: "Pakai laravel-traffic-guardian", Variant: "primary"}, {ID: "botbuster", Label: "Pakai laravel-botbuster"}}, AllowOther: true}
+	wrap := func(response string) string {
+		raw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": response}})
+		return string(raw)
+	}
+	initial, repaired := wrap(coordinatorJSON(reply, "", nil)), wrap(coordinatorJSON(reply, "prompt_choices", choices))
+	script := "#!/bin/sh\nprintf x >> \"$HOME/choice-calls\"\nif [ ! -e \"$HOME/choice-first\" ]; then\n touch \"$HOME/choice-first\"\n printf '%s\\n' '" + initial + "'\nelse\n" + `case "$2" in *"TRANSPORT FORMAT REPAIR ONLY"*) ;; *) exit 23;; esac
+case "$2" in *"laravel-traffic-guardian"*"laravel-botbuster"*) ;; *) exit 24;; esac
+for arg in "$@"; do [ "$arg" != "--add-dir" ] || exit 25; done
+` + "printf '%s\\n' '" + repaired + "'\nfi\n"
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	out, failure := s.executeInboxCLI(context.Background(), "Coordinator", "agy", "Recommend the repository name", home, workspace, nil)
+	_, parsed := splitInboxPromptChoices("agent", out)
+	calls, _ := os.ReadFile(filepath.Join(home, "choice-calls"))
+	if failure != "" || parsed == nil || len(parsed.Options) != 2 || string(calls) != "xx" || parseInboxApprovalPlan(out) != nil {
+		t.Fatal("choice repair did not preserve safe named options", failure, string(calls), out)
 	}
 }

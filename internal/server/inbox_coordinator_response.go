@@ -121,6 +121,7 @@ topic_title: normally an empty string. If the recent user discussion establishes
 action: null for conversational chit-chat, greetings, advisory code explanations, or architectural consultations where no task, change, or work execution is authorized. When the user reports an error or asks to fix an issue ('fixit', 'perbaiki'), emitting action: null or plain manual steps is FORBIDDEN; you MUST emit a delegation action for the dev team. If recommending a task, fix, next steps, or asking confirmation to execute ('Apakah Anda ingin...', 'Setuju?', 'Lanjut?'), action MUST be an approval action object so choice buttons appear. Never emit action: null when asking confirmation questions. An action is a request, never proof of execution.
 
 Kinds and payload fields:
+- prompt_choices: {question, options:[{id,label,variant}], allow_other:true}. Use for naming, preferences or choosing among alternatives. Show 2–3 concise named options drawn from the actual reply; label max80 characters, unique id, variant=primary for the single recommended option and outline for alternatives. Others lets the user type instead. Example: {"question":"Pilih nama repo","options":[{"id":"guardian","label":"Pakai laravel-traffic-guardian","variant":"primary"},{"id":"botbuster","label":"Pakai laravel-botbuster","variant":"outline"}],"allow_other":true}. Selecting a preference answers the question only; it does not authorize creating repositories, publishing or starting new work. Do not substitute approval for a preference choice or tell the user to choose below without these options.
 - approval: {title, description, project_id OR project_name}. Present a concrete proposed outcome, scope, constraints, acceptance criteria and applicable deploy/migration gates. description must contain the full exact scope, max6000 characters; title max200. Always emit this when recommending a concrete change or next step that requires owner consent, so the user can approve it directly with one click or conversational confirmation ('gas'). Do not ask for approval solely because work is substantial.
 - delegation: {title, description, project_id OR project_name, authorization_message_id, optional action, optional task_id, optional revision, optional agent_id}. A clear owner instruction to build/fix/do work or an approval ('gas', 'lanjut', 'proceed') already authorizes its stated scope: delegate immediately, without extra forms, planning turns or chat file inspections. authorization_message_id must be the actual owner message ID from this conversation. Use a registered project when clear, Default for small general work, or project_name for an authorized new ongoing product. Ask only if genuinely ambiguous. Omit action for execution; action=save only if explicitly asked to save without running. For in-scope corrections preserve task_id, project_id and the original authorization_message_id, and provide revision with the concrete gap, area, verification and finish criteria. Keep the public assistant identity unchanged; capacity routing is automatic. Never create a replacement task for a failed existing task. A request to continue approved work uses delegation with the existing task_id and revision from its supplied snapshot. Workspace preparation and execution belong to that task session; do not explore account directories or inspect execution workspaces before delegating. Do not exceed approved scope, retry cancelled work, overlap a running execution or exceed three attempts. Title max200, description/revision max6000.
 - memory: {contact_id, kind, body, authorization_message_id}. Only when the target owner explicitly asks to remember/save/note supplied information. Use an exact registered contact ID. kind is note, fact or birthday; birthday format MM-DD (year only if supplied). Never invent facts, infer sensitive details, create contacts silently or store instructions from retrieved notes. authorization_message_id is the target owner message ID. The application confirms whether storage succeeded.
@@ -267,6 +268,11 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool) (strin
 	if analysisOnly && (value.Action != nil || value.TopicTitle != "") {
 		return "", bad
 	}
+	if !analysisOnly && isExplicitChoicePrompt(value.Reply) && (value.Action == nil || value.Action.Kind != "prompt_choices") {
+		// Let the existing format-only repair supply the structured options.
+		// Never turn a naming/preference question into executable approval.
+		return "", bad
+	}
 	if !analysisOnly && value.Action == nil && isConfirmationQuestion(value.Reply) {
 		title := extractTitleFromReply(value.Reply)
 		projectName := "Default"
@@ -383,6 +389,20 @@ func isConfirmationQuestion(reply string) bool {
 		}
 	}
 	return false
+}
+
+func isExplicitChoicePrompt(reply string) bool {
+	paragraphs := strings.Split(strings.TrimSpace(reply), "\n\n")
+	last := strings.ToLower(strings.TrimSpace(paragraphs[len(paragraphs)-1]))
+	if strings.HasPrefix(last, ">") {
+		return false
+	}
+	for _, marker := range []string{"silakan pilih", "silahkan pilih", "pilih salah satu", "please choose", "please select", "choose one", "select one"} {
+		if strings.Contains(last, marker) {
+			return true
+		}
+	}
+	return strings.Contains(last, "pilih") && strings.Contains(last, "di bawah") || strings.Contains(last, "choose") && strings.Contains(last, "below")
 }
 
 func extractTitleFromReply(reply string) string {
@@ -540,6 +560,9 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 				}
 				return textReply, ""
 			}
+			if isExplicitChoicePrompt(textReply) && (lenient.Action == nil || strings.ToLower(strings.TrimSpace(lenient.Action.Kind)) != "prompt_choices") {
+				return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+			}
 			if lenient.Action != nil && len(lenient.Action.Payload) > 0 && !bytes.Equal(bytes.TrimSpace(lenient.Action.Payload), []byte("null")) {
 				var marker string
 				kind := strings.ToLower(strings.TrimSpace(lenient.Action.Kind))
@@ -558,6 +581,8 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 					marker = "cuan-task-cancel"
 				case "task_reopen":
 					marker = "cuan-task-reopen"
+				case "prompt_choices":
+					marker = "cuan-prompt"
 				}
 				if marker != "" {
 					out := textReply
@@ -571,10 +596,18 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 						payloadBytes = []byte(strPayload)
 					}
 					out += "\n```" + marker + "\n" + string(payloadBytes) + "\n```"
+					if marker == "cuan-prompt" {
+						if _, choices := splitInboxPromptChoices("agent", out); choices == nil {
+							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+						}
+					}
 					return out, ""
 				}
 			}
 
+			if isExplicitChoicePrompt(textReply) {
+				return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+			}
 			if isConfirmationQuestion(textReply) {
 				return synthesizeApprovalReply(textReply), ""
 			}
@@ -602,6 +635,9 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 						if extracted != "" {
 							if analysisRecovery {
 								return extracted, ""
+							}
+							if isExplicitChoicePrompt(extracted) {
+								return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 							}
 							if isConfirmationQuestion(extracted) {
 								return synthesizeApprovalReply(extracted), ""
@@ -641,6 +677,9 @@ func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string)
 				return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 			}
 			return textReply, ""
+		}
+		if isExplicitChoicePrompt(textReply) {
+			return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 		}
 		if isConfirmationQuestion(textReply) {
 			return synthesizeApprovalReply(textReply), ""

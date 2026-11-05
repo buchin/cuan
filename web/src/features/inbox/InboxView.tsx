@@ -1679,11 +1679,15 @@ export function InboxView({
                         />
                       )}
 
-                      {isAgentMessage && msg.prompt_choices && (
+                      {(isAgentMessage || (msg.author_type === 'agent' && msg.is_internal === true)) && msg.prompt_choices && (
                         <PromptChoiceChips
                           prompt={msg.prompt_choices}
+                          onOther={() => {
+                            if (activeContact.type === 'customer') setWhisperMode(true)
+                            requestAnimationFrame(() => textareaRef.current?.focus())
+                          }}
                           disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
-                          onSelect={(option) => handleSendMessage(undefined, undefined, undefined, option.label)}
+                          onSelect={(option) => handleSendMessage(undefined, undefined, undefined, activeContact.type === 'customer' ? '@cuan ' + option.label : option.label)}
                         />
                       )}
 
