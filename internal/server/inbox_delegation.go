@@ -818,9 +818,9 @@ func extractDoDFromDescription(description string) []task.DoDItem {
 			if isDoDSectionHeader(text) {
 				continue
 			}
-			completed := strings.ToLower(m[1]) == "x"
+			// A checked box in the requested plan is not execution evidence.
 			if text != "" && !seen[strings.ToLower(text)] {
-				items = append(items, task.DoDItem{Text: text, Completed: completed})
+				items = append(items, task.DoDItem{Text: text, Completed: false})
 				seen[strings.ToLower(text)] = true
 			}
 			continue

@@ -109,3 +109,12 @@ Task cards use explicit progress reports from the latest attempt. Native termina
 stdout, keyboard shortcuts, tool summaries and reasoning fragments stay in the
 Terminal; they are never guessed to be user-facing progress. Without an explicit
 report, the card retains its live work status rather than inventing an update.
+
+### Acceptance criteria provenance
+
+New delegated tasks extract requirement text from the approved description, but
+start every criterion unverified even when the plan contains checked Markdown
+boxes. A plan is not evidence that an execution completed. The result reviewer
+uses the task's persisted acceptance checklist and original requested scope;
+transport metadata, runtime guardrails and reporting rules never become a
+replacement checklist. Existing saved per-criterion evidence remains unchanged.

@@ -293,7 +293,7 @@ esac
 		}
 	}
 	prompt, _ := os.ReadFile(filepath.Join(home, "delegation-prompts"))
-	for _, text := range []string{humanPrompt, "reported_verification", "Without delivered_images, do not use any tools."} {
+	for _, text := range []string{humanPrompt, "reported_verification", "Without delivered_images, do not call inspection or execution tools."} {
 		if !strings.Contains(string(prompt), text) {
 			t.Fatal("missing relevant context", text)
 		}
@@ -884,8 +884,8 @@ func TestExtractDoDFromDescription(t *testing.T) {
 	if len(items2) != 3 {
 		t.Fatalf("expected 3 items from checkboxes, got %d", len(items2))
 	}
-	if !items2[1].Completed {
-		t.Errorf("expected item 1 to be completed")
+	if items2[1].Completed {
+		t.Errorf("requested checkbox state must not become verification")
 	}
 
 	// Test explicit DoD header with bullets
@@ -912,7 +912,7 @@ func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
 			MessageID: db.GenerateUUID(),
 			Plan: inboxApprovalPlan{
 				Title:       "Tasks UI Mobile Cleanup",
-				Description: "Revisi UI Tasks:\n1. Eliminasi ikon search\n2. Ganti dropdown select dengan filter chips\n3. Sederhanakan label Agent @sm\n4. Pastikan build lulus verifikasi",
+				Description: "Revisi UI Tasks:\n- [x] Eliminasi ikon search\n2. Ganti dropdown select dengan filter chips\n3. Sederhanakan label Agent @sm\n4. Pastikan build lulus verifikasi",
 				ProjectName: "Default",
 			},
 		},
@@ -926,7 +926,7 @@ func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
 	delegation := inboxDelegation{
 		Action:          "run",
 		Title:           "Tasks UI Mobile Cleanup",
-		Description:     "Revisi UI Tasks:\n1. Eliminasi ikon search\n2. Ganti dropdown select dengan filter chips\n3. Sederhanakan label Agent @sm\n4. Pastikan build lulus verifikasi",
+		Description:     "Revisi UI Tasks:\n- [x] Eliminasi ikon search\n2. Ganti dropdown select dengan filter chips\n3. Sederhanakan label Agent @sm\n4. Pastikan build lulus verifikasi",
 		ProjectName:     "Default",
 		AuthorizationID: q.MessageID,
 	}
@@ -946,6 +946,11 @@ func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
 	}
 	if len(detail.DoDChecklist) != 4 {
 		t.Fatalf("expected 4 DoD checklist items populated on task, got %d", len(detail.DoDChecklist))
+	}
+	for _, item := range detail.DoDChecklist {
+		if item.Completed || item.Evidence != "" {
+			t.Fatal("new approved task inherited claimed completion")
+		}
 	}
 	if detail.DoDChecklist[0].Text != "Eliminasi ikon search" {
 		t.Errorf("unexpected DoD item 0: %s", detail.DoDChecklist[0].Text)

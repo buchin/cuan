@@ -44,3 +44,26 @@ func TestInboxReviewSurfacesInvalidSavedGuidanceWithoutRawSnapshot(t *testing.T)
 		t.Fatal("invalid guidance was silently accepted or exposed")
 	}
 }
+
+func TestInboxReviewNeverTurnsSafetyInstructionsIntoAcceptanceCriteria(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	instructions := "Carry out the approved operation and verify its result.\n\n" + inboxReconciliationExecutionContract
+	d := &task.TaskDetailResponse{Task: task.Task{ID: "task", Instructions: instructions}, LatestAttempt: &task.TaskAttempt{ID: "attempt"}}
+	var payload struct {
+		Original  string         `json:"original_request"`
+		Checklist []task.DoDItem `json:"acceptance_checklist"`
+	}
+	if err := json.Unmarshal([]byte(s.inboxReviewData(context.Background(), d)), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Checklist) != 0 || !strings.Contains(payload.Original, "Carry out the approved operation") {
+		t.Fatal("runtime rules became a substitute acceptance checklist")
+	}
+	d.DoDChecklist = []task.DoDItem{{Text: "The original operation is verified", Completed: true, Evidence: "Current record inspected by the task"}}
+	if err := json.Unmarshal([]byte(s.inboxReviewData(context.Background(), d)), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Checklist) != 1 || !payload.Checklist[0].Completed || payload.Checklist[0].Evidence == "" {
+		t.Fatal("saved acceptance evidence was changed")
+	}
+}
