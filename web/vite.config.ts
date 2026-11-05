@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { mermaidAssets } from './mermaid-assets'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), mermaidAssets()],
   build: {
     cssCodeSplit: false,
     rollupOptions: {

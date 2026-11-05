@@ -1721,5 +1721,17 @@
   "Your message is saved.": "Pesan Anda tersimpan.",
   "Checking result": "Memeriksa hasil",
   "Waiting for review": "Menunggu pemeriksaan",
-  "Reconnecting… Your message is saved.": "Menyambungkan kembali… Pesan Anda tersimpan."
+  "Reconnecting… Your message is saved.": "Menyambungkan kembali… Pesan Anda tersimpan.",
+  "Diagram": "Diagram",
+  "Kode diagram": "Kode diagram",
+  "Lihat kode diagram": "Lihat kode diagram",
+  "Salin kode diagram": "Salin kode diagram",
+  "Perbesar diagram": "Perbesar diagram",
+  "Memuat diagram": "Memuat diagram",
+  "Diagram tidak dapat ditampilkan.": "Diagram tidak dapat ditampilkan.",
+  "Tidak dapat menyalin. Pilih dan salin kode diagram.": "Tidak dapat menyalin. Pilih dan salin kode diagram.",
+  "Perkecil": "Perkecil",
+  "Perbesar": "Perbesar",
+  "Atur ulang zoom": "Atur ulang zoom",
+  "Geser diagram": "Geser diagram"
 }

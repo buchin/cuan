@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename)
 
 const taskSidePeekPath = path.join(__dirname, '..', 'src', 'features', 'tasks', 'TaskSidePeek.tsx')
 const taskUiPath = path.join(__dirname, '..', 'src', 'features', 'tasks', 'task-ui.ts')
-const chatMarkdownPath = path.join(__dirname, '..', 'src', 'features', 'inbox', 'ChatMarkdown.tsx')
 const markdownViewerPath = path.join(__dirname, '..', 'src', 'components', 'ui', 'MarkdownViewer.tsx')
 const taskWorkspaceCssPath = path.join(__dirname, '..', 'src', 'features', 'tasks', 'task-workspace.css')
 
@@ -61,28 +60,9 @@ test('1. Hierarchy & Typography: Merapikan readability mobile (360px-390px) & vi
   )
 })
 
-test('2. Progressive Disclosure & Collapsible Sections: Mermaid, raw digest & approval metadata', () => {
+test('2. Progressive disclosure keeps raw digest and approval metadata secondary', () => {
   const sidePeekSource = fs.readFileSync(taskSidePeekPath, 'utf8')
-  const chatMarkdownSource = fs.readFileSync(chatMarkdownPath, 'utf8')
   const taskUiSource = fs.readFileSync(taskUiPath, 'utf8')
-
-  // Mermaid diagrams collapsible accordion in ChatMarkdown
-  assert.ok(
-    chatMarkdownSource.includes('isMermaid = language === \'mermaid\' || language === \'flowchart\''),
-    'ChatMarkdown must recognize mermaid and flowchart code languages'
-  )
-  assert.ok(
-    chatMarkdownSource.includes('chat-code-mermaid'),
-    'ChatMarkdown must render chat-code-mermaid container for collapsible workflow diagrams'
-  )
-  assert.ok(
-    chatMarkdownSource.includes('Diagram Alur (Mermaid)'),
-    'ChatMarkdown must render Diagram Alur (Mermaid) label'
-  )
-  assert.ok(
-    chatMarkdownSource.includes('baris') && chatMarkdownSource.includes('lineCount'),
-    'ChatMarkdown must display line count indicator for diagrams'
-  )
 
   // parseTaskInstructions separating clean instructions from technical metadata
   assert.ok(

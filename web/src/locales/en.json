@@ -280,5 +280,17 @@
   "Saved work.": "Saved work.",
   "The work is saved, but could not start.": "The work is saved, but could not start.",
   "Checking result": "Checking result",
-  "Waiting for review": "Waiting for review"
+  "Waiting for review": "Waiting for review",
+  "Diagram": "Diagram",
+  "Kode diagram": "Diagram source",
+  "Lihat kode diagram": "Show diagram source",
+  "Salin kode diagram": "Copy diagram source",
+  "Perbesar diagram": "Expand diagram",
+  "Memuat diagram": "Loading diagram",
+  "Diagram tidak dapat ditampilkan.": "Couldn't display this diagram.",
+  "Tidak dapat menyalin. Pilih dan salin kode diagram.": "Couldn't copy. Select and copy the diagram source.",
+  "Perkecil": "Zoom out",
+  "Perbesar": "Zoom in",
+  "Atur ulang zoom": "Reset zoom",
+  "Geser diagram": "Pan diagram"
 }
