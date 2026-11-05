@@ -19,7 +19,7 @@ func (s *Server) learnInboxPreferences(ctx context.Context, q db.InboxRequest) {
 		return
 	}
 	message, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
-	if err != nil || message == nil || message.RoomID != q.RoomID || message.AuthorType != "user" || message.AuthorID != "operator_user" {
+	if err != nil || message == nil || message.RoomID != q.RoomID || message.AuthorType != "user" || message.AuthorID != "operator_user" || decodeRegenerateReplyID(message.Content) != "" {
 		return
 	}
 	text := operatorPreferenceText(message.Content)

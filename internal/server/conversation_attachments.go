@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -36,9 +37,10 @@ type conversationAttachment struct {
 	URL  string `json:"url"`
 }
 type attachmentMessage struct {
-	Approval *approvedInboxPlan `json:"approval,omitempty"`
-	Text     string             `json:"text"`
-	IDs      []string           `json:"attachments"`
+	RegenerateReplyID string             `json:"regenerate_reply_id,omitempty"`
+	Approval          *approvedInboxPlan `json:"approval,omitempty"`
+	Text              string             `json:"text"`
+	IDs               []string           `json:"attachments"`
 }
 
 func attachmentRoot(owner string) (string, error) {
@@ -603,4 +605,22 @@ func attachmentPreview(content string) string {
 		return "Shared files"
 	}
 	return text
+}
+
+// Compatibility with the exact generated command used by the first Regenerate UI.
+// Never infer an action from arbitrary visitor prose or a partial phrase.
+var legacyRegenerateCommand = regexp.MustCompile(`^@[^\s]+ Buat ulang draft balasan pelanggan dari pesan ([a-f0-9-]{36})\. (?:Gunakan taste personal saya yang tersimpan|Ikuti preferensi pribadi dan gaya bahasa saya yang tersimpan), sesuaikan dengan konteks pelanggan, pertahankan fakta yang didukung bukti\. Kembalikan satu customer reply draft siap Review & Use\. Jangan kirim ke pelanggan, jangan membuat task atau menjalankan ulang pekerjaan\.$`)
+
+func decodeRegenerateReplyID(content string) string {
+	if !strings.HasPrefix(content, attachmentEnvelope) {
+		if match := legacyRegenerateCommand.FindStringSubmatch(content); len(match) == 2 && db.IsValidUUID(match[1]) {
+			return match[1]
+		}
+		return ""
+	}
+	var message attachmentMessage
+	if json.Unmarshal([]byte(strings.TrimPrefix(content, attachmentEnvelope)), &message) != nil {
+		return ""
+	}
+	return message.RegenerateReplyID
 }

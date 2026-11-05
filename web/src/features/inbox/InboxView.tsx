@@ -414,6 +414,7 @@ export function InboxView({
       copyEmailTimeoutRef.current = null
     }, 2000)
   }, [activeContact?.email])
+  const [regenerationStart, setRegenerationStart] = useState<{ convId: string; sourceId: string; requestId: string } | null>(null)
   const [requests, setRequests] = useState<InboxRequest[]>([])
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
@@ -425,6 +426,7 @@ export function InboxView({
     attachmentIds?: string[]
     approveMessageId?: string
     planAction?: 'approve' | 'defer'
+    regenerateReplyId?: string
   } | null>(null)
   const activeConvRef = useRef('')
   activeConvRef.current =
@@ -564,6 +566,7 @@ export function InboxView({
                 a.email_delivery?.status !== b.email_delivery?.status ||
                 a.email_delivery?.recipient_type !== b.email_delivery?.recipient_type ||
                 a.reply_draft !== b.reply_draft ||
+                a.regenerate_reply_id !== b.regenerate_reply_id ||
                 a.plan_deferred !== b.plan_deferred ||
                 a.approval_accepted !== b.approval_accepted
               ) {
@@ -989,12 +992,12 @@ export function InboxView({
     }
   }, [])
 
-  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string) => {
+  const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string, regenerateReplyId?: string) => {
     if (!activeContact || sending || uploads.busy) return
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current?.convId === convId ? pendingRef.current : null
     let text = pending?.convId === convId ? pending.text : overrideText ? overrideText : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
-    if (!pending && !approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
+    if (!pending && !regenerateReplyId && !approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
       text = `${whisperHandle} ${text}`
     }
     if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
@@ -1013,6 +1016,7 @@ export function InboxView({
                 : uploads.items.map((a) => a.id),
             approveMessageId,
             planAction,
+            regenerateReplyId,
           }
     // Save before the first network byte; reload/retry reuses the same key.
     try {
@@ -1029,6 +1033,7 @@ export function InboxView({
       return
     }
     pendingRef.current = request
+    if (request.regenerateReplyId) setRegenerationStart({ convId, sourceId: request.regenerateReplyId, requestId: request.id })
     followTail.current = true
     setSending(true)
     setRetryCount((n) => n + 1)
@@ -1041,6 +1046,7 @@ export function InboxView({
         request.attachmentIds,
         request.approveMessageId,
         request.planAction,
+        request.regenerateReplyId,
       )
       // Acceptance is authoritative even if the subsequent history read fails.
       // A lost response still retries this exact frozen payload and identifier.
@@ -1183,6 +1189,21 @@ export function InboxView({
     }
     return index
   }, [messages, requests])
+  const regeneratingDrafts = useMemo(() => {
+    const sourceByControl = new Map(messages.filter((m) => m.regenerate_reply_id && m.uuid).map((m) => [m.uuid!, m.regenerate_reply_id!]))
+    const active = new Set<string>()
+    for (const q of requests) {
+      const source = sourceByControl.get(q.message_id)
+      if (source && ['queued', 'running', 'cancelling'].includes(q.state)) active.add(source)
+    }
+    if (regenerationStart?.convId === activeConvRef.current) {
+      const request = requests.find((q) => q.request_id === regenerationStart.requestId)
+      if ((!request && (!sendError || retryCount < 3 || sending)) || (request && ['queued', 'running', 'cancelling'].includes(request.state))) active.add(regenerationStart.sourceId)
+    }
+    const pending = pendingRef.current
+    if (pending?.convId === activeConvRef.current && pending.regenerateReplyId && (sending || retryCount < 3)) active.add(pending.regenerateReplyId)
+    return active
+  }, [messages, requests, sending, retryCount, regenerationStart, sendError])
   useLayoutEffect(() => {
     const list = messageListRef.current
     if (list && olderAnchor.current) {
@@ -1533,7 +1554,7 @@ export function InboxView({
 
                 const date = new Date(msg.created_at)
                 const showDate =
-                  Number.isFinite(date.getTime()) &&
+                  !msg.regenerate_reply_id && Number.isFinite(date.getTime()) &&
                   (!index ||
                     date.toDateString() !==
                       new Date(messages[index - 1].created_at).toDateString())
@@ -1569,9 +1590,9 @@ export function InboxView({
                   textareaRef.current?.focus()
                 }
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
-                previousBubbleMessage = msg
+                if (!msg.regenerate_reply_id) previousBubbleMessage = msg
                 const hasSpeech = withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
-                const showMessageSurface = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices)
+                const showMessageSurface = !msg.regenerate_reply_id && (hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices))
                 const onlyImages = msg.attachments?.length
                   ? msg.attachments.every(isImageAttachment)
                   : !!msg.attachment_url && isImageAttachment({ name: msg.attachment_name || '', type: msg.attachment_type })
@@ -1843,7 +1864,8 @@ export function InboxView({
                     {msg.reply_draft && (
                       <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true}
                         regenerateDisabled={sending || uploads.busy || !!pendingRef.current || requests.some((q) => ['queued', 'running', 'retrying'].includes(q.state))}
-                        onRegenerate={msg.uuid ? () => { void handleSendMessage(undefined, undefined, undefined, `${whisperHandle} Buat ulang draft balasan pelanggan dari pesan ${msg.uuid}. Gunakan taste personal saya yang tersimpan, sesuaikan dengan konteks pelanggan, pertahankan fakta yang didukung bukti. Kembalikan satu customer reply draft siap Review & Use. Jangan kirim ke pelanggan, jangan membuat task atau menjalankan ulang pekerjaan.`) } : undefined}
+                        regenerating={!!msg.uuid && regeneratingDrafts.has(msg.uuid)}
+                        onRegenerate={msg.uuid ? () => { void handleSendMessage(undefined, undefined, undefined, 'Regenerate draft', msg.uuid) } : undefined}
                         onUse={(draft) => {
                         setWhisperMode(false)
                         setWhisperHandle('')
@@ -1859,7 +1881,7 @@ export function InboxView({
                       const activity = (
                         <InboxActivity
                           request={q}
-                          bubble={!!placeholder}
+                          bubble={!!placeholder && !msg.regenerate_reply_id}
                           previousAttempts={(requestAttempts.get(q.message_id) || []).filter((attempt) => attempt.request_id !== q.request_id)}
                           onRetry={async () => {
                             const id = activeContact.conversation_id || activeContact.id

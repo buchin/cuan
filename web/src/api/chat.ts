@@ -72,6 +72,7 @@ export interface PromptChoices {
 }
 
 export interface ChatMessage {
+  regenerate_reply_id?: string
   delivered_at?: string
   read_confirmed_at?: string
   email_delivery?: { status: string; recipient_type: 'operator' | 'visitor' }
@@ -276,6 +277,7 @@ export const chatApi = {
     attachmentIds?: string[],
     approveMessageId?: string,
     planAction?: 'approve' | 'defer',
+    regenerateReplyId?: string,
   ): Promise<{ request?: InboxRequest; user_message_saved?: boolean; message?: ChatMessage; agent_reply?: ChatMessage }> => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15000)
@@ -293,6 +295,7 @@ export const chatApi = {
           attachment_ids: attachmentIds,
           approve_message_id: approveMessageId,
           plan_action: planAction,
+          regenerate_reply_id: regenerateReplyId,
           message,
           content: message,
           author_type: 'user',

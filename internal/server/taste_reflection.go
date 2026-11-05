@@ -507,7 +507,7 @@ func (s *Server) reflectTaste(ctx context.Context, owner string, req ReflectTast
 				continue
 			}
 			text := operatorPreferenceText(m.Content)
-			if durablePreferenceCue.MatchString(text) {
+			if decodeRegenerateReplyID(m.Content) == "" && durablePreferenceCue.MatchString(text) {
 				textSources = append(textSources, agent.MaskSecrets(text, nil))
 				count++
 			}

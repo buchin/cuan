@@ -67,6 +67,7 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
+	RegenerateReplyID string `json:"regenerate_reply_id,omitempty"`
 	db.MessageReceipt
 	EmailDelivery      *ChatEmailDelivery       `json:"email_delivery,omitempty"`
 	PlanDeferred       bool                     `json:"plan_deferred,omitempty"`
@@ -1402,14 +1403,15 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	var payload struct {
-		AttachmentIDs    []string `json:"attachment_ids"`
-		AuthorType       string   `json:"author_type"`
-		AuthorName       string   `json:"author_name"`
-		Message          string   `json:"message"`
-		Content          string   `json:"content"`
-		RequestID        string   `json:"request_id"`
-		ApproveMessageID string   `json:"approve_message_id"`
-		PlanAction       string   `json:"plan_action"`
+		RegenerateReplyID string   `json:"regenerate_reply_id"`
+		AttachmentIDs     []string `json:"attachment_ids"`
+		AuthorType        string   `json:"author_type"`
+		AuthorName        string   `json:"author_name"`
+		Message           string   `json:"message"`
+		Content           string   `json:"content"`
+		RequestID         string   `json:"request_id"`
+		ApproveMessageID  string   `json:"approve_message_id"`
+		PlanAction        string   `json:"plan_action"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 65536)).Decode(&payload) != nil {
 		respondJSONError(w, 400, "Invalid request")
@@ -1426,6 +1428,13 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 	text := strings.TrimSpace(payload.Message)
 	if text == "" {
 		text = strings.TrimSpace(payload.Content)
+	}
+	if payload.RegenerateReplyID != "" {
+		if payload.ApproveMessageID != "" || payload.PlanAction != "" || len(payload.AttachmentIDs) > 0 || !db.IsValidUUID(payload.RegenerateReplyID) {
+			respondJSONError(w, 400, "Choose one reply draft to regenerate")
+			return
+		}
+		text = db.DefaultAgentHandle + " Regenerate draft"
 	}
 	if text == "" && len(payload.AttachmentIDs) == 0 {
 		respondJSONError(w, 400, "Message cannot be empty")
@@ -1454,7 +1463,21 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		return
 	}
 	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), text)
-	if payload.ApproveMessageID == "" && resolved.IsAgent && len(payload.AttachmentIDs) == 0 {
+	if payload.RegenerateReplyID != "" {
+		source, err := s.projectStudioRepo.GetMessageByID(r.Context(), payload.RegenerateReplyID)
+		if err != nil || source == nil || source.RoomID != resolved.RoomID || source.AuthorType != "agent" {
+			respondJSONError(w, 404, "Reply draft not found")
+			return
+		}
+		_, draft := splitCustomerReplyDraft(source.Content)
+		if draft == "" || !resolved.IsAgent {
+			respondJSONError(w, 400, "Choose a customer reply draft")
+			return
+		}
+		raw, _ := json.Marshal(attachmentMessage{Text: "Regenerate draft", RegenerateReplyID: source.ID})
+		text = attachmentEnvelope + string(raw)
+	}
+	if payload.RegenerateReplyID == "" && payload.ApproveMessageID == "" && resolved.IsAgent && len(payload.AttachmentIDs) == 0 {
 		payload.ApproveMessageID = s.conversationalApprovalID(r.Context(), resolved.RoomID, text)
 	}
 	if payload.ApproveMessageID != "" {
@@ -1861,10 +1884,14 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			}
 		}
 
+		regenerateID := ""
+		if m.AuthorType == "user" && m.AuthorID == "operator_user" {
+			regenerateID = decodeRegenerateReplyID(m.Content)
+		}
 		mention := extractMentionHandle(m.Content)
 		isInternal := false
 		if isCustomer {
-			if m.AuthorType == "user" && m.AuthorID == "operator_user" && decodeInboxPlanDecision(m.Content) != nil {
+			if m.AuthorType == "user" && m.AuthorID == "operator_user" && (decodeInboxPlanDecision(m.Content) != nil || regenerateID != "") {
 				isInternal = true
 			} else if mention != "" {
 				isInternal = true
@@ -1935,6 +1962,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		}
 
 		dtos = append(dtos, ChatMessageDTO{
+			RegenerateReplyID: regenerateID,
 			MessageReceipt:    receipts[m.ID],
 			EmailDelivery:     emailDeliveries[m.ID],
 			ID:                int64(len(dtos) + 1), // Monotonic numeric ID for Dojo widget

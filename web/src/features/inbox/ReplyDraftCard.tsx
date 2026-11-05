@@ -17,7 +17,7 @@ export function ReplyDraftCard({ draft, internal, onUse, onRegenerate, regenerat
         <CollapsibleChatText content={draft} hideTaskCard />
       </div>
       <CardActions data-draft-footer className="px-3">
-        {onRegenerate && <button type="button" onClick={onRegenerate} disabled={regenerateDisabled || regenerating} aria-busy={regenerating} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer disabled:opacity-50 disabled:cursor-default">
+        {onRegenerate && <button type="button" onClick={onRegenerate} disabled={regenerateDisabled || regenerating} aria-busy={regenerating} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer disabled:opacity-70 disabled:cursor-default">
           <RefreshCw className={`h-4 w-4${regenerating ? ' animate-spin' : ''}`} aria-hidden="true" />
           {t(regenerating ? 'Regenerating…' : 'Regenerate')}
         </button>}

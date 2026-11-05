@@ -237,3 +237,13 @@ Customer reply drafts offer Regenerate beside Review & Use. Regenerate requests 
 new private draft using personal Taste and conversation evidence. It does not send
 the draft or authorize task execution. Review & Use still loads text into the
 public composer for editing and a separate send action.
+
+Regeneration uses a persisted `regenerate_reply_id` action referencing an existing
+agent draft in the same conversation. The owner UI suppresses its audit-message
+bubble and shows a spinning, disabled Regenerate control while its durable request
+is queued/running/cancelling. Visitor history and receipts exclude the action.
+Draft generation uses a tool-free response path and rejects responses that do not
+contain a customer reply draft; it cannot authorize a task. Lost-response retries
+reuse the saved action and request ID. Loading survives page reloads and stops on
+completion, failure, interruption or cancellation. The exact generated command from
+the first UI version remains readable as the same private action for compatibility.
