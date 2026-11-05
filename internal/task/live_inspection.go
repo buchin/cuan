@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/buchin/cuan/internal/executionpolicy"
 )
 
 const LiveInspectionMarker = "Cuan live-result inspection v1: "
@@ -56,7 +58,7 @@ func (p *LiveInspectionIntent) RequestID(taskID string) string {
 }
 
 // A current-outcome inspection establishes current behavior, not authorship or
-// ancestry of an implementation that never produced a source commit.
+// ancestry of historical work, including a branch with unverified publication.
 func (p *LiveInspectionIntent) SnapshotSourceCommit() string {
 	if p.Purpose == CurrentOutcomeInspection {
 		if p.PreviousAttemptID != "" {
@@ -101,6 +103,25 @@ func IsCurrentOutcomeFailure(a *TaskAttempt) bool {
 	return IsExecutionTimeout(a) || IsOpaqueLocalFailure(a) || IsUnrecordedLocalFailure(a) || (a != nil && a.Status == AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == "Project verification failed")
 }
 
+// A corrected legacy acceptance can leave a successful, unpublished branch even
+// though another running revision may already satisfy the original request.
+// This permits one independent outcome inspection, never credit for publishing
+// that branch, source ancestry, or an implementation replay.
+func IsUnpublishedLegacyOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity) bool {
+	if t == nil || a == nil || a.TaskID != t.ID || !fullObjectID(t.CommitSHA) || (t.ExecutionCategory != "" && t.ExecutionCategory != ExecutionCategoryCode) || a.Status != AttemptStatusSucceeded || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != "" || a.CancelRequested || a.CanceledAt != nil || a.CreatedAt.IsZero() || a.StartedAt == nil || a.StartedAt.IsZero() || a.FinishedAt == nil || a.FinishedAt.Before(*a.StartedAt) || a.StartedAt.Before(a.CreatedAt) {
+		return false
+	}
+	if executionpolicy.NormalizeManagedInstructions(t.Instructions) == t.Instructions || executionpolicy.FromInstructions(t.Instructions).DenyDeploy || !liveImplementationFinalReport(activities, t.ID, a.ID) || VerifiedDeployment(activities, a, t.CommitSHA, time.Now().UTC()) {
+		return false
+	}
+	for _, event := range activities {
+		if event != nil && event.TaskID == t.ID && event.AttemptID != nil && *event.AttemptID == a.ID && event.ActivityType == ActivityPublicationAcceptanceAudit && event.Author == "coordinator" && event.NewStatus == "review_required" && !event.CreatedAt.Before(*a.FinishedAt) && !event.CreatedAt.After(time.Now().UTC()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
 	if p.PreviousAttemptID != "" {
 		return p.PreviousAttemptID
@@ -131,7 +152,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
 	if proof.Purpose == CurrentOutcomeInspection {
-		validSource = proof.SourceCommit == "" && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16))
+		validSource = (proof.SourceCommit == "" || fullObjectID(proof.SourceCommit)) && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16))
 	}
 	if t == nil || strings.Count(launch.Revision, LiveInspectionMarker) != 1 || strings.Contains(launch.Revision, VerificationIntentMarker) || !validSource || !fullObjectID(proof.TargetCommit) || !liveRepositoryIdentity.MatchString(proof.Repository) || proof.SourceAttemptID == "" || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.ObservedAt.IsZero() || proof.ObservedAt.After(launch.CreatedAt.Add(5*time.Second)) || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || launch.InstructionsHash != proof.InstructionsHash || launch.TaskID != t.ID || launch.ProjectID != t.ProjectID || launch.OwnerID != proof.OwnerID || launch.RoomID != proof.RoomID || t.SourceRoomID != proof.RoomID || launch.SourceRequestID != proof.SourceRequestID || launch.RequestID != proof.RequestID(t.ID) {
 		return nil, ErrInvalidTaskInput
@@ -179,7 +200,18 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		return err
 	}
 	if proof.Purpose == CurrentOutcomeInspection {
-		if proof.SourceCommit != "" || t.CommitSHA != "" || !IsCurrentOutcomeFailure(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil {
+		if source == nil || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil {
+			return ErrInvalidTaskInput
+		}
+		if proof.SourceCommit != "" {
+			activities, err := store.ListActivities(ctx, t.ID)
+			if err != nil {
+				return err
+			}
+			if proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0 || !IsUnpublishedLegacyOutcome(t, source, activities) {
+				return ErrInvalidTaskInput
+			}
+		} else if !IsCurrentOutcomeFailure(source) {
 			return ErrInvalidTaskInput
 		}
 		if source.FinishedAt == nil {

@@ -19,7 +19,7 @@ import (
 )
 
 func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T) {
-	for _, scenario := range []string{"valid", "current outcome", "failed checks", "changed source", "valid recovery", "unavailable previous"} {
+	for _, scenario := range []string{"valid", "current outcome", "current outcome unpublished", "failed checks", "changed source", "valid recovery", "unavailable previous"} {
 		t.Run(scenario, func(t *testing.T) {
 			source := documentationFixture(t)
 			run := func(args ...string) string {
@@ -45,7 +45,7 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			run("add", "go.mod")
 			run("commit", "-m", "Published result")
 			live := run("rev-parse", "HEAD")
-			if scenario == "current outcome" {
+			if strings.HasPrefix(scenario, "current outcome") {
 				original = live
 			}
 			snapshot, err := cuangit.NewClient().PrepareVerificationSnapshot(context.Background(), source, filepath.Join(t.TempDir(), "audit"), original, live)
@@ -74,9 +74,12 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, &readOnlyAuditAdapter{mutate: scenario == "changed source", inspectionCommit: live, expectGoEnvironment: true, t: t}, api.Client())
 			now := time.Now()
 			claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: snapshot, AutoDeploy: false, PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyDeploy: true, DenyPush: true}, Task: &task.Task{ID: "live", Title: "Inspect current implementation", Instructions: "Approved result inspection", SourceRoomID: "room", ExecutionCategory: task.ExecutionCategoryCode}, Attempt: &task.TaskAttempt{ID: "live-attempt", TaskID: "live", CreatedAt: now}, LiveInspection: &task.LiveInspectionIntent{SourceCommit: original, TargetCommit: live}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}}
-			if scenario == "current outcome" {
+			if strings.HasPrefix(scenario, "current outcome") {
 				claim.LiveInspection.Purpose = task.CurrentOutcomeInspection
 				claim.LiveInspection.SourceCommit = ""
+				if scenario == "current outcome unpublished" {
+					claim.LiveInspection.SourceCommit = strings.Repeat("f", 40)
+				}
 			}
 			if scenario == "valid recovery" {
 				claim.LiveInspection.PreviousCommit = original
@@ -85,7 +88,7 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 				claim.LiveInspection.PreviousCommit = strings.Repeat("f", 40)
 			}
 			runner.runAttempt(context.Background(), claim)
-			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "valid recovery" || scenario == "current outcome") {
+			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "valid recovery" || strings.HasPrefix(scenario, "current outcome")) {
 				t.Fatal("snapshot verification outcome incorrect", completion.Status, completion.ErrorMessage)
 			}
 			if scenario != "changed source" && scenario != "unavailable previous" && !strings.Contains(completion.TestSummary, "LIVE_MACHINE_CHECK") {
@@ -94,7 +97,7 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			if scenario == "valid" && (!completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {
 				t.Fatal("missing source/target/scope/report evidence")
 			}
-			if scenario == "current outcome" && (!completion.CurrentOutcomeVerified || completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {
+			if strings.HasPrefix(scenario, "current outcome") && (!completion.CurrentOutcomeVerified || completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {
 				t.Fatal("current outcome must establish current evidence without source ancestry")
 			}
 			if completion.CommitSHA != "" || completion.PRURL != "" || completion.LiveDeploymentConfirmed {

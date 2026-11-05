@@ -49,7 +49,7 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	if !result.Verified {
 		if running := s.runningProjectRelease(ctx, d); running != nil {
 			if inspected := s.liveInspectionReviewContext(ctx, d); inspected != nil && inspected["verified_result_commit"] == running.Commit {
-				result.Verified, result.Provenance = true, "verified_current_project_snapshot"
+				result.Verified, result.Provenance, result.Commit = true, "verified_current_project_snapshot", running.Commit
 			}
 		}
 	}

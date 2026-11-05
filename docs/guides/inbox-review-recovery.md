@@ -396,3 +396,25 @@ completion, cancellation, newer work, verified publication and unrelated accepte
 history are preserved. Re-evaluation gets one durable review identity and bounded
 review retry under the new publication policy; it does not silently rerun code or
 permit merging an obsolete alternate implementation.
+
+## A successful branch with an unverified published outcome
+
+A historical managed task affected by the corrected publication policy can have
+a successful implementation attempt and an open, unpublished branch while the
+requested feature already exists in another running revision. Its first bounded
+current-outcome inspection may inspect that running revision when the original
+scope explicitly required publication, the exact source has a final implementation
+report and an unverified-publication audit, and its successful exit and terminal
+interval are recorded. Cancellation, missing reports, unrelated failures and
+already verified source publication do not qualify.
+
+The source branch commit and successful attempt remain unchanged. The inspection
+establishes neither source ancestry nor deployment of that branch. It uses the
+same source-attempt/scope request identity, private exact-revision snapshot,
+unchanged-source checks, fixed project tests, ten-minute execution bound, empty
+environment and publication prohibitions as other current-outcome inspections.
+An unsuccessful inspection does not gain another allowance after a new deploy.
+Independent review must check all original requirements against fresh evidence;
+publication context identifies the actual inspected running commit separately
+from the historical unpublished branch. This does not apply to clone/setup work
+that never requested live publication.

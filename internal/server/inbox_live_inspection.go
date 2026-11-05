@@ -23,8 +23,9 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 		return true
 	}
 	a := d.LatestAttempt
-	currentOutcome := d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode)
-	if a.Status != task.AttemptStatusFailed || a.CancelRequested || a.CanceledAt != nil || (a.FinishedAt == nil && !task.IsUnrecordedLocalFailure(a)) {
+	unpublished := task.IsUnpublishedLegacyOutcome(&d.Task, a, d.Activities)
+	currentOutcome := unpublished || (d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode))
+	if (a.Status != task.AttemptStatusFailed && !unpublished) || a.CancelRequested || a.CanceledAt != nil || (a.FinishedAt == nil && !task.IsUnrecordedLocalFailure(a)) {
 		return false
 	}
 	if !currentOutcome && (!releaseObjectID.MatchString(d.CommitSHA) || len(task.AcceptanceGaps(&d.Task)) > 0 || a.ExitCode == nil || *a.ExitCode != 0 || inboxReportEvidence(d).Provenance != "current_attempt_report") {
@@ -110,7 +111,10 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 	raw, _ := json.Marshal(proof)
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nInspect the already running result in the separate exact-commit snapshot. Do not resume or modify the old implementation workspace. Prior reports and failed tests are history, not proof of this result. Inspect the actual current implementation against every original requirement and run targeted read-only checks. The runner will independently run the fixed project verifier after your final report and verify unchanged state. Do not modify code, configuration, tests, documentation, git index or refs, install dependencies into the snapshot, publish, or repeat external effects. Use session artifacts for any required screenshots/reports. Report actual findings, original acceptance evidence and precise remaining gaps; never repair or waive missing implementation/publication. Reserve time for runner checks within this verification deadline."
 	if currentOutcome {
-		revision = "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nThe original execution failed without a saved source commit. Inspect the exact currently running revision to determine whether the original requested outcome is already satisfied. Do not credit or resume the old failed execution, alter its workspace, repeat implementation, or waive any original requirement. Reproduce the original issue and test the current behavior; inspect actual UI screenshots at original required viewports for UI work. Check every original acceptance criterion and report precise gaps. You may prepare locked dependencies and ignored verification outputs inside this private snapshot, without changing tracked files, lockfiles, index or git refs; never use shared build output symlinks. Deliver screenshots/reports using session artifacts. The runner independently runs fixed project checks and verifies unchanged source after your final report. This is current-outcome evidence, not ancestry of unknown old work or a deployment performed by this task. Do not fix code or perform external effects in this inspection."
+		revision = "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nInspect the exact currently running revision to determine whether the original requested outcome is already satisfied. Do not credit the historical attempt with this result or its publication, resume its process, alter its workspace, repeat implementation, or waive any original requirement. Reproduce the original issue and test the current behavior; inspect actual UI screenshots at original required viewports for UI work. Check every original acceptance criterion and report precise gaps. You may prepare locked dependencies and ignored verification outputs inside this private snapshot, without changing tracked files, lockfiles, index or git refs; never use shared build output symlinks. Deliver screenshots/reports using session artifacts. The runner independently runs fixed project checks and verifies unchanged source after your final report. This is current-outcome evidence, not ancestry of unknown old work or a deployment performed by this task. Do not fix code or perform external effects in this inspection."
+	}
+	if currentOutcome && proof.SourceCommit != "" {
+		revision += "\nThe historical execution succeeded and produced a branch commit, but publication of that branch was not established. Its result commit is retained as history, not an ancestor requirement or proof of deployment. Inspect only the already-running target revision and original outcome. Do not merge the old PR, claim that its branch was deployed, or change any historical execution/commit metadata."
 	}
 	if proof.ReviewRequestID != "" {
 		revision += "\nThis is the single permitted read-only revalidation after source paths named in the rejected inspection changed. Recheck every original criterion on this exact revision; the earlier assessment and changed files do not prove completion. Do not resume implementation, waive requirements or claim the old failed attempt succeeded. A signal exit alone is not successful execution: preserve explicit confirmed-report completion receipts and failure/cancellation guards."
@@ -154,6 +158,11 @@ func (s *Server) liveInspectionReviewContext(ctx context.Context, d *task.TaskDe
 				source, readErr := s.taskSvc.Store().GetAttempt(ctx, proof.SourceAttemptID)
 				if readErr != nil {
 					return nil
+				}
+				if proof.SourceCommit != "" {
+					result["source_unpublished_result"] = true
+					result["unpublished_source_commit"] = proof.SourceCommit
+					result["source_execution_state"] = source.Status
 				}
 				if task.IsUnrecordedLocalFailure(source) {
 					result["source_termination_metadata_missing"] = true

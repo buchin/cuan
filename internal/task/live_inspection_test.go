@@ -160,3 +160,65 @@ func TestCurrentOutcomeCheckFailureRequiresExactLatestFinalImplementationReport(
 		})
 	}
 }
+
+func TestUnpublishedLegacyOutcomeKeepsBranchAndExecutionHistory(t *testing.T) {
+	now := time.Now().UTC()
+	created := now.Add(-time.Hour)
+	started := created.Add(time.Second)
+	finished := started.Add(time.Second)
+	original := "Cuan managed delegation v1.\nImplement and deploy the feature.\nApproval message: approved\nUser authorization: Implement and deploy the feature.\nConversation: 91000000-0000-4000-8000-000000000001\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+	for _, scenario := range []string{"valid", "missing audit", "wrong actor", "other attempt", "future audit", "missing report", "progress report", "answer report", "clone only", "no commit", "failed source", "missing exit", "cancelled", "missing start", "bad interval", "published"} {
+		t.Run(scenario, func(t *testing.T) {
+			exit := 0
+			item := &Task{ID: "task", CommitSHA: strings.Repeat("a", 40), Instructions: original, ExecutionCategory: ExecutionCategoryCode}
+			a := &TaskAttempt{ID: "source", TaskID: item.ID, Status: AttemptStatusSucceeded, ExitCode: &exit, CreatedAt: created, StartedAt: &started, FinishedAt: &finished}
+			audit := &TaskActivity{TaskID: item.ID, AttemptID: &a.ID, ActivityType: ActivityPublicationAcceptanceAudit, Author: "coordinator", NewStatus: "review_required", CreatedAt: now.Add(-time.Minute)}
+			report := &TaskActivity{TaskID: item.ID, AttemptID: &a.ID, ActivityType: "agent_report", NewStatus: TaskStatusDone, CreatedAt: finished}
+			kind := &TaskActivity{TaskID: item.ID, AttemptID: &a.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", CreatedAt: finished}
+			events := []*TaskActivity{audit, report, kind}
+			switch scenario {
+			case "missing audit":
+				events = events[1:]
+			case "wrong actor":
+				audit.Author = "agent"
+			case "other attempt":
+				other := "other"
+				audit.AttemptID = &other
+			case "future audit":
+				audit.CreatedAt = now.Add(time.Hour)
+			case "missing report":
+				events = []*TaskActivity{audit, kind}
+			case "progress report":
+				report.NewStatus = "progress"
+			case "answer report":
+				kind.NewStatus = "answer"
+			case "clone only":
+				item.Instructions = strings.ReplaceAll(original, "Implement and deploy the feature.", "Clone the existing repository.")
+			case "no commit":
+				item.CommitSHA = ""
+			case "failed source":
+				a.Status = AttemptStatusFailed
+			case "missing exit":
+				a.ExitCode = nil
+			case "cancelled":
+				a.CancelRequested = true
+			case "missing start":
+				a.StartedAt = nil
+			case "bad interval":
+				a.FinishedAt = &created
+			case "published":
+				raw, _ := json.Marshal(DeploymentReceipt{Version: 1, TaskID: item.ID, AttemptID: a.ID, CommitSHA: item.CommitSHA, ReleaseSHA: item.CommitSHA, Environment: "production", Health: "healthy"})
+				events = append(events, &TaskActivity{ID: DeploymentReceiptID(item.ID, a.ID, item.CommitSHA), TaskID: item.ID, AttemptID: &a.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(raw), CreatedAt: finished})
+			}
+			if IsUnpublishedLegacyOutcome(item, a, events) != (scenario == "valid") {
+				t.Fatal("unsafe unpublished-result eligibility", scenario)
+			}
+			if a.Status == AttemptStatusSucceeded && scenario != "cancelled" && scenario != "missing exit" && a.ExitCode != nil && *a.ExitCode != 0 {
+				t.Fatal("source exit was changed")
+			}
+			if item.CommitSHA != "" && item.CommitSHA != strings.Repeat("a", 40) {
+				t.Fatal("source commit changed")
+			}
+		})
+	}
+}

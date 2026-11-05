@@ -20,8 +20,8 @@ func withPhasePostgres(t *testing.T, check func(*sql.DB)) {
 		t.Skip("requires disposable PostgreSQL DSN")
 	}
 	parsed, err := url.Parse(dsn)
-	if err != nil || parsed.Path != "/cuan_s25" {
-		t.Fatal("isolated cuan_s25 database required")
+	if err != nil || (parsed.Path != "/cuan_s25" && !strings.HasPrefix(parsed.Path, "/cuan_lifecycle_test_")) {
+		t.Fatal("isolated cuan_s25 or disposable cuan_lifecycle_test_* database required")
 	}
 	ctx := context.Background()
 	admin, err := sql.Open("pgx", dsn)
@@ -29,13 +29,16 @@ func withPhasePostgres(t *testing.T, check func(*sql.DB)) {
 		t.Fatal(err)
 	}
 	defer admin.Close()
+	if _, err = admin.ExecContext(ctx, `CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA public`); err != nil {
+		t.Fatal(err)
+	}
 	schema := "phase_test_" + strings.ReplaceAll(db.GenerateUUID(), "-", "")
 	if _, err = admin.ExecContext(ctx, `CREATE SCHEMA `+schema); err != nil {
 		t.Fatal(err)
 	}
 	defer admin.ExecContext(ctx, `DROP SCHEMA `+schema+` CASCADE`)
 	query := parsed.Query()
-	query.Set("search_path", schema)
+	query.Set("search_path", schema+",public")
 	parsed.RawQuery = query.Encode()
 	database, err := sql.Open("pgx", parsed.String())
 	if err != nil {
