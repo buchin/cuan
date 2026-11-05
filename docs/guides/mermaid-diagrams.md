@@ -30,6 +30,10 @@ Only the small preview component enters Cuan's ordinary application chunks;
 Mermaid and the required diagram modules download on demand. No engine request
 is made for a conversation without diagrams. Other chart types retain the
 upstream engine's lazy loaders.
+The TypeScript boundary imports only the provider's configuration type and
+describes the two runtime methods used here. This avoids loading every layout
+engine's internal declaration graph into application type-checking; it does not
+change the lazy runtime module or relax configuration checks.
 
 Versioned `.mjs` files also use the existing retained-release asset resolver.
 Tabs opened before a Mermaid update can load their original modules while that

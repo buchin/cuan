@@ -1,3 +1,12 @@
+import type { MermaidConfig } from 'mermaid/dist/config.type.js'
+
+// The lazy runtime only uses these two methods. Importing the full Mermaid
+// namespace also loads types for every layout engine into application checks.
+type MermaidRenderer = {
+  initialize(config: MermaidConfig): void
+  render(id: string, source: string, container: HTMLElement): Promise<{ svg: string }>
+}
+
 // Mermaid is downloaded only when a diagram mounts. Serialize initialization
 // and rendering because its theme/configuration is shared across diagrams.
 let rendering: Promise<unknown> = Promise.resolve()
@@ -34,7 +43,7 @@ export function renderMermaid(
         throw new Error('External diagram styles are not supported')
       const { default: mermaid } = (await import(
         /* @vite-ignore */ __CUAN_MERMAID_URL__
-      )) as { default: typeof import('mermaid').default }
+      )) as { default: MermaidRenderer }
       mermaid.initialize({
         startOnLoad: false,
         securityLevel: 'strict',
