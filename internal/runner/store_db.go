@@ -378,7 +378,11 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 
 	now := time.Now().UTC()
 	leaseExpires := now.Add(leaseDuration)
-	deadline := now.Add(task.CalculateTaskTimeout(t.ExecutionCategory, att.AttemptNumber, t.Title, t.Instructions))
+	var revision string
+	if err := tx.QueryRowContext(ctx, `SELECT revision FROM task_launches WHERE attempt_id=$1`, att.ID).Scan(&revision); err != nil && err != sql.ErrNoRows {
+		return nil, nil, fmt.Errorf("read claimed execution policy: %w", err)
+	}
+	deadline := claimExecutionDeadline(&t, &att, now, revision)
 
 	// Update task_attempts
 	updateAttemptQuery := `

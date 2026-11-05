@@ -135,6 +135,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.Environment != "" || claim.AutoDeploy {
 		t.Fatal("inspection lost native routing/scope/environment restrictions", err)
 	}
+	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) > 10*time.Minute {
+		t.Fatal("stored inspection deadline diverges from native verification budget")
+	}
 	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-current-report", TaskID: d.ID, AttemptID: &inspectionAttempt.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Current feature verified", CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}

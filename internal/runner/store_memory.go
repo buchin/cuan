@@ -310,13 +310,23 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 		return nil, nil, nil
 	}
 
+	var revision string
+	if launches, ok := m.taskStore.(task.AttemptLaunchStore); ok {
+		launch, err := launches.LaunchForAttempt(ctx, oldestQueued.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if launch != nil {
+			revision = launch.Revision
+		}
+	}
 	// Atomically claim the attempt
 	leaseExpires := now.Add(leaseDuration)
 	oldestQueued.Status = task.AttemptStatusRunning
 	oldestQueued.RunnerID = runnerID
 	oldestQueued.StartedAt = &now
 	oldestQueued.LeaseExpiresAt = &leaseExpires
-	deadline := now.Add(task.CalculateTaskTimeout(matchedTask.ExecutionCategory, oldestQueued.AttemptNumber, matchedTask.Title, matchedTask.Instructions))
+	deadline := claimExecutionDeadline(matchedTask, oldestQueued, now, revision)
 	oldestQueued.ExecutionDeadline = &deadline
 
 	if err := m.taskStore.UpdateAttempt(ctx, oldestQueued); err != nil {

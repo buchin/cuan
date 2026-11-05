@@ -249,3 +249,10 @@ lockfiles, index or refs. The native runner independently checks unchanged sourc
 and runs fixed project checks after the final report. Success enters independent
 review; current-release identity and green tests alone do not establish feature
 correctness or waive any original publication requirement.
+
+Verification claims persist their actual native execution bound atomically with
+reservation: at most ten minutes for inspections/verification, thirty seconds
+for artifact finalization, and never longer than the ordinary task budget.
+Deadline display, completion guards and abandoned-runner reconciliation therefore
+share the same immutable deadline. Queue waiting does not consume execution time;
+this change does not rewrite deadlines of already claimed historical attempts.
