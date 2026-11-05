@@ -56,7 +56,8 @@ func traceInboxRuntimeSummary(ctx context.Context, phase, release string, runtim
 		OutputEvents int    `json:"tool_output_events"`
 		ErrorEvents  int    `json:"tool_error_events"`
 		TraceLimited bool   `json:"trace_limited"`
-	}{trace.RequestID, phase, release, reason, runtime.toolCalls, runtime.toolFailures, runtime.toolDetailEvents, runtime.toolInputEvents, runtime.toolOutputEvents, runtime.toolErrorEvents, runtime.truncated}
+		ExitSignal   int    `json:"exit_signal,omitempty"`
+	}{trace.RequestID, phase, release, reason, runtime.toolCalls, runtime.toolFailures, runtime.toolDetailEvents, runtime.toolInputEvents, runtime.toolOutputEvents, runtime.toolErrorEvents, runtime.truncated, runtime.exitSignal}
 	raw, _ := json.Marshal(record)
 	log.Printf("inbox runtime summary %s", raw)
 }

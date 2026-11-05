@@ -354,3 +354,22 @@ func TestInboxChatDoesNotStartProviderWhenProfileRulesCannotBePrepared(t *testin
 		t.Fatal("provider started without profile deny rules")
 	}
 }
+
+func TestInboxProviderSignalIsRecordedWithoutInventingCompletion(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nkill -USR1 $$\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	var result string
+	out, failure := s.executeInboxCLI(context.Background(), "Coordinator", "agy", "Read-only fixture", home, workspace, func(kind, text string) {
+		if kind == "provider_result" {
+			result = text
+		}
+	})
+	if out != "" || failure == "" || !strings.Contains(result, "signal 10") {
+		t.Fatalf("missing process signal: out=%q failure=%q result=%q", out, failure, result)
+	}
+}

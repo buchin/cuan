@@ -410,8 +410,15 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		step("provider", "Agent process is running. Waiting for the provider's response.")
 	}
 	runErr := cmd.Wait()
+	signalNote := ""
+	if status, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+		signalNote = fmt.Sprintf(", signal %d (%s)", status.Signal(), status.Signal())
+		if runtime != nil {
+			runtime.exitSignal = int(status.Signal())
+		}
+	}
 	if step != nil {
-		step("provider_result", fmt.Sprintf("Provider process finished: exit %d, duration %.1f s.", cmd.ProcessState.ExitCode(), time.Since(started).Seconds()))
+		step("provider_result", fmt.Sprintf("Provider process finished: exit %d%s, duration %.1f s.", cmd.ProcessState.ExitCode(), signalNote, time.Since(started).Seconds()))
 	}
 	if runtime != nil {
 		raw, failure, reason := runtime.finish()

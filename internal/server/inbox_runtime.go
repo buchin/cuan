@@ -39,6 +39,7 @@ type inboxRuntimeStream struct {
 	toolInputEvents                         int
 	toolOutputEvents                        int
 	toolErrorEvents                         int
+	exitSignal                              int
 	details                                 *inboxToolDetailRecorder
 }
 

@@ -5,6 +5,8 @@ import json
 import tempfile
 import subprocess
 import unittest
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -254,11 +256,23 @@ class Gates(unittest.TestCase):
             with patch.object(a.subprocess, 'run') as mock_run:
                 a.signal_worker_drain()
                 self.assertTrue(drain_file.exists())
-                mock_run.assert_called_once_with(['pkill', '-USR1', '-f', 'cuan-runner'], check=False)
+                mock_run.assert_called_once_with(['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', a.SERVICE+'-runner.service'], check=False)
             a.cleanup_worker_drain()
             self.assertFalse(drain_file.exists())
         finally:
             drain_file.unlink(missing_ok=True)
+
+    def test_runner_name_in_prompt_matches_unrelated_provider_process(self):
+        # Reproduce selection only: never broadcast a signal in this test.
+        child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)','cuan-runner'])
+        try:
+            matches=subprocess.check_output(['pgrep','-f','cuan-runner'],text=True).splitlines()
+            self.assertIn(str(child.pid),matches)
+            self.assertNotEqual(Path('/proc',str(child.pid),'exe').resolve().name,'cuan-runner')
+            self.assertIsNone(child.poll())
+        finally:
+            child.terminate()
+            child.wait(timeout=3)
 
     def test_worker_service_restart_and_auto_undrain(self):
         drain_file = Path('/tmp/cuan-drain')

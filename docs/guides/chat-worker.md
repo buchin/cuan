@@ -58,6 +58,12 @@ Rollback to a release without the feature first drains active conversations and
 then returns to embedded execution. Never force-switch a schema incompatible
 with a running worker: this protocol assumes backward-compatible migrations.
 
+Task-runner drain signals target only the systemd service's main process.
+Never select a worker by matching its full command line: a provider's prompt
+arguments can contain the runner name and receive an unintended signal.
+Provider termination records include the actual OS signal in `provider_result`
+and the correlated runtime summary's `exit_signal` field, without prompt content.
+
 ## Verification
 
 Targeted Go tests cover API shutdown during FIFO processing, PostgreSQL-backed

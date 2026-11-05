@@ -313,8 +313,8 @@ def signal_worker_drain():
     try:
         drain_file = Path('/tmp/cuan-drain')
         drain_file.touch(mode=0o666, exist_ok=True)
-        subprocess.run(['pkill', '-USR1', '-f', 'cuan-runner'], check=False)
-        print('==> Signaled graceful drain to active cuan-runner workers (/tmp/cuan-drain & SIGUSR1).')
+        subprocess.run(['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', SERVICE+'-runner.service'], check=False)
+        print('==> Signaled graceful drain to the task-runner supervisor only (/tmp/cuan-drain & SIGUSR1).')
     except Exception as e:
         print(f'==> Notice: Could not signal worker drain: {e}')
 
