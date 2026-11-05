@@ -1,0 +1,9 @@
+.shared-composer > .composer-send {
+  border-start-end-radius: inherit;
+  border-end-end-radius: inherit;
+  background: oklch(var(--primary) / 0.14);
+  color: oklch(var(--foreground));
+}
+.shared-composer > .composer-send:hover:not(:disabled) {
+  background: oklch(var(--primary) / 0.22);
+}

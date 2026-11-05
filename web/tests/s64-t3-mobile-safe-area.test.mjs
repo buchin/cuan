@@ -66,12 +66,9 @@ test('2. S64-T3: Zero Visual Noise Calm Terminal Composer & Human-Friendly Stop 
 test('3. S64-T3: WCAG 2.1 AA Touch Target Accessibility (>= 44x44px for Primary Tap Targets)', () => {
   const composerContent = fs.readFileSync(terminalComposerPath, 'utf8')
 
-  // 1. Send button must meet >= 44x44px touch target on mobile
-  assert.ok(
-    composerContent.includes('wa-send min-h-[44px] min-w-[44px]') ||
-    (composerContent.includes('wa-send') && composerContent.includes('min-h-[44px]')),
-    'Send button must satisfy min-h-[44px] min-w-[44px] touch target requirement',
-  )
+  const sharedComposer = fs.readFileSync(path.join(webDir, 'src/components/ui/Composer.tsx'), 'utf8')
+  assert.ok(composerContent.includes('<ComposerSendButton'), 'Terminal delegates send layout to shared composer')
+  assert.ok(sharedComposer.includes('min-h-11') && sharedComposer.includes('w-12'), 'Shared send target is at least44px high and48px wide')
 
   // 2. Attachment button must meet >= 44x44px touch target on mobile
   assert.ok(

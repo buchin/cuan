@@ -1,3 +1,4 @@
+import { Composer, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
@@ -2053,8 +2054,8 @@ export function InboxView({
                   </div>
                 )}
                 <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
-                <div
-                  className={`wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 ${
+                <Composer
+                  className={`${
                     isMultiline ? 'is-multiline' : ''
                   } ${
                     activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@')) ? 'ring-1 ring-amber-500/50 border-amber-500/40' : ''
@@ -2106,7 +2107,7 @@ export function InboxView({
                     />
                   )}
 
-                  <button
+                  <ComposerSendButton
                     type="button"
                     onClick={() => handleSendMessage()}
                     disabled={
@@ -2114,7 +2115,6 @@ export function InboxView({
                       sending ||
                       uploads.busy
                     }
-                    className="wa-send h-9 w-9 sm:h-9.5 sm:w-9.5 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5"
                     title={inputMessage.trim().startsWith('@') ? t('Send internal whisper to AI') : t('Send message (Enter)')}
                     aria-label={inputMessage.trim().startsWith('@') ? t('Send internal whisper to AI') : t('Send message')}
                   >
@@ -2123,8 +2123,8 @@ export function InboxView({
                     ) : (
                       <Send className="h-[18px] w-[18px]" />
                     )}
-                  </button>
-                </div>
+                  </ComposerSendButton>
+                </Composer>
               </div>
             </div>
           </>

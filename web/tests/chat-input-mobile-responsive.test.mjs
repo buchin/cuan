@@ -103,9 +103,9 @@ test('3. Button Proportion, Spacing, and Right-Aligned Saved Replies Action', ()
   )
 
   // Right-aligned Canned responses (Zap icon): positioned AFTER textarea and BEFORE Send button
-  const textareaIdx = inboxViewSource.indexOf('<textarea')
+  const textareaIdx = inboxViewSource.indexOf('<ComposerInput')
   const cannedIdx = inboxViewSource.indexOf('<CannedResponsesPicker')
-  const sendIdx = inboxViewSource.indexOf('className="wa-send')
+  const sendIdx = inboxViewSource.indexOf('<ComposerSendButton', cannedIdx)
   assert.ok(
     textareaIdx < cannedIdx && cannedIdx < sendIdx,
     'CannedResponsesPicker (⚡) must be positioned to the right of textarea, directly adjacent to Send button'
@@ -127,11 +127,8 @@ test('3. Button Proportion, Spacing, and Right-Aligned Saved Replies Action', ()
     'Canned responses popover must anchor to the right and contain width within viewport'
   )
 
-  // Send button: must use matching 36px (h-9 w-9) with 18px icon
-  assert.ok(
-    inboxViewSource.includes('wa-send h-9 w-9'),
-    'Send button must use h-9 w-9 on mobile'
-  )
+  const sharedComposer = fs.readFileSync(path.join(__dirname, '../src/components/ui/Composer.tsx'), 'utf8')
+  assert.ok(sharedComposer.includes('self-stretch') && sharedComposer.includes('w-12'), 'Send occupies the full composer edge with a48px target')
   assert.ok(
     inboxViewSource.includes('<Send className="h-[18px] w-[18px]" />'),
     'Send button must use 18px Send icon'

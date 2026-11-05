@@ -112,9 +112,9 @@ test('7. Inbox-Style Upload (Camera, Photos, Files) & WhatsApp Input Styling', (
   const content = fs.readFileSync(composerPath, 'utf8')
 
   // Inbox style classnames
-  assert.match(content, /wa-input-capsule/, 'Must use wa-input-capsule class')
-  assert.match(content, /wa-input/, 'Must use wa-input class')
-  assert.match(content, /wa-send/, 'Must use wa-send class')
+  assert.match(content, /<Composer[\s>]/, 'Terminal uses shared composer frame')
+  assert.match(content, /<ComposerInput/, 'Terminal uses shared text input')
+  assert.match(content, /<ComposerSendButton/, 'Terminal uses shared send control')
   assert.match(content, /wa-chat/, 'Must use wa-chat palette class')
 
   // Attachment choices: Camera, Photos, Files

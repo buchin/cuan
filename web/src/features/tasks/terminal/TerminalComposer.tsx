@@ -1,3 +1,4 @@
+import { Composer, ComposerSendButton } from '../../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../../components/ui/ComposerInput'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -767,11 +768,7 @@ export function TerminalComposer({
       )}
 
       {/* ── Inbox-Style Capsule Composer (Div container to prevent browser/Android autofill bars) ── */}
-      <div
-        role="group"
-        aria-label="Terminal input composer"
-        className="wa-input-capsule flex min-w-0 items-end gap-1 sm:gap-1.5 p-1 sm:p-1.5 shadow-sm"
-      >
+      <Composer role="group" aria-label="Terminal input composer">
         {/* Attachment Picker Button (WCAG >= 44x44px touch target on mobile) */}
         <button
           type="button"
@@ -867,20 +864,16 @@ export function TerminalComposer({
           </button>
         )}
 
-        {/* Send Button (Inbox WhatsApp circular button, >= 44x44px touch target) */}
-        <button
+        <ComposerSendButton
           type="button"
           disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
           onClick={() => handleSend()}
-          className={`wa-send ml-auto sm:ml-0 min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shrink-0 mr-0.5 mb-0.5 ${
-            !text.trim() && uploadedFiles.length === 0 ? 'hidden sm:flex' : 'flex'
-          }`}
           title="Kirim ke terminal (Enter)"
           aria-label="Send input"
         >
           <Send className="h-4 w-4" />
-        </button>
-      </div>
+        </ComposerSendButton>
+      </Composer>
 
       {/* ── Hidden File Inputs (Always mounted in DOM root to ensure mobile file pickers never unmount) ── */}
       <input

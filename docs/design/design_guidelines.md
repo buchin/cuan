@@ -371,3 +371,14 @@ buttons a32px muted visual surface within a44px touch target, with no extra
 vertical footer padding. Status
 labels use icon and text without a button-shaped background.
 Reply drafts use the same action treatment.
+
+### 7.10. Shared Inbox and terminal composer
+
+Inbox and terminal use Composer, ComposerInput and ComposerSendButton for layout,
+typography, resizing and the send control. Draft state, attachments and transport
+remain owned by each caller. The send control occupies the full right edge of the
+composer with a48px width, a minimum44px touch height, and a quiet accent surface.
+There are no outer top/right/bottom gaps. Multiline input grows within the existing
+bounded height. This user-approved edge action supersedes the earlier circular
+send-button treatment. Public/internal modes and terminal input routing retain
+their existing semantics. Streaming terminal output must never clear typed input.
