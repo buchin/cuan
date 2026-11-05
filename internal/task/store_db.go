@@ -386,6 +386,15 @@ func (s *DBStore) DeleteTask(ctx context.Context, id string) error {
 }
 
 func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
+	return s.createAttempt(ctx, a, "")
+}
+func (s *DBStore) CreateAttemptAfter(ctx context.Context, a *TaskAttempt, predecessor string) error {
+	if predecessor == "" {
+		return ErrInvalidTaskInput
+	}
+	return s.createAttempt(ctx, a, predecessor)
+}
+func (s *DBStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor string) error {
 	if a.CreatedAt.IsZero() {
 		a.CreatedAt = time.Now().UTC()
 	}
@@ -396,7 +405,7 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 	var execer interface {
 		ExecContext(context.Context, string, ...any) (sql.Result, error)
 	} = s.db
-	if a.RunnerID == "local_terminal" || a.RunnerID == "cuan-runner" {
+	if a.RunnerID == "local_terminal" || a.RunnerID == "cuan-runner" || predecessor != "" {
 		var err error
 		tx, err = s.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -408,6 +417,21 @@ func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
 		}
 		if _, err = tx.ExecContext(ctx, `SELECT id FROM tasks WHERE id=$1 FOR UPDATE`, a.TaskID); err != nil {
 			return err
+		}
+		if predecessor != "" {
+			var id, status string
+			var cancelled bool
+			var canceledAt sql.NullTime
+			err = tx.QueryRowContext(ctx, `SELECT id,status,COALESCE(cancel_requested,false),canceled_at FROM task_attempts WHERE task_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE`, a.TaskID).Scan(&id, &status, &cancelled, &canceledAt)
+			if err == sql.ErrNoRows {
+				return ErrRequestConflict
+			}
+			if err != nil {
+				return err
+			}
+			if id != predecessor || cancelled || canceledAt.Valid || (status != AttemptStatusFailed && status != AttemptStatusInterrupted) {
+				return ErrRequestConflict
+			}
 		}
 		var withdrawn bool
 		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_launches j JOIN tasks t ON t.id=j.task_id WHERE j.attempt_id=$1 AND (j.state<>'claimed' OR j.lease_until IS NULL OR j.lease_until<=NOW() OR j.project_id<>COALESCE(t.project_id,'') OR (j.agent_id<>$2 AND t.assigned_agent<>$2) OR j.instructions_hash<>encode(digest(t.instructions,'sha256'),'hex')))`, a.ID, a.AgentName).Scan(&withdrawn); err != nil {

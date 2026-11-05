@@ -161,3 +161,24 @@ func taskRevisionAttemptCount(d *task.TaskDetailResponse) int {
 	}
 	return count
 }
+
+// Persisted legacy retries already bind their predecessor in their deterministic
+// request identity. Recognize that identity instead of parsing model prose.
+func automaticRecoverySource(d *task.TaskDetailResponse, requestID string) *task.TaskAttempt {
+	if d == nil || requestID == "" {
+		return nil
+	}
+	attempts := append([]*task.TaskAttempt{}, d.Attempts...)
+	attempts = append(attempts, d.LatestAttempt)
+	for _, a := range attempts {
+		if a == nil || a.ID == "" {
+			continue
+		}
+		for _, kind := range []string{"task-interruption-recovery:", "task-storage-recovery:", "task-provider-recovery:"} {
+			if requestID == delegationMessageID(kind+a.ID) {
+				return a
+			}
+		}
+	}
+	return nil
+}

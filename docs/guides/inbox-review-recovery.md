@@ -345,3 +345,26 @@ attempt-to-launch binding before comparing the predecessor. It reconciles that
 launch without creating another attempt or publishing a stale-admission error as
 an execution failure. Once an attempt exists, its actual result governs task
 outcomes; a stopped launch's old admission diagnostic is not a second outcome.
+
+## Predecessors of delayed automatic retries
+
+Automatic infrastructure, storage and provider recovery requests retain their
+source attempt in their deterministic request identity, including legacy saved
+requests. Queue admission rejects the request when a newer attempt has replaced
+that checkpoint, or the source is no longer a failed/interrupted uncancelled
+execution. A lost response with an already-recorded attempt reconciles that exact
+receipt instead of treating it as a new retry. User continuation requests retain
+their separate approval contract.
+
+The predecessor is checked again atomically when reserving the attempt, under the
+same task/attempt locks in PostgreSQL or the memory-store lock. Two supervisors
+cannot reserve two replacements for the same predecessor. This does not revive
+cancelled tasks, reset any correction budget, replay completed effects, or change
+historical execution metadata. Obsolete launch diagnostics stay in history.
+
+API startup preserves a launch bound to an active uncancelled execution; it does
+not requeue that admission or say its worker stopped merely because the API
+restarted. The exact old restart diagnostic may be cleared for that still-active
+receipt. Unrelated diagnostics, terminal tasks and failed executions are not
+converted into successful or active work. Ordinary worker reconciliation still
+owns process liveness, leases and final outcomes.

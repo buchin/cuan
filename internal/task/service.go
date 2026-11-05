@@ -707,8 +707,20 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 		lease := time.Now().UTC().Add(11 * time.Minute)
 		att.LeaseExpiresAt = &lease
 	}
-	if err := s.store.CreateAttempt(ctx, att); err != nil {
-		return nil, fmt.Errorf("create attempt: %w", err)
+	var createErr error
+	if req.ExpectedPredecessorID != "" {
+		if guarded, ok := s.store.(interface {
+			CreateAttemptAfter(context.Context, *TaskAttempt, string) error
+		}); ok {
+			createErr = guarded.CreateAttemptAfter(ctx, att, req.ExpectedPredecessorID)
+		} else {
+			createErr = ErrRequestConflict
+		}
+	} else {
+		createErr = s.store.CreateAttempt(ctx, att)
+	}
+	if createErr != nil {
+		return nil, fmt.Errorf("create attempt: %w", createErr)
 	}
 
 	// Record attempt_transition activity

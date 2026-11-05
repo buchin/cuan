@@ -212,10 +212,11 @@ type CreateCommentRequest struct {
 }
 
 type CreateAttemptRequest struct {
-	RequestID   string `json:"request_id,omitempty"`
-	RequestHash string `json:"-"`
-	RunnerID    string `json:"runner_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
+	ExpectedPredecessorID string `json:"-"`
+	RequestID             string `json:"request_id,omitempty"`
+	RequestHash           string `json:"-"`
+	RunnerID              string `json:"runner_id,omitempty"`
+	AgentName             string `json:"agent_name,omitempty"`
 }
 
 type UpdateAttemptRequest struct {

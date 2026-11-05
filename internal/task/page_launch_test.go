@@ -188,3 +188,78 @@ func activeExecutionLaunchPresentationContract(t *testing.T, store Store, projec
 		}
 	}
 }
+
+func TestStartupPreservesExactActiveLaunchMemory(t *testing.T) {
+	startupActiveLaunchContract(t, NewMemoryStore(), "startup-active-project")
+}
+
+func startupActiveLaunchContract(t *testing.T, store Store, project string) {
+	t.Helper()
+	ctx := context.Background()
+	svc := NewService(store, nil)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for n, c := range []struct {
+		name, attempt, launch, taskState string
+		cancel                           bool
+		want                             string
+	}{
+		{"running started", AttemptStatusRunning, "started", TaskStatusDoing, false, "started"},
+		{"queued claimed", AttemptStatusQueued, "claimed", TaskStatusQueued, false, "started"},
+		{"repair restart diagnostic", AttemptStatusRunning, "stopped", TaskStatusDoing, false, "started"},
+		{"cancel requested", AttemptStatusRunning, "started", TaskStatusDoing, true, "stopped"},
+		{"failed execution", AttemptStatusFailed, "started", TaskStatusDoing, false, "stopped"},
+		{"accepted completion", AttemptStatusRunning, "started", TaskStatusDone, false, "stopped"},
+		{"cancelled task", AttemptStatusRunning, "started", "cancelled", false, "stopped"},
+	} {
+		id := fmt.Sprintf("startup_bound_%d", n)
+		item := &Task{ID: id, ProjectID: project, Title: id, Instructions: "Approved scope", ExecutionCategory: ExecutionCategoryReadOnly, Status: TaskStatusQueued, CreatedAt: now}
+		if err := store.CreateTask(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		j, err := svc.SaveLaunch(ctx, TaskLaunch{TaskID: id, ProjectID: project, RequestID: id + "_request", OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", SourceRequestID: "approved", AgentID: "agent", InstructionsHash: LaunchInstructionsHash(item.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lease, err := svc.ClaimLaunch(ctx, now, "fixture", j.ID)
+		if err != nil || lease == nil {
+			t.Fatal("claim", err)
+		}
+		a := &TaskAttempt{ID: attemptRequestID(id, j.RequestID), TaskID: id, RunnerID: "fixture", AgentName: "agent", Status: c.attempt, CancelRequested: c.cancel, CreatedAt: now}
+		if err := store.CreateAttempt(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		if c.launch != "claimed" {
+			if err := svc.FinishLaunch(ctx, j.ID, lease.LeaseToken, c.launch, now, "Execution stopped during server restart."); err != nil {
+				t.Fatal(err)
+			}
+		}
+		item.Status = c.taskState
+		if err := store.UpdateTask(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		for pass := 0; pass < 2; pass++ {
+			if err := svc.ReconcileStartupLaunches(ctx, now); err != nil {
+				t.Fatal(err)
+			}
+			got, err := svc.GetLaunch(ctx, j.ID)
+			if err != nil || got.State != c.want {
+				t.Fatalf("%s pass%d: %+v %v", c.name, pass, got, err)
+			}
+			if c.want == "started" && (got.SafeError != "" || got.LeaseToken != "" || got.LeaseUntil != nil) {
+				t.Fatal("active admission retains false error or stale lease")
+			}
+			original, _ := store.GetAttempt(ctx, a.ID)
+			if original.Status != c.attempt || original.CancelRequested != c.cancel {
+				t.Fatal("startup changed execution")
+			}
+		}
+		item.Status = TaskStatusBlocked
+		a.Status = AttemptStatusFailed
+		if err := store.UpdateTask(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.UpdateAttempt(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

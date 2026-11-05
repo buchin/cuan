@@ -242,14 +242,15 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 }
 
 type runTaskAgentPayload struct {
-	RequestID string `json:"request_id"`
-	Revision  string `json:"revision"`
-	AgentID   string `json:"agent_id"`
-	Prompt    string `json:"prompt"`
-	Binary    string `json:"binary"`
-	RunnerID  string `json:"runner_id,omitempty"`
-	Cols      uint16 `json:"cols"`
-	Rows      uint16 `json:"rows"`
+	RecoverySourceAttemptID string `json:"-"`
+	RequestID               string `json:"request_id"`
+	Revision                string `json:"revision"`
+	AgentID                 string `json:"agent_id"`
+	Prompt                  string `json:"prompt"`
+	Binary                  string `json:"binary"`
+	RunnerID                string `json:"runner_id,omitempty"`
+	Cols                    uint16 `json:"cols"`
+	Rows                    uint16 `json:"rows"`
 }
 
 // handleRunTaskAgent spawns an autonomous or interactive agent process bound to the task PTY.
@@ -742,9 +743,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					runnerID = "cuan-runner"
 				}
 			}
-			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash})
+			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash, ExpectedPredecessorID: payload.RecoverySourceAttemptID})
 			if errors.Is(err, task.ErrTaskActive) {
 				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
+				return
+			}
+			if errors.Is(err, task.ErrRequestConflict) && payload.RecoverySourceAttemptID != "" {
+				respondJSON(w, 409, map[string]string{"code": "recovery_superseded", "error": supersededRecoveryLaunchReason})
 				return
 			}
 			if err != nil {

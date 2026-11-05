@@ -159,11 +159,16 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 	return err
 }
 func (s *DBStore) ReconcileStartupLaunches(ctx context.Context, now time.Time) error {
-	// For still-queued tasks whose launch was claimed, started, or stopped before/during restart, revive them back to queued with refreshed window.
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE (state IN ('started','claimed') OR (state='stopped' AND safe_error IN ('Task is in terminal status.', 'Execution stopped during server restart.'))) AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); err != nil {
+	// A recorded detached execution survives API restart. Its admission receipt
+	// must not be requeued or reported as a failed execution.
+	const activeBound = `EXISTS (SELECT 1 FROM task_attempts a JOIN tasks t ON t.id=a.task_id WHERE a.id=task_launches.attempt_id AND a.task_id=task_launches.task_id AND t.status NOT IN ('done','cancelled','canceled','failed') AND a.status IN ('queued','running') AND NOT COALESCE(a.cancel_requested,false) AND a.canceled_at IS NULL)`
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE (state IN ('started','claimed') OR (state='stopped' AND safe_error IN ('Task is in terminal status.', 'Execution stopped during server restart.'))) AND task_id IN (SELECT id FROM tasks WHERE status = 'queued') AND NOT `+activeBound, now); err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution stopped during server restart.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('started','claimed')`, now)
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution stopped during server restart.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('started','claimed') AND NOT `+activeBound, now); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='started',safe_error='',lease_token='',lease_until=NULL,updated_at=$1 WHERE (state IN ('queued','claimed','started') OR (state='stopped' AND safe_error='Execution stopped during server restart.')) AND task_id IN (SELECT id FROM tasks WHERE status NOT IN ('done','cancelled','canceled','failed')) AND `+activeBound, now)
 	return err
 }
 func (s *DBStore) FinishTaskLaunches(ctx context.Context, taskID string, finalState string) error {

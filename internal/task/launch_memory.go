@@ -293,6 +293,13 @@ func (m *MemoryStore) ReconcileStartupLaunches(_ context.Context, now time.Time)
 	defer m.mu.Unlock()
 	for _, j := range m.launches {
 		t := m.tasks[j.TaskID]
+		a := m.attempts[attemptRequestID(j.TaskID, j.RequestID)]
+		if t != nil && t.Status != TaskStatusDone && t.Status != "cancelled" && t.Status != "canceled" && t.Status != "failed" && a != nil && a.TaskID == j.TaskID && !a.CancelRequested && a.CanceledAt == nil && (a.Status == AttemptStatusQueued || a.Status == AttemptStatusRunning) {
+			if j.State == "queued" || j.State == "claimed" || j.State == "started" || (j.State == "stopped" && j.SafeError == "Execution stopped during server restart.") {
+				j.State, j.SafeError, j.LeaseToken, j.LeaseUntil, j.UpdatedAt = "started", "", "", nil, now
+			}
+			continue
+		}
 		if t != nil && t.Status == TaskStatusQueued {
 			if j.State == "started" || j.State == "claimed" || (j.State == "stopped" && recoverableStoppedLaunch(j.SafeError)) {
 				j.State = "queued"

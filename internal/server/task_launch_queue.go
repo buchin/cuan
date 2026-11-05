@@ -98,6 +98,8 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	return s.executeQueuedTaskLaunch(ctx, *claimed, false)
 }
 
+const supersededRecoveryLaunchReason = "A newer execution replaced this recovery request. Existing work was preserved."
+
 const staleInspectionLaunchReason = "The saved inspection is no longer current. Existing results and work were preserved."
 
 func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch, background bool) string {
@@ -143,6 +145,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if inspectionErr != nil {
 		return finish("stopped", "The live result inspection scope could not be validated.")
 	}
+	recoverySource := automaticRecoverySource(detail, job.RequestID)
 	trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
 	if authErr != nil {
 		return finish("queued", "Conversation storage is temporarily unavailable.")
@@ -157,7 +160,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	// that attempt exists, it is no longer supposed to match its predecessor.
 	// Reconcile ownership rather than declaring the active inspection stale or
 	// replaying it; completion/acceptance still belongs to the ordinary pipeline.
-	if liveInspection != nil && detail.LatestAttempt != nil {
+	if (liveInspection != nil || recoverySource != nil) && detail.LatestAttempt != nil {
 		recorded, err := s.launchOwnsLatestAttempt(ctx, &job, detail)
 		if err != nil {
 			return finish("queued", "Saved execution identity is temporarily unavailable.")
@@ -175,6 +178,13 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			}
 			return "This request already has a recorded execution. No replacement was started." + link
 		}
+	}
+	if recoverySource != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != recoverySource.ID || recoverySource.CancelRequested || recoverySource.CanceledAt != nil || (recoverySource.Status != task.AttemptStatusFailed && recoverySource.Status != task.AttemptStatusInterrupted)) {
+		return finish("stopped", supersededRecoveryLaunchReason)
+	}
+	recoverySourceID := ""
+	if recoverySource != nil {
+		recoverySourceID = recoverySource.ID
 	}
 	if liveInspection != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != liveInspection.PredecessorAttemptID() || !s.liveInspectionMatchesRelease(ctx, detail, liveInspection)) {
 		return finish("stopped", staleInspectionLaunchReason)
@@ -208,7 +218,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 		return finish("started", "")
 	}
-	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)
+	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID}, job.OwnerID)
 	if response.code == 200 {
 		return finish("started", "")
 	}
@@ -227,7 +237,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			}
 			altResp := &delegationResponse{header: make(http.Header)}
 			altReq, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-queued-launch", nil)
-			s.runTaskAgent(altResp, altReq, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: newAgentID, Revision: job.Revision, RunnerID: runnerID}, job.OwnerID)
+			s.runTaskAgent(altResp, altReq, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: newAgentID, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID}, job.OwnerID)
 			if altResp.code == 200 {
 				return finish("started", "")
 			}
@@ -288,7 +298,7 @@ func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaun
 	// A stale parallel inspection is not a blocker for a different, recorded
 	// execution. Keep its diagnostic in launch history without alarming the user
 	// that approved work could not start while that work is actually running.
-	if state == "stopped" && job.SafeError == staleInspectionLaunchReason && s.taskSvc != nil {
+	if state == "stopped" && (job.SafeError == staleInspectionLaunchReason || job.SafeError == supersededRecoveryLaunchReason) && s.taskSvc != nil {
 		if d, err := s.taskSvc.GetTaskDetail(ctx, job.TaskID); err == nil && d.LatestAttempt != nil {
 			a := d.LatestAttempt
 			if !a.CancelRequested && a.CanceledAt == nil && (a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued) {

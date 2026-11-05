@@ -61,5 +61,7 @@ func TestLaunchPostgresContract(t *testing.T) {
 	}
 	taskPageLaunchContract(t, store, "page-launch-project")
 	activeExecutionLaunchPresentationContract(t, store, "page-launch-project")
+	startupActiveLaunchContract(t, store, "page-launch-project")
+	recoveryPredecessorContract(t, store, "page-launch-project")
 	taskPageScalePostgres(t, db, store)
 }

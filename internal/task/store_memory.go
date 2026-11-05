@@ -228,11 +228,31 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 }
 
 func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
+	return m.createAttempt(ctx, a, "")
+}
+func (m *MemoryStore) CreateAttemptAfter(ctx context.Context, a *TaskAttempt, predecessor string) error {
+	if predecessor == "" {
+		return ErrInvalidTaskInput
+	}
+	return m.createAttempt(ctx, a, predecessor)
+}
+func (m *MemoryStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, exists := m.attempts[a.ID]; exists {
 		return ErrTaskDuplicate
+	}
+	if predecessor != "" {
+		var latest *TaskAttempt
+		for _, old := range m.attempts {
+			if old.TaskID == a.TaskID && (latest == nil || old.CreatedAt.After(latest.CreatedAt) || (old.CreatedAt.Equal(latest.CreatedAt) && old.ID > latest.ID)) {
+				latest = old
+			}
+		}
+		if latest == nil || latest.ID != predecessor || latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusFailed && latest.Status != AttemptStatusInterrupted) {
+			return ErrRequestConflict
+		}
 	}
 	for _, j := range m.launches {
 		if attemptRequestID(j.TaskID, j.RequestID) == a.ID {
