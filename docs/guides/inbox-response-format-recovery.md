@@ -111,6 +111,30 @@ No file contents, paths, arguments, error bodies or reasoning are archived by
 this summary. The summary's `reason` describes stream validation; final response
 validation and provider-stage outcome remain separate records.
 
+### Owner tool details
+
+New native chat activity can retain recognized `tool_info` input, output and
+error fields in the existing owner-only request timeline. Open **Response
+details → Detail** beneath a tool step. The main chat activity shows only its
+one-line lifecycle summary. Details render as selectable plain text, collapsed
+initially; they do not execute markup or change any task's approval state.
+
+The recorder retains at most 24 tool identities and 2,000 Unicode characters
+per section; oversized fields above 64 KiB are omitted. Truncation is marked.
+Known process credentials, sensitive structured fields, credential-bearing
+lines and private-key blocks are redacted before bounding and persistence.
+Output/error from recognized sensitive-file references is withheld. These are
+diagnostic excerpts, not a complete transcript or a guarantee that arbitrary
+unlabelled secrets can be recognized. Never use this as a credentials store.
+Reasoning/text deltas, unrecognized tools and the finish tool's completed reply
+are excluded. Historical details that were not recorded cannot be recovered.
+Existing request/timeline retention limits still apply.
+
+Visual verification uses the real frontend build with isolated API fixtures:
+`CUAN_CHECK_RESPONSE_TIMELINE=1 CUAN_CHECK_TOOL_DETAILS=1 node docs/evidence/task-attention-check.cjs`.
+It checks collapsed/expanded details, 44px targets, live following, manual-scroll
+pause and resume at 390/1440px in light/dark themes. No production task is run.
+
 ## Bounded chat investigation
 
 Chat defaults to 12 tool calls, counting each inspection once. Explicit

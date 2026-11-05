@@ -381,6 +381,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				}
 			},
 		}
+		if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok && trace.RequestID != "" && step != nil {
+			runtime.details = newInboxToolDetailRecorder(workspace)
+		}
 		defer func() {
 			if retrySafe != nil {
 				*retrySafe = ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow

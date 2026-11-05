@@ -26,7 +26,7 @@ export function evaluateInboxQuotaStatus(q: {
   const lastCooldownIdx = q.steps
     ? q.steps.reduce(
         (last, step, idx) =>
-          step.kind === 'provider_cooldown' || /usage limit|quota/i.test(step.text) ? idx : last,
+          step.kind === 'provider_cooldown' || /usage limit|quota/i.test(step.text.split('\n')[0]) ? idx : last,
         -1,
       )
     : -1
@@ -101,7 +101,7 @@ export function InboxActivity({
   const failed = ['failed', 'interrupted', 'cancelled'].includes(q.state)
   const recovery = q.recovery_action || 'check_status'
   const autoPending = recovery === 'recovering'
-  const isToolBudget = recovery === 'continue_analysis' || /tool budget/i.test(q.safe_error || '') || q.steps?.some((step) => step.kind === 'runtime_tool_budget_exceeded' || /tool budget|tool limit/i.test(step.text))
+  const isToolBudget = recovery === 'continue_analysis' || /tool budget/i.test(q.safe_error || '') || q.steps?.some((step) => step.kind === 'runtime_tool_budget_exceeded' || /tool budget|tool limit/i.test(step.text.split('\n')[0]))
 
   const { accessBlocked } = evaluateInboxQuotaStatus(q)
   const { canRetry: retryPermitted, waitingForCapacity: capacityPending } = inboxRecoveryControls(q.state, q.recovery_action, accessBlocked)
@@ -147,7 +147,7 @@ export function InboxActivity({
       ].includes(step.kind),
     )
   const activityText = latestActivity?.text
-    ? Array.from(latestActivity.text).slice(0, 140).join('')
+    ? Array.from(latestActivity.text.split('\n')[0]).slice(0, 140).join('')
     : t('Working…')
   const autoRecovery = q.steps?.some((step) => step.kind === 'retry_auto')
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
@@ -385,7 +385,13 @@ export function InboxActivity({
                             : ''}
                         </span>
                       )}
-                      <p>{step.text}</p>
+                      <p>{step.kind.startsWith('runtime_tool_') ? step.text.split('\n\n')[0] : step.text}</p>
+                      {step.kind.startsWith('runtime_tool_') && step.text.includes('\n\n') && (
+                        <details className="mt-1 min-w-0" data-tool-detail>
+                          <summary className="min-h-11 cursor-pointer py-3 text-xs font-medium text-muted-foreground">{t('Detail')}</summary>
+                          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words pb-2 font-mono text-xs leading-relaxed text-muted-foreground">{step.text.slice(step.text.indexOf('\n\n') + 2)}</pre>
+                        </details>
+                      )}
                       {Number.isFinite(Date.parse(step.at)) && (
                         <time
                           dateTime={step.at}

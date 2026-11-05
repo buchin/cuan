@@ -39,6 +39,7 @@ type inboxRuntimeStream struct {
 	toolInputEvents                         int
 	toolOutputEvents                        int
 	toolErrorEvents                         int
+	details                                 *inboxToolDetailRecorder
 }
 
 func (s *inboxRuntimeStream) emit(kind, text string) {
@@ -246,6 +247,9 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		if len(s.seen) < 256 {
 			s.seen[key] = true
 		}
+		if s.details != nil && u.Type == "tool" {
+			s.details.observe(*u.Index, u.Tool, u.Info)
+		}
 		duration := ""
 		if u.Duration != nil && !math.IsNaN(*u.Duration) && !math.IsInf(*u.Duration, 0) && *u.Duration >= 0 && *u.Duration <= 86400 {
 			duration = fmt.Sprintf(" (%.1f s)", *u.Duration)
@@ -373,7 +377,13 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 					}
 				}
 			}
-			s.emit(kind, fmt.Sprintf("Tool #%d · %s %s%s.", *u.Index, name, label, duration))
+			text := fmt.Sprintf("Tool #%d · %s %s%s.", *u.Index, name, label, duration)
+			if s.details != nil {
+				if body := s.details.body(*u.Index); body != "" {
+					text += "\n\n" + body
+				}
+			}
+			s.emit(kind, text)
 		} else {
 			kind, label := "runtime_provider_started", "The provider is preparing a response."
 			if u.State == "DONE" {
