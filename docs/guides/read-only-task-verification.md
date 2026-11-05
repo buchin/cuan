@@ -50,3 +50,20 @@ The runner integration fixture exercises actual execution, report confirmation,
 repository verification and completion submission: an unchanged audit succeeds;
 a mock agent that edits `scripts/test.sh` fails. A coordinator fixture forces a
 model pass and proves that missing runner evidence prevents acceptance.
+
+## Verifier process lifetime and diagnostics
+
+The fixed project verifier runs in a separate process group. Task cancellation or
+expiry terminates that group, including ordinary test/compiler descendants. The
+runner bounds inherited output-pipe waits to 500 ms and cleans up descendants left
+behind by an exited script. A zero-exit shell with incomplete child output does
+not produce passing project-check evidence.
+
+Diagnostic output retains its final 12,000 bytes while running; it does not collect
+unbounded stdout/stderr before truncation. Start failures use an unknown exit
+status instead of claiming exit zero. Diagnostics distinguish task deadline,
+cancellation, the verifier's five-minute cap, and inherited pipes left open.
+Attempt logs record verification start, result and elapsed time, including a
+bounded final observation after the execution context expires. These observations
+never extend execution, accept missing evidence, reset correction budgets or resume
+canceled work.

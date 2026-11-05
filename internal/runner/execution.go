@@ -45,27 +45,7 @@ func runProjectVerification(parent context.Context, workingDir string, defaultBr
 	} else {
 		return verificationResult{Passed: true, Summary: "No supported project verifier was available; agent report evidence retained."}
 	}
-	ctx, cancel := context.WithTimeout(parent, 5*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, command, args...)
-	cmd.Dir = workingDir
-	output, err := cmd.CombinedOutput()
-	const maxOutput = 12000
-	if len(output) > maxOutput {
-		output = output[len(output)-maxOutput:]
-	}
-	exitCode := 0
-	if cmd.ProcessState != nil {
-		exitCode = cmd.ProcessState.ExitCode()
-	}
-	summary := fmt.Sprintf("Project verification: %s %s (exit %d)\n%s", filepath.Base(command), strings.Join(args, " "), exitCode, strings.TrimSpace(string(output)))
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return verificationResult{Passed: false, Summary: summary, Error: "Project verification timed out after 5 minutes"}
-		}
-		return verificationResult{Passed: false, Summary: summary, Error: "Project verification failed"}
-	}
-	return verificationResult{Passed: true, Summary: summary}
+	return runProjectVerifierCommand(parent, workingDir, command, args...)
 }
 
 func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {

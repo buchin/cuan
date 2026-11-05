@@ -1042,6 +1042,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
 			if compReq.Status == task.AttemptStatusSucceeded {
+				verificationStarted := time.Now()
+				r.streamLogLine(ctx, att.ID, "system", "Project verification started; the runner is checking the reported result.")
 				verification, evidence := verifyTaskRepository(ctx, workingDir, workspaceComparisonBase(ws, claim.DefaultBranch), policy, readOnlyBaseline)
 				compReq.RepositoryVerification = evidence
 				compReq.TestSummary = verification.Summary
@@ -1055,6 +1057,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 						verification, compReq.RepositoryVerification = verifyTaskRepository(ctx, workingDir, "", policy, readOnlyBaseline)
 					}
 				}
+				verificationState := "passed"
+				if !verification.Passed {
+					verificationState = "failed"
+				}
+				observation, stopObservation := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+				r.streamLogLine(observation, att.ID, "system", fmt.Sprintf("Project verification %s after %s.", verificationState, time.Since(verificationStarted).Round(time.Millisecond)))
+				stopObservation()
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed
 					compReq.ErrorMessage = verification.Error
