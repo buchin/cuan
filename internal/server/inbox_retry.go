@@ -28,6 +28,10 @@ func inboxRecoveryRequests(requests []db.InboxRequest) []inboxRecoveryDTO {
 				action = "recovering"
 			}
 		}
+		q.Steps = append([]db.InboxStep(nil), q.Steps...)
+		for i := range q.Steps {
+			q.Steps[i].Text = visibleInboxToolText(q.Steps[i].Kind, q.Steps[i].Text)
+		}
 		out = append(out, inboxRecoveryDTO{InboxRequest: q, RecoveryAction: action})
 	}
 	return out

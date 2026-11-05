@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/buchin/cuan/internal/db"
 )
 
 func TestInboxToolDetailRetainsUsefulEvidenceAndRedactsBeforeBounding(t *testing.T) {
@@ -42,6 +44,9 @@ func TestInboxToolDetailWithholdsSensitiveFilesAndNonToolContent(t *testing.T) {
 	if strings.Contains(r.body(1), "arbitrary") || !strings.Contains(r.body(1), "Sensitive file contents not retained") {
 		t.Fatal("sensitive file archived")
 	}
+	if strings.Contains(r.body(1), ".env.production") {
+		t.Fatal("sensitive reference exposed")
+	}
 	for _, tool := range []string{"finish", "cuan/finish", "cuan:finish", "unknown-tool"} {
 		r.observe(2, tool, map[string]json.RawMessage{"output": json.RawMessage(`"PRIVATE_REPLY"`)})
 		if r.body(2) != "" {
@@ -53,6 +58,21 @@ func TestInboxToolDetailWithholdsSensitiveFilesAndNonToolContent(t *testing.T) {
 	}
 	if len(r.steps) != 24 {
 		t.Fatal("unbounded diagnostic steps", len(r.steps))
+	}
+}
+
+func TestInboxHistoricalToolDetailsHideProviderReferencesWithoutChangingSource(t *testing.T) {
+	text := "Tool #4 · Read file activity ended.\n\nInput\n/home/runtime/.gemini/brain/session/transcript.jsonl\n\nOutput\nmetadata"
+	if got := visibleInboxToolText("runtime_tool_finished", text); strings.Contains(got, ".gemini") || !strings.Contains(got, "withheld") {
+		t.Fatal("historical reference visible", got)
+	}
+	if got := visibleInboxToolText("provider", text); got != text {
+		t.Fatal("unrelated step changed")
+	}
+	source := []db.InboxRequest{{State: "completed", Steps: []db.InboxStep{{Kind: "runtime_tool_finished", Text: text}}}}
+	visible := inboxRecoveryRequests(source)
+	if source[0].Steps[0].Text != text || strings.Contains(visible[0].Steps[0].Text, ".gemini") || visible[0].State != "completed" {
+		t.Fatal("projection changed source or failed to withhold reference")
 	}
 }
 

@@ -150,11 +150,28 @@ func (r *inboxToolDetailRecorder) body(index int) string {
 	parts := []string{}
 	for _, key := range []string{"Input", "Output", "Error"} {
 		if text := r.steps[index][key]; text != "" {
-			if r.private[index] && key != "Input" {
-				text = "[Sensitive file contents not retained]"
+			if r.private[index] {
+				if key == "Input" {
+					text = "[Sensitive file reference withheld]"
+				} else {
+					text = "[Sensitive file contents not retained]"
+				}
 			}
 			parts = append(parts, key+"\n"+text)
 		}
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// Apply to historical owner response DTOs too, without changing retained data
+// or the request's recovery/authorization decision.
+func visibleInboxToolText(kind, text string) string {
+	if !strings.HasPrefix(kind, "runtime_tool_") {
+		return text
+	}
+	heading, body, ok := strings.Cut(text, "\n\n")
+	if ok && inboxSensitiveFile.MatchString(body) {
+		return heading + "\n\n[Sensitive file details withheld]"
+	}
+	return text
 }
