@@ -947,7 +947,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						_, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
 					}
 					if e == nil {
-						_ = s.taskSvc.ReconcileLocalTask(r.Context(), taskID, attempt.ID)
+						// Completion outlives the HTTP request that launched the terminal.
+						_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
 					}
 					_ = s.taskSvc.FinishTaskLaunches(context.Background(), taskID, "stopped")
 					s.kickTaskLaunches()
