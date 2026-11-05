@@ -40,3 +40,28 @@ func TestClaimDeadlineMatchesVerificationExecutionAndReaper(t *testing.T) {
 		})
 	}
 }
+
+func TestInspectionReportingBudgetPreservesOriginalDeadline(t *testing.T) {
+	now := time.Now().UTC()
+	for _, tc := range []struct {
+		name         string
+		remaining    time.Duration
+		reserveLimit time.Duration
+		reserve      time.Duration
+	}{
+		{"ordinary", 45 * time.Minute, 0, 0},
+		{"inspection", 10 * time.Minute, 2 * time.Minute, 2 * time.Minute},
+		{"source verification", 10 * time.Minute, 30 * time.Second, 30 * time.Second},
+		{"preparation already consumed time", 5 * time.Minute, 2 * time.Minute, time.Minute},
+		{"short remaining window", time.Second, 2 * time.Minute, 200 * time.Millisecond},
+		{"expired", -time.Second, 2 * time.Minute, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			overall := now.Add(tc.remaining)
+			got := inspectionReportingDeadline(overall, now, tc.reserveLimit)
+			if !got.Equal(overall.Add(-tc.reserve)) || got.After(overall) {
+				t.Fatalf("unexpected reporting deadline %v", got)
+			}
+		})
+	}
+}

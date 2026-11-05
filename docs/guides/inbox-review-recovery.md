@@ -457,3 +457,20 @@ failures. The runner retains partial output and the historical attempt state;
 this classification grants no new execution allowance. Visual inspection prompts
 prefer existing real-component verification scripts and explicitly reject images
 produced by reconstructed DOM or library-only rendering as application evidence.
+
+## Protecting independent verification time
+
+Verification-only and current-result inspections divide their existing deadline
+into reporting and native verification phases. After workspace/dependency
+preparation, one fifth of the remaining window is reserved for independent runner
+checks: at most two minutes for current-result inspections with fixed project
+tests, or thirty seconds for verification-only source/fingerprint finalization. The adapter, native provider routing, timeout
+environment and agent prompt share the earlier reporting deadline. The stored
+attempt deadline is unchanged, including across provider failover.
+
+A reporting timeout remains a failed/incomplete attempt, even when a report was
+saved; it is neither owner cancellation nor acceptance and creates no retry
+allowance. Owner cancellation keeps its normal behavior. A timely final report
+still needs the fixed project checks, unchanged-source proof and independent
+review. Final duration diagnostics include native verification and finalization,
+rather than stopping the clock when the model exits.

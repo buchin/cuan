@@ -918,6 +918,23 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	var liveStreamedCount int64
 	var result *agent.ExecutionResult
+	agentCtx := ctx
+	if err == nil && (claim.Verification != nil || claim.LiveInspection != nil) {
+		reserveLimit := 30 * time.Second
+		if claim.LiveInspection != nil {
+			reserveLimit = 2 * time.Minute
+		}
+		reportingDeadline := inspectionReportingDeadline(deadline, time.Now(), reserveLimit)
+		var cancelReporting context.CancelFunc
+		agentCtx, cancelReporting = context.WithDeadline(ctx, reportingDeadline)
+		defer cancelReporting()
+		timeoutDuration = time.Until(reportingDeadline)
+		if timeoutDuration <= 0 {
+			timeoutDuration = time.Nanosecond
+		}
+		env["CUAN_TASK_TIMEOUT"] = timeoutDuration.String()
+		prompt += fmt.Sprintf("\nInspection reporting deadline: %s. Submit your final task report before this time, leaving missing evidence explicitly incomplete. Time after this reporting deadline is reserved for independent runner verification; the original attempt deadline remains %s and is not extended.\n", reportingDeadline.UTC().Format(time.RFC3339Nano), deadline.UTC().Format(time.RFC3339Nano))
+	}
 
 	if err == nil {
 		// If using the official agy adapter on a host where agy binary is present,
@@ -925,7 +942,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		// Unix domain socket bridge for zero-downtime streaming.
 		if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
 			if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
-				result, err = r.executeWithBrains(ctx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
+				result, err = r.executeWithBrains(agentCtx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
 			}
 		}
 
@@ -957,11 +974,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			}
 			r.mu.Unlock()
 
-			result, err = r.adapter.Execute(ctx, req)
+			result, err = r.adapter.Execute(agentCtx, req)
 		}
 	}
-	duration := time.Since(startTime)
-
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
 	if claim.LiveInspection != nil && err == nil {
@@ -983,6 +998,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124
 			compReq.ErrorMessage = "The execution deadline was reached; saved work is preserved."
+		} else if ctx.Err() == nil && errors.Is(agentCtx.Err(), context.DeadlineExceeded) {
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ExitCode = 124
+			compReq.ErrorMessage = inspectionReportingTimeout
 		} else if errors.Is(ctx.Err(), context.Canceled) {
 			compReq.Status = task.AttemptStatusInterrupted
 			compReq.ExitCode = 143
@@ -1012,6 +1031,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124
 			compReq.ErrorMessage = "The execution deadline was reached; saved work is preserved."
+		} else if (result.Status == "CANCELED" || result.Status == "FAILED") && ctx.Err() == nil && errors.Is(agentCtx.Err(), context.DeadlineExceeded) {
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ExitCode = 124
+			compReq.ErrorMessage = inspectionReportingTimeout
 		} else if result.Status == "CANCELED" {
 			compReq.Status = task.AttemptStatusCanceled
 			compReq.ExitCode = 130
@@ -1030,6 +1053,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124
 			compReq.ErrorMessage = fmt.Sprintf("Execution timed out after adaptive timeout (%v)", timeoutDuration)
+			if ctx.Err() == nil && (claim.Verification != nil || claim.LiveInspection != nil) {
+				compReq.ErrorMessage = inspectionReportingTimeout
+			}
 		} else if (result.ExitCode != 0 || result.Status == "FAILED") && !r.confirmAgentReport(ctx, claim) {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = result.ExitCode
@@ -1145,7 +1171,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	// separately so an unavailable log endpoint cannot spend completion's budget.
 	diagnosticCtx, cancelDiagnostic := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	r.streamLogLine(diagnosticCtx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",
-		att.ID, compReq.Status, compReq.ExitCode, duration.Round(time.Millisecond), compReq.PeakRSSBytes))
+		att.ID, compReq.Status, compReq.ExitCode, time.Since(startTime).Round(time.Millisecond), compReq.PeakRSSBytes))
 	cancelDiagnostic()
 
 	// Send complete notification to server
