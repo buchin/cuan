@@ -196,6 +196,9 @@ no task/attempt ID, endpoint or credential is accepted as a tool argument.
 result_kind, metadata, dod_checklist with original criteria/evidence, and
 workspace-relative artifacts. It sends a worker report for normal verification
 and coordinator review; a successful tool response is not task acceptance.
+Final results need an explicit `state`: `review`, `blocked` or `done`. A metadata
+or progress report leaves the session running. Completion evidence without a
+state is rejected; use explicit `progress` when saving intermediate evidence.
 Use the same task read after an uncertain response before retrying. These tools
 are not advertised to ordinary Owner MCP sessions and never fall back to Owner
 credentials. The existing CLI remains available for the same reporting contract.

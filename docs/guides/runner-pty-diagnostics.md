@@ -71,6 +71,13 @@ codes alone still do not establish a cause.
 
 ## Final reports and intentional shutdown
 
+Final reports require an explicit `review`, `blocked` or `done` state. Commands
+that only update metadata or progress do not finish the session. Completion
+evidence without a state is rejected with guidance to choose a final state or
+explicitly save a progress checkpoint. This applies through CLI, MCP and the
+scoped HTTP endpoint; no completion state is inferred from wording or fields.
+Checkpoint responses explicitly tell the worker to continue the approved task.
+
 A saved final report does not turn an unexpected non-zero process exit into
 success. Native PTY execution records when the runner itself initiates closure
 after a still-current final report, then normalizes only the expected signal

@@ -90,7 +90,7 @@ func TestBuildRunnerPromptWithDoD(t *testing.T) {
 			t.Errorf("expected result to contain DoD item %q", item)
 		}
 	}
-	if !strings.Contains(result, `"$CUAN_TASK_EXECUTABLE" task report --summary`) {
+	if !strings.Contains(result, `"$CUAN_TASK_EXECUTABLE" task report --state review --summary`) {
 		t.Errorf("expected result to contain task reporting instructions")
 	}
 }

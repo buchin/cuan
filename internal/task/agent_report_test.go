@@ -24,6 +24,7 @@ func TestAgentReportResultKindDoesNotApproveWork(t *testing.T) {
 			svc.RequireAgentReport(ctx, created.ID, a.ID, "fixture")
 			summary, note := "Hello!", "Answered directly; no file changes."
 			for _, bad := range []AgentReport{
+				{Summary: &summary, CompleteNote: &note},
 				{State: "progress", ResultKind: "answer", Progress: "not final"},
 				{State: "review", ResultKind: "done", Summary: &summary, CompleteNote: &note},
 				{State: "blocked", ResultKind: "answer", Summary: &summary, CompleteNote: &note},

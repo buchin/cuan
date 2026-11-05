@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/buchin/cuan/internal/diagnostics"
+	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
 	"github.com/buchin/cuan/internal/terminal"
@@ -27,6 +29,45 @@ func TestMain(m *testing.M) {
 }
 
 const fixtureReviewReport = "\n\"$CUAN_TASK_EXECUTABLE\" task report --summary 'Fixture implementation complete' --complete-note 'Verified fixture output and behavior' --state review\n"
+
+func TestRunnerPromptFinalReportCommandReachesReview(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	api := httptest.NewServer(s.Router())
+	defer api.Close()
+	s.taskAgentURL = api.URL
+	created := workspaceTask(t, call)
+	ctx := context.Background()
+	a, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "agent_lifecycle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := task.TaskStatusDoing
+	s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Status: &doing})
+	s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
+	env, _, _, cleanup, err := s.issueTaskAgent(ctx, created.ID, a.ID, "agent_lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	prompt := cuanPrompt.BuildRunnerPrompt("Fixture audit", "Verify the fixture", "")
+	for _, line := range strings.Split(prompt, "\n") {
+		command := strings.TrimSpace(line)
+		if !strings.HasPrefix(command, `"$CUAN_TASK_EXECUTABLE" task report `) {
+			continue
+		}
+		cmd := exec.Command("sh", "-c", command)
+		cmd.Env = append(os.Environ(), env...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("documented reporting command failed: %v: %s", err, output)
+		}
+		ready, err := s.taskSvc.AgentReviewReady(ctx, created.ID, a.ID)
+		if err != nil || !ready {
+			t.Fatal("documented final-report command only saved a checkpoint", ready, err)
+		}
+		return
+	}
+	t.Fatal("runner prompt did not supply a reporting command")
+}
 
 func prepareTaskReporter(t *testing.T, s *Server) {
 	t.Helper()
@@ -90,7 +131,7 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 	if w := invoke("GET", created.ID, "", "owner-token"); w.Code != 401 {
 		t.Fatal("unscoped credential", w.Code)
 	}
-	for _, body := range []string{`{"instructions":"overwritten"}`, `{"status":"done"}`, `{"state":"done"}`, `{"state":"review"}`} {
+	for _, body := range []string{`{"instructions":"overwritten"}`, `{"status":"done"}`, `{"state":"done"}`, `{"state":"review"}`, `{"summary":"Result ready","complete_note":"Observed fixture output"}`} {
 		if w := invoke("POST", created.ID, body, token); w.Code != 400 {
 			t.Fatal("unsafe or incomplete report accepted", body, w.Code)
 		}
@@ -98,6 +139,13 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 	w := invoke("POST", created.ID, `{"title":"Refined by agent","summary":"Implemented fixture","progress":"Checking output"}`, token)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
+	}
+	var checkpointResponse struct {
+		State    string `json:"report_state"`
+		Workflow string `json:"workflow"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &checkpointResponse); err != nil || checkpointResponse.State != "progress" || !strings.Contains(checkpointResponse.Workflow, "Continue the approved task") {
+		t.Fatal("metadata checkpoint response implied completion", err)
 	}
 	w = invoke("POST", created.ID, `{"state":"review","summary":"Implemented fixture","complete_note":"Verified actual output","dod_checklist":[{"text":"Verify the result","completed":false}]}`, token)
 	if w.Code != 200 {

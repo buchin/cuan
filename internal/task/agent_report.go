@@ -36,6 +36,9 @@ func (s *Service) StageAgentReport(ctx context.Context, taskID, attemptID, autho
 }
 
 func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author string, r AgentReport, pendingDelivery bool) (*Task, error) {
+	if r.State == "" && r.CompleteNote != nil && strings.TrimSpace(*r.CompleteNote) != "" && strings.TrimSpace(r.Progress) == "" {
+		return nil, fmt.Errorf("%w: completion evidence requires an explicit state: review, blocked or done for a final result; progress to save a checkpoint and continue", ErrInvalidTaskInput)
+	}
 	if r.Title == nil && r.Priority == nil && r.Summary == nil && r.CompleteNote == nil && r.Checklist == nil && r.CommitSHA == nil && r.TestSummary == nil && strings.TrimSpace(r.Progress) == "" && (r.State == "" || r.State == "progress") {
 		return nil, fmt.Errorf("%w: send metadata, a progress checkpoint or a result", ErrInvalidTaskInput)
 	}

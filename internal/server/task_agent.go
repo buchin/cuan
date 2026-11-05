@@ -320,9 +320,6 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, 400, "Send one JSON report per request")
 		return
 	}
-	if report.State == "" {
-		report.State = "progress"
-	}
 	var artifacts []preparedTaskArtifact
 	artifactOwner := ""
 	if len(report.Artifacts) > 0 {
@@ -380,7 +377,14 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": "Result is reconciled after process exit"})
+	if report.State == "" {
+		report.State = "progress"
+	}
+	workflow := "Result is reconciled after process exit"
+	if report.State == "progress" {
+		workflow = "Checkpoint saved. Continue the approved task. Submit an explicit review, blocked or done state with summary and completion evidence for the final result."
+	}
+	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": workflow})
 	if updated != nil {
 		if updated.SourceRoomID != "" {
 			s.publishInbox(updated.SourceRoomID)

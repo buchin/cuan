@@ -27,7 +27,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true,"evidence":"Observed output or check result"}],"commit_sha":"optional commit","test_summary":"Actual checks"}
-Omit metadata/checklists when unnecessary. Use --summary and --complete-note directly for a simple result.`)
+Omit metadata/checklists when unnecessary. For a simple final result, use --state review --summary TEXT --complete-note TEXT. Final results require an explicit state; progress checkpoints do not finish the session.`)
 		fmt.Fprintln(out, "For read-only verification, write output under CUAN_TASK_ARTIFACTS_DIR and use --artifact session:PATH. Ordinary artifact paths remain relative to WORKSPACE_DIR. Both sources share the eight-file and 25 MB limits.")
 		return 0
 	}
