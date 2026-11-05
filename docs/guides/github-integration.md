@@ -1,5 +1,28 @@
 # GitHub connection
 
+## Inspecting current access
+
+Agents can read the owner's saved Cuan connection with
+`cuan integration github show` or the read-only MCP tool `get_github_connection`.
+Both use the authenticated Cuan API and return connection/account identity only.
+They never inspect a host's `gh` login or expose provider credentials. A saved
+connection is not proof of permission to read or push a particular repository.
+
+For blocked Inbox work whose review reported a GitHub prerequisite, Cuan records
+the current original owner's connection as attempt- and scope-bound evidence.
+A changed observation triggers a fresh tool-free review through the existing
+review queue. Identical observations do not repeat reviews, restart work, or
+reset execution correction limits. The review distinguishes an available Cuan
+connection from missing standalone worker CLI credentials, and an existing
+registered project from proof that newly requested setup was completed. Original
+approval, cancellation, scope and normal execution/publication gates still apply.
+
+Repository validation, clone/fetch and bound pushes use an allowlisted Git
+environment, disabled ambient credential helpers/global configuration and only
+explicit registered credentials. The token is passed through scoped environment
+configuration, never the command URL or arguments. A developer's host sign-in is
+not a Cuan connection or a way to make a private repository appear accessible.
+
 ## Current release status
 
 Release `f40909a` includes integration service cards, contextual task connection
@@ -15,15 +38,17 @@ OAuth App configuration. Reload resumes the same pending sign-in while the
 server is running. Cancellation stops the pending login.
 
 Real native device challenges and UI reload/cancellation were verified on staging.
-Production also produced a real challenge and awaits owner consent. Full live
-account authorization and private repository access remain unverified until the
-owner completes GitHub's consent. No provider inference or live GitHub write was
-used for this verification. Manual token connection remains an Advanced option.
+Production also produced a real challenge during that initial verification.
+Later read-only checks confirmed a saved owner connection is present; this does
+not prove permissions for every private repository or a successful push. No live
+GitHub write was used for these connection checks. Manual token connection
+remains an Advanced option.
 
 
-Open Settings → Integrations → GitHub. Create a fine-grained access token on
-GitHub for the repositories Cuan should access, then connect it once. The token
-is validated against GitHub and stored encrypted in a private owner-scoped file.
+Open Settings → Integrations → GitHub and choose **Sign in with GitHub**.
+Complete GitHub's consent in the browser. Advanced settings also support a
+fine-grained access token limited to selected repositories. Retained access is
+validated against GitHub and stored encrypted in a private owner-scoped file.
 It is never returned by connection or repository-list endpoints.
 
 Grant Contents read access for cloning or read and write for pushing. Selecting
@@ -44,7 +69,7 @@ branch discovery. Existing explicit project credentials take precedence.
 
 Shared tokens are read on each repository operation, so replacement or disconnect
 applies to the next operation without copying credentials into projects. This is
-not an OAuth login and does not automatically commit, push, merge, or deploy.
+not itself a commit, push, merge, or deployment operation.
 Agent runtime push access and the complete Git delivery workflow need separate
 verification. GitHub is optional; projects without repositories remain supported.
 

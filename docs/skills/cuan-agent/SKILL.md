@@ -110,6 +110,12 @@ See [project environment guide](../../guides/project-environment-cli.md).
 
 ## Account readiness diagnostics
 
+`cuan integration github show` and MCP `get_github_connection` read the owner's
+saved Cuan GitHub connection without credentials. Check this before asking the
+owner to sign in: a worker's standalone `gh` session is a different identity.
+Connected status does not prove access or push permission for a specific repo;
+use the registered project connection for actual repository operations.
+
 Use `cuan account list` to read owned AI account status, routing permissions and cooldown metadata; `cuan account usage ACCOUNT_ID` reads provider capacity evidence. These commands return JSON without credential contents or native profile paths. Capacity evidence does not prove successful runtime execution.
 
 `cuan account verify ACCOUNT_ID` probes an existing sign-in and updates readiness, without accepting provider terms or changing the selected model/fallback permissions. Prefer this over asking users to sign in again after a transient provider outage. Verification does not override provider quota limits.

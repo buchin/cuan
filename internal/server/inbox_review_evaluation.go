@@ -24,6 +24,8 @@ verification_context, when present, binds previously completed implementation ch
 
 running_project_release identifies the currently running production process only when its build-time source repository matches the task project. It is not an ancestry check, a task deployment receipt, a feature test or proof that this task's result is present. Do not accept a failed execution or fill missing verification from build identity alone.
 
+github_connection_observation is a server observation of the original owner's saved Cuan connection, distinct from a worker's standalone gh login. When state=connected, do not ask the user to connect GitHub merely because an earlier report lacked gh credentials. Repository permission is explicitly not verified by this observation: inspect missing access through the existing approved task and registered connection, rather than ambient host credentials. The registered_project context identifies an existing project, not proof of a newly requested clone or configuration. Preserve original scope and reconcile existing work without duplicating projects or repeating external effects. Missing workspace preparation or evidence is agent-fixable and requires a concrete in-scope revision; genuine provider permission/consent may still be an external prerequisite. Do not accept work merely because its project or connection exists.
+
 live_result_context, when present, is distinct: the runner proved the task's source commit is contained in the exact inspected result commit, ran fresh fixed project checks for this attempt, and verified unchanged snapshot state. The server also matched that result to the current production process and source repository. The original implementation attempt may remain failed; do not attribute its old checks to this inspection. This evidence establishes the running revision and its fresh project checks, not feature correctness, requested external effects, or deployment performed by this task. Evaluate the actual current report and every original criterion without demanding a new deployment merely to repeat publication already evidenced by the running result. Missing feature or publication requirements still require revision; never issue publication commands in this read-only inspection.
 
 A report_provenance=current_runner_finalization is a server-validated machine report of source integrity and saved output references, not an AI report or a rerun of implementation tests. Its referenced images still require independent visual inspection. Do not require a second AI report merely to repeat these machine checks; original scope and publication requirements remain mandatory.
@@ -123,6 +125,8 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		}
 	}
 	raw, _ := json.Marshal(map[string]any{
+		"github_connection_observation":  githubReviewObservation(d),
+		"registered_project":             s.registeredReviewProject(ctx, d),
 		"running_project_release":        s.runningProjectRelease(ctx, d),
 		"live_result_context":            s.liveInspectionReviewContext(ctx, d),
 		"delivered_text":                 deliveredText,
@@ -702,6 +706,9 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 // Evidence revisions, unlike task status or timestamps, justify one new review.
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
+	if event, _ := githubObservation(d); event != nil {
+		parts = append(parts, event.Message)
+	}
 	// Acceptance may replace the user-facing summary. Machine evidence remains
 	// immutable; that presentation change must not invalidate its visual review.
 	if evidence := inboxReportEvidence(d); evidence.Provenance == "current_runner_finalization" {

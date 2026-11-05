@@ -146,8 +146,8 @@ func (c *Client) ValidateRepository(ctx context.Context, repoInput, token string
 			return nil, ErrAccessDenied
 		}
 		if resp.StatusCode == http.StatusNotFound {
-			// If GitHub REST API returns 404, it might be a private repository accessible via git
-			// credential helper or local git configuration. Fallback to git ls-remote before failing.
+			// Try the explicit Cuan repository connection over Git before failing.
+			// Host credential helpers and global Git configuration are never used.
 			branches, defaultBranch, lsErr := c.lsRemote(ctx, owner, repo, token)
 			if lsErr == nil && len(branches) > 0 {
 				return &RepoInfo{
@@ -221,12 +221,13 @@ func (c *Client) FetchRemoteBranches(ctx context.Context, owner, repo, token str
 }
 
 func (c *Client) lsRemote(ctx context.Context, owner, repo, token string) ([]string, string, error) {
-	authURL := BuildAuthURL(owner, repo, token)
+	repoURL := c.repoURL(owner, repo)
 
 	lsCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(lsCtx, c.gitBinary, "ls-remote", "--heads", "--symref", authURL)
+	cmd := exec.CommandContext(lsCtx, c.gitBinary, "ls-remote", "--heads", "--symref", repoURL)
+	cmd.Env = repositoryEnvironment(token)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

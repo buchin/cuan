@@ -40,6 +40,7 @@ func TestPlatformMCPToolsList(t *testing.T) {
 	}
 
 	expectedTools := []string{
+		"get_github_connection",
 		"inspect_git_status",
 		"inspect_git_log",
 		"inspect_git_diff",

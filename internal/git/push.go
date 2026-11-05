@@ -4,22 +4,22 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 func repositoryEnvironment(token string) []string {
-	environment := []string{}
-	for _, value := range os.Environ() {
-		if !strings.HasPrefix(value, "GIT_CONFIG_") {
-			environment = append(environment, value)
-		}
-	}
-	environment = append(environment, "GIT_TERMINAL_PROMPT=0")
+	settings := [][2]string{{"credential.helper", ""}, {"core.hooksPath", "/dev/null"}}
 	if token != "" {
-		environment = append(environment, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.https://github.com/.extraheader", "GIT_CONFIG_VALUE_0=Authorization: Basic "+base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token)))
+		header := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
+		settings = append([][2]string{{"http.https://github.com/.extraheader", header}}, settings...)
+	}
+	environment := append(verificationGitEnvironment(), "GIT_ALLOW_PROTOCOL=https:http:file", "GIT_CONFIG_COUNT="+strconv.Itoa(len(settings)))
+	for i, setting := range settings {
+		index := strconv.Itoa(i)
+		environment = append(environment, "GIT_CONFIG_KEY_"+index+"="+setting[0], "GIT_CONFIG_VALUE_"+index+"="+setting[1])
 	}
 	return environment
 }

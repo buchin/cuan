@@ -604,6 +604,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	s.diagnoseInboxStorageFailure(ctx, detail, *origin)
+	s.observeInboxGitHubConnection(ctx, detail, *origin)
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return
 	}

@@ -34,6 +34,7 @@ type resendValidationResult struct {
 // are printed. It never sends test mail or changes automatic notification policy.
 func RunIntegrationCLI(args []string, out, errOut io.Writer) int {
 	const help = `Usage:
+	cuan integration github show
   cuan integration resend show
   cuan integration resend set [--key-from-env NAME] [--from-email EMAIL] [--from-name NAME] [--notification-email EMAIL]
   cuan integration resend validate
@@ -42,6 +43,23 @@ Secret values are never accepted as arguments or returned in output.
 Validate checks credentials without sending email.`
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
 		fmt.Fprintln(out, help)
+		return 0
+	}
+	if args[0] == "github" {
+		if len(args) != 2 || args[1] != "show" {
+			fmt.Fprintln(errOut, help)
+			return 2
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		status, err := GetCuanClient().GitHubConnection(ctx)
+		if err != nil {
+			fmt.Fprintln(errOut, err)
+			return 1
+		}
+		if json.NewEncoder(out).Encode(status) != nil {
+			return 1
+		}
 		return 0
 	}
 	if len(args) < 2 || args[0] != "resend" {

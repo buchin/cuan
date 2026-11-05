@@ -349,6 +349,8 @@ Usage:
   cuan chat <subcommand> [flags]
   cuan task <subcommand> [flags]
   cuan account <list|usage ACCOUNT_ID|verify ACCOUNT_ID>
+  cuan integration github show
+  cuan integration resend <show|set|validate>
   cuan config <subcommand> [flags]
   cuan project env <list|set|unset> PROJECT_ID [flags]
   cuan repo <subcommand> [flags]
@@ -361,6 +363,7 @@ Subcommands:
   account           AI account readiness, capacity and existing-sign-in verification
   config            CLI and MCP connection settings (show, set)
   project           Project environments (list, set, unset; values redacted by default)
+  integration       Inspect GitHub connection or manage Resend settings
   repo              Read-only git repository inspection (status, log, diff-summary, branches)
   diag              Host system health & static diagnostics (health, df, free, tsc, deps)
   mcp               Model Context Protocol (MCP) stdio server for Agent function calling

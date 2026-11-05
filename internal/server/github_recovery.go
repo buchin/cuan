@@ -18,7 +18,7 @@ func githubRecoveryRequestID(eventID string) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", digest[:4], digest[4:6], digest[6:8], digest[8:10], digest[10:16])
 }
 
-const githubContinuation = "GitHub access is now connected. Continue the original approved task from its retained workspace and previous progress. Do not repeat implementation or recreate artifacts. Inspect the current branch and commits, run the task push command to save the existing task branch, verify the result, and report the actual outcome. Do not merge or expand scope beyond what is authorized or configured for auto_deploy."
+const githubContinuation = "The owner's Cuan GitHub connection is now available; repository permission must still be verified. Continue the original approved task from its retained workspace and previous progress using the registered project connection, never ambient host gh credentials. Do not repeat implementation or recreate artifacts. Inspect existing files, branches and commits, complete only unfinished approved work, verify the result and report actual evidence. Push only when the original scope requires saving the task branch. Do not merge, deploy or expand scope beyond the original authorization and publication limits."
 
 // QueueGitHubRecovery records continuation only for a waiting task with its
 // original Inbox authorization, latest attempt, and unchanged task instructions.

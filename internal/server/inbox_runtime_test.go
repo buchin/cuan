@@ -202,6 +202,7 @@ func TestInspectionToolsRuntimeStream(t *testing.T) {
 		"search_web",
 		"list_projects",
 		"get_project",
+		"get_github_connection",
 		"list_tasks",
 		"get_task",
 		"create_task_draft",
