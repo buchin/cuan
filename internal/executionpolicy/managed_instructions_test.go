@@ -15,8 +15,15 @@ func TestLegacyManagedFooterIsNotOwnerProhibition(t *testing.T) {
 		normalize, deny bool
 	}{
 		{"generated footer", envelope("Implement and deploy the feature."), true, false},
-		{"owner restriction", envelope("Do not deploy. Report local findings."), true, true},
-		{"owner conditional", envelope("Do not deploy unless authorized."), true, true},
+		{"owner restriction", envelope("Do not deploy. Report local findings."), false, true},
+		{"owner conditional", envelope("Do not deploy unless authorized."), false, true},
+		{"clone project is not publication", envelope("Clone the GitHub repository and verify its structure."), false, true},
+		{"audit deployment logs", envelope("Audit deployment logs and inspect deployed code."), false, true},
+		{"package release is not live deployment", envelope("Release the Go package on GitHub."), false, true},
+		{"quoted deployment command", envelope("Inspect this example: `deploy production`"), false, true},
+		{"inline Mermaid fence does not hide requirements", envelope("Blok kode bertanda ```mermaid harus dirender.\nPastikan hasil perubahan ter-deploy serta terverifikasi pada rilis live."), true, false},
+		{"fenced deployment example is not authorization", envelope("Inspect an example:\n```sh\ndeploy production\n```"), false, true},
+		{"Indonesian original live criterion", envelope("Pastikan hasil perubahan ter-deploy serta terverifikasi pada rilis live."), true, false},
 		{"ordinary instructions", legacyManagedFooter, false, true},
 		{"missing approval", strings.Replace(envelope("Deploy the feature."), "Approval message:", "Unverified approval:", 1), false, true},
 		{"invalid room", strings.Replace(envelope("Deploy the feature."), room, "unverified-room", 1), false, true},

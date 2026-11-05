@@ -374,7 +374,10 @@ owns process liveness, leases and final outcomes.
 Older managed tasks ended with a system-generated “do not deploy unless
 authorized” footer. New tasks already omit it. Execution policy, worker prompts
 and reviewer scope now normalize only that exact footer in the generated managed
-envelope (including its conversation and authorization fields). Genuine owner
+envelope (including its conversation and authorization fields), when the original
+scope already requests deployment/publication to production. Clone/setup work,
+local audits, quoted commands and package-only releases do not acquire a deployment
+requirement from project defaults. Genuine owner
 prohibitions elsewhere remain binding. Stored instructions, project snapshots and
 authorization hashes are unchanged; normalization grants no execution permission.
 

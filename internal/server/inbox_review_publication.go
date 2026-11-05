@@ -81,7 +81,7 @@ func (s *Server) reconcileLegacyPublicationAcceptances(ctx context.Context) {
 	}
 	for _, id := range ids {
 		d, err := s.taskSvc.GetTaskDetail(ctx, id)
-		if err != nil || d.Status != task.TaskStatusDone || d.LatestAttempt == nil || executionpolicy.NormalizeManagedInstructions(d.Instructions) == d.Instructions {
+		if err != nil || d.Status != task.TaskStatusDone || d.LatestAttempt == nil {
 			continue
 		}
 		var accepted *task.TaskActivity
@@ -118,7 +118,7 @@ func (s *Server) reconcileLegacyPublicationAcceptances(ctx context.Context) {
 			continue
 		}
 		state := "not_required"
-		if observation := s.inboxReviewPublication(ctx, d); observation != nil && observation.Required {
+		if observation := s.inboxReviewPublication(ctx, d); executionpolicy.NormalizeManagedInstructions(d.Instructions) != d.Instructions && observation != nil && observation.Required {
 			state = "verified"
 			if !observation.Verified {
 				changed, err := reader.RequeueAcceptedSnapshot(ctx, d.ID, d.LatestAttempt.ID, d.UpdatedAt)

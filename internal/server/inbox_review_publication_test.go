@@ -73,7 +73,7 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 }
 
 func TestLegacyPublicationAcceptanceReevaluatesWithoutExecution(t *testing.T) {
-	for _, scenario := range []string{"missing publication", "verified receipt", "owner done", "owner prohibition", "cancelled approval", "current instructions"} {
+	for _, scenario := range []string{"missing publication", "verified receipt", "owner done", "owner prohibition", "cancelled approval", "current instructions", "clone scope"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, d, oldReview := stalledReviewFixture(t, "completed")
 			ctx := context.Background()
@@ -83,6 +83,9 @@ func TestLegacyPublicationAcceptanceReevaluatesWithoutExecution(t *testing.T) {
 			}
 			s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 			scope := "Implement and deploy to production."
+			if scenario == "clone scope" {
+				scope = "Clone the registered repository and verify its structure."
+			}
 			if scenario == "owner prohibition" {
 				scope = "Do not deploy. Return only local results."
 			}
