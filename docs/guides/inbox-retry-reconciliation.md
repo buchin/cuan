@@ -63,3 +63,17 @@ node docs/evidence/inbox-retry-clarity-check.cjs
 disposable `cuan_s25` database. Browser fixtures cover390/1440px, both languages,
 light/dark, successful retry acceptance and stale409 responses. These are
 controlled provider fixtures, not evidence of native provider recovery.
+
+### Operational completion
+
+A safe stop or a completed investigation does not complete an authorized payment,
+access or record change. Operational reconciliation reviews explicitly classify
+`requested_outcome` as `completed`, `needs_input` or `unfinished`. Missing outcome
+proof cannot pass. An unmatched identity/payment requires the exact missing owner
+information and an attention state, with no repeated operation or new approval.
+
+A bounded policy audit re-evaluates previously accepted reconciliation operations
+which lack this classification. It compares the exact task snapshot and latest
+attempt atomically, respects cancellation and active launches, and queues only a
+review of saved evidence. It never starts a business execution or resets attempts.
+Ordinary accepted history is excluded.
