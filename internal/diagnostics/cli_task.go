@@ -26,6 +26,8 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "steer":
+		return runTaskSteer(ctx, extraArgs, out, errOut)
 	case "delete":
 		return runTaskDelete(ctx, extraArgs, out, errOut)
 	case "logs":
@@ -44,6 +46,40 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "Unknown task command: %s. Run 'cuan task help' for usage.\n", subcommand)
 		return 2
 	}
+}
+
+func runTaskSteer(ctx context.Context, args []string, out, errOut io.Writer) int {
+	if len(args) != 2 || strings.TrimSpace(args[0]) == "" || strings.TrimSpace(args[1]) == "" || len(args[1]) > 8000 {
+		fmt.Fprintln(errOut, "Usage: cuan task steer <task-id> \"guidance\"")
+		return 2
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "Configure the Cuan connection first.")
+		return 1
+	}
+	response, err := client.doRequest(ctx, http.MethodPost, "/api/v1/tasks/"+url.PathEscape(args[0])+"/steer", map[string]string{"prompt": args[1]})
+	if err != nil {
+		fmt.Fprintln(errOut, "Steering was not confirmed. Inspect the same task before retrying.")
+		return 1
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		fmt.Fprintf(errOut, "Steering was not confirmed (HTTP %d).\n", response.StatusCode)
+		return 1
+	}
+	var result struct {
+		Status   string `json:"status"`
+		Fallback bool   `json:"fallback"`
+	}
+	if json.NewDecoder(io.LimitReader(response.Body, 65536)).Decode(&result) != nil || result.Status == "" {
+		fmt.Fprintln(errOut, "Invalid steering response.")
+		return 1
+	}
+	if json.NewEncoder(out).Encode(result) != nil {
+		return 1
+	}
+	return 0
 }
 
 func runTaskDelete(ctx context.Context, args []string, out, errOut io.Writer) int {
@@ -82,6 +118,7 @@ Usage:
   cuan task get <task-id> [--json]
   cuan task logs <task-id> <attempt-id> [--after-id 0] [--limit 100] [--json]
   cuan task cancel <task-id>
+  cuan task steer <task-id> "guidance"
   cuan task update <task-id> --status doing [--summary "Plan"] [--complete-note "Evidence"] [--json]
   cuan task create --title "Title" --instructions "Scope" [--priority normal] [--project default] [--json]
 

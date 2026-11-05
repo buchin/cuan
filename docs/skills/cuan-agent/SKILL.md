@@ -115,6 +115,14 @@ saved Cuan GitHub connection without credentials. Check this before asking the
 owner to sign in: a worker's standalone `gh` session is a different identity.
 Connected status does not prove access or push permission for a specific repo;
 use the registered project connection for actual repository operations.
+In a bound worker session these reads use the task capability; `task get` and
+`get_current_task` also include `github_connection`. Never search Cuan host
+configuration or databases to recover Owner tokens or provider credentials.
+
+`cuan task steer TASK_ID "guidance"` is an Owner-only intervention on an existing
+attempt. It does not resume/restart work, replace scope, or accept the result.
+Use only for requested or necessary runtime intervention, preserve the approved
+scope, and inspect the same task after an uncertain response before retrying.
 
 Use `cuan account list` to read owned AI account status, routing permissions and cooldown metadata; `cuan account usage ACCOUNT_ID` reads provider capacity evidence. These commands return JSON without credential contents or native profile paths. Capacity evidence does not prove successful runtime execution.
 

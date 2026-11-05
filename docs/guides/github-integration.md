@@ -7,6 +7,12 @@ Agents can read the owner's saved Cuan connection with
 Both use the authenticated Cuan API and return connection/account identity only.
 They never inspect a host's `gh` login or expose provider credentials. A saved
 connection is not proof of permission to read or push a particular repository.
+Bound task workers use their current task capability for this read, not Owner
+API credentials. The same status is included in `task get` / `get_current_task`.
+An expired or unavailable capability never falls back to an Owner credential.
+The runner prepares the repository checkout before model execution; missing
+standalone `gh` sign-in is not a reason to search host configuration, production
+databases, account profiles or credential stores.
 
 For blocked Inbox work whose review reported a GitHub prerequisite, Cuan records
 the current original owner's connection as attempt- and scope-bound evidence.

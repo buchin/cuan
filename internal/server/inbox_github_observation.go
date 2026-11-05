@@ -64,6 +64,34 @@ func (s *Server) registeredReviewProject(ctx context.Context, d *task.TaskDetail
 	return map[string]any{"id": p.ID, "name": p.Name, "repository": p.RepoURL, "archived": p.IsArchived}
 }
 
+func (s *Server) boundTaskGitHubConnection(ctx context.Context, d *task.TaskDetailResponse) map[string]any {
+	result := map[string]any{"state": "unavailable", "repository_access_verified": false}
+	if s.cfg == nil || d == nil || d.LatestAttempt == nil || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil {
+		return result
+	}
+	owner, err := s.taskArtifactOwner(ctx, d)
+	if err != nil {
+		return result
+	}
+	path, err := githubConnectionPath(owner)
+	if err != nil {
+		return result
+	}
+	githubConnectionMu.Lock()
+	account, _, err := git.LoadConnection(path, s.cfg.AuthSecret)
+	githubConnectionMu.Unlock()
+	if os.IsNotExist(err) {
+		result["state"] = "disconnected"
+		return result
+	}
+	if err != nil {
+		return result
+	}
+	result["state"] = "connected"
+	result["account"] = account
+	return result
+}
+
 // Only a previously reviewed GitHub prerequisite qualifies. This observes the
 // registered owner's connection, never host gh auth, and cannot launch work.
 func (s *Server) observeInboxGitHubConnection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) {

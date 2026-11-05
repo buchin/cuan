@@ -128,6 +128,18 @@ Project Runbook & Operational Directives: For operational, administrative, data-
 Do not inspect, reverse-engineer, or search the Cuan server binary to understand
 this reporting tool. If the tool fails, report its actual error as a blocker.
 
+Repository access: the runner prepares your bound repository checkout before
+starting this session. Inspect that checkout and preserve its existing files;
+do not clone a duplicate merely because a standalone gh CLI is not signed in.
+Use task get or get_current_task for the current task's github_connection status.
+The read-only get_github_connection MCP tool and integration github show command
+also use this session's task capability. A connected status is not proof of a
+particular repository's permissions. Never search Cuan host configuration,
+production databases, provider profiles or credential stores for GitHub tokens,
+Owner API credentials or signing keys. Never use sudo/psql or invent an Owner
+token to bypass a missing scoped operation. Report the exact scoped-tool error
+and preserve your workspace if the necessary operation is unavailable.
+
 ## Task reporting
 The built-in command is "$CUAN_TASK_EXECUTABLE" task.
 Run task get only when additional task context is needed. Metadata and checklists
@@ -288,7 +300,10 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
-		respondJSON(w, 200, latest)
+		respondJSON(w, 200, struct {
+			*task.TaskDetailResponse
+			GitHubConnection map[string]any `json:"github_connection"`
+		}{latest, s.boundTaskGitHubConnection(r.Context(), latest)})
 		return
 	}
 	var report struct {

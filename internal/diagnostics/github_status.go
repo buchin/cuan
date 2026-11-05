@@ -1,9 +1,11 @@
 package diagnostics
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/buchin/cuan/internal/taskcli"
 	"io"
 	"net/http"
 )
@@ -20,6 +22,26 @@ type GitHubConnectionStatus struct {
 }
 
 func (c *CuanClient) GitHubConnection(ctx context.Context) (*GitHubConnectionStatus, error) {
+	if boundTaskSession() {
+		var out, errs bytes.Buffer
+		if taskcli.Run([]string{"get"}, &out, &errs) != 0 {
+			return nil, fmt.Errorf("could not read GitHub connection through this task capability")
+		}
+		var current struct {
+			GitHub struct {
+				State   string          `json:"state"`
+				Account json.RawMessage `json:"account"`
+			} `json:"github_connection"`
+		}
+		if json.Unmarshal(out.Bytes(), &current) != nil || (current.GitHub.State != "connected" && current.GitHub.State != "disconnected") {
+			return nil, fmt.Errorf("this task's GitHub connection status is unavailable; no Owner credential fallback was used")
+		}
+		result := GitHubConnectionStatus{Connected: current.GitHub.State == "connected"}
+		if result.Connected && (json.Unmarshal(current.GitHub.Account, &result.Account) != nil || result.Account == nil || result.Account.Login == "") {
+			return nil, fmt.Errorf("invalid scoped GitHub connection status")
+		}
+		return &result, nil
+	}
 	if !c.IsConfigured() {
 		return nil, fmt.Errorf("configure Cuan API URL and auth token first")
 	}

@@ -37,7 +37,7 @@ type mcpToolDefinition struct {
 
 // Registered tools available over MCP
 var nativeMCPTools = []mcpToolDefinition{
-	{Name: "get_github_connection", Description: "Read the owner's saved Cuan GitHub connection and account identity through the authenticated API. Does not read host gh credentials, expose tokens, change sign-in or prove repository permission.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}}},
+	{Name: "get_github_connection", Description: "Read the saved Cuan GitHub connection through the Owner API or this session's exact task capability. Does not read host gh credentials, expose tokens, change sign-in or prove repository permission. No IDs or credentials are accepted.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 	{Name: "list_provider_accounts", Description: "Read connected AI account readiness, cooldown and fallback policy through the authenticated Cuan API; no credential contents or native paths.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}}},
 	{Name: "get_provider_account_usage", Description: "Read provider model capacity evidence for an owned account without changing routing policy.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{"account_id": map[string]any{"type": "string"}}, "required": []string{"account_id"}}},
 	{
@@ -642,7 +642,11 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		case "list_provider_accounts":
 			toolResult, toolErr = GetCuanClient().ListProviderAccounts(ctx)
 		case "get_github_connection":
-			toolResult, toolErr = GetCuanClient().GitHubConnection(ctx)
+			if len(callParams.Arguments) != 0 {
+				toolErr = fmt.Errorf("GitHub connection inspection accepts no IDs or credentials")
+			} else {
+				toolResult, toolErr = GetCuanClient().GitHubConnection(ctx)
+			}
 		case "get_provider_account_usage":
 			id, _ := callParams.Arguments["account_id"].(string)
 			toolResult, toolErr = GetCuanClient().GetProviderAccountUsage(ctx, id)

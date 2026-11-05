@@ -3,6 +3,8 @@ package diagnostics
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"github.com/buchin/cuan/internal/taskcli"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,6 +51,40 @@ func TestGitHubConnectionCLIUsesOnlyAuthenticatedRedactedRead(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "connected-owner") || strings.Contains(out.String()+errs.String(), "provider_fixture_secret") || requests != 2 {
 		t.Fatal("MCP read failed or exposed credentials")
+	}
+}
+
+func TestGitHubConnectionBoundSessionNeverUsesOwnerCredentials(t *testing.T) {
+	ownerReads := 0
+	owner := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ownerReads++
+		w.Write([]byte(`{"connected":true,"account":{"login":"WRONG_OWNER"}}`))
+	}))
+	defer owner.Close()
+	state := "connected"
+	taskReads := 0
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		taskReads++
+		if r.Method != "GET" || r.URL.Path != "/task/bound" || r.Header.Get("Authorization") != "Bearer scoped-fixture" {
+			t.Error("wrong task capability request")
+		}
+		json.NewEncoder(w).Encode(map[string]any{"id": "bound", "github_connection": map[string]any{"state": state, "account": map[string]string{"login": "task-owner", "token": "provider-secret"}}})
+	}))
+	defer api.Close()
+	raw, _ := json.Marshal(taskcli.Capability{API: api.URL + "/task/bound", Token: "scoped-fixture", TaskID: "bound", AttemptID: "attempt"})
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", string(raw))
+	client := &CuanClient{BaseURL: owner.URL, AuthToken: "ambient-owner", HTTPClient: owner.Client()}
+	connected, err := client.GitHubConnection(context.Background())
+	if err != nil || connected.Account == nil || connected.Account.Login != "task-owner" {
+		t.Fatal("scoped identity not used", err)
+	}
+	state = "unavailable"
+	if _, err := client.GitHubConnection(context.Background()); err == nil {
+		t.Fatal("missing scope was replaced by Owner access")
+	}
+	if taskReads != 2 || ownerReads != 0 {
+		t.Fatal("Owner fallback or missing scoped read", taskReads, ownerReads)
 	}
 }
 
