@@ -438,10 +438,11 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &review})
 			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 			// Model prose cannot promise continuation when no launch was queued.
+			nextStep := "\n\n" + inboxCorrectionRecommendation(decision.RemainingWork)
 			if finding := strings.TrimSpace(decision.Finding); finding != "" {
-				return finding + "\n\n" + inboxCorrectionLimitExplanation + taskLink
+				return finding + "\n\n" + inboxCorrectionLimitExplanation + nextStep + taskLink
 			}
-			return inboxCorrectionLimitExplanation + taskLink
+			return inboxCorrectionLimitExplanation + nextStep + taskLink
 		}
 
 		delegation := inboxDelegation{TaskID: d.ID, ProjectID: d.ProjectID, AuthorizationID: d.SourceMessageID, Revision: decision.Revision}

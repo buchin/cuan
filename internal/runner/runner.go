@@ -852,6 +852,21 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			env[k] = v
 		}
 	}
+	if err == nil && r.cfg.WorkspacesDir != "" {
+		var buildEnv map[string]string
+		buildEnv, err = managedGoBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "go-build-runtime"), claim.OwnerID)
+		for key, value := range buildEnv {
+			if key == "GOMODCACHE" && env["GOPATH"] != "" && env["GOPATH"] != buildEnv["GOPATH"] {
+				continue
+			}
+			if env[key] == "" {
+				env[key] = value
+			}
+		}
+		if len(buildEnv) > 0 {
+			prompt += "\n\nGo build caches are managed independently of the AI account HOME and retained across this owner's routes. Use the inherited Go environment; do not search account profiles or redirect builds to another user's caches. The repository still selects its required Go toolchain. Save actual check output and a factual checkpoint before the execution deadline.\n"
+		}
+	}
 	if claim.TaskAgent != nil {
 		encoded, _ := json.Marshal(claim.TaskAgent)
 		env["CUAN_TASK_CAPABILITY_JSON"] = string(encoded)

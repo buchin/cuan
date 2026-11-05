@@ -85,14 +85,20 @@ func TestReadOnlyEvidenceDoesNotDemandImplementationDoD(t *testing.T) {
 }
 
 type readOnlyAuditAdapter struct {
-	mutate           bool
-	inspectionCommit string
-	t                *testing.T
+	mutate              bool
+	inspectionCommit    string
+	expectGoEnvironment bool
+	t                   *testing.T
 }
 
 func (a *readOnlyAuditAdapter) Name() string             { return "readonly-fixture" }
 func (a *readOnlyAuditAdapter) Version() (string, error) { return "1", nil }
 func (a *readOnlyAuditAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+	if a.expectGoEnvironment {
+		if req.Env["GOENV"] != "off" || req.Env["GOTOOLCHAIN"] != "auto" || req.Env["GOMODCACHE"] != filepath.Join(req.Env["GOPATH"], "pkg", "mod") || req.Env["GOCACHE"] == "" {
+			a.t.Error("managed Go environment missing from native execution")
+		}
+	}
 	if !strings.Contains(req.Prompt, "Broken unrelated project tests are observations") {
 		a.t.Error("binding scope absent from actual prompt")
 	}

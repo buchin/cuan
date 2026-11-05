@@ -8,7 +8,20 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxCorrectionLimitExplanation = "Pekerjaan belum lolos verifikasi. Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan."
+const inboxCorrectionLimitExplanation = "Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan."
+
+func inboxCorrectionRecommendation(remaining string) string {
+	switch remaining {
+	case "verification":
+		return "Saya sarankan menyusun pemeriksaan lanjutan yang hanya melengkapi bukti yang masih kurang, berdasarkan hasil yang sudah tersimpan."
+	case "implementation":
+		return "Saya sarankan mempersempit perbaikan ke hambatan yang ditemukan, sambil mempertahankan hasil yang sudah benar."
+	case "external":
+		return "Saya sarankan menyelesaikan prasyarat eksternal yang disebutkan sebelum pekerjaan dilanjutkan."
+	default:
+		return "Saya sarankan meninjau hasil yang tersimpan untuk menentukan satu langkah lanjutan yang paling tepat."
+	}
+}
 
 // An accepted owner continuation starts a new bounded correction cycle. Old
 // attempts remain evidence, but must not spend a newly authorized cycle's budget.

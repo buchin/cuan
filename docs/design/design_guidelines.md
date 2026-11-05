@@ -419,3 +419,20 @@ messages just to animate progress.
 For multiline composers the send surface still fills the right edge, while the
 send icon stays centered in the bottom44px accessory row with attachment/quick
 reply icons. This avoids moving the icon upward as the input grows.
+
+### 7.12. Actionable attention states
+
+A task that needs attention states its known obstacle in plain language and
+suggests one next step. Detailed native errors, durations and diagnostics remain
+in task details. Do not infer OOM or another root cause from a timeout/exit code.
+The card's contextual action sits in the existing footer beside Detail. It
+prepares an editable discussion message, preserves unsent text, and never sends,
+restarts work or resets correction budgets by itself. In customer conversations,
+that discussion must use the internal whisper composer. Running/queued reviews
+hide this intervention action and keep their truthful progress state.
+
+Use the shared amber warning token for attention, green for completion, and the
+Inbox blue token for primary footer actions. `CardActions` owns the calm primary
+action surface via `data-primary-action`; reuse it for Review & Use and task next
+steps. Keep 44px targets with the existing 32px visible surface. Do not add a
+second nested box, prominent warning banner, or extra vertical footer margins.

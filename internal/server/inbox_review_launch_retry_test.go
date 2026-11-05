@@ -88,6 +88,9 @@ func TestInboxReviewExhaustedBudgetCannotPromiseContinuation(t *testing.T) {
 	if strings.Contains(output, "akan melanjutkan") || !strings.Contains(output, "Batas perbaikan otomatis sudah tercapai") {
 		t.Fatal("exhausted budget retained a false continuation promise", output)
 	}
+	if !strings.Contains(output, "Saya sarankan") {
+		t.Fatal("blocked outcome did not offer a next step", output)
+	}
 	if _, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID)); err == nil {
 		t.Fatal("budget exhaustion queued another execution")
 	}

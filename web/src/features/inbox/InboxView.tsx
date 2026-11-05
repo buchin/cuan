@@ -493,6 +493,16 @@ export function InboxView({
   const [whisperMode, setWhisperMode] = useState(false)
   const [whisperHandle, setWhisperHandle] = useState<string>('@cuan')
 
+  const handleTaskDiscussion = useCallback((draftText: string) => {
+    if (!draftText) return
+    if (activeContact?.type === 'customer') setWhisperMode(true)
+    setInputMessage(current => current.trim() ? current + '\n\n' + draftText : draftText)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+    })
+  }, [activeContact?.type])
+
   useEffect(() => {
     if (activeContact?.type === 'customer') {
       const trimmed = inputMessage.trim().toLowerCase()
@@ -1642,7 +1652,7 @@ export function InboxView({
                           onOpenTerminal={handleTaskTerminalClick}
                           onUseDraft={handleUseDraft}
                           onRetry={handleTaskRetry}
-                          onContinueChat={handleUseDraft}
+                          onContinueChat={handleTaskDiscussion}
                           isCustomerRoom={activeContact.type === 'customer'}
                           hasSiblingCard={!!(isAgentMessage && msg.approval_plan) || !!msg.action_card}
                           isOutgoing={isOutgoing}
@@ -1776,7 +1786,7 @@ export function InboxView({
                           onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
                           onUseDraft={handleUseDraft}
                           onRetry={handleTaskRetry}
-                          onContinueChat={handleUseDraft}
+                          onContinueChat={handleTaskDiscussion}
                           isCustomerRoom={activeContact.type === 'customer'}
                         />
                       ))}
@@ -1849,7 +1859,7 @@ export function InboxView({
                       onOpenTerminal={handleTaskTerminalClick}
                       onUseDraft={handleUseDraft}
                       onRetry={handleTaskRetry}
-                      onContinueChat={handleUseDraft}
+                      onContinueChat={handleTaskDiscussion}
                       isCustomerRoom={activeContact.type === 'customer'}
                     />
                   </div>
@@ -1868,7 +1878,7 @@ export function InboxView({
                       conversationId={
                         activeContact.conversation_id || activeContact.id
                       }
-                      onContinueChat={handleUseDraft}
+                      onContinueChat={handleTaskDiscussion}
                       onUseDraft={handleUseDraft}
                       onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
                       onRetry={handleTaskRetry}

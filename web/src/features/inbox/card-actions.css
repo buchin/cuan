@@ -19,3 +19,8 @@
 [data-card-actions] > :is(button, a):hover::before {
   background: oklch(var(--muted));
 }
+
+[data-card-actions] > [data-primary-action] { color: var(--nav-inbox); }
+[data-card-actions] > [data-primary-action]::before { background: color-mix(in oklab, var(--nav-inbox) 16%, transparent); }
+[data-card-actions] > [data-primary-action]:hover::before { background: color-mix(in oklab, var(--nav-inbox) 23%, transparent); }
+[data-task-status="Needs attention"] { color: var(--status-warning); }

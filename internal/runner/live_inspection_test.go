@@ -39,6 +39,10 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 				t.Fatal(err)
 			}
 			run("add", ".")
+			if err := os.WriteFile(filepath.Join(source, "go.mod"), []byte("module fixture\n\ngo 1.27.0\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			run("add", "go.mod")
 			run("commit", "-m", "Published result")
 			live := run("rev-parse", "HEAD")
 			if scenario == "current outcome" {
@@ -67,7 +71,7 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 				w.Write([]byte(`{}`))
 			}))
 			defer api.Close()
-			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, &readOnlyAuditAdapter{mutate: scenario == "changed source", inspectionCommit: live, t: t}, api.Client())
+			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, &readOnlyAuditAdapter{mutate: scenario == "changed source", inspectionCommit: live, expectGoEnvironment: true, t: t}, api.Client())
 			now := time.Now()
 			claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: snapshot, AutoDeploy: false, PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyDeploy: true, DenyPush: true}, Task: &task.Task{ID: "live", Title: "Inspect current implementation", Instructions: "Approved result inspection", SourceRoomID: "room", ExecutionCategory: task.ExecutionCategoryCode}, Attempt: &task.TaskAttempt{ID: "live-attempt", TaskID: "live", CreatedAt: now}, LiveInspection: &task.LiveInspectionIntent{SourceCommit: original, TargetCommit: live}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}}
 			if scenario == "current outcome" {

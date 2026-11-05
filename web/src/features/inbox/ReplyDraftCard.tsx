@@ -17,7 +17,7 @@ export function ReplyDraftCard({ draft, internal, onUse }: { draft: string; inte
         <CollapsibleChatText content={draft} hideTaskCard />
       </div>
       <CardActions data-draft-footer className="px-3">
-        <button type="button" onClick={() => onUse(draft)} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
+        <button type="button" data-primary-action onClick={() => onUse(draft)} className="inline-flex min-h-11 items-center gap-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring cursor-pointer">
           <FileText className="h-4 w-4" aria-hidden="true" />
           {t('Review & Use')}
         </button>

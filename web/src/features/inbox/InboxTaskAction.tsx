@@ -8,9 +8,10 @@ import { InboxTaskDraft } from '../../api/chat'
 import { tasksApi } from '../../api/tasks'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, AlertCircle, Circle, X } from 'lucide-react'
+import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, AlertCircle, Circle, X, MessageSquare } from 'lucide-react'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { workStatus, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
+import { taskAttention, taskDiscussionDraft } from '../tasks/task-attention'
 
 
 export function InboxTaskAction({
@@ -20,6 +21,7 @@ export function InboxTaskAction({
   linkedTask,
   onViewTask,
   onOpenTerminal,
+  onContinueChat,
   isCustomerRoom = false,
 }: {
   conversationId: string
@@ -101,6 +103,7 @@ export function InboxTaskAction({
 
   if (!draft && !existing) return null
   if (existing) {
+    const attention = taskAttention(existing)
     const state = existing.review_state === 'running' ? 'Checking result' : existing.review_state === 'queued' ? 'Waiting for review' : workStatus(existing)
     const rawUpdate = existing.review_state ? '' : state === 'Working' ? existing.latest_progress : state === 'Completed' ? existing.summary : existing.latest_attempt?.error_message || existing.summary
     const titlePrefix = existing.title.trim()
@@ -114,10 +117,11 @@ export function InboxTaskAction({
     return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <div className="-mx-4 -mt-3 flex items-center justify-between gap-3 rounded-t-xl bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
-      {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
+      {attention ? <p className="break-words text-sm leading-5 text-muted-foreground"><span className="text-foreground">{t(attention.reason)}</span>{' '}{t(attention.recommendation)}</p> : update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
       <CardActions className="-mx-4 px-4">
         {onViewTask ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
+        {attention && onContinueChat && <button type="button" data-task-next-step data-primary-action className="inline-flex min-h-11 items-center gap-1.5 text-xs font-medium" onClick={() => onContinueChat(taskDiscussionDraft(existing, t))}><MessageSquare aria-hidden className="h-4 w-4" />{t('Discuss next step')}</button>}
         {hasLiveTerminal && (onOpenTerminal ? <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
           : <Link className="inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>)}
       </CardActions>
