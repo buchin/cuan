@@ -97,11 +97,11 @@ func testChangedOutcomeRevalidation(t *testing.T, s *Server, origin db.InboxRequ
 	if err != nil {
 		t.Fatal("create revalidation attempt", err)
 	}
-	old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
+	old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || old.Claimed {
 		t.Fatal("worker without recovery support claimed revalidation", err)
 	}
-	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
+	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.AutoDeploy || claim.Environment != "" {
 		t.Fatal("revalidation lost native scope isolation", err)
 	}

@@ -250,7 +250,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 
 	claimCtx := context.WithValue(ctx, verificationFinalizationClaimKey{}, req.SupportsVerificationFinalization)
-	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection)
+	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection && req.SupportsNativeVisualVerification)
 	claimCtx = context.WithValue(claimCtx, liveInspectionRecoveryClaimKey{}, req.SupportsLiveInspectionRecovery)
 	claimCtx = context.WithValue(claimCtx, currentOutcomeClaimKey{}, req.SupportsCurrentOutcomeInspection)
 	att, t, err := s.store.ClaimNextQueuedAttempt(claimCtx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
@@ -288,7 +288,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	if err != nil {
 		return nil, fmt.Errorf("live result inspection cannot be claimed: %w", err)
 	}
-	if inspection != nil && !req.SupportsLiveInspection {
+	if inspection != nil && (!req.SupportsLiveInspection || !req.SupportsNativeVisualVerification) {
 		return nil, fmt.Errorf("runner does not support live result inspection")
 	}
 	if inspection != nil && inspection.PreviousAttemptID != "" && !req.SupportsLiveInspectionRecovery {
@@ -408,6 +408,29 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, current, att.ID)
 		if err != nil {
 			return nil, err
+		}
+		activities, readErr := s.taskStore.ListActivities(ctx, att.TaskID)
+		if readErr != nil {
+			return nil, readErr
+		}
+		expected, recipeErr := task.BoundVisualRecipe(activities, current.ID, att.ID)
+		if recipeErr != nil {
+			return nil, recipeErr
+		}
+		if expected != nil || req.VisualVerification != nil {
+			if expected == nil || liveInspection == nil || expected.SourceCommit != liveInspection.TargetCommit || !req.VisualVerification.Valid() || req.VisualVerification.Recipe != *expected || !req.RepositoryVerification.Unchanged() || req.VisualVerification.Baseline != req.RepositoryVerification.Baseline {
+				status = task.AttemptStatusFailed
+				att.ErrorMessage = "Registered visual verification lacks its bound recipe, capture manifest or unchanged source"
+			} else {
+				recorded := task.VisualVerificationForAttempt(activities, current.ID, att.ID, req.RunnerID)
+				given, _ := json.Marshal(req.VisualVerification)
+				saved, _ := json.Marshal(recorded)
+				if recorded == nil || string(given) != string(saved) {
+					status = task.AttemptStatusFailed
+					att.ErrorMessage = "Native visual capture was not durably recorded before completion"
+				}
+
+			}
 		}
 		if liveInspection != nil {
 			if _, err := task.ValidateLiveInspection(ctx, s.taskStore, current, att.ID); err != nil {

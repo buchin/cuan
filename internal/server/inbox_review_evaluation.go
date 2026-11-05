@@ -25,6 +25,8 @@ const inboxReviewEvaluationInstruction = cuanPrompt.ConversationStyle + "\n\n" +
 
 When proposing revision, write revision as one concrete next step in the user's language, preserving original scope and limits. This exact text may be shown to the user for approval after automatic corrections are exhausted. Do not ask the user to diagnose the problem or choose the technical procedure; recommend the focused work yourself.
 
+native_visual_verification, when present, identifies the exact pinned repository recipe and component paths used by the native runner before model execution. Only delivered_images with runner_capture_verified=true match those recorded capture hashes and dimensions. This proves capture provenance and limited component coverage, not that every requested outcome is implemented. Inspect the actual images; unrelated components, missing required states, or incomplete criteria still prevent pass. Never credit an unverified supplemental image with native capture provenance.
+
 verification_context, when present, binds previously completed implementation checks to the exact unchanged source commit verified by the current supplemental attempt. Those checks ran in source_attempt_id, not the current verifier. Apply the original acceptance and publication requirements without waiving any; read-only verification does not prove original deployment requirements. Missing current evidence still requires revision.
 
 running_project_release identifies the currently running production process only when its build-time source repository matches the task project. It is not an ancestry check, a task deployment receipt, a feature test or proof that this task's result is present. Do not accept a failed execution or fill missing verification from build identity alone.
@@ -142,6 +144,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"delivered_text":                 deliveredText,
 		"staged_outputs_recovered":       recoveredVerificationOutputs(d),
 		"delivered_images":               s.inboxReviewImages(ctx, d),
+		"native_visual_verification":     nativeVisualReviewData(d),
 		"verification_context":           s.verificationReviewContext(ctx, d),
 		"execution_scope":                scope,
 		"repository_scope_verified":      scope.ReadOnlyRepository && scopeVerified,

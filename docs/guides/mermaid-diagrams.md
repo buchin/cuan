@@ -61,3 +61,31 @@ the page path. Run `mermaid-browser-checks.mjs FIXTURE_URL SCREENSHOT_DIRECTORY`
 there using the same Playwright module setting; it needs no application data,
 provider credentials or live customer conversation. Pull and inspect the actual
 screenshots before considering visual verification complete.
+
+## Runner-owned capture evidence
+
+`scripts/verify-ui.sh PRIVATE_OUTPUT_DIRECTORY` is the registered visual entry
+point. It runs the real React checks above and exports four PNGs plus
+`visual-evidence.json`, naming the covered components. The output directory must
+already exist and contain no files with those names. This recipe covers Mermaid
+in ChatMarkdown and MarkdownViewer; it does not verify the entire Inbox UI.
+It compiles the fixture before launching Chromium, keeping compiler and browser
+memory peaks separate. Compiler parallelism and Node heap are bounded; a failed
+build records its exit status or signal instead of becoming a visual pass.
+
+For vision-required live inspections, a capable runner binds the recipe to the
+exact source commit before issuing the model capability. It runs the recipe
+before the model, with a private home and only the configured browser runtime
+variables, within the existing attempt deadline. Capture hashes, dimensions and
+component coverage are delivered through authenticated runner transport. An
+uncertain upload response is reconciled against the same saved receipt rather
+than replaying the upload. A task instruction prohibiting screenshots prevents
+automatic capture.
+
+The coordinator checks the exact attempt's bound recipe and delivered image
+bytes before allowing acceptance. Agent attachments remain ordinary evidence;
+they do not acquire runner capture provenance. Native provenance establishes
+which registered recipe produced the files, not that every task criterion is
+satisfied: a vision-capable reviewer must still inspect them and identify any
+missing coverage. Capture failure preserves diagnostics and cannot grant a new
+attempt, extend its deadline, or accept the task.

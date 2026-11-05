@@ -137,6 +137,10 @@ func (s *Server) taskArtifactOwner(ctx context.Context, d *task.TaskDetailRespon
 }
 
 func (s *Server) publishTaskArtifacts(ctx context.Context, d *task.TaskDetailResponse, owner string, files []preparedTaskArtifact) error {
+	return s.publishTaskArtifactsWithKey(ctx, d, owner, files, "task-delivery:"+d.LatestAttempt.ID)
+}
+
+func (s *Server) publishTaskArtifactsWithKey(ctx context.Context, d *task.TaskDetailResponse, owner string, files []preparedTaskArtifact, key string) error {
 	if len(files) == 0 {
 		return nil
 	}
@@ -161,7 +165,7 @@ func (s *Server) publishTaskArtifacts(ctx context.Context, d *task.TaskDetailRes
 		}
 		ids = append(ids, a.ID)
 	}
-	id := delegationMessageID("task-delivery:" + d.LatestAttempt.ID)
+	id := delegationMessageID(key)
 	content := encodeAttachmentMessage("Files from this work session", ids)
 	if existing, err := s.projectStudioRepo.GetMessageByID(ctx, id); err == nil && existing != nil {
 		if existing.RoomID == d.SourceRoomID && existing.Content == content {
@@ -170,7 +174,11 @@ func (s *Server) publishTaskArtifacts(ctx context.Context, d *task.TaskDetailRes
 		return errors.New("A different file delivery already exists for this attempt; check it before retrying")
 	}
 	now := time.Now().UTC()
-	m := &db.ProjectMessage{ID: id, RoomID: d.SourceRoomID, AuthorType: "agent", AuthorID: d.AssignedAgent, AuthorName: "Cuan", Content: content, ReplyToID: &d.SourceMessageID, CreatedAt: now, UpdatedAt: now}
+	author := d.AssignedAgent
+	if strings.HasPrefix(key, "task-visual-delivery:") {
+		author = db.AgentIDCuan
+	}
+	m := &db.ProjectMessage{ID: id, RoomID: d.SourceRoomID, AuthorType: "agent", AuthorID: author, AuthorName: "Cuan", Content: content, ReplyToID: &d.SourceMessageID, CreatedAt: now, UpdatedAt: now}
 	if err := s.projectStudioRepo.CreateMessage(ctx, m); err != nil {
 		return err
 	}

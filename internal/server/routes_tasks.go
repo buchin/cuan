@@ -271,12 +271,20 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if s.projectStudioRepo != nil && detail.SourceRoomID != "" && detail.LatestAttempt != nil {
-		if m, err := s.projectStudioRepo.GetMessageByID(r.Context(), delegationMessageID("task-delivery:"+detail.LatestAttempt.ID)); err == nil && m != nil && m.RoomID == detail.SourceRoomID && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == detail.SourceMessageID {
+		seen := map[string]bool{}
+		for _, prefix := range []string{"task-visual-delivery:", "task-delivery:"} {
+			m, err := s.projectStudioRepo.GetMessageByID(r.Context(), delegationMessageID(prefix+detail.LatestAttempt.ID))
+			if err != nil || m == nil || m.RoomID != detail.SourceRoomID || m.AuthorType != "agent" || m.ReplyToID == nil || *m.ReplyToID != detail.SourceMessageID {
+				continue
+			}
 			_, ids := decodeAttachmentMessage(m.Content)
 			if owner, err := s.taskArtifactOwner(r.Context(), detail); err == nil {
 				for _, aid := range ids {
-					if a, _, err := loadAttachment(owner, aid); err == nil {
-						detail.Attachments = append(detail.Attachments, a)
+					if !seen[aid] {
+						if attachment, _, err := loadAttachment(owner, aid); err == nil {
+							detail.Attachments = append(detail.Attachments, attachment)
+							seen[aid] = true
+						}
 					}
 				}
 			}
@@ -559,6 +567,12 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 					respondJSONError(w, http.StatusServiceUnavailable, "Inspection snapshot could not be verified")
 					return
 				}
+				if recipeErr := s.bindRunnerVisualRecipe(r.Context(), resp, path, claimRevision); recipeErr != nil {
+					_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Registered visual recipe could not be bound; no model execution was started"})
+					respondJSONError(w, http.StatusServiceUnavailable, "Visual verification recipe unavailable")
+					return
+				}
+
 				resp.WorkingDir, resp.Environment, resp.AutoDeploy = path, "", false
 				resp.OwnerID = resp.LiveInspection.OwnerID
 			}

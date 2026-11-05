@@ -31,6 +31,9 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	if !ok || saved != assessment || d.CommitSHA == "" {
 		return "", false
 	}
+	if live, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || live != nil {
+		return "", false
+	}
 	previousIntent, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil {
 		return "", false

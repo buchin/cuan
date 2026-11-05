@@ -68,6 +68,7 @@ try {
   } else {
     server = await createServer({
       root,
+      optimizeDeps: { entries: [path.join(fixture, 'index.html')] },
       server: { host: '127.0.0.1', port: 0 },
       logLevel: 'error',
     })
@@ -78,7 +79,24 @@ try {
       output,
     )
   }
+} catch (error) {
+  // Report the actual browser/check failure even if server cleanup also fails.
+  console.error(error)
+  throw error
 } finally {
-  await server?.close()
-  await fs.rm(fixture, { recursive: true, force: true })
+  // A crashed browser can leave keep-alive connections behind. Do not let
+  // cleanup hide the original failure behind an unsettled top-level await.
+  server?.httpServer?.closeAllConnections()
+  let cleanupTimer
+  try {
+    await Promise.race([
+      server?.close(),
+      new Promise((_, reject) => {
+        cleanupTimer = setTimeout(() => reject(new Error('Visual server cleanup timed out')), 5000)
+      }),
+    ])
+  } finally {
+    clearTimeout(cleanupTimer)
+    await fs.rm(fixture, { recursive: true, force: true })
+  }
 }

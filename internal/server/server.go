@@ -774,6 +774,7 @@ func (s *Server) routes() {
 			rr.Use(s.runnerAuthMiddleware)
 			rr.Post("/runner/heartbeat", s.handleRunnerHeartbeat)
 			rr.Post("/runner/claim", s.handleRunnerClaim)
+			rr.Post("/runner/attempts/{id}/visual-verification", s.handleRunnerVisualVerification)
 			rr.Get("/runner/attempts/{id}/logs", s.handleRunnerGetStreamLogs)
 			rr.Get("/runner/attempts/{id}/report", s.handleRunnerReadAttemptReport)
 			rr.Post("/runner/attempts/{id}/logs", s.handleRunnerStreamLogs)

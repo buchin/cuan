@@ -11,6 +11,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/buchin/agentrunner"
 )
 
 const projectVerifierOutputLimit = 12000
@@ -43,10 +45,15 @@ func (b *verifierOutputTail) Write(p []byte) (int, error) {
 func (b *verifierOutputTail) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }
 
 func runProjectVerifierCommand(parent context.Context, root, command string, args ...string) verificationResult {
+	return runProjectVerifierCommandEnvironment(parent, root, nil, command, args...)
+}
+
+func runProjectVerifierCommandEnvironment(parent context.Context, root string, environment []string, command string, args ...string) verificationResult {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = root
+	cmd.Env = environment
 	// A repository script normally spawns test/compiler children. Killing only
 	// the shell leaves those children alive and their inherited pipes open.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -54,11 +61,7 @@ func runProjectVerifierCommand(parent context.Context, root, command string, arg
 		if cmd.Process == nil {
 			return os.ErrProcessDone
 		}
-		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		if errors.Is(err, syscall.ESRCH) {
-			return os.ErrProcessDone
-		}
-		return err
+		return agentrunner.KillProcessTree(cmd.Process.Pid)
 	}
 	cmd.WaitDelay = 500 * time.Millisecond
 	var output verifierOutputTail

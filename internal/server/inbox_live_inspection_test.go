@@ -314,14 +314,29 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal("unsupported worker changed the queued attempt")
 	}
 	if currentOutcome {
-		old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true}, time.Minute)
+		old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true}, time.Minute)
 		if err != nil || old.Claimed {
 			t.Fatal("older inspection worker reserved current outcome", err)
 		}
 	}
-	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
+	unsupported, oldErr := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
+	if oldErr != nil || unsupported.Claimed {
+		t.Fatal("worker without native visual transport reserved inspection", oldErr)
+	}
+	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.Environment != "" || claim.AutoDeploy {
 		t.Fatal("inspection lost native routing/scope/environment restrictions", err)
+	}
+	var nativeReceipt *task.VisualVerification
+	nativeScenario := ""
+	if strings.HasPrefix(scenario, "current outcome unpublished valid native ") {
+		nativeScenario = strings.TrimPrefix(scenario, "current outcome unpublished valid native ")
+		nativeReceipt = nativeVisualLifecycleRecord(t, s, d, claim, nativeScenario)
+		if nativeScenario == "valid" || nativeScenario == "corrupted delivery" {
+			scenario = "current outcome unpublished valid"
+		} else {
+			scenario = "native rejected"
+		}
 	}
 	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) > 10*time.Minute {
 		t.Fatal("stored inspection deadline diverges from native verification budget")
@@ -332,6 +347,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		}
 	}
 	req := runner.CompleteAttemptRequest{RunnerID: "live-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, LiveInspectionCommit: s.cfg.CommitSHA, SourceAncestryVerified: true, AgentReportRequired: true, AgentReportConfirmed: true, TestSummary: "Project verification: test.sh --fast (exit 0)\nFresh checks", RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("c", 64), Final: strings.Repeat("c", 64)}}
+	req.VisualVerification = nativeReceipt
 	if currentOutcome {
 		req.SourceAncestryVerified = false
 		req.CurrentOutcomeVerified = true
@@ -385,6 +401,12 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	}
 	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "current outcome unpublished valid" || scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome revalidation") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
+	}
+	if nativeScenario != "" && nativeScenario != "corrupted delivery" {
+		verdict := s.requireVisualReview(ctx, after, inboxReviewEvaluation{Decision: "pass", VisualInspection: "Protocol fixture inspected"})
+		if (verdict.Decision == "pass") != (nativeScenario == "valid" || nativeScenario == "changed receipt") {
+			t.Fatal("native evidence gate accepted missing/foreign proof", verdict)
+		}
 	}
 	if scenario == "current outcome unpublished valid" {
 		observed := s.liveInspectionReviewContext(ctx, after)
@@ -472,7 +494,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		if err != nil {
 			t.Fatal(err)
 		}
-		old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true}, time.Minute)
+		old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true}, time.Minute)
 		if err != nil || old.Claimed {
 			t.Fatal("old inspection worker consumed recovery", err)
 		}
@@ -480,7 +502,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		if current.Status != task.AttemptStatusQueued {
 			t.Fatal("old worker reserved recovery")
 		}
-		claimed, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true}, time.Minute)
+		claimed, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true}, time.Minute)
 		if err != nil || !claimed.Claimed || claimed.LiveInspection == nil {
 			t.Fatal("recovery was not claimable", err)
 		}

@@ -106,3 +106,44 @@ func TestProjectVerifierExitedShellCannotLeaveChildPipeOpen(t *testing.T) {
 		t.Fatal("orphaned output pipe accepted or not bounded", got)
 	}
 }
+
+func TestProjectVerifierDeadlineStopsDetachedBrowserStyleChild(t *testing.T) {
+	root := t.TempDir()
+	pidFile := filepath.Join(root, "detached.pid")
+	script := filepath.Join(root, "verify.sh")
+	body := fmt.Sprintf("#!/bin/sh\nsetsid sh -c 'echo $$ > \"$1\"; sleep 30' detached %q &\nwait\n", pidFile)
+	if err := os.WriteFile(script, []byte(body), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		raw, _ := os.ReadFile(pidFile)
+		pid, _ := strconv.Atoi(strings.TrimSpace(string(raw)))
+		if pid > 0 {
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+		}
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	result := runProjectVerifierCommand(ctx, root, script)
+	if result.Passed || result.Error != "Project verification stopped at the task deadline" {
+		t.Fatal("detached verifier incorrectly completed", result)
+	}
+	raw, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatal("detached child never started", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || pid <= 0 {
+		t.Fatal("invalid detached pid")
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		state, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+		if os.IsNotExist(err) || strings.Contains(string(state), ") Z") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("detached browser-style child survived verifier deadline")
+}

@@ -193,3 +193,20 @@ func TestExecuteInboxWithFailover_VisionFiltering(t *testing.T) {
 	_ = ctx
 	_ = srv
 }
+
+func TestTaskVisionUsesOriginalScreenshotRequirementWithoutProjectDefaults(t *testing.T) {
+	s := &Server{}
+	for _, tc := range []struct {
+		text string
+		want bool
+	}{
+		{"Capture screenshots of the changed UI at mobile and desktop.", true},
+		{"Periksa tangkapan layar halaman yang berubah.", true},
+		{"Cuan managed delegation v1.\nFix the backend status code.\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\nAlways inspect mobile.png for UI work.\n```", false},
+	} {
+		d := &task.TaskDetailResponse{Task: task.Task{Instructions: tc.text}}
+		if got := s.taskRequiresVision(context.Background(), "owner", d, "", ""); got != tc.want {
+			t.Fatalf("unexpected vision selection=%v for scoped requirement", got)
+		}
+	}
+}

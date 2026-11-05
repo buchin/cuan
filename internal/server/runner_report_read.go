@@ -17,7 +17,7 @@ func (s *Server) handleRunnerReadAttemptReport(w http.ResponseWriter, r *http.Re
 		return
 	}
 	att := detail.LatestAttempt
-	if att.ID != chi.URLParam(r, "id") || att.RunnerID == "" || att.RunnerID != r.URL.Query().Get("runner_id") || att.Status != task.AttemptStatusRunning || att.CancelRequested || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(time.Now())) {
+	if att.ID != chi.URLParam(r, "id") || att.RunnerID == "" || att.RunnerID != r.URL.Query().Get("runner_id") || att.Status != task.AttemptStatusRunning || att.CancelRequested || att.CanceledAt != nil || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(time.Now())) {
 		respondJSONError(w, 409, "Attempt is not active for this runner")
 		return
 	}
@@ -41,5 +41,5 @@ func (s *Server) handleRunnerReadAttemptReport(w http.ResponseWriter, r *http.Re
 			}
 		}
 	}
-	respondJSON(w, 200, map[string]any{"summary": detail.Summary, "complete_note": detail.CompleteNote, "dod_checklist": detail.DoDChecklist, "activities": activities})
+	respondJSON(w, 200, map[string]any{"task_id": detail.ID, "attempt_id": att.ID, "native_visual_verification": task.VisualVerificationForAttempt(detail.Activities, detail.ID, att.ID, att.RunnerID), "summary": detail.Summary, "complete_note": detail.CompleteNote, "dod_checklist": detail.DoDChecklist, "activities": activities})
 }

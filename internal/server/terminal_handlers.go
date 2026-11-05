@@ -1175,6 +1175,9 @@ func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail 
 			return true
 		}
 		lower := strings.ToLower(text)
+		if strings.Contains(lower, "screenshot") || strings.Contains(lower, "tangkapan layar") {
+			return true
+		}
 		for _, ext := range []string{".png", ".jpg", ".jpeg", ".webp", ".gif"} {
 			if strings.Contains(lower, ext) {
 				return true
@@ -1188,7 +1191,7 @@ func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail 
 	}
 
 	if detail != nil {
-		if checkText(detail.Instructions) || checkText(detail.Title) {
+		if checkText(projectpkg.TaskScopeInstructions(detail.Instructions)) || checkText(detail.Title) {
 			return true
 		}
 		for _, att := range detail.Attachments {
