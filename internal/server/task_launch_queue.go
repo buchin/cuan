@@ -97,6 +97,9 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	}
 	return s.executeQueuedTaskLaunch(ctx, *claimed, false)
 }
+
+const staleInspectionLaunchReason = "The saved inspection is no longer current. Existing results and work were preserved."
+
 func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch, background bool) string {
 	link := "\n\n[View work](/tasks/" + job.TaskID + ")"
 	finish := func(state, reason string) string {
@@ -105,6 +108,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		if e := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC().Add(30*time.Second), reason); e != nil {
 			return "The launch status is being reconciled. I have not started a replacement." + link
 		}
+		job.SafeError = reason
 		text := "The work is saved, but could not start. " + reason + link
 		if state == "queued" {
 			text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
@@ -173,7 +177,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 	}
 	if liveInspection != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != liveInspection.PredecessorAttemptID() || !s.liveInspectionMatchesRelease(ctx, detail, liveInspection)) {
-		return finish("stopped", "The saved inspection is no longer current. Existing results and work were preserved.")
+		return finish("stopped", staleInspectionLaunchReason)
 	}
 	response := &delegationResponse{header: make(http.Header)}
 	request, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-queued-launch", nil)
@@ -279,6 +283,23 @@ func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaun
 	// Customer / visitor rooms must NEVER receive internal intermediate status dumps or execution errors.
 	if s.isCustomerRoom(ctx, job.RoomID) {
 		return
+	}
+
+	// A stale parallel inspection is not a blocker for a different, recorded
+	// execution. Keep its diagnostic in launch history without alarming the user
+	// that approved work could not start while that work is actually running.
+	if state == "stopped" && job.SafeError == staleInspectionLaunchReason && s.taskSvc != nil {
+		if d, err := s.taskSvc.GetTaskDetail(ctx, job.TaskID); err == nil && d.LatestAttempt != nil {
+			a := d.LatestAttempt
+			if !a.CancelRequested && a.CanceledAt == nil && (a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued) {
+				if reader, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
+					bound, err := reader.LaunchForAttempt(ctx, a.ID)
+					if err == nil && bound != nil && bound.ID != job.ID && bound.TaskID == job.TaskID && bound.OwnerID == job.OwnerID && bound.ProjectID == job.ProjectID && bound.InstructionsHash == job.InstructionsHash {
+						return
+					}
+				}
+			}
+		}
 	}
 
 	// The foreground reply can itself deliver a stopped launch. Wait until that

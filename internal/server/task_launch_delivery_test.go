@@ -150,3 +150,75 @@ func TestStoppedLaunchDoesNotMisreportRecordedExecution(t *testing.T) {
 		})
 	}
 }
+
+func TestStaleInspectionNoticeRequiresDifferentActiveAuthorizedExecution(t *testing.T) {
+	for _, c := range []struct {
+		name, state               string
+		same, foreign, cancelling bool
+		want                      int
+	}{
+		{name: "running", state: task.AttemptStatusRunning},
+		{name: "queued", state: task.AttemptStatusQueued},
+		{name: "failed", state: task.AttemptStatusFailed, want: 1},
+		{name: "same launch", state: task.AttemptStatusRunning, same: true, want: 1},
+		{name: "different owner", state: task.AttemptStatusRunning, foreign: true, want: 1},
+		{name: "cancelling", state: task.AttemptStatusRunning, cancelling: true, want: 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s, _, _, _ := inboxFixture(t)
+			s.inboxStopping.Store(true)
+			ctx := context.Background()
+			room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+			now := time.Now().UTC()
+			item := &task.Task{ID: "stale-inspection", ProjectID: "default", Title: "Approved work", Instructions: "Original approved scope", Status: task.TaskStatusDoing, CreatedAt: now}
+			if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			bound, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: item.ID, ProjectID: item.ProjectID, RequestID: db.GenerateUUID(), OwnerID: "owner", RoomID: room.RoomID, SourceRequestID: "approved", AgentID: "agent_lifecycle", InstructionsHash: task.LaunchInstructionsHash(item.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			lease, err := s.taskSvc.ClaimLaunch(ctx, now, "fixture", bound.ID)
+			if err != nil || lease == nil {
+				t.Fatal("claim", err)
+			}
+			a, err := s.taskSvc.CreateAttempt(ctx, item.ID, "owner", task.CreateAttemptRequest{RunnerID: "fixture", AgentName: bound.AgentID, RequestID: bound.RequestID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.Status = c.state
+			a.CancelRequested = c.cancelling
+			if err := s.taskSvc.Store().UpdateAttempt(ctx, a); err != nil {
+				t.Fatal(err)
+			}
+			job := *bound
+			job.ID = "obsolete-inspection"
+			job.SourceRequestID = ""
+			job.SafeError = staleInspectionLaunchReason
+			if c.same {
+				job.ID = bound.ID
+			}
+			if c.foreign {
+				job.OwnerID = "other-owner"
+			}
+			s.publishTaskLaunchOutcome(ctx, job, "stopped", staleInspectionLaunchReason)
+			messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room.RoomID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			for _, m := range messages {
+				if m.ID == delegationMessageID("launch-outcome:"+job.ID+":stopped") {
+					count++
+				}
+			}
+			if count != c.want {
+				t.Fatalf("notice count=%d want=%d", count, c.want)
+			}
+			current, _ := s.taskSvc.GetTaskDetail(ctx, item.ID)
+			if len(current.Attempts) != 1 || current.LatestAttempt.ID != a.ID || current.LatestAttempt.Status != c.state {
+				t.Fatal("notification changed execution")
+			}
+		})
+	}
+}

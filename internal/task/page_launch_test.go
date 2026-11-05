@@ -103,3 +103,88 @@ func TestTaskPageLaunchReadIsBounded(t *testing.T) {
 		t.Fatalf("launch read was not bounded: calls=%d ids=%d err=%v", store.calls, store.ids, err)
 	}
 }
+
+func TestActiveExecutionLaunchPresentationMemory(t *testing.T) {
+	activeExecutionLaunchPresentationContract(t, NewMemoryStore(), "active-launch-project")
+}
+
+// Presentation follows the exact active execution, while raw latest-launch
+// diagnostics and failed history remain available to recovery policy.
+func activeExecutionLaunchPresentationContract(t *testing.T, store Store, project string) {
+	t.Helper()
+	ctx := context.Background()
+	svc := NewService(store, nil)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	for _, state := range []string{AttemptStatusQueued, AttemptStatusRunning, AttemptStatusFailed} {
+		id := "active_launch_" + state
+		item := &Task{ID: id, ProjectID: project, Title: id, Instructions: "Original approved scope", Status: TaskStatusQueued, Priority: "normal", CreatedAt: now, UpdatedAt: now}
+		if err := store.CreateTask(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		save := func(request string, at time.Time) *TaskLaunch {
+			t.Helper()
+			j, err := svc.SaveLaunch(ctx, TaskLaunch{TaskID: id, ProjectID: project, RequestID: request, OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", SourceRequestID: "approved", AgentID: "agent", InstructionsHash: LaunchInstructionsHash(item.Instructions), CreatedAt: at, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return j
+		}
+		original := save(id+"_original", now.Add(-2*time.Second))
+		leased, err := svc.ClaimLaunch(ctx, now, "original", original.ID)
+		if err != nil || leased == nil {
+			t.Fatalf("original claim: %v", err)
+		}
+		a := &TaskAttempt{ID: attemptRequestID(id, original.RequestID), TaskID: id, AgentName: "agent", RunnerID: "fixture", Status: state, CreatedAt: now}
+		if err := store.CreateAttempt(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.FinishLaunch(ctx, original.ID, leased.LeaseToken, "started", now, ""); err != nil {
+			t.Fatal(err)
+		}
+		duplicate := save(id+"_duplicate", now.Add(-time.Second))
+		// A competing queued request must not turn a running execution back
+		// into Queued in filters or scope counts.
+		if state == AttemptStatusRunning {
+			activePage, err := svc.ListTaskPage(ctx, PageOptions{ProjectID: project, Search: id, Status: "doing"})
+			if err != nil || activePage.Total != 1 || len(activePage.Tasks) != 1 || activePage.Counts["doing"] < 1 || activePage.Tasks[0].Launch.State != "started" {
+				t.Fatalf("queued duplicate overrode running execution: %+v %v", activePage, err)
+			}
+		}
+		lease, err := svc.ClaimLaunch(ctx, now, "duplicate", duplicate.ID)
+		if err != nil || lease == nil {
+			t.Fatalf("duplicate claim: %v", err)
+		}
+		diagnostic := "The saved inspection is no longer current. Existing results and work were preserved."
+		if err := svc.FinishLaunch(ctx, duplicate.ID, lease.LeaseToken, "stopped", now, diagnostic); err != nil {
+			t.Fatal(err)
+		}
+		want := "started"
+		if state == AttemptStatusFailed {
+			want = "stopped"
+		}
+		detail, err := svc.GetTaskDetail(ctx, id)
+		if err != nil || detail.Launch == nil || detail.Launch.State != want {
+			t.Fatalf("detail %s: %+v %v", state, detail, err)
+		}
+		if detail.LatestAttempt.ID != a.ID || detail.LatestAttempt.Status != state {
+			t.Fatal("presentation changed execution")
+		}
+		page, err := svc.ListTaskPage(ctx, PageOptions{ProjectID: project, Search: id})
+		if err != nil || len(page.Tasks) != 1 || page.Tasks[0].Launch == nil || page.Tasks[0].Launch.State != want {
+			t.Fatalf("page %s disagrees: %+v %v", state, page, err)
+		}
+		raw, err := svc.LatestLaunch(ctx, id)
+		if err != nil || raw.ID != duplicate.ID || raw.State != "stopped" || raw.SafeError != diagnostic {
+			t.Fatal("historical diagnostic was lost")
+		}
+		// Release fixture capacity before the next table row.
+		a.Status = AttemptStatusFailed
+		if err := store.UpdateAttempt(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		item.Status = TaskStatusBlocked
+		if err := store.UpdateTask(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

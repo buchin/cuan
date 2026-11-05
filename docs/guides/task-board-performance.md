@@ -78,3 +78,12 @@ and canceled work remains visible in the corresponding attention/canceled group.
 Latest launch presentation fields are fetched in one bounded page batch. Stored
 status in detail/storage, instructions and historical attempts are preserved;
 preview status is derived for consistency with filtering and counters.
+
+Launch presentation follows the exact launch bound to an active queued/running
+attempt before considering a newer admission request. A stale parallel inspection
+cannot replace that execution's state or turn a working task back into Queued.
+Detail, paged previews, filters and counts use this same selection. Raw latest
+launch records remain unchanged for recovery policy and diagnostics. A stopped
+stale-inspection notice is omitted only when another active execution is recorded
+under the same owner, project and approved instructions; genuine failures and
+cancellation still receive their normal reporting.

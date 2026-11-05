@@ -145,6 +145,13 @@ type LaunchInfo struct {
 }
 
 func (s *Service) launchInfo(ctx context.Context, taskID string) *LaunchInfo {
+	if reader, ok := s.store.(launchInfoReader); ok {
+		infos, err := reader.LatestLaunchInfos(ctx, []string{taskID})
+		if err != nil {
+			return nil
+		}
+		return infos[taskID]
+	}
 	j, e := s.LatestLaunch(ctx, taskID)
 	if e != nil || j == nil {
 		return nil

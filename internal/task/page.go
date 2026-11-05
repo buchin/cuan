@@ -137,7 +137,7 @@ func (s *DBStore) SelectTaskPage(ctx context.Context, o PageOptions) (*taskPageS
  ` + EffectiveStatusSQL + ` status,COALESCE(a.status,'') attempt_status,COALESCE(k.answered,false) answered
  FROM tasks t LEFT JOIN projects p ON p.id=t.project_id
  LEFT JOIN LATERAL (SELECT id,status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
- LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) l ON true
+ LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY COALESCE(attempt_id=a.id AND a.status IN ('queued','running'),false) DESC,created_at DESC,id DESC LIMIT 1) l ON true
  LEFT JOIN LATERAL (
  SELECT kind.new_status='answer' answered FROM
  (SELECT attempt_id,created_at FROM task_activities WHERE task_id=t.id AND activity_type='agent_report' AND new_status IN('review','done','blocked') ORDER BY created_at DESC,id DESC LIMIT 1) report

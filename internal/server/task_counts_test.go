@@ -140,6 +140,8 @@ func TestTaskProgressCountsPostgres(t *testing.T) {
 	if counts.Projects["shared"].Total != 7000 {
 		t.Fatalf("linked project %+v", counts.Projects["shared"])
 	}
+	s.taskSvc = task.NewService(task.NewDBStore(database), nil)
+	activeLaunchCountsContract(t, s, "large")
 }
 
 func TestTaskProgressCanceledReviewIsNotPendingReview(t *testing.T) {
@@ -244,5 +246,59 @@ func TestInboxTaskCounterCanceledReviewSnapshot(t *testing.T) {
 	saved, err := store.GetTask(ctx, "canceled-review-counter")
 	if err != nil || saved.Status != "review" {
 		t.Fatalf("saved review changed: %+v %v", saved, err)
+	}
+}
+
+func TestTaskProgressCountsPreferActiveLaunch(t *testing.T) {
+	s := &Server{taskSvc: task.NewService(task.NewMemoryStore(), nil)}
+	activeLaunchCountsContract(t, s, "active-counts")
+}
+
+func activeLaunchCountsContract(t *testing.T, s *Server, project string) {
+	t.Helper()
+	ctx := context.Background()
+	before, err := s.readTaskCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	item := &task.Task{ID: "active-launch-count", ProjectID: project, Title: "Approved work", Instructions: "Original scope", ExecutionCategory: task.ExecutionCategoryReadOnly, Status: task.TaskStatusQueued, CreatedAt: now}
+	if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	save := func(request string, created time.Time) *task.TaskLaunch {
+		t.Helper()
+		j, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: item.ID, ProjectID: project, RequestID: request, OwnerID: "owner", RoomID: "91000000-0000-4000-8000-000000000001", SourceRequestID: "approved", AgentID: "agent", InstructionsHash: task.LaunchInstructionsHash(item.Instructions), CreatedAt: created, AvailableAt: now, ExpiresAt: now.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return j
+	}
+	original := save(db.GenerateUUID(), now.Add(-2*time.Second))
+	lease, err := s.taskSvc.ClaimLaunch(ctx, now, "original", original.ID)
+	if err != nil || lease == nil {
+		t.Fatal("claim", err)
+	}
+	a, err := s.taskSvc.CreateAttempt(ctx, item.ID, "owner", task.CreateAttemptRequest{RunnerID: "fixture", AgentName: "agent", RequestID: original.RequestID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Status = task.AttemptStatusRunning
+	if err := s.taskSvc.Store().UpdateAttempt(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.FinishLaunch(ctx, original.ID, lease.LeaseToken, "started", now, ""); err != nil {
+		t.Fatal(err)
+	}
+	save(db.GenerateUUID(), now.Add(-time.Second))
+	after, err := s.readTaskCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := before.Projects[project]
+	want.Total++
+	want.Active++
+	if got := after.Projects[project]; got != want {
+		t.Fatalf("duplicate launch changed active counts: got=%+v want=%+v", got, want)
 	}
 }

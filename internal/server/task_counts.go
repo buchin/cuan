@@ -21,8 +21,8 @@ WITH canonical AS (
  SELECT t.id, t.project_id, t.source_room_id::text AS room_id,
  ` + task.EffectiveStatusSQL + ` AS status
  FROM tasks t
- LEFT JOIN LATERAL (SELECT status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
- LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) l ON true
+ LEFT JOIN LATERAL (SELECT id,status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
+ LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY COALESCE(attempt_id=a.id AND a.status IN ('queued','running'),false) DESC,created_at DESC,id DESC LIMIT 1) l ON true
  UNION ALL
  SELECT p.id::text, p.project_id, p.room_id::text, lower(btrim(p.status)) FROM project_tasks p
  WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = p.id::text)
@@ -88,9 +88,28 @@ func (s *Server) readTaskCounts(ctx context.Context) (scopedTaskCounts, error) {
 		if err != nil {
 			return result, err
 		}
+		launches := map[string]*task.LaunchInfo{}
+		reader, batched := s.taskSvc.Store().(interface {
+			LatestLaunchInfos(context.Context, []string) (map[string]*task.LaunchInfo, error)
+		})
+		if batched {
+			ids := make([]string, 0, len(tasks))
+			for _, t := range tasks {
+				ids = append(ids, t.ID)
+			}
+			launches, err = reader.LatestLaunchInfos(ctx, ids)
+			if err != nil {
+				return result, err
+			}
+		}
 		for _, t := range tasks {
 			attempt, _ := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID)
-			launch, _ := s.taskSvc.LatestLaunch(ctx, t.ID)
+			launch := launches[t.ID]
+			if !batched {
+				if raw, _ := s.taskSvc.LatestLaunch(ctx, t.ID); raw != nil {
+					launch = &task.LaunchInfo{State: raw.State}
+				}
+			}
 			attemptStatus, launchState := "", ""
 			if attempt != nil {
 				attemptStatus = attempt.Status
