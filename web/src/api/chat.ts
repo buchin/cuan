@@ -56,6 +56,7 @@ export interface ApprovalPlan {
   description: string
   project_id?: string
   project_name?: string
+  continuation?: { task_id: string; attempt_id: string }
 }
 
 export interface PromptOption {

@@ -1664,7 +1664,7 @@ export function InboxView({
                         </div>
                       )}
 
-                      {isAgentMessage && msg.approval_plan && (
+                      {isAgentMessage && msg.approval_plan && !(msg.approval_plan.continuation && !isSupersededTaskMessage && linkedTasksForMsg.some(task => task.id === msg.approval_plan?.continuation?.task_id && task.latest_attempt?.id === msg.approval_plan?.continuation?.attempt_id)) && (
                         <ApprovalCard
                           plan={msg.approval_plan}
                           accepted={msg.approval_accepted}
@@ -1777,6 +1777,13 @@ export function InboxView({
                         <InboxTaskAction
                           key={linkedTask?.id || msg.uuid}
                           linkedTask={linkedTask}
+                          proposal={linkedTask && msg.approval_plan?.continuation?.task_id === linkedTask.id && msg.approval_plan.continuation.attempt_id === linkedTask.latest_attempt?.id ? {
+                            description: msg.approval_plan.description,
+                            accepted: msg.approval_accepted,
+                            disabled: sending || uploads.busy || retryCount >= 3 || !!pendingRef.current,
+                            onApprove: () => { void handleSendMessage(msg.uuid, msg.approval_request_id) },
+                            onOther: () => handleTaskDiscussion(t('Changes to this plan') + ' — ' + linkedTask.title + ': '),
+                          } : undefined}
                           conversationId={
                             activeContact.conversation_id || activeContact.id
                           }

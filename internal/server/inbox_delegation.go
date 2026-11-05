@@ -237,6 +237,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if decision := decodeInboxPlanDecision(authorization.Content); decision != nil && decision.Action == "defer" {
 		return fail("deferring a plan does not authorize execution")
 	}
+	if plan := decodeApprovedInboxPlan(authorization.Content); plan != nil && plan.Plan.Continuation != nil {
+		c := plan.Plan.Continuation
+		if d.Action == "save" || d.TaskID != c.TaskID || d.ProjectID != plan.Plan.ProjectID || d.Revision != c.Revision {
+			return fail("the continuation differs from the approved recommendation")
+		}
+	}
 	if plan := decodeApprovedInboxPlan(authorization.Content); plan != nil && d.TaskID == "" {
 		expected := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName}
 		if d.Action == "save" || d.Title != expected.Title || d.Description != expected.Description || d.ProjectID != expected.ProjectID || d.ProjectName != expected.ProjectName {

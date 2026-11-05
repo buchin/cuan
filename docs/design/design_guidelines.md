@@ -425,11 +425,15 @@ reply icons. This avoids moving the icon upward as the input grows.
 A task that needs attention states its known obstacle in plain language and
 suggests one next step. Detailed native errors, durations and diagnostics remain
 in task details. Do not infer OOM or another root cause from a timeout/exit code.
-The card's contextual action sits in the existing footer beside Detail. It
-prepares an editable discussion message, preserves unsent text, and never sends,
-restarts work or resets correction budgets by itself. In customer conversations,
-that discussion must use the internal whisper composer. Running/queued reviews
-hide this intervention action and keep their truthful progress state.
+Detail stays at the left of the existing footer. A concrete, saved agent
+recommendation is shown before the right-aligned Others and Approve actions.
+Approve selects that exact persisted proposal for the existing task; it does not
+accept the result or create a replacement task. Bind approval to the current
+attempt and saved independent assessment; reject stale, canceled, changed, or
+already running work. Without a verified proposal, do not fabricate an Approve
+action. Others focuses the internal composer, preserves unsent text, and sends
+nothing. Users can also type normally. Running/queued reviews hide intervention
+actions and keep their truthful progress state.
 
 Use the shared amber warning token for attention, green for completion, and the
 Inbox blue token for primary footer actions. `CardActions` owns the calm primary

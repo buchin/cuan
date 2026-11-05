@@ -58,10 +58,11 @@ func splitInboxApproval(author, content string) (string, string) {
 // The exact structured description is rendered beside the approval action.
 // Client messages can select a persisted proposal, never supply its contents.
 type inboxApprovalPlan struct {
-	Title       string `json:"title"`
-	Description string `json:"description,omitempty"`
-	ProjectID   string `json:"project_id,omitempty"`
-	ProjectName string `json:"project_name,omitempty"`
+	Title        string                 `json:"title"`
+	Description  string                 `json:"description,omitempty"`
+	ProjectID    string                 `json:"project_id,omitempty"`
+	ProjectName  string                 `json:"project_name,omitempty"`
+	Continuation *inboxContinuationPlan `json:"continuation,omitempty"`
 }
 type approvedInboxPlan struct {
 	Action    string            `json:"action,omitempty"`
@@ -119,6 +120,9 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 	for _, m := range messages {
 		if m.ID == id && m.AuthorType == "agent" && m.AuthorID == agent {
 			if p := parseInboxApprovalPlan(m.Content); p != nil {
+				if err := s.validateInboxContinuation(ctx, room, p); err != nil {
+					return nil, err
+				}
 				return &approvedInboxPlan{MessageID: id, Plan: *p}, nil
 			}
 		}
@@ -145,6 +149,9 @@ func decodeApprovedInboxPlan(content string) *approvedInboxPlan {
 
 func approvedPlanDelegation(plan *approvedInboxPlan, authorization string) string {
 	d := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName, AuthorizationID: authorization}
+	if c := plan.Plan.Continuation; c != nil {
+		d = inboxDelegation{TaskID: c.TaskID, ProjectID: plan.Plan.ProjectID, Revision: c.Revision, AuthorizationID: authorization}
+	}
 	raw, _ := json.Marshal(d)
 	return fmt.Sprintf("```cuan-delegate\n%s\n```", raw)
 }
@@ -156,7 +163,13 @@ func (s *Server) inboxApprovedPlan(ctx context.Context, q db.InboxRequest) (*app
 	}
 	for _, m := range messages {
 		if m.ID == q.MessageID && m.AuthorType == "user" {
-			return decodeInboxPlanDecision(m.Content), nil
+			plan := decodeInboxPlanDecision(m.Content)
+			if plan != nil && plan.Action != "defer" {
+				if err := s.validateInboxContinuation(ctx, q.RoomID, &plan.Plan); err != nil {
+					return nil, err
+				}
+			}
+			return plan, nil
 		}
 	}
 	return nil, nil
