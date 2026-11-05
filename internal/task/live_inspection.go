@@ -10,8 +10,10 @@ import (
 
 const LiveInspectionMarker = "Cuan live-result inspection v1: "
 const ActivityLiveInspection = "live_result_verified"
+const CurrentOutcomeInspection = "current_outcome"
 
 type LiveInspectionIntent struct {
+	Purpose           string    `json:"purpose,omitempty"`
 	PreviousAttemptID string    `json:"previous_attempt_id,omitempty"`
 	PreviousCommit    string    `json:"previous_commit,omitempty"`
 	SourceAttemptID   string    `json:"source_attempt_id"`
@@ -26,6 +28,7 @@ type LiveInspectionIntent struct {
 }
 
 type LiveInspectionReceipt struct {
+	Purpose           string `json:"purpose,omitempty"`
 	SourceAttemptID   string `json:"source_attempt_id"`
 	SourceCommit      string `json:"source_commit"`
 	TargetCommit      string `json:"target_commit"`
@@ -38,10 +41,29 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.Purpose == CurrentOutcomeInspection {
+		return verificationRequestID("current-outcome:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
+	}
 	if p.PreviousAttemptID != "" {
 		return verificationRequestID("live-result-inspection-recovery:v1:"+p.InstructionsHash+":", taskID, p.SourceCommit)
 	}
 	return LiveInspectionRequestID(taskID, p.SourceCommit, p.InstructionsHash)
+}
+
+// A current-outcome inspection establishes current behavior, not authorship or
+// ancestry of an implementation that never produced a source commit.
+func (p *LiveInspectionIntent) SnapshotSourceCommit() string {
+	if p.Purpose == CurrentOutcomeInspection {
+		return p.TargetCommit
+	}
+	return p.SourceCommit
+}
+
+func IsExecutionTimeout(a *TaskAttempt) bool {
+	if a == nil || a.Status != AttemptStatusFailed || a.ExitCode == nil {
+		return false
+	}
+	return (*a.ExitCode == 124 && strings.HasPrefix(a.ErrorMessage, "Execution timed out after adaptive timeout (")) || (*a.ExitCode == 1 && strings.HasPrefix(a.ErrorMessage, "Task runner exceeded hard execution timeout ("))
 }
 
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
@@ -66,7 +88,14 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	}
 	var proof LiveInspectionIntent
 	line := strings.SplitN(launch.Revision[at+len(LiveInspectionMarker):], "\n", 2)[0]
-	if t == nil || strings.Count(launch.Revision, LiveInspectionMarker) != 1 || strings.Contains(launch.Revision, VerificationIntentMarker) || json.Unmarshal([]byte(line), &proof) != nil || !fullObjectID(proof.SourceCommit) || !fullObjectID(proof.TargetCommit) || proof.SourceCommit == proof.TargetCommit || !liveRepositoryIdentity.MatchString(proof.Repository) || proof.SourceAttemptID == "" || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.ObservedAt.IsZero() || proof.ObservedAt.After(launch.CreatedAt.Add(5*time.Second)) || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || launch.InstructionsHash != proof.InstructionsHash || launch.TaskID != t.ID || launch.ProjectID != t.ProjectID || launch.OwnerID != proof.OwnerID || launch.RoomID != proof.RoomID || t.SourceRoomID != proof.RoomID || launch.SourceRequestID != proof.SourceRequestID || launch.RequestID != proof.RequestID(t.ID) {
+	if json.Unmarshal([]byte(line), &proof) != nil {
+		return nil, ErrInvalidTaskInput
+	}
+	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
+	if proof.Purpose == CurrentOutcomeInspection {
+		validSource = proof.SourceCommit == "" && proof.PreviousAttemptID == "" && proof.PreviousCommit == ""
+	}
+	if t == nil || strings.Count(launch.Revision, LiveInspectionMarker) != 1 || strings.Contains(launch.Revision, VerificationIntentMarker) || !validSource || !fullObjectID(proof.TargetCommit) || !liveRepositoryIdentity.MatchString(proof.Repository) || proof.SourceAttemptID == "" || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.ObservedAt.IsZero() || proof.ObservedAt.After(launch.CreatedAt.Add(5*time.Second)) || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || launch.InstructionsHash != proof.InstructionsHash || launch.TaskID != t.ID || launch.ProjectID != t.ProjectID || launch.OwnerID != proof.OwnerID || launch.RoomID != proof.RoomID || t.SourceRoomID != proof.RoomID || launch.SourceRequestID != proof.SourceRequestID || launch.RequestID != proof.RequestID(t.ID) {
 		return nil, ErrInvalidTaskInput
 	}
 	if (proof.PreviousAttemptID == "" && proof.PreviousCommit != "") || (proof.PreviousAttemptID != "" && (!fullObjectID(proof.PreviousCommit) || proof.PreviousCommit == proof.TargetCommit)) {
@@ -104,12 +133,22 @@ func ValidateLiveInspection(ctx context.Context, store Store, t *Task, attemptID
 }
 
 func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
-	if t == nil || proof == nil || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
+	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
 	}
 	source, err := store.GetAttempt(ctx, proof.SourceAttemptID)
 	if err != nil {
 		return err
+	}
+	if proof.Purpose == CurrentOutcomeInspection {
+		if proof.SourceCommit != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || t.CommitSHA != "" || !IsExecutionTimeout(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
+			return ErrInvalidTaskInput
+		}
+		prior, err := LiveInspectionForAttempt(ctx, store, t, source.ID)
+		if err != nil || prior != nil {
+			return ErrInvalidTaskInput
+		}
+		return nil
 	}
 	if source == nil || source.TaskID != t.ID || source.Status != AttemptStatusFailed || source.ExitCode == nil || *source.ExitCode != 0 || source.ErrorMessage != "Project verification failed" || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
 		return ErrInvalidTaskInput

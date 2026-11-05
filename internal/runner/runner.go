@@ -449,6 +449,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	claimReq := ClaimTaskRequest{
+		SupportsCurrentOutcomeInspection: true,
 		SupportsLiveInspectionRecovery:   true,
 		SupportsLiveInspection:           true,
 		SupportsVerificationFinalization: true,
@@ -743,7 +744,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		if r.gitClient == nil {
 			err = fmt.Errorf("verification snapshot client is unavailable")
 		} else {
-			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SourceCommit, claim.LiveInspection.TargetCommit)
+			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SnapshotSourceCommit(), claim.LiveInspection.TargetCommit)
 			if err == nil && claim.LiveInspection.PreviousCommit != "" {
 				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit)
 			}
@@ -933,7 +934,8 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	compReq.RunnerID = r.cfg.RunnerID
 	if claim.LiveInspection != nil && err == nil {
 		compReq.LiveInspectionCommit = claim.LiveInspection.TargetCommit
-		compReq.SourceAncestryVerified = true
+		compReq.SourceAncestryVerified = claim.LiveInspection.Purpose == ""
+		compReq.CurrentOutcomeVerified = claim.LiveInspection.Purpose == task.CurrentOutcomeInspection
 	}
 	compReq.VerificationRuntimeFingerprint = verificationRuntimeFingerprint
 	if claim.Verification != nil && readOnlyBaseline != "" {

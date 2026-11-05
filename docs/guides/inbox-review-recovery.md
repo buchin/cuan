@@ -228,3 +228,24 @@ real PostgreSQL receipt persistence alongside phase-handoff regressions. The
 actual frontend was rendered and inspected at390px and1440px using isolated APIs
 with a factual missing-screenshot example; this is UI rendering evidence, not
 proof of the original task's visual acceptance.
+
+## Inspecting the current outcome after a legacy execution timeout
+
+An approved managed code task that timed out without producing a source commit
+may receive one read-only inspection of the exact running release, provided its
+registered repository matches that release. Only native adaptive/hard execution
+timeout evidence qualifies. Cancellation, unrelated failures and inspection
+chains do not qualify. The request identity binds the original failed attempt
+and approved instructions; deploying another release does not reset its budget.
+Older runners cannot reserve this inspection.
+
+This inspection establishes current behavior, never authorship or ancestry of
+unknown historical work. The failed attempt stays failed. The agent must
+reproduce the original issue, verify every original criterion, and supply actual
+required UI screenshots. It uses a private exact-commit snapshot and cannot
+repair code, publish or replay external effects. Locked dependencies and ignored
+verification output may be prepared there without modifying tracked source,
+lockfiles, index or refs. The native runner independently checks unchanged source
+and runs fixed project checks after the final report. Success enters independent
+review; current-release identity and green tests alone do not establish feature
+correctness or waive any original publication requirement.

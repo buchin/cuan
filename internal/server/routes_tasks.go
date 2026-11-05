@@ -537,7 +537,7 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 					respondJSONError(w, http.StatusConflict, "Inspection no longer matches the running release")
 					return
 				}
-				path, snapshotErr := s.projectSvc.VerificationSnapshot(r.Context(), detail.ProjectID, detail.ID, resp.LiveInspection.SourceCommit, resp.LiveInspection.TargetCommit)
+				path, snapshotErr := s.projectSvc.VerificationSnapshot(r.Context(), detail.ProjectID, detail.ID, resp.LiveInspection.SnapshotSourceCommit(), resp.LiveInspection.TargetCommit)
 				if snapshotErr != nil {
 					_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "The prepared inspection snapshot changed or became unavailable; no model execution was started"})
 					respondJSONError(w, http.StatusServiceUnavailable, "Inspection snapshot could not be verified")

@@ -81,6 +81,7 @@ type SteerAttemptResponse struct {
 
 // ClaimTaskRequest is sent by a runner to acquire the next queued task attempt for available lanes.
 type ClaimTaskRequest struct {
+	SupportsCurrentOutcomeInspection bool     `json:"supports_current_outcome_inspection,omitempty"`
 	SupportsLiveInspectionRecovery   bool     `json:"supports_live_inspection_recovery,omitempty"`
 	SupportsLiveInspection           bool     `json:"supports_live_inspection,omitempty"`
 	SupportsVerificationFinalization bool     `json:"supports_verification_finalization,omitempty"`
@@ -134,6 +135,7 @@ type StreamLogsRequest struct {
 type CompleteAttemptRequest struct {
 	LiveInspectionCommit           string                  `json:"live_inspection_commit,omitempty"`
 	SourceAncestryVerified         bool                    `json:"source_ancestry_verified,omitempty"`
+	CurrentOutcomeVerified         bool                    `json:"current_outcome_verified,omitempty"`
 	FinalizationManifestHash       string                  `json:"finalization_manifest_hash,omitempty"`
 	VerificationRuntimeFingerprint string                  `json:"verification_runtime_fingerprint,omitempty"`
 	VerifiedSourceCommit           string                  `json:"verified_source_commit,omitempty"`

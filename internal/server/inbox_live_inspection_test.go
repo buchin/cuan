@@ -14,7 +14,7 @@ import (
 )
 
 func TestLiveResultInspectionLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks"} {
+	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks", "current outcome", "current outcome missing identity", "current outcome forged ancestry", "current outcome release changed"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, scenario, nil)
@@ -23,7 +23,7 @@ func TestLiveResultInspectionLifecycle(t *testing.T) {
 }
 
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -35,6 +35,7 @@ func TestLiveResultInspectionPostgres(t *testing.T) {
 
 func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *task.TaskDetailResponse, scenario string, database *sql.DB) {
 	t.Helper()
+	s.inboxStopping.Store(true)
 	ctx := context.Background()
 	store := s.taskSvc.Store()
 	projects := project.NewMemoryStore()
@@ -50,6 +51,13 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	d.DoDChecklist = []task.DoDItem{{Text: "Feature and checks available", Completed: true, Evidence: "Prior claim for independent rechecking"}}
 	now, exit := time.Now().UTC(), 0
 	source := &task.TaskAttempt{ID: "live-source", TaskID: d.ID, RunnerID: "old-runner", AgentName: d.AssignedAgent, Status: task.AttemptStatusFailed, ExitCode: &exit, ErrorMessage: "Project verification failed", CreatedAt: now, FinishedAt: &now}
+	currentOutcome := strings.HasPrefix(scenario, "current outcome")
+	if currentOutcome {
+		d.CommitSHA, d.ResultKind, d.Summary, d.CompleteNote = "", "", "", ""
+		d.DoDChecklist = []task.DoDItem{{Text: "Original requested behavior works", Completed: false}}
+		exit = 124
+		source.ErrorMessage = "Execution timed out after adaptive timeout (45m0s)"
+	}
 	if scenario == "cancelled" {
 		source.CancelRequested = true
 	}
@@ -68,8 +76,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err := store.CreateAttempt(ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-source-report", TaskID: d.ID, AttemptID: &source.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusDone, Message: "Implementation report", CreatedAt: now}); err != nil {
-		t.Fatal(err)
+	if !currentOutcome {
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-source-report", TaskID: d.ID, AttemptID: &source.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusDone, Message: "Implementation report", CreatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-source-kind", TaskID: d.ID, AttemptID: &source.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", Message: "implementation", CreatedAt: now}); err != nil {
 		t.Fatal(err)
@@ -83,6 +93,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		return
 	}
 	id := task.LiveInspectionRequestID(d.ID, d.CommitSHA, task.LaunchInstructionsHash(d.Instructions))
+	if currentOutcome {
+		id = (&task.LiveInspectionIntent{Purpose: task.CurrentOutcomeInspection, SourceAttemptID: source.ID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions)}).RequestID(d.ID)
+	}
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil || launch.State != "queued" || launch.SourceRequestID != origin.RequestID {
 		t.Fatal("missing scope-bound durable inspection", err)
@@ -112,7 +125,13 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if queued.Status != task.AttemptStatusQueued {
 		t.Fatal("unsupported worker changed the queued attempt")
 	}
-	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true}, time.Minute)
+	if currentOutcome {
+		old, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true}, time.Minute)
+		if err != nil || old.Claimed {
+			t.Fatal("older inspection worker reserved current outcome", err)
+		}
+	}
+	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsLiveInspection: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.Environment != "" || claim.AutoDeploy {
 		t.Fatal("inspection lost native routing/scope/environment restrictions", err)
 	}
@@ -120,7 +139,15 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal(err)
 	}
 	req := runner.CompleteAttemptRequest{RunnerID: "live-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, LiveInspectionCommit: s.cfg.CommitSHA, SourceAncestryVerified: true, AgentReportRequired: true, AgentReportConfirmed: true, TestSummary: "Project verification: test.sh --fast (exit 0)\nFresh checks", RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("c", 64), Final: strings.Repeat("c", 64)}}
+	if currentOutcome {
+		req.SourceAncestryVerified = false
+		req.CurrentOutcomeVerified = true
+	}
 	switch scenario {
+	case "current outcome missing identity":
+		req.CurrentOutcomeVerified = false
+	case "current outcome forged ancestry":
+		req.SourceAncestryVerified = true
 	case "recover checks":
 		req.Status, req.ErrorMessage = task.AttemptStatusFailed, "Live result inspection project checks did not pass"
 		req.TestSummary = "Project verification: test.sh --fast (exit 1)\nCheck timed out"
@@ -136,7 +163,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.AgentReportConfirmed = false
 	}
 	completed, err := service.Complete(ctx, inspectionAttempt.ID, req)
-	valid := scenario == "valid" || scenario == "release changed"
+	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed"
 	if err != nil || (completed.Status == task.AttemptStatusSucceeded) != valid {
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
@@ -145,11 +172,25 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if old.Status != task.AttemptStatusFailed || after.Status == task.TaskStatusDone || after.CommitSHA != d.CommitSHA {
 		t.Fatal("inspection rewrote source history or bypassed independent acceptance")
 	}
-	if scenario == "release changed" {
+	if scenario == "release changed" || scenario == "current outcome release changed" {
 		s.cfg.CommitSHA = strings.Repeat("d", 40)
 	}
-	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid") {
+	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
+	}
+	if scenario == "current outcome" {
+		proof := s.liveInspectionReviewContext(ctx, after)
+		if proof["source_ancestry_verified"] != nil || proof["source_commit"] != nil || proof["current_outcome_inspected"] != true {
+			t.Fatal("current outcome invented historical source ancestry")
+		}
+	}
+	if currentOutcome && !valid {
+		stopped := *after
+		stopped.Status = task.TaskStatusBlocked
+		s.cfg.CommitSHA = strings.Repeat("e", 40)
+		if s.recoverLiveResultInspection(ctx, &stopped, origin) {
+			t.Fatal("failed current outcome inspection gained another attempt after deploy")
+		}
 	}
 	if scenario == "valid" {
 		limited := *after
