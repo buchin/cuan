@@ -46,3 +46,27 @@ are not an orchestration mechanism. External development sessions diagnose and
 repair the product; they must not finish Cuan's backlog on its behalf or create
 success records to make a recovery test pass. Escalate to the user only when a
 real prerequisite cannot be resolved by the agent within the approved scope.
+
+## Legacy provider compiler caches
+
+Compiler state belongs in the runner's per-owner `go-build-runtime` cache, not
+inside each AI sign-in profile. Brain failovers reuse that owner cache without
+sharing credentials or another owner's modules.
+
+Native deployment runs `scripts/prune-provider-go-cache.py` before transferring a
+release. It removes only recognized Linux Go toolchain distributions older than
+24 hours from legacy provider `home/go/pkg/mod/golang.org` directories. The same
+account execution gate used by native sessions is held exclusively during pruning;
+a leased account, a running binary/cwd using the toolchain, a missing gate, an
+unknown module or a symlinked directory is preserved. Credentials, provider
+history, attachments, workspaces and the managed owner cache are outside its scope.
+The Go distribution is redownloadable if a legacy profile needs it again.
+
+For an operational dry run, supply the actual account directory explicitly:
+
+```sh
+python3 scripts/prune-provider-go-cache.py --accounts /path/to/cuan/accounts
+```
+
+Add `--apply` only for authorized maintenance. This operation cannot restart tasks,
+change their status, reset attempt budgets or make a failed attempt successful.
