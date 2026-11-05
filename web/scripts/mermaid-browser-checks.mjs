@@ -11,6 +11,7 @@ export async function runMermaidChecks(base, output) {
   const require = createRequire(import.meta.url)
   const { chromium } = require(
     process.env.CUAN_PLAYWRIGHT_MODULE ||
+      process.env.CUAN_BROWSER_MODULE ||
       path.join(os.homedir(), '.local/lib/node_modules/playwright'),
   )
   const browser = await chromium.launch({

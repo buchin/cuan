@@ -50,8 +50,9 @@ It verifies lazy loading, SVG labels, source/copy, denied clipboard recovery,
 zoom and mouse pan, Escape/focus restoration, sequence diagrams in the Markdown
 preview, invalid/oversized source, and untrusted HTML/image/style input without
 external resource requests. It captures 390px and 1440px screenshots in both
-themes. `CUAN_PLAYWRIGHT_MODULE` and `CUAN_CHROMIUM_EXECUTABLE` can select an
-installed browser runtime.
+themes. The native runner supplies `CUAN_BROWSER_MODULE` for its installed
+Playwright runtime. `CUAN_PLAYWRIGHT_MODULE` can override that module, and
+`CUAN_CHROMIUM_EXECUTABLE` can select a browser executable.
 
 When browser libraries are unavailable in the build environment, set
 `CUAN_DIAGRAM_BUILD_ONLY=1` to generate the static fixture. Serve that generated

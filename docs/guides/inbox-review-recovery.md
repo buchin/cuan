@@ -244,8 +244,13 @@ Older runners cannot reserve this inspection.
 A legacy `local_terminal` attempt with retained failed status, exit124, an empty
 reason and a valid started/finished interval can also receive its first bounded
 current-outcome inspection. Its cause stays unknown: exit124 alone is never
-relabelled a native timeout or success. Missing terminal timestamps, different
-runners, cancellation and known unrelated errors remain excluded. This uses the
+relabelled a native timeout or success. A second narrow legacy shape qualifies:
+recorded Failed on `local_terminal`, no exit code, finish receipt or error reason,
+and valid creation/start timestamps preceding the new observation. Its cause and
+stop time remain unknown and are explicitly included in independent review. This
+does not repair historical metadata or resume the old process. Other missing
+terminal timestamps, different runners, cancellation and known unrelated errors
+remain excluded. This uses the
 same source-attempt/scope identity and does not reset a previously used inspection
 or correction budget. Original authorization and all independent verification
 requirements still apply; no historical implementation effects are replayed.

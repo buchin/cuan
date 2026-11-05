@@ -84,10 +84,21 @@ func IsOpaqueLocalFailure(a *TaskAttempt) bool {
 		!a.CancelRequested && a.CanceledAt == nil
 }
 
+// Some historical local attempts have a terminal Failed state but no exit or
+// finish receipt. Their cause and stop time remain unknown. This shape can only
+// authorize the existing bounded, read-only current-outcome inspection, never a
+// replay of the old process or a repair of its missing termination metadata.
+func IsUnrecordedLocalFailure(a *TaskAttempt) bool {
+	return a != nil && a.RunnerID == "local_terminal" && a.Status == AttemptStatusFailed &&
+		a.ExitCode == nil && a.FinishedAt == nil && a.ErrorMessage == "" &&
+		!a.CreatedAt.IsZero() && a.StartedAt != nil && !a.StartedAt.IsZero() &&
+		!a.CancelRequested && a.CanceledAt == nil
+}
+
 // A project-check failure additionally requires the exact attempt's final
 // implementation report. Opaque local failures preserve their unknown cause.
 func IsCurrentOutcomeFailure(a *TaskAttempt) bool {
-	return IsExecutionTimeout(a) || IsOpaqueLocalFailure(a) || (a != nil && a.Status == AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == "Project verification failed")
+	return IsExecutionTimeout(a) || IsOpaqueLocalFailure(a) || IsUnrecordedLocalFailure(a) || (a != nil && a.Status == AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == "Project verification failed")
 }
 
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
@@ -168,14 +179,21 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		return err
 	}
 	if proof.Purpose == CurrentOutcomeInspection {
-		if proof.SourceCommit != "" || t.CommitSHA != "" || !IsCurrentOutcomeFailure(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
+		if proof.SourceCommit != "" || t.CommitSHA != "" || !IsCurrentOutcomeFailure(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil {
+			return ErrInvalidTaskInput
+		}
+		if source.FinishedAt == nil {
+			if !IsUnrecordedLocalFailure(source) || proof.ObservedAt.Before(source.CreatedAt) || proof.ObservedAt.Before(*source.StartedAt) {
+				return ErrInvalidTaskInput
+			}
+		} else if proof.ObservedAt.Before(*source.FinishedAt) {
 			return ErrInvalidTaskInput
 		}
 		prior, err := LiveInspectionForAttempt(ctx, store, t, source.ID)
 		if err != nil || prior != nil {
 			return ErrInvalidTaskInput
 		}
-		if !IsExecutionTimeout(source) && !IsOpaqueLocalFailure(source) {
+		if !IsExecutionTimeout(source) && !IsOpaqueLocalFailure(source) && !IsUnrecordedLocalFailure(source) {
 			activities, err := store.ListActivities(ctx, t.ID)
 			if err != nil {
 				return err

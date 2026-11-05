@@ -24,7 +24,7 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	}
 	a := d.LatestAttempt
 	currentOutcome := d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode)
-	if a.Status != task.AttemptStatusFailed || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil {
+	if a.Status != task.AttemptStatusFailed || a.CancelRequested || a.CanceledAt != nil || (a.FinishedAt == nil && !task.IsUnrecordedLocalFailure(a)) {
 		return false
 	}
 	if !currentOutcome && (!releaseObjectID.MatchString(d.CommitSHA) || len(task.AcceptanceGaps(&d.Task)) > 0 || a.ExitCode == nil || *a.ExitCode != 0 || inboxReportEvidence(d).Provenance != "current_attempt_report") {
@@ -115,6 +115,9 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 	if proof.ReviewRequestID != "" {
 		revision += "\nThis is the single permitted read-only revalidation after source paths named in the rejected inspection changed. Recheck every original criterion on this exact revision; the earlier assessment and changed files do not prove completion. Do not resume implementation, waive requirements or claim the old failed attempt succeeded. A signal exit alone is not successful execution: preserve explicit confirmed-report completion receipts and failure/cancellation guards."
 	}
+	if task.IsUnrecordedLocalFailure(d.LatestAttempt) {
+		revision += "\nThe historical local attempt is recorded as Failed, but its exit code and finish receipt were not saved. Its cause and stop time are unknown. Never infer timeout, successful execution or implementation authorship, fill in missing termination fields, or resume that process. Only inspect this new exact-revision snapshot against the original requirements."
+	}
 	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil || launch == nil || (launch.State != "queued" && launch.State != "claimed" && launch.State != "started") {
@@ -148,6 +151,13 @@ func (s *Server) liveInspectionReviewContext(ctx context.Context, d *task.TaskDe
 			result := map[string]any{"source_attempt_id": proof.SourceAttemptID, "verified_result_commit": proof.TargetCommit, "repository": proof.Repository, "repository_unchanged": true, "current_project_checks": checks.Current, "observed_running_at": proof.ObservedAt}
 			if proof.Purpose == task.CurrentOutcomeInspection {
 				result["current_outcome_inspected"] = true
+				source, readErr := s.taskSvc.Store().GetAttempt(ctx, proof.SourceAttemptID)
+				if readErr != nil {
+					return nil
+				}
+				if task.IsUnrecordedLocalFailure(source) {
+					result["source_termination_metadata_missing"] = true
+				}
 			} else {
 				result["source_commit"] = proof.SourceCommit
 				result["source_ancestry_verified"] = true

@@ -26,6 +26,15 @@ func TestLiveResultInspectionLifecycle(t *testing.T) {
 	}
 }
 
+func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
+	for _, scenario := range []string{"local", "local missing report", "local failed checks", "local missing identity", "local changed repository", "local release changed", "foreign runner", "missing start", "zero start", "future start", "future creation", "cancelled", "cancelled at", "running", "foreign owner", "different repository", "checks forbidden"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, origin, d := phaseLineageSetup(t)
+			liveInspectionContract(t, s, origin, d, "current outcome unrecorded "+scenario, nil)
+		})
+	}
+}
+
 func TestLiveResultInspectionPostgres(t *testing.T) {
 	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -117,6 +126,38 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			source.CancelRequested = true
 		}
 	}
+	if strings.HasPrefix(scenario, "current outcome unrecorded ") {
+		source.RunnerID, source.ErrorMessage = "local_terminal", ""
+		source.ExitCode, source.FinishedAt = nil, nil
+		started := now.Add(-20 * time.Minute)
+		source.StartedAt, source.CreatedAt = &started, now
+		switch strings.TrimPrefix(scenario, "current outcome unrecorded ") {
+		case "foreign runner":
+			source.RunnerID = "other-runner"
+		case "missing start":
+			source.StartedAt = nil
+		case "zero start":
+			zeroTime := time.Time{}
+			source.StartedAt = &zeroTime
+		case "future start":
+			future := now.Add(time.Hour)
+			source.StartedAt = &future
+		case "future creation":
+			source.CreatedAt = now.Add(time.Hour)
+		case "cancelled":
+			source.CancelRequested = true
+		case "cancelled at":
+			source.CanceledAt = &now
+		case "running":
+			source.Status = task.AttemptStatusRunning
+		case "foreign owner":
+			origin.OwnerID = "other"
+		case "different repository":
+			s.cfg.SourceRepository = "other/repo"
+		case "checks forbidden":
+			d.Instructions += "\nDo not run tests."
+		}
+	}
 	if scenario == "current outcome reported checks" || scenario == "current outcome checks missing report" {
 		exit = 0
 		source.ErrorMessage = "Project verification failed"
@@ -150,6 +191,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
 	eligible := scenario != "current outcome opaque foreign" && scenario != "current outcome opaque unfinished" && scenario != "current outcome opaque cancelled" && scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
+	if strings.HasPrefix(scenario, "current outcome unrecorded ") && !strings.HasPrefix(scenario, "current outcome unrecorded local") {
+		eligible = false
+	}
 	if got := s.recoverLiveResultInspection(ctx, d, origin); got != eligible {
 		t.Fatal("incorrect live inspection eligibility", got, scenario)
 	}
@@ -217,7 +261,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.Status, req.ExitCode, req.ErrorMessage = task.AttemptStatusFailed, 124, "Execution timed out after adaptive timeout (10m0s)"
 		req.AgentReportConfirmed, req.CurrentOutcomeVerified = false, false
 		req.LiveInspectionCommit, req.TestSummary, req.RepositoryVerification = "", "", nil
-	case "current outcome missing identity":
+	case "current outcome missing identity", "current outcome unrecorded local missing identity":
 		req.CurrentOutcomeVerified = false
 	case "current outcome forged ancestry":
 		req.SourceAncestryVerified = true
@@ -228,15 +272,15 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.LiveInspectionCommit = strings.Repeat("d", 40)
 	case "missing ancestry":
 		req.SourceAncestryVerified = false
-	case "failed checks":
+	case "failed checks", "current outcome unrecorded local failed checks":
 		req.TestSummary = "Project verification: test.sh --fast (exit 1)\nFailed"
-	case "changed repository":
+	case "changed repository", "current outcome unrecorded local changed repository":
 		req.RepositoryVerification.Final = strings.Repeat("d", 64)
-	case "missing report":
+	case "missing report", "current outcome unrecorded local missing report":
 		req.AgentReportConfirmed = false
 	}
 	completed, err := service.Complete(ctx, inspectionAttempt.ID, req)
-	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome revalidation"
+	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome unrecorded local release changed" || scenario == "current outcome revalidation"
 	if err != nil || (completed.Status == task.AttemptStatusSucceeded) != valid {
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
@@ -245,10 +289,21 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if old.Status != task.AttemptStatusFailed || after.Status == task.TaskStatusDone || after.CommitSHA != d.CommitSHA {
 		t.Fatal("inspection rewrote source history or bypassed independent acceptance")
 	}
-	if scenario == "release changed" || scenario == "current outcome release changed" {
+	if strings.HasPrefix(scenario, "current outcome unrecorded ") {
+		if old.ExitCode != nil || old.FinishedAt != nil || old.ErrorMessage != "" {
+			t.Fatal("inspection invented historical termination metadata")
+		}
+	}
+	if scenario == "current outcome unrecorded local" {
+		observed := s.liveInspectionReviewContext(ctx, after)
+		if observed == nil || observed["source_termination_metadata_missing"] != true || observed["source_ancestry_verified"] != nil {
+			t.Fatal("legacy termination uncertainty was lost", observed)
+		}
+	}
+	if scenario == "release changed" || scenario == "current outcome release changed" || scenario == "current outcome unrecorded local release changed" {
 		s.cfg.CommitSHA = strings.Repeat("d", 40)
 	}
-	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome revalidation") {
+	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome revalidation") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
 	}
 	if scenario == "current outcome revalidation" {

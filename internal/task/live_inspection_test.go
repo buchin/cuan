@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+func TestUnrecordedLocalFailureNeverInventsTermination(t *testing.T) {
+	start := time.Now().Add(-time.Hour)
+	base := TaskAttempt{RunnerID: "local_terminal", Status: AttemptStatusFailed, CreatedAt: start.Add(-time.Minute), StartedAt: &start}
+	for _, scenario := range []string{"valid", "foreign", "no start", "zero start", "no creation", "has exit", "has finish", "known error", "running", "queued", "cancel requested", "cancelled"} {
+		t.Run(scenario, func(t *testing.T) {
+			a := base
+			switch scenario {
+			case "foreign":
+				a.RunnerID = "other"
+			case "no start":
+				a.StartedAt = nil
+			case "zero start":
+				zero := time.Time{}
+				a.StartedAt = &zero
+			case "no creation":
+				a.CreatedAt = time.Time{}
+			case "has exit":
+				exit := 124
+				a.ExitCode = &exit
+			case "has finish":
+				a.FinishedAt = &start
+			case "known error":
+				a.ErrorMessage = "Known failure"
+			case "running":
+				a.Status = AttemptStatusRunning
+			case "queued":
+				a.Status = AttemptStatusQueued
+			case "cancel requested":
+				a.CancelRequested = true
+			case "cancelled":
+				a.CanceledAt = &start
+			}
+			if IsUnrecordedLocalFailure(&a) != (scenario == "valid") {
+				t.Fatal("invalid legacy terminal failure eligibility")
+			}
+			if IsExecutionTimeout(&a) || IsOpaqueLocalFailure(&a) {
+				t.Fatal("missing metadata became a termination diagnosis")
+			}
+			if a.Status != base.Status && scenario != "running" && scenario != "queued" {
+				t.Fatal("classification rewrote execution state")
+			}
+		})
+	}
+}
+
 func TestOpaqueLocalFailurePreservesUnknownCause(t *testing.T) {
 	start, end := time.Now().Add(-20*time.Minute), time.Now()
 	exit := 124
