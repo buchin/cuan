@@ -23,6 +23,8 @@ if [ ! -e "$HOME/first-response" ]; then
 else
  case "$2" in *"TRANSPORT FORMAT REPAIR ONLY"*"Verified source finding."*) ;; *) exit 23;; esac
  case "$*" in *"--print-timeout 40s"*) ;; *) exit 26;; esac
+ case "$2" in *"PRIVATE_CONVERSATION_CONTEXT"*|*"AGENTIC SCRUM RULES"*) exit 27;; esac
+ [ "$PWD" = "$HOME" ] || exit 28
  for arg in "$@"; do [ "$arg" != "--add-dir" ] || exit 24; done
  printf x >> "$HOME/format-count"
 `
@@ -41,7 +43,7 @@ fi
 			t.Setenv("PATH", bin+":/usr/bin:/bin")
 			s := &Server{cfg: &config.Config{Environment: "staging"}}
 			var trace []string
-			out, failure := s.executeInboxCLI(context.Background(), "Coordinator", "agy", "Compare the already inspected options", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) })
+			out, failure := s.executeInboxCLI(context.Background(), "Coordinator", "agy", "PRIVATE_CONVERSATION_CONTEXT: Compare the already inspected options", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) })
 			count, _ := os.ReadFile(filepath.Join(home, "format-count"))
 			if string(count) != "x" {
 				t.Fatal("did not use one bounded repair", string(count), failure)
@@ -103,7 +105,7 @@ sleep 10
 	started := time.Now()
 	out, failure := s.executeInboxCLI(ctx, "Coordinator", "agy", "Use saved findings only", home, "", nil)
 	calls, _ := os.ReadFile(filepath.Join(home, "silent-format-calls"))
-	if !strings.Contains(failure,"formatted in time") || out != "" || string(calls) != "x" || time.Since(started) > 2*time.Second {
+	if !strings.Contains(failure, "formatted in time") || out != "" || string(calls) != "x" || time.Since(started) > 2*time.Second {
 		t.Fatal("silent format stage did not stop without replay", failure, string(calls), time.Since(started))
 	}
 }

@@ -38,6 +38,17 @@ multi-minute investigation budget or renew the original request. This is a limit
 on response formatting, not a promise that every investigation finishes in 45
 seconds. The existing single-repair, no-tools and no-action-replay gates remain.
 
+The formatter receives only its schema, fixed repair rules and the rejected
+candidate as untrusted data. It does not reread project guidance, reattach the
+full conversation or brand context, or inherit project/attachment mounts and
+working directory. Analysis-only repair retains its action-null schema. The
+normal response/action validators and original authorization checks still apply.
+
+Execution also honors the earliest of the durable claimed-request deadline and
+the configured local lifetime. Storage currently claims a six-minute request;
+the former ten-minute local default must not let it keep running past that saved
+deadline. Expired requests are not renewed and no recovery budget is reset.
+
 A provider `agent_response DONE` event marks one model stage, not a valid final
 runtime result or process exit. If the formatter becomes silent after that
 event, its process group is stopped at the formatting deadline. The request
