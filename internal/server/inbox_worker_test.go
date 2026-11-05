@@ -136,3 +136,30 @@ func TestChatWorkerDrainDoesNotCancelActiveConversation(t *testing.T) {
 		t.Fatal("draining worker admitted more work")
 	}
 }
+
+func TestChatWorkerFinishesClaimOwnedBeforeDrain(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	s.cfg.InboxExecutionRole = "api"
+	w := call("POST", "/api/v1/chat/conversations/agent_lifecycle/messages", `{"request_id":"`+db.GenerateUUID()+`","message":"Hello; do not create tasks"}`)
+	if w.Code != 202 {
+		t.Fatal(w.Code)
+	}
+	var accepted struct{ Request db.InboxRequest }
+	if err := json.Unmarshal(w.Body.Bytes(), &accepted); err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.InboxExecutionRole = "worker"
+	store := s.projectStudioRepo.(db.InboxLifecycleRepository)
+	q, claimed, err := s.claimInboxForDispatch(context.Background(), store, accepted.Request.RoomID, accepted.Request.RequestID)
+	if err != nil || !claimed {
+		t.Fatal("claim failed", err)
+	}
+	// The drain flag can become visible after a successful DB claim and
+	// before provider preparation. This work already belongs to this worker.
+	s.inboxStopping.Store(true)
+	s.runInboxRequest(store, q)
+	waitInboxState(t, s, q.RoomID, q.RequestID, "completed")
+	if _, claimed, err := s.claimInboxForDispatch(context.Background(), store, q.RoomID, db.GenerateUUID()); err != nil || claimed {
+		t.Fatal("draining worker admitted more work", err)
+	}
+}

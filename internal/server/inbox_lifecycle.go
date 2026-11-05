@@ -204,7 +204,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	if db.InboxRetryNeedsReconciliation(q) {
 		ctx = context.WithValue(ctx, inboxRetryReconcileKey{}, true)
 	}
-	if s.inboxStopping.Load() {
+	if s.inboxStopping.Load() && (s.cfg == nil || s.cfg.InboxExecutionRole != "worker") {
 		cancel()
 	}
 	key := q.RoomID + ":" + q.RequestID

@@ -16,7 +16,9 @@ func (s *Server) executesInbox() bool {
 // Stop admission locally, then let owned work finish within its original durable
 // deadlines. API restarts never call this on the separately supervised worker.
 func (s *Server) DrainInboxWorker(ctx context.Context) error {
+	s.inboxAdmission.Lock()
 	s.inboxStopping.Store(true)
+	s.inboxAdmission.Unlock()
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	for {

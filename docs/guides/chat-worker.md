@@ -69,3 +69,9 @@ The production check must additionally submit a harmless, task-free diagnostic
 through the official Cuan CLI, confirm its request is running in the chat worker,
 restart only the API, then verify the same worker PID and request produce one
 saved reply. Do not replay a customer's operational task for this test.
+
+Production verification on 2026-11-05 at release `3f2fa09`: a task-free native
+chat started at 17:09:40 +08; the API restarted at 17:10:11; the same chat worker
+PID delivered the original request at 17:10:22. The request retained one saved
+reply and created zero tasks. This verifies API restart survival, not a latency
+guarantee or recovery from an arbitrary worker crash.

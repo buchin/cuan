@@ -84,6 +84,7 @@ type Server struct {
 	campaignAggregator     *campaign.RollupAggregator
 	inboxSlots             chan struct{}
 	inboxStopping          atomic.Bool
+	inboxAdmission         sync.RWMutex
 	inboxWorkers           sync.Map
 	taskLaunches           sync.Map
 	taskAgentGrants        sync.Map

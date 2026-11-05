@@ -13,6 +13,11 @@ import (
 // requests and restarting. Keep the shared side only for the durable claim;
 // active conversations may finish while new requests remain safely queued.
 func (s *Server) claimInboxForDispatch(ctx context.Context, store db.InboxLifecycleRepository, room, request string) (db.InboxRequest, bool, error) {
+	s.inboxAdmission.RLock()
+	defer s.inboxAdmission.RUnlock()
+	if !s.executesInbox() || s.inboxStopping.Load() {
+		return db.InboxRequest{}, false, nil
+	}
 	if s.cfg == nil || s.cfg.WorkspacesDir == "" {
 		return store.ClaimInboxRequest(ctx, room, request)
 	}
