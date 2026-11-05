@@ -343,6 +343,16 @@ func TestInboxFailoverSingleDurableReply(t *testing.T) {
 
 func TestTaskProviderPreflightChoosesBackupWithoutChangingAgent(t *testing.T) {
 	s, token, call, _ := inboxFixture(t)
+	// This scenario exercises explicit model fallback. Auto intentionally omits
+	// --model and must not be asserted to choose a catalog entry.
+	registered, err := s.agentRepo.GetAgentByID(context.Background(), "agent_lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	registered.ModelID = "claude-unavailable-fixture"
+	if err := s.agentRepo.UpdateAgent(context.Background(), registered); err != nil {
+		t.Fatal(err)
+	}
 	owner, _ := s.authSvc.ValidateToken(context.Background(), token)
 	account, _ := agent.CreateProviderAccount(owner.ID, "task backup")
 	home, _ := agent.ProviderAccountHome(owner.ID, account.ID)

@@ -1527,6 +1527,12 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			s.kickInboxRoom(q.RoomID)
 		}
 	}
+	// Durable acceptance is the acknowledgement. History and receipt hydration
+	// must not turn an already accepted message into a slow/failed POST.
+	if !legacy {
+		respondJSON(w, http.StatusAccepted, map[string]any{"request": q, "user_message_saved": true})
+		return
+	}
 	requests, err := store.ListInboxRequests(r.Context(), q.RoomID)
 	if err != nil {
 		respondJSONError(w, 503, "Message accepted. Refresh history to check the result. Do not create a new ID.")

@@ -420,6 +420,7 @@ export function InboxView({
   const pendingRef = useRef<{
     convId: string
     text: string
+    draftText?: string
     id: string
     attachmentIds?: string[]
     approveMessageId?: string
@@ -643,7 +644,7 @@ export function InboxView({
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
         setSendError(
-          t('Could not load history. Refresh to check your message status.'),
+          t('Reconnecting…'),
         )
       } finally {
         if (showSpinner) setLoading(false)
@@ -732,7 +733,7 @@ export function InboxView({
           pendingRef.current = JSON.parse(saved)
           setSendError(
             t(
-              'Your previous message is not confirmed. Refresh or check again using the same ID.',
+              'Reconnecting… Your message is saved.',
             ),
           )
         }
@@ -989,11 +990,11 @@ export function InboxView({
   }, [])
 
   const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string) => {
-    if (!activeContact || sending || uploads.busy || retryCount >= 3) return
+    if (!activeContact || sending || uploads.busy) return
     const convId = activeContact.conversation_id || activeContact.id
-    const pending = pendingRef.current
+    const pending = pendingRef.current?.convId === convId ? pendingRef.current : null
     let text = pending?.convId === convId ? pending.text : overrideText ? overrideText : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
-    if (!approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
+    if (!pending && !approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
       text = `${whisperHandle} ${text}`
     }
     if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
@@ -1004,6 +1005,7 @@ export function InboxView({
         : {
             convId,
             text,
+            draftText: inputMessage.trim(),
             id: approvalRequestId || crypto.randomUUID(),
             attachmentIds:
               approveMessageId || overrideText !== undefined
@@ -1033,19 +1035,27 @@ export function InboxView({
     try {
       await chatApi.sendMessage(
         convId,
-        text,
+        request.text,
         'You',
         request.id,
         request.attachmentIds,
         request.approveMessageId,
         request.planAction,
       )
+      // Acceptance is authoritative even if the subsequent history read fails.
+      // A lost response still retries this exact frozen payload and identifier.
+      try {
+        const key = 'cuan_inbox_pending:' + convId
+        const saved = JSON.parse(localStorage.getItem(key) || 'null')
+        if (saved?.id === request.id) localStorage.removeItem(key)
+      } catch { /* The saved ID remains safe to reconcile on reload. */ }
+      if (pendingRef.current === request) pendingRef.current = null
       if (request.attachmentIds?.length) uploads.acknowledge(request.attachmentIds, 'cuan-inbox-attachments:' + convId)
       if (unsentDrafts.current[convId]?.trim() === request.text)
         delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
         setInputMessage((current) => {
-          if (current.trim() === request.text) {
+          if (current.trim() === request.text || current.trim() === request.draftText) {
             setIsMultiline(false)
             if (textareaRef.current) {
               const minH = window.innerWidth < 640 ? 36 : 38
@@ -1065,13 +1075,31 @@ export function InboxView({
       if (activeConvRef.current === convId)
         setSendError(
           t(
-            'Delivery is not confirmed. Your message may have been received. Refresh or check again using the same ID to avoid a duplicate run.',
+            'Reconnecting… Your message is saved.',
           ),
         )
     } finally {
       setSending(false)
     }
   }
+
+  // Recover uncertain delivery automatically without creating another message.
+  useEffect(() => {
+    if (!sendError || sending || !pendingRef.current || retryCount >= 3) return
+    const timer = setTimeout(() => { void handleSendMessage() }, Math.min(1000 * 2 ** retryCount, 8000))
+    return () => clearTimeout(timer)
+  }, [sendError, sending, retryCount, activeContact?.id])
+
+  useEffect(() => {
+    const reconnect = () => {
+      if (!sending && pendingRef.current?.convId === activeConvRef.current) {
+        setRetryCount(0)
+        void handleSendMessage()
+      }
+    }
+    window.addEventListener('online', reconnect)
+    return () => window.removeEventListener('online', reconnect)
+  }, [sending, activeContact?.id])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -1914,29 +1942,18 @@ export function InboxView({
               {sendError && (
                 <div
                   role="alert"
-                  className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-3 text-xs"
+                  className="mx-auto max-w-2xl px-3 py-2 text-xs text-muted-foreground"
                 >
                   <p>{sendError}</p>
-                  {pendingRef.current && (
+                  {pendingRef.current && retryCount >= 3 && (
                     <button
                       className="mt-2 underline"
-                      disabled={sending || retryCount >= 3}
+                      disabled={sending}
                       onClick={() => handleSendMessage()}
                     >
-                      Check the same message ({Math.max(0, 3 - retryCount)}{' '}
-                      remaining)
+                      {t('Try again')}
                     </button>
                   )}
-                  <button
-                    className="ml-3 underline"
-                    onClick={() =>
-                      loadConversation(
-                        activeContact.conversation_id || activeContact.id,
-                      )
-                    }
-                  >
-                    Refresh history
-                  </button>
                 </div>
               )}
 

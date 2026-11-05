@@ -73,6 +73,20 @@ func providerTaskSessionLimit() int {
 }
 
 func tryLeaseProviderAccount(owner, id string, task bool) (func(), error) {
+	limit := ProviderAccountSessionLimit()
+	if task {
+		limit = providerTaskSessionLimit()
+	}
+	return tryLeaseProviderAccountSlots(owner, id, limit, !task)
+}
+
+// Background reviews share one slot per account. They must not fill all slots
+// while new user work waits; the account's total concurrency is unchanged.
+func TryLeaseProviderAccountForReview(owner, id string) (func(), error) {
+	return tryLeaseProviderAccountSlots(owner, id, 1, false)
+}
+
+func tryLeaseProviderAccountSlots(owner, id string, limit int, reverse bool) (func(), error) {
 	if id == "" {
 		return func() {}, nil
 	}
@@ -91,13 +105,9 @@ func tryLeaseProviderAccount(owner, id string, task bool) (func(), error) {
 		}
 		return nil, ErrAccountBusy
 	}
-	limit := ProviderAccountSessionLimit()
-	if task {
-		limit = providerTaskSessionLimit()
-	}
 	for offset := 0; offset < limit; offset++ {
 		i := offset
-		if !task {
+		if reverse {
 			i = limit - 1 - offset
 		}
 		slot, err := accountLeaseFile(filepath.Join(dir, ".session-"+strconv.Itoa(i)+".lock"))

@@ -186,3 +186,42 @@ func TestAccountSessionSlotReleasedAfterProcessDeath(t *testing.T) {
 	}
 	r()
 }
+
+func TestBackgroundReviewsLeaveCapacityForTasksAndChat(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "4")
+	t.Setenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS", "1")
+	a, err := CreateProviderAccount("owner", "review-capacity-fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := TryLeaseProviderAccountForReview("owner", a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer review()
+	if release, err := TryLeaseProviderAccountForReview("owner", a.ID); !errors.Is(err, ErrAccountBusy) {
+		if release != nil {
+			release()
+		}
+		t.Fatal("reviews filled another slot", err)
+	}
+	for i := 0; i < 2; i++ {
+		release, err := TryLeaseProviderAccountForTask("owner", a.ID)
+		if err != nil {
+			t.Fatal("background review starved tasks", err)
+		}
+		defer release()
+	}
+	chat, err := TryLeaseProviderAccount("owner", a.ID)
+	if err != nil {
+		t.Fatal("review/tasks starved interactive chat", err)
+	}
+	defer chat()
+	if release, err := TryLeaseProviderAccount("owner", a.ID); !errors.Is(err, ErrAccountBusy) {
+		if release != nil {
+			release()
+		}
+		t.Fatal("total account limit changed", err)
+	}
+}

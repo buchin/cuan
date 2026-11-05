@@ -465,7 +465,11 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 }
 
 func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registered *db.Agent, route inboxAccountRoute) (func(), error) {
-	release, err := agent.TryLeaseProviderAccount(owner, route.accountID)
+	lease := agent.TryLeaseProviderAccount
+	if review, _ := ctx.Value(inboxTaskReviewKey{}).(bool); review {
+		lease = agent.TryLeaseProviderAccountForReview
+	}
+	release, err := lease(owner, route.accountID)
 	if err != nil {
 		return nil, err
 	}

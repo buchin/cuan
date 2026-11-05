@@ -963,7 +963,7 @@
   "Terminal disconnected. The task is still running in the background.": "Koneksi terminal terputus. Task tetap berjalan di latar belakang.",
   "Reconnect": "Sambungkan Ulang",
   "Sambungkan Ulang": "Sambungkan Ulang",
-  "Reconnecting…": "Menghubungkan ulang…",
+  "Reconnecting…": "Menyambungkan kembali…",
   "Connecting…": "Menghubungkan…",
   "Auto-retry when tab becomes active": "Mencoba ulang otomatis saat tab kembali aktif",
   "Reconnecting to terminal…": "Menghubungkan kembali ke terminal…",
@@ -1718,5 +1718,6 @@
   "The work is saved, but could not start.": "Pekerjaan tersimpan, tetapi belum bisa dimulai.",
   "Your message is saved.": "Pesan Anda tersimpan.",
   "Checking result": "Memeriksa hasil",
-  "Waiting for review": "Menunggu pemeriksaan"
+  "Waiting for review": "Menunggu pemeriksaan",
+  "Reconnecting… Your message is saved.": "Menyambungkan kembali… Pesan Anda tersimpan."
 }

@@ -88,3 +88,15 @@ under that attempt's runner identity. It is diagnostic evidence only: a matching
 hash never changes the failed attempt, confirms a final agent report, establishes
 project checks or grants task acceptance. Changed/unavailable scope and historical
 timeouts remain visible; cancellation does not start a recovery execution.
+
+Inbox message submission acknowledges durable acceptance before hydrating history.
+With an explicit request ID, HTTP 202 returns the saved `request` and
+`user_message_saved: true`; formatted messages and replies arrive through the
+conversation snapshot/stream. Legacy calls without a request ID retain their
+existing response. A history outage never converts accepted delivery into failure.
+The browser clears confirmed pending delivery immediately. Uncertain transport
+responses retry a bounded number of times with the frozen text, attachments,
+action and ID; changing composer mode cannot change the pending payload. An
+online event resumes the same saved request. New unsent edits remain intact.
+Background result reviews use at most one concurrent slot per AI account, leaving
+the existing shared account capacity available to task execution and live chat.

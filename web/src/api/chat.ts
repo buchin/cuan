@@ -276,12 +276,14 @@ export const chatApi = {
     attachmentIds?: string[],
     approveMessageId?: string,
     planAction?: 'approve' | 'defer',
-  ): Promise<{ message: ChatMessage; agent_reply?: ChatMessage }> => {
+  ): Promise<{ request?: InboxRequest; user_message_saved?: boolean; message?: ChatMessage; agent_reply?: ChatMessage }> => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15000)
     try {
       return await apiFetch<{
-        message: ChatMessage
+        request?: InboxRequest
+        user_message_saved?: boolean
+        message?: ChatMessage
         agent_reply?: ChatMessage
       }>(`/api/v1/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
