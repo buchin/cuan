@@ -68,9 +68,10 @@ controlled provider fixtures, not evidence of native provider recovery.
 ### Operational completion
 
 A safe stop or a completed investigation does not complete an authorized payment,
-access or record change. Operational reconciliation reviews explicitly classify
+access or record change. All operational task reviews explicitly classify
 `requested_outcome` as `completed`, `needs_input` or `unfinished`. Missing outcome
-proof cannot pass. An unmatched identity/payment requires the exact missing owner
+proof cannot pass. Agent-fixable unfinished work retains an in-scope revision
+rather than being mislabeled as an external user prerequisite. An unmatched identity/payment requires the exact missing owner
 information and an attention state, with no repeated operation or new approval.
 
 A bounded policy audit re-evaluates previously accepted reconciliation operations

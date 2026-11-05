@@ -18,6 +18,14 @@ func TestOperationalOutcomeDoesNotAcceptSafeStopAsCompletion(t *testing.T) {
 			t.Fatal(outcome, decision)
 		}
 	}
+	d.Instructions = "An ordinary approved operational task, not a retry."
+	if requireOperationalOutcome(d, inboxReviewEvaluation{Decision: "pass", RequestedOutcome: "needs_input", Explanation: "Exact account is unknown."}).Decision != "blocked" {
+		t.Fatal("ordinary operation accepted an unresolved identity")
+	}
+	pending := requireOperationalOutcome(d, inboxReviewEvaluation{Decision: "pass", RequestedOutcome: "unfinished", Explanation: "The approved operation still needs work."})
+	if pending.Decision != "revise" || pending.RemainingWork != "implementation" || pending.Revision == "" {
+		t.Fatal("agent-fixable work was incorrectly sent to the owner")
+	}
 	d.ExecutionCategory = task.ExecutionCategoryReadOnly
 	if requireOperationalOutcome(d, inboxReviewEvaluation{Decision: "pass"}).Decision != "pass" {
 		t.Fatal("ordinary audit changed")
@@ -78,5 +86,22 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"dec
 	output, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Review the original operation", home, "", nil)
 	if output == "" || failure != "" {
 		t.Fatal("tool-free review was not isolated and bounded", failure)
+	}
+}
+
+func TestOrdinaryOperationalReviewRejectsContradictoryPass(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "queued")
+	d.ExecutionCategory = task.ExecutionCategoryOps
+	if err := s.taskSvc.Store().UpdateTask(context.Background(), &d.Task); err != nil {
+		t.Fatal(err)
+	}
+	output := s.applyInboxReviewEvaluation(context.Background(), q, `{"decision":"pass","requested_outcome":"needs_input","finding":"No matching record.","remaining_work":"none","explanation":"Please confirm the exact account and product before any operation.","revision":""}`)
+	after, err := s.taskSvc.GetTaskDetail(context.Background(), d.ID)
+	if err != nil || after.Status != task.TaskStatusBlocked || len(after.Attempts) != 1 || !strings.Contains(output, "exact account") {
+		t.Fatal("unmatched operation was accepted or relaunched", err)
+	}
+	assessment, ok := reviewAssessment(after, q.RequestID)
+	if !ok || assessment.Decision != "blocked" || assessment.RemainingWork != "external" {
+		t.Fatal("contradictory pass survived durable review")
 	}
 }

@@ -12,7 +12,14 @@ func isReconciliationOperation(d *task.TaskDetailResponse) bool {
 	return d != nil && d.ExecutionCategory == task.ExecutionCategoryOps && strings.Contains(d.Instructions, task.ReconciliationExecutionMarker)
 }
 func requireOperationalOutcome(d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
-	if !isReconciliationOperation(d) {
+	if d == nil || d.ExecutionCategory != task.ExecutionCategoryOps {
+		return decision
+	}
+	if decision.RequestedOutcome == "unfinished" && decision.Decision == "pass" {
+		decision.Decision = "revise"
+		decision.RemainingWork = "implementation"
+		decision.Revision = "Complete only the remaining originally authorized operation. First inspect current state, preserve successful effects and verify the original acceptance criteria. Do not repeat an uncertain effect or expand scope."
+		decision.Explanation = "Operasi yang diminta belum selesai. Cuan melanjutkan sisa pekerjaan dalam izin awal setelah memeriksa keadaan terkini."
 		return decision
 	}
 	if decision.RequestedOutcome == "needs_input" || (decision.Decision == "pass" && decision.RequestedOutcome != "completed") {
