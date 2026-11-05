@@ -434,3 +434,19 @@ expired approval, cancellation, changed scope, unknown failure or earlier
 revalidation prevents this path. Normal execution and review gates still apply,
 including current-release matching, fixed project checks, original acceptance
 criteria and the ten-minute execution deadline.
+
+## Non-publication work reopened by the old publication audit
+
+The corrected legacy audit leaves clone/setup and other non-publication scope
+alone. Work already reopened by the earlier overbroad audit may still have a later
+exit-zero attempt rejected exclusively for missing deployment evidence. One saved
+outcome inspection can recover that evidence only when the exact generated
+non-publication scope is recognized, the original successful attempt and trusted
+audit are present, and the later final report covers every original criterion.
+The unavailable fixed-verifier summary is an unbound diagnostic hint, never a pass.
+
+This uses the existing bounded read-only saved-evidence path and original owner
+approval. It does not rerun implementation, recreate the project, deploy, overwrite
+configuration, reset correction budgets, or change either historical attempt.
+The new inspection must read real deliverables and report actual observations;
+normal independent review still decides whether the original setup is complete.

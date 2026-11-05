@@ -659,7 +659,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return
 	}
-	if s.recoverDocumentationEvidence(ctx, detail, *origin) {
+	if s.recoverSavedEvidence(ctx, detail, *origin) {
 		return
 	}
 	if s.recoverInterruptedInboxTask(ctx, detail, *origin) {

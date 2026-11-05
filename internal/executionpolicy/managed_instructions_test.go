@@ -55,3 +55,26 @@ func TestLegacyManagedFooterIsNotOwnerProhibition(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyNonPublicationScopeIgnoresGuidanceAndRequiresEnvelope(t *testing.T) {
+	envelope := func(scope string) string {
+		return "Cuan managed delegation v1.\n" + scope + "\nApproval message: original\nUser authorization: " + scope + "\nConversation: 91000000-0000-4000-8000-000000000001\n" + legacyManagedFooter
+	}
+	for _, c := range []struct {
+		name, text string
+		want       bool
+	}{
+		{"clone", envelope("Clone and inspect the connected repository."), true},
+		{"publication", envelope("Implement and deploy the feature."), false},
+		{"incomplete envelope", "Cuan managed delegation v1.\nClone the repo.\n" + legacyManagedFooter, false},
+		{"project default is context", envelope("Clone and inspect the connected repository.") + "\n\nProject guidance snapshot:\n```cuan-project-context\nDeploy production by default.\n```", true},
+		{"quoted command", envelope("Inspect this example: `deploy production`"), true},
+		{"extra owner text", envelope("Clone the repo.") + "\nThen deploy production.", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := LegacyScopeDoesNotRequestPublication(c.text); got != c.want {
+				t.Fatalf("scope recognition=%v", got)
+			}
+		})
+	}
+}

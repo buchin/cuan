@@ -15,23 +15,34 @@ var managedFooterEnvelope = regexp.MustCompile(`\nConversation: [0-9a-f]{8}-[0-9
 // It never grants execution permission, removes
 // an owner's restriction, changes stored instructions or rewrites their hash.
 func NormalizeManagedInstructions(instructions string) string {
-	if !strings.HasPrefix(instructions, "Cuan managed delegation v1.\n") {
+	body, tail, span := legacyManagedParts(instructions)
+	if span == nil || !managedPublicationRequested(body[:span[0]]) {
 		return instructions
 	}
-	body, tail := instructions, ""
+	return body[:span[0]] + strings.Replace(body[span[0]:span[1]], legacyManagedFooter, managedFooter, 1) + tail
+}
+
+// LegacyScopeDoesNotRequestPublication recognizes the generated envelope only.
+// Guidance snapshots and quoted commands cannot expand the owner's task scope.
+func LegacyScopeDoesNotRequestPublication(instructions string) bool {
+	body, _, span := legacyManagedParts(instructions)
+	return span != nil && !managedPublicationRequested(body[:span[0]])
+}
+
+func legacyManagedParts(instructions string) (body, tail string, span []int) {
+	if !strings.HasPrefix(instructions, "Cuan managed delegation v1.\n") {
+		return instructions, "", nil
+	}
+	body = instructions
 	for _, marker := range []string{"\n\nProject guidance snapshot:\n```cuan-project-context\n", "\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\n"} {
 		if i := strings.LastIndex(body, marker); i >= 0 {
 			body, tail = body[:i], body[i:]+tail
 		}
 	}
 	if !strings.Contains(body, "\nApproval message: ") || !strings.Contains(body, "\nUser authorization: ") {
-		return instructions
+		return body, tail, nil
 	}
-	span := managedFooterEnvelope.FindStringIndex(body)
-	if span == nil || !managedPublicationRequested(body[:span[0]]) {
-		return instructions
-	}
-	return body[:span[0]] + strings.Replace(body[span[0]:span[1]], legacyManagedFooter, managedFooter, 1) + tail
+	return body, tail, managedFooterEnvelope.FindStringIndex(body)
 }
 
 var managedInlineCode = regexp.MustCompile("`+[^`\\n]*`+")

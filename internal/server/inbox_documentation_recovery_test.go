@@ -73,6 +73,43 @@ func documentationEvidenceRecoveryContract(t *testing.T, s *Server, d *task.Task
 	}
 	report := &task.TaskActivity{ID: "docs-final", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusDone, Message: "Previous investigation report", CreatedAt: finished}
 	d.Activities = append(d.Activities, report)
+	if strings.HasPrefix(scenario, "scope ") {
+		d.TestSummary = "No supported project verifier was available; agent report evidence retained."
+		d.Instructions = "Cuan managed delegation v1.\nClone the connected repository, verify its structure and prepare initial configuration.\nApproval message: owner-message\nUser authorization: Prepare the project.\nConversation: 00000000-0000-4000-8000-000000000001\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+		d.LatestAttempt.ErrorMessage = "Kepatuhan auto_deploy: verified production deployment receipt is missing for this exact task, attempt and repository commit; report text is not deployment evidence"
+		oldFinish := d.LatestAttempt.CreatedAt.Add(-10 * time.Minute)
+		source := &task.TaskAttempt{ID: "scope-original", TaskID: d.ID, Status: task.AttemptStatusSucceeded, ExitCode: &exit, CreatedAt: oldFinish.Add(-time.Minute), FinishedAt: &oldFinish}
+		if err := s.taskSvc.Store().CreateAttempt(ctx, source); err != nil {
+			t.Fatal(err)
+		}
+		d.Attempts = append(d.Attempts, source)
+		audit := &task.TaskActivity{ID: "scope-audit", TaskID: d.ID, AttemptID: &source.ID, ActivityType: task.ActivityPublicationAcceptanceAudit, Author: "coordinator", NewStatus: "review_required", CreatedAt: d.LatestAttempt.CreatedAt.Add(-time.Minute)}
+		d.Activities = append(d.Activities, audit)
+		switch strings.TrimPrefix(scenario, "scope ") {
+		case "missing audit":
+			audit.Author = "other"
+		case "missing original source":
+			d.Attempts = nil
+		case "source failed":
+			source.Status = task.AttemptStatusFailed
+		case "source cancelled":
+			source.CancelRequested = true
+		case "late audit":
+			audit.CreatedAt = time.Now().Add(time.Hour)
+		case "publication requested":
+			d.Instructions = strings.Replace(d.Instructions, "Clone the connected repository, verify its structure and prepare initial configuration.", "Implement and deploy the new feature.", 1)
+		case "different verifier":
+			d.TestSummary = "Tests unavailable"
+		case "different failure":
+			d.LatestAttempt.ErrorMessage = "Project verification failed"
+		case "cancelled":
+			d.LatestAttempt.CancelRequested = true
+		case "missing report":
+			d.Activities = d.Activities[:len(d.Activities)-2]
+		case "missing acceptance":
+			d.DoDChecklist[0].Completed = false
+		}
+	}
 	switch scenario {
 	case "cancelled":
 		d.LatestAttempt.CancelRequested = true
@@ -107,21 +144,21 @@ func documentationEvidenceRecoveryContract(t *testing.T, s *Server, d *task.Task
 		t.Fatal(err)
 	}
 	count := taskRevisionAttemptCount(before)
-	if scheduled := s.recoverDocumentationEvidence(ctx, d, origin); scheduled != (scenario == "valid") {
+	if scheduled := s.recoverSavedEvidence(ctx, d, origin); scheduled != (scenario == "valid" || scenario == "scope valid") {
 		t.Fatal("incorrect evidence recovery eligibility", scheduled, scenario)
 	}
-	if scenario != "valid" {
-		if _, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, documentationRecoveryRequestID(d))); err == nil {
+	if scenario != "valid" && scenario != "scope valid" {
+		if _, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, savedEvidenceRecoveryRequestID(d))); err == nil {
 			t.Fatal("ineligible recovery persisted a launch")
 		}
 		return
 	}
 	for i := 0; i < 3; i++ {
-		if !s.recoverDocumentationEvidence(ctx, d, origin) {
+		if !s.recoverSavedEvidence(ctx, d, origin) {
 			t.Fatal("queued recovery lost its identity")
 		}
 	}
-	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, documentationRecoveryRequestID(d)))
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, savedEvidenceRecoveryRequestID(d)))
 	if err != nil || launch.State != "queued" || launch.OwnerID != origin.OwnerID || launch.SourceRequestID != origin.RequestID {
 		t.Fatal("missing durable original-owner launch", err)
 	}
@@ -144,7 +181,23 @@ func documentationEvidenceRecoveryContract(t *testing.T, s *Server, d *task.Task
 	if err := s.taskSvc.FinishLaunch(ctx, claimed.ID, claimed.LeaseToken, "stopped", time.Now(), "verification unavailable"); err != nil {
 		t.Fatal(err)
 	}
-	if s.recoverDocumentationEvidence(ctx, d, origin) {
+	if s.recoverSavedEvidence(ctx, d, origin) {
 		t.Fatal("stopped recovery chained a new execution")
 	}
+}
+
+func TestNonPublicationScopeEvidenceRecovery(t *testing.T) {
+	for _, scenario := range []string{"valid", "missing audit", "missing original source", "source failed", "source cancelled", "late audit", "publication requested", "different verifier", "different failure", "cancelled", "missing report", "missing acceptance"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, d, _ := stalledReviewFixture(t, "completed", task.AttemptStatusFailed)
+			documentationEvidenceRecoveryContract(t, s, d, "scope "+scenario)
+		})
+	}
+}
+
+func TestNonPublicationScopeEvidenceRecoveryPostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) {
+		s, _, d := phaseLineageSetup(t, database)
+		documentationEvidenceRecoveryContract(t, s, d, "scope valid")
+	})
 }
