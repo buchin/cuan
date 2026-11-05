@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/buchin/dodeval v0.0.0-20261102053115-bfc22ab48d52
-	github.com/buchin/taskfsm v0.0.0-20261102053049-02cd119fa5d7
+	github.com/buchin/taskfsm v0.1.0
 	github.com/creack/pty v1.1.24
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-sql-driver/mysql v1.10.1

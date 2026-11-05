@@ -5,14 +5,13 @@ package published as part of the Settings release.
 
 | Existing package | Cuan usage | Release state observed |
 | --- | --- | --- |
-| [taskfsm](https://github.com/buchin/taskfsm) | Imported in runner/service.go; pinned Go pseudo-version | Public, MIT; tests in repository; no tags or Actions workflows returned |
+| [taskfsm](https://github.com/buchin/taskfsm) | Imported in runner/service.go; pinned v0.1.0 | Public, MIT; executable consumer example, test/race/vet workflow, v0.1.0 release |
 | [dodeval](https://github.com/buchin/dodeval) | Imported in runner/dod_evaluator.go; pinned Go pseudo-version | Public, MIT; tests in repository; no tags or Actions workflows returned |
 | [agentrunner](https://github.com/buchin/agentrunner) | v0.2.0; process cleanup adapters in internal/agent/process_tree.go | Public, MIT; hardening merged and v0.2.0 released; Go checks workflow added |
 
 Prioritize these packages before extracting more. Add CI and tested consumer
 examples, publish intentional version tags, and update Cuan through explicit
-version bumps. `taskfsm`'s README still shows the old Cuan-internal import path;
-its example needs correction before presenting it as ready for outside users.
+version bumps. `taskfsm`'s public import and executable example were corrected for v0.1.0.
 Keyword matching in `dodeval` must remain a gap-analysis aid, not proof that work
 actually passed independent checks.
 
@@ -47,3 +46,13 @@ package test suite was executed during this read-only review.
 ## Implemented after approval
 
 AgentRunner hardening is merged at 294b661 and released as v0.2.0. The CLI adapter now uses an explicit environment allowlist, bounded streams with truncation signals, request/version timeouts, opt-in permission bypass, and provider argument overrides. Truncated output is excluded from structured evidence. Local package tests and vet pass. GitHub-hosted jobs could not start because of an account billing lock; no hosted success is claimed. Cuan imports v0.2.0 through three stable process helper wrappers. Its descendant-process and lifecycle/account regression checks pass. Runner task orchestration and private account routing remain Cuan-owned.
+
+## taskfsm v0.1.0 (2026-11-05)
+
+The public release is available at https://github.com/buchin/taskfsm/releases/tag/v0.1.0.
+The package API and lifecycle behavior are unchanged. Its README now documents
+installation, executable examples, guard locking and listener semantics. Package
+tests, race tests and vet passed locally. GitHub-hosted checks did not start due
+to an account billing lock; no hosted pass is claimed. Cuan resolves v0.1.0 through
+the public Go module transport and its runner state-machine integration test
+passes against that version. No additional framework or duplicate FSM was added.
