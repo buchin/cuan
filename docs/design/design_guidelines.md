@@ -365,5 +365,7 @@ keyboard focus on desktop. It is a separate target from opening task details.
 This exception supersedes the earlier blanket prohibition of terminal actions
 on list rows. Do not infer a live terminal from task status alone.
 
-Task previews and reply drafts share CardActions: a subtle surface change and
-hairline separate content from actions, without extra vertical button padding.
+Task previews use a softly tinted identity header. Content and footer share the
+same surface; CardActions separates the footer with a hairline and gives its
+buttons a distinct muted background, without extra vertical button padding.
+Reply drafts use the same action treatment.
