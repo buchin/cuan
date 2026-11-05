@@ -219,3 +219,10 @@ func reconciliationDelegationContract(t *testing.T, database *sql.DB) {
 		}
 	}
 }
+
+func TestInboxReconciliationRejectsTopicMutation(t *testing.T) {
+	raw := `{"reply":"Saved state checked.","topic_title":"Changed topic","action":null}`
+	if output, err := decodeInboxCoordinatorResponseForMode(raw, true, true); err == nil || output != "" {
+		t.Fatal("retry changed the conversation topic")
+	}
+}
