@@ -16,6 +16,7 @@ import (
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/dodeval"
 )
 
 const inboxDelegationInstruction = `Execution is available through application-managed delegation, not native shell tools in chat.
@@ -781,13 +782,7 @@ func delegationScopeDigest(d inboxDelegation) string {
 	return fmt.Sprintf("Approved scope digest: %x", sha256.Sum256(raw))
 }
 
-var (
-	dodCheckboxRegex      = regexp.MustCompile(`(?i)^[\*\-\+]\s*\[([ xX])\]\s*(.+)`)
-	dodNumberedRegex      = regexp.MustCompile(`^\d+[\.\)]\s*(.+)`)
-	dodBulletRegex        = regexp.MustCompile(`^[\*\-\+]\s*(.+)`)
-	dodHeaderRegex        = regexp.MustCompile(`(?i)^(?:dod|acceptance criteria|kriteria penerimaan|kriteria|definition of done)\s*[:—\-]?\s*$`)
-	dodSectionHeaderRegex = regexp.MustCompile(`(?i)^(?:target area|pemeriksaan & eksekusi|pemeriksaan|eksekusi|kriteria selesai|kriteria|catatan|langkah|tahapan|scope|lingkup|catatan penting)\s*[:—\-]?$`)
-)
+var dodSectionHeaderRegex = regexp.MustCompile(`(?i)^(?:target area|pemeriksaan & eksekusi|pemeriksaan|eksekusi|kriteria selesai|kriteria|catatan|langkah|tahapan|scope|lingkup|catatan penting)\s*[:—\-]?$`)
 
 func isDoDSectionHeader(text string) bool {
 	t := strings.TrimSpace(text)
@@ -799,77 +794,14 @@ func isDoDSectionHeader(text string) bool {
 
 func extractDoDFromDescription(description string) []task.DoDItem {
 	var items []task.DoDItem
-	seen := make(map[string]bool)
-	lines := strings.Split(description, "\n")
-	inDoDBlock := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+	for _, criterion := range dodeval.ParseRequirements(description) {
+		if isDoDSectionHeader(criterion.Text) {
 			continue
 		}
-		if dodHeaderRegex.MatchString(trimmed) {
-			inDoDBlock = true
-			continue
+		items = append(items, task.DoDItem{Text: criterion.Text, Completed: false})
+		if len(items) == 25 {
+			break
 		}
-		// 1. Markdown checkboxes (- [ ], * [x])
-		if m := dodCheckboxRegex.FindStringSubmatch(trimmed); len(m) > 2 {
-			text := strings.TrimSpace(m[2])
-			if isDoDSectionHeader(text) {
-				continue
-			}
-			// A checked box in the requested plan is not execution evidence.
-			if text != "" && !seen[strings.ToLower(text)] {
-				items = append(items, task.DoDItem{Text: text, Completed: false})
-				seen[strings.ToLower(text)] = true
-			}
-			continue
-		}
-		// 2. Numbered list items (1. Foo, 2) Bar)
-		if m := dodNumberedRegex.FindStringSubmatch(trimmed); len(m) > 1 {
-			text := strings.TrimSpace(m[1])
-			if isDoDSectionHeader(text) {
-				continue
-			}
-			if text != "" && !seen[strings.ToLower(text)] {
-				items = append(items, task.DoDItem{Text: text, Completed: false})
-				seen[strings.ToLower(text)] = true
-			}
-			continue
-		}
-		// 3. Bullet points if in explicit DoD block
-		if inDoDBlock {
-			if m := dodBulletRegex.FindStringSubmatch(trimmed); len(m) > 1 {
-				text := strings.TrimSpace(m[1])
-				if isDoDSectionHeader(text) {
-					continue
-				}
-				if text != "" && !seen[strings.ToLower(text)] {
-					items = append(items, task.DoDItem{Text: text, Completed: false})
-					seen[strings.ToLower(text)] = true
-				}
-				continue
-			}
-		}
-	}
-	// Fallback: if no DoD block or numbered list, but multiple bullet points exist
-	if len(items) == 0 {
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if m := dodBulletRegex.FindStringSubmatch(trimmed); len(m) > 1 {
-				text := strings.TrimSpace(m[1])
-				if isDoDSectionHeader(text) {
-					continue
-				}
-				if text != "" && !seen[strings.ToLower(text)] && len([]rune(text)) > 3 {
-					items = append(items, task.DoDItem{Text: text, Completed: false})
-					seen[strings.ToLower(text)] = true
-				}
-			}
-		}
-	}
-	if len(items) > 25 {
-		items = items[:25]
 	}
 	return items
 }

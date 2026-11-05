@@ -231,3 +231,20 @@ func TestDoDEvaluator_NonCodeDoesNotFabricateVerification(t *testing.T) {
 		t.Fatal("verification limits missing")
 	}
 }
+
+func TestDoDEvaluatorCheckedPlanCannotVerifyMissingRequestedOutcome(t *testing.T) {
+	evaluator := NewDoDEvaluator()
+	evaluator.CustomCommandRunner = func(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+		if name == "git" {
+			return nil, nil
+		}
+		return []byte("PASS"), nil
+	}
+	result, err := evaluator.EvaluateDoD(context.Background(), DoDValidationRequest{TaskID: "task", AttemptID: "attempt", AttemptNumber: 1, WorkingDir: t.TempDir(), Instructions: "DoD:\n- [x] Verify unicorn allocation for the exact recipient", Summary: "Repository checks completed", CompleteNote: "Build and test output retained."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Passed || !strings.Contains(strings.Join(result.Gaps, " "), "unicorn allocation") {
+		t.Fatal("checked plan was accepted without matching outcome evidence", result)
+	}
+}

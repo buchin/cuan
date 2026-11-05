@@ -6,7 +6,7 @@ package published as part of the Settings release.
 | Existing package | Cuan usage | Release state observed |
 | --- | --- | --- |
 | [taskfsm](https://github.com/buchin/taskfsm) | Imported in runner/service.go; pinned v0.1.0 | Public, MIT; executable consumer example, test/race/vet workflow, v0.1.0 release |
-| [dodeval](https://github.com/buchin/dodeval) | Imported in runner/dod_evaluator.go; pinned Go pseudo-version | Public, MIT; tests in repository; no tags or Actions workflows returned |
+| [dodeval](https://github.com/buchin/dodeval) | v0.1.0; requirement parsing in Inbox delegation and runner gap analysis | Public, MIT; safe requirement API, executable example, test/race/vet workflow |
 | [agentrunner](https://github.com/buchin/agentrunner) | v0.2.0; process cleanup adapters in internal/agent/process_tree.go | Public, MIT; hardening merged and v0.2.0 released; Go checks workflow added |
 
 Prioritize these packages before extracting more. Add CI and tested consumer
@@ -56,3 +56,15 @@ tests, race tests and vet passed locally. GitHub-hosted checks did not start due
 to an account billing lock; no hosted pass is claimed. Cuan resolves v0.1.0 through
 the public Go module transport and its runner state-machine integration test
 passes against that version. No additional framework or duplicate FSM was added.
+
+## dodeval v0.1.0 (2026-11-05)
+
+Released at https://github.com/buchin/dodeval/releases/tag/v0.1.0 and pinned in
+Cuan. `ParseRequirements` distinguishes unverified approved work from tracked
+checkbox state. Explicit acceptance sections, numbered parentheses, deduplication
+and long preambles are covered by package tests. Existing tracking APIs remain
+compatible. Cuan's duplicated parser was replaced with a small application adapter;
+criterion limits and application section labels remain Cuan policy. The runner
+also uses the unverified requirement API, so prechecked plans cannot substitute
+for outcome evidence. Package tests/race/vet and published-module consumer tests
+passed locally; hosted checks remain unavailable due to account billing.

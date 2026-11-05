@@ -1244,3 +1244,11 @@ func assertTaskLaunchPreview(t *testing.T, s *Server, output string) {
 		t.Fatalf("preview did not represent an actual execution: %v", err)
 	}
 }
+
+func TestExtractDoDUsesApprovedAcceptanceSectionInsteadOfInternalNotes(t *testing.T) {
+	description := "## Implementation\n- [x] Prepare internal notes\n## Acceptance Criteria\n- [x] Verify the requested outcome\n1) Verify the requested outcome\n## Notes\n- Follow reporting procedure"
+	criteria := extractDoDFromDescription(description)
+	if len(criteria) != 1 || criteria[0].Text != "Verify the requested outcome" || criteria[0].Completed || criteria[0].Evidence != "" {
+		t.Fatal("plan notes or checkbox state became verified criteria", criteria)
+	}
+}

@@ -156,7 +156,7 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 
 	// 5. Check Criteria Acceptance & Markdown DoD Checklist via pkg/dodeval
 	if req.Instructions != "" {
-		criteria := dodeval.ParseAcceptanceCriteria(req.Instructions)
+		criteria := dodeval.ParseRequirements(req.Instructions)
 		if len(criteria) > 0 {
 			evalEvidence := dodeval.Evidence{
 				Summary:           req.Summary,
