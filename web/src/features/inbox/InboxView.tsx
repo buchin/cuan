@@ -2031,7 +2031,7 @@ export function InboxView({
                           }}
                           className={cn(
                             'composer-mode-tab inline-flex min-h-11 items-center px-3 text-xs cursor-pointer',
-                            !whisperMode ? 'font-semibold' : 'font-medium'
+                            'font-medium'
                           )}
                         >
                           {t('Public reply')}
@@ -2055,7 +2055,7 @@ export function InboxView({
                           }}
                           className={cn(
                             'composer-mode-tab inline-flex min-h-11 items-center gap-1.5 px-3 text-xs cursor-pointer',
-                            whisperMode ? 'font-semibold' : 'font-medium'
+                            'font-medium'
                           )}
                         >
                           <Lock className="h-3 w-3 text-amber-500" />

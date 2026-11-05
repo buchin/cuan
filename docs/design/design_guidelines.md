@@ -395,3 +395,6 @@ The selected tab shares the input surface; inactive tabs remain transparent and
 muted, without an enclosing border. Internal mode retains its lock icon. Tab
 selection supports arrow/Home/End keys and preserves the draft without sending.
 Attachment previews appear above mode tabs so they never separate tabs from input.
+Reply mode tabs use a32px visible surface within their44px touch targets, with
+12px medium labels. The active surface occupies the bottom32px so it still joins
+the composer; the upper12px remains transparent.
