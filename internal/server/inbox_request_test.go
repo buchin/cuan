@@ -41,8 +41,10 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 		t.Fatal(w.Body.String())
 	}
 	bin := t.TempDir()
-	counter := filepath.Join(profileHome, "execution-count")
-	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> \"$HOME/execution-count\"\nsleep 0.2\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"{\\\"reply\\\":\\\"fixture-reply\\\",\\\"topic_title\\\":\\\"\\\",\\\"action\\\":null}\"}}'\n"), 0700)
+	// Observe provider invocations independently of the brain selected by @cuan.
+	counter := filepath.Join(t.TempDir(), "execution-count")
+	shellCounter := "'" + strings.ReplaceAll(counter, "'", `'\''`) + "'"
+	os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> "+shellCounter+"\nsleep 0.2\nprintf '%s\\n' '{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"{\\\"reply\\\":\\\"fixture-reply\\\",\\\"topic_title\\\":\\\"\\\",\\\"action\\\":null}\"}}'\n"), 0700)
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s.cfg.Environment = "staging"
@@ -121,7 +123,7 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 	}
 	t.Log("FIXTURE: HTTP timeout after committed acceptance; three concurrent-lifetime retries, refresh and handler restart preserve one user, one reply, one CLI execution and original correlation")
 	// Quota/login/unknown CLI failures must never expose stderr secrets or paths.
-	for index, item := range []struct{ raw, want string }{{"unknown SECRET /private/profile", "before a final result"}, {"401 invalid_grant SECRET /private/profile", "sign-in"}, {"429 quota SECRET /private/profile", "No allowed account/model route"}} {
+	for index, item := range []struct{ raw, want, state string }{{"unknown SECRET /private/profile", "before a final result", "failed"}, {"401 invalid_grant SECRET /private/profile", "sign-in", "failed"}, {"429 quota SECRET /private/profile", "capacity", "queued"}} {
 		// Each failure gets an independent account: quota/auth observations
 		// intentionally exclude a used account from subsequent routing.
 		account, err := agent.CreateProviderAccount(owner.ID, fmt.Sprintf("failure-%d", index))
@@ -137,7 +139,8 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 			t.Fatal(connected.Body.String())
 		}
 		path := fmt.Sprintf("/api/v1/chat/conversations/agent_failure%d/messages", index)
-		os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\nprintf '"+item.raw+"' >&2\nexit 1\n"), 0700)
+		os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\necho run >> "+shellCounter+"\nprintf '"+item.raw+"' >&2\nexit 1\n"), 0700)
+		before, _ := os.ReadFile(counter)
 		key := db.GenerateUUID()
 		w = call("POST", path, `{"message":"fixture failure","request_id":"`+key+`"}`)
 		if w.Code != 202 {
@@ -149,7 +152,7 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 			json.Unmarshal(w.Body.Bytes(), &v)
 			done := false
 			for _, q := range v.Requests {
-				if q.RequestID == key && q.State == "failed" {
+				if q.RequestID == key && q.State == item.state && q.SafeError != "" {
 					if !strings.Contains(q.SafeError, item.want) {
 						t.Fatal(q)
 					}
@@ -168,13 +171,22 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 		if strings.Contains(string(raw), "SECRET") || strings.Contains(string(raw), "/private/profile") {
 			t.Fatal("internal output leaked")
 		}
+		after, err := os.ReadFile(counter)
+		if err != nil || len(after) <= len(before) {
+			t.Fatal("failure fixture did not actually execute its provider", err)
+		}
 		w = call("POST", path, `{"message":"fixture failure","request_id":"`+key+`"}`)
-		if w.Code != 200 {
+		if w.Code != 200 && !(item.state == "queued" && w.Code == 202) {
 			t.Fatal(w.Body.String())
+		}
+		time.Sleep(50 * time.Millisecond)
+		repeated, err := os.ReadFile(counter)
+		if err != nil || string(repeated) != string(after) {
+			t.Fatal("duplicate acceptance replayed provider work", err)
 		}
 	}
 	if text := safeInboxProviderFailure(context.DeadlineExceeded, "SECRET"); !strings.Contains(text, "timed out") || strings.Contains(text, "SECRET") {
 		t.Fatal(text)
 	}
-	t.Log("FIXTURE: quota, expired login, unknown provider error and deadline map to safe durable failure text; no failed request replay")
+	t.Log("FIXTURE: quota remains queued; login, unknown provider error and deadline retain safe diagnostics; duplicate acceptance never replays provider work")
 }
