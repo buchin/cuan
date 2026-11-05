@@ -2002,12 +2002,26 @@ export function InboxView({
               }}
               onDragOver={uploads.onDragOver}
             >
-              <div className="mx-auto max-w-[75ch] space-y-2">
+              <div className="mx-auto max-w-[75ch]">
+                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
                 {activeContact.type === 'customer' && (
-                  <div className="flex flex-wrap items-center justify-between gap-1.5 px-1.5 text-xs">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <div className="inline-flex rounded-lg border border-border/60 bg-muted/40 p-0.5">
+                  <div className="flex items-end justify-between text-xs">
+                    <div className="flex min-w-0 items-center">
+                      <div role="tablist" aria-label={t('Reply mode')} className="composer-mode-tabs inline-flex" onKeyDown={event => {
+                        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                        event.preventDefault()
+                        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+                        const current = tabs.indexOf(document.activeElement as HTMLButtonElement)
+                        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+                        tabs[next]?.click()
+                        tabs[next]?.focus()
+                      }}>
                         <button
+                          role="tab"
+                          id="compose-public-tab"
+                          aria-selected={!whisperMode}
+                          aria-controls="compose-panel"
+                          tabIndex={!whisperMode ? 0 : -1}
                           type="button"
                           onClick={() => {
                             setWhisperMode(false)
@@ -2016,15 +2030,18 @@ export function InboxView({
                             }
                           }}
                           className={cn(
-                            'rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer',
-                            !whisperMode
-                              ? 'bg-background text-foreground font-semibold shadow-xs'
-                              : 'text-muted-foreground hover:text-foreground'
+                            'composer-mode-tab inline-flex min-h-11 items-center px-3 text-xs cursor-pointer',
+                            !whisperMode ? 'font-semibold' : 'font-medium'
                           )}
                         >
                           {t('Public reply')}
                         </button>
                         <button
+                          role="tab"
+                          id="compose-internal-tab"
+                          aria-selected={whisperMode}
+                          aria-controls="compose-panel"
+                          tabIndex={whisperMode ? 0 : -1}
                           type="button"
                           onClick={() => {
                             setWhisperMode(true)
@@ -2037,10 +2054,8 @@ export function InboxView({
                             if (textareaRef.current) autoResizeTextarea(textareaRef.current)
                           }}
                           className={cn(
-                            'flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer',
-                            whisperMode
-                              ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold shadow-xs'
-                              : 'text-muted-foreground hover:text-foreground'
+                            'composer-mode-tab inline-flex min-h-11 items-center gap-1.5 px-3 text-xs cursor-pointer',
+                            whisperMode ? 'font-semibold' : 'font-medium'
                           )}
                         >
                           <Lock className="h-3 w-3 text-amber-500" />
@@ -2053,8 +2068,10 @@ export function InboxView({
                     )}
                   </div>
                 )}
-                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
                 <Composer
+                  id="compose-panel"
+                  role={activeContact.type === 'customer' ? 'tabpanel' : undefined}
+                  aria-labelledby={activeContact.type === 'customer' ? (whisperMode ? 'compose-internal-tab' : 'compose-public-tab') : undefined}
                   className={`${
                     isMultiline ? 'is-multiline' : ''
                   } ${

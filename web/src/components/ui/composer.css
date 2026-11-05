@@ -7,3 +7,22 @@
 .shared-composer > .composer-send:hover:not(:disabled) {
   background: oklch(var(--primary) / 0.22);
 }
+
+[data-inbox-composer] {
+  --composer-surface: oklch(var(--muted) / 0.45);
+}
+.dark [data-inbox-composer] {
+  --composer-surface: #1e2023;
+}
+.composer-mode-tab {
+  background: transparent;
+  color: oklch(var(--muted-foreground));
+}
+.composer-mode-tab[aria-selected='true'] {
+  background: var(--composer-surface);
+  color: oklch(var(--foreground));
+}
+.composer-mode-tab:focus-visible {
+  outline: 2px solid oklch(var(--ring));
+  outline-offset: -2px;
+}

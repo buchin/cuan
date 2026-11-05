@@ -389,3 +389,9 @@ accessory row remains at the bottom. Inbox and terminal use the same primitive.
 Single-line ComposerInput uses a44px minimum height,20px line height and12px
 vertical padding so text and accessory/send icons share the same visual center.
 The resize helper uses that same minimum on mobile and desktop.
+
+Customer reply modes use tabs flush with the composer's left edge and top edge.
+The selected tab shares the input surface; inactive tabs remain transparent and
+muted, without an enclosing border. Internal mode retains its lock icon. Tab
+selection supports arrow/Home/End keys and preserves the draft without sending.
+Attachment previews appear above mode tabs so they never separate tabs from input.
