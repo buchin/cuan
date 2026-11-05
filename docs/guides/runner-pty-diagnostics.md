@@ -83,3 +83,13 @@ slot until the hard deadline. Its result stays blocked and cannot pass acceptanc
 or trigger project publication. Timeout and user cancellation remain authoritative.
 The local terminal completion callback uses its own bounded context, so the HTTP
 request that originally opened the terminal does not own final reconciliation.
+### File delivery and final reports
+
+Reports with artifacts validate the full result and save a progress checkpoint
+before delivering files. Only confirmed delivery creates the final report that
+terminal completion observers can use. A temporary delivery failure leaves the
+checkpoint available and the execution open for an identical retry; it cannot
+turn into successful completion merely because the summary was already saved.
+Artifact identities remain stable across retries. If delivery succeeds but final
+report persistence fails, inspect the task and retry the same report rather than
+creating another file delivery or assuming acceptance.

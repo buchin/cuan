@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -14,6 +15,25 @@ import (
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
+
+type artifactDeliveryRepository interface {
+	db.ProjectStudioRepository
+	db.InboxRequestRepository
+}
+
+type observedArtifactDeliveryRepository struct {
+	artifactDeliveryRepository
+	beforeDelivery func() error
+}
+
+func (r observedArtifactDeliveryRepository) CreateMessage(ctx context.Context, m *db.ProjectMessage) error {
+	if r.beforeDelivery != nil {
+		if err := r.beforeDelivery(); err != nil {
+			return err
+		}
+	}
+	return r.artifactDeliveryRepository.CreateMessage(ctx, m)
+}
 
 func TestTaskArtifactsCannotEscapeOrExposePrivateFiles(t *testing.T) {
 	dir := t.TempDir()
@@ -123,9 +143,35 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	if w := report(`["../private.txt"]`); w.Code != 400 {
 		t.Fatal("escaped output accepted", w.Code, w.Body.String())
 	}
+	deliveryCalls := 0
+	originalRepository := s.projectStudioRepo
+	s.projectStudioRepo = observedArtifactDeliveryRepository{
+		artifactDeliveryRepository: originalRepository.(artifactDeliveryRepository),
+		beforeDelivery: func() error {
+			ready, err := s.taskSvc.AgentReviewReady(ctx, saved.ID, a.ID)
+			if err != nil || ready {
+				t.Fatal("runner could stop before file delivery was confirmed", ready, err)
+			}
+			deliveryCalls++
+			if deliveryCalls == 1 {
+				return errors.New("fixture: temporary delivery failure")
+			}
+			return nil
+		},
+	}
+	if w := report(paths); w.Code != 503 {
+		t.Fatal("delivery failure was not retryable", w.Code, w.Body.String())
+	}
+	if ready, err := s.taskSvc.AgentReviewReady(ctx, saved.ID, a.ID); err != nil || ready {
+		t.Fatal("failed file delivery became a final report", ready, err)
+	}
 	if w := report(paths); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
+	if ready, err := s.taskSvc.AgentReviewReady(ctx, saved.ID, a.ID); err != nil || !ready {
+		t.Fatal("confirmed file delivery did not finalize the report", ready, err)
+	}
+	s.projectStudioRepo = originalRepository
 	if w := report(paths); w.Code != 200 {
 		t.Fatal("identical delivery was not idempotent", w.Code, w.Body.String())
 	}

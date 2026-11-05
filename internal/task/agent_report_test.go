@@ -31,6 +31,16 @@ func TestAgentReportResultKindDoesNotApproveWork(t *testing.T) {
 				if _, err := svc.ReportAgent(ctx, created.ID, a.ID, "fixture", bad); err == nil {
 					t.Fatal("invalid result classification accepted")
 				}
+				if _, err := svc.StageAgentReport(ctx, created.ID, a.ID, "fixture", bad); err == nil {
+					t.Fatal("invalid result classification accepted for pending delivery")
+				}
+			}
+			final := AgentReport{State: "review", ResultKind: kind, Summary: &summary, CompleteNote: &note}
+			if _, err = svc.StageAgentReport(ctx, created.ID, a.ID, "fixture", final); err != nil {
+				t.Fatal(err)
+			}
+			if ready, err := svc.AgentReviewReady(ctx, created.ID, a.ID); err != nil || ready {
+				t.Fatal("staged result became ready before delivery", ready, err)
 			}
 			if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "review", ResultKind: kind, Summary: &summary, CompleteNote: &note}); err != nil {
 				t.Fatal(err)
@@ -246,9 +256,15 @@ func TestAgentReportCannotCompleteOrReplaceUnverifiedCriteria(t *testing.T) {
 	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note}); err == nil {
 		t.Fatal("unchecked criteria were implicitly completed")
 	}
+	if _, err = svc.StageAgentReport(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note}); err == nil {
+		t.Fatal("staging waived unverified acceptance criteria")
+	}
 	changed := []DoDItem{{ID: "approved", Text: "Different requirement", Completed: true, Evidence: "Claimed"}}
 	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note, Checklist: &changed}); err == nil {
 		t.Fatal("agent changed approved scope")
+	}
+	if _, err = svc.StageAgentReport(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note, Checklist: &changed}); err == nil {
+		t.Fatal("staging changed approved scope")
 	}
 	verified := []DoDItem{{ID: "approved", Text: "Original requirement", Completed: true, Evidence: "Fixture output matched original expected value"}}
 	if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", AgentReport{State: "done", Summary: &summary, CompleteNote: &note, Checklist: &verified}); err != nil {

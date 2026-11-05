@@ -25,6 +25,17 @@ func (s *Service) RequireAgentReport(ctx context.Context, taskID, attemptID, aut
 	return s.store.CreateActivity(ctx, &TaskActivity{ID: generateID("act"), TaskID: taskID, AttemptID: &attemptID, ActivityType: "agent_contract", Author: author, NewStatus: "pending", Message: "Agent reporting enabled for this session.", CreatedAt: time.Now().UTC()})
 }
 func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author string, r AgentReport) (*Task, error) {
+	return s.reportAgent(ctx, taskID, attemptID, author, r, false)
+}
+
+// StageAgentReport validates the complete result but saves it as a checkpoint.
+// The transport must confirm artifact delivery before submitting ReportAgent.
+// This keeps terminal completion observers from stopping an in-flight delivery.
+func (s *Service) StageAgentReport(ctx context.Context, taskID, attemptID, author string, r AgentReport) (*Task, error) {
+	return s.reportAgent(ctx, taskID, attemptID, author, r, true)
+}
+
+func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author string, r AgentReport, pendingDelivery bool) (*Task, error) {
 	if r.Title == nil && r.Priority == nil && r.Summary == nil && r.CompleteNote == nil && r.Checklist == nil && r.CommitSHA == nil && r.TestSummary == nil && strings.TrimSpace(r.Progress) == "" && (r.State == "" || r.State == "progress") {
 		return nil, fmt.Errorf("%w: send metadata, a progress checkpoint or a result", ErrInvalidTaskInput)
 	}
@@ -129,6 +140,11 @@ func (s *Service) ReportAgent(ctx context.Context, taskID, attemptID, author str
 	}
 	if r.ResultKind != "" && (r.State == "progress" || (r.ResultKind == "answer" && r.State != "review") || (r.ResultKind != "answer" && r.ResultKind != "implementation")) {
 		return bad("result_kind requires a final report and must be answer or implementation")
+	}
+	if pendingDelivery {
+		r.State = "progress"
+		r.ResultKind = ""
+		r.Progress = "Result saved; output file delivery is pending."
 	}
 	t.UpdatedAt = time.Now().UTC()
 	message := strings.TrimSpace(r.Progress)
