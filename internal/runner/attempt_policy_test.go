@@ -82,7 +82,7 @@ func TestRevisionNoPushPreventsAutomaticCommit(t *testing.T) {
 }
 
 func TestReadOnlyContinuationCompletionRequiresRunnerRepositoryEvidence(t *testing.T) {
-	for _, scenario := range []string{"missing", "changed", "unchanged", "published"} {
+	for _, scenario := range []string{"missing", "changed", "unchanged", "published", "timeout", "timeout_changed"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			store := task.NewMemoryStore()
@@ -113,8 +113,12 @@ func TestReadOnlyContinuationCompletionRequiresRunnerRepositoryEvidence(t *testi
 			if scenario != "missing" {
 				req.RepositoryVerification = &RepositoryVerification{Baseline: strings.Repeat("a", 64), Final: strings.Repeat("a", 64)}
 			}
-			if scenario == "changed" {
+			if scenario == "changed" || scenario == "timeout_changed" {
 				req.RepositoryVerification.Final = strings.Repeat("b", 64)
+			}
+			if strings.HasPrefix(scenario, "timeout") {
+				req.Status, req.ExitCode, req.ErrorMessage = task.AttemptStatusFailed, 124, "Execution timed out after adaptive timeout (1m0s)"
+				req.AgentReportConfirmed = false
 			}
 			if scenario == "published" {
 				req.PRNumber = 15
@@ -136,13 +140,20 @@ func TestReadOnlyContinuationCompletionRequiresRunnerRepositoryEvidence(t *testi
 				t.Fatal(err)
 			}
 			verified := false
+			observed := false
 			for _, act := range detail.Activities {
 				if act.ActivityType == "repository_scope_verified" && act.AttemptID != nil && *act.AttemptID == att.ID {
 					verified = true
 				}
+				if act.ActivityType == "repository_scope_observed" && act.AttemptID != nil && *act.AttemptID == att.ID && act.Author == "fixture" {
+					observed = true
+				}
 			}
 			if verified != (scenario == "unchanged") {
 				t.Fatal("incorrect persisted scope evidence")
+			}
+			if strings.HasPrefix(scenario, "timeout") && (!observed || verified || detail.Status == task.TaskStatusDone || result.ExitCode == nil || *result.ExitCode != 124) {
+				t.Fatal("failed execution lost its scope observation or became accepted")
 			}
 		})
 	}

@@ -79,3 +79,12 @@ which lack this classification. It compares the exact task snapshot and latest
 attempt atomically, respects cancellation and active launches, and queues only a
 review of saved evidence. It never starts a business execution or resets attempts.
 Ordinary accepted history is excluded.
+
+Read-only executions that fail after capturing a repository baseline preserve a
+bounded post-execution scope observation, even when their execution context has
+ended. The runner uses a separate five-second context and runs no project tests
+or publication. `repository_scope_observed` records the baseline/final hashes
+under that attempt's runner identity. It is diagnostic evidence only: a matching
+hash never changes the failed attempt, confirms a final agent report, establishes
+project checks or grants task acceptance. Changed/unavailable scope and historical
+timeouts remain visible; cancellation does not start a recovery execution.

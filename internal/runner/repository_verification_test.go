@@ -85,10 +85,12 @@ func TestReadOnlyEvidenceDoesNotDemandImplementationDoD(t *testing.T) {
 }
 
 type readOnlyAuditAdapter struct {
-	mutate              bool
-	inspectionCommit    string
-	expectGoEnvironment bool
-	t                   *testing.T
+	mutate               bool
+	timedout             bool
+	cancelAfterExecution context.CancelFunc
+	inspectionCommit     string
+	expectGoEnvironment  bool
+	t                    *testing.T
 }
 
 func (a *readOnlyAuditAdapter) Name() string             { return "readonly-fixture" }
@@ -114,11 +116,18 @@ func (a *readOnlyAuditAdapter) Execute(ctx context.Context, req agent.ExecutionR
 			a.t.Fatal(err)
 		}
 	}
+	if a.timedout {
+		if a.cancelAfterExecution != nil {
+			a.cancelAfterExecution()
+		}
+		return &agent.ExecutionResult{Status: "TIMEOUT", ExitCode: 124}, nil
+	}
 	return &agent.ExecutionResult{Status: "SUCCEEDED", ExitCode: 0}, nil
 }
 func TestReadOnlyRunnerExecutionToCompletion(t *testing.T) {
-	for _, mutate := range []bool{false, true} {
-		t.Run(fmt.Sprint("mutate=", mutate), func(t *testing.T) {
+	for _, scenario := range []struct{ mutate, timedout bool }{{}, {mutate: true}, {timedout: true}, {mutate: true, timedout: true}} {
+		mutate := scenario.mutate
+		t.Run(fmt.Sprint("mutate=", mutate, ",timeout=", scenario.timedout), func(t *testing.T) {
 			root := documentationFixture(t)
 			t.Setenv("HOME", t.TempDir())
 			var completion CompleteAttemptRequest
@@ -139,14 +148,20 @@ func TestReadOnlyRunnerExecutionToCompletion(t *testing.T) {
 			}))
 			defer api.Close()
 			cfg := &config.Config{RunnerID: "fixture", RunnerServerURL: api.URL}
-			r := NewRunner(cfg, &readOnlyAuditAdapter{mutate: mutate, t: t}, api.Client())
+			executionCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			r := NewRunner(cfg, &readOnlyAuditAdapter{mutate: mutate, timedout: scenario.timedout, cancelAfterExecution: cancel, t: t}, api.Client())
 			now := time.Now().UTC()
 			claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: root, DefaultBranch: "dev", PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true}, Task: &task.Task{ID: "audit", Title: "Inspect retained work", Instructions: "Approved audit scope", ExecutionCategory: task.ExecutionCategoryReadOnly, CreatedAt: now, UpdatedAt: now}, Attempt: &task.TaskAttempt{ID: "audit-attempt", TaskID: "audit", AttemptNumber: 1, CreatedAt: now}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}}
-			r.runAttempt(context.Background(), claim)
+			r.runAttempt(executionCtx, claim)
 			if completions != 1 {
 				t.Fatalf("completion not delivered: %d", completions)
 			}
-			if mutate {
+			if scenario.timedout {
+				if completion.Status != task.AttemptStatusFailed || completion.ExitCode != 124 || completion.RepositoryVerification == nil || completion.RepositoryVerification.Unchanged() == mutate || completion.AgentReportConfirmed || completion.TestSummary != "" {
+					t.Fatalf("timeout lost diagnostic evidence or became success: %+v", completion)
+				}
+			} else if mutate {
 				if completion.Status != task.AttemptStatusFailed || completion.RepositoryVerification.Unchanged() {
 					t.Fatalf("mutation accepted: %+v", completion)
 				}

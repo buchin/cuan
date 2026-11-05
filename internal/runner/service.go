@@ -450,6 +450,14 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			}
 		}
 	}
+	if status != task.AttemptStatusSucceeded && req.RepositoryVerification != nil {
+		if current, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && current != nil {
+			if limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, current, att.ID); err == nil && limits.ReadOnlyRepository {
+				raw, _ := json.Marshal(req.RepositoryVerification)
+				completionActivities = append(completionActivities, &task.TaskActivity{ID: "repository-observation:" + att.ID, TaskID: att.TaskID, AttemptID: &att.ID, ActivityType: "repository_scope_observed", Author: req.RunnerID, NewStatus: status, Message: string(raw), CreatedAt: now})
+			}
+		}
+	}
 	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
 			if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {

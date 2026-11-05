@@ -1108,6 +1108,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 
 	// Post-execution Git & GitHub PR Flow (Code lane only)
+	// Preserve point-in-time scope evidence even when execution failed. It is
+	// diagnostic evidence only: never upgrade a timeout or skip final reporting.
+	if compReq.Status != task.AttemptStatusSucceeded && compReq.Status != task.AttemptStatusCanceled && policy.ReadOnlyRepository && readOnlyBaseline != "" && compReq.RepositoryVerification == nil {
+		observationCtx, cancelObservation := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		_, compReq.RepositoryVerification = verifyTaskRepository(observationCtx, workingDir, "", policy, readOnlyBaseline)
+		cancelObservation()
+	}
 	r.postExecutionGitFlow(ctx, ws, t, att, claim, &compReq, lane)
 
 	// Emisi event task:attempt_succeeded & evaluasi DoD otonom pada worker
