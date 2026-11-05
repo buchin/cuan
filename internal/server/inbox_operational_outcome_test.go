@@ -2,7 +2,10 @@ package server
 
 import (
 	"context"
+	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/task"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -54,5 +57,26 @@ func TestOperationalAcceptanceAuditRechecksEvidenceWithoutExecution(t *testing.T
 	}
 	if _, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, latest.RequestID)); err == nil {
 		t.Fatal("review created business execution")
+	}
+}
+
+func TestToolFreeReviewUsesTrustedWorkspaceAndBoundedNativeBudget(t *testing.T) {
+	home, bin := t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+[ "$PWD" = "$HOME/.cuan-chat-workspace" ] || exit 21
+case "$*" in *"--print-timeout 120s"*) ;; *) exit 22;; esac
+case "$2" in *"Native finish/format-response is allowed"*) ;; *) exit 23;; esac
+printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"decision\":\"blocked\",\"requested_outcome\":\"needs_input\",\"explanation\":\"Which account and product?\",\"revision\":\"\"}"}}'
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	ctx := context.WithValue(context.Background(), inboxTaskReviewKey{}, true)
+	output, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Review the original operation", home, "", nil)
+	if output == "" || failure != "" {
+		t.Fatal("tool-free review was not isolated and bounded", failure)
 	}
 }

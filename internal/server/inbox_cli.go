@@ -142,6 +142,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
 	directCoordinator = directCoordinator || reconcileRetry
+	toolFreeReview := snapshotReview && len(attachmentPaths) == 0
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
@@ -151,7 +152,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		var cancel context.CancelFunc
 		ctx, cancel = inboxFormatRepairContext(ctx)
 		defer cancel()
-	} else if directCoordinator {
+	} else if directCoordinator || toolFreeReview {
 		var cancel context.CancelFunc
 		ctx, cancel = inboxDirectReplyContext(ctx)
 		defer cancel()
@@ -251,7 +252,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if v := os.Getenv("INBOX_CLI_TIMEOUT"); v != "" {
 			timeout = v
 		}
-		if directCoordinator {
+		if directCoordinator || toolFreeReview {
 			timeout = strconv.FormatFloat(inboxDirectReplyBudget().Seconds(), 'f', -1, 64) + "s"
 		}
 		if formatRepair {
@@ -333,7 +334,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	executionWorkspace := workspace
-	if binary == "agy" && (directCoordinator || formatRepair) {
+	if binary == "agy" && (directCoordinator || formatRepair || snapshotReview) {
 		executionWorkspace, err = prepareInboxReplyWorkspace(home)
 		if err != nil {
 			return "", "The isolated reply workspace could not be prepared. Your message is saved; no provider process was started."
