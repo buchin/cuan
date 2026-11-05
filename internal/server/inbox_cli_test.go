@@ -329,3 +329,28 @@ sleep 2
 		t.Fatalf("unsafe child hidden: out=%q failure=%q safe=%v", out, failure, safe)
 	}
 }
+
+func TestInboxChatDoesNotStartProviderWhenProfileRulesCannotBePrepared(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	settingsDir := filepath.Join(home, ".gemini", "antigravity-cli")
+	if err := os.MkdirAll(settingsDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(settingsDir, "settings.json"), []byte(`{"permissions":{"deny":"invalid"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\ntouch \"$HOME/provider-started\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	safe := true
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Read a project file", home, workspace, nil, &safe)
+	if out != "" || !strings.Contains(failure, "permissions could not be prepared") || safe {
+		t.Fatalf("permission failure not retained: out=%q failure=%q safe=%v", out, failure, safe)
+	}
+	if _, err := os.Stat(filepath.Join(home, "provider-started")); !os.IsNotExist(err) {
+		t.Fatal("provider started without profile deny rules")
+	}
+}

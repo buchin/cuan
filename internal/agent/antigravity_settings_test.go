@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -50,6 +51,85 @@ func TestCLISettingsPrepareThemeWithoutAcceptingProviderTerms(t *testing.T) {
 	after, _ = os.ReadFile(p)
 	if string(after) != "broken existing settings" {
 		t.Fatal("malformed file lost")
+	}
+}
+
+func TestChatProfileReadDenyPreservesOwnerRulesAndNativeState(t *testing.T) {
+	home := t.TempDir()
+	dir := AntigravityConfigDirPath(home)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "settings.json")
+	initial := `{"permissions":{"allow":["read_file(*)","mcp(custom/tool)"],"ask":["command(*)"],"deny":["write_file(private/)"],"future_policy":{"enabled":true}},"selectedModel":"owner-model","interactionSharing":false}`
+	if err := os.WriteFile(path, []byte(initial), 0600); err != nil {
+		t.Fatal(err)
+	}
+	auth := filepath.Join(dir, "auth.json")
+	if err := os.WriteFile(auth, []byte("fixture-native-state"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := PrepareAntigravityReadOnlyPermissions(home); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := os.ReadFile(path)
+	var settings struct {
+		Permissions struct {
+			Allow, Ask, Deny []string
+			Future           json.RawMessage `json:"future_policy"`
+		}
+		Model   string `json:"selectedModel"`
+		Sharing bool   `json:"interactionSharing"`
+	}
+	if err := json.Unmarshal(first, &settings); err != nil {
+		t.Fatal(err)
+	}
+	if settings.Model != "owner-model" || settings.Sharing || len(settings.Permissions.Future) == 0 || !reflect.DeepEqual(settings.Permissions.Ask, []string{"command(*)"}) {
+		t.Fatal("owner preferences changed")
+	}
+	rules := map[string]bool{}
+	for _, rule := range settings.Permissions.Deny {
+		rules[rule] = true
+	}
+	for _, dir := range []string{".gemini", ".cuan", ".ssh", ".claude", ".codex"} {
+		if !rules["read_file("+filepath.Join(home, dir)+")"] {
+			t.Fatal("profile tools remain readable", dir)
+		}
+	}
+	if !rules["write_file(private/)"] {
+		t.Fatal("owner deny rule lost")
+	}
+	if err := PrepareAntigravityReadOnlyPermissions(home); err != nil {
+		t.Fatal(err)
+	}
+	second, _ := os.ReadFile(path)
+	if string(first) != string(second) {
+		t.Fatal("permission update is not idempotent")
+	}
+	state, _ := os.ReadFile(auth)
+	if string(state) != "fixture-native-state" {
+		t.Fatal("native authentication state changed")
+	}
+}
+
+func TestChatProfileReadDenyRejectsMalformedRulesWithoutOverwriting(t *testing.T) {
+	for _, raw := range []string{`{"permissions":[]}`, `{"permissions":{"deny":"read_file(*)"}}`, `{"permissions":{"allow":[123]}}`, `{"permissions":{"ask":{}}}`} {
+		home := t.TempDir()
+		dir := AntigravityConfigDirPath(home)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(dir, "settings.json")
+		if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := PrepareAntigravityReadOnlyPermissions(home); err == nil {
+			t.Fatal("malformed rule accepted", raw)
+		}
+		unchanged, _ := os.ReadFile(path)
+		if string(unchanged) != raw {
+			t.Fatal("malformed owner rules overwritten")
+		}
 	}
 }
 

@@ -112,33 +112,82 @@ var defaultAllowedPermissions = []string{
 }
 
 func applyDefaultReadOnlyPermissions(settings map[string]json.RawMessage) bool {
-	var perms struct {
-		Allow []string `json:"allow"`
-		Ask   []string `json:"ask,omitempty"`
-		Deny  []string `json:"deny,omitempty"`
-	}
+	perms := map[string]json.RawMessage{}
 	if raw, ok := settings["permissions"]; ok {
-		_ = json.Unmarshal(raw, &perms)
+		if json.Unmarshal(raw, &perms) != nil || perms == nil {
+			return false
+		}
+	}
+	var allow []string
+	if raw := perms["allow"]; len(raw) > 0 && json.Unmarshal(raw, &allow) != nil {
+		return false
 	}
 	allowSet := make(map[string]bool)
-	for _, rule := range perms.Allow {
+	for _, rule := range allow {
 		allowSet[rule] = true
 	}
 	permsChanged := false
 	for _, rule := range defaultAllowedPermissions {
 		if !allowSet[rule] {
-			perms.Allow = append(perms.Allow, rule)
+			allow = append(allow, rule)
 			allowSet[rule] = true
 			permsChanged = true
 		}
 	}
 	if permsChanged || settings["permissions"] == nil {
+		perms["allow"], _ = json.Marshal(allow)
 		if data, err := json.Marshal(perms); err == nil {
 			settings["permissions"] = data
 			return true
 		}
 	}
 	return false
+}
+
+// Antigravity's documented permission engine gives deny precedence over allow.
+// Restrict agent file tools without hiding the profile from the provider process
+// itself, which still needs native authentication and session state.
+// https://antigravity.google/docs/permissions/#cli-fine-grained-permissions
+func applyChatProfileReadDeny(settings map[string]json.RawMessage, home string) (bool, error) {
+	home, err := filepath.Abs(home)
+	if err != nil || strings.ContainsAny(home, "()\r\n") {
+		return false, errors.New("CLI profile permission path needs review")
+	}
+	permissions := map[string]json.RawMessage{}
+	if raw := settings["permissions"]; len(raw) > 0 {
+		if json.Unmarshal(raw, &permissions) != nil || permissions == nil {
+			return false, errors.New("CLI permissions could not be read; existing settings were preserved")
+		}
+	}
+	var denied []string
+	for _, field := range []string{"allow", "ask", "deny"} {
+		var rules []string
+		if raw := permissions[field]; len(raw) > 0 && json.Unmarshal(raw, &rules) != nil {
+			return false, errors.New("CLI permission rules could not be read; existing settings were preserved")
+		}
+		if field == "deny" {
+			denied = rules
+		}
+	}
+	seen := map[string]bool{}
+	for _, rule := range denied {
+		seen[rule] = true
+	}
+	changed := false
+	for _, dir := range []string{".gemini", ".cuan", ".ssh", ".claude", ".codex"} {
+		rule := "read_file(" + filepath.Join(home, dir) + ")"
+		if !seen[rule] {
+			denied = append(denied, rule)
+			seen[rule] = true
+			changed = true
+		}
+	}
+	if !changed {
+		return false, nil
+	}
+	permissions["deny"], _ = json.Marshal(denied)
+	settings["permissions"], _ = json.Marshal(permissions)
+	return true, nil
 }
 
 // prepareAntigravitySettings uses the provider's documented settings.json keys
@@ -283,7 +332,10 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 			return errors.New("CLI settings could not be read; existing settings were preserved")
 		}
 	}
-	changed := false
+	changed, err := applyChatProfileReadDeny(settings, home)
+	if err != nil {
+		return err
+	}
 	for key, value := range map[string]json.RawMessage{"colorScheme": json.RawMessage(`"terminal"`), "enableTelemetry": json.RawMessage(`false`)} {
 		if _, exists := settings[key]; !exists {
 			settings[key] = value

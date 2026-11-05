@@ -303,7 +303,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if workspace != "" {
 			_ = agent.PrepareAntigravitySettings(home, workspace)
 		}
-		_ = agent.PrepareAntigravityReadOnlyPermissions(home)
+		if err := agent.PrepareAntigravityReadOnlyPermissions(home); err != nil {
+			return "", "The agent's chat permissions could not be prepared. Your message is saved; no provider process was started."
+		}
 	}
 	profileEnv := agent.AntigravityProfileEnvironment(home)
 	if binary == "commandcode" {

@@ -130,6 +130,20 @@ Reasoning/text deltas, unrecognized tools and the finish tool's completed reply
 are excluded. Historical details that were not recorded cannot be recovered.
 Existing request/timeline retention limits still apply.
 
+Chat prepares native `read_file` deny rules for the selected runtime HOME's
+`.gemini`, `.cuan`, `.ssh`, `.claude` and `.codex` directories. These override
+the broad read grant according to the provider's documented
+[CLI permission precedence](https://antigravity.google/docs/permissions/#cli-fine-grained-permissions).
+They apply to agent tools, not the provider process's own token refresh/session
+storage. Registered project and explicit attachment mounts remain available.
+Existing allow/ask/deny rules and unknown permission fields are preserved.
+Malformed permission lists abort chat preparation before provider startup;
+settings are not silently replaced. These rules supplement the filesystem
+sandbox and prompt; they are not a new OS boundary between native process and
+its own profile. Verification covers generated rules, preserved configuration,
+idempotence and failure-before-start; successful normal file reads must also be
+checked against the deployed native runtime.
+
 Visual verification uses the real frontend build with isolated API fixtures:
 `CUAN_CHECK_RESPONSE_TIMELINE=1 CUAN_CHECK_TOOL_DETAILS=1 node docs/evidence/task-attention-check.cjs`.
 It checks collapsed/expanded details, 44px targets, live following, manual-scroll
