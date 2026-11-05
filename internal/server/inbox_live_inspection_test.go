@@ -157,8 +157,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) > 10*time.Minute {
 		t.Fatal("stored inspection deadline diverges from native verification budget")
 	}
-	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-current-report", TaskID: d.ID, AttemptID: &inspectionAttempt.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Current feature verified", CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
+	if scenario != "current outcome timeout files" {
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-current-report", TaskID: d.ID, AttemptID: &inspectionAttempt.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Current feature verified", CreatedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	req := runner.CompleteAttemptRequest{RunnerID: "live-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, LiveInspectionCommit: s.cfg.CommitSHA, SourceAncestryVerified: true, AgentReportRequired: true, AgentReportConfirmed: true, TestSummary: "Project verification: test.sh --fast (exit 0)\nFresh checks", RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("c", 64), Final: strings.Repeat("c", 64)}}
 	if currentOutcome {
@@ -166,6 +168,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.CurrentOutcomeVerified = true
 	}
 	switch scenario {
+	case "current outcome timeout files":
+		req.Status, req.ExitCode, req.ErrorMessage = task.AttemptStatusFailed, 124, "Execution timed out after adaptive timeout (10m0s)"
+		req.AgentReportConfirmed, req.CurrentOutcomeVerified = false, false
+		req.LiveInspectionCommit, req.TestSummary, req.RepositoryVerification = "", "", nil
 	case "current outcome missing identity":
 		req.CurrentOutcomeVerified = false
 	case "current outcome forged ancestry":

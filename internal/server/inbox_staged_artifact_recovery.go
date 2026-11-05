@@ -43,8 +43,16 @@ func (s *Server) recoverTerminalVerificationArtifacts(ctx context.Context, d *ta
 		return
 	}
 	proof, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &d.Task, a.ID)
-	if err != nil || proof == nil {
+	if err != nil {
 		return
+	}
+	if proof == nil {
+		// Live/current-outcome inspections have their own bound launch proof.
+		// Their files remain observations, never a final report or pass receipt.
+		live, err := task.ValidateLiveInspection(ctx, s.taskSvc.Store(), &d.Task, a.ID)
+		if err != nil || live == nil {
+			return
+		}
 	}
 	delivery, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+a.ID))
 	if err != nil && !errors.Is(err, db.ErrMessageNotFound) {

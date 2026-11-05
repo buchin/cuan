@@ -287,3 +287,22 @@ diagnose a deadlock. Required screenshots must be rendered and inspected against
 the current snapshot; copying old screenshots does not verify the current UI.
 An unfinished check requires an honest checkpoint with the missing evidence
 before the deadline, not acceptance or another automatically restarted attempt.
+
+## Reports saved before an inspection timeout
+
+Live-result and current-outcome inspections use the same bounded staged-file
+recovery as ordinary verification. If an inspection times out after saving a
+report in its dedicated session output directory, Cuan validates its original
+launch binding and restores only that attempt's encrypted artifact grant. The
+normal file allowlist, size/count bounds, owner association, cancellation and
+scope checks still apply. Symlinks and private files are not delivered.
+
+Recovered files are attached once to the original Inbox conversation and recorded
+as `unreviewed`. Their evidence digest permits independent review of the saved
+findings. Delivery does not manufacture a final agent report, successful attempt,
+passing checks, unchanged-source receipt or current-release acceptance. The old
+failed attempt stays failed and no inspection/correction budget is reset.
+
+Coverage: `TestLiveInspectionRecoversStagedReportWithoutCompletion`,
+`TestLiveInspectionStagedReportPostgres` and the existing ordinary-verification
+staged-output regression tests.
