@@ -1681,5 +1681,7 @@
   "Assistant": "Asisten",
   "Saved work.": "Pekerjaan tersimpan.",
   "The work is saved, but could not start.": "Pekerjaan tersimpan, tetapi belum bisa dimulai.",
-  "Your message is saved.": "Pesan Anda tersimpan."
+  "Your message is saved.": "Pesan Anda tersimpan.",
+  "Checking result": "Memeriksa hasil",
+  "Waiting for review": "Menunggu pemeriksaan"
 }

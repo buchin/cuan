@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/auth"
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
@@ -254,6 +255,21 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if detail.SourceRoomID != "" && detail.LatestAttempt != nil && (detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			requests, err := store.ListInboxRequests(r.Context(), detail.SourceRoomID)
+			if err != nil {
+				respondJSONError(w, 503, "Could not read task review progress")
+				return
+			}
+			item := &task.TaskItemResponse{Task: detail.Task, LatestAttempt: detail.LatestAttempt}
+			if err := s.projectInboxTaskReviews(r.Context(), []*task.TaskItemResponse{item}, requests, time.Now().UTC()); err != nil {
+				respondJSONError(w, 503, "Could not read task review progress")
+				return
+			}
+			detail.ReviewState = item.ReviewState
+		}
+	}
 	if s.projectStudioRepo != nil && detail.SourceRoomID != "" && detail.LatestAttempt != nil {
 		if m, err := s.projectStudioRepo.GetMessageByID(r.Context(), delegationMessageID("task-delivery:"+detail.LatestAttempt.ID)); err == nil && m != nil && m.RoomID == detail.SourceRoomID && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == detail.SourceMessageID {
 			_, ids := decodeAttachmentMessage(m.Content)

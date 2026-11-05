@@ -403,3 +403,19 @@ padding. Only the active tab, input and action surfaces are tinted. Internal mod
 is identified by its lock tab/send icon; do not repeat an eye-off marker beside
 the mode tabs. Persisted internal messages and unsent attachments retain their
 own visibility markers.
+
+### 7.11. Visible execution and automated review
+
+Task cards and details distinguish active execution from automatic result review.
+The read-only `review_state` projection is tied to the latest attempt's live Cuan
+review request, never a historical review or a status guess. Running review shows
+**Memeriksa hasil / Checking result** with a small round pulse; queued review is
+static. Completed, expired and canceled requests do not pulse. Manual result
+approval is unavailable while the coordinator review is active. Respect reduced
+motion. Display a task result card before its ready-to-use customer reply draft,
+including when both are attached to the same message. Do not create extra status
+messages just to animate progress.
+
+For multiline composers the send surface still fills the right edge, while the
+send icon stays centered in the bottom44px accessory row with attachment/quick
+reply icons. This avoids moving the icon upward as the input grows.

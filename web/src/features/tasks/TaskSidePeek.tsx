@@ -1,3 +1,4 @@
+import { StatusDot } from '../../components/ui/StatusDot'
 import { IconButton } from '../../components/ui/IconButton'
 import { GitHubPrerequisite } from './GitHubPrerequisite'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -601,8 +602,9 @@ function TaskDetailView({
           {detail.title}
         </h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-          <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize", taskStatusBadgeClass(detail.status))}>
-            {running ? (detail.latest_attempt?.status === 'queued' ? (id ? 'Dalam antrean' : 'Queued') : (id ? 'Sedang dikerjakan' : 'Working')) : publicStatus}
+          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border", taskStatusBadgeClass(detail.status))}>
+            {detail.review_state === 'running' && <StatusDot status="working" size="xs" pulse aria-hidden />}
+            {detail.review_state ? (detail.review_state === 'running' ? (id ? 'Memeriksa hasil' : 'Checking result') : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : running ? (detail.latest_attempt?.status === 'queued' ? (id ? 'Dalam antrean' : 'Queued') : (id ? 'Sedang dikerjakan' : 'Working')) : publicStatus}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
             <Clock className="h-3 w-3" />
@@ -696,13 +698,13 @@ function TaskDetailView({
           <div className="space-y-6">
             {!editing && (
               <section aria-label={id ? 'Langkah berikutnya' : 'Next step'} className="space-y-1">
-                <h3 className="text-sm font-medium">{running
+                <h3 className="text-sm font-medium">{detail.review_state ? (detail.review_state === 'running' ? (id ? `${assistantName} sedang memeriksa hasil` : `${assistantName} is checking the result`) : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : running
                   ? (id ? `${assistantName} sedang mengerjakan tugas ini` : `${assistantName} is working on this task`)
                   : detail.status === 'done' ? (id ? 'Tugas selesai' : 'Task completed')
                   : detail.status === 'review' ? (id ? 'Perlu ditinjau' : 'Ready for review')
                   : detail.status === 'blocked' ? (timedOut ? (id ? 'Batas waktu tercapai' : 'Time limit reached') : (id ? 'Pekerjaan terhenti' : 'Work is blocked'))
                   : (id ? 'Siap dikerjakan' : 'Ready to start')}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{running
+                <p className="text-sm leading-relaxed text-muted-foreground">{detail.review_state ? '' : running
                   ? (latestProgress?.message || (detail.latest_attempt?.status === 'queued' ? (id ? 'Menunggu giliran agen.' : 'Waiting for an agent.') : ''))
                   : detail.status === 'done' ? (id ? 'Lihat hasil dan bukti penyelesaiannya di bawah.' : 'See the result and verification below.')
                   : detail.status === 'review' ? (id ? (hasReviewEvidence ? 'Periksa ringkasan dan bukti sebelum menyetujui. Jika belum sesuai, minta perbaikan.' : `Bukti penyelesaian belum lengkap. Minta perbaikan agar ${assistantName} melengkapi hasilnya.`) : 'Check the summary and evidence before approving, or request changes.')
@@ -1416,7 +1418,7 @@ function TaskDetailView({
                 </button>
               ) : (
                 <>
-                  {detail.status === 'review' && !running && (
+                  {detail.status === 'review' && !running && !detail.review_state && (
                     <button
                       className="action-secondary min-h-11 min-w-[44px] px-3.5 sm:px-4 text-xs sm:text-sm font-medium"
                       disabled={busy || !loaded || !hasReviewEvidence}
@@ -1432,15 +1434,17 @@ function TaskDetailView({
                   )}
                   <button
                     className="action-primary min-h-11 min-w-[44px] px-4 sm:px-5 text-xs sm:text-sm font-medium shadow-sm"
-                    disabled={busy || !loaded || !!pending || launching || detail.latest_attempt?.status === 'queued'}
+                    disabled={busy || !loaded || !!pending || launching || !!detail.review_state || detail.latest_attempt?.status === 'queued'}
                     onClick={taskAction}
                   >
                     {busy ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : detail.review_state ? (
+                      <StatusDot status={detail.review_state === 'running' ? 'working' : 'idle'} size="xs" pulse={detail.review_state === 'running'} aria-hidden />
                     ) : (
                       running ? (detail.latest_attempt?.status !== 'queued' && <Terminal aria-hidden="true" className="h-4 w-4" />) : <Play className="h-4 w-4" />
                     )}
-                    <span>{id ? (running ? (detail.latest_attempt?.status === 'queued' ? 'Dalam antrean' : 'Buka terminal') : detail.status === 'review' ? 'Minta perbaikan' : detail.attempts.length ? 'Coba lagi' : 'Mulai') : runLabel}</span>
+                    <span>{detail.review_state ? (detail.review_state === 'running' ? (id ? 'Memeriksa hasil' : 'Checking result') : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : id ? (running ? (detail.latest_attempt?.status === 'queued' ? 'Dalam antrean' : 'Buka terminal') : detail.status === 'review' ? 'Minta perbaikan' : detail.attempts.length ? 'Coba lagi' : 'Mulai') : runLabel}</span>
                   </button>
                 </>
               )}

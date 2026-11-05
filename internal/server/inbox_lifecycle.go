@@ -793,7 +793,7 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 		if len(messages) > 50 {
 			messages = messages[len(messages)-50:]
 		}
-		linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
+		linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID, requests)
 		if err != nil {
 			return false
 		}
@@ -836,7 +836,7 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) inboxLinkedTasks(ctx context.Context, room string) ([]*task.TaskItemResponse, error) {
+func (s *Server) inboxLinkedTasks(ctx context.Context, room string, requestSets ...[]db.InboxRequest) ([]*task.TaskItemResponse, error) {
 	if s.taskSvc == nil {
 		return []*task.TaskItemResponse{}, nil
 	}
@@ -844,7 +844,53 @@ func (s *Server) inboxLinkedTasks(ctx context.Context, room string) ([]*task.Tas
 	if items == nil {
 		items = []*task.TaskItemResponse{}
 	}
-	return items, err
+	if err != nil || len(items) == 0 {
+		return items, err
+	}
+	var requests []db.InboxRequest
+	if len(requestSets) > 0 {
+		requests = requestSets[0]
+	} else if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		requests, err = store.ListInboxRequests(ctx, room)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := s.projectInboxTaskReviews(ctx, items, requests, time.Now().UTC()); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// Read-only projection: a live review is not human approval or task completion.
+func (s *Server) projectInboxTaskReviews(ctx context.Context, items []*task.TaskItemResponse, requests []db.InboxRequest, now time.Time) error {
+	for _, item := range items {
+		if item != nil {
+			item.ReviewState = ""
+		}
+	}
+	for _, q := range requests {
+		if (q.State != "queued" && q.State != "running") || !q.Deadline.After(now) || (q.State == "running" && q.StartedAt == nil) {
+			continue
+		}
+		message, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+		if err != nil {
+			return err
+		}
+		if message == nil || message.RoomID != q.RoomID || message.AuthorType != "system" || message.AuthorID != "cuan_work_review" {
+			continue
+		}
+		for _, item := range items {
+			if item == nil || item.LatestAttempt == nil || item.Status == task.TaskStatusDone || item.Status == "cancelled" || item.Status == "canceled" || item.LatestAttempt.Status == task.AttemptStatusCanceled || item.LatestAttempt.CancelRequested || item.LatestAttempt.Status == task.AttemptStatusRunning || item.LatestAttempt.Status == task.AttemptStatusQueued {
+				continue
+			}
+			matches := strings.Contains(message.Content, "/tasks/"+item.ID+")") && (q.RequestID == delegationMessageID("task-review:"+item.LatestAttempt.ID) || strings.Contains(message.Content, "reported attempt: "+item.LatestAttempt.ID+"."))
+			if matches && (item.ReviewState != "running" || q.State == "running") {
+				item.ReviewState = q.State
+			}
+		}
+	}
+	return nil
 }
 
 // A durable queued request can wait for capacity without creating another

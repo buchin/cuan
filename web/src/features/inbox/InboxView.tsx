@@ -1751,15 +1751,6 @@ export function InboxView({
                       )}
                     </div>
                     </ItemActions>}
-                    {msg.reply_draft && (
-                      <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true} onUse={(draft) => {
-                        setWhisperMode(false)
-                        setWhisperHandle('')
-                        setInputMessage(draft)
-                        textareaRef.current?.focus()
-                        if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-                      }} />
-                    )}
                       {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (linkedTasksForMsg.length ? linkedTasksForMsg : [undefined]).map(linkedTask => (
                         <InboxTaskAction
                           key={linkedTask?.id || msg.uuid}
@@ -1777,6 +1768,15 @@ export function InboxView({
                           isCustomerRoom={activeContact.type === 'customer'}
                         />
                       ))}
+                    {msg.reply_draft && (
+                      <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true} onUse={(draft) => {
+                        setWhisperMode(false)
+                        setWhisperHandle('')
+                        setInputMessage(draft)
+                        textareaRef.current?.focus()
+                        if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                      }} />
+                    )}
                     {(requestsByMessage.get(msg.uuid || '') || []).map((q) => {
                       const placeholder =
                         (q.agent_id || activeContact.type === 'agent') &&

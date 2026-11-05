@@ -101,18 +101,18 @@ export function InboxTaskAction({
 
   if (!draft && !existing) return null
   if (existing) {
-    const state = workStatus(existing)
-    const rawUpdate = state === 'Completed' ? existing.summary : existing.latest_attempt?.error_message || existing.summary
+    const state = existing.review_state === 'running' ? 'Checking result' : existing.review_state === 'queued' ? 'Waiting for review' : workStatus(existing)
+    const rawUpdate = existing.review_state ? '' : state === 'Working' ? existing.latest_progress : state === 'Completed' ? existing.summary : existing.latest_attempt?.error_message || existing.summary
     const titlePrefix = existing.title.trim()
     const update = titlePrefix && rawUpdate?.trim().toLocaleLowerCase().startsWith(titlePrefix.toLocaleLowerCase()) && (!rawUpdate.trim().slice(titlePrefix.length) || /^[\s:,.–—-]/.test(rawUpdate.trim().slice(titlePrefix.length)))
       ? rawUpdate.trim().slice(titlePrefix.length).replace(/^[\s:,.–—-]+/, '')
       : rawUpdate
     const project = existing.project_name || existing.project_names?.join(', ')
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
-    const StateIcon = state === 'Completed' ? Check : state === 'Queued' ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
+    const StateIcon = state === 'Completed' ? Check : (state === 'Queued' || state === 'Waiting for review') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
 
     return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
-      <div className="-mx-4 -mt-3 flex items-center justify-between gap-3 rounded-t-xl bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{state === 'Working' ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span></div>
+      <div className="-mx-4 -mt-3 flex items-center justify-between gap-3 rounded-t-xl bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span></div>
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
       <CardActions className="-mx-4 px-4">

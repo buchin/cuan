@@ -31,6 +31,7 @@ async function api(route){
   await page.route('**/api/**',api)
   await page.goto('http://127.0.0.1:4192/inbox/fixture-room')
   const card=page.locator('[data-card=reply-draft]');await card.waitFor();await card.scrollIntoViewIfNeeded()
+  const resultCard=page.locator('[data-card=task-card]');await resultCard.waitFor();assert.equal(await resultCard.count(),1);assert((await resultCard.boundingBox()).y<(await card.boundingBox()).y,'task result must precede its ready-to-use draft');
   assert.equal(await card.count(),1);assert((await card.boundingBox()).height<500,'long draft has a bounded preview');assert(await card.locator('[data-internal-visibility]').count()>0)
   const use=card.getByRole('button',{name:'Review & Use',exact:true});assert((await use.boundingBox()).height>=44)
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))

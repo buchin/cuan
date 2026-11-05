@@ -1351,7 +1351,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		}
 	}
 
-	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID)
+	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID, requests)
 	if err != nil {
 		respondJSONError(w, 503, "Could not read conversation tasks")
 		return

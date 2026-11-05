@@ -278,5 +278,7 @@
   "{{count}} unread messages": "{{count}} unread messages",
   "Assistant": "Assistant",
   "Saved work.": "Saved work.",
-  "The work is saved, but could not start.": "The work is saved, but could not start."
+  "The work is saved, but could not start.": "The work is saved, but could not start.",
+  "Checking result": "Checking result",
+  "Waiting for review": "Waiting for review"
 }
