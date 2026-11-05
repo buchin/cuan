@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Copy, Check, FileText } from 'lucide-react'
+import { MermaidBlock } from './MermaidBlock'
 
 interface MarkdownViewerProps {
   content: string
@@ -440,49 +441,10 @@ export function MarkdownViewer({
           )
         }
         if (block.type === 'code') {
-          const isMermaid = block.lang === 'mermaid' || block.lang === 'flowchart'
+          const lang = (block.lang || '').toLowerCase()
+          const isMermaid = lang === 'mermaid' || lang === 'flowchart'
           if (isMermaid) {
-            const lineCount = (block.text || '').split('\n').filter((l) => l.trim()).length
-            return (
-              <details
-                key={idx}
-                className="group my-3 rounded-xl border border-slate-700/80 bg-slate-950 overflow-hidden shadow-md"
-              >
-                <summary className="flex min-h-11 cursor-pointer select-none items-center justify-between gap-3 px-3.5 py-2.5 bg-slate-900/90 text-[11px] font-mono text-slate-300 hover:text-white transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded bg-emerald-500/10 text-emerald-400">
-                      <FileText className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="font-semibold text-xs">Diagram Alur (Mermaid)</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                      {lineCount} baris
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-400">
-                    <span className="text-xs group-open:hidden">Lihat diagram</span>
-                    <span className="text-xs hidden group-open:inline">Tutup</span>
-                  </div>
-                </summary>
-                <div className="border-t border-slate-800 p-2">
-                  <div className="flex justify-end pb-1.5 px-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(block.text || '')
-                      }}
-                      className="hover:text-white text-slate-400 transition-colors flex items-center gap-1 text-[11px]"
-                      title="Copy code"
-                    >
-                      <Copy className="h-3 w-3" />
-                      <span>Salin diagram</span>
-                    </button>
-                  </div>
-                  <pre className="p-3 overflow-x-auto text-emerald-400 font-mono text-[11px] leading-relaxed bg-slate-900/60 rounded-lg">
-                    <code>{block.text}</code>
-                  </pre>
-                </div>
-              </details>
-            )
+            return <MermaidBlock key={idx} code={block.text || ''} />
           }
           return (
             <div

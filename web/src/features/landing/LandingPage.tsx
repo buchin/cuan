@@ -296,6 +296,11 @@ export function LandingPage() {
                 text: 'Monochromatic micro-tint chat bubbles, quiet muted date dividers with zero solid white pill glare, and borderless inline status and task cards.',
               },
               {
+                Icon: Workflow,
+                title: 'Interactive Mermaid Diagrams in Chat.',
+                text: 'Automatic visual SVG rendering for ```mermaid workflows, touch momentum horizontal scrolling on mobile (360px–390px), interactive pop-up zoom/pan viewer, and graceful syntax fallback.',
+              },
+              {
                 Icon: Sparkles,
                 title: 'SlideDrawer Progressive Disclosure.',
                 text: 'Tap task references directly inside chat bubbles to slide open rich task inspection on the right without interrupting or obscuring the conversation stream.',

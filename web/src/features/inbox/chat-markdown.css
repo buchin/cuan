@@ -88,3 +88,24 @@
   font-size: 0.8rem;
   line-height: 1.5;
 }
+
+/* Mermaid Diagram Responsive & Touch Momentum Scrolling */
+.chat-code-mermaid {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.chat-code-mermaid .mermaid-scroll-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
+.chat-code-mermaid .mermaid-svg-container svg {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto;
+}
+
