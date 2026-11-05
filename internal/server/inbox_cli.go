@@ -111,6 +111,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if !s.executesInbox() {
 		return "", "Inbox execution is handled by the chat worker. Your saved request remains in its chat queue."
 	}
+	reconcileRetry, _ := ctx.Value(inboxRetryReconcileKey{}).(bool)
+	if reconcileRetry {
+		// The task receives original attachments from durable storage. Tool-free
+		// reconciliation must not mount receipts or advertise file inspection.
+		attachmentPaths = nil
+	}
 	normHarness := db.NormalizeHarness(harness, "")
 	for _, file := range attachmentPaths {
 		ext := strings.ToLower(filepath.Ext(file))
@@ -135,7 +141,6 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
-	reconcileRetry, _ := ctx.Value(inboxRetryReconcileKey{}).(bool)
 	directCoordinator = directCoordinator || reconcileRetry
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)

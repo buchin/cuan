@@ -35,7 +35,7 @@ func TestInboxReconciliationRejectsToolsAndUnscopedActions(t *testing.T) {
 			if scenario == "tool" {
 				prefix = `{"event":"step_update","step_update":{"step_index":1,"step_type":"tool","state":"DONE","tool_name":"run_command"}}` + "\n"
 			}
-			script := "#!/bin/sh\ncat <<'RESULT'\n" + prefix + string(result) + "\nRESULT\n"
+			script := "#!/bin/sh\nfor arg in \"$@\"; do [ \"$arg\" != \"--add-dir\" ] || exit 25; done\ncat <<'RESULT'\n" + prefix + string(result) + "\nRESULT\n"
 			if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -43,7 +43,11 @@ func TestInboxReconciliationRejectsToolsAndUnscopedActions(t *testing.T) {
 			t.Setenv("PATH", bin+":/usr/bin:/bin")
 			s := &Server{cfg: &config.Config{Environment: "staging"}}
 			ctx := context.WithValue(context.Background(), inboxRetryReconcileKey{}, true)
-			out, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Saved facts", home, "", nil)
+			attachment := filepath.Join(t.TempDir(), "receipt.jpg")
+			if err := os.WriteFile(attachment, []byte("private receipt fixture"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			out, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Saved facts", home, "", nil, attachment)
 			if scenario == "answer" || scenario == "reconcile" {
 				if out == "" || failure != "" {
 					t.Fatal("fresh answer rejected", failure)
@@ -101,7 +105,7 @@ func TestInboxReconciliationContextExcludesUnrelatedProjectBacklog(t *testing.T)
 		t.Fatal(err)
 	}
 	packet, err := s.inboxContext(ctx, q, true)
-	if err != nil || strings.Contains(packet, "UNRELATED_PROJECT_TASK") || !strings.Contains(packet, "ORIGINAL_APPROVED_REQUEST") || !strings.Contains(packet, "An empty list means no task is recorded here") {
+	if err != nil || strings.Contains(packet, "UNRELATED_PROJECT_TASK") || strings.Contains(packet, "Contact memory") || !strings.Contains(packet, "ORIGINAL_APPROVED_REQUEST") || !strings.Contains(packet, "An empty list means no task is recorded here") {
 		t.Fatal("reconciliation mixed unrelated work", err, packet)
 	}
 }

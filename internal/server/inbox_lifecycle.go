@@ -612,7 +612,11 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest, reconcilia
 	} else {
 		b.WriteString(s.inboxActiveProjectAndTaskContext(ctx, q))
 	}
-	b.WriteString(s.inboxContactMemoryContext(ctx, q, selected))
+	// Reconciliation delegates external identity checks to the original task.
+	// A Cuan contact directory is neither Dojo membership nor payment evidence.
+	if len(reconciliation) == 0 || !reconciliation[0] {
+		b.WriteString(s.inboxContactMemoryContext(ctx, q, selected))
+	}
 	b.WriteString(attachmentContext(q.OwnerID, s.inboxAttachmentIDs(ctx, q)))
 	fmt.Fprintf(&b, "\nTarget message ID: %s", q.MessageID)
 	return b.String(), nil
