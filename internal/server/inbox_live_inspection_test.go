@@ -14,7 +14,7 @@ import (
 )
 
 func TestLiveResultInspectionLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks", "current outcome", "current outcome missing identity", "current outcome forged ancestry", "current outcome release changed", "current outcome reported checks", "current outcome checks missing report"} {
+	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks", "current outcome", "current outcome missing identity", "current outcome forged ancestry", "current outcome release changed", "current outcome reported checks", "current outcome checks missing report", "current outcome opaque local", "current outcome opaque foreign", "current outcome opaque unfinished", "current outcome opaque cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, scenario, nil)
@@ -23,7 +23,7 @@ func TestLiveResultInspectionLifecycle(t *testing.T) {
 }
 
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -58,6 +58,20 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		exit = 124
 		source.ErrorMessage = "Execution timed out after adaptive timeout (45m0s)"
 	}
+	if strings.HasPrefix(scenario, "current outcome opaque") {
+		source.RunnerID, source.ErrorMessage = "local_terminal", ""
+		started := now.Add(-20 * time.Minute)
+		source.StartedAt = &started
+		if scenario == "current outcome opaque foreign" {
+			source.RunnerID = "other-runner"
+		}
+		if scenario == "current outcome opaque unfinished" {
+			source.FinishedAt = nil
+		}
+		if scenario == "current outcome opaque cancelled" {
+			source.CancelRequested = true
+		}
+	}
 	if scenario == "current outcome reported checks" || scenario == "current outcome checks missing report" {
 		exit = 0
 		source.ErrorMessage = "Project verification failed"
@@ -90,7 +104,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal(err)
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	eligible := scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
+	eligible := scenario != "current outcome opaque foreign" && scenario != "current outcome opaque unfinished" && scenario != "current outcome opaque cancelled" && scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
 	if got := s.recoverLiveResultInspection(ctx, d, origin); got != eligible {
 		t.Fatal("incorrect live inspection eligibility", got, scenario)
 	}
@@ -171,7 +185,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.AgentReportConfirmed = false
 	}
 	completed, err := service.Complete(ctx, inspectionAttempt.ID, req)
-	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks"
+	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local"
 	if err != nil || (completed.Status == task.AttemptStatusSucceeded) != valid {
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
@@ -183,7 +197,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if scenario == "release changed" || scenario == "current outcome release changed" {
 		s.cfg.CommitSHA = strings.Repeat("d", 40)
 	}
-	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks") {
+	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
 	}
 	if scenario == "current outcome" {

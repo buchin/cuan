@@ -66,10 +66,20 @@ func IsExecutionTimeout(a *TaskAttempt) bool {
 	return (*a.ExitCode == 124 && strings.HasPrefix(a.ErrorMessage, "Execution timed out after adaptive timeout (")) || (*a.ExitCode == 1 && strings.HasPrefix(a.ErrorMessage, "Task runner exceeded hard execution timeout ("))
 }
 
-// IsCurrentOutcomeFailure only recognizes native failure shapes. A project-check
-// failure additionally requires the exact attempt's final implementation report.
+// Legacy local runners sometimes retained exit 124 and a terminal interval but
+// lost the reason. This permits inspection of today's outcome, not a timeout
+// diagnosis, successful historical work, or another implementation execution.
+func IsOpaqueLocalFailure(a *TaskAttempt) bool {
+	return a != nil && a.RunnerID == "local_terminal" && a.Status == AttemptStatusFailed &&
+		a.ExitCode != nil && *a.ExitCode == 124 && a.ErrorMessage == "" &&
+		a.StartedAt != nil && a.FinishedAt != nil && a.FinishedAt.After(*a.StartedAt) &&
+		!a.CancelRequested && a.CanceledAt == nil
+}
+
+// A project-check failure additionally requires the exact attempt's final
+// implementation report. Opaque local failures preserve their unknown cause.
 func IsCurrentOutcomeFailure(a *TaskAttempt) bool {
-	return IsExecutionTimeout(a) || (a != nil && a.Status == AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == "Project verification failed")
+	return IsExecutionTimeout(a) || IsOpaqueLocalFailure(a) || (a != nil && a.Status == AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == "Project verification failed")
 }
 
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
@@ -154,7 +164,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		if err != nil || prior != nil {
 			return ErrInvalidTaskInput
 		}
-		if !IsExecutionTimeout(source) {
+		if !IsExecutionTimeout(source) && !IsOpaqueLocalFailure(source) {
 			activities, err := store.ListActivities(ctx, t.ID)
 			if err != nil {
 				return err

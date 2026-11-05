@@ -241,6 +241,15 @@ chains do not qualify. The request identity binds the original failed attempt
 and approved instructions; deploying another release does not reset its budget.
 Older runners cannot reserve this inspection.
 
+A legacy `local_terminal` attempt with retained failed status, exit124, an empty
+reason and a valid started/finished interval can also receive its first bounded
+current-outcome inspection. Its cause stays unknown: exit124 alone is never
+relabelled a native timeout or success. Missing terminal timestamps, different
+runners, cancellation and known unrelated errors remain excluded. This uses the
+same source-attempt/scope identity and does not reset a previously used inspection
+or correction budget. Original authorization and all independent verification
+requirements still apply; no historical implementation effects are replayed.
+
 This inspection establishes current behavior, never authorship or ancestry of
 unknown historical work. The failed attempt stays failed. The agent must
 reproduce the original issue, verify every original criterion, and supply actual

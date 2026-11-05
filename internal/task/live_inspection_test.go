@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+func TestOpaqueLocalFailurePreservesUnknownCause(t *testing.T) {
+	start, end := time.Now().Add(-20*time.Minute), time.Now()
+	exit := 124
+	base := TaskAttempt{RunnerID: "local_terminal", Status: AttemptStatusFailed, ExitCode: &exit, StartedAt: &start, FinishedAt: &end}
+	for _, scenario := range []string{"valid", "foreign runner", "known error", "missing start", "missing end", "invalid interval", "no exit", "running", "cancelled"} {
+		t.Run(scenario, func(t *testing.T) {
+			a := base
+			switch scenario {
+			case "foreign runner":
+				a.RunnerID = "remote"
+			case "known error":
+				a.ErrorMessage = "Unknown external effects"
+			case "missing start":
+				a.StartedAt = nil
+			case "missing end":
+				a.FinishedAt = nil
+			case "invalid interval":
+				a.FinishedAt = &start
+			case "no exit":
+				a.ExitCode = nil
+			case "running":
+				a.Status = AttemptStatusRunning
+			case "cancelled":
+				a.CancelRequested = true
+			}
+			if IsOpaqueLocalFailure(&a) != (scenario == "valid") {
+				t.Fatal("opaque failure eligibility lost terminal provenance")
+			}
+			if IsExecutionTimeout(&a) {
+				t.Fatal("opaque failure was relabelled a native timeout")
+			}
+		})
+	}
+}
+
 func TestCurrentOutcomeLaunchPreservesScopeAndSingleRequestIdentity(t *testing.T) {
 	now := time.Now().UTC()
 	task := &Task{ID: "task", ProjectID: "project", SourceRoomID: "room", Instructions: "Approved original requirements"}
