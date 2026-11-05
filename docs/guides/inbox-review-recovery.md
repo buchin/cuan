@@ -229,12 +229,14 @@ actual frontend was rendered and inspected at390px and1440px using isolated APIs
 with a factual missing-screenshot example; this is UI rendering evidence, not
 proof of the original task's visual acceptance.
 
-## Inspecting the current outcome after a legacy execution timeout
+## Inspecting the current outcome without a historical source commit
 
-An approved managed code task that timed out without producing a source commit
+An approved managed code task that failed without producing a source commit
 may receive one read-only inspection of the exact running release, provided its
-registered repository matches that release. Only native adaptive/hard execution
-timeout evidence qualifies. Cancellation, unrelated failures and inspection
+registered repository matches that release. Native adaptive/hard execution timeout evidence qualifies. A native project
+verification failure (exit0 plus the exact machine failure reason) also qualifies
+only with the same attempt's latest final implementation report. Progress-only,
+foreign-attempt and non-implementation reports do not qualify. Cancellation, unrelated failures and inspection
 chains do not qualify. The request identity binds the original failed attempt
 and approved instructions; deploying another release does not reset its budget.
 Older runners cannot reserve this inspection.

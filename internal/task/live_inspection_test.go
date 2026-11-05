@@ -47,3 +47,36 @@ func TestCurrentOutcomeLaunchPreservesScopeAndSingleRequestIdentity(t *testing.T
 		})
 	}
 }
+
+func TestCurrentOutcomeCheckFailureRequiresExactLatestFinalImplementationReport(t *testing.T) {
+	attempt := "source"
+	old := time.Now().Add(-time.Minute)
+	report := &TaskActivity{ID: "report", TaskID: "task", AttemptID: &attempt, ActivityType: "agent_report", NewStatus: TaskStatusReview, CreatedAt: old}
+	kind := &TaskActivity{ID: "kind", TaskID: "task", AttemptID: &attempt, ActivityType: "agent_result_kind", NewStatus: "implementation", CreatedAt: old}
+	for _, scenario := range []string{"valid", "wrong attempt", "progress only", "newer progress", "other kind", "foreign task"} {
+		t.Run(scenario, func(t *testing.T) {
+			r, k := *report, *kind
+			events := []*TaskActivity{&r, &k}
+			switch scenario {
+			case "wrong attempt":
+				other := "other"
+				r.AttemptID = &other
+			case "progress only":
+				r.NewStatus = "progress"
+			case "newer progress":
+				later := r
+				later.ID = "newer"
+				later.CreatedAt = time.Now()
+				later.NewStatus = "progress"
+				events = append(events, &later)
+			case "other kind":
+				k.NewStatus = "investigation"
+			case "foreign task":
+				r.TaskID = "foreign"
+			}
+			if liveImplementationFinalReport(events, "task", attempt) != (scenario == "valid") {
+				t.Fatal("historical or unrelated report granted inspection eligibility")
+			}
+		})
+	}
+}

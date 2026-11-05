@@ -66,6 +66,12 @@ func IsExecutionTimeout(a *TaskAttempt) bool {
 	return (*a.ExitCode == 124 && strings.HasPrefix(a.ErrorMessage, "Execution timed out after adaptive timeout (")) || (*a.ExitCode == 1 && strings.HasPrefix(a.ErrorMessage, "Task runner exceeded hard execution timeout ("))
 }
 
+// IsCurrentOutcomeFailure only recognizes native failure shapes. A project-check
+// failure additionally requires the exact attempt's final implementation report.
+func IsCurrentOutcomeFailure(a *TaskAttempt) bool {
+	return IsExecutionTimeout(a) || (a != nil && a.Status == AttemptStatusFailed && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == "Project verification failed")
+}
+
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
 	if p.PreviousAttemptID != "" {
 		return p.PreviousAttemptID
@@ -141,12 +147,21 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		return err
 	}
 	if proof.Purpose == CurrentOutcomeInspection {
-		if proof.SourceCommit != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || t.CommitSHA != "" || !IsExecutionTimeout(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
+		if proof.SourceCommit != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || t.CommitSHA != "" || !IsCurrentOutcomeFailure(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
 			return ErrInvalidTaskInput
 		}
 		prior, err := LiveInspectionForAttempt(ctx, store, t, source.ID)
 		if err != nil || prior != nil {
 			return ErrInvalidTaskInput
+		}
+		if !IsExecutionTimeout(source) {
+			activities, err := store.ListActivities(ctx, t.ID)
+			if err != nil {
+				return err
+			}
+			if !liveImplementationFinalReport(activities, t.ID, source.ID) {
+				return ErrInvalidTaskInput
+			}
 		}
 		return nil
 	}
@@ -161,16 +176,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 	if err != nil {
 		return err
 	}
-	var latest, kind *TaskActivity
-	for _, event := range activities {
-		if event != nil && event.TaskID == t.ID && event.AttemptID != nil && *event.AttemptID == source.ID && event.ActivityType == "agent_result_kind" && (kind == nil || event.CreatedAt.After(kind.CreatedAt) || (event.CreatedAt.Equal(kind.CreatedAt) && event.ID > kind.ID)) {
-			kind = event
-		}
-		if event != nil && event.TaskID == t.ID && event.AttemptID != nil && *event.AttemptID == source.ID && event.ActivityType == "agent_report" && (latest == nil || event.CreatedAt.After(latest.CreatedAt) || (event.CreatedAt.Equal(latest.CreatedAt) && event.ID > latest.ID)) {
-			latest = event
-		}
-	}
-	if latest == nil || (latest.NewStatus != TaskStatusReview && latest.NewStatus != TaskStatusDone) || kind == nil || kind.NewStatus != "implementation" {
+	if !liveImplementationFinalReport(activities, t.ID, source.ID) {
 		return ErrInvalidTaskInput
 	}
 	if proof.PreviousAttemptID != "" {
@@ -204,4 +210,17 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		}
 	}
 	return nil
+}
+
+func liveImplementationFinalReport(activities []*TaskActivity, taskID, attemptID string) bool {
+	var latest, kind *TaskActivity
+	for _, event := range activities {
+		if event != nil && event.TaskID == taskID && event.AttemptID != nil && *event.AttemptID == attemptID && event.ActivityType == "agent_result_kind" && (kind == nil || event.CreatedAt.After(kind.CreatedAt) || (event.CreatedAt.Equal(kind.CreatedAt) && event.ID > kind.ID)) {
+			kind = event
+		}
+		if event != nil && event.TaskID == taskID && event.AttemptID != nil && *event.AttemptID == attemptID && event.ActivityType == "agent_report" && (latest == nil || event.CreatedAt.After(latest.CreatedAt) || (event.CreatedAt.Equal(latest.CreatedAt) && event.ID > latest.ID)) {
+			latest = event
+		}
+	}
+	return latest != nil && (latest.NewStatus == TaskStatusReview || latest.NewStatus == TaskStatusDone) && kind != nil && kind.NewStatus == "implementation"
 }
