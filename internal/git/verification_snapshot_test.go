@@ -284,3 +284,50 @@ func TestVerificationPathsChangedRequiresRelevantLiteralCommittedChange(t *testi
 		t.Fatal("dirty snapshot granted fresh evidence")
 	}
 }
+
+func TestVerificationSnapshotConcurrentPublicationPreservesWinner(t *testing.T) {
+	source, _, original, live, _ := snapshotFixture(t)
+	for _, scenario := range []string{"identical", "different binding", "pending work", "symlink"} {
+		t.Run(scenario, func(t *testing.T) {
+			client := NewClient()
+			root := t.TempDir()
+			winner := filepath.Join(root, "winner")
+			temporary := filepath.Join(root, "prepared")
+			for _, destination := range []string{winner, temporary} {
+				if _, err := client.PrepareVerificationSnapshot(context.Background(), source, destination, original, live); err != nil {
+					t.Fatal(err)
+				}
+			}
+			binding := verificationSnapshotBinding{Source: source, SourceCommit: original, TargetCommit: live}
+			switch scenario {
+			case "different binding":
+				binding.SourceCommit = live
+			case "pending work":
+				if err := os.WriteFile(filepath.Join(winner, "pending.txt"), []byte("PRESERVE"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				saved := winner + "-saved"
+				if err := os.Rename(winner, saved); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(saved, winner); err != nil {
+					t.Fatal(err)
+				}
+			}
+			path, err := client.publishVerificationSnapshot(context.Background(), temporary, winner, binding)
+			if (err == nil) != (scenario == "identical") {
+				t.Fatalf("unexpected publication result: %q %v", path, err)
+			}
+			if _, err := os.Stat(temporary); err != nil {
+				t.Fatal("prepared snapshot was replaced", err)
+			}
+			if scenario == "pending work" {
+				data, err := os.ReadFile(filepath.Join(winner, "pending.txt"))
+				if err != nil || string(data) != "PRESERVE" {
+					t.Fatal("winner work was modified")
+				}
+			}
+		})
+	}
+}

@@ -203,7 +203,17 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 	if err := c.validateVerificationSnapshot(ctx, temporary, binding); err != nil {
 		return "", err
 	}
+	return c.publishVerificationSnapshot(ctx, temporary, destination, binding)
+}
+
+func (c *Client) publishVerificationSnapshot(ctx context.Context, temporary, destination string, binding verificationSnapshotBinding) (string, error) {
 	if err := os.Rename(temporary, destination); err != nil {
+		// API and chat workers have independent process-local gates. Another
+		// process may have published the identical snapshot while we prepared
+		// ours. Reuse only a fully verified winner; never replace existing work.
+		if info, statErr := os.Lstat(destination); statErr == nil && info.IsDir() && c.validateVerificationSnapshot(ctx, destination, binding) == nil {
+			return destination, nil
+		}
 		return "", errors.New("verification snapshot could not be published; existing files were preserved")
 	}
 	return destination, nil
