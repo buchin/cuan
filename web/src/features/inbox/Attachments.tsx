@@ -369,7 +369,7 @@ export function AttachmentPreviews({
   )
 }
 
-export function AttachmentFile({ attachment: a, internal = false }: { attachment: Attachment; internal?: boolean }) {
+export function AttachmentFile({ attachment: a, internal = false, imagePreview = false }: { attachment: Attachment; internal?: boolean; imagePreview?: boolean }) {
   const { t } = useLanguage()
 
   const [url, setURL] = useState(''),
@@ -378,6 +378,7 @@ export function AttachmentFile({ attachment: a, internal = false }: { attachment
   const [previewOpen, setPreviewOpen] = useState(false)
   const isImg = isImageFile(a.name, a.type)
   const canPreview = isPreviewableFile(a.name, a.type)
+  const showImage = imagePreview && isImg
   const blobRef = useRef('')
   useEffect(() => {
     let alive = true
@@ -429,8 +430,8 @@ export function AttachmentFile({ attachment: a, internal = false }: { attachment
     }
   }
   return (
-    <div className="flex min-w-0 max-w-full items-start">
-      {internal && <InternalVisibility className="-ml-2" />}
+    <div className={`relative flex min-w-0 max-w-full items-start ${showImage ? 'w-[320px]' : ''}`}>
+      {internal && <InternalVisibility className={showImage ? 'absolute left-1 top-1 z-10 rounded-full bg-background/80' : '-ml-2'} />}
       <button
         type="button"
         onClick={(e) => {
@@ -443,33 +444,33 @@ export function AttachmentFile({ attachment: a, internal = false }: { attachment
           }
         }}
         disabled={loading}
-        className="flex min-w-0 max-w-full items-center gap-2 text-left hover:opacity-90 cursor-pointer"
+        className={showImage ? 'flex min-h-[160px] w-full min-w-0 items-center justify-center overflow-hidden rounded-lg bg-muted/40 text-left hover:opacity-90 cursor-pointer' : 'flex min-h-11 min-w-0 max-w-full items-center gap-2 text-left hover:opacity-90 cursor-pointer'}
         aria-label={(canPreview ? t('Preview') : t('Download')) + ' ' + a.name}
       >
         {url ? (
           <img
             src={url}
             alt={a.name}
-            className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-lg object-cover border border-border/40"
+            className={showImage ? 'block max-h-[420px] w-full object-contain' : 'h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-lg object-cover border border-border/40'}
           />
         ) : (
-          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+          showImage && !failed ? <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" /> : <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
         )}
-        <div className="min-w-0 flex flex-col justify-center">
+        {(!showImage || failed) && <div className="min-w-0 flex flex-col justify-center">
           <span className="truncate max-w-[130px] sm:max-w-[200px] font-medium text-foreground text-xs leading-tight">
             {a.name}
           </span>
           <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
             {Math.max(1, Math.ceil(a.size / 1024))} KB
           </span>
-        </div>
-        {loading ? (
+        </div>}
+        {!showImage && (loading ? (
           <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" />
         ) : canPreview ? (
           <Eye className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors ml-0.5" />
         ) : (
           <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground transition-colors ml-0.5" />
-        )}
+        ))}
       </button>
       {canPreview && previewOpen && (
         <Suspense fallback={null}>

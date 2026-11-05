@@ -1622,10 +1622,11 @@ export function InboxView({
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
-                        <AttachmentFile key={a.id} attachment={a} internal={msg.is_internal === true} />
+                        <div key={a.id} className="mb-2 last:mb-0"><AttachmentFile attachment={a} imagePreview internal={msg.is_internal === true} /></div>
                       ))}
                       {msg.attachment_url && !msg.attachments?.length && (
                         <AttachmentFile
+                          imagePreview
                           internal={msg.is_internal === true}
                           attachment={{
                             id: msg.attachment_url,

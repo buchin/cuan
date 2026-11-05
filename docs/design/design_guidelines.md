@@ -486,3 +486,13 @@ File previews use SurfaceHeader with a persistent,44px Close target beside the
 truncated filename. Secondary Preview/Raw, zoom, copy and download controls wrap
 below it and cannot push Close outside a narrow viewport. Image controls appear
 once. Escape closes the viewer and restores focus to the attachment trigger.
+
+### 7.16. Images in conversations
+
+Persisted Inbox images use a large, bounded, uncropped preview above the message
+caption. The image itself opens the file viewer; omit the filename, size and
+redundant eye action from a successfully loaded photo. Preserve authentication,
+internal visibility, loading/error states and the existing viewer's Close,
+Escape and focus restoration. Documents and unsent composer attachments retain
+the compact file treatment. Image loading failure must retain an accessible
+filename and a way to open the viewer.
