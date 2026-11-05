@@ -36,7 +36,7 @@ func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
+	for _, scenario := range []string{"valid", "valid preparation", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished "+scenario, nil)
@@ -45,7 +45,7 @@ func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -245,6 +245,53 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal("inspection did not deduplicate")
 	}
 	_ = store.DeleteTask(ctx, "phase-blocker")
+	if scenario == "current outcome unpublished valid preparation" {
+		parent := launch
+		owned, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "preparing", parent.ID)
+		if err != nil || owned == nil {
+			t.Fatal("could not reserve preparation", err)
+		}
+		if err := store.(task.LaunchStore).FinishLaunch(ctx, parent.ID, owned.LeaseToken, "stopped", time.Now(), task.InspectionPublicationPreparationError); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.CreateTask(ctx, &task.Task{ID: "phase-blocker", ProjectID: d.ProjectID, Title: "Other work", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+			t.Fatal(err)
+		}
+		s.cfg.CommitSHA = strings.Repeat("e", 40)
+		candidate, parseErr := task.LiveInspectionForLaunch(&d.Task, parent)
+		if parseErr != nil || candidate == nil {
+			t.Fatal("parse parent", parseErr)
+		}
+		candidate.PreparationLaunchID = parent.ID
+		candidate.TargetCommit = s.cfg.CommitSHA
+		candidate.ObservedAt = time.Now().UTC()
+		if err := task.ValidateLiveInspectionSource(ctx, store, &d.Task, candidate); err != nil {
+			t.Fatal("candidate source", err)
+		}
+		if !s.recoverLiveResultInspection(ctx, d, origin) {
+			latest, _ := s.taskSvc.LatestLaunch(ctx, d.ID)
+			t.Fatalf("unstarted preparation was not recovered: status=%s latest=%+v", d.Status, latest)
+		}
+		replacement := &task.LiveInspectionIntent{PreparationLaunchID: parent.ID, InstructionsHash: parent.InstructionsHash}
+		id = replacement.RequestID(d.ID)
+		launch, err = s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
+		if err != nil || launch == nil || !launch.ExpiresAt.Equal(parent.ExpiresAt) {
+			t.Fatal("preparation extended its authorization deadline", err)
+		}
+		proof, err := task.LiveInspectionForLaunch(&d.Task, launch)
+		if err != nil || proof == nil || proof.PreparationLaunchID != parent.ID || proof.TargetCommit != s.cfg.CommitSHA {
+			t.Fatal("replacement lost lineage/current target", err)
+		}
+		retained, _ := s.taskSvc.GetLaunch(ctx, parent.ID)
+		if retained.State != "stopped" || retained.Revision != parent.Revision {
+			t.Fatal("historical preparation was overwritten")
+		}
+		if !s.recoverLiveResultInspection(ctx, d, origin) {
+			t.Fatal("replacement did not deduplicate")
+		}
+		_ = store.DeleteTask(ctx, "phase-blocker")
+		scenario = "current outcome unpublished valid"
+	}
 	claimed, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "live-launch", launch.ID)
 	if err != nil || claimed == nil {
 		t.Fatal("could not claim the existing launch", err)

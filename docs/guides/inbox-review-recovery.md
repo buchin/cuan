@@ -418,3 +418,19 @@ Independent review must check all original requirements against fresh evidence;
 publication context identifies the actual inspected running commit separately
 from the historical unpublished branch. This does not apply to clone/setup work
 that never requested live publication.
+
+## A preparation failure before any inspection execution
+
+A snapshot publication collision repaired by the snapshot verifier may leave a
+stopped launch without an execution attempt. The coordinator may create one
+separately identified preparation linked to that original launch. It verifies the
+exact original authorization, scope, source attempt, repository and known error,
+requires no attempt ever reserved for the stopped launch, and inherits its expiry.
+The historical launch remains stopped and unchanged. The replacement may observe
+the current running revision after a deploy; this is not an execution retry.
+
+A failed replacement cannot create another preparation. Any reserved attempt,
+expired approval, cancellation, changed scope, unknown failure or earlier
+revalidation prevents this path. Normal execution and review gates still apply,
+including current-release matching, fixed project checks, original acceptance
+criteria and the ten-minute execution deadline.

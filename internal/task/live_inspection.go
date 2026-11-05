@@ -15,20 +15,21 @@ const ActivityLiveInspection = "live_result_verified"
 const CurrentOutcomeInspection = "current_outcome"
 
 type LiveInspectionIntent struct {
-	ReviewRequestID   string    `json:"review_request_id,omitempty"`
-	ReviewPaths       []string  `json:"review_paths,omitempty"`
-	Purpose           string    `json:"purpose,omitempty"`
-	PreviousAttemptID string    `json:"previous_attempt_id,omitempty"`
-	PreviousCommit    string    `json:"previous_commit,omitempty"`
-	SourceAttemptID   string    `json:"source_attempt_id"`
-	SourceCommit      string    `json:"source_commit"`
-	TargetCommit      string    `json:"target_commit"`
-	Repository        string    `json:"repository"`
-	OwnerID           string    `json:"owner_id"`
-	RoomID            string    `json:"room_id"`
-	SourceRequestID   string    `json:"source_request_id"`
-	InstructionsHash  string    `json:"instructions_hash"`
-	ObservedAt        time.Time `json:"observed_at"`
+	PreparationLaunchID string    `json:"preparation_launch_id,omitempty"`
+	ReviewRequestID     string    `json:"review_request_id,omitempty"`
+	ReviewPaths         []string  `json:"review_paths,omitempty"`
+	Purpose             string    `json:"purpose,omitempty"`
+	PreviousAttemptID   string    `json:"previous_attempt_id,omitempty"`
+	PreviousCommit      string    `json:"previous_commit,omitempty"`
+	SourceAttemptID     string    `json:"source_attempt_id"`
+	SourceCommit        string    `json:"source_commit"`
+	TargetCommit        string    `json:"target_commit"`
+	Repository          string    `json:"repository"`
+	OwnerID             string    `json:"owner_id"`
+	RoomID              string    `json:"room_id"`
+	SourceRequestID     string    `json:"source_request_id"`
+	InstructionsHash    string    `json:"instructions_hash"`
+	ObservedAt          time.Time `json:"observed_at"`
 }
 
 type LiveInspectionReceipt struct {
@@ -45,6 +46,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.PreparationLaunchID != "" {
+		return verificationRequestID("live-inspection-preparation:v1:"+p.InstructionsHash+":", taskID, p.PreparationLaunchID)
+	}
 	if p.Purpose == CurrentOutcomeInspection {
 		if p.PreviousAttemptID != "" {
 			return verificationRequestID("current-outcome-revalidation:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
@@ -150,6 +154,9 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.Purpose != CurrentOutcomeInspection && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
 		return nil, ErrInvalidTaskInput
 	}
+	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
+		return nil, ErrInvalidTaskInput
+	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
 	if proof.Purpose == CurrentOutcomeInspection {
 		validSource = (proof.SourceCommit == "" || fullObjectID(proof.SourceCommit)) && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16))
@@ -194,6 +201,11 @@ func ValidateLiveInspection(ctx context.Context, store Store, t *Task, attemptID
 func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
 	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
+	}
+	if proof.PreparationLaunchID != "" {
+		if err := ValidateInspectionPreparationRecovery(ctx, store, t, proof); err != nil {
+			return err
+		}
 	}
 	source, err := store.GetAttempt(ctx, proof.SourceAttemptID)
 	if err != nil {

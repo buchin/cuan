@@ -106,6 +106,13 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 		return false
 	}
 	if saved != nil {
+		if proof.PreparationLaunchID == "" && saved.State == "stopped" && saved.SafeError == task.InspectionPublicationPreparationError {
+			replacement := *proof
+			replacement.PreparationLaunchID = saved.ID
+			if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, &replacement) == nil {
+				return s.startLiveResultInspection(ctx, d, origin, &replacement, currentOutcome)
+			}
+		}
 		return saved.State == "queued" || saved.State == "claimed" || saved.State == "started"
 	}
 	raw, _ := json.Marshal(proof)
@@ -122,7 +129,15 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 	if task.IsUnrecordedLocalFailure(d.LatestAttempt) {
 		revision += "\nThe historical local attempt is recorded as Failed, but its exit code and finish receipt were not saved. Its cause and stop time are unknown. Never infer timeout, successful execution or implementation authorship, fill in missing termination fields, or resume that process. Only inspect this new exact-revision snapshot against the original requirements."
 	}
-	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
+	var expires []time.Time
+	if proof.PreparationLaunchID != "" {
+		parent, err := s.taskSvc.GetLaunch(ctx, proof.PreparationLaunchID)
+		if err != nil || parent == nil || task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, proof) != nil {
+			return false
+		}
+		expires = append(expires, parent.ExpiresAt)
+	}
+	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision, expires...)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil || launch == nil || (launch.State != "queued" && launch.State != "claimed" && launch.State != "started") {
 		return false

@@ -27,8 +27,12 @@ func retryableReviewLaunchError(err error) bool {
 	return err != nil && !errors.Is(err, task.ErrRequestConflict) && !errors.Is(err, task.ErrInvalidTaskInput) && !errors.Is(err, task.ErrTaskNotFound)
 }
 
-func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string) string {
+func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string, deadline ...time.Time) string {
 	now := time.Now().UTC()
+	expires := now.Add(24 * time.Hour)
+	if len(deadline) > 0 && deadline[0].Before(expires) {
+		expires = deadline[0]
+	}
 	// Automatic corrections inherit the owner's approved continuation. Feedback
 	// from a review cannot erase a prior no-push/no-deploy or read-only boundary.
 	ownerTurn := false
@@ -52,7 +56,7 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if t != nil && t.AssignedAgent != "" {
 		launchAgent = t.AssignedAgent
 	}
-	job, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: launchAgent, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
+	job, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: launchAgent, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: expires})
 	link := "\n\n[View work](/tasks/" + t.ID + ")"
 	if e != nil {
 		recordInboxReviewLaunchError(ctx, e)
