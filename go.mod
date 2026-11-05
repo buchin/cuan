@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/buchin/agentrunner v0.2.0
-	github.com/buchin/dodeval v0.1.0
+	github.com/buchin/dodeval v0.1.1
 	github.com/buchin/taskfsm v0.1.0
 	github.com/creack/pty v1.1.24
 	github.com/go-chi/chi/v5 v5.5.0

@@ -1252,3 +1252,16 @@ func TestExtractDoDUsesApprovedAcceptanceSectionInsteadOfInternalNotes(t *testin
 		t.Fatal("plan notes or checkbox state became verified criteria", criteria)
 	}
 }
+
+func TestDelegationDoDAbbreviationExcludesAccessDetails(t *testing.T) {
+	description := "Detail Akses & Target:\n- Domain: example.test\n- Kredensial root/SSH: fixture-only-value\n\nScope Investigasi:\n1. Inspect access logs\n\nDefinition of Done (DoD):\n- Report traffic breakdown\n- Explain evidence and limits\n- Recommend next steps"
+	items := extractDoDFromDescription(description)
+	if len(items) != 3 {
+		t.Fatalf("access details became criteria: %d", len(items))
+	}
+	for _, item := range items {
+		if strings.Contains(item.Text, "fixture-only-value") || item.Completed {
+			t.Fatal("invalid initial criterion")
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
 	dbPkg "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/mcp"
 	"github.com/buchin/cuan/internal/project"
@@ -266,7 +267,7 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 			}
 		}
 		t.CreatedAt = createdAt.Format(time.RFC3339)
-		t.Instructions = project.TaskScopeInstructions(t.Instructions)
+		redactTaskSummary(&t)
 		t.UpdatedAt = updatedAt.Format(time.RFC3339)
 		tasks = append(tasks, t)
 	}
@@ -332,7 +333,7 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 		}
 	}
 	t.CreatedAt = createdAt.Format(time.RFC3339)
-	t.Instructions = project.TaskScopeInstructions(t.Instructions)
+	redactTaskSummary(&t)
 	t.UpdatedAt = updatedAt.Format(time.RFC3339)
 
 	// Fetch attempts summary
@@ -375,12 +376,30 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 // This operates only on the response; stored context and worker reads stay intact.
 func redactTaskDiagnostic(value map[string]any) {
 	for key, item := range value {
-		if text, ok := item.(string); ok && key == "instructions" {
-			value[key] = project.TaskScopeInstructions(text)
+		value[key] = redactTaskDiagnosticValue(item)
+	}
+}
+
+func redactTaskDiagnosticValue(value any) any {
+	switch item := value.(type) {
+	case string:
+		return agent.MaskSecrets(project.TaskScopeInstructions(item), nil)
+	case map[string]any:
+		redactTaskDiagnostic(item)
+	case []any:
+		for i := range item {
+			item[i] = redactTaskDiagnosticValue(item[i])
 		}
-		if nested, ok := item.(map[string]any); ok {
-			redactTaskDiagnostic(nested)
-		}
+	}
+	return value
+}
+
+func redactTaskSummary(t *TaskSummary) {
+	t.Instructions = redactTaskDiagnosticValue(t.Instructions).(string)
+	t.Summary = agent.MaskSecrets(t.Summary, nil)
+	t.CompleteNote = agent.MaskSecrets(t.CompleteNote, nil)
+	for i := range t.DoDChecklist {
+		t.DoDChecklist[i] = agent.MaskSecrets(t.DoDChecklist[i], nil)
 	}
 }
 

@@ -6,11 +6,12 @@ import (
 )
 
 var (
-	githubPATRegex = regexp.MustCompile(`(ghp_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{20,})`)
-	bearerRegex    = regexp.MustCompile(`(?i)(Bearer\s+)[a-zA-Z0-9_\-\.]{12,}`)
-	dbURIRegex     = regexp.MustCompile(`(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)`)
-	passwordRegex  = regexp.MustCompile(`(?i)(password|secret|token|api_key)\s*[:=]\s*["']?([^\s"']{6,})["']?`)
-	apiKeyRegex    = regexp.MustCompile(`(sk-[a-zA-Z0-9_\-]{15,}|AIzaSy[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9_\-]{20,}|gsk_[a-zA-Z0-9_\-]{20,})`)
+	githubPATRegex         = regexp.MustCompile(`(ghp_[a-zA-Z0-9]{20,}|github_pat_[a-zA-Z0-9_]{20,})`)
+	bearerRegex            = regexp.MustCompile(`(?i)(Bearer\s+)[a-zA-Z0-9_\-\.]{12,}`)
+	dbURIRegex             = regexp.MustCompile(`(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)`)
+	passwordRegex          = regexp.MustCompile(`(?i)(password|secret|token|api_key)\s*[:=]\s*["']?([^\s"']{6,})["']?`)
+	apiKeyRegex            = regexp.MustCompile(`(sk-[a-zA-Z0-9_\-]{15,}|AIzaSy[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9_\-]{20,}|gsk_[a-zA-Z0-9_\-]{20,})`)
+	labeledCredentialRegex = regexp.MustCompile(`(?im)^([ \t]*(?:[-*+]\s*)?(?:\*\*)?(?:kredensial|credentials?|password|kata sandi|ssh password|root password)[^:\r\n]{0,40}[:=])[^\r\n]*`)
 )
 
 // MaskSecrets replaces occurrences of secret values and known credential patterns with [REDACTED].
@@ -37,6 +38,7 @@ func MaskSecrets(input string, secrets []string) string {
 	result = bearerRegex.ReplaceAllString(result, "${1}[REDACTED]")
 	result = dbURIRegex.ReplaceAllString(result, "${1}[REDACTED]${3}")
 	result = passwordRegex.ReplaceAllString(result, "${1}=[REDACTED]")
+	result = labeledCredentialRegex.ReplaceAllString(result, "${1} [REDACTED]")
 
 	return result
 }
