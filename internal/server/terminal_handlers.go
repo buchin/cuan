@@ -677,10 +677,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							respondJSONError(w, 409, "Project repository is not ready. Sync it before running the task.")
 							return
 						}
-						if detail.LatestAttempt != nil && detail.LatestAttempt.ErrorMessage == "Project verification failed" {
-							// A verifier from an old cache must not trap recovery on the
-							// same obsolete baseline. Refresh refs before reserving work;
-							// the retained edits and approved repository binding stay intact.
+						if detail.LatestAttempt == nil || detail.LatestAttempt.ErrorMessage == "Project verification failed" {
+							// A synced cache may predate later pushes. Refresh the bound
+							// branch before the first attempt, and when recovering an old
+							// verifier. This only moves refs; retained files stay intact.
 							if e = s.projectSvc.RefreshExecutionBase(r.Context(), project); e != nil {
 								respondJSON(w, 503, map[string]string{"error": e.Error(), "code": "repository_preparing"})
 								return

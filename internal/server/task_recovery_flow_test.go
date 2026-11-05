@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -58,11 +59,29 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reco
 		git("-C", source, "add", "README", ".gitignore")
 		git("-C", source, "commit", "-m", "Initial fixture")
 		git("-C", source, "update-ref", "refs/remotes/origin/main", "HEAD")
+		// The cache still has a valid but obsolete tracking ref. A first launch
+		// must refresh it before creating the task workspace.
+		os.WriteFile(filepath.Join(source, "current-baseline.txt"), []byte("fresh remote baseline\n"), 0600)
+		git("-C", source, "add", "current-baseline.txt")
+		git("-C", source, "commit", "-m", "New remote baseline")
 		// Give the production snapshot/worktree path a real repository, without any
 		// network calls or credentials. Existing task instructions freeze this binding.
 		projects = project.NewMemoryStore()
 		projects.CreateProject(ctx, &project.Project{ID: "recovery-project", Name: "Recovery", RepoURL: "https://github.com/fixture/recovery", LocalPath: source, DefaultBranch: "main", UpdatedAt: time.Now()})
 		svc := project.NewService(projects, nil, s.cfg.AuthSecret, t.TempDir())
+		svc.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "fixture-token", nil })
+		// Keep the authenticated refresh boundary real, with an isolated local
+		// remote rather than network access or ambient developer credentials.
+		realGit, err := exec.LookPath("git")
+		if err != nil {
+			t.Fatal(err)
+		}
+		bin := t.TempDir()
+		wrapper := "#!/bin/sh\nif [ \"$1\" = '-C' ] && [ \"$3\" = 'fetch' ]; then\n exec " + strconv.Quote(realGit) + " -C \"$2\" fetch --no-tags -- " + strconv.Quote(source) + " '+refs/heads/main:refs/remotes/origin/main'\nfi\nexec " + strconv.Quote(realGit) + " \"$@\"\n"
+		if err := os.WriteFile(filepath.Join(bin, "git"), []byte(wrapper), 0700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
 		s.SetProjectService(svc)
 		s.taskSvc = task.NewService(task.NewMemoryStore(), svc)
 	}
@@ -87,6 +106,7 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
  sed -n 's/^Approval message: //p' "$guide" | head -n 1 > "$HOME/recovery-auth"
  if [ ! -f "$HOME/recovery-artifact" ]; then
   if [ -f .git ]; then
+   grep -q 'fresh remote baseline' current-baseline.txt || exit 39
    pwd > "$HOME/recovery-workspace"
    printf 'pending staged edit\n' >> README
    git add README || exit 40
@@ -226,7 +246,7 @@ esac
 		if got := git("-C", workspace, "status", "--porcelain"); got != "M  README\n?? pending.txt" {
 			t.Fatal("pending Git state changed", got)
 		}
-		if got := git("-C", workspace, "rev-list", "--count", "HEAD"); got != "1" {
+		if got := git("-C", workspace, "rev-list", "--count", "HEAD"); got != "2" {
 			t.Fatal("unexpected duplicate implementation commit", got)
 		}
 	}
