@@ -1005,7 +1005,7 @@ export function InboxView({
             text,
             id: approvalRequestId || crypto.randomUUID(),
             attachmentIds:
-              approveMessageId
+              approveMessageId || overrideText !== undefined
                 ? []
                 : uploads.items.map((a) => a.id),
             approveMessageId,
@@ -1039,7 +1039,7 @@ export function InboxView({
         request.approveMessageId,
         request.planAction,
       )
-      if (!request.approveMessageId) uploads.clear()
+      if (request.attachmentIds?.length) uploads.acknowledge(request.attachmentIds, 'cuan-inbox-attachments:' + convId)
       if (unsentDrafts.current[convId]?.trim() === request.text)
         delete unsentDrafts.current[convId]
       if (activeConvRef.current === convId) {
@@ -1684,7 +1684,6 @@ export function InboxView({
                           prompt={msg.prompt_choices}
                           onOther={() => {
                             if (activeContact.type === 'customer') setWhisperMode(true)
-                            requestAnimationFrame(() => textareaRef.current?.focus())
                           }}
                           disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
                           onSelect={(option) => handleSendMessage(undefined, undefined, undefined, activeContact.type === 'customer' ? '@cuan ' + option.label : option.label)}

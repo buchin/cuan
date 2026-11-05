@@ -3,8 +3,16 @@
 When Cuan asks users to choose a name or preference, it returns `prompt_choices`
 with concise named options, one primary recommendation, and `allow_other:true`.
 Selecting an option sends that answer through the ordinary durable chat path;
-it is not executable plan approval. **Others** focuses the composer and preserves
-unsent text without sending. Users can always type their own answer normally.
+it is not executable plan approval. **Others** opens a visible inline answer
+composer below the options, using the shared Inbox/terminal writing components.
+It focuses within the tap event and preserves the main composer draft. Opening
+or typing sends nothing; Send or Enter submits the alternative, Shift+Enter adds
+a line, and Escape closes it. Users can also type normally in the main composer.
+
+An alternative can be composed while another delivery is pending; sending still
+honors the existing pending-request guard. Named and custom options do not take
+attachments from an unsent main draft, and acknowledging a choice preserves
+those draft attachments.
 
 Internal agent choices in customer conversations remain internal and address
 the agent rather than sending the preference to a customer. Choice buttons share
