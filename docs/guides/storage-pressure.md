@@ -21,6 +21,32 @@ with switching and rollback. Unknown directories remain protected. Staged upload
 require byte-verified installed counterparts before cleanup. Application data,
 provider profiles, workspaces and database backups are outside this pruner.
 
+### Scheduled disk guard
+
+The legacy `cuan-disk-guard.sh` used broad deletion of Go build caches, staging
+binaries, temporary files and provider conversations, without execution locks.
+Production had both a root-crontab entry and a separate hourly copy. Updating
+only the deployment pruners therefore left unsafe cleanup scheduled.
+
+The guard now delegates only to the release pruner and idle-provider Go
+toolchain pruner. It never truncates third-party logs, clears warm build caches,
+deletes provider conversations, or removes arbitrary temporary directories.
+Both installed guard copies are replaced during native deployment. Existing
+schedules remain; no new cron job is installed. The release activation lock and
+provider execution gates protect simultaneous deployment and active accounts.
+
+The guard accepts `--base INSTALL_DIR` and `--home SERVICE_HOME`. By default it
+uses `/opt/cuan` and resolves the non-root owner of the native `releases`
+directory through the local user database. Root-owned installations must supply
+the service home explicitly to enable provider/staging cleanup. Missing install
+paths or rollback evidence stop cleanup; they do not trigger broader deletion.
+Failure to reclaim enough space leaves ordinary storage admission in place.
+
+The deployment gate exercises the actual scheduled entry point with a live
+provider lock, preserving credentials, conversation history, warm cache objects,
+unknown staging files and pending workspace checkpoints. Missing rollback state
+is also checked before any provider cache deletion.
+
 ## Provider failure classification
 
 Each PTY provider execution receives an official `--log-file` path inside a new

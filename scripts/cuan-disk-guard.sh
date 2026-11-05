@@ -1,33 +1,37 @@
 #!/usr/bin/env bash
-# Automated disk space watchdog for Cuan VPS
-# Checks disk usage hourly and cleans unrotated third-party logs, build caches, and test artifacts
+# Use the same conservative pruners as deployment, never broad cache deletion.
 set -euo pipefail
 
-USAGE=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
-LOG="/var/log/cuan-disk-guard.log"
-
-if [ "$USAGE" -ge 75 ]; then
-    echo "$(date -u --iso-8601=seconds) [WARN] Disk usage is at ${USAGE}%. Starting automated cleanup..." >> "$LOG"
-    
-    # 1. Truncate oversized unrotated external Laravel logs (>50M)
-    find /srv/dracin-git/shared/storage/logs/ -type f -name "*.log" -size +50M -exec truncate -s 1M {} + 2>/dev/null || true
-    
-    # 2. Clean Go build cache inside agent account homes
-    find /home/ubuntu/.local/share/cuan/accounts/ -type d -name "go-build" -prune -exec rm -rf {} + 2>/dev/null || true
-    
-    # 3. Clean stale test binaries and old release build artifacts
-    find /home/ubuntu/.local/share/cuan-releases/ -type f \( -name "*.test" -o -name "*-server" \) -delete 2>/dev/null || true
-    
-    # 4. Clean system journal older than 7 days
-    journalctl --vacuum-time=7d 2>/dev/null || true
-
-    # 5. Clean Go and NPM build caches in /tmp and user home
-    rm -rf /tmp/go-build* /tmp/gocache /tmp/go-cache 2>/dev/null || true
-    rm -rf /home/ubuntu/.npm/_cacache /root/.npm/_cacache 2>/dev/null || true
-
-    # 6. Prune agent CLI conversations older than 7 days
-    find /home/ubuntu/.local/share/cuan/accounts/*/home/.gemini/antigravity-cli/conversations/ -mindepth 1 -maxdepth 1 -mtime +7 -exec rm -rf {} + 2>/dev/null || true
-    
-    NEW_USAGE=$(df / | awk 'NR==2 {print $5}' | tr -d '%')
-    echo "$(date -u --iso-8601=seconds) [INFO] Cleanup complete. Disk usage reduced from ${USAGE}% to ${NEW_USAGE}%." >> "$LOG"
+install_dir="${CUAN_INSTALL_DIR:-/opt/cuan}"
+maintenance_home="${CUAN_MAINTENANCE_HOME:-}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --base) install_dir="${2:?--base requires a directory}"; shift 2 ;;
+    --home) maintenance_home="${2:?--home requires a directory}"; shift 2 ;;
+    *) echo 'Usage: cuan-disk-guard.sh [--base INSTALL_DIR] [--home SERVICE_HOME]' >&2; exit 2 ;;
+  esac
+done
+if [[ "$install_dir" != /* || ! -d "$install_dir" ]]; then
+  echo 'Cuan installation directory is unavailable; no cleanup performed.' >&2
+  exit 1
+fi
+if [[ -z "$maintenance_home" && -d "$install_dir/releases" ]]; then
+  # Native releases belong to the service user. Root-owned installations must
+  # provide --home explicitly; do not guess another account directory.
+  service_uid="$(stat -c %u "$install_dir/releases")"
+  if [[ "$service_uid" != 0 ]]; then
+    maintenance_home="$(getent passwd "$service_uid" | cut -d: -f6)"
+  fi
+fi
+if [[ -n "$maintenance_home" && ( "$maintenance_home" != /* || ! -d "$maintenance_home" ) ]]; then
+  echo 'Service home is unavailable; no cleanup performed.' >&2
+  exit 1
+fi
+release_args=(--base "$install_dir" --apply)
+if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan-releases" ]]; then
+  release_args+=(--staging "$maintenance_home/.local/share/cuan-releases")
+fi
+python3 "$install_dir/maintenance/prune-release-artifacts.py" "${release_args[@]}"
+if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts" ]]; then
+  python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$maintenance_home/.local/share/cuan/accounts" --apply
 fi
