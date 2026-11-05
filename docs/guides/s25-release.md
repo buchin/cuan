@@ -53,3 +53,18 @@ Verification matrix and screenshots: `docs/sprints/evidence/S25/mobile/`. `verif
 Adding an agent currently verifies the service's existing Google account. If that account is quota-limited, verification and registration remain unavailable. Retrying Google consent does not increase quota. Selecting a different Google account is not implemented; this product gap must not be described as completed account switching.
 
 Mobile correction production application SHA: `fb83e133a6ed7babc1ff603568b1e03897139035`. Retained previous release: `db4382f1a606cadd3bf9c15521bec3b566221e68`. Both directions were actually exercised. See `docs/sprints/evidence/S25/mobile/README.md` for screenshots, measurements, unchanged table hashes and precise emulation limits.
+
+## Browser navigation across releases
+
+An open tab can request a lazily loaded page from its original build after an
+atomic deploy. The native server serves missing hashed assets from retained
+sibling releases within the same release tree. Release pruning still owns the
+retention window; this adds no duplicate asset cache. Unknown assets return404
+with no-store, never the SPA HTML entry. Normal application routes retain the SPA
+fallback.
+
+The browser can reload once per loaded entry after a recognized chunk-load
+failure. Authentication and persisted drafts remain untouched. Offline failures,
+application exceptions and unavailable session storage do not trigger automatic
+reload loops. The fallback offers Reload page, without clearing local storage or
+resetting the account session.
