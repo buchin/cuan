@@ -127,6 +127,14 @@ Environment & tooling awareness: Check available build tools before attempting h
 Project Runbook & Operational Directives: For operational, administrative, data-verification or status-change tasks on project repositories (e.g. Laravel/Dojo with artisan commands, composer, npm scripts, database migrations, or payments inspection): utilize the project's official CLI / Artisan / runbook commands directly (e.g. php artisan payment:..., php artisan ..., composer ..., or relevant CLI scripts) rather than reading dozens of source files or writing new code from scratch. Run the appropriate command, verify exit status, and report results with concrete evidence.
 Do not inspect, reverse-engineer, or search the Cuan server binary to understand
 this reporting tool. If the tool fails, report its actual error as a blocker.
+Project tests and build scripts must not inherit the live reporting capability.
+Run them with CUAN_TASK_CAPABILITY_JSON, CUAN_TASK_CAPABILITY_FILE,
+CUAN_TASK_EXECUTABLE and CUAN_TASK_ARTIFACTS_DIR unset in that child command
+(for example, env -u CUAN_TASK_CAPABILITY_JSON -u CUAN_TASK_CAPABILITY_FILE
+-u CUAN_TASK_EXECUTABLE -u CUAN_TASK_ARTIFACTS_DIR go test ...). Keep these
+variables available in your own session for its explicit task reports. Capture
+test output in the bound artifact directory using the parent shell; tests must
+not report examples into the live task or start another agent execution.
 
 Repository access: the runner prepares your bound repository checkout before
 starting this session. Inspect that checkout and preserve its existing files;
@@ -232,7 +240,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 		return nil, "", "", none, e
 	}
 	prompt := "\n\nRead the session guidance at " + guide + " before proceeding."
-	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable, "CUAN_TASK_ARTIFACTS_DIR=" + evidenceDir}, prompt, token, cleanup, nil
+	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable, "CUAN_TASK_ARTIFACTS_DIR=" + evidenceDir, "CUAN_TASK_CAPABILITY_JSON="}, prompt, token, cleanup, nil
 
 }
 func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
@@ -384,7 +392,13 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	if report.State == "progress" {
 		workflow = "Checkpoint saved. Continue the approved task. Submit an explicit review, blocked or done state with summary and completion evidence for the final result."
 	}
-	respondJSON(w, 200, map[string]any{"task": updated, "report_state": report.State, "workflow": workflow})
+	// A write receipt confirms identity and state, not a second copy of the
+	// approved instructions and evidence. Workers can explicitly GET the task
+	// when they need its canonical context again.
+	respondJSON(w, 200, map[string]any{
+		"task":       map[string]any{"id": updated.ID, "status": updated.Status, "updated_at": updated.UpdatedAt},
+		"attempt_id": g.AttemptID, "report_state": report.State, "workflow": workflow,
+	})
 	if updated != nil {
 		if updated.SourceRoomID != "" {
 			s.publishInbox(updated.SourceRoomID)

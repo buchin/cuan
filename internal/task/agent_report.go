@@ -79,12 +79,18 @@ func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author str
 		}
 	}
 	if r.Summary != nil {
+		if reportTemplatePlaceholder(*r.Summary) {
+			return bad("replace the reporting example's placeholder with actual findings")
+		}
 		if len([]rune(*r.Summary)) > 12000 {
 			return bad("summary too long")
 		}
 		t.Summary = strings.TrimSpace(*r.Summary)
 	}
 	if r.CompleteNote != nil {
+		if reportTemplatePlaceholder(*r.CompleteNote) {
+			return bad("replace the reporting example's placeholder with actual verification evidence")
+		}
 		if len([]rune(*r.CompleteNote)) > 16000 {
 			return bad("completion evidence too long")
 		}
@@ -179,6 +185,15 @@ func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author str
 
 	return t, nil
 }
+
+func reportTemplatePlaceholder(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "<summary>", "<concise summary of work done>", "<detailed dod verification evidence>", "<observed result>":
+		return true
+	}
+	return false
+}
+
 func (s *Service) AgentReviewReady(ctx context.Context, taskID, attemptID string) (bool, error) {
 	t, e := s.store.GetTask(ctx, taskID)
 	if e != nil {

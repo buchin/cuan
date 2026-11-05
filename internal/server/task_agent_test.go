@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,12 +26,79 @@ func TestMain(m *testing.M) {
 	if len(os.Args) > 1 && os.Args[1] == "task" {
 		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	// A suite may run inside a real worker. Fixture subprocesses must only use
+	// capabilities deliberately issued by their tests, never the live parent.
+	for _, key := range []string{"CUAN_TASK_CAPABILITY_JSON", "CUAN_TASK_CAPABILITY_FILE", "CUAN_TASK_EXECUTABLE", "CUAN_TASK_ARTIFACTS_DIR"} {
+		_ = os.Unsetenv(key)
+	}
 	os.Exit(m.Run())
 }
 
 const fixtureReviewReport = "\n\"$CUAN_TASK_EXECUTABLE\" task report --summary 'Fixture implementation complete' --complete-note 'Verified fixture output and behavior' --state review\n"
 
+func TestTaskAgentReportReturnsCompactReceipt(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	instructions := strings.Repeat("Original approved task context. ", 600)
+	created, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{Title: "Receipt fixture", Instructions: instructions})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "agent_lifecycle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := task.TaskStatusDoing
+	s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Status: &doing})
+	s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
+	_, _, token, cleanup, err := s.issueTaskAgent(ctx, created.ID, a.ID, "agent_lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	summary, note := strings.Repeat("Observed work. ", 300), strings.Repeat("Retained verification. ", 300)
+	for _, state := range []string{"progress", "review"} {
+		payload, _ := json.Marshal(map[string]string{"state": state, "summary": summary, "complete_note": note})
+		request := httptest.NewRequest("POST", "/api/v1/task-agent/"+created.ID, bytes.NewReader(payload))
+		request.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, request)
+		if w.Code != 200 || w.Body.Len() > 1024 {
+			t.Fatal("report echoed task context instead of a compact receipt", w.Code, w.Body.Len())
+		}
+		var receipt struct {
+			Task      struct{ ID, Status string } `json:"task"`
+			AttemptID string                      `json:"attempt_id"`
+			State     string                      `json:"report_state"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &receipt); err != nil || receipt.Task.ID != created.ID || receipt.Task.Status != task.TaskStatusDoing || receipt.AttemptID != a.ID || receipt.State != state {
+			t.Fatal("receipt lost saved report identity or implied acceptance", err)
+		}
+		for _, forbidden := range []string{"instructions", "dod_checklist", "complete_note", "Observed work", "Retained verification"} {
+			if strings.Contains(w.Body.String(), forbidden) {
+				t.Fatal("receipt repeated task evidence", forbidden)
+			}
+		}
+	}
+	request := httptest.NewRequest("GET", "/api/v1/task-agent/"+created.ID, nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, request)
+	var saved task.TaskDetailResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &saved); err != nil || w.Code != 200 || saved.Instructions != created.Instructions || saved.Summary != strings.TrimSpace(summary) || saved.CompleteNote != strings.TrimSpace(note) {
+		t.Fatal("compact reporting lost canonical task evidence", err)
+	}
+}
+
 func TestRunnerPromptFinalReportCommandReachesReview(t *testing.T) {
+	var parentRequests atomic.Int32
+	parentAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parentRequests.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer parentAPI.Close()
+	parentCapability, _ := json.Marshal(taskcli.Capability{API: parentAPI.URL, Token: "fixture-parent-only", TaskID: "parent-task"})
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", string(parentCapability))
 	s, _, call, _ := inboxFixture(t)
 	api := httptest.NewServer(s.Router())
 	defer api.Close()
@@ -55,6 +123,8 @@ func TestRunnerPromptFinalReportCommandReachesReview(t *testing.T) {
 		if !strings.HasPrefix(command, `"$CUAN_TASK_EXECUTABLE" task report `) {
 			continue
 		}
+		command = strings.ReplaceAll(command, "<concise summary of work done>", "Fixture audit result")
+		command = strings.ReplaceAll(command, "<detailed DoD verification evidence>", "Fixture output matched its expected value")
 		cmd := exec.Command("sh", "-c", command)
 		cmd.Env = append(os.Environ(), env...)
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -63,6 +133,9 @@ func TestRunnerPromptFinalReportCommandReachesReview(t *testing.T) {
 		ready, err := s.taskSvc.AgentReviewReady(ctx, created.ID, a.ID)
 		if err != nil || !ready {
 			t.Fatal("documented final-report command only saved a checkpoint", ready, err)
+		}
+		if parentRequests.Load() != 0 {
+			t.Fatal("fixture subprocess used its parent's reporting capability")
 		}
 		return
 	}

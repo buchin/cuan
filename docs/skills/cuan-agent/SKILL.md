@@ -199,6 +199,8 @@ and coordinator review; a successful tool response is not task acceptance.
 Final results need an explicit `state`: `review`, `blocked` or `done`. A metadata
 or progress report leaves the session running. Completion evidence without a
 state is rejected; use explicit `progress` when saving intermediate evidence.
+Successful reports return a compact identity/state receipt. They do not repeat
+the original task or evidence; use `get_current_task` or `task get` to read those.
 Use the same task read after an uncertain response before retrying. These tools
 are not advertised to ordinary Owner MCP sessions and never fall back to Owner
 credentials. The existing CLI remains available for the same reporting contract.

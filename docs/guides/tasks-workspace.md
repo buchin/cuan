@@ -207,6 +207,22 @@ required. Inside a bound session:
 "$CUAN_TASK_EXECUTABLE" task report --state done --summary "Actual changes" --complete-note "Actual verification, outcomes and limitations"
 ```
 
+A successful report returns a compact receipt: `task.id`, `task.status`,
+`task.updated_at`, `attempt_id`, `report_state` and `workflow`. It confirms that
+the report was saved, not that execution or coordinator acceptance is complete.
+It does not echo the task instructions, checklist or submitted evidence. Use
+`task get` to inspect those canonical fields after an uncertain response or when
+continuing the work.
+
+Project tests and build scripts must not receive the live task capability.
+Unset `CUAN_TASK_CAPABILITY_JSON`, `CUAN_TASK_CAPABILITY_FILE`,
+`CUAN_TASK_EXECUTABLE` and `CUAN_TASK_ARTIFACTS_DIR` for those child commands;
+keep the variables in the worker shell for its own explicit reports. Test
+fixtures must issue their own capabilities and override any inherited inline
+capability when selecting a fixture file. Cuan's server test harness clears the
+parent capability before running tests. Literal reporting-template placeholders
+are rejected as findings or verification evidence.
+
 Use `--state blocked` with a summary and concrete blocker instead of claiming a
 review-ready result. `--report-file path.json` accepts a structured report with
 optional title, priority, summary, complete_note, progress, state, dod_checklist,
