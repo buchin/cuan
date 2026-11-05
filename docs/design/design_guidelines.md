@@ -386,3 +386,6 @@ their existing semantics. Streaming terminal output must never clear typed input
 ComposerAccessory centers attachment/quick-reply icons in a44px accessory row.
 For single-line input their centers align with Send; for multiline input the
 accessory row remains at the bottom. Inbox and terminal use the same primitive.
+Single-line ComposerInput uses a44px minimum height,20px line height and12px
+vertical padding so text and accessory/send icons share the same visual center.
+The resize helper uses that same minimum on mobile and desktop.
