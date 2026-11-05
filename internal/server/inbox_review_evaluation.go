@@ -35,6 +35,8 @@ live_result_context, when present, is distinct: the runner ran fresh fixed proje
 
 A report_provenance=current_runner_finalization is a server-validated machine report of source integrity and saved output references, not an AI report or a rerun of implementation tests. Its referenced images still require independent visual inspection. Do not require a second AI report merely to repeat these machine checks; original scope and publication requirements remain mandatory.
 
+failed_repository_observation is a runner-authenticated point-in-time observation from this failed/interrupted read-only attempt, not successful execution or repository_scope_verified. If its state is unchanged, do not claim repository integrity was never observed; report the actual remaining missing final report, project checks or task-specific evidence. Changed means preserve the files and identify the scope gap; unavailable does not establish a mutation. It never waives successful execution, exact-source checks or any original criterion, and never grants a retry or implementation permission.
+
 execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
 
 For code implementation tasks, require concrete verification evidence (test outputs, commit hashes, specific verified file changes). Set remaining_work=verification only when implementation is complete and the remaining work consists exclusively of checking the same result or supplying missing verification evidence without changing code, configuration, tests, documentation, commits or production. Any required implementation change or publication is remaining_work=implementation; a genuine external prerequisite is external; pass is none. This classification never grants execution permission.
@@ -142,6 +144,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"verification_context":           s.verificationReviewContext(ctx, d),
 		"execution_scope":                scope,
 		"repository_scope_verified":      scope.ReadOnlyRepository && scopeVerified,
+		"failed_repository_observation":  failedRepositoryObservation(d, scope.ReadOnlyRepository),
 		"approved_continuation":          truncateProjectText(continuation, 9000),
 		"delivered_files":                files,
 		"original_request":               project.TaskScopeInstructions(d.Instructions),
@@ -723,6 +726,9 @@ func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
 	if event, _ := githubObservation(d); event != nil {
 		parts = append(parts, event.Message)
+	}
+	if observation := failedRepositoryObservation(d, true); observation != nil {
+		parts = append(parts, observation)
 	}
 	// Acceptance may replace the user-facing summary. Machine evidence remains
 	// immutable; that presentation change must not invalidate its visual review.
