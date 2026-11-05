@@ -193,6 +193,17 @@ function TaskDetailView({
   const hasReviewEvidence = Boolean(detail.summary?.trim() && detail.complete_note?.trim() &&
     checklist.every((item) => item.completed && 'evidence' in item && String(item.evidence || '').trim()))
   const publicStatus = id ? ({ backlog: 'Rencana', todo: 'Siap dikerjakan', queued: 'Dalam antrean', doing: 'Dikerjakan', review: 'Perlu ditinjau', done: 'Selesai', blocked: 'Terhambat' } as Record<string, string>)[detail.status] || statusLabel(detail.status) : statusLabel(detail.status)
+  const attemptError = detail.latest_attempt?.error_message || ''
+  const timedOut = detail.latest_attempt?.status === 'failed' && (
+    (detail.latest_attempt.exit_code === 124 && attemptError.startsWith('Execution timed out after adaptive timeout (')) ||
+    (detail.latest_attempt.exit_code === 1 && attemptError.startsWith('Task runner exceeded hard execution timeout (')) ||
+    attemptError === 'The execution deadline was reached; saved work is preserved.'
+  )
+  const blockerText = timedOut
+    ? (id ? 'Eksekusi mencapai batas waktu. Hasil belum terverifikasi.' : 'Execution reached its time limit. The result is not verified.')
+    : detail.latest_attempt?.status === 'succeeded'
+      ? (id ? 'Hasil belum memenuhi kriteria penyelesaian.' : 'The result has not met the completion criteria.')
+      : (id ? 'Eksekusi belum berhasil. Hasil sementara tetap tersimpan.' : 'Execution did not succeed. Saved work is preserved.')
   const latestProgress = [...(detail.activities || [])].reverse().find((event) => event.activity_type === 'agent_report' && event.attempt_id === detail.latest_attempt?.id && !['done', 'review'].includes(event.new_status || '') && event.message?.trim())
   const dirty =
     editing && JSON.stringify(draft) !== JSON.stringify(makeDraft(detail))
@@ -689,14 +700,15 @@ function TaskDetailView({
                   ? (id ? `${assistantName} sedang mengerjakan tugas ini` : `${assistantName} is working on this task`)
                   : detail.status === 'done' ? (id ? 'Tugas selesai' : 'Task completed')
                   : detail.status === 'review' ? (id ? 'Perlu ditinjau' : 'Ready for review')
-                  : detail.status === 'blocked' ? (id ? 'Pekerjaan terhenti' : 'Work is blocked')
+                  : detail.status === 'blocked' ? (timedOut ? (id ? 'Batas waktu tercapai' : 'Time limit reached') : (id ? 'Pekerjaan terhenti' : 'Work is blocked'))
                   : (id ? 'Siap dikerjakan' : 'Ready to start')}</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{running
                   ? (latestProgress?.message || (detail.latest_attempt?.status === 'queued' ? (id ? 'Menunggu giliran agen.' : 'Waiting for an agent.') : ''))
                   : detail.status === 'done' ? (id ? 'Lihat hasil dan bukti penyelesaiannya di bawah.' : 'See the result and verification below.')
                   : detail.status === 'review' ? (id ? (hasReviewEvidence ? 'Periksa ringkasan dan bukti sebelum menyetujui. Jika belum sesuai, minta perbaikan.' : `Bukti penyelesaian belum lengkap. Minta perbaikan agar ${assistantName} melengkapi hasilnya.`) : 'Check the summary and evidence before approving, or request changes.')
-                  : detail.status === 'blocked' ? (id ? 'Periksa ringkasan kendala. Tambahkan arahan lalu coba lagi saat kendala sudah teratasi.' : 'Check the blocker summary. Add guidance and retry when it is resolved.')
+                  : detail.status === 'blocked' ? blockerText
                   : (id ? `Periksa instruksi, lalu mulai agar ${assistantName} mengerjakannya.` : `Check the instructions, then start the task with ${assistantName}.`)}</p>
+                {detail.status === 'blocked' && <button type="button" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground" onClick={() => setTab('sessions')}><FileText aria-hidden="true" className="h-4 w-4" />{id ? 'Lihat kendala' : 'View issue'}</button>}
               </section>
             )}
             {editing ? (
