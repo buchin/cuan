@@ -204,6 +204,9 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 	if db == nil {
 		if client := GetCuanClient(); client != nil && client.IsConfigured() {
 			if tasks, err := client.ListTasks(ctx, projectID, status, limit); err == nil {
+				for _, task := range tasks {
+					redactTaskDiagnostic(task)
+				}
 				return map[string]any{
 					"tasks": tasks,
 					"total": len(tasks),
@@ -263,6 +266,7 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 			}
 		}
 		t.CreatedAt = createdAt.Format(time.RFC3339)
+		t.Instructions = project.TaskScopeInstructions(t.Instructions)
 		t.UpdatedAt = updatedAt.Format(time.RFC3339)
 		tasks = append(tasks, t)
 	}
@@ -286,6 +290,7 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 	if db == nil {
 		if client := GetCuanClient(); client != nil && client.IsConfigured() {
 			if t, err := client.GetTask(ctx, taskID); err == nil {
+				redactTaskDiagnostic(t)
 				return t, nil
 			}
 		}
@@ -327,6 +332,7 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 		}
 	}
 	t.CreatedAt = createdAt.Format(time.RFC3339)
+	t.Instructions = project.TaskScopeInstructions(t.Instructions)
 	t.UpdatedAt = updatedAt.Format(time.RFC3339)
 
 	// Fetch attempts summary
@@ -363,6 +369,19 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 		"task":     t,
 		"attempts": attempts,
 	}, nil
+}
+
+// Diagnostic consumers need approved scope, not the frozen execution environment.
+// This operates only on the response; stored context and worker reads stay intact.
+func redactTaskDiagnostic(value map[string]any) {
+	for key, item := range value {
+		if text, ok := item.(string); ok && key == "instructions" {
+			value[key] = project.TaskScopeInstructions(text)
+		}
+		if nested, ok := item.(map[string]any); ok {
+			redactTaskDiagnostic(nested)
+		}
+	}
 }
 
 // CreateTaskDraft proposes or creates a new task draft for user approval or queueing.

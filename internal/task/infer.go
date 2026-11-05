@@ -62,6 +62,13 @@ func InferExecutionCategory(title, instructions string) string {
 		return ExecutionCategoryCode
 	}
 
+	// Explicit repository inspection limits override incidental creation words
+	// in task bookkeeping and prohibitions (for example, “jangan ubah”).
+	// A feature described as read-only is not itself a read-only inspection.
+	if executionpolicy.FromInstructions(title + "\n" + instructions).ReadOnlyRepository {
+		return ExecutionCategoryReadOnly
+	}
+
 	// Code creation/modification signals take precedence over incidental words like 'view'
 	codeSignals := []string{
 		"integrasi", "implementasi", "tambahkan", "buat", "perbaiki", "ubah",
