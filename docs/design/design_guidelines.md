@@ -440,3 +440,20 @@ Inbox blue token for primary footer actions. `CardActions` owns the calm primary
 action surface via `data-primary-action`; reuse it for Review & Use and task next
 steps. Keep 44px targets with the existing 32px visible surface. Do not add a
 second nested box, prominent warning banner, or extra vertical footer margins.
+
+### 7.13. Response timeline and shared headers
+
+Use `StatusDot` for response timeline markers so the global square-surface theme
+cannot flatten them. Connect consecutive dots with a muted vertical line; stop
+the line at the last item. Only the final dot of a running/cancelling response
+pulses. Queued and terminal states are static, and reduced motion is respected.
+
+Active response details follow new activity until the user scrolls upward.
+Preserve that reading position across live updates. Scrolling back to the bottom
+or selecting Latest activity resumes following. Do not force-scroll a user who
+is reading older events. Opening a stopped response starts at its summary.
+
+`SurfaceHeader` owns the shared leading/title/description/badge/action layout.
+Panel and card variants retain their hierarchy; compact/normal presets control
+spacing instead of arbitrary per-screen pixel values. `SlideDrawer` and Inbox
+task attachments reuse it. Close controls retain a minimum 44px touch target.

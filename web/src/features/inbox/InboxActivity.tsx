@@ -1,5 +1,5 @@
 import { useLanguage } from '../../context/LanguageContext'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CheckCircle2,
@@ -13,6 +13,7 @@ import {
 import { InboxRequest } from '../../api/chat'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { inboxRecoveryControls } from './inbox-recovery'
+import { StatusDot } from '../../components/ui/StatusDot'
 
 export function evaluateInboxQuotaStatus(q: {
   steps?: { seq: number; kind: string; text: string; at: string }[]
@@ -86,6 +87,11 @@ export function InboxActivity({
 
   const [now, setNow] = useState(Date.now())
   const [expanded, setExpanded] = useState(false)
+  const timelineBody = useRef<HTMLDivElement>(null)
+  const followTimeline = useRef(true)
+  const previousTimelineTop = useRef(0)
+  const wasTimelineActive = useRef(false)
+  const [timelinePaused, setTimelinePaused] = useState(false)
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
@@ -145,6 +151,22 @@ export function InboxActivity({
     : t('Working…')
   const autoRecovery = q.steps?.some((step) => step.kind === 'retry_auto')
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
+  const lastStepSeq = q.steps?.at(-1)?.seq
+  useEffect(() => {
+    followTimeline.current = true
+    previousTimelineTop.current = 0
+    setTimelinePaused(false)
+  }, [expanded, q.request_id])
+  useEffect(() => {
+    const previouslyActive = wasTimelineActive.current
+    wasTimelineActive.current = active
+    if (!expanded || (!active && !previouslyActive) || !followTimeline.current) return
+    const frame = requestAnimationFrame(() => {
+      const body = timelineBody.current
+      if (body) body.scrollTop = body.scrollHeight
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [expanded, active, lastStepSeq])
   useEffect(() => {
     if (!active) return
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -285,7 +307,25 @@ export function InboxActivity({
               </>
             )}
           </button>
-          <SlideDrawer isOpen={expanded} onClose={() => setExpanded(false)} title={t('Response details')} description={t(label)} size="md">
+          <SlideDrawer isOpen={expanded} onClose={() => setExpanded(false)} title={t('Response details')} description={t(label)} size="md"
+            contentClassName="[overflow-anchor:none]"
+            bodyRef={timelineBody}
+            onBodyScroll={(event) => {
+              const body = event.currentTarget
+              const movedUp = body.scrollTop < previousTimelineTop.current - 1
+              previousTimelineTop.current = body.scrollTop
+              const atBottom = body.scrollHeight - body.clientHeight - body.scrollTop <= 2
+              if (atBottom) followTimeline.current = true
+              else if (movedUp) followTimeline.current = false
+              setTimelinePaused(!followTimeline.current)
+            }}
+            footer={active && timelinePaused ? <button type="button" className="min-h-11 text-xs font-medium" onClick={() => {
+              followTimeline.current = true
+              setTimelinePaused(false)
+              const body = timelineBody.current
+              if (body) body.scrollTop = body.scrollHeight
+            }}>{t('Latest activity')}</button> : undefined}
+          >
             <div className="w-full min-w-0 space-y-5 text-sm">
               <p className="font-medium">
                 {q.state === 'completed'
@@ -321,11 +361,12 @@ export function InboxActivity({
               {processSteps.length ? (
                 <ol
                   aria-label="Response timeline"
-                  className="ml-1 space-y-0 border-l border-border/40 pl-5"
+                  className="ml-1 space-y-0"
                 >
                   {processSteps.map((step, index) => (
-                    <li key={step.seq} className="relative space-y-1 pb-5 last:pb-0">
-                      <span aria-hidden className={`absolute -left-[25px] top-1.5 h-2 w-2 rounded-full ${active && index === processSteps.length - 1 ? 'bg-sky-400/70 animate-pulse' : 'bg-muted-foreground/50'}`} />
+                    <li key={step.seq} className="relative pb-5 pl-6 last:pb-0">
+                      {index < processSteps.length - 1 && <span data-timeline-connector aria-hidden className="absolute left-[3.5px] top-3 -bottom-1.5 w-px bg-muted-foreground/25" />}
+                      <StatusDot aria-hidden size="md" status={['running', 'cancelling'].includes(q.state) && index === processSteps.length - 1 ? 'working' : 'neutral'} className="absolute left-0 top-1.5" />
                       {step.kind.startsWith('runtime_tool_') && (
                         <span
                           className={`text-xs font-medium ${step.kind === 'runtime_tool_failed' ? 'text-destructive' : 'text-muted-foreground'}`}
@@ -348,7 +389,7 @@ export function InboxActivity({
                       {Number.isFinite(Date.parse(step.at)) && (
                         <time
                           dateTime={step.at}
-                          className="block text-xs tabular-nums text-muted-foreground"
+                          className="mt-1 block text-xs tabular-nums text-muted-foreground"
                         >
                           {new Date(step.at).toLocaleTimeString(language)}
                         </time>

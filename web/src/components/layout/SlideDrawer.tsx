@@ -2,6 +2,7 @@ import * as React from "react"
 import { X } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { trapDialogFocus } from "../../lib/dialog"
+import { SurfaceHeader } from './SurfaceHeader'
 
 export interface SlideDrawerProps {
   isOpen: boolean
@@ -15,6 +16,9 @@ export interface SlideDrawerProps {
   headerActions?: React.ReactNode
   className?: string
   contentClassName?: string
+  bodyRef?: React.Ref<HTMLDivElement>
+  onBodyScroll?: React.UIEventHandler<HTMLDivElement>
+  headerSize?: 'compact' | 'normal'
   closeOnBackdropClick?: boolean
   closeOnEscape?: boolean
   "aria-label"?: string
@@ -33,6 +37,9 @@ export function SlideDrawer({
   headerActions,
   className,
   contentClassName,
+  bodyRef,
+  onBodyScroll,
+  headerSize,
   closeOnBackdropClick = true,
   closeOnEscape = true,
   "aria-label": ariaLabel,
@@ -99,38 +106,23 @@ export function SlideDrawer({
       )}
     >
       {/* Drawer Header */}
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-3 sm:px-6">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            {title && (
-              <h2 className="text-base font-semibold leading-none tracking-tight text-foreground truncate">
-                {title}
-              </h2>
-            )}
-            {badge && <div className="shrink-0">{badge}</div>}
-          </div>
-          {description && (
-            <p className="mt-1 text-xs text-muted-foreground truncate">
-              {description}
-            </p>
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-1">
+      <SurfaceHeader title={title} description={description} badge={badge} size={headerSize} actions={<>
           {headerActions}
           <button
             type="button"
             onClick={onClose}
             aria-label="Close drawer"
-            className="rounded-md p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[36px] min-w-[36px] flex items-center justify-center"
+            className="rounded-md p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-11 min-w-11 flex items-center justify-center"
           >
             <X className="h-4 w-4" />
           </button>
-        </div>
-      </div>
+      </>} />
 
       {/* Drawer Body (Scroller) */}
       <div
+        ref={bodyRef}
+        onScroll={onBodyScroll}
+        data-drawer-scroll
         className={cn(
           "flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 min-w-0 focus:outline-none",
           contentClassName

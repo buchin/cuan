@@ -1,4 +1,5 @@
 import { CardActions } from './CardActions'
+import { SurfaceHeader } from '../../components/layout/SurfaceHeader'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
@@ -116,7 +117,10 @@ export function InboxTaskAction({
     const StateIcon = state === 'Completed' ? Check : (state === 'Queued' || state === 'Waiting for review') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
 
     return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
-      <div className="-mx-4 -mt-3 flex items-center justify-between gap-3 rounded-t-xl bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground"><span className="inline-flex min-w-0 items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span><span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span></div>
+      <SurfaceHeader variant="card" className="-mx-4 -mt-3 rounded-t-xl bg-muted/50"
+        title={<span className="inline-flex min-w-0 max-w-full items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span>}
+        actions={<span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span>}
+      />
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {attention ? <p className="break-words text-sm leading-5 text-muted-foreground"><span className="text-foreground">{t(attention.reason)}</span></p> : update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
       {attention && proposal && <p data-task-recommendation className="whitespace-pre-wrap break-words text-sm leading-5">{proposal.description}</p>}
