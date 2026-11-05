@@ -1,0 +1,21 @@
+/* The visible32px surface sits inside a44px touch target. */
+[data-card-actions] > :is(button, a) {
+  position: relative;
+  isolation: isolate;
+  min-height: 44px;
+  padding-inline: 12px;
+}
+
+[data-card-actions] > :is(button, a)::before {
+  content: '';
+  position: absolute;
+  inset: 6px 0;
+  z-index: -1;
+  border-radius: 6px;
+  background: oklch(var(--muted) / 0.5);
+  pointer-events: none;
+}
+
+[data-card-actions] > :is(button, a):hover::before {
+  background: oklch(var(--muted));
+}
