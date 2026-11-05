@@ -37,6 +37,30 @@ type inboxResponseStageRecord struct {
 	CandidateBytes int    `json:"candidate_bytes,omitempty"`
 }
 
+// Aggregate counters survive the UI's bounded activity timeline. Field-presence
+// counts describe the native contract without archiving private tool content.
+func traceInboxRuntimeSummary(ctx context.Context, phase, release string, runtime *inboxRuntimeStream, reason string) {
+	trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace)
+	if !ok || trace.RequestID == "" {
+		return
+	}
+	record := struct {
+		RequestID    string `json:"request_id"`
+		Stage        string `json:"stage"`
+		Release      string `json:"release"`
+		Reason       string `json:"reason,omitempty"`
+		ToolCalls    int    `json:"tool_calls"`
+		ToolFailures int    `json:"tool_failures"`
+		DetailEvents int    `json:"tool_detail_events"`
+		InputEvents  int    `json:"tool_input_events"`
+		OutputEvents int    `json:"tool_output_events"`
+		ErrorEvents  int    `json:"tool_error_events"`
+		TraceLimited bool   `json:"trace_limited"`
+	}{trace.RequestID, phase, release, reason, runtime.toolCalls, runtime.toolFailures, runtime.toolDetailEvents, runtime.toolInputEvents, runtime.toolOutputEvents, runtime.toolErrorEvents, runtime.truncated}
+	raw, _ := json.Marshal(record)
+	log.Printf("inbox runtime summary %s", raw)
+}
+
 func inboxResponseStageOutcome(parent, stage context.Context, failed bool) string {
 	if parent.Err() == context.DeadlineExceeded {
 		return "request_deadline"

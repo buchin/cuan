@@ -68,3 +68,25 @@ func TestInboxResponseStageCarriesCorrelationWithoutPrivateContext(t *testing.T)
 		}
 	}
 }
+
+func TestInboxRuntimeSummaryContainsOnlyCorrelatedCounters(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&output)
+	defer log.SetOutput(previous)
+	ctx := context.WithValue(context.Background(), inboxRequestTraceKey{}, inboxRequestTrace{RequestID: "request-fixture"})
+	runtime := &inboxRuntimeStream{pending: []byte("PRIVATE_CONTENT"), toolCalls: 80, toolFailures: 3, toolInputEvents: 4, toolOutputEvents: 2, truncated: true}
+	traceInboxRuntimeSummary(context.Background(), "analysis", "release-fixture", runtime, "")
+	if output.Len() != 0 {
+		t.Fatal("uncorrelated summary")
+	}
+	traceInboxRuntimeSummary(ctx, "analysis", "release-fixture", runtime, "runtime_missing_result")
+	line := output.String()
+	var record map[string]any
+	if err := json.Unmarshal([]byte(line[strings.IndexByte(line, '{'):]), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record["request_id"] != "request-fixture" || record["tool_calls"] != float64(80) || record["tool_failures"] != float64(3) || record["trace_limited"] != true || record["reason"] != "runtime_missing_result" || strings.Contains(line, "PRIVATE") {
+		t.Fatal("missing counters or private content in summary", line)
+	}
+}

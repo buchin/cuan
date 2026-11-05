@@ -35,6 +35,10 @@ type inboxRuntimeStream struct {
 	toolIndices                             map[int]bool
 	toolBudgetExceeded                      bool
 	cancel                                  func()
+	toolDetailEvents                        int
+	toolInputEvents                         int
+	toolOutputEvents                        int
+	toolErrorEvents                         int
 }
 
 func (s *inboxRuntimeStream) emit(kind, text string) {
@@ -151,11 +155,12 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		ConversationID string          `json:"conversation_id"`
 		Result         json.RawMessage `json:"result"`
 		Update         struct {
-			Index    *int     `json:"step_index"`
-			State    string   `json:"state"`
-			Type     string   `json:"step_type"`
-			Tool     string   `json:"tool_name"`
-			Duration *float64 `json:"duration_seconds"`
+			Index    *int                       `json:"step_index"`
+			State    string                     `json:"state"`
+			Type     string                     `json:"step_type"`
+			Tool     string                     `json:"tool_name"`
+			Duration *float64                   `json:"duration_seconds"`
+			Info     map[string]json.RawMessage `json:"tool_info"`
 		} `json:"step_update"`
 	}
 	if json.Unmarshal(line, &e) != nil {
@@ -215,6 +220,28 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		if s.seen[key] {
 			return
+		}
+		// Observe only field presence. Never retain tool values, paths, errors,
+		// or reasoning in the diagnostic summary.
+		if u.Type == "tool" && len(u.Info) > 0 {
+			s.toolDetailEvents++
+			present := func(keys ...string) bool {
+				for _, key := range keys {
+					if value := u.Info[key]; len(value) > 0 && string(value) != "null" {
+						return true
+					}
+				}
+				return false
+			}
+			if present("parameters", "arguments", "input") {
+				s.toolInputEvents++
+			}
+			if present("output", "result") {
+				s.toolOutputEvents++
+			}
+			if present("error") {
+				s.toolErrorEvents++
+			}
 		}
 		if len(s.seen) < 256 {
 			s.seen[key] = true

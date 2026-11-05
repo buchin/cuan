@@ -405,6 +405,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	if runtime != nil {
 		raw, failure, reason := runtime.finish()
+		traceInboxRuntimeSummary(ctx, phase, release, runtime, reason)
 		var rejectedReply string
 
 		if failure == "" {

@@ -42,6 +42,20 @@ func TestInboxRuntimeStreamObservedEventsAndRedaction(t *testing.T) {
 	if strings.Count(joined, "runtime_tool_failed:") != 1 {
 		t.Fatal("duplicate tool event")
 	}
+	if s.toolDetailEvents != 3 || s.toolInputEvents != 1 || s.toolOutputEvents != 1 || s.toolErrorEvents != 1 {
+		t.Fatal("missing or duplicated native detail presence", s.toolDetailEvents, s.toolInputEvents, s.toolOutputEvents, s.toolErrorEvents)
+	}
+}
+
+func TestInboxRuntimeCountersSurviveTimelineLimit(t *testing.T) {
+	s := &inboxRuntimeStream{step: func(string, string) {}}
+	for i := 0; i < 80; i++ {
+		s.Write([]byte(fmt.Sprintf(`{"event":"step_update","step_update":{"step_index":%d,"state":"ERROR","step_type":"tool","tool_name":"read_file","tool_info":{"error":"PRIVATE_ERROR","parameters":{"path":"PRIVATE_PATH"},"output":"PRIVATE_CONTENT"}}}`+"\n", i)))
+	}
+	s.finish()
+	if !s.truncated || s.toolCalls != 80 || s.toolFailures != 80 || s.toolInputEvents != 80 || s.toolOutputEvents != 80 || s.toolErrorEvents != 80 {
+		t.Fatal("timeline limit lost aggregate evidence")
+	}
 }
 func TestInboxRuntimeStreamRejectsIncompleteAndMalformed(t *testing.T) {
 	for _, c := range []struct{ raw, want string }{

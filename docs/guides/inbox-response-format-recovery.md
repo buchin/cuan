@@ -94,3 +94,19 @@ This adopts Fural's correlation, phase timing, failure grouping and explicit
 stop-source practices without adding a telemetry service or changing the chat
 layout. `TestInboxResponseStageCarriesCorrelationWithoutPrivateContext` verifies
 identity/release linkage, bounded fields, grouping and exactly one terminal record.
+# Native runtime diagnostics
+
+Server logs include one `inbox runtime summary` per completed native process,
+correlated by `request_id`, stage and release. `tool_calls` and `tool_failures`
+continue counting after the activity timeline reaches its 64-event display
+limit. They describe observed native events, not proof of successful execution.
+
+`tool_detail_events`, `tool_input_events`, `tool_output_events` and
+`tool_error_events` count presence of recognized fields in native `tool_info`
+events. They do not retain the values. Zero means no recognized field was
+observed; it does not prove the tool produced no output. These counters help
+verify the actual runtime contract before adding an expandable detail UI.
+No file contents, paths, arguments, error bodies or reasoning are archived by
+this summary. The summary's `reason` describes stream validation; final response
+validation and provider-stage outcome remain separate records.
+
