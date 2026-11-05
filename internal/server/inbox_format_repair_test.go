@@ -24,7 +24,7 @@ else
  case "$2" in *"TRANSPORT FORMAT REPAIR ONLY"*"Verified source finding."*) ;; *) exit 23;; esac
  case "$*" in *"--print-timeout 40s"*) ;; *) exit 26;; esac
  case "$2" in *"PRIVATE_CONVERSATION_CONTEXT"*|*"AGENTIC SCRUM RULES"*) exit 27;; esac
- [ "$PWD" = "$HOME" ] || exit 28
+ [ "$PWD" = "$HOME/.cuan-chat-workspace" ] || exit 28
  for arg in "$@"; do [ "$arg" != "--add-dir" ] || exit 24; done
  printf x >> "$HOME/format-count"
 `

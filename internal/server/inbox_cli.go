@@ -328,9 +328,16 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if err != nil {
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
+	executionWorkspace := workspace
+	if binary == "agy" && (directCoordinator || formatRepair) {
+		executionWorkspace, err = prepareInboxReplyWorkspace(home)
+		if err != nil {
+			return "", "The isolated reply workspace could not be prepared. Your message is saved; no provider process was started."
+		}
+	}
 	if (binary == "agy" || binary == "antigravity" || harness == "agy" || harness == "antigravity" || harness == "") && home != "" {
-		if workspace != "" {
-			_ = agent.PrepareAntigravitySettings(home, workspace)
+		if executionWorkspace != "" {
+			_ = agent.PrepareAntigravitySettings(home, executionWorkspace)
 		}
 		if err := agent.PrepareAntigravityReadOnlyPermissions(home); err != nil {
 			return "", "The agent's chat permissions could not be prepared. Your message is saved; no provider process was started."
@@ -343,7 +350,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 	}
 	if binary == "agy" {
-		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, workspace, attachmentPaths)
+		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, executionWorkspace, attachmentPaths)
 		if err == nil {
 			// Probe the same namespace/mount setup before starting paid inference.
 			// A blocked kernel policy must produce a setup error, not a fake
@@ -370,8 +377,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = home
-	if workspace != "" {
-		cmd.Dir = workspace
+	if executionWorkspace != "" {
+		cmd.Dir = executionWorkspace
 	}
 	cmd.Env = profileEnv
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
@@ -612,4 +619,21 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 		return "", "The agent returned no reply. Your message is saved. You can try again with a new message. This message will not be resent automatically.", "empty_response"
 	}
 	return reply, "", "success"
+}
+
+// Tool-free turns have no project checkout. Do not launch their native provider
+// from its authentication/session HOME or leave headless workspace trust pending.
+func prepareInboxReplyWorkspace(home string) (string, error) {
+	dir := filepath.Join(home, ".cuan-chat-workspace")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil || resolved != dir {
+		return "", fmt.Errorf("reply workspace must not be a symlink")
+	}
+	if err := agent.PrepareAntigravitySettings(home, dir); err != nil {
+		return "", err
+	}
+	return dir, nil
 }

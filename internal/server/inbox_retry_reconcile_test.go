@@ -226,3 +226,29 @@ func TestInboxReconciliationRejectsTopicMutation(t *testing.T) {
 		t.Fatal("retry changed the conversation topic")
 	}
 }
+
+func TestInboxReplyWorkspaceIsIsolatedAndTrusted(t *testing.T) {
+	home := t.TempDir()
+	dir, err := prepareInboxReplyWorkspace(home)
+	if err != nil || dir == home {
+		t.Fatal("no isolated reply workspace", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 0 {
+		t.Fatal("reply workspace contains context", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".gemini", "antigravity-cli", "settings.json"))
+	if err != nil || !strings.Contains(string(raw), dir) {
+		t.Fatal("headless workspace trust missing", err)
+	}
+	other := t.TempDir()
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(other, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prepareInboxReplyWorkspace(home); err == nil {
+		t.Fatal("symlinked workspace accepted")
+	}
+}

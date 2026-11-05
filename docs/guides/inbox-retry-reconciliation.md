@@ -34,7 +34,9 @@ The fresh response receives conversation history, registered project IDs and onl
 this room's task snapshots; unrelated project backlog and code/host inspection
 context and the unrelated Cuan contact directory are excluded. Receipts stay in durable
 storage for the task; tool-free reconciliation does not mount them or advertise file
-inspection. Native evaluation gets120 seconds with a125-second outer
+inspection. Native tool-free turns run from an empty, trusted reply workspace,
+not provider HOME; finish/format-response is permitted while inspection and
+execution tools remain forbidden. Native evaluation gets120 seconds with a125-second outer
 bound, respecting the original durable deadline. Candidate-only format repair
 retains its40/45-second limit and cannot invent a missing action or scope.
 Failed recovery remains failed, without fabricated investigation findings.
