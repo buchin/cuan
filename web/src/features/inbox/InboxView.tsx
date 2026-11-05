@@ -15,6 +15,7 @@ import {
   AttachmentPicker,
   AttachmentPreviews,
   AttachmentFile,
+  isImageAttachment,
   useAttachments,
 } from './Attachments'
 import { CannedResponsesPicker } from './CannedResponsesPicker'
@@ -1543,6 +1544,11 @@ export function InboxView({
                 previousBubbleMessage = msg
                 const hasSpeech = withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
                 const showMessageSurface = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices)
+                const onlyImages = msg.attachments?.length
+                  ? msg.attachments.every(isImageAttachment)
+                  : !!msg.attachment_url && isImageAttachment({ name: msg.attachment_name || '', type: msg.attachment_type })
+                const imageBubble = onlyImages && !msg.approval_title && !msg.action_card && !msg.product && !msg.receipt_extraction && !msg.prompt_choices
+                const imageOnly = imageBubble && !hasSpeech && !msg.email_delivery
                 const metadata = (
                   <span className="wa-message-meta">
                     {msg.email_delivery && !msg.is_internal && <span title={t(msg.email_delivery.recipient_type === 'operator' ? 'Email notification to your team; independent of chat read status' : 'Email delivery to customer; independent of chat read status')}>
@@ -1609,11 +1615,14 @@ export function InboxView({
                       data-bubble-tail={groupStart && hasSpeech ? (isOutgoing ? 'outgoing' : 'incoming') : undefined}
                       className={cn(
                         'wa-message-bubble relative min-w-0',
+                        imageBubble && 'wa-image-bubble',
+                        imageOnly && 'wa-image-only',
+                        msg.is_internal && 'wa-whisper',
                         msg.uuid === requestedMessageId && 'ring-2 ring-ring',
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
-                      {msg.is_internal && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
+                      {msg.is_internal && !imageBubble && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
                         <div className="-ml-3 -mt-2 -mb-1 w-fit"><InternalVisibility /></div>
                       )}
                       {msg.approval_title && !msg.approval_plan && (
@@ -1622,9 +1631,10 @@ export function InboxView({
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
-                        <div key={a.id} className="mb-2 last:mb-0"><AttachmentFile attachment={a} imagePreview internal={msg.is_internal === true} /></div>
+                        <div key={a.id} className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}><AttachmentFile attachment={a} imagePreview internal={msg.is_internal === true} /></div>
                       ))}
                       {msg.attachment_url && !msg.attachments?.length && (
+                        <div className={imageBubble ? 'wa-image-attachment' : undefined}>
                         <AttachmentFile
                           imagePreview
                           internal={msg.is_internal === true}
@@ -1636,6 +1646,7 @@ export function InboxView({
                             url: msg.attachment_url,
                           }}
                         />
+                        </div>
                       )}
                       {msg.product && (
                         <p className="mb-1 text-xs font-medium opacity-80">
@@ -1646,7 +1657,7 @@ export function InboxView({
                       {/* Message Body */}
                       {isFormattedMessage ? (
                         <MessageContent
-                          content={msg.content || msg.message}
+                          content={msgContent}
                           hideTaskActions={Boolean(linkedTaskForMsg || isSupersededTaskMessage)}
                           receiptExtraction={msg.receipt_extraction}
                           onTaskClick={handleTaskDetailsClick}
@@ -1660,7 +1671,7 @@ export function InboxView({
                         />
                       ) : (
                         <div className="wa-plain-text whitespace-pre-wrap break-words font-sans">
-                          <span>{msg.content || msg.message}</span>
+                          <span>{msgContent}</span>
                           {metadata}
                         </div>
                       )}

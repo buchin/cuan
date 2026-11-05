@@ -496,3 +496,9 @@ internal visibility, loading/error states and the existing viewer's Close,
 Escape and focus restoration. Documents and unsent composer attachments retain
 the compact file treatment. Image loading failure must retain an accessible
 filename and a way to open the viewer.
+
+Inbox photo-only surfaces place images flush against the top and side edges.
+Captions retain ordinary text padding. Without a caption or email delivery label,
+place the timestamp on a small translucent dark overlay at the bottom right;
+retain readable receipt icons. Whisper speech uses a quiet warm tint in both
+themes, alongside the existing privacy marker. Public speech remains neutral.

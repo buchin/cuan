@@ -550,3 +550,47 @@
     opacity: 1;
   }
 }
+
+/* Private speech stays recognizable without adding another repeated label. */
+.wa-chat .wa-message-bubble.wa-whisper {
+  --wa-incoming: #f3eee5;
+  --wa-outgoing: #eee7dc;
+}
+.dark .wa-chat .wa-message-bubble.wa-whisper {
+  --wa-incoming: #272420;
+  --wa-outgoing: #302b24;
+}
+
+/* Photos reach the speech surface edges; captions keep normal reading space. */
+.wa-message-bubble.wa-image-bubble {
+  width: 320px;
+  border: 0;
+}
+.wa-image-attachment {
+  margin: 0 -14px 8px;
+}
+.wa-image-attachment:first-child {
+  margin-top: -8px;
+}
+.wa-image-attachment > div {
+  width: 100%;
+}
+.wa-image-bubble.wa-image-only {
+  padding-bottom: 0;
+}
+.wa-image-only .wa-image-attachment:last-of-type {
+  margin-bottom: 0;
+}
+.wa-image-only > .wa-markdown-footer {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  min-height: 0;
+}
+.wa-image-only > .wa-markdown-footer .wa-message-meta {
+  margin: 0;
+  padding: 3px 6px;
+  color: #fff;
+  background: rgb(0 0 0 / 55%);
+  border-radius: 8px;
+}
