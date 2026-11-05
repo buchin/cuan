@@ -8,7 +8,9 @@
   background: oklch(var(--primary) / 0.22);
 }
 
-[data-inbox-composer] {
+[data-inbox-composer].wa-composer {
+  background: transparent;
+  padding-top: 0;
   --composer-surface: oklch(var(--muted) / 0.45);
 }
 .dark [data-inbox-composer] {

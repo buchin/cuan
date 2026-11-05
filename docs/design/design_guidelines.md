@@ -398,3 +398,8 @@ Attachment previews appear above mode tabs so they never separate tabs from inpu
 Reply mode tabs use a32px visible surface within their44px touch targets, with
 12px medium labels. The active surface occupies the bottom32px so it still joins
 the composer; the upper12px remains transparent.
+The Inbox composer dock has a transparent outer background and no extra top
+padding. Only the active tab, input and action surfaces are tinted. Internal mode
+is identified by its lock tab/send icon; do not repeat an eye-off marker beside
+the mode tabs. Persisted internal messages and unsent attachments retain their
+own visibility markers.

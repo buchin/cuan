@@ -2063,9 +2063,6 @@ export function InboxView({
                         </button>
                       </div>
                     </div>
-                    {(whisperMode || inputMessage.trim().startsWith('@')) && (
-                      <InternalVisibility />
-                    )}
                   </div>
                 )}
                 <Composer
