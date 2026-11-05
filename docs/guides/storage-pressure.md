@@ -119,3 +119,21 @@ runtime alias resolution as normal execution. A historical `agent_sm` approval
 therefore remains valid for the canonical `agent_cuan` identity after migration.
 Missing canonical agents, unknown identities and unrelated agents still fail the
 identity guard; owner/message/room/publication checks are unchanged.
+
+### Idle profiles that predate execution gates
+
+A missing `.execution.lock` is not evidence of an active session. Maintenance now
+runs under the service account owning the provider directory. That owner may
+create the same mode-0600 gate used by runtime leasing and acquire it exclusively
+before pruning. A different user cannot create a missing gate; symlinks,
+nonregular gates and active leases remain protected. Scheduled root maintenance
+drops to the directory owner's UID for this operation, and deployment uses its
+existing service identity, preventing root-owned gate files from breaking login
+or execution.
+
+Only recognized Go distributions older than the existing retention window qualify,
+and live executable/cwd references still prevent deletion. Their owning user can
+remove read-only distribution directories without elevated privileges. Provider
+credentials, conversation history, other modules and the warm owner build cache
+remain outside cleanup. Preview mode may create coordination gates, but does not
+remove distributions; `--apply` performs deletion.

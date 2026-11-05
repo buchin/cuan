@@ -28,7 +28,13 @@ def idle_account(account):
     gate = account / '.execution.lock'
     descriptor = None
     try:
-        descriptor = os.open(gate, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+        # Old idle profiles may predate account leasing. Only their owner may
+        # create the same gate the runtime uses; root must not leave a root-owned
+        # 0600 file that would prevent the provider from signing in or running.
+        if os.geteuid() == account.stat().st_uid:
+            flags |= os.O_CREAT
+        descriptor = os.open(gate, flags, 0o600)
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise OSError("Account gate is not a regular file")
         fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -52,6 +58,19 @@ def process_uses(path, proc=Path('/proc')):
             except (OSError, RuntimeError):
                 continue
     return False
+
+
+def remove_toolchain(path):
+    # Go distributions in the module cache contain read-only directories. The
+    # owning service can remove its own cache without elevated privileges.
+    directories = [Path(root) for root, _, _ in os.walk(path, followlinks=False)]
+    for directory in directories:
+        info = directory.lstat()
+        if not stat.S_ISDIR(info.st_mode) or (os.geteuid() != 0 and info.st_uid != os.geteuid()):
+            raise OSError('Cache directory is not owned by the maintenance user')
+    for directory in directories:
+        os.chmod(directory, stat.S_IMODE(directory.lstat().st_mode) | stat.S_IWUSR, follow_symlinks=False)
+    shutil.rmtree(path)
 
 
 def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_uses):
@@ -82,7 +101,7 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
                         continue
                     result['eligible'] += 1
                     if apply:
-                        shutil.rmtree(toolchain)
+                        remove_toolchain(toolchain)
                         result['removed'] += 1
     return result
 

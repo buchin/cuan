@@ -33,5 +33,11 @@ if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan-releases
 fi
 python3 "$install_dir/maintenance/prune-release-artifacts.py" "${release_args[@]}"
 if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts" ]]; then
-  python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$maintenance_home/.local/share/cuan/accounts" --apply
+  accounts_dir="$maintenance_home/.local/share/cuan/accounts"
+  accounts_uid="$(stat -c %u "$accounts_dir")"
+  if [[ "$(id -u)" == 0 && "$accounts_uid" != 0 ]]; then
+    sudo -n -u "#$accounts_uid" python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --apply
+  else
+    python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --apply
+  fi
 fi

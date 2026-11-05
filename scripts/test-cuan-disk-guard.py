@@ -70,6 +70,18 @@ class DiskGuardTest(unittest.TestCase):
             for file in preserved:
                 self.assertEqual(file.read_text(), 'saved fixture')
 
+    def test_legacy_idle_account_without_gate_is_cleaned_without_touching_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base, home, gate, toolchain, preserved = self.fixture(Path(tmp))
+            gate.unlink()
+            result = self.run_guard(base, home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(toolchain.exists())
+            self.assertEqual(gate.stat().st_uid, gate.parent.stat().st_uid)
+            self.assertEqual(gate.stat().st_mode & 0o777, 0o600)
+            for file in preserved:
+                self.assertEqual(file.read_text(), 'saved fixture')
+
     def test_missing_rollback_target_stops_cleanup_without_deleting_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
             base, home, _, toolchain, preserved = self.fixture(Path(tmp))
