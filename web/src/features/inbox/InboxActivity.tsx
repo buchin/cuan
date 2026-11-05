@@ -173,7 +173,7 @@ export function InboxActivity({
     return () => clearInterval(timer)
   }, [active])
   const compact = q.state === 'completed' && !bubble
-  if (compact) {
+  if (compact && !q.steps?.some(step => step.kind.startsWith('runtime_tool_') && step.text.includes('\n\n'))) {
     return null
   }
   const start = Date.parse(q.started_at || q.created_at)
