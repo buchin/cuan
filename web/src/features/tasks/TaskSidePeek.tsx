@@ -8,6 +8,7 @@ import {
   Minimize2,
   MoreHorizontal,
   Play,
+  Terminal,
   Pencil,
   Copy,
   Trash2,
@@ -52,7 +53,6 @@ import {
   activeAttempt,
   statusLabel,
   taskRef,
-  executionLabel,
   relativeTime,
   taskStatusBadgeClass,
   taskPriorityBadgeClass,
@@ -193,6 +193,7 @@ function TaskDetailView({
   const hasReviewEvidence = Boolean(detail.summary?.trim() && detail.complete_note?.trim() &&
     checklist.every((item) => item.completed && 'evidence' in item && String(item.evidence || '').trim()))
   const publicStatus = id ? ({ backlog: 'Rencana', todo: 'Siap dikerjakan', queued: 'Dalam antrean', doing: 'Dikerjakan', review: 'Perlu ditinjau', done: 'Selesai', blocked: 'Terhambat' } as Record<string, string>)[detail.status] || statusLabel(detail.status) : statusLabel(detail.status)
+  const latestProgress = [...(detail.activities || [])].reverse().find((event) => event.activity_type === 'agent_report' && event.attempt_id === detail.latest_attempt?.id && !['done', 'review'].includes(event.new_status || '') && event.message?.trim())
   const dirty =
     editing && JSON.stringify(draft) !== JSON.stringify(makeDraft(detail))
   const selectedProject = projects.find(
@@ -422,7 +423,7 @@ function TaskDetailView({
     setMenu(false)
   }
   const runLabel = running
-    ? 'Open session'
+    ? (detail.latest_attempt?.status === 'queued' ? 'Queued' : 'Open terminal')
     : detail.status === 'review'
       ? 'Request changes'
       : detail.attempts.length
@@ -590,16 +591,8 @@ function TaskDetailView({
         </h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
           <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border capitalize", taskStatusBadgeClass(detail.status))}>
-            {publicStatus}
+            {running ? (detail.latest_attempt?.status === 'queued' ? (id ? 'Dalam antrean' : 'Queued') : (id ? 'Sedang dikerjakan' : 'Working')) : publicStatus}
           </span>
-          {['running', 'queued'].includes(
-            detail.latest_attempt?.status || '',
-          ) && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/25">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-              {executionLabel(detail)}
-            </span>
-          )}
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
             <Clock className="h-3 w-3" />
             Updated {relativeTime(detail.updated_at)}
@@ -699,7 +692,7 @@ function TaskDetailView({
                   : detail.status === 'blocked' ? (id ? 'Pekerjaan terhenti' : 'Work is blocked')
                   : (id ? 'Siap dikerjakan' : 'Ready to start')}</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{running
-                  ? (id ? 'Anda bisa meninggalkan halaman ini. Perkembangan akan tersimpan di sini.' : 'You can leave this page. Progress is saved here.')
+                  ? (latestProgress?.message || (detail.latest_attempt?.status === 'queued' ? (id ? 'Menunggu giliran agen.' : 'Waiting for an agent.') : ''))
                   : detail.status === 'done' ? (id ? 'Lihat hasil dan bukti penyelesaiannya di bawah.' : 'See the result and verification below.')
                   : detail.status === 'review' ? (id ? (hasReviewEvidence ? 'Periksa ringkasan dan bukti sebelum menyetujui. Jika belum sesuai, minta perbaikan.' : `Bukti penyelesaian belum lengkap. Minta perbaikan agar ${assistantName} melengkapi hasilnya.`) : 'Check the summary and evidence before approving, or request changes.')
                   : detail.status === 'blocked' ? (id ? 'Periksa ringkasan kendala. Tambahkan arahan lalu coba lagi saat kendala sudah teratasi.' : 'Check the blocker summary. Add guidance and retry when it is resolved.')
@@ -826,9 +819,9 @@ function TaskDetailView({
               </form>
             ) : (
               <>
-                <section className="rounded-xl border border-border/80 bg-card p-3 sm:p-4 shadow-xs">
-                  <details className="space-y-3">
-                    <summary className="min-h-11 cursor-pointer text-sm text-muted-foreground">{id ? 'Pengaturan tugas' : 'Task settings'}</summary>
+                <section>
+                  <details className="group space-y-3">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium hover:text-primary"><span>{id ? 'Pengaturan tugas' : 'Task settings'}</span><ChevronDown aria-hidden="true" className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="pb-3 sm:pb-0 sm:pr-4 flex flex-col justify-between">
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
@@ -941,15 +934,15 @@ function TaskDetailView({
                   )}
                 </section>
 
-                <section className="space-y-2">
-                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                {detail.summary?.trim() && <section className="space-y-2">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
                     <span>{id ? 'Ringkasan pekerjaan' : 'Work summary'}</span>
                   </h3>
                   {emptyProse(detail.summary, id ? 'Belum ada ringkasan pekerjaan.' : 'No work summary recorded yet.')}
-                </section>
-                <section className="space-y-2">
-                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                </section>}
+                {detail.complete_note?.trim() && <section className="space-y-2">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-primary" />
                     <span>{id ? 'Hasil & bukti' : 'Result & verification'}</span>
                   </h3>
@@ -957,7 +950,7 @@ function TaskDetailView({
                     detail.complete_note,
                     id ? 'Belum ada hasil terverifikasi. Jangan setujui sebelum hasil dan buktinya tersedia.' : 'No verified result yet. Check the result and evidence before approval.',
                   )}
-                </section>
+                </section>}
 
                 {(() => {
                   const parsed = parseTaskInstructions(detail.description)
@@ -1427,15 +1420,15 @@ function TaskDetailView({
                   )}
                   <button
                     className="action-primary min-h-11 min-w-[44px] px-4 sm:px-5 text-xs sm:text-sm font-medium shadow-sm"
-                    disabled={busy || !loaded || !!pending || launching}
+                    disabled={busy || !loaded || !!pending || launching || detail.latest_attempt?.status === 'queued'}
                     onClick={taskAction}
                   >
                     {busy ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
                     ) : (
-                      !running && <Play className="h-4 w-4" />
+                      running ? (detail.latest_attempt?.status !== 'queued' && <Terminal aria-hidden="true" className="h-4 w-4" />) : <Play className="h-4 w-4" />
                     )}
-                    <span>{id ? (running ? 'Lihat progres' : detail.status === 'review' ? 'Minta perbaikan' : detail.attempts.length ? 'Coba lagi' : 'Mulai') : runLabel}</span>
+                    <span>{id ? (running ? (detail.latest_attempt?.status === 'queued' ? 'Dalam antrean' : 'Buka terminal') : detail.status === 'review' ? 'Minta perbaikan' : detail.attempts.length ? 'Coba lagi' : 'Mulai') : runLabel}</span>
                   </button>
                 </>
               )}

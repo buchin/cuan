@@ -350,3 +350,20 @@ Only mark surfaces known to be internal: message visibility comes from persisted
 `is_internal`; unsent attachments follow the actual composer mode; customer-room
 task cards are owner-only surfaces. Public messages/attachments have no marker.
 The indicator explains access and never grants or changes it.
+
+### 7.9. Task progress and terminal access
+
+Task details show one current status, the latest progress report from the current
+attempt, and summary/result sections only when content exists. Expandable task
+settings have a visible chevron and a44px target. The running action says
+**Buka terminal / Open terminal**, with the terminal icon, and opens the actual
+interactive session. Queued attempts have no active terminal action.
+
+Following the user's explicit request, task list rows may expose one quiet
+terminal link for an actual running attempt: visible on mobile, on hover or
+keyboard focus on desktop. It is a separate target from opening task details.
+This exception supersedes the earlier blanket prohibition of terminal actions
+on list rows. Do not infer a live terminal from task status alone.
+
+Task previews and reply drafts share CardActions: a subtle surface change and
+hairline separate content from actions, without extra vertical button padding.

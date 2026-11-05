@@ -602,7 +602,7 @@ export function TaskBoardView({
                       {sort === 'updated-asc' ? <ArrowUp className="h-3 w-3 text-primary" /> : (sort === 'updated' || !sort) ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
                     </span>
                   </th>
-                  <th className="w-[40px] px-1 py-2 text-center">
+                  <th className="w-[96px] px-1 py-2 text-center">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
