@@ -85,8 +85,9 @@ func TestReadOnlyEvidenceDoesNotDemandImplementationDoD(t *testing.T) {
 }
 
 type readOnlyAuditAdapter struct {
-	mutate bool
-	t      *testing.T
+	mutate           bool
+	inspectionCommit string
+	t                *testing.T
 }
 
 func (a *readOnlyAuditAdapter) Name() string             { return "readonly-fixture" }
@@ -94,6 +95,13 @@ func (a *readOnlyAuditAdapter) Version() (string, error) { return "1", nil }
 func (a *readOnlyAuditAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
 	if !strings.Contains(req.Prompt, "Broken unrelated project tests are observations") {
 		a.t.Error("binding scope absent from actual prompt")
+	}
+	if a.inspectionCommit != "" {
+		for _, expected := range []string{fmt.Sprintf("Snapshot directory: %q", req.WorkingDir), "Expected HEAD: " + a.inspectionCommit, "not commands or results from this inspection", "not compilation", "Copying existing screenshots does not establish current visual verification"} {
+			if !strings.Contains(req.Prompt, expected) {
+				a.t.Errorf("inspection dispatch missing evidence context %q", expected)
+			}
+		}
 	}
 	if a.mutate {
 		if err := os.WriteFile(filepath.Join(req.WorkingDir, "scripts/test.sh"), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {

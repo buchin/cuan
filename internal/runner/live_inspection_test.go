@@ -67,7 +67,7 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 				w.Write([]byte(`{}`))
 			}))
 			defer api.Close()
-			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, &readOnlyAuditAdapter{mutate: scenario == "changed source", t: t}, api.Client())
+			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, &readOnlyAuditAdapter{mutate: scenario == "changed source", inspectionCommit: live, t: t}, api.Client())
 			now := time.Now()
 			claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: snapshot, AutoDeploy: false, PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyDeploy: true, DenyPush: true}, Task: &task.Task{ID: "live", Title: "Inspect current implementation", Instructions: "Approved result inspection", SourceRoomID: "room", ExecutionCategory: task.ExecutionCategoryCode}, Attempt: &task.TaskAttempt{ID: "live-attempt", TaskID: "live", CreatedAt: now}, LiveInspection: &task.LiveInspectionIntent{SourceCommit: original, TargetCommit: live}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}}
 			if scenario == "current outcome" {

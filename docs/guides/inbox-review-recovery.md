@@ -269,3 +269,12 @@ home/config/cache, no provider/task credentials and a two-minute bound within th
 existing inspection deadline. The runner revalidates the exact clean source
 commit afterward. Setup is not feature verification, does not reset recovery
 budgets and does not resume an old failed attempt.
+
+Inspection dispatch includes the native snapshot directory and expected HEAD.
+Historical diagnostics and reported results remain context, never fresh evidence.
+Agents capture actual output and exit status for targeted checks sequentially;
+Go test runtime limits do not bound compilation, and elapsed time alone cannot
+diagnose a deadlock. Required screenshots must be rendered and inspected against
+the current snapshot; copying old screenshots does not verify the current UI.
+An unfinished check requires an honest checkpoint with the missing evidence
+before the deadline, not acceptance or another automatically restarted attempt.
