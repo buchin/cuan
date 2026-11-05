@@ -23,6 +23,12 @@ prerequisites do not receive a fabricated executable approval action.
 Existing historical messages remain unchanged; new exhausted-budget reviews
 produce the new proposals. No historical task is restarted by deployment.
 
+If the approval response is lost after acceptance, selecting Approve again
+returns the same saved decision even if work has advanced. This receipt lookup
+requires the same owner, agent, original proposal and exact persisted approval
+contents. It neither makes an old proposal executable again nor creates a new
+request, task or attempt. New approvals still require current task evidence.
+
 Verification: `go test ./internal/server -run 'TestInboxContinuation|TestInboxReviewExhaustedBudgetCannotPromiseContinuation|TestNativeApprovalBookkeeping'`
 and `node docs/evidence/task-attention-check.cjs` after building the web app.
 The browser fixture inspects 390px/1440px light/dark layouts, preserves drafts,

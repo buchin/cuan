@@ -120,8 +120,32 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 	for _, m := range messages {
 		if m.ID == id && m.AuthorType == "agent" && m.AuthorID == agent {
 			if p := parseInboxApprovalPlan(m.Content); p != nil {
-				if err := s.validateInboxContinuation(ctx, room, p); err != nil {
-					return nil, err
+				// Replaying an accepted decision reads its existing receipt. Current
+				// task state guards fresh approvals, not delivery retries after work
+				// already advanced. Match the saved owner envelope and exact plan;
+				// AcceptInboxRequest still enforces its canonical payload hash.
+				accepted := false
+				for _, q := range requests {
+					if q.OwnerID != owner || q.AgentID != agent || q.RequestID != delegationMessageID("approve-plan:"+room+":"+id) {
+						continue
+					}
+					message, readErr := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+					if readErr != nil {
+						return nil, readErr
+					}
+					if message == nil || message.RoomID != room || message.AuthorType != "user" {
+						continue
+					}
+					if previous := decodeApprovedInboxPlan(message.Content); previous != nil && previous.MessageID == id {
+						a, _ := json.Marshal(previous.Plan)
+						b, _ := json.Marshal(p)
+						accepted = bytes.Equal(a, b)
+					}
+				}
+				if !accepted {
+					if err := s.validateInboxContinuation(ctx, room, p); err != nil {
+						return nil, err
+					}
 				}
 				return &approvedInboxPlan{MessageID: id, Plan: *p}, nil
 			}
