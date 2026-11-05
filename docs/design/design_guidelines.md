@@ -479,3 +479,10 @@ or promising an automatic correction before launch admission. Full checklists,
 verification notes and diagnostic correction instructions remain on the task.
 Only substantive progress, obstacles, outcomes or decisions warrant a new chat
 update. Historical messages remain unchanged.
+
+### 7.15. File preview exit and controls
+
+File previews use SurfaceHeader with a persistent,44px Close target beside the
+truncated filename. Secondary Preview/Raw, zoom, copy and download controls wrap
+below it and cannot push Close outside a narrow viewport. Image controls appear
+once. Escape closes the viewer and restores focus to the attachment trigger.
