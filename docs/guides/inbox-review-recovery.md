@@ -306,3 +306,30 @@ failed attempt stays failed and no inspection/correction budget is reset.
 Coverage: `TestLiveInspectionRecoversStagedReportWithoutCompletion`,
 `TestLiveInspectionStagedReportPostgres` and the existing ordinary-verification
 staged-output regression tests.
+
+## Revalidating a changed rejected result
+
+A successful current-outcome inspection can still be rejected because original
+features are missing. That finding belongs to the inspected commit; it is not
+permanent evidence that every later release is missing the same feature.
+
+Cuan permits one additional read-only inspection when all of the following hold:
+
+- The original owner approval remains valid and the task is not canceled/done.
+- The first inspection succeeded with runner-bound project checks and an unchanged
+  repository receipt, but its saved coordinator assessment requested implementation.
+- That assessment names concrete repository source paths, and at least one changed
+  between the inspected commit and the currently running revision in the same repo.
+- No prior changed-result revalidation exists for that original source attempt.
+
+The allowance is keyed to the original task/source attempt, not the new release.
+A deploy alone cannot renew it. Immutable Git comparisons preserve pending work
+and create no snapshot for unrelated changes. The launch, preparation and runner
+validate the rejected review, predecessor, exact source/target and original scope.
+The revalidation has the existing bounded inspection deadline, no production
+execution environment, and no code changes, push, deploy or external effects.
+
+It must report fresh evidence for every original criterion and undergo ordinary
+independent review. It does not reset the implementation correction budget, turn
+the old failed execution into a success, or accept a result from file changes alone.
+Failed inspections and an already used revalidation cannot chain into another one.

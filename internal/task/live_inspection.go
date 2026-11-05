@@ -13,6 +13,8 @@ const ActivityLiveInspection = "live_result_verified"
 const CurrentOutcomeInspection = "current_outcome"
 
 type LiveInspectionIntent struct {
+	ReviewRequestID   string    `json:"review_request_id,omitempty"`
+	ReviewPaths       []string  `json:"review_paths,omitempty"`
 	Purpose           string    `json:"purpose,omitempty"`
 	PreviousAttemptID string    `json:"previous_attempt_id,omitempty"`
 	PreviousCommit    string    `json:"previous_commit,omitempty"`
@@ -42,6 +44,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
 	if p.Purpose == CurrentOutcomeInspection {
+		if p.PreviousAttemptID != "" {
+			return verificationRequestID("current-outcome-revalidation:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
+		}
 		return verificationRequestID("current-outcome:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
 	}
 	if p.PreviousAttemptID != "" {
@@ -54,6 +59,9 @@ func (p *LiveInspectionIntent) RequestID(taskID string) string {
 // ancestry of an implementation that never produced a source commit.
 func (p *LiveInspectionIntent) SnapshotSourceCommit() string {
 	if p.Purpose == CurrentOutcomeInspection {
+		if p.PreviousAttemptID != "" {
+			return p.PreviousCommit
+		}
 		return p.TargetCommit
 	}
 	return p.SourceCommit
@@ -107,9 +115,12 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if json.Unmarshal([]byte(line), &proof) != nil {
 		return nil, ErrInvalidTaskInput
 	}
+	if proof.Purpose != CurrentOutcomeInspection && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
+		return nil, ErrInvalidTaskInput
+	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
 	if proof.Purpose == CurrentOutcomeInspection {
-		validSource = proof.SourceCommit == "" && proof.PreviousAttemptID == "" && proof.PreviousCommit == ""
+		validSource = proof.SourceCommit == "" && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16))
 	}
 	if t == nil || strings.Count(launch.Revision, LiveInspectionMarker) != 1 || strings.Contains(launch.Revision, VerificationIntentMarker) || !validSource || !fullObjectID(proof.TargetCommit) || !liveRepositoryIdentity.MatchString(proof.Repository) || proof.SourceAttemptID == "" || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.ObservedAt.IsZero() || proof.ObservedAt.After(launch.CreatedAt.Add(5*time.Second)) || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || launch.InstructionsHash != proof.InstructionsHash || launch.TaskID != t.ID || launch.ProjectID != t.ProjectID || launch.OwnerID != proof.OwnerID || launch.RoomID != proof.RoomID || t.SourceRoomID != proof.RoomID || launch.SourceRequestID != proof.SourceRequestID || launch.RequestID != proof.RequestID(t.ID) {
 		return nil, ErrInvalidTaskInput
@@ -157,7 +168,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		return err
 	}
 	if proof.Purpose == CurrentOutcomeInspection {
-		if proof.SourceCommit != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || t.CommitSHA != "" || !IsCurrentOutcomeFailure(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
+		if proof.SourceCommit != "" || t.CommitSHA != "" || !IsCurrentOutcomeFailure(source) || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil || source.FinishedAt == nil || proof.ObservedAt.Before(*source.FinishedAt) {
 			return ErrInvalidTaskInput
 		}
 		prior, err := LiveInspectionForAttempt(ctx, store, t, source.ID)
@@ -172,6 +183,12 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 			if !liveImplementationFinalReport(activities, t.ID, source.ID) {
 				return ErrInvalidTaskInput
 			}
+		}
+		if proof.PreviousAttemptID != "" {
+			return validateOutcomeRevalidation(ctx, store, t, proof)
+		}
+		if proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0 {
+			return ErrInvalidTaskInput
 		}
 		return nil
 	}

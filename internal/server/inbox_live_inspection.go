@@ -19,6 +19,9 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if d == nil || d.Status != task.TaskStatusBlocked || d.LatestAttempt == nil || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
 	}
+	if s.recoverChangedOutcomeInspection(ctx, d, origin) {
+		return true
+	}
 	a := d.LatestAttempt
 	currentOutcome := d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode)
 	if a.Status != task.AttemptStatusFailed || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil {
@@ -92,6 +95,10 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, proof) != nil {
 		return false
 	}
+	return s.startLiveResultInspection(ctx, d, origin, proof, currentOutcome)
+}
+
+func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest, proof *task.LiveInspectionIntent, currentOutcome bool) bool {
 	id := proof.RequestID(d.ID)
 	saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
@@ -104,6 +111,9 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nInspect the already running result in the separate exact-commit snapshot. Do not resume or modify the old implementation workspace. Prior reports and failed tests are history, not proof of this result. Inspect the actual current implementation against every original requirement and run targeted read-only checks. The runner will independently run the fixed project verifier after your final report and verify unchanged state. Do not modify code, configuration, tests, documentation, git index or refs, install dependencies into the snapshot, publish, or repeat external effects. Use session artifacts for any required screenshots/reports. Report actual findings, original acceptance evidence and precise remaining gaps; never repair or waive missing implementation/publication. Reserve time for runner checks within this verification deadline."
 	if currentOutcome {
 		revision = "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nThe original execution failed without a saved source commit. Inspect the exact currently running revision to determine whether the original requested outcome is already satisfied. Do not credit or resume the old failed execution, alter its workspace, repeat implementation, or waive any original requirement. Reproduce the original issue and test the current behavior; inspect actual UI screenshots at original required viewports for UI work. Check every original acceptance criterion and report precise gaps. You may prepare locked dependencies and ignored verification outputs inside this private snapshot, without changing tracked files, lockfiles, index or git refs; never use shared build output symlinks. Deliver screenshots/reports using session artifacts. The runner independently runs fixed project checks and verifies unchanged source after your final report. This is current-outcome evidence, not ancestry of unknown old work or a deployment performed by this task. Do not fix code or perform external effects in this inspection."
+	}
+	if proof.ReviewRequestID != "" {
+		revision += "\nThis is the single permitted read-only revalidation after source paths named in the rejected inspection changed. Recheck every original criterion on this exact revision; the earlier assessment and changed files do not prove completion. Do not resume implementation, waive requirements or claim the old failed attempt succeeded. A signal exit alone is not successful execution: preserve explicit confirmed-report completion receipts and failure/cancellation guards."
 	}
 	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
@@ -180,5 +190,11 @@ func (s *Server) prepareLiveInspection(ctx context.Context, d *task.TaskDetailRe
 		return "", nil, errors.New("the inspection project is unavailable or archived")
 	}
 	path, err := s.projectSvc.VerificationSnapshot(ctx, d.ProjectID, d.ID, proof.SnapshotSourceCommit(), proof.TargetCommit)
+	if err == nil && proof.ReviewRequestID != "" {
+		changed, checkErr := s.projectSvc.VerificationPathsChanged(ctx, d.ProjectID, d.ID, proof.PreviousCommit, proof.TargetCommit, proof.ReviewPaths)
+		if checkErr != nil || !changed {
+			return "", nil, errors.New("reviewed source paths did not change in this result")
+		}
+	}
 	return path, proof, err
 }

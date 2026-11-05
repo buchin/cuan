@@ -749,6 +749,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit)
 			}
 		}
+		if err == nil && claim.LiveInspection.ReviewRequestID != "" {
+			var changed bool
+			changed, err = r.gitClient.VerificationPathsChanged(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit, claim.LiveInspection.ReviewPaths)
+			if err == nil && !changed {
+				err = fmt.Errorf("revalidation source paths did not change")
+			}
+		}
 	} else if claim.Verification != nil {
 		base := r.cfg.WorkspacesDir
 		if base == "" {

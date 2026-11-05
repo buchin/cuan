@@ -3,6 +3,10 @@ package server
 import (
 	"context"
 	"database/sql"
+	"github.com/buchin/cuan/internal/git"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +18,7 @@ import (
 )
 
 func TestLiveResultInspectionLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks", "current outcome", "current outcome missing identity", "current outcome forged ancestry", "current outcome release changed", "current outcome reported checks", "current outcome checks missing report", "current outcome opaque local", "current outcome opaque foreign", "current outcome opaque unfinished", "current outcome opaque cancelled"} {
+	for _, scenario := range []string{"valid", "wrong commit", "missing ancestry", "failed checks", "changed repository", "missing report", "cancelled", "foreign owner", "different repository", "checks forbidden", "release changed", "recover checks", "current outcome", "current outcome missing identity", "current outcome forged ancestry", "current outcome release changed", "current outcome reported checks", "current outcome checks missing report", "current outcome opaque local", "current outcome opaque foreign", "current outcome opaque unfinished", "current outcome opaque cancelled", "current outcome revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, scenario, nil)
@@ -50,6 +54,47 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	d.Summary, d.CompleteNote = "Prior implementation report", "Prior reported evidence; source project checks failed"
 	d.DoDChecklist = []task.DoDItem{{Text: "Feature and checks available", Completed: true, Evidence: "Prior claim for independent rechecking"}}
 	now, exit := time.Now().UTC(), 0
+	var revalidationCommits []string
+	if scenario == "current outcome revalidation" {
+		root := t.TempDir()
+		run := func(args ...string) string {
+			t.Helper()
+			out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()
+			if err != nil {
+				t.Fatal(err, string(out))
+			}
+			return strings.TrimSpace(string(out))
+		}
+		run("init", "--initial-branch=main")
+		if err := os.MkdirAll(filepath.Join(root, "internal/server"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		sourcePath := filepath.Join(root, "internal/server/terminal_handlers.go")
+		for index, content := range []string{"original", "unrelated", "corrected"} {
+			name := sourcePath
+			if index == 1 {
+				name = filepath.Join(root, "README.md")
+			}
+			if err := os.WriteFile(name, []byte(content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			run("add", ".")
+			run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", content)
+			revalidationCommits = append(revalidationCommits, run("rev-parse", "HEAD"))
+		}
+		p, err := projects.GetProject(ctx, d.ProjectID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.LocalPath = root
+		p.DefaultBranch = "main"
+		if err := projects.UpdateProject(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+		s.projectSvc = project.NewService(projects, git.NewClient(), "fixture", t.TempDir())
+		s.taskSvc = task.NewService(store, s.projectSvc)
+		s.cfg.CommitSHA = revalidationCommits[0]
+	}
 	source := &task.TaskAttempt{ID: "live-source", TaskID: d.ID, RunnerID: "old-runner", AgentName: d.AssignedAgent, Status: task.AttemptStatusFailed, ExitCode: &exit, ErrorMessage: "Project verification failed", CreatedAt: now, FinishedAt: &now}
 	currentOutcome := strings.HasPrefix(scenario, "current outcome")
 	if currentOutcome {
@@ -191,7 +236,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.AgentReportConfirmed = false
 	}
 	completed, err := service.Complete(ctx, inspectionAttempt.ID, req)
-	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local"
+	valid := scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome revalidation"
 	if err != nil || (completed.Status == task.AttemptStatusSucceeded) != valid {
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
@@ -203,8 +248,11 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if scenario == "release changed" || scenario == "current outcome release changed" {
 		s.cfg.CommitSHA = strings.Repeat("d", 40)
 	}
-	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local") {
+	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome revalidation") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
+	}
+	if scenario == "current outcome revalidation" {
+		testChangedOutcomeRevalidation(t, s, origin, after, service, revalidationCommits)
 	}
 	if scenario == "current outcome" {
 		proof := s.liveInspectionReviewContext(ctx, after)

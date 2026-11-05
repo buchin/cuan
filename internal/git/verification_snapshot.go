@@ -14,6 +14,7 @@ import (
 )
 
 var verificationSnapshotGate = make(chan struct{}, 1)
+var literalVerificationPath = regexp.MustCompile(`^[A-Za-z0-9_./-]+$`)
 var snapshotObjectID = regexp.MustCompile(`^[a-f0-9]{40}$`)
 var ErrVerificationCommitUnavailable = errors.New("verification source or target commit is unavailable in the project cache")
 
@@ -251,4 +252,48 @@ func (c *Client) VerifySnapshotCommit(ctx context.Context, root, sourceCommit, t
 		return bad
 	}
 	return nil
+}
+
+// VerificationPathsChanged checks literal paths only, against two immutable
+// commits in a clean snapshot. A deployment alone is not a reason to retry work.
+func (c *Client) VerificationPathsChanged(parent context.Context, root, source, target string, paths []string) (bool, error) {
+	if len(paths) == 0 || len(paths) > 16 {
+		return false, errors.New("review paths unavailable")
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
+	if err := c.VerifySnapshotCommit(ctx, root, source, target); err != nil {
+		return false, err
+	}
+	return c.CommittedPathsChanged(ctx, root, source, target, paths)
+}
+
+// CommittedPathsChanged reads immutable objects without requiring or changing
+// the project cache's working tree, index, HEAD or refs. It creates no snapshot.
+func (c *Client) CommittedPathsChanged(parent context.Context, root, source, target string, paths []string) (bool, error) {
+	if !snapshotObjectID.MatchString(source) || !snapshotObjectID.MatchString(target) || len(paths) == 0 || len(paths) > 16 {
+		return false, errors.New("review source identity unavailable")
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
+	for _, sha := range []string{source, target} {
+		if _, err := c.snapshotGit(ctx, root, "cat-file", "-e", sha+"^{commit}"); err != nil {
+			return false, ErrVerificationCommitUnavailable
+		}
+	}
+	if _, err := c.snapshotGit(ctx, root, "merge-base", "--is-ancestor", source, target); err != nil {
+		return false, errors.New("reviewed revision is not an ancestor of the changed result")
+	}
+	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", source, target, "--"}
+	for _, name := range paths {
+		if name == "" || filepath.IsAbs(name) || filepath.Clean(name) != name || strings.HasPrefix(name, "../") || !literalVerificationPath.MatchString(name) {
+			return false, errors.New("invalid literal review path")
+		}
+		args = append(args, name)
+	}
+	output, err := c.snapshotGit(ctx, root, args...)
+	if err != nil {
+		return false, err
+	}
+	return len(output) > 0, nil
 }

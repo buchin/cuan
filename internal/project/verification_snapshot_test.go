@@ -106,3 +106,68 @@ func TestProjectVerificationSnapshotUsesOwnedConnectionAndPreservesWork(t *testi
 		})
 	}
 }
+
+func TestRelevantVerificationChangeCreatesNoSnapshotAndPreservesPendingWork(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	cache := filepath.Join(root, "cache")
+	if err := os.Mkdir(cache, 0700); err != nil {
+		t.Fatal(err)
+	}
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", cache}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatal(err, string(out))
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("init", "--initial-branch=main")
+	if err := os.MkdirAll(filepath.Join(cache, "internal/server"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	sourceFile := filepath.Join(cache, "internal/server/terminal_handlers.go")
+	if err := os.WriteFile(sourceFile, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Source")
+	source := run("rev-parse", "HEAD")
+	if err := os.WriteFile(filepath.Join(cache, "README.md"), []byte("Unrelated change"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Unrelated")
+	unrelated := run("rev-parse", "HEAD")
+	if err := os.WriteFile(sourceFile, []byte("corrected"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Correction")
+	corrected := run("rev-parse", "HEAD")
+	if err := os.WriteFile(sourceFile, []byte("PRESERVE_PENDING_WORK"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := run("status", "--porcelain=v1")
+	store := NewMemoryStore()
+	if err := store.CreateProject(ctx, &Project{ID: "project", Name: "Fixture", RepoURL: "https://github.com/fixture/repo", LocalPath: cache}); err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(root, "projects")
+	service := NewService(store, nil, "fixture", base)
+	for _, example := range []struct {
+		target  string
+		changed bool
+	}{{unrelated, false}, {corrected, true}} {
+		changed, err := service.VerificationPathsChanged(ctx, "project", "task", source, example.target, []string{"internal/server/terminal_handlers.go"})
+		if err != nil || changed != example.changed {
+			t.Fatal("relevant change query failed", changed, err)
+		}
+	}
+	if run("status", "--porcelain=v1") != before {
+		t.Fatal("project change query modified saved work")
+	}
+	if _, err := os.Stat(filepath.Join(base, "verification-snapshots")); !os.IsNotExist(err) {
+		t.Fatal("irrelevant deployment created a snapshot")
+	}
+}

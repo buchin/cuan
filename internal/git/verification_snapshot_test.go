@@ -246,3 +246,41 @@ func TestVerificationSnapshotDoesNotTrustReplacedHistory(t *testing.T) {
 		t.Fatal("replacement history fabricated source ancestry")
 	}
 }
+
+func TestVerificationPathsChangedRequiresRelevantLiteralCommittedChange(t *testing.T) {
+	source, _, old, current, run := snapshotFixture(t)
+	before := run(source, "status", "--porcelain=v1")
+	client := NewClient()
+	if changed, err := client.CommittedPathsChanged(context.Background(), source, old, current, []string{"feature.txt"}); err != nil || !changed {
+		t.Fatal("immutable cache diff required a clean working tree", err)
+	}
+	snapshot, err := client.PrepareVerificationSnapshot(context.Background(), source, filepath.Join(t.TempDir(), "snapshot"), old, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, example := range []struct {
+		paths            []string
+		changed, invalid bool
+	}{
+		{[]string{"feature.txt"}, true, false},
+		{[]string{"README.md"}, false, false},
+		{[]string{"../feature.txt"}, false, true},
+		{[]string{":(glob)**"}, false, true},
+		{[]string{"/absolute/path"}, false, true},
+		{nil, false, true},
+	} {
+		changed, err := client.VerificationPathsChanged(context.Background(), snapshot, old, current, example.paths)
+		if changed != example.changed || (err != nil) != example.invalid {
+			t.Fatal("unexpected relevant-change result", example.paths, changed, err)
+		}
+	}
+	if run(source, "status", "--porcelain=v1") != before {
+		t.Fatal("change inspection modified original work")
+	}
+	if err := os.WriteFile(filepath.Join(snapshot, "feature.txt"), []byte("unsaved change"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := client.VerificationPathsChanged(context.Background(), snapshot, old, current, []string{"feature.txt"}); err == nil || changed {
+		t.Fatal("dirty snapshot granted fresh evidence")
+	}
+}

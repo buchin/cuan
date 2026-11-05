@@ -27,18 +27,40 @@ func (s *Service) VerificationSnapshot(ctx context.Context, projectID, taskID, s
 	if !errors.Is(err, git.ErrVerificationCommitUnavailable) {
 		return path, err
 	}
-	registered, err := s.store.GetProject(ctx, projectID)
-	if err != nil || registered == nil {
-		return "", errors.New("project repository connection is unavailable")
-	}
-	token, err := s.repositoryToken(ctx, registered.EncryptedToken)
-	if err != nil {
-		return "", err
-	}
-	fetch, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	if err := s.gitClient.FetchVerificationCommit(fetch, p.LocalPath, p.RepoURL, targetCommit, token); err != nil {
+	if err := s.fetchVerificationTarget(ctx, projectID, targetCommit); err != nil {
 		return "", err
 	}
 	return s.gitClient.PrepareVerificationSnapshot(ctx, p.LocalPath, destination, sourceCommit, targetCommit)
+}
+
+func (s *Service) VerificationPathsChanged(ctx context.Context, projectID, taskID, source, target string, paths []string) (bool, error) {
+	if projectID == "" || taskID == "" || s.gitClient == nil {
+		return false, errors.New("verification project identity is unavailable")
+	}
+	p, err := s.Get(ctx, projectID)
+	if err != nil || p == nil || p.LocalPath == "" || p.RepoURL == "" {
+		return false, errors.New("verification project repository is unavailable")
+	}
+	changed, err := s.gitClient.CommittedPathsChanged(ctx, p.LocalPath, source, target, paths)
+	if !errors.Is(err, git.ErrVerificationCommitUnavailable) {
+		return changed, err
+	}
+	if err := s.fetchVerificationTarget(ctx, projectID, target); err != nil {
+		return false, err
+	}
+	return s.gitClient.CommittedPathsChanged(ctx, p.LocalPath, source, target, paths)
+}
+
+func (s *Service) fetchVerificationTarget(ctx context.Context, projectID, targetCommit string) error {
+	registered, err := s.store.GetProject(ctx, projectID)
+	if err != nil || registered == nil || registered.LocalPath == "" || registered.RepoURL == "" {
+		return errors.New("project repository connection is unavailable")
+	}
+	token, err := s.repositoryToken(ctx, registered.EncryptedToken)
+	if err != nil {
+		return err
+	}
+	fetch, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	return s.gitClient.FetchVerificationCommit(fetch, registered.LocalPath, registered.RepoURL, targetCommit, token)
 }
