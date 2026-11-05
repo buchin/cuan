@@ -65,6 +65,10 @@ func (m *MemoryStore) OperationalAcceptanceTaskIDs(ctx context.Context) ([]strin
 // Compare the exact accepted snapshot and latest attempt so a concurrent user
 // cancellation, edit or new execution always wins over the policy audit.
 func (s *DBStore) RequeueOperationalAcceptance(ctx context.Context, id, attemptID string, updatedAt time.Time) (bool, error) {
+	return s.RequeueAcceptedSnapshot(ctx, id, attemptID, updatedAt)
+}
+
+func (s *DBStore) RequeueAcceptedSnapshot(ctx context.Context, id, attemptID string, updatedAt time.Time) (bool, error) {
 	result, err := s.db.ExecContext(ctx, `UPDATE tasks t SET status='review',updated_at=NOW()
  WHERE t.id=$1 AND t.status='done' AND t.updated_at=$3
  AND (SELECT a.id FROM task_attempts a WHERE a.task_id=t.id ORDER BY a.created_at DESC,a.id DESC LIMIT 1)=$2
@@ -77,6 +81,10 @@ func (s *DBStore) RequeueOperationalAcceptance(ctx context.Context, id, attemptI
 	return n == 1, err
 }
 func (m *MemoryStore) RequeueOperationalAcceptance(ctx context.Context, id, attemptID string, updatedAt time.Time) (bool, error) {
+	return m.RequeueAcceptedSnapshot(ctx, id, attemptID, updatedAt)
+}
+
+func (m *MemoryStore) RequeueAcceptedSnapshot(ctx context.Context, id, attemptID string, updatedAt time.Time) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	t := m.tasks[id]

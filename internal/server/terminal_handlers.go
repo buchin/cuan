@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/buchin/cuan/internal/db"
 	"net/http"
 	"os"
 	"strings"
@@ -16,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	cuangit "github.com/buchin/cuan/internal/git"
 	projectpkg "github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
@@ -704,7 +705,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 
 			if taskPrompt == "" {
-				taskPrompt = detail.Instructions
+				taskPrompt = executionpolicy.NormalizeManagedInstructions(detail.Instructions)
 				if taskPrompt == "" {
 					taskPrompt = detail.Title
 				}
@@ -715,7 +716,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 			sessionContext = fmt.Sprintf("## Bound task\nTask: %s\nTitle: %s\n", taskID, detail.Title)
 			for _, section := range []struct{ label, text string }{
-				{"Human instructions", detail.Instructions}, {"Acceptance criteria", criteria.String()}, {"Previous work summary", detail.Summary},
+				{"Human instructions", executionpolicy.NormalizeManagedInstructions(detail.Instructions)}, {"Acceptance criteria", criteria.String()}, {"Previous work summary", detail.Summary},
 				{"Previous completion notes", detail.CompleteNote}, {"Revision feedback", revision},
 			} {
 				if strings.TrimSpace(section.text) != "" {

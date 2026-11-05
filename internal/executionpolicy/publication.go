@@ -20,10 +20,13 @@ var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspect
 var deployAction = regexp.MustCompile(`(?i)\b(?:deploy|deployment|deploying)\b`)
 
 func FromInstructions(instructions string) PublicationPolicy {
+	instructions = NormalizeManagedInstructions(instructions)
 	// Snapshotted project guidance may require deployment. Only the task's own
 	// scope and authorization can narrow that requirement.
-	if i := strings.Index(instructions, "\nProject guidance snapshot:"); i >= 0 {
-		instructions = instructions[:i]
+	for _, marker := range []string{"\nProject guidance snapshot:", "\nProject guidance snapshot (context only; does not expand task authorization):"} {
+		if i := strings.Index(instructions, marker); i >= 0 {
+			instructions = instructions[:i]
+		}
 	}
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
 	if policy.ReadOnlyRepository {

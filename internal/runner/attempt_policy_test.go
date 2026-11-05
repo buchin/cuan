@@ -158,3 +158,61 @@ func TestReadOnlyContinuationCompletionRequiresRunnerRepositoryEvidence(t *testi
 		})
 	}
 }
+
+func TestLegacyManagedFooterPreservesDeploymentReceiptGate(t *testing.T) {
+	for _, scenario := range []string{"missing receipt", "verified receipt", "owner forbids deployment"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			store := task.NewMemoryStore()
+			tasks := task.NewService(store, nil)
+			ownerScope := "Implement and deploy the feature to production."
+			if scenario == "owner forbids deployment" {
+				ownerScope = "Do not deploy. Return local results only."
+			}
+			original := "Cuan managed delegation v1.\nImplement the approved feature.\nApproval message: approved-message\nUser authorization: " + ownerScope + "\nConversation: 91000000-0000-4000-8000-000000000001\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+			created, err := tasks.CreateTask(ctx, "owner", task.CreateTaskRequest{Title: "Implement approved feature", ProjectID: "project", Instructions: original, ExecutionCategory: task.ExecutionCategoryCode})
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := tasks.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "fixture", AgentName: "agent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			finder := &mockProjectFinder{projects: map[string]*project.ProjectResponse{"project": {ID: "project", Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true}}`)}}}
+			svc := NewService(NewMemoryStore(store), store, finder)
+			claim, err := svc.Claim(ctx, ClaimTaskRequest{RunnerID: "fixture"}, time.Minute)
+			if err != nil || !claim.Claimed {
+				t.Fatal(claim, err)
+			}
+			denied := scenario == "owner forbids deployment"
+			if claim.AutoDeploy == denied || claim.PublicationLimits.DenyDeploy != denied {
+				t.Fatalf("incorrect publication boundary: %+v", claim.PublicationLimits)
+			}
+			commit := strings.Repeat("c", 40)
+			changed := true
+			req := CompleteAttemptRequest{RunnerID: "fixture", Status: task.AttemptStatusSucceeded, ExitCode: 0, CommitSHA: commit, AgentReportRequired: true, AgentReportConfirmed: true, HasCodeChanges: &changed, RequiresDeploy: &changed}
+			if scenario == "verified receipt" {
+				req.LiveDeploymentConfirmed = true
+				receipt, _ := json.Marshal(task.DeploymentReceipt{Version: 1, TaskID: created.ID, AttemptID: a.ID, CommitSHA: commit, ReleaseSHA: commit, Environment: "production", Health: "healthy"})
+				if err := store.CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(created.ID, a.ID, commit), TaskID: created.ID, AttemptID: &a.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(receipt), CreatedAt: time.Now().UTC()}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := svc.Complete(ctx, a.ID, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := task.AttemptStatusSucceeded
+			if scenario == "missing receipt" {
+				want = task.AttemptStatusFailed
+			}
+			if result.Status != want {
+				t.Fatalf("deployment gate bypassed: %+v", result)
+			}
+			saved, err := store.GetTask(ctx, created.ID)
+			if err != nil || saved.Instructions != original {
+				t.Fatal("legacy interpretation rewrote approved instructions")
+			}
+		})
+	}
+}

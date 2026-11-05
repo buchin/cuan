@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/buchin/cuan/internal/executionpolicy"
 )
 
 //go:embed agents_guidance.md
@@ -75,7 +77,7 @@ func GetRunnerPromptAdditions(dirs ...string) string {
 func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, dodChecklist []string, dirs ...string) string {
 	var sb strings.Builder
 
-	base := strings.TrimSpace(taskInstructions)
+	base := strings.TrimSpace(executionpolicy.NormalizeManagedInstructions(taskInstructions))
 	if base == "" {
 		base = strings.TrimSpace(taskTitle)
 	}

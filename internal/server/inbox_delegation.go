@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/dodeval"
@@ -488,6 +489,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	s.recoverPhaseHandoffs(ctx)
 	s.reconcileOperationalAcceptances(ctx)
 	s.reconcileVisualAcceptances(ctx)
+	s.reconcileLegacyPublicationAcceptances(ctx)
 	s.queueAcceptedCustomerReplies(ctx)
 	items, err := s.taskSvc.InboxDeliveryTasks(ctx)
 	if err != nil {
@@ -693,7 +695,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				return
 			}
 			if q.State == "completed" {
-				if recoverSnapshot && isReconciliationOperation(detail) && !strings.Contains(previous.Content, inboxOperationalReviewPolicy) {
+				if observation := s.inboxReviewPublication(ctx, detail); recoverSnapshot && observation != nil && observation.Required && !observation.Verified && !strings.Contains(previous.Content, inboxPublicationReviewPolicy) {
+					key += ":publication-assessment:" + inboxReviewEvidenceDigest(detail)
+					requestID = delegationMessageID(key)
+				} else if recoverSnapshot && isReconciliationOperation(detail) && !strings.Contains(previous.Content, inboxOperationalReviewPolicy) {
 					key += ":operational-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else if recoverSnapshot && inboxReviewNeedsProvenanceRepair(detail) && !strings.Contains(previous.Content, inboxReportProvenancePolicy) {
@@ -741,7 +746,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") && recoverSnapshot {
 				key += ":evaluation"
 				requestID = delegationMessageID(key)
-			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
 				key += ":retry"
 				requestID = delegationMessageID(key)
 			} else {
@@ -758,7 +763,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 
 	now := time.Now().UTC()
 	reported := inboxReportEvidence(detail)
-	content := fmt.Sprintf("Review the result for [%s](/tasks/%s).\n\nProject: %s. Current task: %s; execution: %s.\n\nOriginal request and approved scope:\n%s\n\nReported result:\n%s\n\nVerification evidence:\n%s\n\nExecution limitation:\n%s\n\nReview the supplied task snapshot against the request without calling native tools, inspecting files or running commands. A failed attempt or missing verification is not completion. Have the task session inspect its existing workspace, perform checks and correct the concrete gap within the original approval; do not attempt that execution in Inbox. Report the outcome here in the user's language and distinguish reported evidence from checks actually observed. For a fix within approved scope emit a cuan-delegate block with a concrete revision of task_id %s; do not create duplicate work or ask the user to operate tasks. Ask for approval only for new scope. This automated result is not new user authorization.", detail.Title, detail.ID, detail.ProjectID, detail.Status, detail.LatestAttempt.Status, truncateProjectText(detail.Instructions, 9000), truncateProjectText(reported.Summary, 6000), truncateProjectText(reported.Verification, 6000), truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000), detail.ID)
+	content := fmt.Sprintf("Review the result for [%s](/tasks/%s).\n\nProject: %s. Current task: %s; execution: %s.\n\nOriginal request and approved scope:\n%s\n\nReported result:\n%s\n\nVerification evidence:\n%s\n\nExecution limitation:\n%s\n\nReview the supplied task snapshot against the request without calling native tools, inspecting files or running commands. A failed attempt or missing verification is not completion. Have the task session inspect its existing workspace, perform checks and correct the concrete gap within the original approval; do not attempt that execution in Inbox. Report the outcome here in the user's language and distinguish reported evidence from checks actually observed. For a fix within approved scope emit a cuan-delegate block with a concrete revision of task_id %s; do not create duplicate work or ask the user to operate tasks. Ask for approval only for new scope. This automated result is not new user authorization.", detail.Title, detail.ID, detail.ProjectID, detail.Status, detail.LatestAttempt.Status, truncateProjectText(project.TaskScopeInstructions(detail.Instructions), 9000), truncateProjectText(reported.Summary, 6000), truncateProjectText(reported.Verification, 6000), truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000), detail.ID)
 	content += fmt.Sprintf("\n\nReport provenance: %s; reported attempt: %s.\n\nHistorical task state (reference only, not current verification):\n%s\n%s\nPrior report from attempt %s:\n%s", reported.Provenance, reported.AttemptID, truncateProjectText(reported.HistoricalSummary, 3000), truncateProjectText(reported.HistoricalVerification, 3000), reported.HistoricalAttemptID, truncateProjectText(reported.HistoricalReport, 3000))
 	content += "\n\nReview evidence digest: " + inboxReviewEvidenceDigest(detail)
 	content += "\n" + inboxReportProvenancePolicy
@@ -766,6 +771,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	content += "\n" + inboxVerificationReviewPolicy
 	content += "\n" + inboxVisualReviewPolicy
 	content += "\n" + inboxOperationalReviewPolicy
+	content += "\n" + inboxPublicationReviewPolicy
 	content += taskRecoveryContext(detail)
 	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: targetRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now}

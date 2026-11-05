@@ -368,3 +368,28 @@ restarted. The exact old restart diagnostic may be cleared for that still-active
 receipt. Unrelated diagnostics, terminal tasks and failed executions are not
 converted into successful or active work. Ordinary worker reconciliation still
 owns process liveness, leases and final outcomes.
+
+## Historical managed footers and publication acceptance
+
+Older managed tasks ended with a system-generated “do not deploy unless
+authorized” footer. New tasks already omit it. Execution policy, worker prompts
+and reviewer scope now normalize only that exact footer in the generated managed
+envelope (including its conversation and authorization fields). Genuine owner
+prohibitions elsewhere remain binding. Stored instructions, project snapshots and
+authorization hashes are unchanged; normalization grants no execution permission.
+
+Publication is a separate acceptance fact. For project code results subject to
+auto-deploy, an open PR, local commit, passing tests, screenshots or model approval
+cannot replace a trusted receipt for the exact attempt/commit, the exact running
+project build, or an independently verified snapshot of that running project.
+Feature correctness and every original criterion still require their own evidence.
+A different project's build or an unrelated production SHA never proves delivery.
+
+A bounded audit revisits only coordinator-accepted historical managed tasks with
+the obsolete footer and still-valid original approval. Missing publication returns
+that exact accepted snapshot to review with a compare-and-swap check; original
+attempts, files, source commit and correction limits are retained. Direct owner
+completion, cancellation, newer work, verified publication and unrelated accepted
+history are preserved. Re-evaluation gets one durable review identity and bounded
+review retry under the new publication policy; it does not silently rerun code or
+permit merging an obsolete alternate implementation.

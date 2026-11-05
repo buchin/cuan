@@ -152,3 +152,14 @@ func TestExecutionBudgetUsesExactDeadlineAndNeverGrantsCompletion(t *testing.T) 
 		}
 	}
 }
+
+func TestRunnerPromptDoesNotMisrepresentLegacySystemFooter(t *testing.T) {
+	original := "Cuan managed delegation v1.\nImplement the feature.\nApproval message: approved\nUser authorization: Do not push. Deploy only through the approved release channel.\nConversation: 91000000-0000-4000-8000-000000000001\nReport actual progress and verification evidence. Stay within this scope; do not deploy unless authorized."
+	actual := BuildRunnerPromptWithDoD("Approved feature", original, "", nil, t.TempDir())
+	if strings.Contains(actual, "Stay within this scope; do not deploy unless authorized.") {
+		t.Fatal("generated footer still changes perceived scope")
+	}
+	if !strings.Contains(actual, "User authorization: Do not push. Deploy only through the approved release channel.") {
+		t.Fatal("owner boundary removed")
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/crypto"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/git"
 )
 
@@ -89,9 +90,9 @@ func findSnapshotMarker(text string) (int, int) {
 // TaskScopeInstructions separates approved work from snapshotted project defaults.
 func TaskScopeInstructions(instructions string) string {
 	if start, _ := findSnapshotMarker(instructions); start >= 0 {
-		return instructions[:start]
+		return executionpolicy.NormalizeManagedInstructions(instructions[:start])
 	}
-	return instructions
+	return executionpolicy.NormalizeManagedInstructions(instructions)
 }
 
 // TaskReviewGuidance exposes the saved acceptance context without execution

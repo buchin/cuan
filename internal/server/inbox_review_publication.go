@@ -1,0 +1,133 @@
+package server
+
+import (
+	"context"
+	"time"
+
+	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
+)
+
+const inboxPublicationReviewPolicy = "Production publication review policy: v1"
+
+type reviewPublication struct {
+	Required   bool   `json:"required"`
+	Verified   bool   `json:"verified"`
+	Commit     string `json:"result_commit"`
+	Provenance string `json:"provenance,omitempty"`
+}
+
+// The reviewer cannot waive the same project publication gate enforced by the
+// runner, or mistake a PR or the running process's unrelated build for delivery.
+func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailResponse) *reviewPublication {
+	if d == nil || d.LatestAttempt == nil || s.projectSvc == nil || d.ProjectID == "" || !releaseObjectID.MatchString(d.CommitSHA) || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
+		return nil
+	}
+	_, err := s.taskPublicationPolicy(ctx, d)
+	if err != nil {
+		return &reviewPublication{Required: true, Commit: d.CommitSHA}
+	}
+	base := executionpolicy.FromInstructions(d.Instructions)
+	if base.DenyDeploy || base.ReadOnlyRepository {
+		return nil
+	}
+	p, err := s.projectSvc.Get(ctx, d.ProjectID)
+	if err != nil || p == nil {
+		return &reviewPublication{Required: true, Commit: d.CommitSHA}
+	}
+	if !project.SettingsFromMetadata(p.Metadata).IsAutoDeployEnabled() {
+		return nil
+	}
+	result := &reviewPublication{Required: true, Commit: d.CommitSHA}
+	if task.VerifiedDeployment(d.Activities, d.LatestAttempt, d.CommitSHA, time.Now().UTC()) {
+		result.Verified, result.Provenance = true, "verified_attempt_deployment"
+	} else if running := s.runningProjectRelease(ctx, d); running != nil && running.Commit == d.CommitSHA {
+		result.Verified, result.Provenance = true, "current_project_process_exact_commit"
+	}
+	if !result.Verified {
+		if running := s.runningProjectRelease(ctx, d); running != nil {
+			if inspected := s.liveInspectionReviewContext(ctx, d); inspected != nil && inspected["verified_result_commit"] == running.Commit {
+				result.Verified, result.Provenance = true, "verified_current_project_snapshot"
+			}
+		}
+	}
+	return result
+}
+
+func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
+	if decision.Decision != "pass" {
+		return decision
+	}
+	observation := s.inboxReviewPublication(ctx, d)
+	if observation == nil || !observation.Required || observation.Verified {
+		return decision
+	}
+	return inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "implementation", Finding: "Perubahan sudah tersimpan, tetapi publikasi hasil ke production belum terverifikasi.", Explanation: "Perubahan sudah tersimpan, tetapi publikasi hasil ke production belum terverifikasi.", Revision: "Gap: the original project's required production publication is not verified for this exact result commit. A local commit, open PR, screenshots or a passing model assessment is not deployment evidence. Inspect the registered repository, current running release and saved work before changing anything. Reconcile overlapping or already-delivered work; do not blindly merge an obsolete implementation or repeat external effects. Complete only remaining authorized publication and verification through the registered project release channel, preserving all owner restrictions. Record trusted exact-commit deployment evidence; if the requested outcome is already live in a different revision, report that fact and the precise evidence needed for independent current-outcome inspection rather than falsely claiming this branch was deployed."}
+}
+
+// Revisit only coordinator-accepted managed tasks affected by the exact legacy
+// footer. Requeueing a frozen review snapshot neither executes work nor grants
+// another implementation attempt. Ordinary accepted and canceled work stays put.
+func (s *Server) reconcileLegacyPublicationAcceptances(ctx context.Context) {
+	reader, ok := s.taskSvc.Store().(task.PublicationAcceptanceAuditStore)
+	if !ok {
+		return
+	}
+	ids, err := reader.LegacyPublicationAcceptanceTaskIDs(ctx)
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		d, err := s.taskSvc.GetTaskDetail(ctx, id)
+		if err != nil || d.Status != task.TaskStatusDone || d.LatestAttempt == nil || executionpolicy.NormalizeManagedInstructions(d.Instructions) == d.Instructions {
+			continue
+		}
+		var accepted *task.TaskActivity
+		for _, event := range d.Activities {
+			if event.ActivityType == task.ActivityTypeStatusChange && (accepted == nil || event.CreatedAt.After(accepted.CreatedAt) || (event.CreatedAt.Equal(accepted.CreatedAt) && event.ID > accepted.ID)) {
+				accepted = event
+			}
+		}
+		if accepted == nil || accepted.Author != "coordinator" || accepted.NewStatus != task.TaskStatusDone {
+			continue
+		}
+		assessment, found := reviewAssessment(d, "")
+		if !found || assessment.Decision != "pass" {
+			continue
+		}
+		requests, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+		if !ok {
+			continue
+		}
+		origins, err := requests.ListInboxRequests(ctx, d.SourceRoomID)
+		if err != nil {
+			continue
+		}
+		authorized := false
+		snapshot := *d
+		snapshot.Status = task.TaskStatusReview
+		for _, origin := range origins {
+			if s.reviewSnapshotRecoveryAuthorized(ctx, &snapshot, origin) {
+				authorized = true
+				break
+			}
+		}
+		if !authorized {
+			continue
+		}
+		state := "not_required"
+		if observation := s.inboxReviewPublication(ctx, d); observation != nil && observation.Required {
+			state = "verified"
+			if !observation.Verified {
+				changed, err := reader.RequeueAcceptedSnapshot(ctx, d.ID, d.LatestAttempt.ID, d.UpdatedAt)
+				if err != nil || !changed {
+					continue
+				}
+				state = "review_required"
+			}
+		}
+		_ = s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: "publication-audit:" + d.LatestAttempt.ID, TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: task.ActivityPublicationAcceptanceAudit, Author: "coordinator", NewStatus: state, Message: "Re-evaluate the exact accepted result under the corrected legacy-footer publication policy. Original scope, failed history and correction budgets are preserved; no execution was started.", CreatedAt: time.Now().UTC()})
+	}
+}
