@@ -22,6 +22,13 @@ import (
 
 type inboxSchemaRetryKey struct{}
 type inboxFormatRepairKey struct{}
+
+// Formatting a completed answer cannot consume the full investigation budget.
+// Keep the parent's earlier deadline/cancellation and never renew a turn.
+func inboxFormatRepairContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, 45*time.Second)
+}
+
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
 type commandCodeAPIKeyContext struct{}
@@ -84,7 +91,7 @@ func getChatInspectionBatchFactor() int {
 	return 5 // 5:1 factor allowing up to 250 inspection calls per turn
 }
 
-func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), retrySafe *bool, attachmentPaths ...string) (string, string) {
+func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, prompt, home, workspace string, step func(string, string), retrySafe *bool, attachmentPaths ...string) (outputResult string, failureResult string) {
 	if retrySafe != nil {
 		*retrySafe = false
 	}
@@ -118,6 +125,31 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
 	formatCandidate, formatRepair := ctx.Value(inboxFormatRepairKey{}).(string)
+	parentStageContext := ctx
+	if formatRepair {
+		var cancel context.CancelFunc
+		ctx, cancel = inboxFormatRepairContext(ctx)
+		defer cancel()
+	}
+	phase := "analysis"
+	switch {
+	case formatRepair:
+		phase = "format_repair"
+	case analysisRecovery:
+		phase = "analysis_recovery"
+	case directCoordinator:
+		phase = "direct_recovery"
+	case snapshotReview:
+		phase = "task_review"
+	case answerOnly:
+		phase = "answer_only"
+	}
+	release := ""
+	if s.cfg != nil {
+		release = s.cfg.CommitSHA
+	}
+	finishTrace := traceInboxResponseStage(parentStageContext, ctx, phase, normHarness, release)
+	defer func() { finishTrace(failureResult != "") }()
 	brandTaste := s.formatBrandTastePrompt(ctx)
 	if brandTaste != "" && !strings.Contains(prompt, brandTaste) {
 		prompt = brandTaste + "\n\n" + prompt
@@ -152,6 +184,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry)
 		if err != nil {
+			if step != nil {
+				step("response_contract", inboxResponseDiagnostic(reply))
+			}
 			if alreadyRepaired || normHarness == "commandcode" {
 				return recoverCoordinatorReply(reply, analysisRecovery || reconcileRetry)
 			}
@@ -178,6 +213,10 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			if v := os.Getenv("INBOX_CLI_DIRECT_RECOVERY_TIMEOUT"); v != "" {
 				timeout = v
 			}
+		}
+		if formatRepair {
+			// Let the native formatter stop cleanly before the outer 45s cap.
+			timeout = "40s"
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		if workspace != "" && !directCoordinator && !formatRepair {
@@ -391,6 +430,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
 		if coordinator && reason == "tool_permission_denied" && !analysisRecovery && !alreadyRepaired && ctx.Err() == nil && runErr == nil && !runtime.invalid && !runtime.overflow {
+			finishTrace(true)
 			if step != nil {
 				step("analysis_recovery", "A tool was denied. Continuing the analysis with read-only tools; no work is being restarted.")
 			}
@@ -402,6 +442,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			return s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, nil, attachmentPaths...)
 		}
 		if coordinator && reason == "coordinator_invalid" && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow && len(rejectedReply) <= 40000 {
+			finishTrace(true)
 			if step != nil {
 				step("response_recovery", "Repairing the completed reply's format without repeating investigation or applying the rejected response.")
 			}
@@ -414,6 +455,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			return output, err
 		}
 		if coordinator && (reason == "tool_budget_exceeded" || reason == "empty_response" || (runtime.toolFailures > 0 && failure != "")) && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+			finishTrace(true)
 			if step != nil {
 				if reason == "tool_budget_exceeded" {
 					step("response_recovery", "Chat tool budget reached. Synthesizing findings directly from conversation context with structured actions.")
@@ -453,9 +495,16 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if ctx.Err() != nil {
 			failure = safeInboxProviderFailure(ctx.Err(), "")
 			reason = "runtime_interrupted"
+			if formatRepair && ctx.Err() == context.DeadlineExceeded {
+				failure = "The reply could not be formatted in time. Your message is saved; no new task was started by this reply."
+				reason = "response_format_timeout"
+			}
 		}
 		labels := map[string]string{"coordinator_invalid": "The coordinator response could not be validated.", "coordinator_tool_rejected": "A tool action outside the chat workflow was rejected.", "runtime_missing_result": "The runtime stopped without a final result.", "runtime_invalid": "Could not validate runtime events.", "runtime_overflow": "Runtime activity size limit reached.", "runtime_process_failure": "Runtime process failed.", "runtime_interrupted": "The process was interrupted or timed out.", "provider_failure": "The provider reported a failure.", "provider_timeout": "The provider timed out.", "tool_permission_denied": "Tool permission denied. The runtime stopped without a reply.", "tool_budget_exceeded": "The chat tool budget was reached.", "empty_response": "The provider returned no reply text.", "invalid_result": "Invalid runtime final result.", "empty_output": "The runtime returned no final result."}
 		if step != nil {
+			if reason == "response_format_timeout" {
+				labels[reason] = "The response-format time budget was reached."
+			}
 			step("result_validation", labels[reason])
 			if (reason == "provider_failure" || reason == "empty_response" || reason == "tool_budget_exceeded") && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 				step("recovery_safe", "No modifying action was performed. A new reply attempt is available.")

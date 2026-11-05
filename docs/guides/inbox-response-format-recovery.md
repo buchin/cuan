@@ -28,3 +28,50 @@ Fixtures verify reuse of the candidate, one bounded repair, absent workspace
 inspection arguments, rejection of attempted rereads and no candidate leakage in
 activity traces. They demonstrate the removed repeated investigation path, not
 a measured production latency guarantee.
+
+## Bounded response formatting
+
+Formatting an already completed answer has a 40-second native print timeout
+and a 45-second outer process limit. It retains
+an earlier parent deadline and cancellation; it cannot consume the remaining
+multi-minute investigation budget or renew the original request. This is a limit
+on response formatting, not a promise that every investigation finishes in 45
+seconds. The existing single-repair, no-tools and no-action-replay gates remain.
+
+A provider `agent_response DONE` event marks one model stage, not a valid final
+runtime result or process exit. If the formatter becomes silent after that
+event, its process group is stopped at the formatting deadline. The request
+reports that formatting timed out, instead of waiting for the full turn deadline.
+It does not publish an unvalidated answer or start a task from rejected output.
+
+Rejected coordinator responses now record a bounded diagnostic category (invalid
+JSON, missing/extra envelope fields, choice metadata, or action/contract issue).
+These categories contain no reply content, file paths, candidate field values or
+customer data. They diagnose future contract failures without logging candidates.
+
+Regression coverage: `TestInboxFormatRepairHasIndependentBoundedDeadline`,
+`TestInboxFormatRepairStopsSilentProviderWithoutReplay` and
+`TestInboxResponseDiagnosticNeverIncludesCandidateData`.
+
+## Correlating a response failure
+
+Provider stages emit two bounded structured journal records (start/end), keyed
+by the durable `request_id`, room, agent, provider, running release and phase.
+Analysis, format repair, direct recovery and task review have distinct phases.
+A parent phase closes before a recovery phase starts, so their durations are not
+double-counted. Deadline, cancellation, ordinary failure and completion are
+separate outcomes; `failure_key` groups equivalent provider/stage failures
+independently of a specific request or release.
+
+The original request's durable steps retain the native session identifiers and
+response-contract category. Start from `cuan chat messages ROOM_ID --json`, find
+the exact request, then correlate its ID with the structured stage records.
+Do not infer that a model-stage completion is a final answer, that an unknown
+stop was OOM, or that a deployment interrupted a request without timestamped
+process evidence. Background stage logging never includes prompt/response text,
+account profile paths or environment contents.
+
+This adopts Fural's correlation, phase timing, failure grouping and explicit
+stop-source practices without adding a telemetry service or changing the chat
+layout. `TestInboxResponseStageCarriesCorrelationWithoutPrivateContext` verifies
+identity/release linkage, bounded fields, grouping and exactly one terminal record.

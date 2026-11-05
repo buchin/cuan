@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/config"
 )
@@ -21,6 +22,7 @@ if [ ! -e "$HOME/first-response" ]; then
  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Verified source finding.\",\"topic_title\":\"\",\"action\":null,\"extra\":true}"}}'
 else
  case "$2" in *"TRANSPORT FORMAT REPAIR ONLY"*"Verified source finding."*) ;; *) exit 23;; esac
+ case "$*" in *"--print-timeout 40s"*) ;; *) exit 26;; esac
  for arg in "$@"; do [ "$arg" != "--add-dir" ] || exit 24; done
  printf x >> "$HOME/format-count"
 `
@@ -58,6 +60,51 @@ fi
 				t.Fatal("missing safe trace or leaked candidate", joined)
 			}
 		})
+	}
+}
+
+func TestInboxFormatRepairHasIndependentBoundedDeadline(t *testing.T) {
+	parent, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	bounded, stop := inboxFormatRepairContext(parent)
+	defer stop()
+	deadline, ok := bounded.Deadline()
+	if !ok || time.Until(deadline) > 45*time.Second || time.Until(deadline) < 44*time.Second {
+		t.Fatal("repair inherited the investigation budget", deadline)
+	}
+	short, shortCancel := context.WithTimeout(context.Background(), time.Second)
+	defer shortCancel()
+	child, childCancel := inboxFormatRepairContext(short)
+	defer childCancel()
+	a, _ := short.Deadline()
+	b, _ := child.Deadline()
+	if !a.Equal(b) {
+		t.Fatal("repair extended parent deadline")
+	}
+}
+
+func TestInboxFormatRepairStopsSilentProviderWithoutReplay(t *testing.T) {
+	home, bin := t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+printf x >> "$HOME/silent-format-calls"
+printf '%s\n' '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","duration_seconds":0.01}}'
+sleep 10
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	ctx = context.WithValue(ctx, inboxFormatRepairKey{}, coordinatorJSON("Saved findings.", "", nil))
+	ctx = context.WithValue(ctx, inboxSchemaRetryKey{}, true)
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	started := time.Now()
+	out, failure := s.executeInboxCLI(ctx, "Coordinator", "agy", "Use saved findings only", home, "", nil)
+	calls, _ := os.ReadFile(filepath.Join(home, "silent-format-calls"))
+	if !strings.Contains(failure,"formatted in time") || out != "" || string(calls) != "x" || time.Since(started) > 2*time.Second {
+		t.Fatal("silent format stage did not stop without replay", failure, string(calls), time.Since(started))
 	}
 }
 
