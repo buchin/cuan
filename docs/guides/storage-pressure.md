@@ -285,3 +285,21 @@ gate and only recognizes canonical npm content/index caches. Provider sign-in,
 conversation history, repository source and node_modules are outside this path.
 Insufficient reclamation leaves storage admission queued rather than broadening
 deletion. Native ENOSPC is an infrastructure interruption, not a code defect.
+
+### Cache recovery between executions
+
+Native deployment also installs `cuan-runtime-cache-maintenance.timer`. It checks
+idle Go/npm caches every two minutes (15-second timer accuracy), including caches
+which were busy during the hourly guard. It never starts or accepts a task. Tasks
+continue through normal storage admission after actual available space recovers.
+Healthy disks skip cache cleaning through the same3GiB/4GiB pressure policy.
+
+The oneshot service uses content-pinned, root-owned cache tools under
+`maintenance/runtime-cache-tools/`, independent of `/usr/local/bin` and the hourly
+guard. An older task deployment overwriting those legacy paths therefore cannot
+replace this timer's tools. All provider/cache leases and process-reader checks
+still apply. This is maintenance integrity, not an OS sandbox for workers with
+unrestricted sudo. The timer has no repository, project credentials or build scripts
+as inputs. Check its status with `systemctl status cuan-runtime-cache-maintenance.timer`
+and logs with `journalctl -u cuan-runtime-cache-maintenance.service`. Failure to
+reclaim space does not authorize broader deletion or bypass admission.
