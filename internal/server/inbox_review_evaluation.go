@@ -175,6 +175,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"execution_limitation":           truncateProjectText(d.LatestAttempt.ErrorMessage, 1000),
 		"runner_verification":            truncateProjectText(verification.Current, 6000),
 		"change_evidence":                task.AttemptChangeEvidence(d),
+		"scope_acceptance_audit":         scopeAcceptanceReviewData(d),
 		"runner_verification_attempt_id": verification.AttemptID,
 		"runner_verification_provenance": verification.Provenance,
 		"historical_runner_verification": truncateProjectText(verification.Historical, 6000),
@@ -767,6 +768,9 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
 	parts = append(parts, task.AttemptChangeEvidence(d))
+	if audit := scopeAcceptanceReviewData(d); audit != nil {
+		parts = append(parts, audit)
+	}
 	if observed := publicationConfigurationObservation(d); observed != nil {
 		parts = append(parts, observed.Message)
 	}

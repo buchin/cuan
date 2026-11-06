@@ -84,6 +84,18 @@ An automatic correction instruction cannot approve unrelated features or files.
 Resource creation/registration phases need evidence of the resulting resource;
 release instructions or a ready-to-register bundle do not prove registration.
 
+Legacy accepted external-project results receive a bounded reconciliation audit
+when a recorded automatic requeue demanded Cuan's landing page and the accepted
+branch diff contains that path. Only coordinator acceptance is eligible; explicit
+user acceptance, revoked phase approval, archived/retargeted projects, cancellation,
+active attempts and pending launches remain protected. Phases retain their original
+approval lineage and dependency checks. The status changes to Review together with
+one durable audit receipt in the same database statement. The audit does not retry
+an attempt, grant execution or delete files. Normal Cuan review determines which
+original requirements and unintended changes still need reconciliation. Reaccepting
+the same attempt cannot cause another audit. Discovery is capped at50 candidates
+and runs at most once per minute per chat worker.
+
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
 must still complete its original acceptance checks and coordinator review.

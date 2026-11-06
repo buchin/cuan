@@ -476,6 +476,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	if !s.executesInbox() || s.taskSvc == nil || s.projectStudioRepo == nil {
 		return
 	}
+	s.reconcileLegacyScopeAcceptances(ctx)
 	s.recoverPhaseHandoffs(ctx)
 	s.reconcileOperationalAcceptances(ctx)
 	s.reconcileVisualAcceptances(ctx)
