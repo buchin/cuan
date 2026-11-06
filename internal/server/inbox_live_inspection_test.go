@@ -230,7 +230,11 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
 	if scenario == "current outcome unpublished valid registered review" {
-		_, err := s.saveReviewAssessment(ctx, d, origin, inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Existing release needs inspection", Explanation: "Inspect current outcome", Revision: "Verify existing release"})
+		decision := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "revise", RemainingWork: "implementation", Finding: "Existing release needs inspection", Explanation: "Inspect current outcome", Revision: "Verify existing release"})
+		if decision.RemainingWork != "verification" {
+			t.Fatal("unverified publication bypassed current-outcome inspection", decision)
+		}
+		_, err := s.saveReviewAssessment(ctx, d, origin, decision)
 		if err != nil {
 			t.Fatal(err)
 		}

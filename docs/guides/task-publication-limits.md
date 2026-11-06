@@ -66,3 +66,11 @@ a changed local `.env.deploy` file registers a trusted Cuan connection. Other
 acceptance requirements remain unaccepted and must be checked after setup.
 A changed saved connection wakes one fresh review of the same task; configuration
 alone never starts another execution or marks the work complete.
+
+For a configured connection with unverified publication, the first remaining
+step is verification of the existing production result. Native review normalizes
+that step to verification even when a model labels it implementation. The
+reviewer's concrete findings stay in the revision for inspection; they are not
+waived. This allows the independently authorized read-only current-outcome path
+before another implementation or uncertain deployment is attempted. An existing
+wrapped revision cannot bypass that ordering by retaining an old classification.

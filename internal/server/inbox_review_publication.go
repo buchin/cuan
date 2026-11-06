@@ -83,13 +83,17 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	}
 	// Reapplying the guard preserves the exact saved continuation identity.
 	if decision.Decision == "revise" && (strings.HasPrefix(decision.Revision, "First reconcile the registered project's existing release and saved deployment effects.") || strings.HasPrefix(decision.Revision, "Gap: the original project's required production publication is not verified")) {
+		decision.RemainingWork = "verification"
+		decision.RequestedOutcome = "unfinished"
 		return decision
 	}
 	// A reviewer can misclassify absent publication proof as implementation
-	// work. Preserve concrete findings, but never let that classification skip
-	// reconciliation or authorize replaying an uncertain external effect.
+	// work. Reconcile existing production first; preserve actual implementation
+	// findings for inspection, without treating missing proof as a replay grant.
 	if decision.Decision == "revise" && decision.RemainingWork != "verification" {
 		decision.Revision = "First reconcile the registered project's existing release and saved deployment effects. Missing publication evidence does not establish that deployment failed or never happened. Do not repeat deployment solely to obtain evidence; verify the existing release through the registered project channel. Preserve all original scope and acceptance requirements. Reviewer finding to evaluate against current evidence: " + decision.Finding + ". Reviewer assessment: " + decision.Revision
+		decision.RemainingWork = "verification"
+		decision.RequestedOutcome = "unfinished"
 		decision.Finding = "Hasil perubahan belum bisa dipastikan sudah diterapkan."
 		decision.Explanation = "Hasil perubahan belum bisa dipastikan sudah diterapkan. Cuan perlu memeriksa hasil yang sudah ada sebelum melanjutkan."
 		return decision

@@ -23,7 +23,7 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 			if scenario == "foreign project build" {
 				repo = "https://github.com/buchin/other"
 			}
-			if err := projects.CreateProject(ctx, &project.Project{ID: "publication-project", Name: "Project", RepoURL: repo}); err != nil {
+			if err := projects.CreateProject(ctx, &project.Project{ID: "publication-project", Name: "Project", RepoURL: repo, Metadata: registeredReleaseMetadata(t)}); err != nil {
 				t.Fatal(err)
 			}
 			s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
@@ -69,7 +69,7 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 				return
 			}
 			if scenario == "implementation revision" {
-				if result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum bisa dipastikan") {
+				if result.RemainingWork != "verification" || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum bisa dipastikan") {
 					t.Fatal("implementation gap or publication reconciliation lost")
 				}
 				return

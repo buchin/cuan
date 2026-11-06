@@ -88,6 +88,11 @@ func TestPublicationGuardIsIdempotentForSavedManagerDecision(t *testing.T) {
 			decision := inboxReviewEvaluation{Decision: "revise", RemainingWork: remaining, Finding: "Requested change needs verification", Explanation: "Inspect current result", Revision: "Inspect existing deployment effects; preserve approved scope", ManagerAction: "replan", ManagerReason: "Existing outcome needs a different inspection"}
 			first := s.requirePublicationReview(ctx, d, decision)
 			second := s.requirePublicationReview(ctx, d, first)
+			legacy := first
+			legacy.RemainingWork = "implementation"
+			if normalized := s.requirePublicationReview(ctx, d, legacy); normalized != first {
+				t.Fatal("old wrapped revision bypassed verification ordering")
+			}
 			if first != second || first.Revision == decision.Revision || first.ManagerAction != "replan" {
 				t.Fatal("publication guard changed saved continuation identity or was not exercised")
 			}
