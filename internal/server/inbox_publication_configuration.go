@@ -89,6 +89,15 @@ func (s *Server) observeInboxPublicationConfiguration(ctx context.Context, d *ta
 	}
 	event := &task.TaskActivity{ID: delegationMessageID("publication-configuration:" + d.ID + ":" + d.LatestAttempt.ID + ":" + string(raw)), TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: publicationConfigurationActivity, Author: "coordinator", Message: string(raw), CreatedAt: time.Now().UTC()}
 	if s.taskSvc.Store().CreateActivity(ctx, event) != nil {
+		// A concurrent dispatcher may have saved this identical observation.
+		if saved, readErr := s.taskSvc.Store().ListActivities(ctx, d.ID); readErr == nil {
+			for _, existing := range saved {
+				if existing != nil && existing.ID == event.ID && existing.Message == event.Message {
+					d.Activities = append(d.Activities, existing)
+					return
+				}
+			}
+		}
 		log.Printf("publication configuration observation persistence failed task=%s attempt=%s", d.ID, d.LatestAttempt.ID)
 		return
 	}
