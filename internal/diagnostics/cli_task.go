@@ -26,6 +26,8 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "verify-publication":
+		return runTaskVerifyPublication(ctx, extraArgs, out, errOut)
 	case "steer":
 		return runTaskSteer(ctx, extraArgs, out, errOut)
 	case "delete":
@@ -117,6 +119,7 @@ Usage:
   cuan task list [--project default] [--status doing] [--limit 20] [--json]
   cuan task get <task-id> [--json]
   cuan task logs <task-id> <attempt-id> [--after-id 0] [--limit 100] [--json]
+  cuan task verify-publication <task-id>
   cuan task cancel <task-id>
   cuan task steer <task-id> "guidance"
   cuan task update <task-id> --status doing [--summary "Plan"] [--complete-note "Evidence"] [--json]

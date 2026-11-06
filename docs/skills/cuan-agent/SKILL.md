@@ -252,3 +252,11 @@ contain a customer reply draft; it cannot authorize a task. Lost-response retrie
 reuse the saved action and request ID. Loading survives page reloads and stops on
 completion, failure, interruption or cancellation. The exact generated command from
 the first UI version remains readable as the same private action for compatibility.
+
+`cuan task verify-publication TASK_ID` asks the native server to independently
+observe the saved project's existing production release for the current running
+attempt. It derives runner/attempt/revision from the saved task, accepts no
+caller-supplied target or receipt, and requests no deployment or task acceptance.
+This Owner diagnostic supports already-running older workers; new native runners
+request the same check automatically when publication proof is absent. A failed
+or uncertain response must be inspected on that same task before retrying.
