@@ -141,7 +141,10 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 	}
 
 	if !task.VerifiedDeployment(snapshot.Activities, claim.Attempt, expectedCommit, time.Now().UTC()) {
-		return false, "Kepatuhan auto_deploy: verified production deployment receipt is missing for this exact task, attempt and repository commit; report text is not deployment evidence"
+		if r.verifyRegisteredPublication(ctx, claim, expectedCommit) {
+			return true, ""
+		}
+		return false, "Kepatuhan auto_deploy: production publication could not be independently verified through the registered project channel. Reconcile the existing live revision; do not repeat deployment solely because a receipt is missing. Report text is not deployment evidence."
 	}
 	return true, ""
 }

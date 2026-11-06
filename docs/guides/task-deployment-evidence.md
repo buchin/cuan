@@ -71,3 +71,46 @@ attempt identity are required. A later progress report invalidates an earlier
 final report. This protocol is independent of harness; native event transport
 and callback registration remain harness-specific. It does not certify process
 success, correct implementation or publication.
+
+### Independent SSH release observation
+
+The native runner can now request an independent observation when an exact
+production receipt is absent. This reads the existing release; it never deploys.
+The server resolves its target exclusively from saved project settings, checks a
+pinned SSH host key before password authentication, reads the immutable
+`current -> releases/.../REVISION` binding and checks the registered HTTPS health
+URL. A matching revision and healthy response produce the existing trusted,
+exact-task/attempt receipt. Acceptance and original feature checks remain separate.
+An unsupported/missing configuration still fails verification; it never waives
+publication or treats report prose as proof. This works independently of harness.
+
+Maintainer configuration belongs in Project settings → Environment, managed with
+`cuan project env set`; users do not run SSH commands or enter these technical
+defaults in ordinary work management. The initial adapter supports Deployer-style
+immutable releases with a `REVISION` file and password authentication:
+
+- `CUAN_PUBLICATION_VERIFIER=ssh-release`
+- `CUAN_PUBLICATION_SSH_HOST`, `CUAN_PUBLICATION_SSH_USER`,
+  `CUAN_PUBLICATION_SSH_PASSWORD`, `CUAN_PUBLICATION_SSH_HOST_KEY`
+- `CUAN_PUBLICATION_DEPLOY_PATH` (absolute deployment root)
+- `CUAN_PUBLICATION_HEALTH_URL` (HTTPS health endpoint)
+
+Each value can instead reference another key in that same saved environment by
+using the `_ENV` suffix, such as `CUAN_PUBLICATION_SSH_PASSWORD_ENV=PROJECT_PASSWORD`.
+No value falls back to the process environment, SSH agent, developer login or
+another account. The host key must be the independently trusted OpenSSH public
+host key; do not silently trust a fresh network scan. Missing host trust requires
+connection setup, never `StrictHostKeyChecking=no`. Key-based SSH authentication,
+automatic target discovery and ordinary connection-setup UI are not implemented
+by this adapter yet.
+
+The runner-only `POST /api/v1/runner/attempts/{id}/publication/verify` accepts only
+`task_id`, `runner_id` and the expected `commit_sha`. It rejects caller-supplied
+facts, commands or targets. The attempt must remain current, leased, running and
+uncancelled; the project connection and result must remain unchanged during the
+bounded check. Existing matching receipts are reused. Errors omit credentials
+and remote diagnostic output. Tests cover real fixture SSH/TLS transport,
+wrong host identity/revision, oversized output, cancellation, unhealthy/redirected
+health, missing saved configuration, task/attempt mismatch and revoked connections.
+This is fixture evidence; native Dojo configuration and production verification
+remain pending.

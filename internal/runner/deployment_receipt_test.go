@@ -31,6 +31,10 @@ func TestDeploymentReceiptReadRecoversGrantWithoutAcceptingProse(t *testing.T) {
 					w.WriteHeader(http.StatusForbidden)
 					return
 				}
+				if strings.HasSuffix(r.URL.Path, "/publication/verify") {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					return
+				}
 				calls++
 				if r.URL.Path != "/api/v1/runner/attempts/attempt/report" || r.URL.Query().Get("task_id") != "task" || r.URL.Query().Get("runner_id") != "runner" || r.Header.Get("X-Runner-Token") != "secret" {
 					t.Error("unbound deployment evidence read")

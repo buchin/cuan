@@ -30,6 +30,7 @@ import (
 	"github.com/buchin/cuan/internal/mcp"
 	"github.com/buchin/cuan/internal/observability"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/publisher"
 	"github.com/buchin/cuan/internal/resend"
 	"github.com/buchin/cuan/internal/runner"
@@ -43,6 +44,7 @@ import (
 )
 
 type Server struct {
+	publicationVerifier    func(context.Context, publication.Config, string) error
 	extensions             *extensionSDK.Registry
 	crm                    *crmStore
 	canned                 *cannedStore
@@ -777,6 +779,7 @@ func (s *Server) routes() {
 			rr.Post("/runner/attempts/{id}/visual-verification", s.handleRunnerVisualVerification)
 			rr.Get("/runner/attempts/{id}/logs", s.handleRunnerGetStreamLogs)
 			rr.Get("/runner/attempts/{id}/report", s.handleRunnerReadAttemptReport)
+			rr.Post("/runner/attempts/{id}/publication/verify", s.handleRunnerVerifyPublication)
 			rr.Post("/runner/attempts/{id}/logs", s.handleRunnerStreamLogs)
 			rr.Post("/runner/attempts/{id}/steer", s.handleRunnerSteer)
 			rr.Post("/runner/attempts/{id}/complete", s.handleRunnerComplete)
