@@ -39,3 +39,12 @@ Execution progress always belongs to the latest attempt. Retrying a task clears
 its current progress until that attempt reports or emits useful stdout. Earlier
 reports remain in its history. A queued attempt never borrows a previous run's
 “finished” message. Detail and list use the same progress source.
+
+### Result identity when publication fails
+
+The native runner retains the independently observed clean workspace commit even
+when production verification fails. This identifies the saved result for release
+reconciliation; it does not establish publication or task acceptance. Dirty or
+unreadable workspaces do not gain this identity. The original failed attempt and
+publication error remain visible, and a verified deployment receipt or independent
+registered release observation is still required before acceptance.

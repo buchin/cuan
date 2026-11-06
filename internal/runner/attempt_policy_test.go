@@ -213,6 +213,9 @@ func TestLegacyManagedFooterPreservesDeploymentReceiptGate(t *testing.T) {
 			if err != nil || saved.Instructions != original {
 				t.Fatal("legacy interpretation rewrote approved instructions")
 			}
+			if scenario == "missing receipt" && (saved.CommitSHA != commit || saved.Status == task.TaskStatusDone || task.VerifiedDeployment(nil, result, commit, time.Now().UTC())) {
+				t.Fatal("publication failure must retain the result identity without accepting or inventing deployment")
+			}
 		})
 	}
 }

@@ -1206,10 +1206,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					if requiresDeploy {
 						commit, commitErr := r.gitClient.GetLatestCommitSHA(ctx, workingDir)
 						clean, cleanErr := exec.CommandContext(ctx, "git", "-C", workingDir, "status", "--porcelain", "--untracked-files=normal").Output()
-						deployed, errNote := r.confirmAutoDeployCompliance(ctx, claim, true, commit)
-						if commitErr != nil || cleanErr != nil || len(bytes.TrimSpace(clean)) != 0 {
-							deployed = false
-							errNote = "Kepatuhan auto_deploy: deployment evidence must match the committed repository state; uncommitted files are preserved for continuation"
+						deployed, errNote := false, "Kepatuhan auto_deploy: deployment evidence must match the committed repository state; uncommitted files are preserved for continuation"
+						if commitErr == nil && cleanErr == nil && len(bytes.TrimSpace(clean)) == 0 {
+							// Preserve the independently observed result identity even if
+							// publication fails. A commit is not a deployment receipt;
+							// reconciliation needs both facts kept separately.
+							compReq.CommitSHA = commit
+							deployed, errNote = r.confirmAutoDeployCompliance(ctx, claim, true, commit)
 						}
 						if !deployed {
 							compReq.Status = task.AttemptStatusFailed
