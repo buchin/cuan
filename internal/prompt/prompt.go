@@ -58,6 +58,7 @@ func GetChatPromptAdditions(dirs ...string) string {
 	sb.WriteString(GetAgentsGuidance(dirs...))
 	sb.WriteString("\n\n=== AGENTIC SCRUM RULES (§1–§13) ===\n")
 	sb.WriteString(GetScrumRules())
+	sb.WriteString("\n\n" + AutonomousOwnership)
 	return sb.String()
 }
 
@@ -69,6 +70,7 @@ func GetRunnerPromptAdditions(dirs ...string) string {
 	sb.WriteString(GetAgentsGuidance(dirs...))
 	sb.WriteString("\n\n=== AGENTIC SCRUM RULES FOR DEVELOPMENT TEAM (§1–§13) ===\n")
 	sb.WriteString(GetScrumRules())
+	sb.WriteString("\n\n" + AutonomousOwnership)
 	return sb.String()
 }
 

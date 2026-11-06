@@ -85,12 +85,25 @@ func TestInboxReviewExhaustedBudgetCannotPromiseContinuation(t *testing.T) {
 		}
 	}
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"revise","explanation":"Cuan akan melanjutkan perbaikan secara otomatis.","revision":"Complete the original checks."}`)
-	if strings.Contains(output, "akan melanjutkan") || !strings.Contains(output, inboxCorrectionLimitExplanation) {
+	if strings.Contains(output, "akan melanjutkan") || strings.Contains(output, "cuan-approval") {
 		t.Fatal("exhausted budget retained a false continuation promise", output)
 	}
-	if plan := parseInboxApprovalPlan(output); plan == nil || plan.Continuation == nil || plan.Continuation.TaskID != d.ID || plan.Continuation.Revision != "Complete the original checks." || plan.Description == plan.Continuation.Revision {
-		t.Fatal("blocked outcome did not offer the exact next step for approval", output)
+	if parseInboxApprovalPlan(output) != nil {
+		t.Fatal("internal retry threshold became owner approval", output)
 	}
+	current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	key := managerReviewKey(current)
+	requests := reviewRequests(t, s, q.RoomID)
+	queued := false
+	for _, request := range requests {
+		if request.RequestID == delegationMessageID(key) && request.State == "queued" {
+			queued = true
+		}
+	}
+	if !queued {
+		t.Fatal("coordinator reassessment was not saved")
+	}
+
 	if _, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID)); err == nil {
 		t.Fatal("budget exhaustion queued another execution")
 	}
@@ -148,7 +161,7 @@ func TestInboxDeterministicExhaustedBudgetUsesConciseStoppedOutcome(t *testing.T
 	latest := &task.TaskAttempt{ID: "failed", Status: task.AttemptStatusFailed, ExitCode: &code, ErrorMessage: "exit code 2"}
 	d := &task.TaskDetailResponse{LatestAttempt: latest, Attempts: []*task.TaskAttempt{{Status: task.AttemptStatusFailed}, {Status: task.AttemptStatusFailed}, latest}}
 	decision := evaluateTaskDoDDeterministic(d)
-	if decision.Decision != "blocked" || decision.Explanation != inboxCorrectionLimitExplanation || decision.Revision != "" {
+	if decision.Decision != "revise" || decision.Explanation != inboxCorrectionLimitExplanation || decision.Revision == "" {
 		t.Fatalf("fallback misrepresented the stopped outcome: %+v", decision)
 	}
 }

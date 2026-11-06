@@ -380,24 +380,14 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return wrapResult(fmt.Sprintf("Pekerjaan telah berhasil diselesaikan dan diverifikasi.\n\n[View work](/tasks/%s)", t.ID))
 		}
 		freshOwnerContinuation := currentUserTurn && authenticatedCurrentTurn && q.MessageID != t.SourceMessageID
-		if !freshOwnerContinuation && strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, t)) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID {
+		if !freshOwnerContinuation && strings.TrimSpace(d.Revision) != "" && taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, t)) >= 3 && isOriginalApproval && authorization != nil && authorization.ID == t.SourceMessageID && !s.managerContinuationAllowed(ctx, q, t, d.Revision) {
 			reviewStatus := task.TaskStatusBlocked
 			_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus})
 			t.Status = task.TaskStatusBlocked
-
-			// Single-bubble idempotency: Do NOT push duplicate notification to q.RoomID
-			// because wrapResult returns the response directly to q.RoomID. Only notify
-			// t.SourceRoomID if it is a different room from q.RoomID.
-			if t.SourceRoomID != "" && t.SourceRoomID != q.RoomID {
-				s.sendBusinessFriendlyReviewNotification(ctx, t.ID, t.Title, t.Summary, "", t.SourceRoomID, 3, []string{
-					"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-				}, d.ProjectName)
+			if s.queueManagerFromConversation(ctx, q, t) {
+				return wrapResult("Cuan menilai langkah berikutnya dari hasil terakhir.\n\n[View work](/tasks/" + t.ID + ")")
 			}
-
-			friendlyMsg, _ := runner.FormatBusinessFriendlyReviewMessage(t.Title, t.Summary, []string{
-				"Pekerjaan telah mencapai batas maksimal 3 kali percobaan revisi otomatis.",
-			}, 3, d.ProjectName)
-			return wrapResult(friendlyMsg + fmt.Sprintf("\n\n[Tinjau rincian pekerjaan](/tasks/%s)", t.ID))
+			return wrapResult("Hasil pekerjaan belum bisa dipastikan.\n\n[View work](/tasks/" + t.ID + ")")
 		}
 		if t.Status == task.TaskStatusDone {
 			review := task.TaskStatusReview
@@ -717,6 +707,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				} else if recoverSnapshot && verificationClassificationMissing(detail) && !strings.Contains(previous.Content, inboxVerificationReviewPolicy) {
 					key += ":verification-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
+				} else if recoverSnapshot && !strings.Contains(previous.Content, inboxOwnershipPolicy) {
+					key += ":ownership-assessment:" + inboxReviewEvidenceDigest(detail)
+					requestID = delegationMessageID(key)
 				} else if !strings.Contains(previous.Content, "Review evidence digest: ") && recoverSnapshot {
 					// Historical text-only reviews did not reliably apply their decision.
 					// Evaluate the current snapshot once under the tool-free contract.
@@ -746,7 +739,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") && recoverSnapshot {
 				key += ":evaluation"
 				requestID = delegationMessageID(key)
-			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
 				key += ":retry"
 				requestID = delegationMessageID(key)
 			} else {
@@ -772,6 +765,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	content += "\n" + inboxVisualReviewPolicy
 	content += "\n" + inboxOperationalReviewPolicy
 	content += "\n" + inboxPublicationReviewPolicy
+	content += "\n" + inboxOwnershipPolicy
 	content += taskRecoveryContext(detail)
 	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: targetRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now}

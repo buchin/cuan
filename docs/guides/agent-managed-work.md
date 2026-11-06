@@ -140,3 +140,29 @@ For structured scope snapshots, the approval button and short conversational
 consent path, see [Plan approval](plan-approval.md). The dispatcher starts the
 saved scope without another model rewriting it. Direct unstructured execution
 instructions retain the existing model-interpreted path.
+
+## Ownership of approved work
+
+Cuan owns follow-through after the user delegates an outcome. The coordinator
+assesses results and decides whether to continue, change approach, or wait for a
+real prerequisite. A worker failure, missing proof, internal retry threshold or
+tooling fault does not by itself require another user approval.
+
+This policy is shared by chat, reviewer and worker prompts through
+`prompt.AutonomousOwnership`. A result reviewer records its manager action and a
+concise factual basis alongside its existing acceptance assessment. After repeated
+attempts, that saved decision can continue the same authorized task. It does not
+reset attempt history, create a replacement task, waive verification, expand scope
+or bypass cancellation and publication restrictions. Repeated identical failed
+instructions return to an internal reassessment instead of an approval form.
+
+Legacy result reviews receive one fresh ownership assessment. Internal continuation
+proposals remain in stored history for compatibility but are not presented as user
+approval requests. Ordinary proposals for genuinely new work are unaffected.
+
+Ask the user only for a real decision outside the mandate: unresolved business
+requirements, changed scope, extra cost, an unauthorized destructive consequence,
+or identity/access/consent only they can provide. Explain the exact missing choice
+in ordinary language. Technical execution instructions and counters stay in task
+details. Reporting progress or recovery still requires an admitted operation;
+unfinished work is never accepted merely to avoid asking the user.

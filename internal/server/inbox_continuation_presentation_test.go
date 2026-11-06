@@ -10,12 +10,13 @@ func TestContinuationPresentationDoesNotChangeExecutionScope(t *testing.T) {
 	technical := "First reconcile the registered project's existing release; retain exact commit receipt and do not deploy again."
 	original := &inboxApprovalPlan{Title: "Langkah berikutnya", Description: technical, ProjectID: "project", Continuation: &inboxContinuationPlan{TaskID: "task", AttemptID: "attempt", Revision: technical}}
 	shown := presentContinuationPlan(original)
-	if shown.Description == technical || strings.Contains(shown.Description, "commit") || shown.Title != "Lanjutkan pekerjaan" {
-		t.Fatal("internal procedure presented as user recommendation")
+	if shown != nil {
+		t.Fatal("internal continuation still asks owner approval")
 	}
-	if original.Description != technical || original.Title != "Langkah berikutnya" || shown.Continuation.Revision != technical {
-		t.Fatal("presentation changed approved execution scope")
+	if original.Description != technical || original.Title != "Langkah berikutnya" || original.Continuation.Revision != technical {
+		t.Fatal("presentation changed saved execution scope")
 	}
+
 	body := "Hasil kerja belum terverifikasi, termasuk status rilisnya.\n\nBatas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.\n\n[View work](/tasks/task)"
 	visible := presentContinuationText(body, original)
 	if strings.Contains(visible, "status rilis") || strings.Contains(visible, "Batas perbaikan otomatis") || !strings.Contains(visible, "belum bisa dipastikan sudah diterapkan") || !strings.Contains(visible, "/tasks/task") {

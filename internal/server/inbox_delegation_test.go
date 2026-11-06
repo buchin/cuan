@@ -328,7 +328,7 @@ esac
 	q := accepted.Request
 	q.RequestID = db.GenerateUUID()
 	q.CreatedAt = time.Now()
-	if response = s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(revision)+"\n```"); !strings.Contains(response, "retry limit") && !strings.Contains(response, "batas maksimal") {
+	if response = s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(revision)+"\n```"); !strings.Contains(response, "/tasks/"+result.ID) || strings.Contains(response, "cuan-approval") {
 		t.Fatal(response)
 	}
 

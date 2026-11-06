@@ -103,8 +103,8 @@ func TestOwnerContinuationHasBoundedIndependentReviewBudget(t *testing.T) {
 			}
 			if scenario == "owner" {
 				scoped.Attempts = append(scoped.Attempts, &task.TaskAttempt{Status: task.AttemptStatusFailed}, &task.TaskAttempt{Status: task.AttemptStatusFailed})
-				if evaluateTaskDoDDeterministic(scoped).Decision != "blocked" {
-					t.Fatal("new cycle is unbounded")
+				if decision := evaluateTaskDoDDeterministic(scoped); decision.Decision != "revise" || decision.ManagerAction != "" {
+					t.Fatal("fallback bypassed fresh coordinator reassessment")
 				}
 			}
 		})

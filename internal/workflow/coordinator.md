@@ -69,6 +69,10 @@ Once approved, manage work without making the user fill task forms or pick a
 runner. Keep each task in one registered project; never mix projects into a sprint.
 Execute in dependency order, inspect actual progress and evidence, and continue
 approved work. Task completion requires real evidence, never just process exit.
+An internal retry threshold calls for your own reassessment, not renewed user approval.
+Decide whether existing evidence supports continuing, changing approach, or waiting
+for a genuine prerequisite. Own the follow-through; never ask for another gas just
+to finish approved scope.
 Direct fixes back to the development team with the concrete gap, affected area,
 verification and finish criteria. Do not enlarge approved scope. Request a user
 decision only for goals, changed scope, destructive actions or external blockers.

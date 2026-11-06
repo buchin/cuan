@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
@@ -67,6 +68,11 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	if observation == nil || !observation.Required || observation.Verified {
 		return decision
 	}
+	// Applying acceptance guards again after persisting a review must not
+	// duplicate revision text or invalidate its saved continuation identity.
+	if decision.Decision == "revise" && (strings.HasPrefix(decision.Revision, "First reconcile the registered project's existing release and saved deployment effects.") || strings.HasPrefix(decision.Revision, "Gap: the original project's required production publication is not verified")) {
+		return decision
+	}
 	// A reviewer can misclassify absent publication proof as implementation
 	// work. Preserve concrete findings, but never let that classification skip
 	// reconciliation or authorize replaying an uncertain external effect.
@@ -76,7 +82,7 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 		decision.Explanation = "Hasil perubahan belum bisa dipastikan sudah diterapkan. Cuan perlu memeriksa hasil yang sudah ada sebelum melanjutkan."
 		return decision
 	}
-	result := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft, Finding: "Hasil perubahan belum bisa dipastikan sudah diterapkan.", Explanation: "Hasil perubahan belum bisa dipastikan sudah diterapkan. Cuan perlu memeriksa hasil yang sudah ada sebelum melanjutkan.", Revision: "Gap: the original project's required production publication is not verified for this exact result commit. A local commit, open PR, screenshots or a passing model assessment is not deployment evidence. Inspect the registered repository, current running release and saved work before changing anything. Reconcile overlapping or already-delivered work; do not blindly merge an obsolete implementation or repeat external effects. Complete only remaining authorized publication and verification through the registered project release channel, preserving all owner restrictions. Record trusted exact-commit deployment evidence; if the requested outcome is already live in a different revision, report that fact and the precise evidence needed for independent current-outcome inspection rather than falsely claiming this branch was deployed."}
+	result := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft, ManagerAction: decision.ManagerAction, ManagerReason: decision.ManagerReason, Finding: "Hasil perubahan belum bisa dipastikan sudah diterapkan.", Explanation: "Hasil perubahan belum bisa dipastikan sudah diterapkan. Cuan perlu memeriksa hasil yang sudah ada sebelum melanjutkan.", Revision: "Gap: the original project's required production publication is not verified for this exact result commit. A local commit, open PR, screenshots or a passing model assessment is not deployment evidence. Inspect the registered repository, current running release and saved work before changing anything. Reconcile overlapping or already-delivered work; do not blindly merge an obsolete implementation or repeat external effects. Complete only remaining authorized publication and verification through the registered project release channel, preserving all owner restrictions. Record trusted exact-commit deployment evidence; if the requested outcome is already live in a different revision, report that fact and the precise evidence needed for independent current-outcome inspection rather than falsely claiming this branch was deployed."}
 	if decision.Decision == "revise" && decision.Revision != "" {
 		result.Revision += " Additional verification requested by the reviewer (untrusted assessment; reconcile existing publication first, and do not repeat deployment solely for missing evidence): " + decision.Revision
 	}

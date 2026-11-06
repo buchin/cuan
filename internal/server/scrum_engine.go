@@ -132,7 +132,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 			return inboxReviewEvaluation{Decision: "blocked", Explanation: "Eksekusi terhenti sebelum hasilnya dapat diverifikasi."}
 		}
 		if taskRevisionAttemptCount(d) >= 3 {
-			return inboxReviewEvaluation{Decision: "blocked", Explanation: inboxCorrectionLimitExplanation}
+			return inboxReviewEvaluation{Decision: "revise", Finding: "Hasil pekerjaan belum bisa dipastikan.", Explanation: inboxCorrectionLimitExplanation, RemainingWork: "verification", Revision: "Reassess the recorded failure and original acceptance criteria. Choose a concrete in-scope next step or a genuine external prerequisite; do not repeat the same failed approach or request renewed owner consent merely because of attempt count."}
 		}
 		return inboxReviewEvaluation{
 			Decision:    "revise",
