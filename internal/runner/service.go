@@ -803,7 +803,11 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			CreatedAt:    now,
 		}
 		completionActivities = append(completionActivities, act)
-		verification, _ := json.Marshal(task.RunnerVerificationRecord{Summary: req.TestSummary})
+		var changes *task.RunnerChangeRecord
+		if req.DiffSummary != "" && req.CommitSHA != "" {
+			changes = task.NewRunnerChangeRecord(req.CommitSHA, req.DiffSummary)
+		}
+		verification, _ := json.Marshal(task.RunnerVerificationRecord{Summary: req.TestSummary, Changes: changes})
 		completionActivities = append(completionActivities, &task.TaskActivity{
 			ID: "verification:" + att.ID, TaskID: t.ID, AttemptID: &att.ID,
 			ActivityType: task.ActivityTypeRunnerVerification, Author: req.RunnerID,

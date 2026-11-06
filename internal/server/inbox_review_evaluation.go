@@ -174,6 +174,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"acceptance_checklist":           checklist,
 		"execution_limitation":           truncateProjectText(d.LatestAttempt.ErrorMessage, 1000),
 		"runner_verification":            truncateProjectText(verification.Current, 6000),
+		"change_evidence":                task.AttemptChangeEvidence(d),
 		"runner_verification_attempt_id": verification.AttemptID,
 		"runner_verification_provenance": verification.Provenance,
 		"historical_runner_verification": truncateProjectText(verification.Historical, 6000),
@@ -765,6 +766,7 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 // Evidence revisions, unlike task status or timestamps, justify one new review.
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
+	parts = append(parts, task.AttemptChangeEvidence(d))
 	if observed := publicationConfigurationObservation(d); observed != nil {
 		parts = append(parts, observed.Message)
 	}

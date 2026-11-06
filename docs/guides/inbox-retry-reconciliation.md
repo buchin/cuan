@@ -70,6 +70,20 @@ unchanged. The observation keeps the original result SHA and explicitly records
 not feature correctness or that the task deployed the later release. An unrelated
 branch, missing connection or unverifiable ancestry cannot pass this gate.
 
+Runner completion saves its branch diff summary atomically with the existing
+attempt verification record. Reviews receive `change_evidence` separately from
+worker claims: current data requires the exact task, attempt, runner and result
+commit; older task-level summaries remain historical. The branch diff can include
+inherited work and is not per-attempt attribution. It is bounded to 12KB with an
+explicit truncation flag, collected without Git replace refs, grafts, hooks or
+external diff commands. Missing or truncated data never proves there were no
+other changes. New change evidence invalidates an earlier assessment snapshot.
+
+Review compares changed paths with the original approved project/phase scope.
+An automatic correction instruction cannot approve unrelated features or files.
+Resource creation/registration phases need evidence of the resulting resource;
+release instructions or a ready-to-register bundle do not prove registration.
+
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
 must still complete its original acceptance checks and coordinator review.

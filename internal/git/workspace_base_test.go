@@ -66,6 +66,19 @@ func TestBoundBaseEmptyDiffDoesNotReportPreviousCommit(t *testing.T) {
 	}
 }
 
+func TestBoundDiffCannotHideFilesUsingReplaceRefs(t *testing.T) {
+	root, _, base, head, run := snapshotFixture(t)
+	run(root, "replace", head, base)
+	before := run(root, "status", "--porcelain=v1")
+	summary, err := NewClient().GetDiffSummary(context.Background(), root, base)
+	if err != nil || !strings.Contains(summary, "feature.txt") {
+		t.Fatal("replacement history hid committed changed files", summary, err)
+	}
+	if run(root, "status", "--porcelain=v1") != before {
+		t.Fatal("diff inspection changed working tree")
+	}
+}
+
 func TestWorkspaceImportsFreshCacheRefWithoutOverwritingRetainedTask(t *testing.T) {
 	root := t.TempDir()
 	base := filepath.Join(root, "base")

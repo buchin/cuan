@@ -72,6 +72,7 @@ func TestExecutionLifecyclePostgres(t *testing.T) {
 	req := lifecycleResult()
 	req.RunnerID = "sql-runner"
 	req.TestSummary = "Project verification: SQL fixture passed"
+	req.CommitSHA, req.DiffSummary = strings.Repeat("a", 40), "fixture.go | 1 +"
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
@@ -99,6 +100,18 @@ func TestExecutionLifecyclePostgres(t *testing.T) {
 	evidence := task.AttemptVerificationEvidence(&task.TaskDetailResponse{Task: *item, LatestAttempt: a, Activities: activities})
 	if evidence.Current != req.TestSummary || evidence.AttemptID != a.ID {
 		t.Fatalf("SQL completion lost bound verification: %+v", evidence)
+	}
+	currentTask, err := ts.GetTask(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentAttempt, err := ts.GetAttempt(ctx, a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes := task.AttemptChangeEvidence(&task.TaskDetailResponse{Task: *currentTask, LatestAttempt: currentAttempt, Activities: activities})
+	if changes.RunnerChangeRecord == nil || changes.ResultCommit != req.CommitSHA || changes.Summary != req.DiffSummary || changes.AttemptID != a.ID {
+		t.Fatal("SQL completion lost bound change evidence", changes)
 	}
 	verificationCount := 0
 	for _, activity := range activities {

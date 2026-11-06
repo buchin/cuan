@@ -464,8 +464,7 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 	}
 
 	// Try comparing baseBranch...HEAD
-	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "diff", "--stat", baseBranch+"...HEAD")
-	out, err := cmd.Output()
+	out, err := c.snapshotGit(ctx, workspacePath, "diff", "--no-ext-diff", "--no-textconv", "--stat", baseBranch+"...HEAD")
 	// A bound baseline is authoritative, including an empty diff. Never
 	// substitute an unrelated previous commit when no task changes exist.
 	if strings.HasPrefix(baseBranch, "refs/") || IsCommitHash(baseBranch) {
@@ -476,22 +475,19 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 	}
 
 	// Fallback to origin/baseBranch...HEAD
-	cmdRemote := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "diff", "--stat", "origin/"+baseBranch+"...HEAD")
-	outRemote, errRemote := cmdRemote.Output()
+	outRemote, errRemote := c.snapshotGit(ctx, workspacePath, "diff", "--no-ext-diff", "--no-textconv", "--stat", "origin/"+baseBranch+"...HEAD")
 	if errRemote == nil && len(strings.TrimSpace(string(outRemote))) > 0 {
 		return strings.TrimSpace(string(outRemote)), nil
 	}
 
 	// Fallback to diff against HEAD~1
-	cmdPrev := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "diff", "--stat", "HEAD~1...HEAD")
-	outPrev, errPrev := cmdPrev.Output()
+	outPrev, errPrev := c.snapshotGit(ctx, workspacePath, "diff", "--no-ext-diff", "--no-textconv", "--stat", "HEAD~1...HEAD")
 	if errPrev == nil && len(strings.TrimSpace(string(outPrev))) > 0 {
 		return strings.TrimSpace(string(outPrev)), nil
 	}
 
 	// Fallback to git status --short
-	cmdStatus := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "status", "--short")
-	outStatus, _ := cmdStatus.Output()
+	outStatus, _ := c.snapshotGit(ctx, workspacePath, "status", "--short")
 	if len(strings.TrimSpace(string(outStatus))) > 0 {
 		return strings.TrimSpace(string(outStatus)), nil
 	}
