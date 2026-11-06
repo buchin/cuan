@@ -120,7 +120,7 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			break
 		}
 		if lastNonQuotaFailure == inboxReviewProviderWaiting {
-			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < inboxDirectReplyBudget()+10*time.Second {
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < inboxToolFreeBudget(ctx)+10*time.Second {
 				if step != nil {
 					step("review_budget_wait", "Waiting to review the saved result rather than starting a provider stage beyond this turn's remaining budget.")
 				}

@@ -45,7 +45,7 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"dec
 				ctx = context.WithValue(ctx, inboxTaskReviewKey{}, true)
 			}
 			if scenario == "remaining budget" {
-				bounded, cancel := context.WithTimeout(ctx, inboxDirectReplyBudget()+9*time.Second)
+				bounded, cancel := context.WithTimeout(ctx, inboxToolFreeBudget(ctx)+9*time.Second)
 				defer cancel()
 				ctx = bounded
 			}

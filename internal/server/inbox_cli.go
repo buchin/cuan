@@ -43,6 +43,27 @@ func inboxDirectReplyContext(parent context.Context) (context.Context, context.C
 	return context.WithTimeout(parent, inboxDirectReplyBudget()+5*time.Second)
 }
 
+// Evaluating a saved result is distinct from synthesizing a short chat reply.
+// Keep one bounded inference alive rather than repeatedly discarding an
+// unfinished review at the direct-recovery cap. The request deadline still wins.
+func inboxReviewReplyBudget() time.Duration {
+	if value, err := time.ParseDuration(os.Getenv("INBOX_REVIEW_TIMEOUT")); err == nil && value > 0 && value <= 4*time.Minute {
+		return value
+	}
+	return 4 * time.Minute
+}
+
+func inboxToolFreeBudget(ctx context.Context) time.Duration {
+	if review, _ := ctx.Value(inboxTaskReviewKey{}).(bool); review && ctx.Value(inboxCustomerReplyKey{}) != true {
+		return inboxReviewReplyBudget()
+	}
+	return inboxDirectReplyBudget()
+}
+
+func inboxToolFreeContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, inboxToolFreeBudget(parent)+5*time.Second)
+}
+
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
 type commandCodeAPIKeyContext struct{}
@@ -156,7 +177,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		defer cancel()
 	} else if directCoordinator || toolFreeReview {
 		var cancel context.CancelFunc
-		ctx, cancel = inboxDirectReplyContext(ctx)
+		ctx, cancel = inboxToolFreeContext(ctx)
 		defer cancel()
 	}
 	if formatRepair {
@@ -268,7 +289,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			timeout = v
 		}
 		if directCoordinator || toolFreeReview {
-			timeout = strconv.FormatFloat(inboxDirectReplyBudget().Seconds(), 'f', -1, 64) + "s"
+			timeout = strconv.FormatFloat(inboxToolFreeBudget(ctx).Seconds(), 'f', -1, 64) + "s"
 		}
 		if formatRepair {
 			// Let the native formatter stop cleanly before the outer 45s cap.

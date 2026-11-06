@@ -35,10 +35,16 @@ this room's task snapshots; unrelated project backlog and code/host inspection
 context and the unrelated Cuan contact directory are excluded. Receipts stay in durable
 storage for the task; tool-free reconciliation does not mount them or advertise file
 inspection. Native tool-free turns run from an empty, trusted reply workspace,
-not provider HOME. Tool-free result reviews use the same120/125-second bound;
-finish/format-response is permitted while inspection and
-execution tools remain forbidden. Native evaluation gets120 seconds with a125-second outer
-bound, respecting the original durable deadline. Candidate-only format repair
+not provider HOME. Direct recovery and customer-draft delivery retain the
+120/125-second bound. Tool-free result evaluation has a separate 240-second native
+budget and five seconds for process cleanup, respecting the original durable
+deadline and cancellation. `INBOX_REVIEW_TIMEOUT` can shorten that budget (positive
+duration, maximum `240s`); direct recovery settings do not change it. This avoids
+repeatedly discarding unfinished reviews at the short chat-recovery limit.
+Finish/format-response is permitted while inspection and execution tools remain
+forbidden. A failover starts only when the request has enough time for another
+full review stage; otherwise the same saved review waits. No task execution,
+acceptance, model preference or routing permission changes. Candidate-only format repair
 retains its40/45-second limit and cannot invent a missing action or scope.
 Failed recovery remains failed, without fabricated investigation findings or a
 second full evaluation after format repair. The prompt documents the complete

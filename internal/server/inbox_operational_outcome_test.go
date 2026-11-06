@@ -76,7 +76,7 @@ func TestToolFreeReviewUsesTrustedWorkspaceAndBoundedNativeBudget(t *testing.T) 
 	}
 	script := `#!/bin/sh
 [ "$PWD" = "$HOME/.cuan-chat-workspace" ] || exit 21
-case "$*" in *"--print-timeout 120s"*) ;; *) exit 22;; esac
+case "$*" in *"--print-timeout 240s"*) ;; *) exit 22;; esac
 case "$2" in *"Native finish/format-response is allowed"*) ;; *) exit 23;; esac
 case "$2" in *"PROJECT_REVIEW_GUIDANCE_MARKER"*) ;; *) exit 24;; esac
 for arg in "$@";do [ "$arg" != "--add-dir" ] || exit 25;done
