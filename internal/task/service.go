@@ -304,7 +304,7 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 	} else {
 		var latestProgressTime time.Time
 		for _, a := range activities {
-			if latestAttempt != nil && a.AttemptID != nil && *a.AttemptID == latestAttempt.ID && a.ActivityType == "agent_report" && a.NewStatus == "progress" {
+			if latestAttempt != nil && a.AttemptID != nil && *a.AttemptID == latestAttempt.ID && a.ActivityType == "agent_report" && a.NewStatus == "progress" && !strings.HasPrefix(a.Message, StagedReportProgress) {
 				if a.CreatedAt.After(latestProgressTime) {
 					latestProgressTime = a.CreatedAt
 					msg := a.Message

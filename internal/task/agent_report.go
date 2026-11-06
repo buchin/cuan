@@ -160,7 +160,7 @@ func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author str
 	if pendingDelivery {
 		r.State = "progress"
 		r.ResultKind = ""
-		r.Progress = "Result saved; output file delivery is pending."
+		r.Progress = StagedReportProgress
 	}
 	t.UpdatedAt = time.Now().UTC()
 	message := strings.TrimSpace(r.Progress)

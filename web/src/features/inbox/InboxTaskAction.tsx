@@ -116,7 +116,7 @@ export function InboxTaskAction({
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
     const StateIcon = state === 'Completed' ? Check : (state === 'Queued' || state === 'Waiting for review') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
 
-    return <section data-card="task-card" aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
+    return <section data-card="task-card" data-task-id={existing.id} aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <SurfaceHeader variant="card" className="-mx-4 -mt-3 rounded-t-xl bg-muted/50"
         title={<span className="inline-flex min-w-0 max-w-full items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span>}
         actions={<span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span>}

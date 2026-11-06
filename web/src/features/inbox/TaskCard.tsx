@@ -349,7 +349,7 @@ export const TaskCard = memo(function TaskCard({
   if (loading) {
     return (
       <div
-        data-card="task-card"
+        data-card="task-card" data-task-id={taskId}
         className={cn(
           'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground select-none space-y-2.5 min-h-[44px]',
           className
@@ -380,7 +380,7 @@ export const TaskCard = memo(function TaskCard({
   if (error || !currentTask) {
     return (
       <div
-        data-card="task-card"
+        data-card="task-card" data-task-id={taskId}
         onClick={handleCardClick}
         onKeyDown={handleKeyDown}
         role="button"
@@ -423,7 +423,7 @@ export const TaskCard = memo(function TaskCard({
 
     return (
       <div
-        data-card="task-card"
+        data-card="task-card" data-task-id={taskId}
         className={cn(
           'w-full max-w-full transition-all duration-300 ease-out animate-in fade-in',
           className
@@ -459,7 +459,7 @@ export const TaskCard = memo(function TaskCard({
 
   return (
     <div
-      data-card="task-card"
+      data-card="task-card" data-task-id={taskId}
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"

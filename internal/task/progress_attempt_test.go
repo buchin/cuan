@@ -65,6 +65,8 @@ func latestProgressAttemptContract(t *testing.T, store Store, project string) {
 	}
 	add("_late_old", old.ID, "Laporan lama terlambat", now.Add(5*time.Minute))
 	check("")
+	add("_stage_only", current.ID, StagedReportProgress+"\n\nSaved report", now.Add(150*time.Second))
+	check("")
 	current.Status = AttemptStatusRunning
 	if err := store.UpdateAttempt(ctx, current); err != nil {
 		t.Fatal(err)
@@ -80,6 +82,8 @@ func latestProgressAttemptContract(t *testing.T, store Store, project string) {
 	}
 	check("") // Terminal output is diagnostic data, not a published progress report.
 	add("_progress_new", current.ID, "Menyiapkan laporan terbaru", now.Add(3*time.Minute))
+	check("Menyiapkan laporan terbaru")
+	add("_stage_later", current.ID, StagedReportProgress+"\n\nSaved report", now.Add(4*time.Minute))
 	check("Menyiapkan laporan terbaru")
 	activities, err := store.ListActivities(ctx, created.ID)
 	if err != nil {

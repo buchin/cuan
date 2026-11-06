@@ -556,7 +556,7 @@ func (m *MemoryStore) LatestProgresses(ctx context.Context, ids []string) (map[s
 	progress := map[string]*TaskActivity{}
 	for _, act := range m.activities {
 		att := latest[act.TaskID]
-		if att == nil || act.AttemptID == nil || *act.AttemptID != att.ID || act.ActivityType != "agent_report" || act.NewStatus != "progress" {
+		if att == nil || act.AttemptID == nil || *act.AttemptID != att.ID || act.ActivityType != "agent_report" || act.NewStatus != "progress" || strings.HasPrefix(act.Message, StagedReportProgress) {
 			continue
 		}
 		prev := progress[act.TaskID]

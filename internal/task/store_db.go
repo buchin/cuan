@@ -852,9 +852,9 @@ func (s *DBStore) LatestProgresses(ctx context.Context, ids []string) (map[strin
 		FROM (SELECT DISTINCT ON (task_id) id, task_id FROM task_attempts
 		      WHERE task_id = ANY($1::text[]) ORDER BY task_id, created_at DESC, id DESC) a
 		JOIN task_activities p ON p.task_id = a.task_id AND p.attempt_id = a.id
-		WHERE p.activity_type = 'agent_report' AND p.new_status = 'progress'
+		WHERE p.activity_type = 'agent_report' AND p.new_status = 'progress' AND p.message NOT LIKE $2
 		ORDER BY p.task_id, p.created_at DESC, p.id DESC
-	`, ids)
+	`, ids, StagedReportProgress+"%")
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
