@@ -10,19 +10,31 @@ import time
 from pathlib import Path
 
 
-def staging_candidates(base, staging, keep=5, now=None, only_names=None):
+def live_staging_names(staging):
+    live = set()
+    for process in Path('/proc').glob('[0-9]*'):
+        for name in ('exe', 'cwd'):
+            try:
+                target = (process / name).resolve(strict=True)
+                if target.is_relative_to(staging):
+                    live.add(target.relative_to(staging).parts[0])
+            except (OSError, RuntimeError, IndexError):
+                pass
+    return live
+
+
+def staging_candidates(base, staging, now=None, only_names=None):
     """Only redundant upload copies with a byte-verified installed counterpart."""
     now = time.time() if now is None else now
-    protected = {(base / name).resolve().name for name in ('current', 'previous')}
     paths = sorted((p for p in staging.iterdir() if p.is_dir() and not p.is_symlink()
                     and re.fullmatch('[0-9a-f]{40}', p.name)),
                    key=lambda p: p.stat().st_mtime, reverse=True)
-    protected.update(p.name for p in paths[:keep])
+    live = live_staging_names(staging)
     result = []
     for path in paths:
         if only_names is not None and path.name not in only_names:
             continue
-        if path.name in protected or now - path.stat().st_mtime < 3600:
+        if path.name in live or now - path.stat().st_mtime < 3600:
             continue
         installed = base / 'releases' / path.name
         if installed.is_symlink() or not installed.is_dir():
@@ -109,12 +121,17 @@ def main():
     with (args.base / '.release.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         paths = candidates(args.base, args.keep, args.min_age_hours)
-        staged = staging_candidates(args.base, args.staging.resolve(), args.keep) if args.staging else []
+        if args.staging:
+            # A process using an upload still needs its installed counterpart
+            # retained, so its duplicate can be verified after that reader exits.
+            busy_uploads = live_staging_names(args.staging)
+            paths = [path for path in paths if path.name not in busy_uploads]
+        staged = staging_candidates(args.base, args.staging.resolve()) if args.staging else []
         if args.apply:
             # Check uploaded duplicates while their installed counterparts are
             # still present; the same activation lock protects both passes.
             for path in staged:
-                if path in staging_candidates(args.base, args.staging.resolve(), args.keep, only_names={path.name}):
+                if path in staging_candidates(args.base, args.staging.resolve(), only_names={path.name}):
                     shutil.rmtree(path)
             for path in paths:
                 if path in candidates(args.base, args.keep, args.min_age_hours):

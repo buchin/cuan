@@ -247,3 +247,22 @@ review and proper integration rather than weakening deployment checks.
 This is an integrity gate in the maintained native deployment path, not an OS
 sandbox against a process with unrestricted sudo or direct installation write
 access. Such privilege separation remains a separate deployment concern.
+
+## Upload copies and installed release retention
+
+Installed releases retain the five newest payloads, active/previous rollback
+targets and live process references. Upload staging is a redundant transfer
+cache, not a second rollback catalogue. Once an upload is at least one hour old,
+contains no unknown files or links, and every available byte matches a complete
+installed payload and its manifest checksums, its redundant copy may be removed.
+The installed current and rollback copies remain protected independently.
+
+Cleanup verifies and removes upload duplicates before retiring their installed
+counterparts under the same activation lock. A process executing from, or using,
+an upload as its working directory protects both that upload and its installed
+counterpart until it exits. Recheck eligibility immediately before deletion.
+This avoids the previous orphan condition where the five newest uploads were
+kept after their installed counterparts were deleted, making subsequent
+byte-for-byte verification impossible. Unknown or already-orphaned uploads are
+preserved for independent reconciliation; this policy does not guess that they
+are safe to delete.
