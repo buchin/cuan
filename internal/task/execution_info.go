@@ -22,6 +22,48 @@ type ExecutionInfo struct {
 	RecoveryAttemptID string                            `json:"recovery_attempt_id,omitempty"`
 	RecoveryCause     string                            `json:"recovery_cause,omitempty"`
 	Scope             executionpolicy.PublicationPolicy `json:"scope"`
+	LatestLaunch      *LaunchDiagnostic                 `json:"latest_launch,omitempty"`
+}
+
+// Latest admission is separate from the attempt's binding: it may have stopped
+// before any worker existed. Never expose its revision or stored free-text error.
+type LaunchDiagnostic struct {
+	ID             string `json:"id"`
+	State          string `json:"state"`
+	IntentKind     string `json:"intent_kind"`
+	ValidationCode string `json:"validation_code,omitempty"`
+}
+
+func diagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic {
+	if j == nil {
+		return nil
+	}
+	d := &LaunchDiagnostic{ID: j.ID, State: j.State, IntentKind: "execution"}
+	inspection, err := LiveInspectionForLaunch(t, j)
+	if err != nil {
+		d.IntentKind, d.ValidationCode = "invalid", "invalid_live_inspection"
+		if code, ok := err.(liveInspectionValidationError); ok {
+			d.ValidationCode = string(code)
+		}
+		return d
+	}
+	verification, err := VerificationIntentForLaunch(t, j)
+	if err != nil {
+		d.IntentKind, d.ValidationCode = "invalid", "invalid_verification"
+		return d
+	}
+	switch {
+	case inspection != nil:
+		d.IntentKind = "live_result_inspection"
+		if inspection.Purpose == CurrentOutcomeInspection {
+			d.IntentKind = "current_outcome_inspection"
+		}
+	case verification != nil:
+		d.IntentKind = "verification"
+	case j.InstructionsHash != LaunchInstructionsHash(t.Instructions):
+		d.IntentKind, d.ValidationCode = "invalid", "instructions_changed"
+	}
+	return d
 }
 
 func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionInfo, error) {
@@ -34,6 +76,13 @@ func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionI
 		return nil, err
 	}
 	info := &ExecutionInfo{TaskID: taskID, IntentKind: "no_attempt"}
+	if reader, ok := s.store.(LaunchStore); ok {
+		latest, err := reader.LatestLaunch(ctx, taskID)
+		if err != nil {
+			return nil, err
+		}
+		info.LatestLaunch = diagnoseLaunch(t, latest)
+	}
 	if a == nil {
 		return info, nil
 	}

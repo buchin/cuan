@@ -190,6 +190,13 @@ execution, deployment or acceptance. The command never starts or retries work.
 Legacy attempts without a saved launch are reported as legacy, not reconstructed
 from report prose. Bound workers continue to use their scoped task reads.
 
+`latest_launch` separately describes the newest admission request, which can stop
+before an attempt exists. Its fixed `validation_code` identifies failed intent
+checks without exposing scope prose, member identity or credentials. It does not
+replace the exact attempt's intent or establish authorization/source acceptance.
+Diagnosis reruns validation against current saved task scope; it does not rewrite
+historical reasons, retry work, or waive a rejected binding.
+
 `cuan task logs TASK_ID ATTEMPT_ID --after-id 0 --limit 100 --json` reads bounded
 saved output from an explicit attempt (limit 1–1000). Use the highest returned
 record ID as the next cursor. Logs are diagnostic evidence, not proof of successful

@@ -167,40 +167,73 @@ func (p *LiveInspectionIntent) PredecessorAttemptID() string {
 
 var liveRepositoryIdentity = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*/[a-z0-9][a-z0-9_.-]*$`)
 
+// Codes contain no caller data and preserve errors.Is(ErrInvalidTaskInput).
+type liveInspectionValidationError string
+
+func (e liveInspectionValidationError) Error() string { return "invalid live inspection: " + string(e) }
+func (e liveInspectionValidationError) Unwrap() error { return ErrInvalidTaskInput }
+
 func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent, error) {
+	invalid := func(code string) (*LiveInspectionIntent, error) {
+		return nil, liveInspectionValidationError("live_inspection_" + code)
+	}
 	if launch == nil {
 		return nil, nil
 	}
 	at := strings.Index(launch.Revision, LiveInspectionMarker)
 	if at < 0 {
 		if strings.Contains(launch.Revision, "Cuan live-result inspection") {
-			return nil, ErrInvalidTaskInput
+			return invalid("missing_marker")
 		}
 		return nil, nil
 	}
 	var proof LiveInspectionIntent
 	line := strings.SplitN(launch.Revision[at+len(LiveInspectionMarker):], "\n", 2)[0]
 	if json.Unmarshal([]byte(line), &proof) != nil {
-		return nil, ErrInvalidTaskInput
+		return invalid("malformed_intent")
 	}
 	if proof.VerifierRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
-		return nil, ErrInvalidTaskInput
+		return invalid("recovery_shape")
 	}
 	if proof.Purpose != CurrentOutcomeInspection && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
-		return nil, ErrInvalidTaskInput
+		return invalid("purpose_shape")
 	}
 	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
-		return nil, ErrInvalidTaskInput
+		return invalid("preparation_shape")
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
 	if proof.Purpose == CurrentOutcomeInspection {
 		validSource = (proof.SourceCommit == "" || fullObjectID(proof.SourceCommit)) && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16))
 	}
-	if t == nil || strings.Count(launch.Revision, LiveInspectionMarker) != 1 || strings.Contains(launch.Revision, VerificationIntentMarker) || !validSource || !fullObjectID(proof.TargetCommit) || !liveRepositoryIdentity.MatchString(proof.Repository) || proof.SourceAttemptID == "" || proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" || proof.ObservedAt.IsZero() || proof.ObservedAt.After(launch.CreatedAt.Add(5*time.Second)) || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || launch.InstructionsHash != proof.InstructionsHash || launch.TaskID != t.ID || launch.ProjectID != t.ProjectID || launch.OwnerID != proof.OwnerID || launch.RoomID != proof.RoomID || t.SourceRoomID != proof.RoomID || launch.SourceRequestID != proof.SourceRequestID || launch.RequestID != proof.RequestID(t.ID) {
-		return nil, ErrInvalidTaskInput
+	if t == nil {
+		return invalid("missing_task")
+	}
+	if strings.Count(launch.Revision, LiveInspectionMarker) != 1 || strings.Contains(launch.Revision, VerificationIntentMarker) {
+		return invalid("conflicting_intent")
+	}
+	if !validSource || !fullObjectID(proof.TargetCommit) || !liveRepositoryIdentity.MatchString(proof.Repository) || proof.SourceAttemptID == "" {
+		return invalid("source_identity")
+	}
+	if proof.OwnerID == "" || proof.RoomID == "" || proof.SourceRequestID == "" {
+		return invalid("missing_authorization_identity")
+	}
+	if proof.ObservedAt.IsZero() || proof.ObservedAt.After(launch.CreatedAt.Add(5*time.Second)) {
+		return invalid("observation_time")
+	}
+	if proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) || launch.InstructionsHash != proof.InstructionsHash {
+		return invalid("instructions_changed")
+	}
+	if launch.TaskID != t.ID || launch.ProjectID != t.ProjectID {
+		return invalid("task_project_binding")
+	}
+	if launch.OwnerID != proof.OwnerID || launch.RoomID != proof.RoomID || t.SourceRoomID != proof.RoomID || launch.SourceRequestID != proof.SourceRequestID {
+		return invalid("authorization_binding")
+	}
+	if launch.RequestID != proof.RequestID(t.ID) {
+		return invalid("request_binding")
 	}
 	if (proof.PreviousAttemptID == "" && proof.PreviousCommit != "") || (proof.PreviousAttemptID != "" && (!fullObjectID(proof.PreviousCommit) || proof.PreviousCommit == proof.TargetCommit)) {
-		return nil, ErrInvalidTaskInput
+		return invalid("previous_revision")
 	}
 	return &proof, nil
 }
