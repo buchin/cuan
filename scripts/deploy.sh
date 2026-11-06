@@ -189,6 +189,13 @@ checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for 
 (root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1,'inbox_worker':1}})+'\n')
 PY
 
+if [[ -z "${CUAN_DEPLOY_EXCLUDE_TASK:-}" && -n "${CUAN_TASK_CAPABILITY_JSON:-}" ]]; then
+  CUAN_DEPLOY_EXCLUDE_TASK="$(python3 -c "import sys, json, os; print(json.loads(os.environ.get('CUAN_TASK_CAPABILITY_JSON', '{}')).get('task_id', ''))" 2>/dev/null || true)"
+fi
+if [[ -z "${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" && -n "${CUAN_TASK_CAPABILITY_JSON:-}" ]]; then
+  CUAN_DEPLOY_EXCLUDE_ATTEMPT="$(python3 -c "import sys, json, os; print(json.loads(os.environ.get('CUAN_TASK_CAPABILITY_JSON', '{}')).get('attempt_id', ''))" 2>/dev/null || true)"
+fi
+
 if [[ "$is_local" == 1 ]]; then
   if [[ -d "$HOME/.local/share/cuan/accounts" ]]; then
     sudo -n python3 scripts/prune-provider-go-cache.py --accounts "$HOME/.local/share/cuan/accounts" --apply
@@ -204,7 +211,7 @@ if [[ "$is_local" == 1 ]]; then
     cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
   fi
   sudo -n rsync -a --delete "$release_dir/" "/opt/cuan/releases/$release_sha/"
-  sudo -n CUAN_DEPLOY_ALLOW_RESUME="${CUAN_DEPLOY_ALLOW_RESUME:-1}" CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha"
+  sudo -n CUAN_DEPLOY_ALLOW_RESUME="${CUAN_DEPLOY_ALLOW_RESUME:-1}" CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" CUAN_TASK_CAPABILITY_JSON="${CUAN_TASK_CAPABILITY_JSON:-}" python3 scripts/activate-release.py --release "$release_sha"
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
@@ -215,7 +222,7 @@ else
   sshpass -e rsync -az --partial --append-verify -e ssh "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
   sshpass -e scp -q scripts/activate-release.py "$release_host:.local/share/cuan-s25/activate-release.py"
-  sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
+  sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" CUAN_TASK_CAPABILITY_JSON=\"${CUAN_TASK_CAPABILITY_JSON:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
   unset SSHPASS
 fi
 

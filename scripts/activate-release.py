@@ -107,9 +107,19 @@ def assert_idle_work(no_restart=False):
         exclude_attempt = os.environ.get('CUAN_DEPLOY_EXCLUDE_ATTEMPT', '').strip()
         exclude_task = os.environ.get('CUAN_DEPLOY_EXCLUDE_TASK', '').strip()
         cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
+        cap_json = os.environ.get('CUAN_TASK_CAPABILITY_JSON')
         if cap_file and Path(cap_file).is_file():
             try:
                 cap_data = json.loads(Path(cap_file).read_text())
+                if not exclude_attempt:
+                    exclude_attempt = str(cap_data.get('attempt_id', '')).strip()
+                if not exclude_task:
+                    exclude_task = str(cap_data.get('task_id', '')).strip()
+            except Exception:
+                pass
+        elif cap_json:
+            try:
+                cap_data = json.loads(cap_json)
                 if not exclude_attempt:
                     exclude_attempt = str(cap_data.get('attempt_id', '')).strip()
                 if not exclude_task:
@@ -423,12 +433,23 @@ def drain_old_chat_workers(keep=None):
 
 def record_task_deployment(env, release_sha):
     cap_file = os.environ.get('CUAN_TASK_CAPABILITY_FILE')
+    cap_json = os.environ.get('CUAN_TASK_CAPABILITY_JSON')
     task_id = os.environ.get('CUAN_DEPLOY_EXCLUDE_TASK', '').strip()
     attempt_id = os.environ.get('CUAN_DEPLOY_EXCLUDE_ATTEMPT', '').strip()
     if cap_file and Path(cap_file).is_file():
-        cap_data = json.loads(Path(cap_file).read_text())
-        task_id = task_id or str(cap_data.get('task_id', '')).strip()
-        attempt_id = attempt_id or str(cap_data.get('attempt_id', '')).strip()
+        try:
+            cap_data = json.loads(Path(cap_file).read_text())
+            task_id = task_id or str(cap_data.get('task_id', '')).strip()
+            attempt_id = attempt_id or str(cap_data.get('attempt_id', '')).strip()
+        except Exception:
+            pass
+    elif cap_json:
+        try:
+            cap_data = json.loads(cap_json)
+            task_id = task_id or str(cap_data.get('task_id', '')).strip()
+            attempt_id = attempt_id or str(cap_data.get('attempt_id', '')).strip()
+        except Exception:
+            pass
     if not task_id and not attempt_id:
         return None
     # A deployment is an external fact, not a task completion report. A missing

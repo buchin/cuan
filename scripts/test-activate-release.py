@@ -112,6 +112,9 @@ class Gates(unittest.TestCase):
             first = a.record_task_deployment({}, 'a'*40)
             self.assertEqual(first, a.record_task_deployment({}, 'a'*40))
             self.assertNotEqual(first, a.record_task_deployment({}, 'b'*40))
+        with patch.dict(a.os.environ, {'CUAN_TASK_CAPABILITY_JSON': json.dumps({'task_id': 'task-fixture', 'attempt_id': 'attempt-fixture'})}, clear=True), patch.object(a, 'database_scalar', return_value='t'):
+            receipt = a.record_task_deployment({}, 'a'*40)
+            self.assertEqual(receipt, first)
 
     def test_target_sha_cannot_be_missing_from_health_response(self):
         with patch.object(a.urllib.request, 'urlopen', return_value=Response(b'{"status":"healthy"}')):

@@ -80,7 +80,16 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	srv.drainInboxRoom(room.ID)
 
 	// 6. Verify task status is now 'done'
-	detail, err := srv.taskSvc.GetTaskDetail(ctx, taskID)
+	var detail *task.TaskDetailResponse
+	var err error
+	for i := 0; i < 20; i++ {
+		detail, err = srv.taskSvc.GetTaskDetail(ctx, taskID)
+		if err == nil && detail != nil && detail.Status == task.TaskStatusDone {
+			break
+		}
+		srv.drainInboxRoom(room.ID)
+		time.Sleep(50 * time.Millisecond)
+	}
 	if err != nil {
 		t.Fatalf("failed to get task detail: %v", err)
 	}
@@ -94,20 +103,29 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	}
 
 	// 7. Verify review message posted into chat room
-	messages, err := srv.projectStudioRepo.ListMessagesByRoomID(ctx, room.ID)
-	if err != nil {
-		t.Fatalf("failed to list messages: %v", err)
-	}
+	var messages []cuanDB.ProjectMessage
 	foundReview := false
 	foundSummary := false
-	for _, m := range messages {
-		if strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria yang disepakati.") && !strings.Contains(m.Content, "### Evaluasi") {
-			foundReview = true
-			if strings.Contains(m.Content, tItem.Summary) {
-				foundSummary = true
+	for i := 0; i < 20; i++ {
+		messages, err = srv.projectStudioRepo.ListMessagesByRoomID(ctx, room.ID)
+		if err == nil {
+			for _, m := range messages {
+				if strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria yang disepakati.") && !strings.Contains(m.Content, "### Evaluasi") {
+					foundReview = true
+					if strings.Contains(m.Content, tItem.Summary) {
+						foundSummary = true
+					}
+					break
+				}
 			}
+		}
+		if foundReview && foundSummary {
 			break
 		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("failed to list messages: %v", err)
 	}
 	if !foundReview {
 		t.Errorf("expected readable accepted outcome in room messages")
