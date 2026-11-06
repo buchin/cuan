@@ -23,14 +23,15 @@ func TestProjectSettingsPreserveTaskWorkspaceAndGuidance(t *testing.T) {
 	old := filepath.Join(root, "original")
 	os.MkdirAll(old, 0700)
 	os.WriteFile(filepath.Join(old, "retained.txt"), []byte("original work"), 0600)
-	initial := &Project{ID: "proj_settings", Name: "Original", DefaultBranch: "main", LocalPath: old, Metadata: json.RawMessage(`{"unrelated":{"keep":true}}`), SourceMetadata: json.RawMessage(`{"seed":"preserved"}`), UpdatedAt: time.Now().UTC()}
+	initial := &Project{ID: "proj_settings", Name: "Original", DefaultBranch: "main", LocalPath: old, Metadata: json.RawMessage(`{"unrelated":{"keep":true},"cuan_settings":{"auto_deploy":false,"environment":"TARGET=original","deploy_branch":"original-release"}}`), SourceMetadata: json.RawMessage(`{"seed":"preserved"}`), UpdatedAt: time.Now().UTC()}
 	if err := store.CreateProject(ctx, initial); err != nil {
 		t.Fatal(err)
 	}
 	service := NewService(store, nil, "fixture-secret", filepath.Join(root, "workspaces"))
 	p, _ := service.Get(ctx, initial.ID)
 	before := SnapshotProjectGuidance("Approved work", p)
-	req := UpdateSettingsRequest{Name: "Renamed", Goal: "Useful outcome", Instructions: "Keep the existing scope", DefaultBranch: "main", ExpectedUpdatedAt: p.UpdatedAt}
+	enabled := true
+	req := UpdateSettingsRequest{Name: "Renamed", Goal: "Useful outcome", Instructions: "Keep the existing scope", AutoDeploy: &enabled, Environment: "TARGET=latest", DeployBranch: "latest-release", DefaultBranch: "main", ExpectedUpdatedAt: p.UpdatedAt}
 	saved, err := service.UpdateSettings(ctx, p.ID, req)
 	if err != nil {
 		t.Fatal(err)
@@ -66,6 +67,24 @@ func TestProjectSettingsPreserveTaskWorkspaceAndGuidance(t *testing.T) {
 	if err != nil || latest.LocalPath != switched.LocalPath {
 		t.Fatal("new task did not use new workspace", err)
 	}
+	originalContext, err := service.TaskContext(ctx, p.ID, before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newContext, err := service.TaskContext(ctx, p.ID, SnapshotProjectGuidance("New task", switched))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldSettings, newSettings := SettingsFromMetadata(originalContext.Metadata), SettingsFromMetadata(newContext.Metadata)
+	if originalContext.LocalPath != old || oldSettings.Environment != "TARGET=original" || oldSettings.IsAutoDeployEnabled() || oldSettings.DeployBranch != "original-release" || oldSettings.Goal != "" {
+		t.Fatal("old task drifted to current project context")
+	}
+	if newContext.LocalPath != switched.LocalPath || newSettings.Environment != "TARGET=latest" || !newSettings.IsAutoDeployEnabled() || newSettings.Goal != "Useful outcome" || newSettings.DeployBranch != "latest-release" {
+		t.Fatal("new task lost updated settings")
+	}
+	if !strings.Contains(string(originalContext.Metadata), `"unrelated"`) {
+		t.Fatal("task context discarded unrelated metadata")
+	}
 	restarted := NewService(store, nil, "fixture-secret", filepath.Join(root, "workspaces"))
 	recovered, err := restarted.TaskWorkspace(ctx, p.ID, before)
 	if err != nil || recovered.LocalPath != old {
@@ -77,6 +96,15 @@ func TestProjectSettingsPreserveTaskWorkspaceAndGuidance(t *testing.T) {
 	}
 	if !strings.Contains(string(switched.SourceMetadata), "\"seed\"") {
 		t.Fatal("connection lost source metadata")
+	}
+	if err := os.Rename(old, old+"-retained"); err != nil {
+		t.Fatal(err)
+	}
+	if retained, err := service.TaskContext(ctx, p.ID, before); err != nil || retained.LocalPath != old {
+		t.Fatal("missing historical workspace fell back to a different branch", err)
+	}
+	if _, err := service.TaskContext(ctx, p.ID, SnapshotProjectGuidance("New task", switched)); err != nil {
+		t.Fatal("missing old workspace broke the current project", err)
 	}
 	// Historical paths must come from authenticated server-owned bindings.
 	tampered, _ := store.GetProject(ctx, p.ID)

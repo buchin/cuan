@@ -127,6 +127,47 @@ func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
 }
 
+// TaskContext is the execution view of a saved task. Repository paths come
+// from authenticated workspace history; defaults come from the task snapshot.
+// Updating project settings must not silently change an existing task's env or
+// publication defaults. Explicit project reassignment keeps current settings.
+func (s *Service) TaskContext(ctx context.Context, id, instructions string) (*ProjectResponse, error) {
+	p, err := s.TaskWorkspace(ctx, id, instructions)
+	if err != nil {
+		return nil, err
+	}
+	start, size := findSnapshotMarker(instructions)
+	if start < 0 {
+		return p, nil
+	}
+	var snapshot taskProjectSnapshot
+	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[start+size:], "\n```")), &snapshot) != nil {
+		return nil, errors.New("Saved task project context could not be verified")
+	}
+	if !historicalProjectID(p, snapshot.ProjectID) {
+		return p, nil
+	}
+	settings := SettingsFromMetadata(p.Metadata)
+	settings.Goal, settings.Instructions = snapshot.Goal, snapshot.Instructions
+	settings.Environment, settings.DeployBranch = snapshot.Environment, snapshot.DeployBranch
+	settings.WorkspaceRevision = snapshot.Revision
+	if snapshot.AutoDeploy != nil {
+		settings.AutoDeploy = snapshot.AutoDeploy
+	}
+	metadata := map[string]json.RawMessage{}
+	if len(p.Metadata) > 0 && string(p.Metadata) != "null" {
+		if json.Unmarshal(p.Metadata, &metadata) != nil {
+			return nil, errors.New("Project settings could not be verified")
+		}
+	}
+	if metadata == nil {
+		metadata = map[string]json.RawMessage{}
+	}
+	metadata["cuan_settings"], _ = json.Marshal(settings)
+	p.Metadata, _ = json.Marshal(metadata)
+	return p, nil
+}
+
 func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*ProjectResponse, error) {
 	p, err := s.Get(ctx, id)
 	if err != nil {
@@ -172,16 +213,7 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 	p.LocalPath = original.Binding.LocalPath
 	p.RepoURL = original.Binding.RepoURL
 	p.DefaultBranch = original.Binding.Branch
-	if p.LocalPath != "" {
-		if fi, err := os.Stat(p.LocalPath); err != nil || !fi.IsDir() {
-			if current, err := s.store.GetProject(ctx, p.ID); err == nil && current != nil {
-				s.ensureValidLocalPath(ctx, current)
-				if fi, err := os.Stat(current.LocalPath); err == nil && fi.IsDir() {
-					p.LocalPath = current.LocalPath
-				}
-			}
-		}
-	}
+	p.RepoOwner, p.RepoName, _ = git.ParseGitHubURL(p.RepoURL)
 	return p, nil
 }
 

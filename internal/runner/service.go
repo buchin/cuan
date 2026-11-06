@@ -16,6 +16,7 @@ import (
 
 type ProjectFinder interface {
 	Get(ctx context.Context, id string) (*project.ProjectResponse, error)
+	TaskContext(ctx context.Context, id, instructions string) (*project.ProjectResponse, error)
 }
 
 type RunnerService struct {
@@ -314,16 +315,28 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 
 	if s.projectFinder != nil && t.ProjectID != "" {
-		if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
-			resp.ProjectRepo = fmt.Sprintf("%s/%s", p.RepoOwner, p.RepoName)
-			resp.RepoOwner = p.RepoOwner
-			resp.RepoName = p.RepoName
-			resp.RepoURL = p.RepoURL
-			resp.DefaultBranch = p.DefaultBranch
-			resp.WorkingDir = p.LocalPath
-			settings := project.SettingsFromMetadata(p.Metadata)
-			resp.AutoDeploy = settings.IsAutoDeployEnabled() && !limits.DenyDeploy
-			resp.Environment = settings.Environment
+		p, err := s.projectFinder.TaskContext(ctx, t.ProjectID, t.Instructions)
+		if err != nil || p == nil {
+			// No provider has started. Keep a terminal, attributable failure
+			// rather than executing against unrelated current defaults.
+			_, finishErr := s.Complete(ctx, att.ID, CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Saved task project context is unavailable; no provider execution was started"})
+			if finishErr != nil {
+				return nil, finishErr
+			}
+			return nil, errors.New("Saved task project context is unavailable")
+		}
+		resp.ProjectRepo = fmt.Sprintf("%s/%s", p.RepoOwner, p.RepoName)
+		resp.RepoOwner = p.RepoOwner
+		resp.RepoName = p.RepoName
+		resp.RepoURL = p.RepoURL
+		resp.DefaultBranch = p.DefaultBranch
+		resp.WorkingDir = p.LocalPath
+		settings := project.SettingsFromMetadata(p.Metadata)
+		resp.AutoDeploy = settings.IsAutoDeployEnabled() && !limits.DenyDeploy
+		resp.Environment = settings.Environment
+		resp.DeployBranch = strings.TrimSpace(settings.DeployBranch)
+		if resp.DeployBranch == "" {
+			resp.DeployBranch = p.DefaultBranch
 		}
 	}
 
@@ -484,7 +497,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	}
 	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
-			if p, err := s.projectFinder.Get(ctx, t.ProjectID); err == nil && p != nil {
+			if p, err := s.projectFinder.TaskContext(ctx, t.ProjectID, t.Instructions); err == nil && p != nil {
 				settings := project.SettingsFromMetadata(p.Metadata)
 				isCodeLane := t.ExecutionCategory == "" || t.ExecutionCategory == task.ExecutionCategoryCode
 				requiresDeploy := isCodeLane
@@ -514,6 +527,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 						att.ErrorMessage = "Kepatuhan auto_deploy: verified production deployment receipt is required for the exact task, attempt and commit; commit/push and report claims alone do not satisfy acceptance"
 					}
 				}
+			} else {
+				status = task.AttemptStatusFailed
+				att.ErrorMessage = "Saved task project context could not be verified; completion was not accepted"
 			}
 		}
 	}

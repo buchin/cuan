@@ -44,7 +44,7 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 	if s.taskSvc != nil && s.projectSvc != nil {
 		detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
 		if err == nil && detail != nil && detail.ProjectID != "" {
-			project, pErr := s.projectSvc.TaskWorkspace(ctx, detail.ProjectID, detail.Instructions)
+			project, pErr := s.projectSvc.TaskContext(ctx, detail.ProjectID, detail.Instructions)
 			if pErr == nil && project != nil && (project.RepoURL != "" || project.LocalPath != "") {
 				workDir, e := s.projectSvc.TaskExecutionWorkspace(ctx, taskID, detail.Instructions, project)
 				if e == nil && workDir != "" {

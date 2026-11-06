@@ -20,7 +20,7 @@ func (s *Service) PushNativeTaskBranch(ctx context.Context, taskID, projectID, i
 	if executionpolicy.FromInstructions(instructions).DenyPush {
 		return "", nil, errors.New("This task scope forbids pushing. Local work is preserved")
 	}
-	p, err := s.TaskWorkspace(ctx, projectID, instructions)
+	p, err := s.TaskContext(ctx, projectID, instructions)
 	if err != nil {
 		return "", nil, err
 	}
@@ -56,7 +56,7 @@ func (s *Service) PushTaskBranch(ctx context.Context, taskID, projectID, instruc
 	if executionpolicy.FromInstructions(instructions).DenyPush {
 		return "", errors.New("This task scope forbids pushing. Local work is preserved")
 	}
-	p, err := s.TaskWorkspace(ctx, projectID, instructions)
+	p, err := s.TaskContext(ctx, projectID, instructions)
 	if err != nil {
 		return "", err
 	}

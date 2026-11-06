@@ -17,7 +17,6 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
-	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
@@ -538,18 +537,7 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, resp)
 		return
 	}
-	if resp.Claimed && resp.Task != nil && resp.Task.ProjectID != "" {
-		if p, err := s.projectSvc.Get(r.Context(), resp.Task.ProjectID); err == nil && p != nil {
-			resp.ProjectRepo = p.RepoURL
-			resp.WorkingDir = p.LocalPath
-			settings := project.SettingsFromMetadata(p.Metadata)
-			resp.AutoDeploy = settings.IsAutoDeployEnabled() && !resp.PublicationLimits.DenyDeploy
-			resp.DeployBranch = strings.TrimSpace(settings.DeployBranch)
-			if resp.DeployBranch == "" {
-				resp.DeployBranch = strings.TrimSpace(p.DefaultBranch)
-			}
-		}
-	}
+
 	if resp.Claimed && resp.Task != nil && resp.Attempt != nil {
 		resp.OwnerID, _ = s.authSvc.OwnerID(r.Context())
 		claimRevision := ""

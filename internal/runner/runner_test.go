@@ -322,6 +322,10 @@ func (m *mockProjectFinder) Get(ctx context.Context, id string) (*project.Projec
 	return nil, nil
 }
 
+func (m *mockProjectFinder) TaskContext(ctx context.Context, id, instructions string) (*project.ProjectResponse, error) {
+	return m.Get(ctx, id)
+}
+
 func TestRunner_AutoDeployEnforcement(t *testing.T) {
 	ctx := context.Background()
 	taskStore := task.NewMemoryStore()

@@ -82,3 +82,17 @@ field are preserved. Updates carry the project's current revision and reject
 concurrent changes. Output includes only goal/instructions and no environment.
 New tasks capture both values in their project snapshot. Existing tasks and
 retries retain the original snapshot; bound Inbox context reads current settings.
+
+Execution uses the saved task context consistently at native claim, terminal
+workspace preparation, publication and completion checks. Updating environment,
+deploy branch or automatic deployment settings affects newly created tasks;
+it does not silently redirect an existing task. Historical repository paths
+come from authenticated workspace history. A missing historical workspace never selects the current project checkout.
+Workspace preparation must verify its retained execution checkout or use its
+authorized recovery path. Independent result inspections keep their separate
+exact-revision snapshot. Invalid saved context stops native claim before provider
+execution and is recorded as a failed attempt.
+Tasks predating snapshots retain their legacy current-settings behavior;
+snapshots predating the automatic-deployment field retain the current default
+for that unspecified field. Explicit project reassignment uses the newly bound
+project's current settings.
