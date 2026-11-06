@@ -23,6 +23,9 @@ type Capability struct {
 }
 
 func Run(args []string, out, errOut io.Writer) int {
+	if len(args) == 1 && args[0] == "stop-hook" {
+		return runStopHook(os.Stdin, out)
+	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
 		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done explicitly completes verified implementation without human approval. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:

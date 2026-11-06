@@ -50,3 +50,13 @@ publication is required but unverified. The reviewer's classification cannot
 bypass it. Concrete implementation findings remain unchanged and must be
 checked against current evidence before execution; this guard does not certify
 that those findings are accurate.
+
+The task-bound `stop-hook` CLI handler is an initial AGY lifecycle adapter.
+It reads the native JSON event on stdin and returns a native JSON stop decision.
+It requires a runner-created private `CUAN_TASK_LIFECYCLE_DIR` and an absolute
+`CUAN_TASK_REPORT_DEADLINE` (RFC3339). Only a normal fully idle stop with a
+successful scoped active-attempt read and no current final report can request
+one report-only continuation. Cancellation, errors, unavailable reads and an
+expired reporting budget allow stopping. The handler never submits evidence or
+accepts work. Automatic registration in native sessions is not implemented yet;
+these checks alone do not establish end-to-end recovery.
