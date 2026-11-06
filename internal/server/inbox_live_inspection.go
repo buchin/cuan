@@ -19,6 +19,10 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if d == nil || d.Status != task.TaskStatusBlocked || d.LatestAttempt == nil || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
 	}
+	if restored, err := s.taskSvc.ReconcileInspectionIdentity(ctx, d.ID); err == nil && restored {
+		s.publishInbox(d.SourceRoomID)
+		return true
+	}
 	if s.recoverInspectionVerifier(ctx, d, origin) {
 		return true
 	}

@@ -166,3 +166,18 @@ or identity/access/consent only they can provide. Explain the exact missing choi
 in ordinary language. Technical execution instructions and counters stay in task
 details. Reporting progress or recovery still requires an admitted operation;
 unfinished work is never accepted merely to avoid asking the user.
+
+### Retained identity after an interrupted inspection
+
+A legacy read-only inspector could incorrectly replace a task's retained
+implementation commit with the live commit it inspected. Cuan reconciles this
+specific mismatch from the immutable inspection launch and the original native
+runner transition. The source must still satisfy the existing inspection-source
+validation. The repair is conditional on the same blocked task snapshot and latest
+interrupted attempt, with no cancellation, active attempt or pending launch.
+
+Only the retained commit identity changes, with an atomic audit event. Previous
+reports, interruption, failed checks and attempt counts remain historical. This
+repair does not restore a lost completion payload, authorize a new deployment,
+prove tests passed, or mark work complete; subsequent supervision must still
+obtain valid evidence for every original acceptance criterion.
