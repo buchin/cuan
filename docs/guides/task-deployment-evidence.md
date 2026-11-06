@@ -44,3 +44,9 @@ passing reviews and verification-only revisions, independently of the execution
 harness. It requires reconciliation of the registered running release before
 any further publication. Concrete implementation findings and additional
 verification obligations remain intact; missing evidence never grants acceptance.
+
+Implementation revisions also receive the reconciliation prerequisite when
+publication is required but unverified. The reviewer's classification cannot
+bypass it. Concrete implementation findings remain unchanged and must be
+checked against current evidence before execution; this guard does not certify
+that those findings are accurate.

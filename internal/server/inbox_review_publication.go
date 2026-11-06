@@ -57,11 +57,18 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 }
 
 func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
-	if decision.Decision != "pass" && !(decision.Decision == "revise" && decision.RemainingWork == "verification") {
+	if decision.Decision != "pass" && decision.Decision != "revise" {
 		return decision
 	}
 	observation := s.inboxReviewPublication(ctx, d)
 	if observation == nil || !observation.Required || observation.Verified {
+		return decision
+	}
+	// A reviewer can misclassify absent publication proof as implementation
+	// work. Preserve concrete findings, but never let that classification skip
+	// reconciliation or authorize replaying an uncertain external effect.
+	if decision.Decision == "revise" && decision.RemainingWork != "verification" {
+		decision.Revision = "First reconcile the registered project's existing release and saved deployment effects. Missing publication evidence does not establish that deployment failed or never happened. Do not repeat deployment solely to obtain evidence; verify the existing release through the registered project channel. Preserve all original scope and acceptance requirements. Reviewer assessment to evaluate against current evidence: " + decision.Revision
 		return decision
 	}
 	result := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft, Finding: "Hasil kerja tersimpan, tetapi status rilis belum bisa dipastikan.", Explanation: "Hasil kerja tersimpan, tetapi status rilis belum bisa dipastikan. Cuan perlu memeriksa rilis yang sudah ada sebelum melanjutkan.", Revision: "Gap: the original project's required production publication is not verified for this exact result commit. A local commit, open PR, screenshots or a passing model assessment is not deployment evidence. Inspect the registered repository, current running release and saved work before changing anything. Reconcile overlapping or already-delivered work; do not blindly merge an obsolete implementation or repeat external effects. Complete only remaining authorized publication and verification through the registered project release channel, preserving all owner restrictions. Record trusted exact-commit deployment evidence; if the requested outcome is already live in a different revision, report that fact and the precise evidence needed for independent current-outcome inspection rather than falsely claiming this branch was deployed."}

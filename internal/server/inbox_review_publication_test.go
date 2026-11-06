@@ -63,8 +63,8 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 			}
 			result := s.requirePublicationReview(ctx, d, input)
 			if scenario == "implementation revision" {
-				if result != input {
-					t.Fatal("concrete implementation gap overwritten")
+				if result.Finding != input.Finding || result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") {
+					t.Fatal("implementation gap or publication reconciliation lost")
 				}
 				return
 			}
