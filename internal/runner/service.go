@@ -376,7 +376,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	}
 	liveInspection, liveErr := task.LiveInspectionForAttempt(ctx, s.taskStore, currentTask, att.ID)
 	if liveErr != nil {
-		return nil, liveErr
+		return nil, fmt.Errorf("completion inspection intent: %w", liveErr)
 	}
 	var effects []func()
 	var completionActivities []*task.TaskActivity
@@ -435,7 +435,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		}
 		if liveInspection != nil {
 			if _, err := task.ValidateLiveInspection(ctx, s.taskStore, current, att.ID); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("completion inspection source validation: %w", err)
 			}
 			identityVerified := req.SourceAncestryVerified && !req.CurrentOutcomeVerified
 			if liveInspection.Purpose == task.CurrentOutcomeInspection {
@@ -758,7 +758,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if srcState, errSrc := taskfsm.FromCuanTaskStatus(oldStatus); errSrc == nil {
 			if dstState, errDst := taskfsm.FromCuanTaskStatus(t.Status); errDst == nil {
 				if !taskfsm.CanTransition(srcState, dstState) && srcState != dstState {
-					return nil, task.ErrRequestConflict
+					return nil, fmt.Errorf("completion task transition %s to %s is not allowed: %w", oldStatus, t.Status, task.ErrRequestConflict)
 				}
 			}
 		}

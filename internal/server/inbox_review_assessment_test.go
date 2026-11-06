@@ -20,7 +20,7 @@ func TestReviewAssessmentPreservesRejectedGapAtCorrectionLimit(t *testing.T) {
 	}
 	raw := `{"decision":"revise","finding":"Bukti screenshot aplikasi nyata belum tersedia.","explanation":"Saya akan melanjutkan pekerjaan secara otomatis.","revision":"Render the changed application at390px and desktop; inspect screenshots and report actual findings rather than an HTML mockup."}`
 	out := s.applyInboxReviewEvaluation(ctx, q, raw)
-	if !strings.Contains(out, "Bukti screenshot aplikasi nyata belum tersedia.") || !strings.Contains(out, inboxCorrectionLimitExplanation) || strings.Contains(out, "akan melanjutkan") {
+	if !strings.Contains(out, "Bukti screenshot aplikasi nyata belum tersedia.") || strings.Contains(out, "Batas perbaikan otomatis") || strings.Contains(out, "akan melanjutkan") {
 		t.Fatal("limit lost concrete gap or promised execution", out)
 	}
 	after, err := s.taskSvc.GetTaskDetail(ctx, d.ID)

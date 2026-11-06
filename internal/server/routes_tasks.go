@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -821,13 +822,14 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 
 	att, err := s.runnerSvc.Complete(r.Context(), attemptID, req)
 	if err != nil {
+		log.Printf("[runner-completion] attempt=%s runner=%s rejected: %v", attemptID, req.RunnerID, err)
 		if errors.Is(err, task.ErrAttemptFinal) {
 			saved, _ := s.taskSvc.GetAttempt(r.Context(), attemptID)
 			respondJSON(w, http.StatusOK, map[string]any{"ignored": true, "attempt": saved})
 			return
 		}
-		if errors.Is(err, task.ErrRequestConflict) {
-			respondJSONError(w, http.StatusConflict, "The execution was superseded or the task changed. Saved state was preserved.")
+		if errors.Is(err, task.ErrRequestConflict) || errors.Is(err, task.ErrInvalidTaskInput) {
+			respondJSONError(w, http.StatusConflict, "The execution context changed. Saved work was preserved; completion was not accepted.")
 			return
 		}
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to complete attempt: %v", err))

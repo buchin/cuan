@@ -113,6 +113,13 @@ func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author str
 		t.DoDChecklist = append([]DoDItem{}, (*r.Checklist)...)
 	}
 	if r.CommitSHA != nil {
+		policy, err := AttemptPublicationPolicy(ctx, s.store, t, attemptID)
+		if err != nil {
+			return nil, err
+		}
+		if policy.ReadOnlyRepository && *r.CommitSHA != t.CommitSHA {
+			return bad("read-only verification cannot replace the implementation commit; omit commit_sha and report the observed revision in verification evidence")
+		}
 		if len(*r.CommitSHA) > 100 {
 			return bad("commit reference too long")
 		}

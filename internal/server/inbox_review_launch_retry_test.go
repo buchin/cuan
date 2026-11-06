@@ -85,10 +85,10 @@ func TestInboxReviewExhaustedBudgetCannotPromiseContinuation(t *testing.T) {
 		}
 	}
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"revise","explanation":"Cuan akan melanjutkan perbaikan secara otomatis.","revision":"Complete the original checks."}`)
-	if strings.Contains(output, "akan melanjutkan") || !strings.Contains(output, "Batas perbaikan otomatis sudah tercapai") {
+	if strings.Contains(output, "akan melanjutkan") || !strings.Contains(output, inboxCorrectionLimitExplanation) {
 		t.Fatal("exhausted budget retained a false continuation promise", output)
 	}
-	if plan := parseInboxApprovalPlan(output); plan == nil || plan.Continuation == nil || plan.Continuation.TaskID != d.ID || plan.Description != "Complete the original checks." {
+	if plan := parseInboxApprovalPlan(output); plan == nil || plan.Continuation == nil || plan.Continuation.TaskID != d.ID || plan.Continuation.Revision != "Complete the original checks." || plan.Description == plan.Continuation.Revision {
 		t.Fatal("blocked outcome did not offer the exact next step for approval", output)
 	}
 	if _, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID)); err == nil {

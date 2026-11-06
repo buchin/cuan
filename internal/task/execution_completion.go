@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -16,13 +17,13 @@ func validCompletion(current, result *TaskAttempt, currentTask, resultTask *Task
 		return ErrAttemptFinal
 	}
 	if current.ID != latestID || current.RunnerID != owner || current.TaskID != resultTask.ID {
-		return ErrRequestConflict
+		return fmt.Errorf("completion attempt ownership or latest execution changed: %w", ErrRequestConflict)
 	}
 	if currentTask.Status != TaskStatusDoing && currentTask.Status != TaskStatusQueued && currentTask.Status != TaskStatusPending {
-		return ErrRequestConflict
+		return fmt.Errorf("completion task is no longer active: %w", ErrRequestConflict)
 	}
 	if !currentTask.UpdatedAt.Equal(expected) {
-		return ErrRequestConflict
+		return fmt.Errorf("completion task changed during evaluation: %w", ErrRequestConflict)
 	}
 	if requireLease && current.LeaseExpiresAt != nil && !current.LeaseExpiresAt.After(time.Now()) {
 		return ErrAttemptFinal

@@ -12,6 +12,7 @@ import (
 // A continuation is a proposal tied to an independently saved assessment. It
 // grants no authority until the owner selects the persisted message.
 type inboxContinuationPlan struct {
+	RemainingWork       string `json:"remaining_work,omitempty"`
 	TaskID              string `json:"task_id"`
 	AttemptID           string `json:"attempt_id"`
 	AssessmentRequestID string `json:"assessment_request_id"`
@@ -22,8 +23,9 @@ func continuationPlan(d *task.TaskDetailResponse, request string, decision inbox
 	if d == nil || d.LatestAttempt == nil || d.ProjectID == "" || decision.Decision != "revise" || strings.TrimSpace(decision.Revision) == "" || decision.RemainingWork == "external" {
 		return ""
 	}
-	plan := inboxApprovalPlan{Title: "Langkah berikutnya", Description: decision.Revision, ProjectID: d.ProjectID,
-		Continuation: &inboxContinuationPlan{TaskID: d.ID, AttemptID: d.LatestAttempt.ID, AssessmentRequestID: request, Revision: decision.Revision}}
+	title, description := continuationPresentation(decision.RemainingWork)
+	plan := inboxApprovalPlan{Title: title, Description: description, ProjectID: d.ProjectID,
+		Continuation: &inboxContinuationPlan{TaskID: d.ID, AttemptID: d.LatestAttempt.ID, AssessmentRequestID: request, Revision: decision.Revision, RemainingWork: decision.RemainingWork}}
 	raw, _ := json.Marshal(plan)
 	return "\n\n```cuan-approval\n" + string(raw) + "\n```"
 }
@@ -47,7 +49,7 @@ func (s *Server) validateInboxContinuation(ctx context.Context, room string, pla
 		return invalid
 	}
 	assessment, ok := reviewAssessment(d, c.AssessmentRequestID)
-	if !ok || assessment.Decision != "revise" || assessment.RemainingWork == "external" || strings.TrimSpace(c.Revision) == "" || c.Revision != assessment.Revision || plan.Description != c.Revision {
+	if !ok || assessment.Decision != "revise" || assessment.RemainingWork == "external" || strings.TrimSpace(c.Revision) == "" || c.Revision != assessment.Revision || !continuationDescriptionMatches(plan, assessment) {
 		return invalid
 	}
 	return nil

@@ -522,3 +522,17 @@ permission or a reset of correction budgets.
 Supplemental inspection prompts include the original approved scope and saved
 project goal/instructions, but omit the raw project environment snapshot. Native
 publication checks continue using only the registered server-side connection.
+
+Continuation recommendations separate the user-facing next step from the saved
+execution revision. The task card receives a plain recommendation; approval still
+selects the exact current assessment, attempt, task and original restrictions.
+Old persisted proposals remain approvable under their existing binding, but their
+read-only presentation no longer renders internal English correction procedures
+or the old correction-budget footer. Stored chat and execution history are not
+rewritten. Ordinary plan descriptions remain unchanged.
+
+Read-only reports cannot replace the original implementation commit. An observed
+running/snapshot revision belongs in verification evidence. Both staged artifact
+reports and final reports enforce this before metadata is saved. Completion
+context conflicts are reported as conflicts and logged with attempt/runner
+identity, rather than silently appearing as an unexplained HTTP 500.

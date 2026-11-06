@@ -1917,6 +1917,8 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			approvalPlan = parseInboxApprovalPlan(m.Content)
 			if approvalPlan != nil {
 				approvalRequestID = delegationMessageID("approve-plan:" + roomID + ":" + m.ID)
+				content = presentContinuationText(content, approvalPlan)
+				approvalPlan = presentContinuationPlan(approvalPlan)
 			}
 		}
 		var attached []conversationAttachment

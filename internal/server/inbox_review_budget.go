@@ -8,7 +8,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxCorrectionLimitExplanation = "Batas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan."
+const inboxCorrectionLimitExplanation = "Pekerjaan belum selesai."
 
 func inboxCorrectionRecommendation(remaining string) string {
 	switch remaining {

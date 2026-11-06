@@ -63,7 +63,7 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 			}
 			result := s.requirePublicationReview(ctx, d, input)
 			if scenario == "implementation revision" {
-				if result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum terverifikasi") {
+				if result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum bisa dipastikan") {
 					t.Fatal("implementation gap or publication reconciliation lost")
 				}
 				return
