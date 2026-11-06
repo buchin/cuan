@@ -16,8 +16,14 @@ import (
 var liveInspectionCheckProhibition = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang|tanpa|without)[^\n.!?]{0,40}\b(?:run|running|execute|jalankan|menjalankan|eksekusi)\b[^\n.!?]{0,40}\b(?:tests?|tes|pengujian)\b|(?:no|tanpa)\s+(?:tests?|tes|pengujian)\b)`)
 
 func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || d.Status != task.TaskStatusBlocked || d.LatestAttempt == nil || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
+	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
+	}
+	if d.Status == task.TaskStatusReview {
+		assessment, found := reviewAssessment(d, "")
+		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || !task.IsUnpublishedReviewedOutcome(&d.Task, d.LatestAttempt, d.Activities) {
+			return false
+		}
 	}
 	if restored, err := s.taskSvc.ReconcileInspectionIdentity(ctx, d.ID); err == nil && restored {
 		s.publishInbox(d.SourceRoomID)
@@ -110,6 +116,33 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 		return false
 	}
 	return s.startLiveResultInspection(ctx, d, origin, proof, currentOutcome)
+}
+
+// A current review may grant a new correction before the correction budget is
+// exhausted. Reconcile an existing live outcome first even on that fast path;
+// otherwise an ordinary worker loses the native exact-revision inspection intent.
+func (s *Server) startReviewedLiveInspection(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, assessment inboxReviewEvaluation) bool {
+	if d == nil || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || q.RoomID != d.SourceRoomID {
+		return false
+	}
+	saved, found := reviewAssessment(d, q.RequestID)
+	if !found || saved != assessment {
+		return false
+	}
+	repository, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+	if !ok {
+		return false
+	}
+	requests, err := repository.ListInboxRequests(ctx, d.SourceRoomID)
+	if err != nil {
+		return false
+	}
+	for _, origin := range requests {
+		if origin.OwnerID == q.OwnerID && origin.MessageID == d.SourceMessageID {
+			return s.recoverLiveResultInspection(ctx, d, origin)
+		}
+	}
+	return false
 }
 
 func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest, proof *task.LiveInspectionIntent, currentOutcome bool) bool {

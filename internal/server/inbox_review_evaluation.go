@@ -469,6 +469,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		decision.Decision = "blocked"
 	}
 	if decision.Decision == "revise" {
+		if s.startReviewedLiveInspection(ctx, q, d, decision) {
+			return "Cuan memeriksa hasil pekerjaan pada versi yang sudah berjalan.\n\n[View work](/tasks/" + d.ID + ")"
+		}
 		// Infrastructure interruptions and canceled runs do not spend the business
 		// correction budget. A process ordinal is not a count of failed reviews.
 		if taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, d)) >= 3 && !s.managerContinuationAllowed(ctx, q, d, decision.Revision) {

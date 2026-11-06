@@ -37,7 +37,7 @@ func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "valid preparation", "valid verifier repair", "valid registered review", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
+	for _, scenario := range []string{"valid", "valid preparation", "valid verifier repair", "valid registered review", "valid registered review handoff", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished "+scenario, nil)
@@ -189,8 +189,11 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			source.Status = task.AttemptStatusFailed
 		}
 	}
-	if scenario == "current outcome unpublished valid registered review" {
+	if strings.HasPrefix(scenario, "current outcome unpublished valid registered review") {
 		d.Instructions = strings.ReplaceAll(d.Instructions, "; do not deploy unless authorized.", ".")
+		if strings.HasSuffix(scenario, " handoff") {
+			d.Status = task.TaskStatusReview
+		}
 		p, _ := projects.GetProject(ctx, d.ProjectID)
 		p.Metadata = registeredReleaseMetadata(t)
 		_ = projects.UpdateProject(ctx, p)
@@ -223,13 +226,13 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-source-kind", TaskID: d.ID, AttemptID: &source.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", Message: "implementation", CreatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if unpublished && scenario != "current outcome unpublished missing audit" && scenario != "current outcome unpublished valid registered review" {
+	if unpublished && scenario != "current outcome unpublished missing audit" && !strings.HasPrefix(scenario, "current outcome unpublished valid registered review") {
 		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "publication-audit:" + source.ID, TaskID: d.ID, AttemptID: &source.ID, ActivityType: task.ActivityPublicationAcceptanceAudit, Author: "coordinator", NewStatus: "review_required", CreatedAt: now}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	if scenario == "current outcome unpublished valid registered review" {
+	if strings.HasPrefix(scenario, "current outcome unpublished valid registered review") {
 		decision := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "revise", RemainingWork: "implementation", Finding: "Existing release needs inspection", Explanation: "Inspect current outcome", Revision: "Verify existing release"})
 		if decision.RemainingWork != "verification" {
 			t.Fatal("unverified publication bypassed current-outcome inspection", decision)
@@ -239,6 +242,33 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			t.Fatal(err)
 		}
 		d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		if strings.HasSuffix(scenario, " handoff") {
+			foreign := origin
+			foreign.OwnerID = "another-owner"
+			if s.startReviewedLiveInspection(ctx, foreign, d, decision) {
+				t.Fatal("review handoff crossed owner boundary")
+			}
+			changed := decision
+			changed.Revision += " changed"
+			if s.startReviewedLiveInspection(ctx, origin, d, changed) {
+				t.Fatal("review handoff ignored saved assessment")
+			}
+			if !s.startReviewedLiveInspection(ctx, origin, d, decision) {
+				t.Fatal("review fast path bypassed native outcome inspection")
+			}
+			launch, err := s.taskSvc.LatestLaunch(ctx, d.ID)
+			if err != nil || launch == nil {
+				t.Fatal("review did not persist inspection", err)
+			}
+			proof, err := task.LiveInspectionForLaunch(&d.Task, launch)
+			if err != nil || proof == nil || proof.Purpose != task.CurrentOutcomeInspection || proof.TargetCommit != strings.Repeat("b", 40) || proof.SourceCommit != d.CommitSHA {
+				t.Fatal("review lost exact current-outcome intent", err)
+			}
+			if !s.startReviewedLiveInspection(ctx, origin, d, decision) {
+				t.Fatal("review handoff did not deduplicate")
+			}
+			return
+		}
 	}
 	eligible := scenario != "current outcome opaque foreign" && scenario != "current outcome opaque unfinished" && scenario != "current outcome opaque cancelled" && scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
 	if strings.HasPrefix(scenario, "current outcome unrecorded ") && !strings.HasPrefix(scenario, "current outcome unrecorded local") {
