@@ -31,3 +31,11 @@ test('background work hides neither real user decisions nor final outcome',()=>{
  const result=taskMessageBindings([{id:'work'}],[{id:'old',author_type:'agent',content:'/tasks/work'},{id:'latest',author_type:'agent',content:'Files',work_update:{task_id:'work',kind:'files'}}],[],false)
  assert.deepEqual([...result],[['work','latest']])
 })
+
+test('native provider notes stay technical, genuine owner notes remain readable',()=>{
+ const activities=[{id:'provider',activity_type:'comment',author:'runner',message:'Provider preflight selected allowed backup account',created_at:'2026-11-06T00:00:10Z'},{id:'owner',activity_type:'comment',author:'owner',message:'Keep the existing design',created_at:'2026-11-06T00:00:20Z'}]
+ const result=workTimeline({...task,activities},false)
+ assert.ok(result.technical.some(event=>event.id==='provider'))
+ assert.ok(result.events.some(event=>event.id==='owner'&&event.body==='Keep the existing design'))
+ assert.ok(!result.events.some(event=>event.id==='provider'))
+})

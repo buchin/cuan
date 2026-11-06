@@ -10,7 +10,6 @@ export function TaskWorkDetails({task,scrollRef}:{task:TaskDetail;scrollRef:RefO
   const update=task.status==='done'?task.summary:task.latest_progress
   const instructions=parseTaskInstructions(task.description || task.body || task.prompt || '').cleanText
   return <div className="space-y-6">
-    <h2 className="break-words text-base font-semibold leading-6">{task.title}</h2>
     {!!update?.trim()&&<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{update}</p>}
     <TaskTimeline task={task} scrollRef={scrollRef}/>
     {!!task.dod_checklist?.length&&<details><summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{id?'Kriteria selesai':'Acceptance criteria'}</summary><ul className="space-y-3 pt-2">{task.dod_checklist.map((criterion,index)=>{

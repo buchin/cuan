@@ -527,3 +527,8 @@ running execution/review pulses. Successful execution alone is not accepted work
 Reports and technical diagnostics use disclosure. Follow new activity until the
 reader scrolls upward; Latest activity resumes following. No repeating generic
 Progress heading on each checkpoint, and no decorative nested status boxes.
+
+The work panel header carries the task title instead of a generic Task details
+label, without repeating it in the body. Clamp long titles to two lines; tapping
+the title expands it. Provider routing and other runner/system notes remain
+technical evidence, not user progress or ordinary Note events.

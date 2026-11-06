@@ -984,7 +984,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 		if attempt != nil && routeNote != "" {
-			if _, err := s.taskSvc.AddComment(r.Context(), taskID, "runner", routeNote); err != nil {
+			if err := s.taskSvc.Store().CreateActivity(r.Context(), &task.TaskActivity{ID: "provider-route:" + attempt.ID, TaskID: taskID, AttemptID: &attempt.ID, ActivityType: "provider_route", Author: "runner", Message: routeNote, CreatedAt: time.Now().UTC()}); err != nil {
 				_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Provider route could not be recorded. Execution did not start."})
 				_ = s.taskSvc.ReconcileLocalTask(r.Context(), taskID, attempt.ID)
 				respondJSONError(w, 503, "Provider route could not be recorded. The task has not started.")

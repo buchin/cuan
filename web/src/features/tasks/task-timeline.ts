@@ -43,7 +43,7 @@ export function workTimeline(task: TaskDetail, id: boolean): { events: WorkEvent
         } catch { technical.push(activity) }
         break
       case 'comment':
-        if (activity.message.startsWith('Revision requested:')) technical.push(activity)
+        if (['runner','system','coordinator'].includes(activity.author) || task.attempts.some(attempt=>attempt.runner_id===activity.author) || activity.message.startsWith('Revision requested:')) technical.push(activity)
         else events.push({ ...base, title: text('Catatan', 'Note'), body: activity.message })
         break
       default: technical.push(activity)

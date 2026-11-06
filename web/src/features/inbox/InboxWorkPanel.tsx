@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, X } from 'lucide-react'
+import { ArrowLeft, X, Terminal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { SurfaceHeader } from '../../components/layout/SurfaceHeader'
@@ -16,6 +16,8 @@ export function InboxWorkPanel({task,view,onBack}:{task:Task;view:'details'|'ter
   const wide=useMediaQuery('(min-width: 1600px)'), mobile=useMediaQuery('(max-width: 1199px)')
   const [detail,setDetail]=useState<TaskDetail|null>(null),[live,setLive]=useState<LiveTaskSession|null>(null),[error,setError]=useState(''),[runtimeError,setRuntimeError]=useState('')
   const [controls,setControls]=useState<HTMLDivElement|null>(null)
+  const [expandedTitle,setExpandedTitle]=useState(false)
+  const title=detail?.title||task.title||(view==='terminal'?'Terminal':id?'Detail tugas':'Task details')
   const body=useRef<HTMLDivElement>(null),panel=useRef<HTMLElement>(null),mounted=useRef(true),requestVersion=useRef(0)
   const refresh=useCallback(async()=>{
     const version=++requestVersion.current
@@ -44,7 +46,7 @@ export function InboxWorkPanel({task,view,onBack}:{task:Task;view:'details'|'ter
       }
     }}
     className="fixed inset-0 z-50 flex min-h-0 min-w-0 flex-col bg-background min-[1200px]:relative min-[1200px]:inset-auto min-[1200px]:z-auto min-[1200px]:h-full min-[1200px]:flex-1 min-[1600px]:w-[clamp(520px,38vw,760px)] min-[1600px]:flex-none min-[1600px]:border-l">
-    <SurfaceHeader title={view==='terminal'?'Terminal':id?'Detail tugas':'Task details'} leading={!wide&&<IconButton data-work-back label={id?'Kembali ke percakapan':'Back to conversation'} onClick={onBack}><ArrowLeft/></IconButton>} actions={wide&&<IconButton data-work-back label={id?'Tutup detail':'Close details'} onClick={onBack}><X/></IconButton>}/>
+    <SurfaceHeader title={<button type="button" data-work-title title={title} aria-expanded={expandedTitle} onClick={()=>setExpandedTitle(value=>!value)} className={`min-h-11 w-full whitespace-normal text-left leading-5 ${expandedTitle?'':'line-clamp-2'}`}>{title}</button>} leading={<div className="flex items-center gap-2">{!wide&&<IconButton data-work-back label={id?'Kembali ke percakapan':'Back to conversation'} onClick={onBack}><ArrowLeft/></IconButton>}{view==='terminal'&&<Terminal aria-hidden className="h-4 w-4 text-muted-foreground"/>}</div>} actions={wide&&<IconButton data-work-back label={id?'Tutup detail':'Close details'} onClick={onBack}><X/></IconButton>}/>
     {error&&<p role="alert" className="px-4 py-3 text-sm text-muted-foreground">{error}<button className="ml-2 min-h-11 underline" onClick={()=>void refresh()}>{id?'Coba lagi':'Try again'}</button></p>}
     {view==='terminal'?<>
       <div ref={setControls} className="flex shrink-0 flex-wrap items-center gap-1 border-b px-3"/>

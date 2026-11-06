@@ -14,8 +14,9 @@ const now='2026-11-06T05:00:00Z',room='work-fixture'
 const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:1,active_tasks:1}
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
 const attempt={id:'attempt',task_id:'work',status:'running',agent_name:'agent_cuan',runner_id:'runner',attempt_number:2,created_at:now,started_at:now}
-const baseTask={id:'work',title:'Perbaiki tampilan website pelanggan',status:'doing',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,source_message_id:'source',repo_url:'https://github.com/example/site',created_at:now,updated_at:now,latest_attempt:attempt,latest_progress:'Memeriksa tampilan mobile setelah perbaikan.',instructions:'Perbaiki tampilan pada desktop dan mobile. Verifikasi hasil sebenarnya.',summary:'Laporan sebelumnya belum diterima.',dod_checklist:[{text:'Tampilan stabil pada mobile dan desktop',completed:false}]}
+const baseTask={id:'work',title:'Perbaiki tampilan website pelanggan dan periksa hasilnya pada desktop maupun ponsel sebelum menyatakan pekerjaan selesai',status:'doing',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,source_message_id:'source',repo_url:'https://github.com/example/site',created_at:now,updated_at:now,latest_attempt:attempt,latest_progress:'Memeriksa tampilan mobile setelah perbaikan.',instructions:'Perbaiki tampilan pada desktop dan mobile. Verifikasi hasil sebenarnya.',summary:'Laporan sebelumnya belum diterima.',dod_checklist:[{text:'Tampilan stabil pada mobile dan desktop',completed:false}]}
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
+activities.push({id:'provider-note',task_id:'work',activity_type:'comment',author:'runner',message:'Provider preflight selected allowed backup account',created_at:now})
 const fixtureTask={...baseTask,attempts:[attempt],activities}
 const message=(id,text,extra={})=>({id,uuid:String(id),room_id:room,sender_type:'operator',author_type:'agent',author_id:'agent_cuan',author_name:'Cuan',message:text,content:text,is_internal:true,created_at:now,...extra})
 const messages=[message('source','Tolong perbaiki tampilan website.',{author_type:'user',author_id:'operator_user'}),...Array.from({length:12},(_,i)=>message('chat-'+i,'Pembahasan kebutuhan yang tetap tersedia di percakapan.')),
@@ -83,6 +84,12 @@ try{
   await card.locator('[data-task-detail]').click()
   const panel=page.getByTestId('inbox-work-panel')
   await panel.locator('[data-work-timeline]').waitFor({state:'visible'})
+  assert.equal(await panel.locator('h2').count(),1)
+  const heading=panel.locator('[data-work-title]')
+  assert.equal(await heading.getAttribute('aria-expanded'),'false')
+  await heading.click();assert.equal(await heading.getAttribute('aria-expanded'),'true')
+  await heading.click()
+  assert.equal(await panel.getByText('Provider preflight selected allowed backup account',{exact:true}).isVisible(),false)
   assert.equal(await panel.locator('[data-work-terminal]').count(),0)
   const box=await panel.boundingBox()
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)

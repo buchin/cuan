@@ -330,8 +330,15 @@ func TestInboxFailoverSingleDurableReply(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if w := request("POST", body); w.Code != 200 {
+	if w := request("POST", body); w.Code != 202 {
 		t.Fatal(w.Code, w.Body.String())
+	} else {
+		var receipt struct {
+			Request db.InboxRequest `json:"request"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &receipt); err != nil || receipt.Request.RequestID != id || receipt.Request.State != "completed" {
+			t.Fatal("replay lost its completed request", err)
+		}
 	}
 	for _, dir := range []string{home, backupHome} {
 		calls, _ := os.ReadFile(filepath.Join(dir, "calls"))
@@ -401,8 +408,14 @@ func TestTaskProviderPreflightChoosesBackupWithoutChangingAgent(t *testing.T) {
 	if detail.LatestAttempt.AgentName != "agent_lifecycle" {
 		t.Fatal("agent identity changed")
 	}
-	if !strings.Contains(mustJSON(detail), "Provider preflight selected allowed backup account") {
-		t.Fatal("route not recorded")
+	recorded := false
+	for _, activity := range detail.Activities {
+		if activity.ActivityType == "provider_route" && activity.AttemptID != nil && *activity.AttemptID == detail.LatestAttempt.ID && strings.Contains(activity.Message, "Provider preflight selected allowed backup account") {
+			recorded = true
+		}
+	}
+	if !recorded {
+		t.Fatal("route not recorded as attempt-bound technical evidence")
 	}
 }
 func mustJSON(value any) string { raw, _ := json.Marshal(value); return string(raw) }
