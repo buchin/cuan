@@ -107,3 +107,25 @@ started first must not strand other idle slots. Total account concurrency and
 reserved interactive capacity remain unchanged. Failed admission releases the
 review gate, and process exit releases both OS locks. This is local capacity,
 not evidence that the provider quota or a requested model is available.
+
+### Review provider timeouts
+
+A provider failure is not a completed review. A native timeout during a validated,
+tool-free review may try another already permitted account; it cannot select an
+unapproved model, bypass account cooldowns, retry task execution or hide an
+uncertain tool action. The original task snapshot and native acceptance gates
+remain authoritative.
+
+When no permitted route succeeds, preserve the same durable review request in
+queued state with the existing exponential backoff (30seconds to5minutes, at most
+24hours from creation). No extra conversation message or execution attempt is
+created. Do not start another full provider stage when the remaining request
+budget cannot accommodate it. Actual errors remain in the stage journal.
+Cancellation, invalid/unknown runtime activity and tool-bearing reviews do not
+gain this safe retry allowance.
+
+Historical completed reviews whose recorded last validation was a provider
+failure receive one deduplicated, authorized snapshot reassessment under the
+review inference reliability policy. Historical attempts, results and the failed
+provider events remain unchanged. No deterministic assessment substitutes for a
+provider that returned no decision.

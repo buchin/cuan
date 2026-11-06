@@ -323,7 +323,6 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						}
 						step("context", "Project context checked for analysis.")
 						var output, failure string
-						reviewApplied := false
 						snapshotReview := false
 						plan, planErr := s.inboxApprovedPlan(ctx, q)
 						if db.InboxRetryNeedsReconciliation(q) {
@@ -433,11 +432,6 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							directCancel()
 
 						}
-						if output == "" && snapshotReview && failure != inboxQuotaNoBackup && !strings.Contains(failure, "tool permission was denied") {
-							output = s.applyInboxReviewEvaluation(ctx, q, "")
-							reviewApplied = true
-							failure = ""
-						}
 						if output == "" {
 							if failure == "" {
 								failure = "Provider did not return a useful reply. Your message is saved."
@@ -446,9 +440,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							q.SafeError = failure
 						} else {
 							if snapshotReview {
-								if !reviewApplied {
-									output = s.applyInboxReviewEvaluation(ctx, q, output)
-								}
+								output = s.applyInboxReviewEvaluation(ctx, q, output)
 							} else if strings.Contains(output, "```cuan-memory") {
 								output = s.applyInboxContactMemory(ctx, q, output)
 							} else if strings.Contains(output, "```cuan-task-cancel") {
@@ -476,11 +468,13 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	}
 	if q.SafeError != "" {
 		q.State = "failed"
-		if (q.SafeError == inboxQuotaNoBackup || q.SafeError == inboxHandoffPersistenceWaiting) && time.Since(q.CreatedAt) < 24*time.Hour {
+		if (q.SafeError == inboxQuotaNoBackup || q.SafeError == inboxHandoffPersistenceWaiting || q.SafeError == inboxReviewProviderWaiting) && time.Since(q.CreatedAt) < 24*time.Hour {
 			q.State = "queued"
 			q.Deadline = time.Now().Add(24 * time.Hour)
 		} else if q.SafeError == inboxQuotaNoBackup {
 			q.SafeError = "AI capacity is still unavailable. Your message is saved; retry when you are ready."
+		} else if q.SafeError == inboxReviewProviderWaiting {
+			q.SafeError = "The review service is still unavailable. Saved work remains unaccepted; review has not completed."
 		} else if q.SafeError == inboxHandoffPersistenceWaiting {
 			q.SafeError = "The verified handoff could not be saved. The result remains available; acceptance has not been confirmed."
 		}
@@ -941,7 +935,7 @@ func (s *Server) projectInboxTaskReviews(ctx context.Context, items []*task.Task
 // A durable queued request can wait for capacity without creating another
 // message, task or provider session. Cancellation remains available while waiting.
 func inboxCapacityWaiting(q db.InboxRequest, now time.Time) bool {
-	if q.State != "queued" || (q.SafeError != inboxQuotaNoBackup && q.SafeError != inboxHandoffPersistenceWaiting) {
+	if q.State != "queued" || (q.SafeError != inboxQuotaNoBackup && q.SafeError != inboxHandoffPersistenceWaiting && q.SafeError != inboxReviewProviderWaiting) {
 		return false
 	}
 	for i := len(q.Steps) - 1; i >= 0; i-- {

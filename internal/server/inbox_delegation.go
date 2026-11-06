@@ -685,7 +685,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				return
 			}
 			if q.State == "completed" {
-				if observation := s.inboxReviewPublication(ctx, detail); recoverSnapshot && observation != nil && observation.Required && !observation.Verified && !strings.Contains(previous.Content, inboxPublicationReviewPolicy) {
+				if recoverSnapshot && legacyReviewProviderFailed(q) && !strings.Contains(previous.Content, inboxReviewProviderPolicy) {
+					key += ":provider-assessment:" + inboxReviewEvidenceDigest(detail)
+					requestID = delegationMessageID(key)
+				} else if observation := s.inboxReviewPublication(ctx, detail); recoverSnapshot && observation != nil && observation.Required && !observation.Verified && !strings.Contains(previous.Content, inboxPublicationReviewPolicy) {
 					key += ":publication-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else if recoverSnapshot && isReconciliationOperation(detail) && !strings.Contains(previous.Content, inboxOperationalReviewPolicy) {
@@ -739,7 +742,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			if q.State == "failed" && strings.Contains(q.SafeError, "tool permission was denied") && strings.HasSuffix(key, ":snapshot") && recoverSnapshot {
 				key += ":evaluation"
 				requestID = delegationMessageID(key)
-			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
+			} else if (strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:") || strings.Contains(key, ":provider-assessment:")) && (q.State == "failed" || q.State == "interrupted") && recoverSnapshot {
 				key += ":retry"
 				requestID = delegationMessageID(key)
 			} else {
@@ -766,6 +769,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	content += "\n" + inboxOperationalReviewPolicy
 	content += "\n" + inboxPublicationReviewPolicy
 	content += "\n" + inboxOwnershipPolicy
+	content += "\n" + inboxReviewProviderPolicy
 	content += taskRecoveryContext(detail)
 	q := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: targetRoomID, RequestID: requestID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: requestID, State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now}

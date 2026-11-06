@@ -583,6 +583,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			}
 		}
 		log.Printf("inbox runtime result rejected reason=%s bytes=%d events=%d tool_failures=%d", reason, runtime.bytes, runtime.events, runtime.toolFailures)
+		if reason == "provider_timeout" && toolFreeReview && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+			if step != nil {
+				step("review_provider_wait", "Provider timeout before a review decision. The saved task result remains unaccepted; no task execution will be replayed.")
+			}
+			return "", inboxReviewProviderWaiting
+		}
+
 		return "", failure
 	}
 	if runErr != nil {

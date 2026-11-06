@@ -119,6 +119,14 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		if attempts >= 8 || ctx.Err() != nil {
 			break
 		}
+		if lastNonQuotaFailure == inboxReviewProviderWaiting {
+			if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < inboxDirectReplyBudget()+10*time.Second {
+				if step != nil {
+					step("review_budget_wait", "Waiting to review the saved result rather than starting a provider stage beyond this turn's remaining budget.")
+				}
+				return "", inboxReviewProviderWaiting
+			}
+		}
 		// Try another permitted account before spending the turn on more models
 		// from one failing account. Preserve quota ranking within each group.
 		sort.SliceStable(routes, func(i, j int) bool { return !triedAccounts[routes[i].accountID] && triedAccounts[routes[j].accountID] })
@@ -173,6 +181,14 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 				step("account_failover_complete", "The reply is ready.")
 			}
 			return output, ""
+		}
+		if retryableInboxReviewProvider(ctx, failure, safe, len(attachments)) {
+			lastNonQuotaFailure = inboxReviewProviderWaiting
+			if step != nil {
+				step("review_provider_wait", "Review provider did not return a decision. Trying another allowed account or waiting to review the saved result; no task execution is repeated.")
+			}
+			routes = filterOutAccountRoutes(routes, route.accountID)
+			continue
 		}
 		if strings.Contains(failure, "location restriction") && safe {
 			// A regional rejection can be model-specific (for example Gemini
