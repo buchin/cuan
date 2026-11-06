@@ -8,6 +8,7 @@ import { runMermaidChecks } from './mermaid-browser-checks.mjs'
 
 const output = path.resolve(process.argv[2] || '')
 if (!process.argv[2]) throw new Error('Provide a private output directory')
+await fs.mkdir(output, { recursive: true, mode: 0o700 })
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'cuan-ui-capture-'))
 let server
 try {
@@ -39,7 +40,30 @@ try {
   for (const name of captures) {
     await fs.copyFile(path.join(temporary, name), path.join(output, name), fs.constants.COPYFILE_EXCL)
   }
+  // Browser workflows run after the diagram browser has closed. They render
+  // actual application components with isolated API data, never Owner access.
+  server.httpServer.closeAllConnections()
+  await new Promise(resolve => server.httpServer.close(resolve))
+  server = null
+  const workflow = spawnSync(process.execPath, [
+    fileURLToPath(new URL('./verify-inbox-work-panel.mjs', import.meta.url)),
+    path.join(output, 'workflow'),
+  ], { cwd: fileURLToPath(new URL('../..', import.meta.url)), stdio: 'inherit',
+       env: { ...process.env, CUAN_WORKFLOW_NATIVE: '1', NODE_OPTIONS: '--max-old-space-size=384' } })
+  if (workflow.error || workflow.status !== 0)
+    throw new Error('Application workflow verification failed; diagrams alone do not establish UI coverage', {cause: workflow.error})
+  captures.push('workflow/inbox-390.png', 'workflow/inbox-1440.png',
+                'workflow/session-running-390.png', 'workflow/session-running-1440.png')
+  for (const capture of captures) {
+    const stat = await fs.stat(path.join(output, capture))
+    if (!stat.isFile() || stat.size === 0) throw new Error(`Missing visual evidence: ${capture}`)
+  }
   const components = [
+    'web/src/features/inbox/InboxView.tsx',
+    'web/src/features/tasks/TaskSessionPage.tsx',
+    'web/src/features/tasks/TaskTerminal.tsx',
+    'web/src/components/layout/AppShell.tsx',
+    'web/src/components/ui/StatusDot.tsx',
     'web/src/features/inbox/ChatMarkdown.tsx',
     'web/src/components/ui/MarkdownViewer.tsx',
     'web/src/components/ui/MermaidDiagram.tsx',

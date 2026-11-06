@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/dodeval"
 )
 
 //go:embed agents_guidance.md
@@ -92,6 +93,9 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 	}
 	sb.WriteString(base)
 
+	if len(dodChecklist) == 0 {
+		dodChecklist = ApprovedScopeRequirements(taskInstructions)
+	}
 	if len(dodChecklist) > 0 {
 		sb.WriteString("\n\n=== MANDATORY DEFINITION OF DONE & ACCEPTANCE CRITERIA ===\n")
 		sb.WriteString("You MUST systematically satisfy, test, and provide concrete verification evidence for every criterion below:\n")
@@ -181,4 +185,37 @@ func BuildChatSystemPrompt(baseInstruction, schema, coordinatorPolicy, agentName
 	}
 
 	return sb.String()
+}
+
+// ApprovedScopeRequirements reads only the native delegation description. It
+// never parses user attachment data, transport metadata, project defaults or
+// reviewer feedback into new criteria, and never changes stored task scope.
+func ApprovedScopeRequirements(instructions string) []string {
+	const prefix = "Cuan managed delegation v1.\n"
+	if !strings.HasPrefix(instructions, prefix) {
+		return nil
+	}
+	body := strings.TrimPrefix(instructions, prefix)
+	end := strings.Index(body, "\n\nApproval message: ")
+	if end < 0 {
+		return nil
+	}
+	body = body[:end]
+	if strings.HasPrefix(body, "Approved scope digest: ") {
+		if line := strings.IndexByte(body, '\n'); line >= 0 {
+			body = body[line+1:]
+		} else {
+			return nil
+		}
+	}
+	var result []string
+	for _, requirement := range dodeval.ParseRequirements(body) {
+		if text := strings.TrimSpace(requirement.Text); text != "" {
+			result = append(result, text)
+		}
+		if len(result) == 25 {
+			break
+		}
+	}
+	return result
 }

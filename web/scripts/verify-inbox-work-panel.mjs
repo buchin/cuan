@@ -25,20 +25,22 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]})]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
-import {BrowserRouter} from 'react-router-dom';
+import {BrowserRouter,useLocation} from 'react-router-dom';
 import {LanguageProvider} from '/src/context/LanguageContext.tsx';
 import {AuthProvider} from '/src/context/AuthContext.tsx';
 import {AppShell} from '/src/components/layout/AppShell.tsx';
 import {InboxView} from '/src/features/inbox/InboxView.tsx';
+import {TaskSessionPage} from '/src/features/tasks/TaskSessionPage.tsx';
 import {InboxSubPanel} from '/src/features/inbox/InboxSubPanel.tsx';
 import '/src/index.css';
 const contact=${JSON.stringify(contact)},agents=${JSON.stringify(agents)};
 const noop=()=>{};
-createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppShell,{currentTab:'inbox',onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'}))))));`
+function Scene(){const location=useLocation();return location.pathname.startsWith('/tasks/work/sessions/')?React.createElement(TaskSessionPage,{taskId:'work',sessionId:location.pathname.split('/')[4]||'latest'}):React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'})}
+createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppShell,{currentTab:'inbox',onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene))))));`
 const webRoot=path.resolve('web')
 process.chdir(webRoot)
-const server=await createServer({root:webRoot,server:{host:'127.0.0.1',port:0},plugins:[{name:'work-fixture',resolveId(id){if(id==='/__work_entry.jsx')return '\0work-fixture-entry.jsx'},load(id){if(id==='\0work-fixture-entry.jsx')return entry},configureServer(server){server.middlewares.use(async(req,res,next)=>{
- if(req.url.startsWith('/inbox/work-fixture')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
+const server=await createServer({root:webRoot,envDir:path.resolve(output),cacheDir:path.join(path.resolve(output),'vite-cache'),server:{host:'127.0.0.1',port:0},plugins:[{name:'work-fixture',enforce:'pre',transform(code,id){if(process.env.CUAN_HOOK_REGRESSION_PROBE==='1'&&id.split('?')[0].endsWith('/TaskSessionPage.tsx')){if(!code.includes('  if (!detail) {'))throw Error('Hook regression probe target missing');return code.replace('  if (!detail) {','  if (detail) useRef(null)\n  if (!detail) {')}},resolveId(id){if(id==='/__work_entry.jsx')return '\0work-fixture-entry.jsx'},load(id){if(id==='\0work-fixture-entry.jsx')return entry},configureServer(server){server.middlewares.use(async(req,res,next)=>{
+ if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/tasks/work/sessions/')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
  else next()
 })}}]})
 await server.listen()
@@ -46,10 +48,15 @@ const origin=server.resolvedUrls.local[0]
 const browser=await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
 const checks=[]
 try{
- for(const width of [390,1440,1920]){
+ for(const width of (process.env.CUAN_WORKFLOW_NATIVE==='1'?[390,1440]:[390,1440,1920])){
   const context=await browser.newContext({viewport:{width,height:width===390?844:1000},hasTouch:width===390})
   await context.addInitScript(()=>{localStorage.setItem('cuan-language','id');localStorage.setItem('cuan_token','isolated-fixture')})
   const page=await context.newPage(),errors=[]
+  await page.routeWebSocket('**/api/v1/tasks/*/terminal?*', socket=>{
+   socket.send(JSON.stringify({type:'connected',session_id:'fixture-session',mode:'interactive',output_ack:true}))
+   socket.send(Buffer.from('Isolated terminal fixture output\r\nApplication workflow verification ready.\r\n'))
+  })
+  let releaseSession,sessionLoading=true,sessionStatus='running'
   page.on('pageerror',error=>errors.push(error.stack || error.message))
   page.on('console',message=>{if(message.type()==='error')console.log(message.text())})
   await page.route('**/api/**',async route=>{
@@ -59,8 +66,11 @@ try{
    if(pathname.endsWith('/auth/status'))data={setup_required:false}
    else if(pathname.endsWith('/auth/me'))data={user:{id:'owner',email:'owner@example.test',name:'Owner',role:'owner'}}
    else if(pathname.endsWith('/messages'))data={messages,tasks:[baseTask],contact,requests:[]}
-   else if(pathname==='/api/v1/tasks/work')data=fixtureTask
-   else if(pathname.endsWith('/run-agent/history'))data={history:[],live_session:{session_id:'fixture-session',attempt_id:'attempt',agent_id:'agent_cuan',started_at:now}}
+   else if(pathname==='/api/v1/tasks/work'){
+    if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
+    data=sessionStatus==='running'?fixtureTask:{...fixtureTask,status:'review',latest_attempt:{...attempt,status:'succeeded',finished_at:now},attempts:[{...attempt,status:'succeeded',finished_at:now}]}
+   }
+   else if(pathname.endsWith('/run-agent/history'))data={history:[],live_session:sessionStatus==='running'?{session_id:'fixture-session',attempt_id:'attempt',agent_id:'agent_cuan',started_at:now}:null}
    else if(pathname.endsWith('/logs'))data={logs:[{id:1,line:'Isolated terminal fixture output',stream:'stdout',logged_at:now}]}
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
    else if(pathname.includes('preferences'))data={items:{}}
@@ -82,6 +92,7 @@ try{
   await list.evaluate(el=>{el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-40)})
   await card.scrollIntoViewIfNeeded()
   const previousScroll=await list.evaluate(el=>el.scrollTop)
+  await page.screenshot({path:path.join(output,`inbox-${width}.png`)})
   await card.locator('[data-task-detail]').click()
   const panel=page.getByTestId('inbox-work-panel')
   await panel.locator('[data-work-timeline]').waitFor({state:'visible'})
@@ -131,9 +142,25 @@ try{
   await panel.locator('.xterm').waitFor({state:'visible'})
   const terminalBox=await panel.locator('[data-work-terminal]').boundingBox()
   assert.ok(terminalBox.height>650)
+  await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
   await page.screenshot({path:path.join(output,`terminal-${width}.png`)})
+  // Exercise the actual session component across the state transition which
+  // exposes conditional hook errors. No Owner credentials or backend writes.
+  await page.goto(new URL('/tasks/work/sessions/latest',origin).href,{waitUntil:'domcontentloaded'})
+  await page.locator('[role="status"] h3').waitFor({state:'visible',timeout:10000})
+  assert.equal(typeof releaseSession,'function')
+  const rendered=Promise.race([page.locator('[aria-label="Task session"]').waitFor({state:'visible',timeout:15000}),new Promise((_,reject)=>page.once('pageerror',reject))])
+  releaseSession()
+  await rendered
+  await page.locator('.xterm').waitFor({state:'visible',timeout:15000})
+  await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
+  await page.screenshot({path:path.join(output,`session-running-${width}.png`)})
+  sessionStatus='succeeded'
+  await page.locator('[aria-label="Session result"]').waitFor({state:'visible',timeout:10000})
+  await page.screenshot({path:path.join(output,`session-result-${width}.png`)})
+  assert.equal(await page.getByText('Something went wrong',{exact:true}).count(),0)
   assert.deepEqual(errors,[])
-  checks.push({width,one_card:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
+  checks.push({width,one_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
   await context.close()
  }
  await fs.writeFile(path.join(output,'verification.json'),JSON.stringify({source:'Actual application React components; isolated API fixtures, not live task evidence',checks},null,2))

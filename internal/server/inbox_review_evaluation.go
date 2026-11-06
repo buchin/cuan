@@ -25,6 +25,8 @@ const inboxReviewEvaluationInstruction = cuanPrompt.ConversationStyle + "\n\n" +
 
 Own the decision to continue approved work. Return manager_action=continue when a concrete in-scope correction or verification is warranted, replan when previous approaches failed and your revision identifies a different concrete approach, wait only for a genuine external prerequisite, or needs_owner only for missing business input, additional cost/scope or access/consent only the user can supply. Use decision=blocked for wait or needs_owner; these are not execution requests. Provide manager_reason as one concise factual basis, not private reasoning. Review manager_context before deciding: an attempt count alone never justifies asking the user to continue. Do not repeat a recently rejected identical revision without new authoritative evidence. A manager decision does not waive original scope, cancellation, publication or acceptance gates.
 
+When verification fails, distinguish an implementation defect from missing prerequisites, a stale test command, or wrong-screen evidence. A replan must identify the changed executable approach and its prerequisites. Prefer the registered repository verification entry point and its actual component coverage. Never substitute a public landing screenshot or Owner credentials for protected UI verification. For render/hook failures, require the affected loading/state/navigation transitions, not just a static image. If the same evidence was rejected, repeating its description or rerunning the same capture is not a new plan.
+
 When proposing revision, write revision as one concrete next step in the user's language, preserving original scope and limits. This exact text may be shown to the user for approval after automatic corrections are exhausted. Do not ask the user to diagnose the problem or choose the technical procedure; recommend the focused work yourself.
 
 native_visual_verification, when present, identifies the exact pinned repository recipe and component paths used by the native runner before model execution. Only delivered_images with runner_capture_verified=true match those recorded capture hashes and dimensions. This proves capture provenance and limited component coverage, not that every requested outcome is implemented. Inspect the actual images; unrelated components, missing required states, or incomplete criteria still prevent pass. Never credit an unverified supplemental image with native capture provenance.
@@ -120,6 +122,10 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 			}
 		}
 	}
+	var originalScopeRequirements []string
+	if len(d.DoDChecklist) == 0 {
+		originalScopeRequirements = cuanPrompt.ApprovedScopeRequirements(d.Instructions)
+	}
 	checklist := d.DoDChecklist
 	// Only the saved task checklist is authoritative. Parsing all instructions
 	// would turn transport metadata and safety rules into completion criteria.
@@ -140,6 +146,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		}
 	}
 	raw, _ := json.Marshal(map[string]any{
+		"original_scope_requirements":    originalScopeRequirements,
 		"github_connection_observation":  githubReviewObservation(d),
 		"registered_project":             s.registeredReviewProject(ctx, d),
 		"manager_context":                managerReviewContext(d),

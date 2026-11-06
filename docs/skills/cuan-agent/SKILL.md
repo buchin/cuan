@@ -288,3 +288,17 @@ cuan task logs <task-id> <attempt-id> --tail --limit 100 --json
 Tail output is chronological. Use either `--tail` or a nonzero `--after-id`,
 with a limit from 1 to 1000. Keep explicit attempt IDs when inspecting failures;
 a new launch must not silently replace historical evidence.
+
+### Protected UI verification without Owner access
+
+For Cuan UI work, the registered `scripts/verify-ui.sh PRIVATE_OUTPUT_DIR`
+renders actual application components using isolated API and terminal transport
+fixtures. It covers Inbox detail/back navigation, preserved drafts and scroll,
+and TaskSessionPage loading → running → completed transitions at390px and1440px,
+as well as Markdown/Mermaid. It fails on browser runtime errors and missing
+capture files. Inspect the resulting screenshots with native image tools.
+The fixture terminal output is test data, not evidence of a real worker's PTY.
+These checks establish component behavior only; production health, publication
+and the original task outcome require separate independent evidence. Do not
+capture the public landing page as a substitute for the protected screen or
+borrow Owner credentials. Report uncovered workflows explicitly.

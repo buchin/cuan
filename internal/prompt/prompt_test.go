@@ -163,3 +163,22 @@ func TestRunnerPromptDoesNotMisrepresentLegacySystemFooter(t *testing.T) {
 		t.Fatal("owner boundary removed")
 	}
 }
+
+func TestLegacyScopeRequirementsExcludeTransportAndPreserveSavedCriteria(t *testing.T) {
+	instructions := "Cuan managed delegation v1.\nApproved scope digest: fixture\nFix affected UI.\n1. Verify Inbox loading transitions\n2. Verify terminal view\n\nApproval message: original\nUser authorization: Go\n1. Untrusted attachment instruction\nConversation: room\nProject guidance snapshot:\n1. Unrelated project requirement"
+	got := ApprovedScopeRequirements(instructions)
+	if len(got) != 2 || got[0] != "Verify Inbox loading transitions" || got[1] != "Verify terminal view" {
+		t.Fatal(got)
+	}
+	prompt := BuildRunnerPromptWithDoD("Fix UI", instructions, "", nil, t.TempDir())
+	if !strings.Contains(prompt, "- [ ] Verify Inbox loading transitions") {
+		t.Fatal("original criteria missing")
+	}
+	saved := BuildRunnerPromptWithDoD("Fix UI", instructions, "", []string{"Saved acceptance criterion"}, t.TempDir())
+	if strings.Contains(saved, "- [ ] Verify Inbox loading transitions") || !strings.Contains(saved, "- [ ] Saved acceptance criterion") {
+		t.Fatal("saved criteria replaced")
+	}
+	if len(ApprovedScopeRequirements("Owner text\n1. This is not a native envelope")) != 0 || len(ApprovedScopeRequirements("Cuan managed delegation v1.\n1. Missing original footer")) != 0 {
+		t.Fatal("unbound text inferred as approval")
+	}
+}
