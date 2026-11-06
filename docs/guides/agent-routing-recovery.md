@@ -67,3 +67,18 @@ scope, a current unexpired launch and no active execution, cancellation or later
 explicit block. Ordinary failures, manual blocks, expired/cancelled approvals and
 accepted work stay untouched. Execution still rechecks the saved owner approval
 and cancellation through the normal launch path. No failed attempt is replayed.
+
+### Started launch with a queued execution
+
+A launch marked `started` means its attempt was created, not that the runner has
+begun executing it. A launch bound to its own still-queued attempt therefore does
+not hold the project execution lock. Treating it as working made several queued
+launches block one another while the runner stayed idle.
+
+Claiming serializes lane checks for each runner. For a project-bound candidate,
+the database takes a short project claim lock and rechecks eligibility in a fresh
+snapshot before transitioning it to running. Concurrent runners cannot use the
+queue correction to claim two conflicting project tasks. Actual running attempts,
+live claimed preparation and started launches with unknown attempt ownership
+retain their existing protections. Existing attempts advance through normal
+claiming; no retry, task rewrite or manual lock deletion is required.

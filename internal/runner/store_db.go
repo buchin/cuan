@@ -184,6 +184,10 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		return nil, nil, fmt.Errorf("begin claim tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// Concurrent claims for one runner must observe the preceding lane claim.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "cuan-runner-claim:"+runnerID); err != nil {
+		return nil, nil, fmt.Errorf("lock runner claim: %w", err)
+	}
 
 	// 1. Calculate active executions per lane for this runner
 	var activeCode, activeOps, activeRead int
@@ -299,7 +303,12 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review')
 		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
 		                        AND (
-		                            active_tl.state = 'started'
+		                            (active_tl.state = 'started' AND NOT EXISTS (
+		                                SELECT 1 FROM task_attempts pending_att
+		                                WHERE pending_att.id = active_tl.attempt_id
+		                                  AND pending_att.task_id = active_tl.task_id
+		                                  AND pending_att.status = 'queued'
+		                            ))
 		                            OR (active_tl.state = 'claimed' AND active_tl.lease_until > NOW())
 		                        )
 		                  )
@@ -374,6 +383,26 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("query queued attempt: %w", err)
+	}
+	if t.ProjectID != "" {
+		// A queued launch is not a project lock. Serialize the transition to
+		// running, then recheck eligibility with a fresh READ COMMITTED snapshot.
+		var locked bool
+		if err := tx.QueryRowContext(ctx, `SELECT pg_try_advisory_xact_lock(hashtextextended($1,0))`, "cuan-project-claim:"+t.ProjectID).Scan(&locked); err != nil {
+			return nil, nil, fmt.Errorf("lock project claim: %w", err)
+		}
+		if !locked {
+			return nil, nil, nil
+		}
+		check := strings.Replace(query, "ORDER BY a.created_at ASC", "AND a.id=$8 ORDER BY a.created_at ASC", 1)
+		check = "SELECT EXISTS(SELECT 1 FROM (" + check + ") eligible)"
+		var eligible bool
+		if err := tx.QueryRowContext(ctx, check, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, att.ID).Scan(&eligible); err != nil {
+			return nil, nil, fmt.Errorf("recheck project claim: %w", err)
+		}
+		if !eligible {
+			return nil, nil, nil
+		}
 	}
 
 	now := time.Now().UTC()

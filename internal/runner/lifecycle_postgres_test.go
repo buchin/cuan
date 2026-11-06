@@ -160,4 +160,5 @@ func TestExecutionLifecyclePostgres(t *testing.T) {
 	if err != nil || legacy.Status != task.AttemptStatusSucceeded {
 		t.Fatalf("legacy row lost: %+v %v", legacy, err)
 	}
+	queuedLaunchClaimPostgresContract(t, db)
 }
