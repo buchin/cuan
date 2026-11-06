@@ -64,3 +64,34 @@ func (s *Service) fetchVerificationTarget(ctx context.Context, projectID, target
 	defer cancel()
 	return s.gitClient.FetchVerificationCommit(fetch, registered.LocalPath, registered.RepoURL, targetCommit, token)
 }
+
+// PublishedCommitContained proves only immutable Git ancestry. The caller must
+// independently observe target as the registered project's running release.
+// No checkout, task workspace, repository refs or production state is changed.
+func (s *Service) PublishedCommitContained(ctx context.Context, projectID, source, target string) (bool, error) {
+	if s.gitClient == nil {
+		return false, errors.New("publication repository is unavailable")
+	}
+	p, err := s.Get(ctx, projectID)
+	if err != nil || p == nil || p.IsArchived || p.LocalPath == "" || p.RepoURL == "" {
+		return false, errors.New("publication repository is unavailable")
+	}
+	contained, err := s.gitClient.CommitContained(ctx, p.LocalPath, source, target)
+	if errors.Is(err, git.ErrVerificationCommitUnavailable) {
+		// Fetch exact objects through this project's saved connection only.
+		for _, commit := range []string{target, source} {
+			if err = s.fetchVerificationTarget(ctx, projectID, commit); err != nil {
+				return false, err
+			}
+			contained, err = s.gitClient.CommitContained(ctx, p.LocalPath, source, target)
+			if !errors.Is(err, git.ErrVerificationCommitUnavailable) {
+				break
+			}
+		}
+	}
+	fresh, readErr := s.Get(ctx, projectID)
+	if readErr != nil || fresh == nil || fresh.IsArchived || fresh.LocalPath != p.LocalPath || fresh.RepoURL != p.RepoURL || string(fresh.Metadata) != string(p.Metadata) {
+		return false, errors.New("publication project changed during verification")
+	}
+	return contained, err
+}

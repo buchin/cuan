@@ -80,6 +80,12 @@ func TestProjectVerificationSnapshotUsesOwnedConnectionAndPreservesWork(t *testi
 			}
 			service := NewService(store, nil, "fixture-key", filepath.Join(root, "projects"))
 			service.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "fixture-project-token", nil })
+			if !denied {
+				contained, err := service.PublishedCommitContained(context.Background(), "fixture", original, live)
+				if err != nil || !contained {
+					t.Fatal("owned connection did not verify contained publication", err)
+				}
+			}
 			path, err := service.VerificationSnapshot(context.Background(), "fixture", "task", original, live)
 			if denied {
 				if err == nil || !strings.Contains(err.Error(), "Connect GitHub") || path != "" {
@@ -90,6 +96,9 @@ func TestProjectVerificationSnapshotUsesOwnedConnectionAndPreservesWork(t *testi
 					t.Fatal("project did not prepare the exact published revision", err)
 				}
 				service.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "", errors.New("connection no longer available") })
+				if contained, err := service.PublishedCommitContained(context.Background(), "fixture", original, live); err != nil || !contained {
+					t.Fatal("cached immutable ancestry required another sign-in", err)
+				}
 				if again, err := service.VerificationSnapshot(context.Background(), "fixture", "task", original, live); err != nil || again != path {
 					t.Fatal("existing snapshot unnecessarily required another sign-in/fetch", err)
 				}

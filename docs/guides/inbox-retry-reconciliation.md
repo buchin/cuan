@@ -60,6 +60,16 @@ it cannot grant configuration changes or repeat external operations. If inspecti
 finds a required change, the worker reports that gap for another coordinator
 assessment. Implementation corrections retain their existing approved scope.
 
+Publication verification also recognizes a result commit contained in a later
+running release. The server first observes the registered project's release,
+then checks real Git ancestry in that project's cache, ignoring replace refs,
+grafts and ambient Git configuration. Missing objects are fetched by exact SHA
+through the saved project connection; repository files, index and refs remain
+unchanged. The observation keeps the original result SHA and explicitly records
+`*_contains_result_commit` provenance. This proves publication of that commit,
+not feature correctness or that the task deployed the later release. An unrelated
+branch, missing connection or unverifiable ancestry cannot pass this gate.
+
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
 must still complete its original acceptance checks and coordinator review.

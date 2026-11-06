@@ -278,6 +278,30 @@ func (c *Client) VerificationPathsChanged(parent context.Context, root, source, 
 	return c.CommittedPathsChanged(ctx, root, source, target, paths)
 }
 
+// CommitContained reads real commit ancestry, ignoring replace refs and grafts.
+// It never requires or changes the working tree, index, HEAD or refs.
+func (c *Client) CommitContained(parent context.Context, root, source, target string) (bool, error) {
+	if !snapshotObjectID.MatchString(source) || !snapshotObjectID.MatchString(target) {
+		return false, errors.New("publication commit identity unavailable")
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
+	for _, sha := range []string{source, target} {
+		if _, err := c.snapshotGit(ctx, root, "cat-file", "-e", sha+"^{commit}"); err != nil {
+			return false, ErrVerificationCommitUnavailable
+		}
+	}
+	_, err := c.snapshotGit(ctx, root, "merge-base", "--is-ancestor", source, target)
+	if err == nil {
+		return true, nil
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, errors.New("publication ancestry could not be verified")
+}
+
 // CommittedPathsChanged reads immutable objects without requiring or changing
 // the project cache's working tree, index, HEAD or refs. It creates no snapshot.
 func (c *Client) CommittedPathsChanged(parent context.Context, root, source, target string, paths []string) (bool, error) {
