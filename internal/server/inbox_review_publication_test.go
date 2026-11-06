@@ -62,6 +62,12 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 				input = inboxReviewEvaluation{Decision: "revise", RemainingWork: strings.Fields(scenario)[0], Finding: "Deployment did not happen", Explanation: "Deploy again to obtain a receipt", Revision: "Check the approved feature", VisualInspection: "Observed existing view"}
 			}
 			result := s.requirePublicationReview(ctx, d, input)
+			if observed := s.inboxReviewPublication(ctx, d); observed != nil && !observed.Verified && missingPublicationConnection(observed.ConnectionState) {
+				if result.Decision != "blocked" || result.RemainingWork != "external" || result.ManagerAction != "wait" || result.Revision != "" {
+					t.Fatal("missing connection launched another repair", result)
+				}
+				return
+			}
 			if scenario == "implementation revision" {
 				if result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum bisa dipastikan") {
 					t.Fatal("implementation gap or publication reconciliation lost")

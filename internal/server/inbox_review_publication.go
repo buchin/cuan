@@ -69,19 +69,21 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	if observation == nil || !observation.Required || observation.Verified {
 		return decision
 	}
-	// Applying acceptance guards again after persisting a review must not
-	// duplicate revision text or invalidate its saved continuation identity.
+	if missingPublicationConnection(observation.ConnectionState) {
+		// Task capabilities cannot register an Owner-scoped connection. Wait
+		// for that concrete prerequisite instead of looping implementation.
+		// A changed saved connection triggers native snapshot re-evaluation.
+		return inboxReviewEvaluation{
+			Decision: "blocked", RequestedOutcome: "unfinished", RemainingWork: "external",
+			Finding:       "Hasil pekerjaan tersimpan, tetapi penerapannya di website belum bisa diverifikasi.",
+			Explanation:   "Hasil pekerjaan tersimpan. Koneksi untuk memverifikasi website belum tersedia; pekerjaan ini belum bisa dinyatakan selesai.",
+			ManagerAction: "wait", ManagerReason: missingPublicationConnectionGuidance,
+			VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft,
+		}
+	}
+	// Reapplying the guard preserves the exact saved continuation identity.
 	if decision.Decision == "revise" && (strings.HasPrefix(decision.Revision, "First reconcile the registered project's existing release and saved deployment effects.") || strings.HasPrefix(decision.Revision, "Gap: the original project's required production publication is not verified")) {
 		return decision
-	}
-	if missingPublicationConnection(observation.ConnectionState) && !strings.Contains(decision.Revision, missingPublicationConnectionGuidance) {
-		if decision.Decision == "pass" {
-			decision.Decision = "revise"
-			decision.RemainingWork = "verification"
-			decision.Revision = missingPublicationConnectionGuidance
-		} else {
-			decision.Revision = missingPublicationConnectionGuidance + " Existing review gaps to preserve: " + decision.Revision
-		}
 	}
 	// A reviewer can misclassify absent publication proof as implementation
 	// work. Preserve concrete findings, but never let that classification skip

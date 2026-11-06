@@ -80,7 +80,7 @@ func TestPublicationGuardIsIdempotentForSavedManagerDecision(t *testing.T) {
 			s, d, _ := stalledReviewFixture(t, "completed")
 			ctx := context.Background()
 			projects := project.NewMemoryStore()
-			if err := projects.CreateProject(ctx, &project.Project{ID: d.ProjectID, RepoURL: "https://github.com/example/project"}); err != nil {
+			if err := projects.CreateProject(ctx, &project.Project{ID: d.ProjectID, RepoURL: "https://github.com/example/project", Metadata: registeredReleaseMetadata(t)}); err != nil {
 				t.Fatal(err)
 			}
 			s.projectSvc = project.NewService(projects, nil, "", t.TempDir())

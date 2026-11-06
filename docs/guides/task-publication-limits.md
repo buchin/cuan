@@ -57,3 +57,12 @@ or deployment claim. A changed saved project configuration changes the review
 evidence digest and wakes the existing deduplicated snapshot review path. It does
 not execute a task, grant consent, reset attempt budgets or accept work. Existing
 cancellation, owner lineage and native publication/visual gates remain in force.
+
+When required publication remains unverified and its registered connection is
+missing/incomplete/unsupported, native review waits on that prerequisite instead
+of launching another implementation attempt. A task worker cannot use its task
+capability to rewrite Owner-scoped project settings. Neither a model's replan nor
+a changed local `.env.deploy` file registers a trusted Cuan connection. Other
+acceptance requirements remain unaccepted and must be checked after setup.
+A changed saved connection wakes one fresh review of the same task; configuration
+alone never starts another execution or marks the work complete.

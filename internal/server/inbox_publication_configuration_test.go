@@ -147,7 +147,7 @@ func TestPublicationContextDistinguishesMissingConnectionFromFailedObservation(t
 				t.Fatal("unconfigured or foreign target was probed")
 			}
 			decision := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "pass", Explanation: "Reported done", RemainingWork: "none"})
-			if missingPublicationConnection(want) && !observed.Verified && !strings.Contains(decision.Revision, missingPublicationConnectionGuidance) {
+			if missingPublicationConnection(want) && !observed.Verified && (decision.Decision != "blocked" || decision.ManagerAction != "wait" || !strings.Contains(decision.ManagerReason, missingPublicationConnectionGuidance)) {
 				t.Fatal("specific prerequisite lost")
 			}
 			if s.requirePublicationReview(ctx, d, decision) != decision {
@@ -211,5 +211,58 @@ func publicationConfigurationPostgresContract(t *testing.T, database *sql.DB, re
 	json.Unmarshal([]byte(publicationConfigurationObservation(final).Message), &changed)
 	if count != 2 || changed.State != "configured" || final.Status == task.TaskStatusDone || len(final.Attempts) != 1 {
 		t.Fatal("PostgreSQL configuration lifecycle", count, changed.State)
+	}
+}
+
+func TestMissingPublicationConnectionWaitsWithoutRepeatingWorkAndRechecksAfterSetup(t *testing.T) {
+	ctx := context.Background()
+	s, d := managerFixture(t)
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+	p := &project.Project{ID: d.ProjectID, RepoURL: "https://github.com/example/site", UpdatedAt: time.Now()}
+	if err := store.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	d.CommitSHA = strings.Repeat("a", 40)
+	if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+		t.Fatal(err)
+	}
+	q := reviewRequests(t, s, d.SourceRoomID)[0]
+	raw, _ := json.Marshal(inboxReviewEvaluation{Decision: "revise", RemainingWork: "implementation", Finding: "Release proof missing", Explanation: "Reconcile release", Revision: "Synchronize the release environment again", ManagerAction: "replan", ManagerReason: "No registered connection"})
+	result := s.applyInboxReviewEvaluation(ctx, q, string(raw))
+	current, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assessment, ok := reviewAssessment(current, q.RequestID)
+	if !ok || assessment.Decision != "blocked" || assessment.ManagerAction != "wait" || assessment.RemainingWork != "external" || current.Status != task.TaskStatusBlocked || len(current.Attempts) != len(d.Attempts) {
+		t.Fatal("prerequisite became execution", assessment, result)
+	}
+	if launch, _ := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID)); launch != nil {
+		t.Fatal("missing connection created another attempt")
+	}
+	p.Metadata = registeredReleaseMetadata(t)
+	p.UpdatedAt = p.UpdatedAt.Add(time.Second)
+	if err := store.UpdateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	s.queueInboxTaskReview(ctx, current)
+	s.queueInboxTaskReview(ctx, current)
+	requests := reviewRequests(t, s, d.SourceRoomID)
+	if len(requests) != 2 {
+		t.Fatal("setup did not wake one review", len(requests))
+	}
+	var pending db.InboxRequest
+	for _, r := range requests {
+		if r.RequestID != q.RequestID {
+			pending = r
+		}
+	}
+	if pending.State != "queued" || s.inboxReviewedTask(ctx, pending) == nil {
+		t.Fatal("setup did not bind review to saved task")
+	}
+	after, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if len(after.Attempts) != len(d.Attempts) || after.Status == task.TaskStatusDone {
+		t.Fatal("setup itself executed or accepted task")
 	}
 }
