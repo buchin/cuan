@@ -158,7 +158,7 @@ func (r *SQLProjectStudioRepository) ListInboxRequests(ctx context.Context, room
 		if err := json.Unmarshal(steps, &q.Steps); err != nil {
 			return nil, err
 		}
-		q.Steps = append([]InboxStep(nil), q.Steps...)
+		q.Steps = compactInboxSteps(append([]InboxStep(nil), q.Steps...))
 		out = append(out, q)
 	}
 	return out, rows.Err()
@@ -220,7 +220,7 @@ func (r *MemoryProjectStudioRepository) ListInboxRequests(ctx context.Context, r
 			q.SafeError = interruptedInbox
 			r.requests[key] = q
 		}
-		q.Steps = append([]InboxStep(nil), q.Steps...)
+		q.Steps = compactInboxSteps(append([]InboxStep(nil), q.Steps...))
 		out = append(out, q)
 	}
 	sort.Slice(out, func(i, j int) bool {
