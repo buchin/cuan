@@ -83,7 +83,34 @@ func tryLeaseProviderAccount(owner, id string, task bool) (func(), error) {
 // Background reviews share one slot per account. They must not fill all slots
 // while new user work waits; the account's total concurrency is unchanged.
 func TryLeaseProviderAccountForReview(owner, id string) (func(), error) {
-	return tryLeaseProviderAccountSlots(owner, id, 1, false)
+	if id == "" {
+		return func() {}, nil
+	}
+	dir, err := accountLeaseDirectory(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	review, err := accountLeaseFile(filepath.Join(dir, ".review.lock"))
+	if err != nil {
+		return nil, err
+	}
+	if err = syscall.Flock(int(review.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		review.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return nil, ErrAccountBusy
+		}
+		return nil, err
+	}
+	releaseReview := releaseAccountFiles(review)
+	// The review-class limit is independent of slot placement. A long task in
+	// slot0 must not strand idle slots1/2 or consume the reserved chat slot.
+	releaseSlot, err := tryLeaseProviderAccountSlots(owner, id, providerTaskSessionLimit(), false)
+	if err != nil {
+		releaseReview()
+		return nil, err
+	}
+	var once sync.Once
+	return func() { once.Do(func() { releaseSlot(); releaseReview() }) }, nil
 }
 
 func tryLeaseProviderAccountSlots(owner, id string, limit int, reverse bool) (func(), error) {

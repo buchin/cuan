@@ -97,3 +97,13 @@ SHA, native runner restart, public conversation identity and saved settings afte
 release. The native activation script restores the previous release on failed
 health checks. Operational rollback uses the existing documented release rollback;
 saved conversations, credentials and project settings remain intact.
+
+### Background review admission
+
+Background reviews hold a separate cross-process `.review.lock` class gate, then
+acquire any free slot from the same noninteractive account pool as tasks. This
+limits reviews to one per account without pinning them to slot0: a task that
+started first must not strand other idle slots. Total account concurrency and
+reserved interactive capacity remain unchanged. Failed admission releases the
+review gate, and process exit releases both OS locks. This is local capacity,
+not evidence that the provider quota or a requested model is available.

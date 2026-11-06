@@ -225,3 +225,139 @@ func TestBackgroundReviewsLeaveCapacityForTasksAndChat(t *testing.T) {
 		t.Fatal("total account limit changed", err)
 	}
 }
+
+func TestBackgroundReviewUsesFreeSlotAfterTask(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "4")
+	t.Setenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS", "1")
+	account, err := CreateProviderAccount("owner", "review-after-task")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := TryLeaseProviderAccountForTask("owner", account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer task()
+	review, err := TryLeaseProviderAccountForReview("owner", account.ID)
+	if err != nil {
+		t.Fatal("idle account slots stranded behind first task", err)
+	}
+	defer review()
+	if release, err := TryLeaseProviderAccountForReview("owner", account.ID); !errors.Is(err, ErrAccountBusy) {
+		if release != nil {
+			release()
+		}
+		t.Fatal("second review admitted", err)
+	}
+	secondTask, err := TryLeaseProviderAccountForTask("owner", account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondTask()
+	chat, err := TryLeaseProviderAccount("owner", account.ID)
+	if err != nil {
+		t.Fatal("review consumed reserved chat capacity", err)
+	}
+	defer chat()
+	if release, err := TryLeaseProviderAccountForTask("owner", account.ID); !errors.Is(err, ErrAccountBusy) {
+		if release != nil {
+			release()
+		}
+		t.Fatal("account oversubscribed", err)
+	}
+	review()
+	review() // releasing a review remains idempotent and frees both locks.
+	next, err := TryLeaseProviderAccountForReview("owner", account.ID)
+	if err != nil {
+		t.Fatal("review gate leaked", err)
+	}
+	next()
+}
+
+func TestFailedReviewAdmissionDoesNotRetainClassGate(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "2")
+	t.Setenv("CUAN_ACCOUNT_CHAT_RESERVED_SESSIONS", "1")
+	account, err := CreateProviderAccount("owner", "review-admission")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := TryLeaseProviderAccountForTask("owner", account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if release, err := TryLeaseProviderAccountForReview("owner", account.ID); !errors.Is(err, ErrAccountBusy) {
+		if release != nil {
+			release()
+		}
+		t.Fatal("reserved chat slot used", err)
+	}
+	task()
+	review, err := TryLeaseProviderAccountForReview("owner", account.ID)
+	if err != nil {
+		t.Fatal("failed admission retained review lock", err)
+	}
+	defer review()
+	chat, err := TryLeaseProviderAccount("owner", account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer chat()
+	if release, err := TryLeaseProviderAccountForReview("owner", account.ID); !errors.Is(err, ErrAccountBusy) {
+		if release != nil {
+			release()
+		}
+		t.Fatal("review class limit changed", err)
+	}
+}
+
+func TestReviewClassGateCrossProcess(t *testing.T) {
+	if id := os.Getenv("CUAN_REVIEW_LEASE_FIXTURE"); id != "" {
+		release, err := TryLeaseProviderAccountForReview("owner", id)
+		if errors.Is(err, ErrAccountBusy) {
+			os.Exit(3)
+		}
+		if err != nil {
+			os.Exit(4)
+		}
+		release()
+		os.Exit(0)
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "4")
+	account, err := CreateProviderAccount("owner", "cross-process-review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := TryLeaseProviderAccountForTask("owner", account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer task()
+	review, err := TryLeaseProviderAccountForReview("owner", account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer review()
+	probe := func(want int) {
+		t.Helper()
+		cmd := exec.Command(os.Args[0], "-test.run=^TestReviewClassGateCrossProcess$")
+		cmd.Env = append(os.Environ(), "CUAN_REVIEW_LEASE_FIXTURE="+account.ID)
+		err := cmd.Run()
+		got := 0
+		if err != nil {
+			exit, ok := err.(*exec.ExitError)
+			if !ok {
+				t.Fatal(err)
+			}
+			got = exit.ExitCode()
+		}
+		if got != want {
+			t.Fatalf("review process exit=%d want=%d", got, want)
+		}
+	}
+	probe(3)
+	review()
+	probe(0) // the task still owns slot0, but review may use another idle slot.
+}
