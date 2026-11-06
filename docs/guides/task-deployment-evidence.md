@@ -63,3 +63,11 @@ diagnostic lifecycle directory and supplies that directory as an additional AGY
 workspace root. It leaves repository and account configuration untouched.
 Configuration and PTY shutdown safeguards are tested; discovery by the real
 authenticated CLI and end-to-end recovery still require native verification.
+
+Final-report interpretation is shared in `task.TaskDetailResponse.FinalAgentReportState`.
+Runner shutdown and lifecycle adapters use the same latest-report rule: a
+nonempty result and evidence, an explicit final report state, and the exact
+attempt identity are required. A later progress report invalidates an earlier
+final report. This protocol is independent of harness; native event transport
+and callback registration remain harness-specific. It does not certify process
+success, correct implementation or publication.

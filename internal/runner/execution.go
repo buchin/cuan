@@ -80,35 +80,17 @@ func (r *Runner) finalAgentReportState(ctx context.Context, claim ClaimTaskRespo
 	if response.StatusCode != http.StatusOK {
 		return ""
 	}
-	var snapshot struct {
-		Checklist    []task.DoDItem `json:"dod_checklist"`
-		Summary      string         `json:"summary"`
-		CompleteNote string         `json:"complete_note"`
-		Activities   []struct {
-			AttemptID    *string `json:"attempt_id"`
-			ActivityType string  `json:"activity_type"`
-			NewStatus    string  `json:"new_status"`
-		} `json:"activities"`
-	}
+	var snapshot task.TaskDetailResponse
 	if err := json.NewDecoder(response.Body).Decode(&snapshot); err != nil {
 		return ""
 	}
-	if strings.TrimSpace(snapshot.Summary) == "" || strings.TrimSpace(snapshot.CompleteNote) == "" {
-		return ""
+	state := snapshot.FinalAgentReportState(claim.Attempt.ID)
+	if state != "" {
+		claim.Task.Summary = snapshot.Summary
+		claim.Task.CompleteNote = snapshot.CompleteNote
+		claim.Task.DoDChecklist = snapshot.DoDChecklist
 	}
-	for i := len(snapshot.Activities) - 1; i >= 0; i-- {
-		activity := snapshot.Activities[i]
-		if activity.AttemptID != nil && *activity.AttemptID == claim.Attempt.ID && activity.ActivityType == "agent_report" {
-			if activity.NewStatus != "review" && activity.NewStatus != "done" && activity.NewStatus != "blocked" {
-				return ""
-			}
-			claim.Task.Summary = snapshot.Summary
-			claim.Task.CompleteNote = snapshot.CompleteNote
-			claim.Task.DoDChecklist = snapshot.Checklist
-			return activity.NewStatus
-		}
-	}
-	return ""
+	return state
 }
 
 func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTaskResponse, hasCodeChanges bool, expectedCommit string) (bool, string) {

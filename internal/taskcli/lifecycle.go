@@ -3,10 +3,10 @@ package taskcli
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/buchin/cuan/internal/task"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -47,32 +47,12 @@ func runStopHook(input io.Reader, out io.Writer) int {
 	if Run([]string{"get"}, &snapshot, io.Discard) != 0 {
 		return 0
 	}
-	var data struct {
-		Summary       string `json:"summary"`
-		CompleteNote  string `json:"complete_note"`
-		LatestAttempt struct {
-			ID              string `json:"id"`
-			Status          string `json:"status"`
-			CancelRequested bool   `json:"cancel_requested"`
-		} `json:"latest_attempt"`
-		Activities []struct {
-			AttemptID string `json:"attempt_id"`
-			Type      string `json:"activity_type"`
-			State     string `json:"new_status"`
-		} `json:"activities"`
-	}
-	if json.Unmarshal(snapshot.Bytes(), &data) != nil || data.LatestAttempt.ID == "" || data.LatestAttempt.Status != "running" || data.LatestAttempt.CancelRequested {
+	var data task.TaskDetailResponse
+	if json.Unmarshal(snapshot.Bytes(), &data) != nil || data.LatestAttempt == nil || data.LatestAttempt.ID == "" || data.LatestAttempt.Status != "running" || data.LatestAttempt.CancelRequested {
 		return 0
 	}
-	for i := len(data.Activities) - 1; i >= 0; i-- {
-		a := data.Activities[i]
-		if a.AttemptID != data.LatestAttempt.ID || a.Type != "agent_report" {
-			continue
-		}
-		if (a.State == "review" || a.State == "done" || a.State == "blocked") && strings.TrimSpace(data.Summary) != "" && strings.TrimSpace(data.CompleteNote) != "" {
-			return 0
-		}
-		break
+	if data.FinalAgentReportState(data.LatestAttempt.ID) != "" {
+		return 0
 	}
 	if time.Until(deadline) < 15*time.Second {
 		return 0
