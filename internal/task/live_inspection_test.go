@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -91,14 +92,14 @@ func TestCurrentOutcomeLaunchPreservesScopeAndSingleRequestIdentity(t *testing.T
 	now := time.Now().UTC()
 	task := &Task{ID: "task", ProjectID: "project", SourceRoomID: "room", Instructions: "Approved original requirements"}
 	base := LiveInspectionIntent{Purpose: CurrentOutcomeInspection, SourceAttemptID: "failed-timeout", TargetCommit: strings.Repeat("a", 40), Repository: "buchin/cuan", OwnerID: "owner", RoomID: "room", SourceRequestID: "original", InstructionsHash: LaunchInstructionsHash(task.Instructions), ObservedAt: now}
-	for _, name := range []string{"valid", "unknown purpose", "invented source", "inspection chain", "wrong scope", "foreign owner", "foreign room", "future observation", "changed target"} {
+	for _, name := range []string{"valid", "unknown purpose", "historical source shape", "inspection chain", "wrong scope", "foreign owner", "foreign room", "future observation", "changed target"} {
 		t.Run(name, func(t *testing.T) {
 			p := base
 			launch := &TaskLaunch{TaskID: task.ID, ProjectID: task.ProjectID, OwnerID: p.OwnerID, RoomID: p.RoomID, SourceRequestID: p.SourceRequestID, InstructionsHash: p.InstructionsHash, CreatedAt: now, RequestID: p.RequestID(task.ID)}
 			switch name {
 			case "unknown purpose":
 				p.Purpose = "other"
-			case "invented source":
+			case "historical source shape":
 				p.SourceCommit = strings.Repeat("b", 40)
 			case "inspection chain":
 				p.PreviousAttemptID = "prior"
@@ -117,7 +118,7 @@ func TestCurrentOutcomeLaunchPreservesScopeAndSingleRequestIdentity(t *testing.T
 			raw, _ := json.Marshal(p)
 			launch.Revision = LiveInspectionMarker + string(raw)
 			got, err := LiveInspectionForLaunch(task, launch)
-			valid := name == "valid" || name == "changed target"
+			valid := name == "valid" || name == "changed target" || name == "historical source shape"
 			if (err == nil && got != nil) != valid {
 				t.Fatalf("unexpected binding acceptance: %v", err)
 			}
@@ -268,5 +269,24 @@ func TestReviewedUnpublishedOutcomeRequiresBoundVerificationAssessment(t *testin
 				t.Fatal("modern assessment fabricated legacy acceptance")
 			}
 		})
+	}
+}
+
+func TestCurrentOutcomeInventedSourceRequiresNativeEvidence(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	now := time.Now().UTC()
+	exit := 124
+	item := &Task{ID: "invented-source", Status: TaskStatusBlocked, Instructions: "Approved scope", CommitSHA: strings.Repeat("b", 40)}
+	if err := store.CreateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	source := &TaskAttempt{ID: "failed-source", TaskID: item.ID, Status: AttemptStatusFailed, ExitCode: &exit, CreatedAt: now.Add(-time.Hour), FinishedAt: &now}
+	if err := store.CreateAttempt(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	proof := &LiveInspectionIntent{Purpose: CurrentOutcomeInspection, SourceAttemptID: source.ID, SourceCommit: item.CommitSHA, TargetCommit: strings.Repeat("a", 40), InstructionsHash: LaunchInstructionsHash(item.Instructions), ObservedAt: now}
+	if err := ValidateLiveInspectionSource(ctx, store, item, proof); err == nil {
+		t.Fatal("syntactically valid commit accepted without native source evidence")
 	}
 }

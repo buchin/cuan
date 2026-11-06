@@ -532,3 +532,8 @@ The work panel header carries the task title instead of a generic Task details
 label, without repeating it in the body. Clamp long titles to two lines; tapping
 the title expands it. Provider routing and other runner/system notes remain
 technical evidence, not user progress or ordinary Note events.
+
+Timeline report bodies use 14px text with 22px line height, medium-weight step
+labels and quiet 11px timestamps. Collapse long bodies after four rendered lines
+using the shared CollapsibleChatText, with View report to expand the original
+Markdown. Determine overflow from rendered height, not a character quota.

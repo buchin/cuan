@@ -205,6 +205,7 @@ func startupActiveLaunchContract(t *testing.T, store Store, project string) {
 	}{
 		{"running started", AttemptStatusRunning, "started", TaskStatusDoing, false, "started"},
 		{"queued claimed", AttemptStatusQueued, "claimed", TaskStatusQueued, false, "started"},
+		{"repair orphan queued", AttemptStatusQueued, "stopped", TaskStatusQueued, false, "started"},
 		{"repair restart diagnostic", AttemptStatusRunning, "stopped", TaskStatusDoing, false, "started"},
 		{"cancel requested", AttemptStatusRunning, "started", TaskStatusDoing, true, "stopped"},
 		{"failed execution", AttemptStatusFailed, "started", TaskStatusDoing, false, "stopped"},
@@ -229,7 +230,11 @@ func startupActiveLaunchContract(t *testing.T, store Store, project string) {
 			t.Fatal(err)
 		}
 		if c.launch != "claimed" {
-			if err := svc.FinishLaunch(ctx, j.ID, lease.LeaseToken, c.launch, now, "Execution stopped during server restart."); err != nil {
+			diagnostic := "Execution stopped during server restart."
+			if c.name == "repair orphan queued" {
+				diagnostic = "Execution attempt is no longer active (orphan launch reconciled)."
+			}
+			if err := svc.FinishLaunch(ctx, j.ID, lease.LeaseToken, c.launch, now, diagnostic); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -240,6 +245,11 @@ func startupActiveLaunchContract(t *testing.T, store Store, project string) {
 		for pass := 0; pass < 2; pass++ {
 			if err := svc.ReconcileStartupLaunches(ctx, now); err != nil {
 				t.Fatal(err)
+			}
+			if c.want == "started" {
+				if err := svc.ReconcileOrphanLaunches(ctx, now.Add(3*time.Minute)); err != nil {
+					t.Fatal(err)
+				}
 			}
 			got, err := svc.GetLaunch(ctx, j.ID)
 			if err != nil || got.State != c.want {

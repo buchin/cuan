@@ -13,6 +13,9 @@ export interface CollapsibleChatTextProps {
   onTaskClick?: (task: Task) => void
   isCustomerRoom?: boolean
   className?: string
+  markdownClassName?: string
+  expandLabel?: string
+  collapseLabel?: string
   isOutgoing?: boolean
 }
 
@@ -27,6 +30,9 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
   onTaskClick,
   isCustomerRoom,
   className,
+  markdownClassName,
+  expandLabel,
+  collapseLabel,
 
 }: CollapsibleChatTextProps) {
   const { t } = useLanguage()
@@ -69,6 +75,7 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
         <div ref={bodyRef}>
         <ChatMarkdown
           content={content}
+          className={markdownClassName}
           hideTaskCard={hideTaskCard}
           onTaskClick={onTaskClick}
           isCustomerRoom={isCustomerRoom}
@@ -82,7 +89,7 @@ const MemoizedCollapsibleChatText = memo(function MemoizedCollapsibleChatText({
         aria-controls={regionId}
         className="mt-1 min-h-11 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
       >
-        <span>{expanded ? t('Show less') : t('Read more')}</span>
+        <span>{expanded ? (collapseLabel || t('Show less')) : (expandLabel || t('Read more'))}</span>
         {expanded ? (
           <ChevronUp className="h-3 w-3" />
         ) : (

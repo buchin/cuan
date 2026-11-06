@@ -16,6 +16,7 @@ const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness
 const attempt={id:'attempt',task_id:'work',status:'running',agent_name:'agent_cuan',runner_id:'runner',attempt_number:2,created_at:now,started_at:now}
 const baseTask={id:'work',title:'Perbaiki tampilan website pelanggan dan periksa hasilnya pada desktop maupun ponsel sebelum menyatakan pekerjaan selesai',status:'doing',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,source_message_id:'source',repo_url:'https://github.com/example/site',created_at:now,updated_at:now,latest_attempt:attempt,latest_progress:'Memeriksa tampilan mobile setelah perbaikan.',instructions:'Perbaiki tampilan pada desktop dan mobile. Verifikasi hasil sebenarnya.',summary:'Laporan sebelumnya belum diterima.',dod_checklist:[{text:'Tampilan stabil pada mobile dan desktop',completed:false}]}
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
+activities.push({id:'long-review',task_id:'work',attempt_id:'attempt',activity_type:'coordinator_review_assessment',author:'coordinator',message:JSON.stringify({assessment:{decision:'revise',finding:('Pemeriksaan hasil perlu membandingkan perilaku aplikasi dengan permintaan awal dan bukti yang tersimpan. ').repeat(12)+'Akhir laporan asli.'}}),created_at:new Date(Date.parse(now)+31000).toISOString()})
 activities.push({id:'provider-note',task_id:'work',activity_type:'comment',author:'runner',message:'Provider preflight selected allowed backup account',created_at:now})
 const fixtureTask={...baseTask,attempts:[attempt],activities}
 const message=(id,text,extra={})=>({id,uuid:String(id),room_id:room,sender_type:'operator',author_type:'agent',author_id:'agent_cuan',author_name:'Cuan',message:text,content:text,is_internal:true,created_at:now,...extra})
@@ -98,6 +99,18 @@ try{
   else assert.equal(await list.isVisible(),false)
   const dots=panel.locator('[data-status-dot]')
   assert.equal(await dots.filter({has:page.locator('.animate-ping')}).count(),1)
+  const report=panel.locator('[data-work-event="long-review"]')
+  const expand=report.getByRole('button',{name:'Lihat laporan',exact:true})
+  await expand.waitFor({state:'visible'})
+  const regionID=await expand.getAttribute('aria-controls')
+  const region=report.locator('[id='+JSON.stringify(regionID)+']')
+  assert.ok((await region.boundingBox()).height<=89,JSON.stringify(await region.evaluate(el=>({height:el.getBoundingClientRect().height,style:el.getAttribute("style"),markdown:getComputedStyle(el.querySelector(".chat-markdown")).lineHeight,p:getComputedStyle(el.querySelector("p")).lineHeight}))))
+  assert.deepEqual(await region.locator('.chat-markdown').evaluate(el=>({size:getComputedStyle(el).fontSize,line:getComputedStyle(el).lineHeight})),{size:'14px',line:'22px'})
+  await expand.click()
+  assert.ok((await region.boundingBox()).height>89)
+  await report.getByRole('button',{name:'Tampilkan lebih sedikit'}).click()
+  await report.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`report-${width}.png`)})
   const scroll=panel.locator('[data-work-scroll]')
   await page.waitForFunction(()=>document.querySelector('[data-work-scroll]').scrollTop>0,null,{timeout:5000})
   await scroll.evaluate(el=>{el.scrollTop=0;el.dispatchEvent(new Event('scroll'))})

@@ -3,6 +3,7 @@ import { ArrowDown } from 'lucide-react'
 import type { TaskDetail } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
+import { CollapsibleChatText } from '../inbox/CollapsibleChatText'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { AttachmentFile } from '../inbox/Attachments'
 import { workTimeline } from './task-timeline'
@@ -44,8 +45,8 @@ export function TaskTimeline({ task, scrollRef }: {task: TaskDetail; scrollRef: 
       {events.map((event,index)=><li key={event.id} data-work-event={event.id} className="relative pb-5 pl-6 last:pb-0">
         {index<events.length-1&&<span aria-hidden className="absolute bottom-0 left-[3px] top-3 w-px bg-border/60"/>}
         <StatusDot size="md" status={event.pulse?'working':event.tone==='warning'?'warning':event.tone==='success'?'success':'neutral'} pulse={!!event.pulse} className="absolute left-0 top-1.5" aria-hidden />
-        <div className="flex items-baseline justify-between gap-3">{event.title?<p className="text-sm font-medium leading-5">{event.title}</p>:<div className="min-w-0 text-sm leading-relaxed text-muted-foreground"><ChatMarkdown content={event.body || ''}/></div>}{event.at&&<time dateTime={event.at} title={new Date(event.at).toLocaleString(language)} className="shrink-0 text-xs text-muted-foreground">{new Date(event.at).toLocaleTimeString(language,{hour:'2-digit',minute:'2-digit'})}</time>}</div>
-        {event.title&&event.body&&<div className="mt-1 text-sm leading-relaxed text-muted-foreground"><ChatMarkdown content={event.body}/></div>}
+        <div className="flex items-baseline justify-between gap-3">{event.title?<p className="text-sm font-medium leading-5">{event.title}</p>:<div className="min-w-0 text-sm leading-relaxed text-muted-foreground"><CollapsibleChatText content={event.body || ''} maxLines={4} markdownClassName="text-[14px] !leading-[22px]" expandLabel={id?'Lihat laporan':'View report'}/></div>}{event.at&&<time dateTime={event.at} title={new Date(event.at).toLocaleString(language)} className="shrink-0 text-[11px] text-muted-foreground">{new Date(event.at).toLocaleTimeString(language,{hour:'2-digit',minute:'2-digit'})}</time>}</div>
+        {event.title&&event.body&&<div className="mt-1 text-sm leading-relaxed text-muted-foreground"><CollapsibleChatText content={event.body} maxLines={4} markdownClassName="text-[14px] !leading-[22px]" expandLabel={id?'Lihat laporan':'View report'}/></div>}
         {event.files&&<div className="mt-2 grid gap-2">{event.files.map(file=><AttachmentFile key={file.id} attachment={file}/>)}</div>}
         {event.report&&<details className="mt-1"><summary className="flex min-h-11 cursor-pointer items-center text-xs text-muted-foreground hover:text-foreground">{id?'Lihat laporan':'View report'}</summary><div className="task-prose break-words text-sm"><ChatMarkdown content={event.report}/></div></details>}
       </li>)}
