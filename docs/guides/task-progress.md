@@ -65,3 +65,14 @@ activation. Initial migration from an unversioned legacy install keeps its exist
 rollback behavior; these gates start with the next native-to-native activation.
 This protects against accidental stale helpers, not arbitrary root commands from
 workers with unrestricted sudo. Do not claim an OS security sandbox.
+
+### One authority for Inbox acceptance and continuation
+
+A successful native worker execution reaches Inbox review. The worker's DoD
+assessment is retained as a diagnostic tied to its exact attempt; it cannot
+accept the task or create a correction attempt. The Inbox coordinator compares
+the original approved scope, saved checklist and independent evidence before
+acceptance or a scoped continuation. This also prevents a detached older worker
+from reintroducing obsolete cross-project requirements after an upgrade. Native
+execution, reporting, repository, publication and cancellation gates remain in
+force. Ordinary board tasks without an Inbox retain their existing evaluator.

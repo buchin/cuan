@@ -579,6 +579,20 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 
 		// 2. Evaluasi DoD Otonom & Logika Auto-Mark Done / Auto-Requeue
 		dodVal := req.DoDValidation
+		if t.SourceRoomID != "" {
+			// Inbox owns semantic acceptance and scoped continuation. A detached
+			// worker may run an older evaluator: retain its assessment as data,
+			// never let it inject unrelated requirements or create a new attempt.
+			if dodVal != nil {
+				raw, _ := json.Marshal(dodVal)
+				completionActivities = append(completionActivities, &task.TaskActivity{
+					ID: "worker-dod:" + att.ID, TaskID: t.ID, AttemptID: &att.ID,
+					ActivityType: "worker_dod_assessment", Author: req.RunnerID,
+					Message: string(raw), CreatedAt: now,
+				})
+			}
+			dodVal = &DoDValidationResult{Action: "review"}
+		}
 		if dodVal == nil && status == task.AttemptStatusSucceeded && s.dodEvaluator != nil {
 			workingDir := ""
 			if s.projectFinder != nil && t.ProjectID != "" {
