@@ -18,7 +18,7 @@ class DiskGuardTest(unittest.TestCase):
         base, home = directory / 'installation', directory / 'service home'
         maintenance = base / 'maintenance'
         maintenance.mkdir(parents=True)
-        for name in ('prune-release-artifacts.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py'):
+        for name in ('prune-release-artifacts.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py', 'prune-runtime-go-cache.py'):
             shutil.copyfile(SCRIPTS / name, maintenance / name)
         (base / 'data/projects/verification-snapshots').mkdir(parents=True)
         releases = base / 'releases'

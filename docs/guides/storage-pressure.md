@@ -29,8 +29,10 @@ Production had both a root-crontab entry and a separate hourly copy. Updating
 only the deployment pruners therefore left unsafe cleanup scheduled.
 
 The guard delegates to the release pruner, idle-provider Go toolchain pruner,
-and leased verification dependency pruner. It never truncates third-party logs, clears warm build caches,
-deletes provider conversations, or removes arbitrary temporary directories.
+leased verification dependency pruner, and pressure-triggered managed Go build cache
+maintenance. It never truncates third-party logs, deletes provider conversations,
+or removes arbitrary temporary directories. Warm build caches remain untouched
+when available space is at least 3 GiB.
 Both installed guard copies are replaced during native deployment. Existing
 schedules remain; no new cron job is installed. The release activation lock and
 provider execution gates protect simultaneous deployment and active accounts.
@@ -184,3 +186,41 @@ and the Go download lock, observes the normal24-hour age window, and protects
 open file descriptors as well as executables/cwd. It removes only the ZIP,
 retaining checksum and lock inodes. Unknown/private modules, partial downloads,
 linked files, current downloads and warm compiled build caches remain untouched.
+
+
+## Managed Go build cache pressure
+
+The owner-scoped `data/go-build-runtime/<owner-sha256>/go-build` cache can grow
+beyond the available capacity of a small VPS. Hourly maintenance now measures
+available bytes on that filesystem. Below 3 GiB it considers only recognized
+managed build caches, stopping when 4 GiB is available. The 2 GiB execution
+admission floor stays unchanged. This is headroom management, not proof that an
+arbitrarily large build fits.
+
+The runner holds a shared `.build-cache.lock` for its complete Go execution,
+including native verification and reporting. Maintenance must acquire that same
+persistent inode exclusively and also checks live process environments, command
+arguments, executable/cwd and descriptors for older readers. Unknown readers,
+missing legacy gates, linked paths, foreign-owned gates, non-Go directories and
+separate filesystems are skipped. A task waiting for maintenance retains its
+original execution deadline. Parallel executions can hold shared leases.
+
+Eligible idle caches are cleared through `/usr/bin/go clean -cache`, running as
+the directory owner with a minimal environment, GOENV disabled and automatic
+toolchain downloads disabled, outside any repository. Maintenance does not
+execute repository code or import account credentials. Only compiled build
+artifacts are affected; module sources, toolchains, workspace checkpoints,
+reports, authentication and database backups remain saved. The next build may
+be slower while recompiling. Healthy disks keep their warm caches.
+
+Preview without deleting:
+
+```sh
+python3 scripts/prune-runtime-go-cache.py --runtime /opt/cuan/data/go-build-runtime
+```
+
+Add `--apply` for maintenance. The script is included in both native deployment
+paths and the existing scheduled guard. Default host Go caches are excluded
+because they have no Cuan execution lease. The policy is intentionally unable
+to free disk by deleting uncoordinated application data; insufficient reclamation
+leaves task admission queued rather than weakening safety.

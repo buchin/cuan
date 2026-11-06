@@ -890,6 +890,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if err == nil && r.cfg.WorkspacesDir != "" {
 		var buildEnv map[string]string
 		buildEnv, err = managedGoBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "go-build-runtime"), claim.OwnerID)
+		if err == nil && env["GOCACHE"] == "" && buildEnv["GOCACHE"] != "" {
+			lease, leaseErr := acquireGoBuildLease(ctx, buildEnv["GOCACHE"])
+			if leaseErr != nil {
+				err = fmt.Errorf("acquire Go build cache lease: %w", leaseErr)
+			} else if lease != nil {
+				defer lease.Close()
+			}
+		}
 		for key, value := range buildEnv {
 			if key == "GOMODCACHE" && env["GOPATH"] != "" && env["GOPATH"] != buildEnv["GOPATH"] {
 				continue

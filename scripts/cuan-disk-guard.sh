@@ -45,3 +45,8 @@ if [[ -d "$install_dir/data/projects/verification-snapshots" ]]; then
   python3 "$install_dir/maintenance/prune-verification-dependencies.py" \
     --snapshots "$install_dir/data/projects/verification-snapshots" --apply
 fi
+
+if [[ -d "$install_dir/data/go-build-runtime" ]]; then
+  python3 "$install_dir/maintenance/prune-runtime-go-cache.py" \
+    --runtime "$install_dir/data/go-build-runtime" --apply
+fi
