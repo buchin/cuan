@@ -1393,6 +1393,15 @@ func (r *Runner) executeWithPTY(
 		return nil, fmt.Errorf("prepare private provider diagnostics: %w", err)
 	}
 	defer os.RemoveAll(diagnosticDir)
+	deadline, _ := execCtx.Deadline()
+	hookRoot, hookEnv, hookErr := prepareAGYReportHook(diagnosticDir, env, deadline)
+	if hookErr != nil {
+		return nil, hookErr
+	}
+	env = hookEnv
+	if hookRoot != "" {
+		ptyArgs = append(ptyArgs, "--add-dir", hookRoot)
+	}
 	diagnosticPath := filepath.Join(diagnosticDir, "provider.log")
 	ptyArgs = append(ptyArgs, "--log-file", diagnosticPath)
 

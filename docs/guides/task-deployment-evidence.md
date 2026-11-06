@@ -58,5 +58,8 @@ It requires a runner-created private `CUAN_TASK_LIFECYCLE_DIR` and an absolute
 successful scoped active-attempt read and no current final report can request
 one report-only continuation. Cancellation, errors, unavailable reads and an
 expired reporting budget allow stopping. The handler never submits evidence or
-accepts work. Automatic registration in native sessions is not implemented yet;
-these checks alone do not establish end-to-end recovery.
+accepts work. The runner now writes a private per-invocation `.agents/hooks.json` under its
+diagnostic lifecycle directory and supplies that directory as an additional AGY
+workspace root. It leaves repository and account configuration untouched.
+Configuration and PTY shutdown safeguards are tested; discovery by the real
+authenticated CLI and end-to-end recovery still require native verification.
