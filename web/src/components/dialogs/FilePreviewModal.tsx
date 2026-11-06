@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { MermaidBlock } from '../ui/MermaidBlock'
 import { trapDialogFocus } from '../../lib/dialog'
 import { getAuthToken } from '../../api/client'
 import type { Attachment } from '../../features/inbox/Attachments'
@@ -194,6 +195,10 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const rawText = String(element?.props.children ?? '').replace(/\n$/, '')
   const language =
     element?.props.className?.replace(/^language-/, '') || 'text'
+  const lang = language.toLowerCase()
+  if (lang === 'mermaid' || lang === 'flowchart') {
+    return <MermaidBlock code={rawText} />
+  }
   const [copied, setCopied] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
 

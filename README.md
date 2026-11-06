@@ -175,6 +175,11 @@ Cuan incorporates a **Calm & Layered UI System** inspired by world-class product
   - Complete elimination of loud `action-primary` buttons (*View result*, *Live Terminal*, *Retry*) from row surfaces. Every row is an expansive tap target that opens deep task actions inside an on-demand side drawer (`SlideDrawer` / `TaskSidePeek`).
 - **Bear Notes Chat Stream & Borderless Artifacts**:
   - Chat stream streams smoothly without thick nested borders or harsh framing. Approval cards, task completion cards, and status summaries render as calm typographic text blocks with subtle inline badges.
+- **Interactive Mermaid Diagrams in Chat**:
+  - Automatically renders ```mermaid and ```flowchart code blocks into rich, visual SVG diagrams instead of raw code blocks.
+  - Fully responsive on mobile viewports (360px–390px) with `max-width: 100%`, `height: auto`, and touch momentum horizontal scrolling (`-webkit-overflow-scrolling: touch; touch-action: pan-x pan-y`).
+  - Interactive Pop-up / Fullscreen Viewer: provides zoom controls (Zoom In, Zoom Out, Reset 100%), interactive drag pan, syntax copying, and toggle between visual SVG and raw code view.
+  - Graceful Fallback: broken or invalid syntax cleanly renders an alert badge and safe formatted fallback code without crashing the chat canvas.
 - **Card Diet & Calm Layout Primitives (`HairlineList`, `StatusDot`, `SlideDrawer`, `GroupedSection`)**:
   - Eliminates visual clutter, SaaS education banners, and thick nested cards (`box inside box`). Replaced with flat serene surfaces, crisp hairline dividers (`divide-border/40`), micro-indicators (`StatusDot`), and Apple-style grouped rows (`GroupedSection`) across Apps & Skills and General Settings.
 - **Progressive Disclosure in Agents View**:
