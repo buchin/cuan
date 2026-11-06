@@ -167,3 +167,18 @@ func observe(ctx context.Context, c Config, expected string, transport http.Roun
 	}
 	return revision, nil
 }
+
+// ConfigurationState diagnoses only the owner's registered connection. It never
+// probes a target, resolves ambient credentials or exposes configuration values.
+func ConfigurationState(env map[string]string) string {
+	if env["CUAN_PUBLICATION_VERIFIER"] == "" {
+		return "not_configured"
+	}
+	if env["CUAN_PUBLICATION_VERIFIER"] != "ssh-release" {
+		return "unsupported"
+	}
+	if _, err := FromEnvironment(env); err != nil {
+		return "incomplete"
+	}
+	return "configured"
+}

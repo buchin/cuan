@@ -34,3 +34,26 @@ Mixed changes, missing baselines, failed git inspection or unknown state use the
 normal project verifier. This does not establish task-specific word limits,
 content correctness or delivery: those still require acceptance evidence and
 accessible artifacts in the task report.
+
+## Registered verification prerequisites
+
+Review's `publication_context.connection_state` and a bound worker's
+`publication_configuration` describe saved production verification setup:
+`not_configured`, `unsupported`, `incomplete`, `configured`, or `current_process`.
+`unavailable` means the project could not be read. These are not deployment,
+health, feature or repository-permission results. A configured but unreachable
+server differs from a project without a registered connection. An independently
+verified receipt still retains its own task/attempt/commit-bound semantics.
+
+Missing setup is supplied as a concrete prerequisite to the coordinator and
+worker. Reconcile the approved target and existing owner-saved connections;
+never assume the deployment failed, repeat implementation/deployment merely to
+obtain a receipt, or borrow ambient developer credentials. Only genuinely absent
+access or consent requires the owner. Keep other original acceptance gaps intact.
+
+A native `publication_configuration_observed` activity records only project ID,
+setup state and project update time. It contains no credential values, host data
+or deployment claim. A changed saved project configuration changes the review
+evidence digest and wakes the existing deduplicated snapshot review path. It does
+not execute a task, grant consent, reset attempt budgets or accept work. Existing
+cancellation, owner lineage and native publication/visual gates remain in force.

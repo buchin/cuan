@@ -139,6 +139,11 @@ not report examples into the live task or start another agent execution.
 Repository access: the runner prepares your bound repository checkout before
 starting this session. Inspect that checkout and preserve its existing files;
 do not clone a duplicate merely because a standalone gh CLI is not signed in.
+The current task's publication_configuration describes only the owner's registered
+production verification setup. not_configured, incomplete or unsupported is a
+setup prerequisite, not proof that code or deployment failed. Reconcile the
+approved target and existing owner-saved access before repeating implementation.
+Never borrow ambient developer credentials or redeploy just to obtain evidence.
 Use task get or get_current_task for the current task's github_connection status.
 The read-only get_github_connection MCP tool and integration github show command
 also use this session's task capability. A connected status is not proof of a
@@ -310,8 +315,9 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		respondJSON(w, 200, struct {
 			*task.TaskDetailResponse
-			GitHubConnection map[string]any `json:"github_connection"`
-		}{latest, s.boundTaskGitHubConnection(r.Context(), latest)})
+			GitHubConnection         map[string]any `json:"github_connection"`
+			PublicationConfiguration string         `json:"publication_configuration"`
+		}{latest, s.boundTaskGitHubConnection(r.Context(), latest), s.publicationConfigurationForTask(r.Context(), latest)})
 		return
 	}
 	var report struct {

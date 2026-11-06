@@ -14,10 +14,11 @@ import (
 const inboxPublicationReviewPolicy = "Production publication review policy: v1"
 
 type reviewPublication struct {
-	Required   bool   `json:"required"`
-	Verified   bool   `json:"verified"`
-	Commit     string `json:"result_commit"`
-	Provenance string `json:"provenance,omitempty"`
+	Required        bool   `json:"required"`
+	Verified        bool   `json:"verified"`
+	Commit          string `json:"result_commit"`
+	Provenance      string `json:"provenance,omitempty"`
+	ConnectionState string `json:"connection_state,omitempty"`
 }
 
 // The reviewer cannot waive the same project publication gate enforced by the
@@ -41,7 +42,7 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	if !project.SettingsFromMetadata(p.Metadata).IsAutoDeployEnabled() {
 		return nil
 	}
-	result := &reviewPublication{Required: true, Commit: d.CommitSHA}
+	result := &reviewPublication{Required: true, Commit: d.CommitSHA, ConnectionState: s.publicationConnectionState(p)}
 	if task.VerifiedDeployment(d.Activities, d.LatestAttempt, d.CommitSHA, time.Now().UTC()) {
 		result.Verified, result.Provenance = true, "verified_attempt_deployment"
 	} else if running := s.runningProjectRelease(ctx, d); running != nil && running.Commit == d.CommitSHA {
@@ -72,6 +73,15 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	// duplicate revision text or invalidate its saved continuation identity.
 	if decision.Decision == "revise" && (strings.HasPrefix(decision.Revision, "First reconcile the registered project's existing release and saved deployment effects.") || strings.HasPrefix(decision.Revision, "Gap: the original project's required production publication is not verified")) {
 		return decision
+	}
+	if missingPublicationConnection(observation.ConnectionState) && !strings.Contains(decision.Revision, missingPublicationConnectionGuidance) {
+		if decision.Decision == "pass" {
+			decision.Decision = "revise"
+			decision.RemainingWork = "verification"
+			decision.Revision = missingPublicationConnectionGuidance
+		} else {
+			decision.Revision = missingPublicationConnectionGuidance + " Existing review gaps to preserve: " + decision.Revision
+		}
 	}
 	// A reviewer can misclassify absent publication proof as implementation
 	// work. Preserve concrete findings, but never let that classification skip

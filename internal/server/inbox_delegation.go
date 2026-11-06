@@ -644,6 +644,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			RoomID:  targetRoomID,
 		}
 	}
+	s.observeInboxPublicationConfiguration(ctx, detail, *origin)
 	s.diagnoseInboxStorageFailure(ctx, detail, *origin)
 	s.observeInboxGitHubConnection(ctx, detail, *origin)
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {

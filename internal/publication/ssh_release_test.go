@@ -210,3 +210,24 @@ func TestNativeRegisteredSSHRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestConfigurationStateSeparatesSetupFromObservationWithoutAmbientCredentials(t *testing.T) {
+	key := fixtureKey(t)
+	valid := map[string]string{"CUAN_PUBLICATION_VERIFIER": "ssh-release", "CUAN_PUBLICATION_SSH_HOST": "project.invalid", "CUAN_PUBLICATION_SSH_USER": "fixture", "CUAN_PUBLICATION_SSH_PASSWORD": "do-not-return-this", "CUAN_PUBLICATION_SSH_HOST_KEY": string(ssh.MarshalAuthorizedKey(key.PublicKey())), "CUAN_PUBLICATION_DEPLOY_PATH": "/srv/project", "CUAN_PUBLICATION_HEALTH_URL": "https://project.invalid/up"}
+	for _, item := range []struct {
+		env  map[string]string
+		want string
+	}{
+		{nil, "not_configured"}, {map[string]string{"CUAN_PUBLICATION_VERIFIER": "invented-provider"}, "unsupported"}, {map[string]string{"CUAN_PUBLICATION_VERIFIER": "ssh-release"}, "incomplete"}, {valid, "configured"},
+	} {
+		if got := ConfigurationState(item.env); got != item.want {
+			t.Fatal(got, item.want)
+		}
+	}
+	for k, v := range valid {
+		t.Setenv(k, v)
+	}
+	if ConfigurationState(nil) != "not_configured" {
+		t.Fatal("ambient access substituted for registered connection")
+	}
+}
