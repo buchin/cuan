@@ -400,6 +400,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.Environment != "" || claim.AutoDeploy {
 		t.Fatal("inspection lost native routing/scope/environment restrictions", err)
 	}
+	info, infoErr := s.taskSvc.ExecutionInfo(ctx, d.ID)
+	if infoErr != nil || !info.IntentParsed || info.AttemptID != claim.Attempt.ID || info.SourceAttemptID != claim.LiveInspection.SourceAttemptID || info.TargetCommit != claim.LiveInspection.TargetCommit || !info.Scope.ReadOnlyRepository {
+		t.Fatal("execution inspection lost exact saved intent", infoErr)
+	}
 	if scenario == "current outcome unpublished valid registered review" && claim.PHPUnitTargets != `["tests/Feature/ExampleTest.php"]` {
 		t.Fatal("registered nonsecret test targets lost", claim.PHPUnitTargets)
 	}

@@ -169,6 +169,16 @@ output paths are rejected. Read the resulting file to verify the actual artifact
 
 ### Inspect one execution attempt
 
+`cuan task execution TASK_ID` reads the latest attempt's saved execution intent
+and publication scope through the Owner API. It identifies ordinary execution,
+verification, or exact current-outcome inspection and its source/target revision
+without returning launch prose, environment or credentials. It selects the launch
+bound to that attempt, even if another continuation is pending. `intent_parsed`
+describes saved intent parsing only; it is not source validation, successful
+execution, deployment or acceptance. The command never starts or retries work.
+Legacy attempts without a saved launch are reported as legacy, not reconstructed
+from report prose. Bound workers continue to use their scoped task reads.
+
 `cuan task logs TASK_ID ATTEMPT_ID --after-id 0 --limit 100 --json` reads bounded
 saved output from an explicit attempt (limit 1–1000). Use the highest returned
 record ID as the next cursor. Logs are diagnostic evidence, not proof of successful
