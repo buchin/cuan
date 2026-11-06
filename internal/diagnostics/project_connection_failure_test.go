@@ -39,3 +39,34 @@ func TestProjectReadsDoNotInventMissingProjectsOnOwnerFailure(t *testing.T) {
 		})
 	}
 }
+
+func TestProjectReadsPreserveAuthoritativeEmptyAndNotFoundResults(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/projects" {
+			w.Write([]byte(`{"projects":[]}`))
+			return
+		}
+		w.WriteHeader(404)
+		w.Write([]byte("PRIVATE_ERROR_BODY"))
+	}))
+	defer api.Close()
+	previous := globalCuanClient
+	globalCuanClient = &CuanClient{BaseURL: api.URL, AuthToken: "fixture", HTTPClient: api.Client()}
+	defer func() { globalCuanClient = previous }()
+	listed, err := ListProjects(context.Background(), 5)
+	if err != nil {
+		t.Fatal("successful empty list rejected", err)
+	}
+	list := listed.(map[string]any)
+	if list["total"] != 0 {
+		t.Fatal("empty authoritative list changed", list)
+	}
+	missing, err := GetProject(context.Background(), "missing-project")
+	if err != nil {
+		t.Fatal("authoritative absence lost", err)
+	}
+	project := missing.(map[string]any)
+	if project["error"] != "project_not_found" || project["project_id"] != "missing-project" || len(project) != 2 {
+		t.Fatal("wrong or private absence data", project)
+	}
+}
