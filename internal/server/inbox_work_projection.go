@@ -42,9 +42,40 @@ func (s *Server) inboxWorkUpdates(ctx context.Context, room string, messages []d
 			files[delegationMessageID(prefix+ref.AttemptID)] = ref
 		}
 	}
+	// Match application-owned message IDs to durable launches, never keyword-filter
+	// ordinary speech. An unresolved failure remains visible; obsolete recovery
+	// failures move to Detail only when a current continuation is recorded.
+	launchMessages := map[string]string{}
+	if launches, ok := s.taskSvc.Store().(task.InboxLaunchRefStore); ok {
+		if refs, err := launches.InboxLaunchRefs(ctx, room); err == nil {
+			current := map[string]task.InboxLaunchRef{}
+			continuing := map[string]bool{}
+			for _, l := range refs {
+				old, exists := current[l.TaskID]
+				if !exists || l.CreatedAt.After(old.CreatedAt) || l.CreatedAt.Equal(old.CreatedAt) && l.ID > old.ID {
+					current[l.TaskID] = l
+				}
+			}
+			for id, l := range current {
+				continuing[id] = l.State == "queued" || l.State == "claimed" || l.State == "started" && latest[id].Status == task.TaskStatusDoing
+			}
+			for _, l := range refs {
+				launchMessages[delegationMessageID(l.RequestID+":notice")] = l.TaskID
+				obsolete := continuing[l.TaskID] || latest[l.TaskID].Status == task.TaskStatusDone
+				internalRecovery := l.SafeError == staleInspectionLaunchReason || l.SafeError == supersededRecoveryLaunchReason || l.SafeError == task.InspectionPublicationPreparationError
+				if l.State == "started" || l.State == "stopped" && internalRecovery && obsolete {
+					launchMessages[delegationMessageID("launch-outcome:"+l.ID+":"+l.State)] = l.TaskID
+				}
+			}
+		}
+	}
 	byID := map[string]db.ProjectMessage{}
 	for _, m := range messages {
 		byID[m.ID] = m
+		if taskID, ok := launchMessages[m.ID]; ok && m.RoomID == room && (m.AuthorType == "system" || m.AuthorType == "agent") {
+			result[m.ID] = &inboxWorkUpdate{TaskID: taskID, Kind: "progress"}
+			continue
+		}
 		if ref, ok := files[m.ID]; ok && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == ref.SourceMessageID {
 			result[m.ID] = &inboxWorkUpdate{TaskID: ref.TaskID, AttemptID: ref.AttemptID, Kind: "files"}
 		} else if m.AuthorType == "agent" {
@@ -94,4 +125,30 @@ func (s *Server) inboxWorkUpdates(ctx context.Context, room string, messages []d
 		}
 	}
 	return result
+}
+
+// Native diagnostics are an API-only read projection. They do not become saved
+// task activities or inputs to acceptance/authorization evaluation.
+func (s *Server) projectInboxLaunchDiagnostics(ctx context.Context, detail *task.TaskDetailResponse) {
+	if detail == nil || detail.SourceRoomID == "" {
+		return
+	}
+	reader, ok := s.taskSvc.Store().(task.InboxLaunchRefStore)
+	if !ok {
+		return
+	}
+	refs, err := reader.InboxLaunchRefs(ctx, detail.SourceRoomID)
+	if err != nil {
+		return
+	}
+	for _, ref := range refs {
+		if ref.TaskID != detail.ID {
+			continue
+		}
+		body := "State: " + ref.State
+		if ref.SafeError != "" {
+			body += "\n" + ref.SafeError
+		}
+		detail.Activities = append(detail.Activities, &task.TaskActivity{ID: "launch:" + ref.ID, TaskID: detail.ID, ActivityType: "launch_diagnostic", Author: "system", Message: body, CreatedAt: ref.UpdatedAt})
+	}
 }

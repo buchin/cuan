@@ -168,3 +168,15 @@ action and ID; changing composer mode cannot change the pending payload. An
 online event resumes the same saved request. New unsent edits remain intact.
 Background result reviews use at most one concurrent slot per AI account, leaving
 the existing shared account capacity available to task execution and live chat.
+
+### Background inspection notices
+
+Inbox projects native inspection notices and superseded recovery launch errors
+as work updates, leaving one current task preview. Classification uses the saved
+launch identity and deterministic message ID, not matching arbitrary chat text.
+A stopped recovery error is hidden only when the latest saved launch continues
+(or the result is accepted); an unresolved failure and authorization errors stay
+visible. User messages, choices, drafts and final results retain their behavior.
+Stored chat and execution history are unchanged. Task Detail exposes launch
+state and saved safe error under Technical details as a read-only projection;
+these diagnostics are never inputs to task acceptance or authorization.
