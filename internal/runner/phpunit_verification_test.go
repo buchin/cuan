@@ -15,7 +15,7 @@ func TestRegisteredPHPUnitRunsOnlySavedTargetsAndPreservesFailure(t *testing.T) 
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Fatal("PHP runtime required for native verifier contract")
 	}
-	for _, scenario := range []string{"pass", "fail", "missing target", "escaped target", "invalid targets"} {
+	for _, scenario := range []string{"pass", "pest", "fail", "missing target", "escaped target", "invalid targets"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			for _, dir := range []string{"vendor/bin", "tests/Feature"} {
@@ -35,6 +35,9 @@ exit(` + map[bool]string{true: "7", false: "0"}[scenario == "fail"] + `);`
 				t.Fatal(err)
 			}
 			env := `["tests/Feature/ContractTest.php"]`
+			if scenario == "pest" {
+				_ = os.Rename(filepath.Join(root, "vendor/bin/phpunit"), filepath.Join(root, "vendor/bin/pest"))
+			}
 			switch scenario {
 			case "missing target":
 				_ = os.Remove(filepath.Join(root, target))
@@ -47,13 +50,13 @@ exit(` + map[bool]string{true: "7", false: "0"}[scenario == "fail"] + `);`
 				env = `["--configuration=outside"]`
 			}
 			got := runRegisteredProjectVerification(context.Background(), root, env)
-			if got.Passed != (scenario == "pass") {
+			if got.Passed != (scenario == "pass" || scenario == "pest") {
 				t.Fatal("incorrect native check", got)
 			}
-			if task.PassingProjectCheckSummary(got.Summary) != (scenario == "pass") {
+			if task.PassingProjectCheckSummary(got.Summary) != (scenario == "pass" || scenario == "pest") {
 				t.Fatal("failed or missing check credited", got)
 			}
-			if (scenario == "pass" || scenario == "fail") && !strings.Contains(got.Summary, "Registered target executed") {
+			if (scenario == "pass" || scenario == "pest" || scenario == "fail") && !strings.Contains(got.Summary, "Registered target executed") {
 				t.Fatal("runtime did not execute target", got)
 			}
 		})

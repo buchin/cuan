@@ -37,7 +37,7 @@ func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "valid preparation", "valid registered review", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
+	for _, scenario := range []string{"valid", "valid preparation", "valid verifier repair", "valid registered review", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished "+scenario, nil)
@@ -380,6 +380,12 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.CurrentOutcomeVerified = false
 	case "current outcome forged ancestry", "current outcome unpublished valid forged ancestry":
 		req.SourceAncestryVerified = true
+	case "current outcome unpublished valid verifier repair":
+		req.Status, req.ErrorMessage = task.AttemptStatusFailed, "Live result inspection project checks did not pass"
+		req.TestSummary = "Project verification: php vendor/bin/phpunit --colors=never tests/Feature/McpTest.php (exit 1)\nPest\\Exceptions\\InvalidPestCommand \n\n  Please run [./vendor/bin/pest] instead.\n"
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "current-kind", TaskID: d.ID, AttemptID: &inspectionAttempt.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", CreatedAt: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
 	case "recover checks":
 		req.Status, req.ErrorMessage = task.AttemptStatusFailed, "Live result inspection project checks did not pass"
 		req.TestSummary = "Project verification: test.sh --fast (exit 1)\nCheck timed out"
@@ -400,6 +406,14 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
 	after, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if scenario == "current outcome unpublished valid verifier repair" {
+		_ = store.(task.LaunchStore).FinishLaunch(ctx, launch.ID, claimed.LeaseToken, "stopped", time.Now(), "Execution finished")
+		status := task.TaskStatusBlocked
+		_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &status})
+		after, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		testNativeVerifierRepair(t, s, origin, after)
+		return
+	}
 	old, _ := store.GetAttempt(ctx, source.ID)
 	if old.Status != source.Status || after.Status == task.TaskStatusDone || after.CommitSHA != d.CommitSHA {
 		t.Fatal("inspection rewrote source history or bypassed independent acceptance")

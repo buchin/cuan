@@ -508,3 +508,17 @@ Options, traversals, missing targets and symlinks escaping the snapshot fail.
 Every target must exit successfully; unsupported checks and an agent's test
 claims never substitute for this independent result. Existing Go and
 `scripts/test.sh --fast` verification remains available without this setting.
+
+Laravel inspections select the private snapshot's Pest executable when installed,
+falling back to PHPUnit otherwise. This avoids Pest's explicit rejection of direct
+PHPUnit invocation. Cuan permits one separately identified read-only recovery for
+that exact previously recorded native invocation mismatch, only with a final
+implementation report and runner-observed unchanged source. A different revision,
+actual assertion failure, cancellation, missing native evidence or an already
+recovered inspection cannot obtain this allowance. It preserves the failed
+attempt and every original acceptance gate; it is not additional implementation
+permission or a reset of correction budgets.
+
+Supplemental inspection prompts include the original approved scope and saved
+project goal/instructions, but omit the raw project environment snapshot. Native
+publication checks continue using only the registered server-side connection.

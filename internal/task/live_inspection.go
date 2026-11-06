@@ -15,21 +15,22 @@ const ActivityLiveInspection = "live_result_verified"
 const CurrentOutcomeInspection = "current_outcome"
 
 type LiveInspectionIntent struct {
-	PreparationLaunchID string    `json:"preparation_launch_id,omitempty"`
-	ReviewRequestID     string    `json:"review_request_id,omitempty"`
-	ReviewPaths         []string  `json:"review_paths,omitempty"`
-	Purpose             string    `json:"purpose,omitempty"`
-	PreviousAttemptID   string    `json:"previous_attempt_id,omitempty"`
-	PreviousCommit      string    `json:"previous_commit,omitempty"`
-	SourceAttemptID     string    `json:"source_attempt_id"`
-	SourceCommit        string    `json:"source_commit"`
-	TargetCommit        string    `json:"target_commit"`
-	Repository          string    `json:"repository"`
-	OwnerID             string    `json:"owner_id"`
-	RoomID              string    `json:"room_id"`
-	SourceRequestID     string    `json:"source_request_id"`
-	InstructionsHash    string    `json:"instructions_hash"`
-	ObservedAt          time.Time `json:"observed_at"`
+	VerifierRecoveryAttemptID string    `json:"verifier_recovery_attempt_id,omitempty"`
+	PreparationLaunchID       string    `json:"preparation_launch_id,omitempty"`
+	ReviewRequestID           string    `json:"review_request_id,omitempty"`
+	ReviewPaths               []string  `json:"review_paths,omitempty"`
+	Purpose                   string    `json:"purpose,omitempty"`
+	PreviousAttemptID         string    `json:"previous_attempt_id,omitempty"`
+	PreviousCommit            string    `json:"previous_commit,omitempty"`
+	SourceAttemptID           string    `json:"source_attempt_id"`
+	SourceCommit              string    `json:"source_commit"`
+	TargetCommit              string    `json:"target_commit"`
+	Repository                string    `json:"repository"`
+	OwnerID                   string    `json:"owner_id"`
+	RoomID                    string    `json:"room_id"`
+	SourceRequestID           string    `json:"source_request_id"`
+	InstructionsHash          string    `json:"instructions_hash"`
+	ObservedAt                time.Time `json:"observed_at"`
 }
 
 type LiveInspectionReceipt struct {
@@ -46,6 +47,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.VerifierRecoveryAttemptID != "" {
+		return verificationRequestID("current-outcome-verifier-repair:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
+	}
 	if p.PreparationLaunchID != "" {
 		return verificationRequestID("live-inspection-preparation:v1:"+p.InstructionsHash+":", taskID, p.PreparationLaunchID)
 	}
@@ -152,6 +156,9 @@ func unpublishedOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity, rev
 }
 
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
+	if p.VerifierRecoveryAttemptID != "" {
+		return p.VerifierRecoveryAttemptID
+	}
 	if p.PreviousAttemptID != "" {
 		return p.PreviousAttemptID
 	}
@@ -174,6 +181,9 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	var proof LiveInspectionIntent
 	line := strings.SplitN(launch.Revision[at+len(LiveInspectionMarker):], "\n", 2)[0]
 	if json.Unmarshal([]byte(line), &proof) != nil {
+		return nil, ErrInvalidTaskInput
+	}
+	if proof.VerifierRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
 		return nil, ErrInvalidTaskInput
 	}
 	if proof.Purpose != CurrentOutcomeInspection && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
@@ -226,6 +236,11 @@ func ValidateLiveInspection(ctx context.Context, store Store, t *Task, attemptID
 func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
 	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
+	}
+	if proof.VerifierRecoveryAttemptID != "" {
+		if err := ValidateInspectionVerifierRecovery(ctx, store, t, proof); err != nil {
+			return err
+		}
 	}
 	if proof.PreparationLaunchID != "" {
 		if err := ValidateInspectionPreparationRecovery(ctx, store, t, proof); err != nil {
