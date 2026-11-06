@@ -51,7 +51,7 @@ never assume the deployment failed, repeat implementation/deployment merely to
 obtain a receipt, or borrow ambient developer credentials. Only genuinely absent
 access or consent requires the owner. Keep other original acceptance gaps intact.
 
-A native `publication_configuration_observed` activity records only project ID,
+A native `publication_config_observed` activity records only project ID,
 setup state and project update time. It contains no credential values, host data
 or deployment claim. A changed saved project configuration changes the review
 evidence digest and wakes the existing deduplicated snapshot review path. It does

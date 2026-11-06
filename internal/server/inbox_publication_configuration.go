@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const publicationConfigurationActivity = "publication_configuration_observed"
+const publicationConfigurationActivity = "publication_config_observed"
 
 type publicationConfigurationRecord struct {
 	ProjectID string    `json:"project_id"`
@@ -88,6 +89,7 @@ func (s *Server) observeInboxPublicationConfiguration(ctx context.Context, d *ta
 	}
 	event := &task.TaskActivity{ID: delegationMessageID("publication-configuration:" + d.ID + ":" + d.LatestAttempt.ID + ":" + string(raw)), TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: publicationConfigurationActivity, Author: "coordinator", Message: string(raw), CreatedAt: time.Now().UTC()}
 	if s.taskSvc.Store().CreateActivity(ctx, event) != nil {
+		log.Printf("publication configuration observation persistence failed task=%s attempt=%s", d.ID, d.LatestAttempt.ID)
 		return
 	}
 	d.Activities = append(d.Activities, event)

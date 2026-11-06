@@ -275,5 +275,6 @@ func TestInboxRetryPostgres(t *testing.T) {
 	if err != nil || len(upgradedPage.Steps) != 1 || upgradedPage.Steps[0].Kind != "trace_history_incomplete" {
 		t.Fatal("upgrade marker not archived", upgradedPage, err)
 	}
+	publicationConfigurationPostgresContract(t, database, repo, source)
 	t.Log("SQL retry: twelve simultaneous clicks, one new attempt, original user message retained; ownership and unknown outcome enforced; no inference")
 }

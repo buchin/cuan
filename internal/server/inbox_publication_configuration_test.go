@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -153,5 +154,62 @@ func TestPublicationContextDistinguishesMissingConnectionFromFailedObservation(t
 				t.Fatal("guard duplicated revision")
 			}
 		})
+	}
+}
+
+func publicationConfigurationPostgresContract(t *testing.T, database *sql.DB, repo *db.SQLProjectStudioRepository, origin db.InboxRequest) {
+	t.Helper()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	store := task.NewDBStore(database)
+	pstore := project.NewDBStore(database)
+	s := &Server{taskSvc: task.NewService(store, nil), projectStudioRepo: repo, projectSvc: project.NewService(pstore, nil, "", t.TempDir())}
+	item := &task.Task{ID: "publication-config-" + db.GenerateUUID(), ProjectID: "default", SourceRoomID: origin.RoomID, SourceMessageID: origin.MessageID, AssignedAgent: origin.AgentID, Title: "Verify existing approved result", Instructions: "Cuan managed delegation v1.\nVerify the approved website.", Status: task.TaskStatusReview, CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	attempt := &task.TaskAttempt{ID: db.GenerateUUID(), TaskID: item.ID, Status: task.AttemptStatusSucceeded, CreatedAt: now, ExitCode: new(int)}
+	if err := store.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := inboxReviewEvidenceDigest(detail)
+	s.observeInboxPublicationConfiguration(ctx, detail, origin)
+	reloaded, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := publicationConfigurationObservation(reloaded)
+	if event == nil || inboxReviewEvidenceDigest(reloaded) == before {
+		t.Fatal("PostgreSQL prerequisite activity was not persisted")
+	}
+	s.observeInboxPublicationConfiguration(ctx, reloaded, origin)
+	p, err := pstore.GetProject(ctx, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Metadata = registeredReleaseMetadata(t)
+	p.UpdatedAt = now.Add(time.Second)
+	if err := pstore.UpdateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	s.observeInboxPublicationConfiguration(ctx, reloaded, origin)
+	final, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, a := range final.Activities {
+		if a.ActivityType == publicationConfigurationActivity {
+			count++
+		}
+	}
+	var changed publicationConfigurationRecord
+	json.Unmarshal([]byte(publicationConfigurationObservation(final).Message), &changed)
+	if count != 2 || changed.State != "configured" || final.Status == task.TaskStatusDone || len(final.Attempts) != 1 {
+		t.Fatal("PostgreSQL configuration lifecycle", count, changed.State)
 	}
 }
