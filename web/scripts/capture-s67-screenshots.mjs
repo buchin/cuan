@@ -3,6 +3,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 
+if (process.env.CUAN_TASK_CAPABILITY_FILE || process.env.CUAN_TASK_CAPABILITY_JSON)
+  throw new Error('Owner UI capture is unavailable in bound task sessions')
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const require = createRequire(import.meta.url)
@@ -12,14 +15,16 @@ const { chromium } = require(playwrightPath)
 const evidenceDir = path.join(__dirname, '../../docs/sprints/evidence/s67')
 fs.mkdirSync(evidenceDir, { recursive: true })
 
-let token = '3f349e777665c43db865008c45888fb4cd85fdfceb24ac655bd1dff02d9a899e'
+let token = process.env.CUAN_AUTH_TOKEN || process.env.CUAN_API_TOKEN || ''
 try {
   const cuanCfg = JSON.parse(fs.readFileSync(path.join(process.env.HOME || '/home/dev', '.cuan/config.json'), 'utf8'))
-  if (cuanCfg.token) token = cuanCfg.token
+  if (!token && cuanCfg.auth_token) token = cuanCfg.auth_token
 } catch (e) {}
 
 const customerUrl = 'https://cuan.dojo.cc/inbox/5ea132cf-b001-4b48-ad16-8653b3f5f051'
 const cuanAgentUrl = 'https://cuan.dojo.cc/inbox/88bd8608-a87d-4729-91d4-1f6c6997e375'
+
+if (!token) throw new Error('Connect the Cuan CLI account before capturing private UI')
 
 async function run() {
   const executablePath = path.join(process.env.HOME || '/home/dev', '.local/playwright-alpine/usr/lib/chromium/chromium')

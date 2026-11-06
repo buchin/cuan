@@ -24,7 +24,7 @@ Keys:
 
 Example:
   cuan config set api_url https://cuan.dojo.cc
-  cuan config set auth_token 3f349e777665c43db865008c45888fb4cd85fdfceb24ac655bd1dff02d9a899e`)
+  cuan config set auth_token YOUR_CUAN_TOKEN`)
 		return 0
 	}
 
