@@ -77,6 +77,32 @@ class VerificationDependencyPrunerTest(unittest.TestCase):
             self.assertEqual(gate.stat().st_ino, inode)
             self.assertEqual(self.git(root, 'status', '--porcelain'), b'')
 
+    def test_recent_cache_recovery_requires_critical_pressure_and_keeps_all_safety_gates(self):
+        for scenario in ('critical', 'healthy', 'floor', 'unknown capacity', 'busy lease', 'dirty source', 'missing lease', 'unknown reader'):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as tmp:
+                snapshots, root, modules, gate, proc = self.fixture(Path(tmp))
+                os.utime(modules, (time.time(),) * 2)
+                free = lambda path: 1 << 30
+                if scenario == 'healthy': free = lambda path: 4 << 30
+                if scenario == 'floor': free = lambda path: 2 << 30
+                if scenario == 'unknown capacity':
+                    def free(path): raise OSError('measurement unavailable')
+                minimum = pruner.dependency_age(snapshots, 3600, True, free)
+                if scenario == 'dirty source': (root / 'report.md').write_text('pending changes')
+                if scenario == 'missing lease': gate.unlink()
+                if scenario == 'unknown reader':
+                    (proc / '123/cmdline').mkdir(parents=True)  # Unreadable process metadata.
+                lease = gate.open('r+b') if scenario == 'busy lease' else None
+                try:
+                    if lease: fcntl.flock(lease, fcntl.LOCK_EX)
+                    result = pruner.prune(snapshots, apply=True, min_age=minimum, proc=proc)
+                finally:
+                    if lease: lease.close()
+                self.assertEqual(bool(result['removed']), scenario == 'critical')
+                self.assertEqual(modules.exists(), scenario != 'critical')
+                self.assertTrue((root / 'report.md').exists())
+                self.assertTrue((root / '.git').is_dir())
+
     def test_live_lease_blocks_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             snapshots, _, modules, gate, proc = self.fixture(Path(tmp))

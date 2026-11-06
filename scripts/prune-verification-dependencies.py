@@ -186,15 +186,37 @@ def prune(snapshots, apply=False, min_age=3600, now=None, proc=Path('/proc')):
     return report
 
 
+def dependency_age(snapshots, minimum, recover_storage=False, free=None):
+    """Only critical admission pressure overrides warm-cache retention age.
+
+    Lease, source identity, lockfile and process-reader checks remain mandatory.
+    """
+    if not recover_storage:
+        return minimum
+    try:
+        if free is None:
+            filesystem = os.statvfs(snapshots)
+            available = filesystem.f_bavail * filesystem.f_frsize
+        else:
+            available = free(snapshots)
+        return 0 if available < 2 * (1 << 30) else minimum
+    except OSError:
+        return minimum
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--snapshots', type=Path, required=True)
     parser.add_argument('--min-age-hours', type=float, default=1)
     parser.add_argument('--apply', action='store_true', help='Remove eligible dependency caches; default is preview only')
+    parser.add_argument('--under-storage-pressure', action='store_true', help='Allow recent idle dependency caches below the native 2 GiB admission floor; all leases and source/reader checks remain required')
     args = parser.parse_args()
     if not args.snapshots.is_absolute() or args.min_age_hours < 1:
         parser.error('Use an absolute snapshot root and a minimum age of at least one hour')
-    print(json.dumps(prune(args.snapshots, args.apply, args.min_age_hours * 3600)))
+    minimum = dependency_age(args.snapshots, args.min_age_hours * 3600, args.under_storage_pressure)
+    report = prune(args.snapshots, args.apply, minimum)
+    report['minimum_age_seconds'] = minimum
+    print(json.dumps(report))
 
 
 if __name__ == '__main__':

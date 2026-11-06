@@ -303,3 +303,35 @@ unrestricted sudo. The timer has no repository, project credentials or build scr
 as inputs. Check its status with `systemctl status cuan-runtime-cache-maintenance.timer`
 and logs with `journalctl -u cuan-runtime-cache-maintenance.service`. Failure to
 reclaim space does not authorize broader deletion or bypass admission.
+
+### Recent verification dependencies during critical admission pressure
+
+The pinned two-minute cache timer also checks verification dependencies with
+`--under-storage-pressure`. The normal one-hour warm-cache age remains in force
+unless available filesystem space is below the same2GiB execution admission floor.
+Only then may it reclaim recent ignored node_modules from a recognized, unchanged
+snapshot with a free existing verification lease and no observed/unknown process
+reader. Missing leases, unknown files, tracked dependencies, changed source,
+unsupported lockfiles, symlinks and mounts remain protected. It never removes the
+snapshot, Git objects, reports or delivered evidence. Capacity measurement failure
+keeps normal retention. No admission threshold or acceptance check is bypassed.
+
+### Host Nginx log rotation
+
+A host audit found about400MiB in inactive, rotated but uncompressed Nginx logs.
+The retained `delaycompress` setting kept yesterday's large files uncompressed,
+and the daily systemd timer checked `maxsize 100M` only once per day. Host
+maintenance now uses `nodelaycompress`, an hourly logrotate timer override, and
+`maxage 7`/`rotate 168` so size-triggered rotation can retain up to seven days.
+Existing daily rotation, Nginx reopen hook and100M threshold remain.
+
+Initial compression used the official gzip tool only on regular rotated files
+with no open readers/writers, with decompressed SHA256 equality checked afterward.
+No log contents were discarded. Native logrotate configuration was validated in
+debug mode before reloading the timer. This is host configuration, not a new Cuan
+cleanup rule for arbitrary third-party logs. A private original config and
+compression receipt remain under `/var/backups/cuan-maintenance/` on the host.
+To roll back scheduling, restore the saved Nginx stanza, remove only
+`/etc/systemd/system/logrotate.timer.d/90-cuan-storage-pressure.conf`, reload
+systemd and restart the logrotate timer. Compressed logs remain readable with
+standard gzip tools; no archive restoration is needed to inspect their contents.
