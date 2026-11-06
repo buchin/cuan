@@ -458,6 +458,11 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 				}
 			}
 		}
+		if phase, err := s.phaseApproval(ctx, t, q.OwnerID, q.RoomID); err == nil && d.AuthorizationID == phase.Root.SourceMessageID {
+			// Generated phase requests are not independent approval receipts.
+			// The durable launch must retain the original root request as well.
+			sourceRequestID = phase.Request.RequestID
+		}
 	} else {
 		launchID = delegationMessageID("task-run:" + q.RoomID + ":" + d.AuthorizationID)
 	}
@@ -648,6 +653,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	s.observeInboxPublicationConfiguration(ctx, detail, *origin)
 	s.diagnoseInboxStorageFailure(ctx, detail, *origin)
 	s.observeInboxGitHubConnection(ctx, detail, *origin)
+	if s.recoverReviewedPhaseHandoff(ctx, detail, requests) {
+		return
+	}
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return
 	}

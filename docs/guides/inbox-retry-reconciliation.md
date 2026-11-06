@@ -103,6 +103,16 @@ lineage. A changed approval or canceled predecessor blocks recovery. A completed
 old provider review remains immutable; new evidence gets one deterministic fresh
 review request, without creating another execution attempt.
 
+For a phase correction, delegation retains both the root user approval message
+and its original durable request ID. The generated phase message is context,
+not consent. If a completed saved review requested an authorized correction but
+created no launch, reconciliation can apply that exact current decision once
+through the normal launch path, without calling the model again. It requires a
+valid phase chain and current evidence digest, leaves manual blocks alone, and
+never replays a stopped or ambiguous existing launch. The existing assistant
+reply is updated after the durable handoff so an obsolete authorization error
+does not remain beside a now-queued task; no extra message bubble is created.
+
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
 must still complete its original acceptance checks and coordinator review.
