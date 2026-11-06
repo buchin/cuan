@@ -656,6 +656,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if s.recoverReviewedPhaseHandoff(ctx, detail, requests) {
 		return
 	}
+	if s.recoverCapacityVerification(ctx, detail, *origin) {
+		return
+	}
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return
 	}

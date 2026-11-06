@@ -187,6 +187,24 @@ func verificationFinalizationContract(t *testing.T, s *Server, d *task.TaskDetai
 	if taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, current)) < 3 {
 		t.Fatal("finalization reset correction budget")
 	}
+	// Model review must use the native observations already collected for its
+	// snapshot. A late real configuration observation legitimately invalidates
+	// an older decision; it is not a visual acceptance failure.
+	origins, readErr := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, current.SourceRoomID)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	for _, origin := range origins {
+		if origin.MessageID == current.SourceMessageID {
+			s.observeInboxPublicationConfiguration(ctx, current, origin)
+			s.observeInboxGitHubConnection(ctx, current, origin)
+		}
+	}
+	current, err = s.taskSvc.GetTaskDetail(ctx, current.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	accepted := inboxReviewEvaluation{Decision: "pass", Finding: "Actual images inspected.", Explanation: "Actual images inspected.", VisualInspection: "Inspected the delivered 390px application image.", RemainingWork: "none"}
 	q.RequestID = db.GenerateUUID()
 	if _, err = s.saveReviewAssessment(ctx, current, q, accepted); err != nil {
@@ -203,6 +221,13 @@ func verificationFinalizationContract(t *testing.T, s *Server, d *task.TaskDetai
 	row.Summary, row.Status = accepted.Finding, task.TaskStatusDone
 	if err = store.UpdateTask(ctx, row); err != nil {
 		t.Fatal(err)
+	}
+	acceptedSnapshot, snapshotErr := s.taskSvc.GetTaskDetail(ctx, current.ID)
+	if snapshotErr != nil {
+		t.Fatal(snapshotErr)
+	}
+	if _, found := reviewAssessment(acceptedSnapshot, q.RequestID); !found {
+		t.Fatalf("stored acceptance lost evidence identity: before=%s after=%s provenance=%s", inboxReviewEvidenceDigest(current), inboxReviewEvidenceDigest(acceptedSnapshot), inboxReportEvidence(acceptedSnapshot).Provenance)
 	}
 	s.reconcileVisualAcceptances(ctx)
 	current, err = s.taskSvc.GetTaskDetail(ctx, current.ID)

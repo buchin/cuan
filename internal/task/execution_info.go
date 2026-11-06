@@ -10,16 +10,18 @@ import (
 // launch. Parsed intent and scope are diagnostic data, never acceptance proof.
 // Deliberately exclude revision prose, environment, credentials and owner data.
 type ExecutionInfo struct {
-	TaskID          string                            `json:"task_id"`
-	AttemptID       string                            `json:"attempt_id,omitempty"`
-	AttemptStatus   string                            `json:"attempt_status,omitempty"`
-	LaunchState     string                            `json:"launch_state,omitempty"`
-	IntentKind      string                            `json:"intent_kind"`
-	IntentParsed    bool                              `json:"intent_parsed"`
-	SourceAttemptID string                            `json:"source_attempt_id,omitempty"`
-	SourceCommit    string                            `json:"source_commit,omitempty"`
-	TargetCommit    string                            `json:"target_commit,omitempty"`
-	Scope           executionpolicy.PublicationPolicy `json:"scope"`
+	TaskID            string                            `json:"task_id"`
+	AttemptID         string                            `json:"attempt_id,omitempty"`
+	AttemptStatus     string                            `json:"attempt_status,omitempty"`
+	LaunchState       string                            `json:"launch_state,omitempty"`
+	IntentKind        string                            `json:"intent_kind"`
+	IntentParsed      bool                              `json:"intent_parsed"`
+	SourceAttemptID   string                            `json:"source_attempt_id,omitempty"`
+	SourceCommit      string                            `json:"source_commit,omitempty"`
+	TargetCommit      string                            `json:"target_commit,omitempty"`
+	RecoveryAttemptID string                            `json:"recovery_attempt_id,omitempty"`
+	RecoveryCause     string                            `json:"recovery_cause,omitempty"`
+	Scope             executionpolicy.PublicationPolicy `json:"scope"`
 }
 
 func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionInfo, error) {
@@ -75,6 +77,7 @@ func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionI
 	case verification != nil:
 		info.IntentKind = "verification"
 		info.SourceAttemptID, info.SourceCommit = verification.SourceAttemptID, verification.SourceCommit
+		info.RecoveryAttemptID, info.RecoveryCause = verification.RecoveryAttemptID, verification.RecoveryCause
 	case j.InstructionsHash != LaunchInstructionsHash(t.Instructions):
 		info.IntentKind, info.IntentParsed = "invalid", false
 	default:

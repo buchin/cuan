@@ -29,6 +29,9 @@ func (r *VerificationRuntime) Fresh(now time.Time) bool {
 // Recovery is one follow-up of the original verifier, never a chain. It carries
 // the original implementation proof and a durable authenticated readiness receipt.
 func validateVerificationRuntimeRecovery(ctx context.Context, store Store, t *Task, proof *VerificationIntent, activities []*TaskActivity) error {
+	if proof.RecoveryCause == "capacity" {
+		return ValidateVerificationCapacityRecovery(ctx, store, t, proof, activities)
+	}
 	parent, err := store.GetAttempt(ctx, proof.RecoveryAttemptID)
 	if err != nil {
 		return err

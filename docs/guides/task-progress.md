@@ -116,3 +116,21 @@ or another deployment after that allowance is consumed cannot open another retry
 The failed attempt and unpublished original branch keep their recorded states.
 Native runners now remeasure repository state after project checks even when
 those checks fail, preserving any mutation rather than resetting the files.
+
+### Verifier capacity recovery
+
+A supplemental verifier that stopped on a recorded provider quota limit may use
+one recovery of the original exact source after the coordinator actually leases
+an eligible task-class account slot. This is local admission evidence, not proof
+that the provider ran, quota is available remotely, or the failed process had no
+effects. The runner still leases capacity when executing the saved continuation.
+
+Capacity and browser-runtime repair share the same single recovery identity per
+source commit. Cancellation, changed source, different ownership, missing original
+checks, an offline runner, or a previously consumed recovery cannot start a new
+one. A capacity recovery does not chain into another recovery/finalization.
+The original authorization and missing-evidence instructions remain bound to the
+follow-up; implementation, push and deployment are not repeated. Native source
+and repository checks, final reporting and coordinator acceptance remain required.
+The quota failure remains failed in history, including any uncertain prior effects.
+`cuan task execution TASK_ID` reports the recovery cause and predecessor when present.

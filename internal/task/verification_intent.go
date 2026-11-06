@@ -18,6 +18,7 @@ type VerificationIntent struct {
 	ArtifactManifestHash   string `json:"artifact_manifest_hash,omitempty"`
 	RepositoryBaseline     string `json:"repository_baseline,omitempty"`
 	RecoveryAttemptID      string `json:"recovery_attempt_id,omitempty"`
+	RecoveryCause          string `json:"recovery_cause,omitempty"`
 	RuntimeFingerprint     string `json:"runtime_fingerprint,omitempty"`
 	SourceAttemptID        string `json:"source_attempt_id"`
 	SourceCommit           string `json:"source_commit"`
@@ -71,12 +72,21 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 		return nil, ErrInvalidTaskInput
 	}
 	expected := VerificationRequestID(t.ID, proof.SourceCommit)
-	if proof.RecoveryAttemptID != "" || proof.RuntimeFingerprint != "" {
-		if proof.RecoveryAttemptID == "" || proof.RecoveryAttemptID == proof.SourceAttemptID || len(proof.RuntimeFingerprint) != 64 {
+	if proof.RecoveryAttemptID != "" || proof.RuntimeFingerprint != "" || proof.RecoveryCause != "" {
+		if proof.RecoveryAttemptID == "" || proof.RecoveryAttemptID == proof.SourceAttemptID {
 			return nil, ErrInvalidTaskInput
 		}
-		if _, err := hex.DecodeString(proof.RuntimeFingerprint); err != nil {
-			return nil, ErrInvalidTaskInput
+		if proof.RecoveryCause == "capacity" {
+			if proof.RuntimeFingerprint != "" || proof.FinalizeAttemptID != "" {
+				return nil, ErrInvalidTaskInput
+			}
+		} else {
+			if proof.RecoveryCause != "" || len(proof.RuntimeFingerprint) != 64 {
+				return nil, ErrInvalidTaskInput
+			}
+			if _, err := hex.DecodeString(proof.RuntimeFingerprint); err != nil {
+				return nil, ErrInvalidTaskInput
+			}
 		}
 		expected = VerificationRecoveryRequestID(t.ID, proof.SourceCommit)
 	}
