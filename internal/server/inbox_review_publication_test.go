@@ -14,7 +14,7 @@ import (
 )
 
 func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
-	for _, scenario := range []string{"open PR", "report claim", "wrong receipt", "verified receipt", "unrelated running build", "exact project build", "foreign project build", "owner forbids deployment"} {
+	for _, scenario := range []string{"verification revision", "implementation revision", "open PR", "report claim", "wrong receipt", "verified receipt", "unrelated running build", "exact project build", "foreign project build", "owner forbids deployment"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			s, _, _, _ := inboxFixture(t)
@@ -57,12 +57,25 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 			if err := s.taskSvc.Store().CreateAttempt(ctx, d.LatestAttempt); err != nil {
 				t.Fatal(err)
 			}
-			result := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "pass", Finding: "Everything passed", RemainingWork: "none"})
+			input := inboxReviewEvaluation{Decision: "pass", Finding: "Everything passed", RemainingWork: "none"}
+			if strings.HasSuffix(scenario, "revision") {
+				input = inboxReviewEvaluation{Decision: "revise", RemainingWork: strings.Fields(scenario)[0], Finding: "Deployment did not happen", Revision: "Check the approved feature", VisualInspection: "Observed existing view"}
+			}
+			result := s.requirePublicationReview(ctx, d, input)
+			if scenario == "implementation revision" {
+				if result != input {
+					t.Fatal("concrete implementation gap overwritten")
+				}
+				return
+			}
+			if scenario == "verification revision" && (!strings.Contains(result.Revision, input.Revision) || result.VisualInspection != input.VisualInspection) {
+				t.Fatal("verification obligations lost")
+			}
 			allowed := scenario == "verified receipt" || scenario == "exact project build" || scenario == "owner forbids deployment"
 			if (result.Decision == "pass") != allowed {
 				t.Fatalf("publication gate result %+v", result)
 			}
-			if !allowed && (result.RemainingWork != "implementation" || !strings.Contains(result.Finding, "production")) {
+			if !allowed && (result.RemainingWork != "verification" || !strings.Contains(result.Finding, "belum bisa dipastikan")) {
 				t.Fatal("publication gap was lost")
 			}
 			if d.CommitSHA != commit || d.LatestAttempt.Status != task.AttemptStatusSucceeded {

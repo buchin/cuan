@@ -37,3 +37,10 @@ Verification:
 go test ./internal/task ./internal/runner -run 'TestVerifiedDeployment|TestDeploymentReceipt|TestRunner_AutoDeploy|TestConfirmAgentReport' -count=1 -timeout 30s
 go test ./internal/server -run 'TestRunnerReportRead|TestQualityGate_DualPath' -count=1 -timeout 30s
 ```
+
+Missing publication evidence is a verification gap, not proof that deployment
+never happened. The Inbox publication guard applies this distinction to both
+passing reviews and verification-only revisions, independently of the execution
+harness. It requires reconciliation of the registered running release before
+any further publication. Concrete implementation findings and additional
+verification obligations remain intact; missing evidence never grants acceptance.

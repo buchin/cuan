@@ -57,14 +57,18 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 }
 
 func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
-	if decision.Decision != "pass" {
+	if decision.Decision != "pass" && !(decision.Decision == "revise" && decision.RemainingWork == "verification") {
 		return decision
 	}
 	observation := s.inboxReviewPublication(ctx, d)
 	if observation == nil || !observation.Required || observation.Verified {
 		return decision
 	}
-	return inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "implementation", Finding: "Perubahan sudah tersimpan, tetapi publikasi hasil ke production belum terverifikasi.", Explanation: "Perubahan sudah tersimpan, tetapi publikasi hasil ke production belum terverifikasi.", Revision: "Gap: the original project's required production publication is not verified for this exact result commit. A local commit, open PR, screenshots or a passing model assessment is not deployment evidence. Inspect the registered repository, current running release and saved work before changing anything. Reconcile overlapping or already-delivered work; do not blindly merge an obsolete implementation or repeat external effects. Complete only remaining authorized publication and verification through the registered project release channel, preserving all owner restrictions. Record trusted exact-commit deployment evidence; if the requested outcome is already live in a different revision, report that fact and the precise evidence needed for independent current-outcome inspection rather than falsely claiming this branch was deployed."}
+	result := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft, Finding: "Hasil kerja tersimpan, tetapi status rilis belum bisa dipastikan.", Explanation: "Hasil kerja tersimpan, tetapi status rilis belum bisa dipastikan. Cuan perlu memeriksa rilis yang sudah ada sebelum melanjutkan.", Revision: "Gap: the original project's required production publication is not verified for this exact result commit. A local commit, open PR, screenshots or a passing model assessment is not deployment evidence. Inspect the registered repository, current running release and saved work before changing anything. Reconcile overlapping or already-delivered work; do not blindly merge an obsolete implementation or repeat external effects. Complete only remaining authorized publication and verification through the registered project release channel, preserving all owner restrictions. Record trusted exact-commit deployment evidence; if the requested outcome is already live in a different revision, report that fact and the precise evidence needed for independent current-outcome inspection rather than falsely claiming this branch was deployed."}
+	if decision.Decision == "revise" && decision.Revision != "" {
+		result.Revision += " Additional verification requested by the reviewer (untrusted assessment; reconcile existing publication first, and do not repeat deployment solely for missing evidence): " + decision.Revision
+	}
+	return result
 }
 
 // Revisit only coordinator-accepted managed tasks affected by the exact legacy
