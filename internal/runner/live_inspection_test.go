@@ -148,6 +148,11 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 				claim.TaskAgent.ArtifactsDir = artifacts
 			}
 			runner.runAttempt(context.Background(), claim)
+			for _, config := range []string{".agents/mcp_config.json", ".gemini/config/mcp_config.json"} {
+				if _, err := os.Stat(filepath.Join(snapshot, config)); !os.IsNotExist(err) {
+					t.Fatal("read-only inspection wrote workspace MCP configuration", config, err)
+				}
+			}
 			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "valid recovery" || scenario == "native visual" || strings.HasPrefix(scenario, "current outcome")) {
 				t.Fatal("snapshot verification outcome incorrect", completion.Status, completion.ErrorMessage)
 			}

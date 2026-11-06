@@ -18,8 +18,9 @@ class DiskGuardTest(unittest.TestCase):
         base, home = directory / 'installation', directory / 'service home'
         maintenance = base / 'maintenance'
         maintenance.mkdir(parents=True)
-        for name in ('prune-release-artifacts.py', 'prune-provider-go-cache.py'):
+        for name in ('prune-release-artifacts.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py'):
             shutil.copyfile(SCRIPTS / name, maintenance / name)
+        (base / 'data/projects/verification-snapshots').mkdir(parents=True)
         releases = base / 'releases'
         releases.mkdir()
         for number in range(2):
@@ -89,6 +90,43 @@ class DiskGuardTest(unittest.TestCase):
             result = self.run_guard(base, home)
             self.assertNotEqual(result.returncode, 0)
             self.assertTrue(toolchain.exists())
+            self.assertTrue(all(file.exists() for file in preserved))
+
+    @unittest.skipUnless(os.geteuid() == 0, 'native scheduled root maintenance contract')
+    def test_scheduled_snapshot_cleanup_honors_runner_lease(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base, home, _, _, preserved = self.fixture(Path(tmp))
+            root = base / 'data/projects/verification-snapshots' / ('a' * 64)
+            root.mkdir()
+            environment = dict(os.environ, GIT_AUTHOR_NAME='Test fixture', GIT_AUTHOR_EMAIL='fixture@localhost',
+                               GIT_COMMITTER_NAME='Test fixture', GIT_COMMITTER_EMAIL='fixture@localhost')
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], env=environment, stderr=subprocess.DEVNULL)
+            git('init', '--quiet')
+            (root / '.gitignore').write_text('node_modules/\n')
+            (root / 'package.json').write_text('{"private":true}')
+            (root / 'package-lock.json').write_text('{"lockfileVersion":3,"packages":{"":{}}}')
+            (root / 'report.md').write_text('saved verification evidence')
+            git('add', '.')
+            git('commit', '--quiet', '-m', 'snapshot fixture')
+            commit = git('rev-parse', 'HEAD').decode().strip()
+            (root / '.git/cuan-verification.json').write_text(json.dumps({'source': str(home), 'source_commit': commit, 'target_commit': commit}))
+            gate = root / '.git/cuan-verification.lock'
+            gate.touch(mode=0o600)
+            modules = root / 'node_modules'
+            modules.mkdir()
+            (modules / 'dependency.js').write_text('generated dependency')
+            os.utime(modules, (time.time()-7200,)*2)
+            with gate.open('r+b') as lease:
+                fcntl.flock(lease, fcntl.LOCK_EX)
+                result = self.run_guard(base, home)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(modules.exists())
+            result = self.run_guard(base, home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(modules.exists())
+            self.assertEqual((root / 'report.md').read_text(), 'saved verification evidence')
+            self.assertTrue(gate.exists())
             self.assertTrue(all(file.exists() for file in preserved))
 
 

@@ -28,8 +28,8 @@ binaries, temporary files and provider conversations, without execution locks.
 Production had both a root-crontab entry and a separate hourly copy. Updating
 only the deployment pruners therefore left unsafe cleanup scheduled.
 
-The guard now delegates only to the release pruner and idle-provider Go
-toolchain pruner. It never truncates third-party logs, clears warm build caches,
+The guard delegates to the release pruner, idle-provider Go toolchain pruner,
+and leased verification dependency pruner. It never truncates third-party logs, clears warm build caches,
 deletes provider conversations, or removes arbitrary temporary directories.
 Both installed guard copies are replaced during native deployment. Existing
 schedules remain; no new cron job is installed. The release activation lock and
@@ -46,6 +46,44 @@ The deployment gate exercises the actual scheduled entry point with a live
 provider lock, preserving credentials, conversation history, warm cache objects,
 unknown staging files and pending workspace checkpoints. Missing rollback state
 is also checked before any provider cache deletion.
+
+### Verification dependency caches
+
+Verification snapshots remain saved repositories, not disposable workspaces.
+The runner holds an exclusive `.git/cuan-verification.lock` for the entire
+inspection, including dependency preparation, native capture, model execution,
+verification and reporting. Maintenance uses that same persistent inode and
+skips busy snapshots. Waiting for the lease uses the original task deadline.
+Read-only inspections do not write workspace MCP configuration; provider-side
+configuration and the scoped reporting CLI remain available.
+
+`scripts/prune-verification-dependencies.py` previews eligible caches:
+
+```sh
+python3 scripts/prune-verification-dependencies.py \
+  --snapshots /opt/cuan/data/projects/verification-snapshots
+```
+
+Add `--apply` to remove eligible `node_modules` directories. Hourly maintenance
+uses this mode. Eligibility requires a recognized snapshot binding, matching
+HEAD, clean tracked and untracked source, tracked npm manifests and a modern
+lockfile compatible with credential-free dependency preparation. The dependency
+directory must be Git-ignored, contain no tracked files, and be at least one
+hour old. Linked roots, metadata, gate files and dependency directories, nested
+mounts, unknown/unreadable process references and missing legacy leases are kept.
+Process executable/cwd, command arguments and open descriptors additionally
+protect readers that do not use runner leases.
+Root maintenance runs Git checks and dependency removal as the snapshot owner, with optional index
+writes, hooks and filesystem monitoring disabled. Repository-defined Git filters
+therefore cannot inherit the maintenance process's root identity.
+
+Only dependency trees are removed. Source, `.git`, lease inodes, snapshots,
+reports, attachments, provider state and warm build caches remain. Dependency
+preparation recreates locked packages before the next applicable visual check.
+The pruner cannot reclaim older uncoordinated snapshots or arbitrary workspaces;
+insufficient free space still keeps task admission queued. Tests exercise real
+Git, OS locks, an independent process reader, safe removal, linked-file targets,
+unknown readers, mounts and changed or unsupported repositories.
 
 ## Provider failure classification
 

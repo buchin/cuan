@@ -742,9 +742,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	workingDir := ""
 	if claim.LiveInspection != nil {
 		workingDir = claim.WorkingDir
-		if r.gitClient == nil {
-			err = fmt.Errorf("verification snapshot client is unavailable")
+		lease, leaseErr := git.AcquireVerificationLease(ctx, workingDir)
+		if leaseErr != nil {
+			err = fmt.Errorf("verification snapshot lease unavailable: %w", leaseErr)
 		} else {
+			defer lease.Close()
+		}
+		if err == nil && r.gitClient == nil {
+			err = fmt.Errorf("verification snapshot client is unavailable")
+		} else if err == nil {
 			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SnapshotSourceCommit(), claim.LiveInspection.TargetCommit)
 			if err == nil && claim.LiveInspection.PreviousCommit != "" {
 				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit)
@@ -838,7 +844,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		_ = agent.PrepareAntigravitySettings(home, workingDir)
 		_ = agent.EnsureAntigravityMCPConfig(home)
 	}
-	if workingDir != "" {
+	if workingDir != "" && !policy.ReadOnlyRepository {
 		_ = agent.EnsureWorkspaceMCPConfig(workingDir)
 	}
 
@@ -899,7 +905,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			verificationRuntimeFingerprint = evidence.Fingerprint
 		}
 	}
-	if err == nil && claim.LiveInspection != nil && claim.LiveInspection.Purpose == task.CurrentOutcomeInspection && claim.RequiresVision {
+	if err == nil && claim.LiveInspection != nil && ((claim.LiveInspection.Purpose == task.CurrentOutcomeInspection && claim.RequiresVision) || claim.VisualRecipe != nil) {
 		r.streamLogLine(ctx, att.ID, "system", "Preparing locked frontend dependencies in the private inspection snapshot.")
 		err = prepareInspectionDependencies(ctx, workingDir)
 		if err == nil {

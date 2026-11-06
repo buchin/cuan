@@ -41,3 +41,7 @@ if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts
     python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --apply
   fi
 fi
+if [[ -d "$install_dir/data/projects/verification-snapshots" ]]; then
+  python3 "$install_dir/maintenance/prune-verification-dependencies.py" \
+    --snapshots "$install_dir/data/projects/verification-snapshots" --apply
+fi
