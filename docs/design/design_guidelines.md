@@ -503,3 +503,27 @@ Captions retain ordinary text padding. Without a caption or email delivery label
 place the timestamp on a small translucent dark overlay at the bottom right;
 retain readable receipt icons. Whisper speech uses a quiet warm tint in both
 themes, alongside the existing privacy marker. Public speech remains neutral.
+
+### 7.17. One work preview and adaptive work panel
+
+A conversation renders one current preview per task. Put its latest saved progress
+below the title and before CardActions. Background review updates, response timers,
+file-delivery bubbles and attempt histories belong in task Detail. Preserve real
+conversation, owner decisions, final outcomes and ready-to-use customer drafts.
+Classify native work records by explicit server projection; never hide arbitrary
+agent speech merely because it mentions a task. Stored messages remain intact.
+
+Detail and Terminal are independent destinations, not tabs in a miniature drawer.
+At1600px and above the selected destination becomes a fourth column, keeping chat
+usable. From1200px to1599px it replaces the chat column while the conversation
+list stays visible. Below1200px it fills the screen with Back. Browser Back must
+work, preserving the chat draft and scroll position. Terminal fills its available
+height using the actual attempt and live session; never invent a fallback attempt.
+Detail contains no embedded terminal or redundant terminal link.
+
+Use TaskTimeline for chronological saved progress, reviews and delivered files.
+Round StatusDots connect with a muted vertical line; only the final confirmed
+running execution/review pulses. Successful execution alone is not accepted work.
+Reports and technical diagnostics use disclosure. Follow new activity until the
+reader scrolls upward; Latest activity resumes following. No repeating generic
+Progress heading on each checkpoint, and no decorative nested status boxes.

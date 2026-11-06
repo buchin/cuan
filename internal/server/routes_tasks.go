@@ -272,20 +272,35 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if s.projectStudioRepo != nil && detail.SourceRoomID != "" && detail.LatestAttempt != nil {
-		seen := map[string]bool{}
-		for _, prefix := range []string{"task-visual-delivery:", "task-delivery:"} {
-			m, err := s.projectStudioRepo.GetMessageByID(r.Context(), delegationMessageID(prefix+detail.LatestAttempt.ID))
-			if err != nil || m == nil || m.RoomID != detail.SourceRoomID || m.AuthorType != "agent" || m.ReplyToID == nil || *m.ReplyToID != detail.SourceMessageID {
-				continue
-			}
-			_, ids := decodeAttachmentMessage(m.Content)
-			if owner, err := s.taskArtifactOwner(r.Context(), detail); err == nil {
-				for _, aid := range ids {
-					if !seen[aid] {
+		owner, ownerErr := s.taskArtifactOwner(r.Context(), detail)
+		deliveries, deliveryErr := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), detail.SourceRoomID)
+		byID := make(map[string]db.ProjectMessage, len(deliveries))
+		for _, message := range deliveries {
+			byID[message.ID] = message
+		}
+		if ownerErr == nil && deliveryErr == nil {
+			seen := map[string]bool{}
+			for _, attempt := range detail.Attempts {
+				for _, prefix := range []string{"task-visual-delivery:", "task-delivery:"} {
+					m, exists := byID[delegationMessageID(prefix+attempt.ID)]
+					if !exists || m.RoomID != detail.SourceRoomID || m.AuthorType != "agent" || m.ReplyToID == nil || *m.ReplyToID != detail.SourceMessageID {
+						continue
+					}
+					_, ids := decodeAttachmentMessage(m.Content)
+					var delivered []conversationAttachment
+					for _, aid := range ids {
 						if attachment, _, err := loadAttachment(owner, aid); err == nil {
-							detail.Attachments = append(detail.Attachments, attachment)
-							seen[aid] = true
+							delivered = append(delivered, attachment)
+							if attempt.ID == detail.LatestAttempt.ID && !seen[aid] {
+								detail.Attachments = append(detail.Attachments, attachment)
+								seen[aid] = true
+							}
 						}
+					}
+					if len(delivered) > 0 {
+						raw, _ := json.Marshal(map[string]any{"attachments": delivered})
+						attemptID := attempt.ID
+						detail.Activities = append(detail.Activities, &task.TaskActivity{ID: "files:" + m.ID, TaskID: detail.ID, AttemptID: &attemptID, ActivityType: "work_files", Author: m.AuthorName, Message: string(raw), CreatedAt: m.CreatedAt})
 					}
 				}
 			}

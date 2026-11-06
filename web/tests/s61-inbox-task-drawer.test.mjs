@@ -71,11 +71,11 @@ test('3. S61-T3: Elimination of Duplicate "Tasks - Internal" Banner & Monitor Du
 
 test('4. S61-T3: Progressive Disclosure SlideDrawer Integration for Task References', () => {
   assert.ok(
-    inboxView.includes('SlideDrawer'),
+    inboxView.includes('InboxWorkPanel'),
     'InboxView.tsx must integrate SlideDrawer component'
   )
   assert.ok(
-    inboxView.includes('data-testid="inbox-task-drawer"'),
+    fs.readFileSync(path.resolve(repoRoot,'web/src/features/inbox/InboxWorkPanel.tsx'),'utf8').includes('data-testid="inbox-work-panel"'),
     'InboxView.tsx must render SlideDrawer with data-testid="inbox-task-drawer"'
   )
   assert.ok(
@@ -123,25 +123,6 @@ test('5. S61-T3: Chat Stream Task Reference Click Wiring (Drawer Peek vs Whole C
   assert.ok(
     chatMarkdown.includes('onTaskClick'),
     'ChatMarkdown must support onTaskClick prop'
-  )
-})
-
-test('6. S61-T3: Task SlideDrawer Content & Aesthetics (Things 3 & Bear Calm Standard)', () => {
-  assert.ok(
-    inboxView.includes('data-testid="inbox-task-drawer-content"'),
-    'SlideDrawer must render task content container with data-testid="inbox-task-drawer-content"'
-  )
-  assert.ok(
-    inboxView.includes('peekTask.dod_checklist'),
-    'SlideDrawer must render Definition of Done checklist when available'
-  )
-  assert.ok(
-    inboxView.includes('taskTargetUrl(peekTask)'),
-    'SlideDrawer must provide navigation link to full task page'
-  )
-  assert.ok(
-    inboxView.includes('taskTerminalUrl(peekTask)'),
-    'SlideDrawer must provide link to live terminal when running'
   )
 })
 

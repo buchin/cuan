@@ -72,6 +72,7 @@ export interface PromptChoices {
 }
 
 export interface ChatMessage {
+  work_update?: { task_id: string; attempt_id?: string; kind: 'progress' | 'files' | 'result' }
   regenerate_reply_id?: string
   delivered_at?: string
   read_confirmed_at?: string

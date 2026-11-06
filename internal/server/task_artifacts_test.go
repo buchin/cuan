@@ -223,11 +223,28 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	for _, m := range messages {
 		if len(m.Attachments) > 0 {
 			attachment = m.Attachments[0]
+			if m.WorkUpdate == nil || m.WorkUpdate.Kind != "files" || m.WorkUpdate.TaskID != saved.ID {
+				t.Fatal("native file delivery lost task projection")
+			}
 		}
 	}
 	if attachment.Name != "output.html" {
 		raw, _ := json.Marshal(messages)
 		t.Fatal("download not surfaced in Inbox", string(raw))
+	}
+	response := call("GET", "/api/v1/tasks/"+saved.ID, "")
+	var projected task.TaskDetailResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &projected); err != nil || response.Code != 200 {
+		t.Fatal("task detail unavailable", response.Code, err)
+	}
+	foundFiles := false
+	for _, event := range projected.Activities {
+		if event.ActivityType == "work_files" && event.AttemptID != nil && *event.AttemptID == a.ID && strings.Contains(event.Message, attachment.ID) {
+			foundFiles = true
+		}
+	}
+	if !foundFiles {
+		t.Fatal("task timeline cannot open the retained delivery")
 	}
 	os.WriteFile(sourceFile, []byte("REPLACED_SOURCE"), 0600)
 	if session {

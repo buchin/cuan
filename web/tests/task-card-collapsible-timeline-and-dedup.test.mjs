@@ -12,46 +12,8 @@ const taskCardPath = path.resolve(webDir, 'src/features/inbox/TaskCard.tsx')
 const idLocalePath = path.resolve(webDir, 'src/locales/id.json')
 const enLocalePath = path.resolve(webDir, 'src/locales/en.json')
 
-const taskCardSrc = fs.readFileSync(taskCardPath, 'utf8')
 const idLocale = JSON.parse(fs.readFileSync(idLocalePath, 'utf8'))
 const enLocale = JSON.parse(fs.readFileSync(enLocalePath, 'utf8'))
-
-test('1. TaskCard: Collapsible session history timeline state & toggle button', () => {
-  assert.ok(
-    taskCardSrc.includes('const [showTimeline, setShowTimeline] = useState(false)'),
-    'TaskCard must have showTimeline state initialized to false'
-  )
-  assert.ok(
-    taskCardSrc.includes('const attempts = useMemo'),
-    'TaskCard must memoize attempts from currentTask.attempts and latest_attempt'
-  )
-  assert.ok(
-    taskCardSrc.includes('data-testid="task-card-timeline-toggle"'),
-    'TaskCard must include timeline toggle button'
-  )
-  assert.ok(
-    taskCardSrc.includes('data-testid="task-card-timeline-content"'),
-    'TaskCard must conditionally render timeline content'
-  )
-})
-
-test('2. TaskCard: Attempt timeline row formatting, status, and error display', () => {
-  assert.ok(
-    taskCardSrc.includes('data-testid={`task-attempt-row-${attemptNum}`}'),
-    'TaskCard must render each attempt with a testid'
-  )
-  assert.ok(
-    taskCardSrc.includes('att.error_message'),
-    'TaskCard must display attempt error message when present'
-  )
-  assert.ok(
-    taskCardSrc.includes('formatDuration'),
-    'TaskCard must format attempt elapsed duration'
-  )
-})
-
-// Task message binding and acknowledgement behavior is covered by
-// task-message-bindings.test.mjs and task-launch-text.test.mjs.
 
 test('4. Localization: Dictionaries include Riwayat Sesi, Sesi, and toggle labels', () => {
   assert.equal(idLocale['Riwayat Sesi'], 'Riwayat Sesi')

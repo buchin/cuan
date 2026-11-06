@@ -43,23 +43,9 @@ test('2. TaskSidePeek eliminates empty checklist clutter when no criteria exist'
   )
 })
 
-test('3. TaskSidePeek filters out internal developer engine events from activity timeline', () => {
-  const sidePeekPath = path.join(
-    rootDir,
-    'src/features/tasks/TaskSidePeek.tsx',
-  )
-  const content = fs.readFileSync(sidePeekPath, 'utf8')
-
-  assert.match(
-    content,
-    /attempt_transition/,
-    'TaskSidePeek must filter out internal attempt_transition logs',
-  )
-  assert.match(
-    content,
-    /agent_result_kind/,
-    'TaskSidePeek must filter out raw agent_result_kind logs',
-  )
+test('3. Task details share the user progress timeline', () => {
+  const content = fs.readFileSync(path.join(rootDir,'src/features/tasks/TaskSidePeek.tsx'),'utf8')
+  assert.ok(content.includes('<TaskTimeline'))
 })
 
 test('4. TaskSessionPage provides interactive Switch to latest session button', () => {

@@ -134,33 +134,10 @@ test('3. Button Proportion, Spacing, and Right-Aligned Saved Replies Action', ()
     'Send button must use 18px Send icon'
   )
 
-  // Textarea: min-height 36px on mobile, autoResizeTextarea minH updated, symmetric padding py-2
-  assert.ok(
-    inboxViewSource.includes('min-h-[36px]'),
-    'Textarea must declare min-h-[36px] on mobile'
-  )
-  assert.ok(
-    inboxViewSource.includes('py-2'),
-    'Textarea must declare symmetric vertical padding py-2'
-  )
-  assert.ok(
-    inboxViewSource.includes('const minH = window.innerWidth < 640 ? 36 : 38'),
-    'autoResizeTextarea must dynamically adapt minH to 36px on mobile'
-  )
+  const input = fs.readFileSync(path.join(__dirname, '../src/components/ui/ComposerInput.tsx'), 'utf8')
+  assert.ok(input.includes('min-h-[44px]') && input.includes('py-3'), 'Shared input aligns with44px accessories')
+  assert.ok(input.includes('const minimum = 44'), 'Resize preserves the shared input height')
 
-  // Textarea custom scrollbar styling in chat-calm.css
-  assert.ok(
-    cssSource.includes('scrollbar-width: thin;'),
-    'chat-calm.css must specify thin scrollbar for textarea'
-  )
-  assert.ok(
-    cssSource.includes('.wa-input::-webkit-scrollbar'),
-    'chat-calm.css must define custom webkit-scrollbar for textarea'
-  )
-  assert.ok(
-    cssSource.includes('.wa-input::-webkit-scrollbar-thumb'),
-    'chat-calm.css must style rounded thumb for textarea'
-  )
 })
 
 test('4. Mobile Viewport Responsiveness at 360px, 390px, and 412px', () => {

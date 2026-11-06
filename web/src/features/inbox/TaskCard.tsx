@@ -1,5 +1,5 @@
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
-import { useState, useEffect, memo, useMemo } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Folder,
@@ -12,9 +12,8 @@ import {
   Clock,
   Send,
   Sparkles,
-  History,
 } from 'lucide-react'
-import type { Task, TaskDetail, TaskAttempt } from '../../api/types'
+import type { Task, TaskDetail } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
@@ -93,22 +92,6 @@ export const TaskCard = memo(function TaskCard({
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
-  const [showTimeline, setShowTimeline] = useState(false)
-
-  const attempts = useMemo<TaskAttempt[]>(() => {
-    const list: TaskAttempt[] = [...((currentTask as any)?.attempts || [])]
-    if (list.length === 0 && currentTask?.latest_attempt) {
-      list.push(currentTask.latest_attempt as TaskAttempt)
-    }
-    return list.sort((a, b) => {
-      const numA = a.attempt_number ?? 0
-      const numB = b.attempt_number ?? 0
-      if (numA !== numB) return numB - numA
-      const timeA = new Date(a.created_at || a.started_at || 0).getTime()
-      const timeB = new Date(b.created_at || b.started_at || 0).getTime()
-      return timeB - timeA
-    })
-  }, [currentTask])
 
   useEffect(() => {
     let active = true
@@ -590,146 +573,6 @@ export const TaskCard = memo(function TaskCard({
         </div>
       )}
 
-      {/* Collapsible Session & Attempt History Timeline (only rendered when there are multiple attempts/revisions) */}
-      {attempts.length > 1 && (
-        <div
-          data-testid="task-card-timeline-section"
-          onClick={(e) => e.stopPropagation()}
-          className="border-t border-border/30 pt-2 space-y-1.5 cursor-default"
-        >
-          <button
-            type="button"
-            onClick={() => setShowTimeline((prev) => !prev)}
-            data-testid="task-card-timeline-toggle"
-            aria-expanded={showTimeline}
-            className="inline-flex items-center gap-1.5 py-1 px-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors select-none cursor-pointer group/timeline"
-          >
-            <History className="h-3.5 w-3.5 text-muted-foreground/70 group-hover/timeline:text-foreground shrink-0 transition-colors" />
-            <span>{t('Riwayat Sesi')} ({attempts.length})</span>
-            {attempts.some((a) => a.status === 'failed') && (
-              <span className="text-[10px] text-destructive/80 font-normal">
-                · {attempts.filter((a) => a.status === 'failed').length} {t('Gagal')}
-              </span>
-            )}
-            <span className="text-[10px] text-muted-foreground/50 ml-0.5">
-              {showTimeline ? '▲' : '▼'}
-            </span>
-          </button>
-
-          {showTimeline && (
-            <div
-              data-testid="task-card-timeline-content"
-              className="space-y-2.5 pt-1 pb-1 px-1 text-xs select-text animate-in fade-in-50 duration-150"
-            >
-              {attempts.map((att, idx) => {
-                const isRunning = att.status === 'running'
-                const isQueued = att.status === 'queued'
-                const isFailed =
-                  att.status === 'failed' ||
-                  att.status === 'canceled' ||
-                  att.status === 'interrupted'
-                const isDone = att.status === 'succeeded'
-                const attemptNum = att.attempt_number ?? (attempts.length - idx)
-
-                let durationText = ''
-                if (att.started_at && att.finished_at) {
-                  const diffSec = Math.round(
-                    (new Date(att.finished_at).getTime() -
-                      new Date(att.started_at).getTime()) /
-                      1000
-                  )
-                  if (diffSec > 0) durationText = formatDuration(diffSec)
-                }
-
-                return (
-                  <div
-                    key={att.id || `att-${idx}`}
-                    data-testid={`task-attempt-row-${attemptNum}`}
-                    className="relative pl-4 text-xs select-text"
-                  >
-                    {/* Vertical timeline connector */}
-                    {idx < attempts.length - 1 && (
-                      <div className="absolute left-[3px] top-2.5 bottom-[-10px] w-[1px] bg-border/40 pointer-events-none" />
-                    )}
-
-                    {/* Status dot */}
-                    <div className="absolute left-0 top-1.5 h-2 w-2 rounded-full flex items-center justify-center">
-                      {isRunning ? (
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400" />
-                        </span>
-                      ) : isQueued ? (
-                        <span className="inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
-                      ) : isFailed ? (
-                        <span className="inline-flex rounded-full h-1.5 w-1.5 bg-destructive/70" />
-                      ) : isDone ? (
-                        <span className="inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                      ) : (
-                        <span className="inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/50" />
-                      )}
-                    </div>
-
-                    {/* Attempt header */}
-                    <div className="flex flex-wrap items-center justify-between gap-1 leading-snug">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-semibold text-foreground">
-                          {t('Sesi')} #{attemptNum}
-                        </span>
-                        <span
-                          className={cn(
-                            'text-[10px] px-1.5 py-0.2 rounded-full font-medium',
-                            isRunning &&
-                              'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-                            isQueued &&
-                              'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-                            isFailed && 'bg-destructive/10 text-destructive',
-                            isDone &&
-                              'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-                            !isRunning &&
-                              !isQueued &&
-                              !isFailed &&
-                              !isDone &&
-                              'bg-muted text-muted-foreground'
-                          )}
-                        >
-                          {t(att.status || 'unknown')}
-                        </span>
-                        {durationText && (
-                          <span className="text-[10px] text-muted-foreground font-mono">
-                            ({durationText})
-                          </span>
-                        )}
-                      </div>
-
-                      {(att.started_at || att.created_at) && (
-                        <time
-                          dateTime={att.started_at || att.created_at}
-                          className="text-[10px] text-muted-foreground/60 font-mono"
-                        >
-                          {new Date(
-                            att.started_at || att.created_at
-                          ).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </time>
-                      )}
-                    </div>
-
-                    {/* Detailed error or progress message - unboxed calm typography */}
-                    {att.error_message && (
-                      <p className="mt-0.5 text-[11px] text-destructive/80 font-mono leading-normal break-words">
-                        {att.error_message}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Footer: Diagnostic Link, Timestamp, and Quick Action Button */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/30 text-xs">

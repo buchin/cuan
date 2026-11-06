@@ -107,7 +107,7 @@ export function InboxTaskAction({
   if (existing) {
     const attention = taskAttention(existing)
     const state = existing.review_state === 'running' ? 'Checking result' : existing.review_state === 'queued' ? 'Waiting for review' : workStatus(existing)
-    const rawUpdate = existing.review_state ? '' : state === 'Working' ? existing.latest_progress : state === 'Completed' ? existing.summary : existing.latest_attempt?.error_message || existing.summary
+    const rawUpdate = existing.latest_progress || (state === 'Completed' ? existing.summary : undefined)
     const titlePrefix = existing.title.trim()
     const update = titlePrefix && rawUpdate?.trim().toLocaleLowerCase().startsWith(titlePrefix.toLocaleLowerCase()) && (!rawUpdate.trim().slice(titlePrefix.length) || /^[\s:,.–—-]/.test(rawUpdate.trim().slice(titlePrefix.length)))
       ? rawUpdate.trim().slice(titlePrefix.length).replace(/^[\s:,.–—-]+/, '')
@@ -122,7 +122,7 @@ export function InboxTaskAction({
         actions={<span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span>}
       />
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
-      {attention ? <p className="break-words text-sm leading-5 text-muted-foreground"><span className="text-foreground">{t(attention.reason)}</span></p> : update && <p className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
+      {attention ? <p className="break-words text-sm leading-5 text-muted-foreground"><span className="text-foreground">{t(attention.reason)}</span></p> : update && <p data-task-latest-update className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
       {attention && proposal && <p data-task-recommendation className="whitespace-pre-wrap break-words text-sm leading-5">{proposal.description}</p>}
       <CardActions className="-mx-4 px-4">
         {onViewTask ? <button type="button" data-task-detail className="mr-auto inline-flex min-h-11 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>

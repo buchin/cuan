@@ -112,7 +112,7 @@ test('4. Requirement 4: Room tasks remain accessible via global navigation; rigi
     'InboxView must eliminate ConversationWorkMonitor in favor of SlideDrawer'
   )
   assert.ok(
-    inboxViewSource.includes('SlideDrawer'),
+    inboxViewSource.includes('InboxWorkPanel'),
     'InboxView must integrate SlideDrawer for task peek'
   )
 

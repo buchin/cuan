@@ -1,3 +1,4 @@
+import { TaskTimeline } from './TaskTimeline'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { IconButton } from '../../components/ui/IconButton'
 import { GitHubPrerequisite } from './GitHubPrerequisite'
@@ -129,6 +130,7 @@ function TaskDetailView({
 }: Props & { task: Task }) {
   const { t, language } = useLanguage()
   const id = language === 'id'
+  const timelineScroll = useRef<HTMLElement>(null)
   const dialog = useRef<HTMLDialogElement>(null),
     [params, setParams] = useSearchParams(),
     full = params.get('view') === 'full'
@@ -623,7 +625,7 @@ function TaskDetailView({
               id: 'sessions',
               label: (id ? 'Detail teknis' : 'Technical details'),
             },
-            { id: 'activity', label: id ? 'Riwayat' : 'Activity' },
+            { id: 'activity', label: id ? 'Progres' : 'Progress' },
           ] as const
         ).map((item) => (
           <button
@@ -686,7 +688,7 @@ function TaskDetailView({
           </button>
         </div>
       )}
-      <main
+      <main ref={timelineScroll}
         className={cn('min-h-0 min-w-0 flex-1 p-4 sm:p-6', 'overflow-y-auto')}
       >
         {!loaded && (
@@ -1290,56 +1292,7 @@ function TaskDetailView({
         )}
         {tab === 'activity' && (
           <div className="space-y-5">
-            <section aria-label="Task timeline" className="space-y-3">
-              {detail.activities.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No activity recorded yet.
-                </p>
-              ) : (
-                [...detail.activities]
-                  .filter(
-                    (item) =>
-                      item.activity_type !== 'attempt_transition' &&
-                      item.activity_type !== 'agent_result_kind',
-                  )
-                  .sort(
-                    (a, b) =>
-                      Date.parse(b.created_at) - Date.parse(a.created_at),
-                  )
-                  .map((item) => (
-                    <article key={item.id} className="rounded-lg border p-3">
-                      <header className="mb-2 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
-                        <span>
-                          {authorName(item.author)} ·{' '}
-                          {item.activity_type === 'comment'
-                            ? 'Comment'
-                            : item.activity_type.replace(/_/g, ' ')}
-                        </span>
-                        <time
-                          title={new Date(item.created_at).toLocaleString(
-                            'en-US',
-                          )}
-                        >
-                          {relativeTime(item.created_at)}
-                        </time>
-                      </header>
-                      <div className="task-prose">
-                        <ChatMarkdown content={item.message} />
-                      </div>
-                      {item.attempt_id && (
-                        <button
-                          className="mt-2 min-h-9 text-xs text-primary underline"
-                          onClick={() => {
-                            openSession(item.attempt_id || '')
-                          }}
-                        >
-                          Open session
-                        </button>
-                      )}
-                    </article>
-                  ))
-              )}
-            </section>
+            <TaskTimeline task={detail} scrollRef={timelineScroll}/>
             <form
               className="space-y-2"
               onSubmit={(e) => {

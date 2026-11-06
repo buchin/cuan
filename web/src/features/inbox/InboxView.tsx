@@ -57,15 +57,6 @@ import {
   ChevronDown,
   Lock,
   Copy,
-  Clock,
-  CheckCircle2,
-  ListChecks,
-  GitBranch,
-  ExternalLink,
-  ArrowRight,
-  Terminal,
-  Rocket,
-  ShieldCheck,
   Inbox as InboxIcon,
 } from 'lucide-react'
 import { Task } from '../../api/types'
@@ -74,23 +65,14 @@ import './chat-calm.css'
 import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
 import { withoutTaskLaunchAcknowledgement } from './task-launch-text'
-import { taskMessageBindings } from './task-message-bindings'
+import { taskMessageBindings, isBackgroundWorkUpdate } from './task-message-bindings'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
 import { PromptChoiceChips } from './PromptChoiceChips'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
-import { SlideDrawer } from '../../components/layout/SlideDrawer'
-import { ChatMarkdown } from './ChatMarkdown'
-import { parseTaskReviewEnvelope } from './task-envelope'
-import {
-  taskRef,
-  statusLabel,
-  taskTargetUrl,
-  taskTerminalUrl,
-  relativeTime,
-  agentDisplayName,
-} from '../tasks/task-ui'
+import { InboxWorkPanel } from './InboxWorkPanel'
+
 import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
 import { TaskCard, cacheTasks } from './TaskCard'
@@ -98,11 +80,6 @@ import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 
-const TaskTerminal = lazy(() =>
-  import('../tasks/TaskTerminal').then((m) => ({
-    default: m.TaskTerminal,
-  })),
-)
 
 const CannedResponsesDialog = lazy(() =>
   import('./CannedResponsesDialog').then((m) => ({
@@ -287,33 +264,37 @@ export function InboxView({
   }, [activeConversationTasks, linkedTasks])
   const [peekTask, setPeekTask] = useState<Task | null>(null)
   const [peekTab, setPeekTab] = useState<'details' | 'terminal'>('details')
-  const [_peekTaskLoading, setPeekTaskLoading] = useState(false)
+  const workChatScroll = useRef<number | null>(null)
   const [escalatingMessage, setEscalatingMessage] = useState<ChatMessage | null>(null)
 
   const handleOpenTaskDrawer = useCallback(
-    async (taskOrId: Task | string, tab: 'details' | 'terminal' = 'details') => {
-      setPeekTab(tab)
-      if (typeof taskOrId === 'string') {
-        const existing = linkedTasks.find((t) => t.id === taskOrId)
-        if (existing) {
-          setPeekTask(existing)
-          return
-        }
-        setPeekTaskLoading(true)
-        try {
-          const fetched = await tasksApi.get(taskOrId)
-          if (fetched) setPeekTask(fetched)
-        } catch {
-          // ignore error
-        } finally {
-          setPeekTaskLoading(false)
-        }
-      } else {
-        setPeekTask(taskOrId)
-      }
-    },
-    [linkedTasks]
+    (taskOrId: Task | string, tab: 'details' | 'terminal' = 'details') => {
+      const query = new URLSearchParams(location.search)
+      const alreadyOpen = query.has('work')
+      if (!alreadyOpen) workChatScroll.current = messageListRef.current?.scrollTop ?? null
+      query.set('work', typeof taskOrId === 'string' ? taskOrId : taskOrId.id)
+      query.set('work_view', tab)
+      navigate({ pathname: location.pathname, search: query.toString() }, { replace: alreadyOpen, state: { ...location.state, inboxWorkEntry: alreadyOpen ? location.state?.inboxWorkEntry : true } })
+    }, [navigate, location.pathname, location.search, location.state],
   )
+  const closeWorkPanel = useCallback(() => {
+    if (location.state?.inboxWorkEntry) navigate(-1)
+    else {
+      const query = new URLSearchParams(location.search)
+      query.delete('work'); query.delete('work_view')
+      navigate({ pathname: location.pathname, search: query.toString() }, {replace:true, state:location.state})
+    }
+  }, [navigate, location.pathname, location.search, location.state])
+  useEffect(() => {
+    const query = new URLSearchParams(location.search), workID = query.get('work')
+    if (!workID) {
+      setPeekTask(null)
+      const frame = requestAnimationFrame(() => { if (workChatScroll.current !== null && messageListRef.current) { messageListRef.current.scrollTop = workChatScroll.current; workChatScroll.current = null } })
+      return () => cancelAnimationFrame(frame)
+    }
+    setPeekTab(query.get('work_view') === 'terminal' ? 'terminal' : 'details')
+    setPeekTask(current => linkedTasks.find(task => task.id === workID) || (current?.id === workID ? current : null) || {id:workID,title:'',status:'todo',priority:'normal',created_at:'',updated_at:''})
+  }, [location.search, linkedTasks])
 
   const handleTaskDetailsClick = useCallback(
     (task: Task) => handleOpenTaskDrawer(task, 'details'),
@@ -566,6 +547,9 @@ export function InboxView({
                 a.email_delivery?.status !== b.email_delivery?.status ||
                 a.email_delivery?.recipient_type !== b.email_delivery?.recipient_type ||
                 a.reply_draft !== b.reply_draft ||
+                a.work_update?.kind !== b.work_update?.kind ||
+                a.work_update?.task_id !== b.work_update?.task_id ||
+                a.work_update?.attempt_id !== b.work_update?.attempt_id ||
                 a.regenerate_reply_id !== b.regenerate_reply_id ||
                 a.plan_deferred !== b.plan_deferred ||
                 a.approval_accepted !== b.approval_accepted
@@ -1246,6 +1230,7 @@ export function InboxView({
         className={cn(
           'wa-chat flex-1 min-h-0 min-w-0 flex-col h-full overflow-hidden',
           mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
+          peekTask && 'min-[1200px]:hidden min-[1600px]:flex',
         )}
       >
         {canvasMode === 'studio' ? (
@@ -1589,10 +1574,12 @@ export function InboxView({
                   )
                   textareaRef.current?.focus()
                 }
+                const backgroundWork = isBackgroundWorkUpdate(msg)
+                if (backgroundWork && !linkedTaskForMsg && !msg.reply_draft) return null
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
-                if (!msg.regenerate_reply_id) previousBubbleMessage = msg
-                const hasSpeech = withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
-                const showMessageSurface = !msg.regenerate_reply_id && (hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices))
+                if (!msg.regenerate_reply_id && !backgroundWork) previousBubbleMessage = msg
+                const hasSpeech = !backgroundWork && withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
+                const showMessageSurface = !backgroundWork && !msg.regenerate_reply_id && (hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices))
                 const onlyImages = msg.attachments?.length
                   ? msg.attachments.every(isImageAttachment)
                   : !!msg.attachment_url && isImageAttachment({ name: msg.attachment_name || '', type: msg.attachment_type })
@@ -1874,7 +1861,7 @@ export function InboxView({
                         if (textareaRef.current) autoResizeTextarea(textareaRef.current)
                       }} />
                     )}
-                    {(requestsByMessage.get(msg.uuid || '') || []).map((q) => {
+                    {(!msg.work_update ? requestsByMessage.get(msg.uuid || '') || [] : []).map((q) => {
                       const placeholder =
                         (q.agent_id || activeContact.type === 'agent') &&
                         q.reply_id !== msg.uuid
@@ -2235,332 +2222,7 @@ export function InboxView({
         )}
       </div>
 
-      {/* Progressive Disclosure SlideDrawer for Linked Task Peek */}
-      <SlideDrawer
-        isOpen={Boolean(peekTask)}
-        onClose={() => setPeekTask(null)}
-        title={peekTask?.title || t('Detail Tugas')}
-        description={
-          peekTask
-            ? `${taskRef(peekTask.id)} · ${statusLabel(peekTask.status || 'not_started')}`
-            : undefined
-        }
-        size="lg"
-        data-testid="inbox-task-drawer"
-        badge={
-          peekTask && (
-            <span
-              className={cn(
-                'text-[11px] font-mono font-medium px-2 py-0.5 rounded border border-border/40',
-                peekTask.status === 'done'
-                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
-                  : peekTask.status === 'review'
-                    ? 'text-purple-600 dark:text-purple-400 bg-purple-500/10'
-                    : peekTask.status === 'doing'
-                      ? 'text-blue-600 dark:text-blue-400 bg-blue-500/10'
-                      : 'text-muted-foreground bg-muted/40'
-              )}
-            >
-              {taskRef(peekTask.id)}
-            </span>
-          )
-        }
-        headerActions={
-          peekTask && (
-            <Link
-              to={taskTargetUrl(peekTask)}
-              className="rounded-md p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
-              title={t('Buka Halaman Tugas Penuh')}
-              aria-label={t('Buka Halaman Tugas Penuh')}
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Link>
-          )
-        }
-        footer={
-          peekTask && (
-            <div className="flex items-center justify-between w-full gap-2">
-              <button
-                type="button"
-                onClick={() => setPeekTask(null)}
-                className="action-secondary min-h-10 px-3.5 text-xs"
-              >
-                <span>{t('Tutup')}</span>
-              </button>
-              <Link
-                to={taskTargetUrl(peekTask)}
-                className="action-primary min-h-10 px-3.5 text-xs inline-flex items-center gap-1.5"
-              >
-                <span>{t('Buka Halaman Tugas')}</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          )
-        }
-      >
-        {peekTask && (() => {
-          const envelopeResult = parseTaskReviewEnvelope(peekTask)
-          return (
-            <div className="space-y-4 text-sm" data-testid="inbox-task-drawer-content">
-              {/* Tab Toggle: Detail Diagnostik & Status Deploy vs Live Terminal */}
-              <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted/40 border border-border/40">
-                <button
-                  type="button"
-                  onClick={() => setPeekTab('details')}
-                  className={cn(
-                    'flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-colors text-center cursor-pointer',
-                    peekTab === 'details'
-                      ? 'bg-background text-foreground shadow-xs font-semibold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <span>{t('Detail Diagnostik & Status Deploy')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPeekTab('terminal')}
-                  data-testid="drawer-live-terminal-tab"
-                  className={cn(
-                    'flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-colors text-center inline-flex items-center justify-center gap-1.5 cursor-pointer',
-                    peekTab === 'terminal'
-                      ? 'bg-background text-foreground shadow-xs font-semibold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  <Terminal className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>{t('Live Terminal')}</span>
-                </button>
-              </div>
-
-              {peekTab === 'terminal' ? (
-                /* Embedded Live Terminal View */
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                      </span>
-                      <span className="font-medium text-foreground">{t('Interactive terminal')}</span>
-                    </span>
-                    <Link
-                      to={taskTerminalUrl(peekTask)}
-                      className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-[11px]"
-                    >
-                      <span>Buka Halaman Penuh</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </Link>
-                  </div>
-                  <div className="h-[460px] w-full rounded-xl overflow-hidden border border-border/40 bg-black/95 relative shadow-inner">
-                    <Suspense fallback={<div className="h-full flex items-center justify-center text-xs font-mono text-muted-foreground">Menghubungkan ke live terminal stream...</div>}>
-                      <TaskTerminal
-                        taskId={peekTask.id}
-                        attempt={peekTask.latest_attempt || ({
-                          id: peekTask.id,
-                          task_id: peekTask.id,
-                          status:
-                            peekTask.status === 'doing' || peekTask.status === 'queued'
-                              ? 'running'
-                              : 'succeeded',
-                          agent_name: peekTask.assignee_id || 'cuan-runner',
-                          created_at: peekTask.created_at,
-                        } as any)}
-                        live={null}
-                        onRefresh={() => { handleOpenTaskDrawer(peekTask.id, 'terminal') }}
-                      />
-                    </Suspense>
-                  </div>
-                </div>
-              ) : (
-                /* Diagnostic Details & Status Deploy View */
-                <div className="space-y-4">
-                  {/* Meta Strip: Status, Assignee, Time */}
-                  <div className="rounded-xl border border-border/40 bg-card/60 p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'inline-flex items-center gap-1.5 text-xs font-medium',
-                            peekTask.status === 'done'
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : peekTask.status === 'review'
-                                ? 'text-purple-600 dark:text-purple-400'
-                                : peekTask.status === 'doing'
-                                  ? 'text-blue-600 dark:text-blue-400'
-                                  : 'text-muted-foreground'
-                          )}
-                        >
-                          {peekTask.status === 'done' ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <Clock className="h-4 w-4" />
-                          )}
-                          <span>{statusLabel(peekTask.status || 'not_started')}</span>
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
-                        <span>{relativeTime(peekTask.updated_at || peekTask.created_at)}</span>
-                      </div>
-                    </div>
-
-                    {/* Assignee, Branch & Commit */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/30 text-xs">
-                      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                        <Bot className="h-3.5 w-3.5 text-primary" />
-                        <span>
-                          {agentDisplayName(
-                            peekTask.latest_attempt?.agent_name ||
-                              peekTask.assignee_id ||
-                              peekTask.assignee ||
-                              'cuan-runner'
-                          )}
-                        </span>
-                      </span>
-
-                      {peekTask.branch_name && (
-                        <span className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded">
-                          <GitBranch className="h-3 w-3" />
-                          <span>{peekTask.branch_name}</span>
-                        </span>
-                      )}
-
-                      {peekTask.pr_url && (
-                        <a
-                          href={peekTask.pr_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-xs ml-auto"
-                        >
-                          <span>Pull Request</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Status Deploy Section */}
-                  <div className="rounded-xl border border-border/40 bg-card/60 p-3 space-y-1.5 text-xs">
-                    <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                      <Rocket className="h-3.5 w-3.5 text-sky-500" />
-                      <span>{t('Status Deploy')}</span>
-                    </div>
-                    <div className="text-muted-foreground leading-relaxed">
-                      {envelopeResult.requiresDeploy ? (
-                        <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium">
-                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                          <span>Tugas Perubahan Kode: Wajib build, test & live auto-deploy VPS.</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-                          <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-                          <span>Tugas Investigasi / Non-Kode: Lulus tanpa modifikasi berkas & tanpa pemaksaan deploy VPS.</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Summary & Technical Evidence */}
-                  {(envelopeResult.summary || envelopeResult.evidence) && (
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
-                        <span>{t('Ringkasan Hasil')}</span>
-                      </div>
-                      <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-xs leading-relaxed text-foreground space-y-2">
-                        <ChatMarkdown content={envelopeResult.summary} />
-                        {envelopeResult.evidence && envelopeResult.evidence !== envelopeResult.summary && (
-                          <div className="pt-2 border-t border-border/30">
-                            <span className="font-semibold text-muted-foreground uppercase text-[10px] block mb-1">
-                              Bukti Teknis & Analisis:
-                            </span>
-                            <p className="text-muted-foreground break-words">{envelopeResult.evidence}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Definition of Done Checklist */}
-                  {peekTask.dod_checklist && Array.isArray(peekTask.dod_checklist) && peekTask.dod_checklist.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
-                          <ListChecks className="h-3.5 w-3.5 text-primary" />
-                          <span>{t('Kriteria Selesai (DoD)')}</span>
-                        </span>
-                        <span className="font-mono text-[11px]">
-                          {
-                            peekTask.dod_checklist.filter((item) =>
-                              typeof item === 'string'
-                                ? item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
-                                : !!item.completed
-                            ).length
-                          }
-                          /{peekTask.dod_checklist.length}
-                        </span>
-                      </div>
-                      <ul className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2 text-xs">
-                        {peekTask.dod_checklist.map((item, idx) => {
-                          const isChecked =
-                            typeof item === 'string'
-                              ? item.startsWith('[x]') || item.startsWith('[X]') || item.startsWith('✓')
-                              : !!item.completed
-                          const text =
-                            typeof item === 'string'
-                              ? item.replace(/^(\[[ xX]\]|✓)\s*/, '').trim()
-                              : item.text
-                          return (
-                            <li key={idx} className="flex items-start gap-2 leading-relaxed">
-                              <span
-                                className={cn(
-                                  'mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[10px]',
-                                  isChecked
-                                    ? 'text-emerald-600 dark:text-emerald-400 font-bold'
-                                    : 'text-muted-foreground/50'
-                                )}
-                              >
-                                {isChecked ? '✓' : '·'}
-                              </span>
-                              <span className={cn('break-words text-foreground/90', isChecked && 'font-medium text-foreground')}>
-                                {text}
-                              </span>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Task Instructions / Description */}
-                  {peekTask.description && (
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {t('Instruksi / Deskripsi')}
-                      </div>
-                      <div className="rounded-xl border border-border/40 bg-card/40 p-3 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                        {peekTask.description}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Active Execution / Terminal link */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setPeekTab('terminal')}
-                      className="action-secondary w-full text-xs py-2.5 inline-flex items-center justify-center gap-2 rounded-lg cursor-pointer"
-                    >
-                      <Terminal className="h-3.5 w-3.5 text-emerald-500" />
-                      <span>{t('Buka Terminal Langsung')}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })()}
-      </SlideDrawer>
+      {peekTask && <InboxWorkPanel key={peekTask.id + ':' + peekTab} task={peekTask} view={peekTab} onBack={closeWorkPanel} />}
 
       {escalatingMessage && (
         <Suspense fallback={null}>

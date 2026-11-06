@@ -115,7 +115,7 @@ test('3. S65-T4 Quality Gate: Visual Ergonomics, SlideDrawer segregation & 1-Cli
 
   // Ensure SlideDrawer integration for secondary technical details
   assert.ok(
-    inboxViewSrc.includes('SlideDrawer') && (inboxViewSrc.includes('peekTask') || inboxViewSrc.includes('inbox-task-drawer')),
+    inboxViewSrc.includes('InboxWorkPanel') && (inboxViewSrc.includes('peekTask') || inboxViewSrc.includes('inbox-task-drawer')),
     'InboxView must isolate diagnostic details and terminal into SlideDrawer'
   )
 

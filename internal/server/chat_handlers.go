@@ -67,7 +67,8 @@ type AgentActionCard struct {
 
 // ChatMessageDTO represents a message compatible with both Direct Messenger UI and Dojo Live Chat widget.
 type ChatMessageDTO struct {
-	RegenerateReplyID string `json:"regenerate_reply_id,omitempty"`
+	RegenerateReplyID string           `json:"regenerate_reply_id,omitempty"`
+	WorkUpdate        *inboxWorkUpdate `json:"work_update,omitempty"`
 	db.MessageReceipt
 	EmailDelivery      *ChatEmailDelivery       `json:"email_delivery,omitempty"`
 	PlanDeferred       bool                     `json:"plan_deferred,omitempty"`
@@ -1839,6 +1840,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 	}
 
 	isCustomer := s.isCustomerRoom(ctx, roomID)
+	workUpdates := s.inboxWorkUpdates(ctx, roomID, rawMsgs)
 	approved := map[string]bool{}
 	deferred := map[string]bool{}
 	for _, m := range rawMsgs {
@@ -1965,6 +1967,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 
 		dtos = append(dtos, ChatMessageDTO{
 			RegenerateReplyID: regenerateID,
+			WorkUpdate:        workUpdates[m.ID],
 			MessageReceipt:    receipts[m.ID],
 			EmailDelivery:     emailDeliveries[m.ID],
 			ID:                int64(len(dtos) + 1), // Monotonic numeric ID for Dojo widget

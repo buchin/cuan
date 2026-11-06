@@ -153,29 +153,10 @@ test('3. S65-T2: TaskCard provides unified actionable controls and diagnostic dr
 test('4. S65-T2: InboxView SlideDrawer parks DoD checklist, file diff/status deploy, and Live Terminal xterm stream', () => {
   const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
 
-  // SlideDrawer tabs: Details vs Live Terminal
-  assert.ok(
-    inboxViewSource.includes('peekTab'),
-    'InboxView must maintain peekTab state'
-  )
-  assert.ok(
-    inboxViewSource.includes('data-testid="drawer-live-terminal-tab"'),
-    'SlideDrawer must render Live Terminal tab toggle'
-  )
-  assert.ok(
-    inboxViewSource.includes('TaskTerminal'),
-    'SlideDrawer must embed TaskTerminal component for xterm stream'
-  )
-
-  // Deploy Status in SlideDrawer
-  assert.ok(
-    inboxViewSource.includes("t('Status Deploy')"),
-    'SlideDrawer must display Status Deploy section'
-  )
-  assert.ok(
-    inboxViewSource.includes('envelopeResult.requiresDeploy'),
-    'SlideDrawer must check requiresDeploy from dual-channel envelope'
-  )
+  const panel = fs.readFileSync(path.join(webDir, 'src/features/inbox/InboxWorkPanel.tsx'), 'utf8')
+  assert.ok(inboxViewSource.includes('InboxWorkPanel'))
+  assert.ok(panel.includes('TaskWorkDetails') && panel.includes('TaskTerminal'))
+  assert.ok(!panel.includes('drawer-live-terminal-tab'), 'Details and terminal use independent navigation')
 
   // 1-Click draft injection into composer
   assert.ok(
