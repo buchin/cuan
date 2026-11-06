@@ -201,24 +201,21 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
+	// A configured Owner endpoint is authoritative. Do not replace a remote
+	// failure with local database contents or a fabricated empty task board.
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		tasks, err := client.ListTasks(ctx, projectID, status, limit)
+		if err != nil {
+			return nil, fmt.Errorf("Cuan connection unavailable; task list could not be confirmed")
+		}
+		for _, item := range tasks {
+			redactTaskDiagnostic(item)
+		}
+		return map[string]any{"tasks": tasks, "total": len(tasks)}, nil
+	}
 	db := getPlatformDB()
 	if db == nil {
-		if client := GetCuanClient(); client != nil && client.IsConfigured() {
-			if tasks, err := client.ListTasks(ctx, projectID, status, limit); err == nil {
-				for _, task := range tasks {
-					redactTaskDiagnostic(task)
-				}
-				return map[string]any{
-					"tasks": tasks,
-					"total": len(tasks),
-				}, nil
-			}
-		}
-		return map[string]any{
-			"tasks":  []TaskSummary{},
-			"total":  0,
-			"status": "database_offline",
-		}, nil
+		return nil, fmt.Errorf("Configure a Cuan connection before reading tasks")
 	}
 
 	query := "SELECT id, project_id, title, instructions, status, priority, summary, complete_note, dod_checklist, created_at, updated_at FROM tasks WHERE 1=1"
@@ -287,18 +284,17 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 	if taskID == "" {
 		return nil, fmt.Errorf("task_id is required")
 	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		result, err := client.GetTask(ctx, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("Cuan connection unavailable; task state could not be confirmed")
+		}
+		redactTaskDiagnostic(result)
+		return result, nil
+	}
 	db := getPlatformDB()
 	if db == nil {
-		if client := GetCuanClient(); client != nil && client.IsConfigured() {
-			if t, err := client.GetTask(ctx, taskID); err == nil {
-				redactTaskDiagnostic(t)
-				return t, nil
-			}
-		}
-		return map[string]any{
-			"id":     taskID,
-			"status": "database_offline",
-		}, nil
+		return nil, fmt.Errorf("Configure a Cuan connection before reading a task")
 	}
 
 	var t TaskSummary
