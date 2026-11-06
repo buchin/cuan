@@ -48,3 +48,20 @@ reconciliation; it does not establish publication or task acceptance. Dirty or
 unreadable workspaces do not gain this identity. The original failed attempt and
 publication error remain visible, and a verified deployment receipt or independent
 registered release observation is still required before acceptance.
+
+### Legacy deployment helper protection
+
+Native activation installs independent systemd pre-start gates for the API,
+runner and versioned chat workers. After payload, ancestry, migration and idle
+checks, activation authorizes the exact candidate and retained current release.
+The gate rejects a legacy workspace helper attempting to start another release,
+even if that helper rewrites its usual `release.conf` or chat service template.
+A failed activation can still restart the authorized previous release.
+
+The policy is under `maintenance/activation-policy/`; ordinary deployments update
+it through the native helper. It is not a task acceptance receipt or a workaround
+for missing release ancestry. An explicit operator rollback still uses native
+activation. Initial migration from an unversioned legacy install keeps its existing
+rollback behavior; these gates start with the next native-to-native activation.
+This protects against accidental stale helpers, not arbitrary root commands from
+workers with unrestricted sudo. Do not claim an OS security sandbox.

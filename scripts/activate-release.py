@@ -370,6 +370,48 @@ def supports_chat_worker(manifest):
     return (manifest or {}).get('features', {}).get('inbox_worker') == 1
 
 
+def authorize_service_releases(base, service, current_sha, target_sha, unit_root=Path('/etc/systemd/system')):
+    """Keep legacy workspace helpers from starting an unreviewed release.
+
+    Call only after native payload/ancestry gates. This is service lifecycle
+    protection, not a privilege boundary against arbitrary root execution.
+    """
+    if not all(re.fullmatch('[0-9a-f]{40}', sha or '') for sha in (current_sha, target_sha)):
+        raise RuntimeError('Native service authorization requires exact release identities')
+    if not base.is_absolute() or base.resolve() != base or not re.fullmatch(r'/[a-zA-Z0-9_./-]+', str(base)):
+        raise RuntimeError('Invalid native policy base')
+    if not re.fullmatch('[a-zA-Z0-9_-]+', service):
+        raise RuntimeError('Invalid native service')
+    root = base / 'maintenance/activation-policy'
+    if root.is_symlink():
+        raise RuntimeError('Native activation policy must not be linked')
+    root.mkdir(parents=True, exist_ok=True)
+    root.chmod(0o755)
+    source = Path(__file__).with_name('verify-authorized-release.py')
+    if source.is_symlink() or not source.is_file():
+        raise RuntimeError('Native service authorization verifier is unavailable')
+    files = {
+        root / 'verify-authorized-release.py': source.read_bytes(),
+        root / 'authorized.json': (json.dumps({'version': 1, 'allowed': list(dict.fromkeys([current_sha, target_sha]))}) + '\n').encode(),
+    }
+    for destination, content in files.items():
+        descriptor, temporary = tempfile.mkstemp(prefix='.policy-', dir=root)
+        try:
+            with os.fdopen(descriptor, 'wb') as handle:
+                handle.write(content)
+            os.chmod(temporary, 0o644)
+            os.replace(temporary, destination)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    for name, argument in [(service, ''), (service+'-runner', ''), (service+'-chat@', ' --release %i')]:
+        directory = unit_root / (name + '.service.d')
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / '90-native-activation-policy.conf').write_text(
+            '[Service]\nExecStartPre=/usr/bin/python3 ' + str(root / 'verify-authorized-release.py') +
+            ' --base ' + str(base) + argument + '\n')
+
+
 def configure_api_release(chat_worker=False):
     unit_dir = Path('/etc/systemd/system/' + SERVICE + '.service.d')
     unit_dir.mkdir(exist_ok=True)
@@ -591,6 +633,11 @@ def main():
                     cuan_bin.symlink_to('cuan-server')
                 except Exception:
                     pass
+            # First migration retains its legacy rollback behavior. Service
+            # authorization follows all native preconditions and migrations.
+            if re.fullmatch('[0-9a-f]{40}', old.name):
+                authorize_service_releases(BASE, SERVICE, old.name, target.name)
+                subprocess.run(['systemctl', 'daemon-reload'], check=True)
             signal_worker_drain()
             switch(current, target)
             target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
