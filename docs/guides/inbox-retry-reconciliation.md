@@ -180,3 +180,21 @@ visible. User messages, choices, drafts and final results retain their behavior.
 Stored chat and execution history are unchanged. Task Detail exposes launch
 state and saved safe error under Technical details as a read-only projection;
 these diagnostics are never inputs to task acceptance or authorization.
+
+### Inspect the end of an exact attempt
+
+`cuan task logs TASK ATTEMPT --tail --limit 100 --json` reads the latest saved
+records in chronological order through the authenticated task API. It retains
+the explicit task/attempt binding and1000-record limit; it cannot combine a
+nonzero `--after-id` with `--tail`. Cursor reads retain their existing behavior.
+No database access or guessed global log IDs are needed.
+
+New runner executions record system-stream `execution_stage` events around the
+agent, with its actual deadline, elapsed milliseconds and a controlled outcome
+(returned, failed, timeout, cancelled, interrupted or capacity). Provider text,
+reasoning, commands and credentials are excluded. A returned agent is not accepted
+work: the existing confirmed report and independent project/publication checks
+still decide the task result. The existing project-verification start/end logs
+follow this stage, making an agent timeout distinguishable from time spent in
+independent verification. Observation after cancellation has a separate bounded
+budget and does not extend execution. Historical attempts are not backfilled.

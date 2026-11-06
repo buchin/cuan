@@ -275,3 +275,16 @@ terminal content. Input/output excerpts retain their existing privacy and length
 limits. Previously discarded stages cannot be recovered: old histories that hit
 the storage cap carry `trace_history_incomplete`, which prevents unsafe automatic
 replay. It does not claim a historical execution failed or rerun its actions.
+
+### Bounded attempt log tail
+
+To investigate the end of a particular execution without scanning its entire
+terminal history:
+
+```bash
+cuan task logs <task-id> <attempt-id> --tail --limit 100 --json
+```
+
+Tail output is chronological. Use either `--tail` or a nonzero `--after-id`,
+with a limit from 1 to 1000. Keep explicit attempt IDs when inspecting failures;
+a new launch must not silently replace historical evidence.

@@ -904,7 +904,22 @@ func (s *Server) handleGetAttemptLogs(w http.ResponseWriter, r *http.Request) {
 		limit = 1000
 	}
 
-	logs, err := s.taskSvc.GetAttemptLogs(r.Context(), attemptID, afterID, limit)
+	tail := false
+	if raw := r.URL.Query().Get("tail"); raw != "" {
+		var parseErr error
+		tail, parseErr = strconv.ParseBool(raw)
+		if parseErr != nil || tail && r.URL.Query().Get("after_id") != "" && r.URL.Query().Get("after_id") != "0" {
+			respondJSONError(w, 400, "Use tail or after_id, not both")
+			return
+		}
+	}
+	var logs []*task.LogRecord
+	var err error
+	if tail {
+		logs, err = s.taskSvc.GetRecentAttemptLogs(r.Context(), attemptID, limit)
+	} else {
+		logs, err = s.taskSvc.GetAttemptLogs(r.Context(), attemptID, afterID, limit)
+	}
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get logs: %v", err))
 		return

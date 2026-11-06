@@ -16,11 +16,12 @@ var taskLogID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,200}$`)
 // Logs require an explicit attempt so a later launch cannot silently replace it.
 func runTaskLogs(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if len(args) < 2 || !taskLogID.MatchString(args[0]) || !taskLogID.MatchString(args[1]) {
-		fmt.Fprintln(errOut, "Usage: cuan task logs <task-id> <attempt-id> [--after-id 0] [--limit 100] [--json]")
+		fmt.Fprintln(errOut, "Usage: cuan task logs <task-id> <attempt-id> [--after-id 0 | --tail] [--limit 100] [--json]")
 		return 2
 	}
 	fs := flag.NewFlagSet("task logs", flag.ContinueOnError)
 	fs.SetOutput(errOut)
+	tail := fs.Bool("tail", false, "Return the latest records in chronological order; cannot combine with after-id")
 	after := fs.Int64("after-id", 0, "Only return logs after this record ID")
 	limit := fs.Int("limit", 100, "Maximum records (1-1000)")
 	asJSON := fs.Bool("json", false, "Output structured log records")
@@ -30,8 +31,8 @@ func runTaskLogs(ctx context.Context, args []string, out, errOut io.Writer) int 
 		}
 		return 2
 	}
-	if fs.NArg() != 0 || *after < 0 || *limit < 1 || *limit > 1000 {
-		fmt.Fprintln(errOut, "Invalid log range: after-id must be nonnegative and limit must be 1-1000.")
+	if fs.NArg() != 0 || (*tail && *after != 0) || *after < 0 || *limit < 1 || *limit > 1000 {
+		fmt.Fprintln(errOut, "Invalid log range: use after-id or tail, and limit must be 1-1000.")
 		return 2
 	}
 	client := GetCuanClient()
@@ -40,6 +41,9 @@ func runTaskLogs(ctx context.Context, args []string, out, errOut io.Writer) int 
 		return 1
 	}
 	path := fmt.Sprintf("/api/v1/tasks/%s/attempts/%s/logs?after_id=%d&limit=%d", url.PathEscape(args[0]), url.PathEscape(args[1]), *after, *limit)
+	if *tail {
+		path += "&tail=true"
+	}
 	response, err := client.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		fmt.Fprintln(errOut, "Could not retrieve attempt logs.")

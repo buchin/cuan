@@ -43,10 +43,27 @@ func TestTaskLogsExplicitAttemptAndBoundedFailure(t *testing.T) {
 	}
 }
 func TestTaskLogsRejectsAmbiguousOrInvalidRange(t *testing.T) {
-	for _, args := range [][]string{{"logs", "task"}, {"logs", "../task", "att"}, {"logs", "task", "att", "--limit", "1001"}, {"logs", "task", "att", "--after-id", "-1"}} {
+	for _, args := range [][]string{{"logs", "task"}, {"logs", "../task", "att"}, {"logs", "task", "att", "--limit", "1001"}, {"logs", "task", "att", "--after-id", "-1"}, {"logs", "task", "att", "--tail", "--after-id", "1"}} {
 		var out, errors bytes.Buffer
 		if RunTaskCLI(args, &out, &errors) != 2 {
 			t.Fatal(args)
 		}
+	}
+}
+
+func TestTaskLogsTailUsesAuthenticatedBoundedAttemptRoute(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer fixture" || r.URL.Query().Get("tail") != "true" || r.URL.Query().Get("limit") != "50" || r.URL.Query().Get("after_id") != "0" {
+			t.Error("invalid tail request")
+		}
+		w.Write([]byte(`{"logs":[{"id":900,"stream":"system","line":"native stage complete"}],"total":1}`))
+	}))
+	defer server.Close()
+	previous := globalCuanClient
+	globalCuanClient = &CuanClient{BaseURL: server.URL, AuthToken: "fixture", HTTPClient: server.Client()}
+	defer func() { globalCuanClient = previous }()
+	var out, errOut bytes.Buffer
+	if RunTaskCLI([]string{"logs", "task", "attempt", "--tail", "--limit", "50", "--json"}, &out, &errOut) != 0 || !strings.Contains(out.String(), "native stage complete") {
+		t.Fatal(out.String(), errOut.String())
 	}
 }

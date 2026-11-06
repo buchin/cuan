@@ -994,6 +994,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		prompt += fmt.Sprintf("\nInspection reporting deadline: %s. Submit your final task report before this time, leaving missing evidence explicitly incomplete. Time after this reporting deadline is reserved for independent runner verification; the original attempt deadline remains %s and is not extended.\n", reportingDeadline.UTC().Format(time.RFC3339Nano), deadline.UTC().Format(time.RFC3339Nano))
 	}
 
+	var agentStageStarted time.Time
+	if err == nil {
+		agentStageStarted = time.Now()
+		r.logAgentStage(agentCtx, att.ID, agentStageStarted, false, nil, nil)
+	}
 	if err == nil {
 		// If using the official agy adapter on a host where agy binary is present,
 		// execute inside a native OS pseudo-terminal (creack/pty) and expose a live
@@ -1034,6 +1039,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 			result, err = r.adapter.Execute(agentCtx, req)
 		}
+	}
+	if !agentStageStarted.IsZero() {
+		r.logAgentStage(agentCtx, att.ID, agentStageStarted, true, result, err)
 	}
 	var compReq CompleteAttemptRequest
 	compReq.RunnerID = r.cfg.RunnerID
