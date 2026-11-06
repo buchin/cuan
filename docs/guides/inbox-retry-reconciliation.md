@@ -198,3 +198,22 @@ still decide the task result. The existing project-verification start/end logs
 follow this stage, making an agent timeout distinguishable from time spent in
 independent verification. Observation after cancellation has a separate bounded
 budget and does not extend execution. Historical attempts are not backfilled.
+
+### An accepted predecessor was corrected
+
+A phase receipt retains the exact predecessor attempt that was accepted when
+the approved plan advanced. That historical ID is provenance, not a requirement
+that the predecessor can never receive another attempt. A newer successful,
+accepted attempt under identical parent instructions may satisfy the current
+dependency while the original receipt remains unchanged. The recorded original
+attempt must still exist on the same parent task, be successful and uncancelled,
+and precede the new attempt number. Missing history and rewinds are rejected.
+
+All original owner, room, repository, execution category, plan and instruction
+hash checks still apply. The predecessor must currently be Done with a successful,
+uncancelled latest attempt. A revised scope or withdrawn approval cannot acquire
+permission through this path. Replaying phase creation compares every receipt
+field while preserving the original predecessor ID; it creates neither another
+receipt nor another execution. Authorization is separate from accepting the
+successor's result: existing result review and scope/publication audits remain
+required and unchanged.

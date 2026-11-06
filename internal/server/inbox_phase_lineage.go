@@ -83,8 +83,11 @@ func (s *Server) phaseApproval(ctx context.Context, d *task.TaskDetailResponse, 
 		if err != nil {
 			return nil, phaseLookupError(err)
 		}
-		if parent == nil || parent.ProjectID != d.ProjectID || parent.ExecutionCategory != value.ExecutionCategory || parent.SourceRoomID != room || parent.Status != task.TaskStatusDone || parent.LatestAttempt == nil || parent.LatestAttempt.ID != value.ParentAttemptID || parent.LatestAttempt.Status != task.AttemptStatusSucceeded || parent.LatestAttempt.CancelRequested || parent.LatestAttempt.CanceledAt != nil || task.LaunchInstructionsHash(parent.Instructions) != value.ParentInstructionsHash {
+		if parent == nil || parent.ProjectID != d.ProjectID || parent.ExecutionCategory != value.ExecutionCategory || parent.SourceRoomID != room || parent.Status != task.TaskStatusDone || parent.LatestAttempt == nil || parent.LatestAttempt.Status != task.AttemptStatusSucceeded || parent.LatestAttempt.CancelRequested || parent.LatestAttempt.CanceledAt != nil || task.LaunchInstructionsHash(parent.Instructions) != value.ParentInstructionsHash {
 			return nil, phaseDenied("preceding phase is not accepted")
+		}
+		if !phasePredecessorAttemptValid(parent, value.ParentAttemptID) {
+			return nil, phaseDenied("preceding phase evidence is unavailable")
 		}
 		root, err = s.taskSvc.GetTaskDetail(ctx, value.RootTaskID)
 		if err != nil {
@@ -196,8 +199,21 @@ func (s *Server) savePhaseLineage(ctx context.Context, child, parent *task.TaskD
 	data, _ := json.Marshal(value)
 	for _, event := range child.Activities {
 		if event != nil && event.ID == phaseReceiptID(child.ID) {
-			if event.Author != "cuan-plan" || event.ActivityType != "approved_phase" || event.Message != string(data) {
+			if event.Author != "cuan-plan" || event.ActivityType != "approved_phase" {
 				return phaseDenied("saved phase authorization differs")
+			}
+			if event.Message != string(data) {
+				// A corrected predecessor changes execution evidence, not the user's plan.
+				// Compare every original authorization field and retain its immutable receipt.
+				var original phaseLineage
+				if json.Unmarshal([]byte(event.Message), &original) != nil {
+					return phaseDenied("saved phase authorization differs")
+				}
+				expected := value
+				expected.ParentAttemptID = original.ParentAttemptID
+				if expected != original || !phasePredecessorAttemptValid(parent, original.ParentAttemptID) {
+					return phaseDenied("saved phase authorization differs")
+				}
 			}
 			return nil
 		}
@@ -215,4 +231,23 @@ func (s *Server) savePhaseLineage(ctx context.Context, child, parent *task.TaskD
 		return fmt.Errorf("phase authorization could not be saved: %w", err)
 	}
 	return nil
+}
+
+// A phase receipt records the predecessor accepted when the plan advanced. A
+// later accepted correction within identical instructions does not revoke that
+// plan. Keep both historical provenance and current dependency checks; never
+// accept a failed/cancelled predecessor, missing history or an attempt rewind.
+func phasePredecessorAttemptValid(parent *task.TaskDetailResponse, originalID string) bool {
+	if parent == nil || parent.LatestAttempt == nil || originalID == "" {
+		return false
+	}
+	if parent.LatestAttempt.ID == originalID {
+		return true
+	}
+	for _, historical := range parent.Attempts {
+		if historical != nil && historical.ID == originalID && historical.TaskID == parent.ID && historical.Status == task.AttemptStatusSucceeded && !historical.CancelRequested && historical.CanceledAt == nil && historical.AttemptNumber < parent.LatestAttempt.AttemptNumber {
+			return true
+		}
+	}
+	return false
 }
