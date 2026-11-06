@@ -112,5 +112,8 @@ bounded check. Existing matching receipts are reused. Errors omit credentials
 and remote diagnostic output. Tests cover real fixture SSH/TLS transport,
 wrong host identity/revision, oversized output, cancellation, unhealthy/redirected
 health, missing saved configuration, task/attempt mismatch and revoked connections.
-This is fixture evidence; native Dojo configuration and production verification
-remain pending.
+The native Dojo check also passed against the existing registered project
+connection and previously trusted host key: revision
+`4e2e71ca265600be19687fbfad705db6f861d245` matched and HTTPS health returned 200.
+No deployment was performed. Runtime receipt publication through the deployed
+server and task acceptance still require production verification.

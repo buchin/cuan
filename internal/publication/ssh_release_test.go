@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -28,10 +31,20 @@ func fixtureKey(t *testing.T) ssh.Signer {
 }
 
 func TestVerifyObservedSSHRevisionAndHTTPSHealth(t *testing.T) {
-	for _, scenario := range []string{"healthy", "wrong-revision", "wrong-host-key", "unhealthy", "redirect", "oversized", "cancelled"} {
+	for _, scenario := range []string{"healthy", "rsa-host-key", "wrong-revision", "wrong-host-key", "unhealthy", "redirect", "oversized", "cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			commit := strings.Repeat("a", 40)
 			signer := fixtureKey(t)
+			if scenario == "rsa-host-key" {
+				key, err := rsa.GenerateKey(rand.Reader, 2048)
+				if err != nil {
+					t.Fatal(err)
+				}
+				signer, err = ssh.NewSignerFromKey(key)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			var authenticated, healthCalled atomic.Bool
 			config := &ssh.ServerConfig{PasswordCallback: func(meta ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 				authenticated.Store(true)
@@ -112,7 +125,7 @@ func TestVerifyObservedSSHRevisionAndHTTPSHealth(t *testing.T) {
 				cancel()
 			}
 			err := verify(ctx, c, commit, health.Client().Transport)
-			if (err == nil) != (scenario == "healthy") {
+			if (err == nil) != (scenario == "healthy" || scenario == "rsa-host-key") {
 				t.Fatalf("unexpected verification error: %v", err)
 			}
 			if (scenario == "wrong-host-key" || scenario == "cancelled") && authenticated.Load() {
@@ -151,5 +164,33 @@ func TestConfigUsesOnlyExplicitRegisteredEnvironment(t *testing.T) {
 		if _, err := FromEnvironment(copy); err == nil {
 			t.Fatal("unsafe target accepted")
 		}
+	}
+}
+
+// Opt-in only: reads the owner's explicitly exported project configuration.
+// No ambient SSH credentials, network host discovery or deployment is used.
+func TestNativeRegisteredSSHRelease(t *testing.T) {
+	file := os.Getenv("CUAN_PUBLICATION_TEST_ENV_FILE")
+	if file == "" {
+		t.Skip("native project connection not supplied")
+	}
+	info, err := os.Stat(file)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		t.Fatal("native fixture must be private")
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal("native project configuration unavailable")
+	}
+	var env map[string]string
+	if json.Unmarshal(raw, &env) != nil {
+		t.Fatal("invalid native fixture")
+	}
+	c, err := FromEnvironment(env)
+	if err != nil {
+		t.Fatal("native project verifier configuration invalid")
+	}
+	if err := Verify(context.Background(), c, os.Getenv("CUAN_PUBLICATION_TEST_COMMIT")); err != nil {
+		t.Fatal(err)
 	}
 }

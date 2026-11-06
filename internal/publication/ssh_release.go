@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -94,7 +95,7 @@ func verify(ctx context.Context, c Config, expected string, transport http.Round
 	key, _, _, _, _ := ssh.ParseAuthorizedKey([]byte(c.HostKey))
 	socket, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", address)
 	if err != nil {
-		return ErrUnverified
+		return fmt.Errorf("%w: SSH connection unavailable", ErrUnverified)
 	}
 	defer socket.Close()
 	stop := context.AfterFunc(ctx, func() { _ = socket.Close() })
@@ -102,15 +103,19 @@ func verify(ctx context.Context, c Config, expected string, transport http.Round
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = socket.SetDeadline(deadline)
 	}
-	connection, channels, requests, err := ssh.NewClientConn(socket, address, &ssh.ClientConfig{User: c.User, Auth: []ssh.AuthMethod{ssh.Password(c.Password)}, HostKeyCallback: ssh.FixedHostKey(key), Timeout: 5 * time.Second})
+	algorithms := []string{key.Type()}
+	if key.Type() == ssh.KeyAlgoRSA {
+		algorithms = []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256}
+	}
+	connection, channels, requests, err := ssh.NewClientConn(socket, address, &ssh.ClientConfig{User: c.User, Auth: []ssh.AuthMethod{ssh.Password(c.Password)}, HostKeyCallback: ssh.FixedHostKey(key), HostKeyAlgorithms: algorithms, Timeout: 5 * time.Second})
 	if err != nil {
-		return ErrUnverified
+		return fmt.Errorf("%w: SSH identity or authentication rejected", ErrUnverified)
 	}
 	client := ssh.NewClient(connection, channels, requests)
 	defer client.Close()
 	session, err := client.NewSession()
 	if err != nil {
-		return ErrUnverified
+		return fmt.Errorf("%w: SSH session unavailable", ErrUnverified)
 	}
 	defer session.Close()
 	var output boundedOutput
@@ -118,7 +123,7 @@ func verify(ctx context.Context, c Config, expected string, transport http.Round
 	session.Stderr = io.Discard
 	command := `set -eu; current=$(readlink -f -- '` + c.DeployPath + `/current'); case "$current" in '` + c.DeployPath + `/releases/'*) ;; *) exit 42;; esac; cat -- "$current/REVISION"`
 	if session.Run(command) != nil || strings.TrimSpace(output.String()) != expected {
-		return ErrUnverified
+		return fmt.Errorf("%w: immutable revision mismatch or unreadable", ErrUnverified)
 	}
 	health := &http.Client{Transport: transport, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.HealthURL, nil)
@@ -131,7 +136,7 @@ func verify(ctx context.Context, c Config, expected string, transport http.Round
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return ErrUnverified
+		return fmt.Errorf("%w: health response is not healthy", ErrUnverified)
 	}
 	return nil
 }
