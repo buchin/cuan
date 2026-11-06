@@ -11,7 +11,7 @@ import (
 
 // Maintenance takes this same inode exclusively. Keep the shared lease for the
 // complete execution, including native verification after the model returns.
-func acquireGoBuildLease(ctx context.Context, cache string) (*os.File, error) {
+func acquireBuildCacheLease(ctx context.Context, cache string) (*os.File, error) {
 	if cache == "" {
 		return nil, nil
 	}
@@ -22,7 +22,7 @@ func acquireGoBuildLease(ctx context.Context, cache string) (*os.File, error) {
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
 		f.Close()
-		return nil, errors.New("Go build cache lease must be a regular file")
+		return nil, errors.New("build cache lease must be a regular file")
 	}
 	for {
 		err = syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB)

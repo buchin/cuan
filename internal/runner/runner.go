@@ -891,7 +891,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		var buildEnv map[string]string
 		buildEnv, err = managedGoBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "go-build-runtime"), claim.OwnerID)
 		if err == nil && env["GOCACHE"] == "" && buildEnv["GOCACHE"] != "" {
-			lease, leaseErr := acquireGoBuildLease(ctx, buildEnv["GOCACHE"])
+			lease, leaseErr := acquireBuildCacheLease(ctx, buildEnv["GOCACHE"])
 			if leaseErr != nil {
 				err = fmt.Errorf("acquire Go build cache lease: %w", leaseErr)
 			} else if lease != nil {
@@ -908,6 +908,21 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		}
 		if len(buildEnv) > 0 {
 			prompt += "\n\nGo build caches are managed independently of the AI account HOME and retained across this owner's routes. Use the inherited Go environment; do not search account profiles or redirect builds to another user's caches. The repository still selects its required Go toolchain. Save actual check output and a factual checkpoint before the execution deadline.\n"
+		}
+	}
+	if err == nil && r.cfg.WorkspacesDir != "" && env["NPM_CONFIG_CACHE"] == "" && env["npm_config_cache"] == "" {
+		npmEnv, npmErr := managedNPMBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "npm-build-runtime"), claim.OwnerID)
+		if npmErr != nil {
+			err = npmErr
+		} else if cache := npmEnv["NPM_CONFIG_CACHE"]; cache != "" {
+			lease, leaseErr := acquireBuildCacheLease(ctx, cache)
+			if leaseErr != nil {
+				err = fmt.Errorf("acquire npm download cache lease: %w", leaseErr)
+			} else {
+				defer lease.Close()
+				env["NPM_CONFIG_CACHE"] = cache
+				prompt += "\nThe inherited NPM_CONFIG_CACHE belongs to this task owner and survives AI account changes. Use that cache rather than redirecting downloads into an AI profile HOME or another owner's paths. This cache setting does not change registry authentication or authorize publication.\n"
+			}
 		}
 	}
 	if claim.TaskAgent != nil {
@@ -1072,6 +1087,10 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			compReq.Status = task.AttemptStatusInterrupted
 			compReq.ExitCode = 143
 			compReq.ErrorMessage = "Execution interrupted because the runner context ended"
+		} else if errors.Is(err, syscall.ENOSPC) {
+			compReq.Status = task.AttemptStatusInterrupted
+			compReq.ExitCode = 137
+			compReq.ErrorMessage = StorageInterruptionMessage
 		} else if IsInfraFault("", err.Error(), 1) {
 			compReq.Status = task.AttemptStatusInterrupted
 			compReq.ExitCode = 137

@@ -15,7 +15,7 @@ func TestGoBuildLeaseProtectsActiveExecutionAndDeadline(t *testing.T) {
 	if err := os.Mkdir(cache, 0700); err != nil {
 		t.Fatal(err)
 	}
-	lease, err := acquireGoBuildLease(context.Background(), cache)
+	lease, err := acquireBuildCacheLease(context.Background(), cache)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestGoBuildLeaseProtectsActiveExecutionAndDeadline(t *testing.T) {
 	if err = syscall.Flock(int(gate.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); !errors.Is(err, syscall.EWOULDBLOCK) {
 		t.Fatal("maintenance bypassed active lease", err)
 	}
-	second, err := acquireGoBuildLease(context.Background(), cache)
+	second, err := acquireBuildCacheLease(context.Background(), cache)
 	if err != nil {
 		t.Fatal("concurrent execution blocked", err)
 	}
@@ -38,11 +38,11 @@ func TestGoBuildLeaseProtectsActiveExecutionAndDeadline(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err = acquireGoBuildLease(ctx, cache); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err = acquireBuildCacheLease(ctx, cache); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal("lease ignored execution deadline", err)
 	}
 	syscall.Flock(int(gate.Fd()), syscall.LOCK_UN)
-	recovered, err := acquireGoBuildLease(context.Background(), cache)
+	recovered, err := acquireBuildCacheLease(context.Background(), cache)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestGoBuildLeaseRejectsLinkedGate(t *testing.T) {
 	target := filepath.Join(root, "credentials")
 	os.WriteFile(target, []byte("preserved"), 0600)
 	os.Symlink(target, filepath.Join(root, ".build-cache.lock"))
-	if lease, err := acquireGoBuildLease(context.Background(), cache); err == nil {
+	if lease, err := acquireBuildCacheLease(context.Background(), cache); err == nil {
 		lease.Close()
 		t.Fatal("accepted linked gate")
 	}

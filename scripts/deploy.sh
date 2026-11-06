@@ -97,7 +97,7 @@ python3 scripts/test-cuan-disk-guard.py
 python3 scripts/test-prune-release-artifacts.py
 python3 scripts/test-prune-provider-go-cache.py
 python3 scripts/test-prune-verification-dependencies.py
-python3 scripts/test-prune-runtime-go-cache.py
+python3 scripts/test-prune-runtime-build-cache.py
 
 echo "==> Running frontend test gate..."
 npm test --prefix web
@@ -193,7 +193,7 @@ PY
 
 if [[ "$is_local" == 1 ]]; then
   sudo -n mkdir -p /opt/cuan/maintenance
-  sudo -n install -m 755 scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-go-cache.py /opt/cuan/maintenance/
+  sudo -n install -m 755 scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-build-cache.py /opt/cuan/maintenance/
   sudo -n install -m 755 scripts/cuan-disk-guard.sh /usr/local/bin/cuan-disk-guard.sh
   if [[ -f /etc/cron.hourly/cuan-disk-guard ]]; then
     sudo -n install -m 755 scripts/cuan-disk-guard.sh /etc/cron.hourly/cuan-disk-guard
@@ -216,10 +216,10 @@ if [[ "$is_local" == 1 ]]; then
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
-  sshpass -e scp -q scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-go-cache.py scripts/cuan-disk-guard.sh "$release_host:.local/share/cuan-s25/"
+  sshpass -e scp -q scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-build-cache.py scripts/cuan-disk-guard.sh "$release_host:.local/share/cuan-s25/"
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/maintenance && sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-release-artifacts.py /opt/cuan/maintenance/prune-release-artifacts.py && if [ -L /opt/cuan/current ] && [ -L /opt/cuan/previous ]; then sudo -n python3 /opt/cuan/maintenance/prune-release-artifacts.py --staging /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases --apply; fi"
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-verification-dependencies.py /opt/cuan/maintenance/prune-verification-dependencies.py"
-  sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-runtime-go-cache.py /opt/cuan/maintenance/prune-runtime-go-cache.py"
+  sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-runtime-build-cache.py /opt/cuan/maintenance/prune-runtime-build-cache.py"
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-provider-go-cache.py /opt/cuan/maintenance/prune-provider-go-cache.py && if [ -d /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan/accounts ]; then python3 /opt/cuan/maintenance/prune-provider-go-cache.py --accounts /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan/accounts --apply; fi"
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/cuan-disk-guard.sh /usr/local/bin/cuan-disk-guard.sh && if [ -f /etc/cron.hourly/cuan-disk-guard ]; then sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/cuan-disk-guard.sh /etc/cron.hourly/cuan-disk-guard; fi"
   echo "==> Transferring verified payload (compressed, resumable)..."

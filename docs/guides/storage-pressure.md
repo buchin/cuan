@@ -216,7 +216,7 @@ be slower while recompiling. Healthy disks keep their warm caches.
 Preview without deleting:
 
 ```sh
-python3 scripts/prune-runtime-go-cache.py --runtime /opt/cuan/data/go-build-runtime
+python3 scripts/prune-runtime-build-cache.py --runtime /opt/cuan/data/go-build-runtime
 ```
 
 Add `--apply` for maintenance. The script is included in both native deployment
@@ -266,3 +266,22 @@ kept after their installed counterparts were deleted, making subsequent
 byte-for-byte verification impossible. Unknown or already-orphaned uploads are
 preserved for independent reconciliation; this policy does not guess that they
 are safe to delete.
+
+### Owner-scoped npm caches
+
+Native executions use stable owner-scoped npm caches alongside managed Go caches
+under `npm-build-runtime/<owner hash>/npm-cache`. This avoids duplicating package
+cache contents across AI accounts. An explicit project `NPM_CONFIG_CACHE` (or
+lowercase equivalent) remains authoritative. Registry and authentication settings
+are preserved; changing cache location does not connect an npm account.
+
+The execution holds the shared build-cache lease for its entire lifetime.
+`scripts/prune-runtime-build-cache.py --kind npm` previews eligible caches;
+`--apply` invokes the official npm cache cleaner as the cache owner under isolated
+maintenance configuration. Scheduled maintenance acts below3GiB free and aims
+for4GiB. Busy caches, recent files, symlinks, unknown owners and process readers
+remain protected. Optional legacy-account cleanup uses the provider execution
+gate and only recognizes canonical npm content/index caches. Provider sign-in,
+conversation history, repository source and node_modules are outside this path.
+Insufficient reclamation leaves storage admission queued rather than broadening
+deletion. Native ENOSPC is an infrastructure interruption, not a code defect.
