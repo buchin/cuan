@@ -411,8 +411,18 @@ func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priori
 		priority = "normal"
 	}
 	projectID = strings.TrimSpace(projectID)
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		created, err := client.CreateTask(ctx, projectID, title, instructions, priority, dodChecklist)
+		if err != nil {
+			return nil, err
+		}
+		return created, nil
+	}
 
 	db := getPlatformDB()
+	if db == nil || projectID == "" {
+		return nil, fmt.Errorf("task was not created: configure the Cuan Owner API or a local database with an explicit project")
+	}
 	var realProjectID string
 	if db != nil {
 		var p project.ProjectResponse

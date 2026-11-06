@@ -75,6 +75,12 @@ cuan task update <task-id> --status review --summary "Reset styling completed" -
 cuan task create --title "OAuth Callback" --instructions "Implement GitHub OAuth handler" --priority normal
 ```
 
+With Owner API configuration, creation uses the authenticated native task endpoint;
+the server assigns identity and freezes project guidance. Supply exact project IDs
+with `--project` when needed. An unavailable API or missing creation receipt is an
+error, never a successful local draft. Inspect the task board after an uncertain
+response before retrying, since the server may already have saved the task.
+
 ## MCP Server (`cuan-inspect` / `cuan mcp`)
 Configured in `~/.gemini/antigravity-cli/mcp_config.json`:
 - `create_inbox_conversation`: Create a room with an agent persona

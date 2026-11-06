@@ -490,6 +490,33 @@ func (c *CuanClient) GetTask(ctx context.Context, taskID string) (map[string]any
 	return res, nil
 }
 
+// CreateTask delegates guidance snapshots and task identity to the Owner API.
+// An uncertain response must be reconciled before retrying this mutation.
+func (c *CuanClient) CreateTask(ctx context.Context, projectID, title, instructions, priority string, checklist []string) (map[string]any, error) {
+	items := make([]map[string]any, 0, len(checklist))
+	for _, text := range checklist {
+		items = append(items, map[string]any{"text": text, "completed": false})
+	}
+	payload := map[string]any{"project_id": projectID, "title": title, "instructions": instructions, "priority": priority, "dod_checklist": items}
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/tasks", payload)
+	if err != nil {
+		return nil, fmt.Errorf("task creation could not be confirmed; inspect the task board before retrying")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("task creation was not confirmed (status %d); inspect the task board before retrying", resp.StatusCode)
+	}
+	var result map[string]any
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&result); err != nil {
+		return nil, fmt.Errorf("task creation returned an unreadable receipt; inspect the task board before retrying")
+	}
+	if id, ok := result["id"].(string); !ok || strings.TrimSpace(id) == "" {
+		return nil, fmt.Errorf("task creation returned no task identity; inspect the task board before retrying")
+	}
+	redactTaskDiagnostic(result)
+	return result, nil
+}
+
 // UpdateTask updates task status, summary, and verification evidence.
 func (c *CuanClient) UpdateTask(ctx context.Context, taskID, status, summary, completeNote string) (map[string]any, error) {
 	taskID = strings.TrimSpace(taskID)
