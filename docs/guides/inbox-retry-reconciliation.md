@@ -217,3 +217,21 @@ field while preserving the original predecessor ID; it creates neither another
 receipt nor another execution. Authorization is separate from accepting the
 successor's result: existing result review and scope/publication audits remain
 required and unchanged.
+
+### Capacity recovery for approved phases
+
+A generated phase request supplies execution context, not user consent. The
+shared launch entry point revalidates its native phase lineage and binds the
+launch to the original approved owner request. This also covers interruption,
+capacity and inspection continuation paths, instead of fixing review only.
+
+For the known historical capacity launch stopped before execution with the wrong
+phase request as approval, native recovery preserves that rejected launch and
+creates one deterministic successor. Eligibility requires the exact stopped
+reason, source request, owner, room, project, instruction hash and unexpired
+launch, plus a currently valid original phase approval. The successor retains
+the saved revision and expiry, and remains bound to the same failed attempt for
+ordinary cancellation, stale-recovery, correction-budget and publication guards.
+No historical attempt is changed; no provider is replayed by merely reconciling
+approval. Repeated recovery selects the same successor. Withdrawn approval,
+changed scope and canceled work cannot use this path.

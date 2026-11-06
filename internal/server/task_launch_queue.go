@@ -28,6 +28,23 @@ func retryableReviewLaunchError(err error) bool {
 }
 
 func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string, deadline ...time.Time) string {
+	// System-generated phase turns are execution context, never fresh consent.
+	// All continuation paths (capacity, interruption, inspection and review) must
+	// retain the same original owner approval rather than a generated request ID.
+	if t != nil && q.MessageID == t.SourceMessageID && s.projectStudioRepo != nil {
+		source, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+		if err != nil {
+			recordInboxReviewLaunchError(ctx, err)
+			return "The approved continuation could not be checked. No execution was started."
+		}
+		if source != nil && source.AuthorType == "system" && source.AuthorID == "cuan_auto_delegation" {
+			approval, err := s.phaseApproval(ctx, t, q.OwnerID, q.RoomID)
+			if err != nil {
+				return "The approved phase could not be validated. No execution was started."
+			}
+			sourceRequestID = approval.Request.RequestID
+		}
+	}
 	now := time.Now().UTC()
 	expires := now.Add(24 * time.Hour)
 	if len(deadline) > 0 && deadline[0].Before(expires) {

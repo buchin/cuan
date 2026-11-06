@@ -80,7 +80,24 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 		notice = "Kapasitas AI sedang disesuaikan. Pekerjaan tersimpan dan akan dilanjutkan otomatis."
 	}
 	revision := "Gap: " + gap + "; completion and verification are not established. Area: this task's existing project workspace and original approved deliverables. Inspect and preserve existing files before making changes; do not rebuild in provider HOME or another workspace. Reconcile uncertain external effects before repeating them. Continue only unfinished approved work. Verify every original acceptance criterion with targeted checks and report actual evidence and user-accessible results. Finish only when the original scope and verification are complete." + taskRecoveryContext(d)
-	output := s.startAuthorizedLaunch(ctx, origin, d, delegationMessageID(key), origin.RequestID, revision)
+	var deadline []time.Time
+	// Repair only the proven pre-attempt phase-approval failure. The rejected
+	// launch stays stopped with its original source; a deterministic successor
+	// retains the exact saved revision and expiry and revalidates real approval.
+	if saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, delegationMessageID(key))); err == nil && saved != nil && saved.State == "stopped" && saved.SafeError == "The original user authorization is unavailable or cancelled." && saved.SourceRequestID == origin.RequestID && saved.OwnerID == origin.OwnerID && saved.RoomID == origin.RoomID && saved.ProjectID == d.ProjectID && saved.InstructionsHash == task.LaunchInstructionsHash(d.Instructions) && saved.ExpiresAt.After(time.Now()) {
+		source, e := s.projectStudioRepo.GetMessageByID(ctx, origin.MessageID)
+		if e != nil || source == nil || source.AuthorType != "system" || source.AuthorID != "cuan_auto_delegation" {
+			return false
+		}
+		approval, e := s.phaseApproval(ctx, d, origin.OwnerID, origin.RoomID)
+		if e != nil || approval.Request.RequestID == saved.SourceRequestID {
+			return false
+		}
+		key += ":phase-approval:v1"
+		revision = saved.Revision
+		deadline = append(deadline, saved.ExpiresAt)
+	}
+	output := s.startAuthorizedLaunch(ctx, origin, d, delegationMessageID(key), origin.RequestID, revision, deadline...)
 	// The launch path revalidates approval, cancellation, scope, ownership and
 	// active execution, and persists an idempotent launch before starting work.
 	now := time.Now().UTC()
@@ -175,7 +192,7 @@ func automaticRecoverySource(d *task.TaskDetailResponse, requestID string) *task
 			continue
 		}
 		for _, kind := range []string{"task-interruption-recovery:", "task-storage-recovery:", "task-provider-recovery:"} {
-			if requestID == delegationMessageID(kind+a.ID) {
+			if requestID == delegationMessageID(kind+a.ID) || requestID == delegationMessageID(kind+a.ID+":phase-approval:v1") {
 				return a
 			}
 		}
