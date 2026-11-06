@@ -39,6 +39,7 @@ type activeAttempt struct {
 }
 
 type Runner struct {
+	completionMu     sync.Mutex
 	browserMu        sync.Mutex
 	browserEvidence  *task.VerificationRuntime
 	browserNextProbe time.Time
@@ -312,6 +313,7 @@ func (r *Runner) Start(ctx context.Context) error {
 }
 
 func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
+	go r.replayCompletions(ctx)
 	metrics := CollectHostMetrics()
 
 	r.mu.Lock()
@@ -329,6 +331,21 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 	}
 	r.mu.Unlock()
 
+	for _, pending := range r.pendingCompletionIDs() {
+		found := false
+		for _, active := range attemptIDs {
+			if active == pending {
+				found = true
+				break
+			}
+		}
+		if !found {
+			attemptIDs = append(attemptIDs, pending)
+		}
+		if primaryAttemptID == "" {
+			primaryAttemptID = pending
+		}
+	}
 	reqPayload := HeartbeatRequest{
 		BrowserRuntime:   r.browserRuntimeEvidence(ctx),
 		RunnerID:         r.cfg.RunnerID,
@@ -1215,21 +1232,16 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		att.ID, compReq.Status, compReq.ExitCode, time.Since(startTime).Round(time.Millisecond), compReq.PeakRSSBytes))
 	cancelDiagnostic()
 
-	// Send complete notification to server
-	urlPath := fmt.Sprintf("/api/v1/runner/attempts/%s/complete", att.ID)
+	// Persist before the network handoff; a failed or lost response must not
+	// discard native results or cause another agent execution.
 	completionCtx, cancelCompletion := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-	defer cancelCompletion()
-	response, submitErr := r.doRequest(completionCtx, http.MethodPost, urlPath, compReq)
+	submitErr := r.deliverCompletion(completionCtx, att.ID, t.ID, compReq)
+	cancelCompletion()
 	if submitErr != nil {
-		log.Printf("[Runner %s] Attempt %s completion could not be delivered: %v", r.cfg.RunnerID, att.ID, submitErr)
+		log.Printf("[Runner %s] Attempt %s final result handoff incomplete: %v", r.cfg.RunnerID, att.ID, submitErr)
 		return
 	}
-	response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		log.Printf("[Runner %s] Attempt %s completion was not accepted (HTTP %d); saved server state remains authoritative", r.cfg.RunnerID, att.ID, response.StatusCode)
-		return
-	}
-	log.Printf("[Runner %s] Attempt %s completion delivered (reported status '%s', exit %d)", r.cfg.RunnerID, att.ID, compReq.Status, compReq.ExitCode)
+	log.Printf("[Runner %s] Attempt %s completion acknowledged by server", r.cfg.RunnerID, att.ID)
 
 	// Clean up stale or excess workspaces post-execution
 	if r.gitClient != nil && r.cfg.WorkspacesDir != "" {

@@ -97,3 +97,27 @@ alive, it asynchronously waits for each child process to release OS process
 resources after exit. This wait does not join supervisor shutdown, cancel a
 worker, or interpret its exit as task acceptance; completion remains governed
 by the worker reporting and verification protocol.
+
+Native final results use a private completion outbox. Before the first completion
+RPC, the runner atomically writes and fsyncs the exact attempt/task payload and
+its hash. The supervisor can retry that payload after transport failure or
+restart, without invoking the agent or repeating deployment/tool effects.
+Per-attempt OS locks prevent overlap with a surviving worker. Connection and
+runner identities remain bound; changing the connection cannot forward saved
+results to another server.
+
+Pending handoffs receive at most two minutes of lease renewal. Transport retries
+use bounded batches and backoff; they do not keep an execution alive indefinitely.
+The server still rejects canceled, superseded, expired or invalid completion
+contexts. A 4xx rejection is retained for diagnosis and is not blindly retried.
+Only an exact terminal attempt receipt settles a handoff. An ignored terminal
+response is recorded as ignored, never as successful acceptance of the payload.
+
+When workspaces are configured, records live outside repositories under
+`runner-completions/<runner-hash>/<server-hash>` beside the workspaces directory;
+test/fallback configurations use the worker registry directory. Pending JSON,
+private locks, temporary writes, acknowledged records and rejected records are
+separate. Completed archives retain the original bytes for diagnostics and are
+excluded from heartbeat scans. Read an archived native result as execution
+evidence, not as task acceptance. Files are private and can contain task content;
+never echo raw payloads into user-facing chat or diagnostic tool output.
