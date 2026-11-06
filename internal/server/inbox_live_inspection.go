@@ -21,7 +21,7 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	}
 	if d.Status == task.TaskStatusReview {
 		assessment, found := reviewAssessment(d, "")
-		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || !task.IsUnpublishedReviewedOutcome(&d.Task, d.LatestAttempt, d.Activities) {
+		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || (!task.IsUnpublishedReviewedOutcome(&d.Task, d.LatestAttempt, d.Activities) && !task.IsPublicationReconciliationOutcome(&d.Task, d.LatestAttempt, d.Activities)) {
 			return false
 		}
 	}
@@ -37,7 +37,7 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	}
 	a := d.LatestAttempt
 	unpublished := task.IsUnpublishedLegacyOutcome(&d.Task, a, d.Activities)
-	if !unpublished && task.IsUnpublishedReviewedOutcome(&d.Task, a, d.Activities) {
+	if !unpublished && (task.IsUnpublishedReviewedOutcome(&d.Task, a, d.Activities) || task.IsPublicationReconciliationOutcome(&d.Task, a, d.Activities)) {
 		// The task layer validates the saved record shape; the coordinator also
 		// requires its exact current evidence digest before granting inspection.
 		assessment, found := reviewAssessment(d, "")
@@ -167,7 +167,7 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 		revision = "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(raw) + "\nInspect the exact currently running revision to determine whether the original requested outcome is already satisfied. Do not credit the historical attempt with this result or its publication, resume its process, alter its workspace, repeat implementation, or waive any original requirement. Reproduce the original issue and test the current behavior; inspect actual UI screenshots at original required viewports for UI work. Check every original acceptance criterion and report precise gaps. You may prepare locked dependencies and ignored verification outputs inside this private snapshot, without changing tracked files, lockfiles, index or git refs; never use shared build output symlinks. Deliver screenshots/reports using session artifacts. The runner independently runs fixed project checks and verifies unchanged source after your final report. This is current-outcome evidence, not ancestry of unknown old work or a deployment performed by this task. Do not fix code or perform external effects in this inspection."
 	}
 	if currentOutcome && proof.SourceCommit != "" {
-		revision += "\nThe historical execution succeeded and produced a branch commit, but publication of that branch was not established. Its result commit is retained as history, not an ancestor requirement or proof of deployment. Inspect only the already-running target revision and original outcome. Do not merge the old PR, claim that its branch was deployed, or change any historical execution/commit metadata."
+		revision += "\nThe historical task retained a committed branch, but publication of that branch was not established. Preserve its recorded execution state, including any failure. Its result commit is retained as history, not an ancestor requirement or proof of deployment. Inspect only the already-running target revision and original outcome. Do not merge the old PR, claim that its branch was deployed, or change any historical execution/commit metadata."
 	}
 	revision += "\nFor visual evidence, prefer the repository's existing real-component/browser verification scripts before writing a new harness or guessing exports from minified release bundles. Never substitute manually authored HTML/DOM, recreated component markup or direct library-only rendering for screenshots of the actual application components. Report any failed capture honestly and leave the corresponding criteria incomplete. Reserve time within the same execution deadline for the runner's independent project checks."
 	if proof.ReviewRequestID != "" {

@@ -144,7 +144,7 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 		if r.verifyRegisteredPublication(ctx, claim, expectedCommit) {
 			return true, ""
 		}
-		return false, "Kepatuhan auto_deploy: production publication could not be independently verified through the registered project channel. Reconcile the existing live revision; do not repeat deployment solely because a receipt is missing. Report text is not deployment evidence."
+		return false, task.PublicationVerificationUnavailableMessage
 	}
 	return true, ""
 }

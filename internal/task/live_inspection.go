@@ -260,7 +260,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 			if err != nil {
 				return err
 			}
-			if proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0 || (!IsUnpublishedLegacyOutcome(t, source, activities) && !IsUnpublishedReviewedOutcome(t, source, activities)) {
+			if proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0 || (!IsUnpublishedLegacyOutcome(t, source, activities) && !IsUnpublishedReviewedOutcome(t, source, activities) && !IsPublicationReconciliationOutcome(t, source, activities)) {
 				return ErrInvalidTaskInput
 			}
 		} else if !IsCurrentOutcomeFailure(source) {

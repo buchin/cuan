@@ -76,3 +76,19 @@ acceptance or a scoped continuation. This also prevents a detached older worker
 from reintroducing obsolete cross-project requirements after an upgrade. Native
 execution, reporting, repository, publication and cancellation gates remain in
 force. Ordinary board tasks without an Inbox retain their existing evaluator.
+
+### Reconcile a verified branch with an existing live outcome
+
+A native attempt which passed its project checks but failed only independent
+publication verification may receive one read-only current-outcome inspection.
+Eligibility requires its exact retained clean commit and native branch-diff/check
+record, a final implementation report, and a scoped coordinator assessment that
+only verification remains. Failed checks, cancellation, a different error, missing
+native evidence, or a deployment prohibition cannot use this path.
+
+The inspection uses the separately observed currently running revision, not the
+unpublished branch. Existing scope, ownership, unchanged-source, visual evidence
+and fresh native-check gates still apply. It cannot edit, push, deploy, fabricate
+ancestry, change the source attempt's failed status, or accept the task itself.
+Its request identity uses the existing source-attempt budget; moving production
+does not grant an unlimited new implementation/retry allowance.
