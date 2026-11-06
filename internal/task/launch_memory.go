@@ -250,6 +250,9 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, j := range m.launches {
+		if a := m.attempts[attemptRequestID(j.TaskID, j.RequestID)]; a != nil && a.TaskID == j.TaskID && (a.Status == AttemptStatusSucceeded || a.Status == AttemptStatusFailed || a.Status == AttemptStatusCanceled || a.Status == AttemptStatusInterrupted) && (j.State == "queued" || j.State == "claimed" || j.State == "started") {
+			j.State, j.SafeError, j.LeaseToken, j.LeaseUntil, j.UpdatedAt = "stopped", "Recorded execution is terminal; launch reconciled.", "", nil, now
+		}
 		t := m.tasks[j.TaskID]
 		if t != nil && (t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "failed") {
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {
@@ -285,6 +288,44 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 			}
 		}
 	}
+	for _, t := range m.tasks {
+		var latest *TaskAttempt
+		active := false
+		for _, a := range m.attempts {
+			if a.TaskID != t.ID {
+				continue
+			}
+			if a.Status == AttemptStatusQueued || a.Status == AttemptStatusRunning {
+				active = true
+			}
+			if latest == nil || a.CreatedAt.After(latest.CreatedAt) || (a.CreatedAt.Equal(latest.CreatedAt) && a.ID > latest.ID) {
+				latest = a
+			}
+		}
+		var pending *TaskLaunch
+		for _, j := range m.launches {
+			if j.TaskID == t.ID && (pending == nil || j.CreatedAt.After(pending.CreatedAt) || (j.CreatedAt.Equal(pending.CreatedAt) && j.ID > pending.ID)) {
+				pending = j
+			}
+		}
+		if active || !pendingCapacityContinuation(t, pending, latest, now) {
+			continue
+		}
+		paused := false
+		for _, a := range m.activities {
+			if a.TaskID == t.ID && a.ActivityType == ActivityTypeStatusChange && a.NewStatus == TaskStatusBlocked && a.CreatedAt.After(*latest.FinishedAt) {
+				paused = true
+				break
+			}
+		}
+		if paused {
+			continue
+		}
+		t.Status, t.UpdatedAt = TaskStatusQueued, now
+		event := &TaskActivity{ID: generateID("act"), TaskID: t.ID, AttemptID: &latest.ID, ActivityType: "execution_recovery", Author: "coordinator", NewStatus: TaskStatusQueued, Message: "Restored the existing approved pending launch after an earlier capacity failure. Execution history and recovery budgets are unchanged.", CreatedAt: now}
+		m.activities[event.ID] = event
+	}
+
 	return nil
 }
 

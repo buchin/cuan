@@ -136,6 +136,34 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1::timestamptz+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
 }
 func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) error {
+	// A launch response can be lost/deferred after reserving its exact attempt.
+	// Once that attempt is terminal, keeping the launch queued suppresses result
+	// review and authorized recovery forever. Close only that original intent;
+	// never change its task/attempt or consume a newer continuation.
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches l SET state='stopped',safe_error='Recorded execution is terminal; launch reconciled.',lease_token='',lease_until=NULL,updated_at=$1 WHERE l.state IN ('queued','claimed','started') AND EXISTS (SELECT 1 FROM task_attempts a WHERE a.id=l.attempt_id AND a.task_id=l.task_id AND a.status IN ('succeeded','failed','canceled','interrupted'))`, now); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `WITH candidate AS (
+ SELECT t.id,l.id AS launch_id,a.id AS attempt_id FROM tasks t
+ JOIN task_launches l ON l.task_id=t.id
+ JOIN task_attempts a ON a.task_id=t.id
+ WHERE t.status='blocked' AND l.state='queued' AND l.expires_at>$1
+ AND COALESCE(t.project_id,'')=l.project_id AND l.instructions_hash=encode(digest(t.instructions,'sha256'),'hex')
+ AND l.id=(SELECT id FROM task_launches WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1)
+ AND a.id=(SELECT id FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1)
+ AND a.id<>l.attempt_id AND a.status='failed' AND a.exit_code=75 AND a.finished_at IS NOT NULL
+ AND NOT COALESCE(a.cancel_requested,false) AND a.canceled_at IS NULL
+ AND a.error_message LIKE 'The AI provider reported a usage limit. The run was stopped;%'
+ AND NOT EXISTS(SELECT 1 FROM task_attempts live WHERE live.task_id=t.id AND live.status IN ('queued','running'))
+ AND NOT EXISTS(SELECT 1 FROM task_activities pause WHERE pause.task_id=t.id AND pause.activity_type='status_change' AND pause.new_status='blocked' AND pause.created_at>a.finished_at)
+ FOR UPDATE OF t,l SKIP LOCKED
+ ), resumed AS (
+ UPDATE tasks t SET status='queued',updated_at=$1 FROM candidate c WHERE t.id=c.id AND t.status='blocked' RETURNING t.id,c.launch_id,c.attempt_id
+ ) INSERT INTO task_activities(id,task_id,attempt_id,activity_type,author,new_status,message,created_at)
+ SELECT 'act_capacity_'||substr(encode(digest(id||':'||launch_id||':'||attempt_id,'sha256'),'hex'),1,32),id,attempt_id,'execution_recovery','coordinator','queued','Restored the existing approved pending launch after an earlier capacity failure. Execution history and recovery budgets are unchanged.',$1 FROM resumed ON CONFLICT DO NOTHING`, now); err != nil {
+		return err
+	}
+
 	// 1. Reconcile launches whose task is in terminal status
 	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Task is in terminal status.',lease_token='',lease_until=NULL,updated_at=$1 WHERE state IN ('queued','claimed','started') AND task_id IN (SELECT id FROM tasks WHERE status IN ('done','cancelled','failed'))`, now); err != nil {
 		return err

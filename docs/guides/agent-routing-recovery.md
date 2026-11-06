@@ -51,3 +51,19 @@ Settings: connecting a brain does not create another public agent. Historical
 bound accounts still obey binding and enablement checks; partially bound records
 fail closed. Routing revalidates owner, provider, readiness, cooldown and exact
 profile home under the execution lease. Model/fallback preferences are preserved.
+
+### Pending launch after a capacity failure
+
+A route can reserve an execution before a deferred launch response is saved. If
+that execution later fails while the launch still says queued/claimed, the stale
+launch used to suppress review and recovery indefinitely. Reconciliation now
+closes only the launch bound to that terminal execution. It preserves the task,
+all attempt results, approvals and recovery budgets.
+
+A separate newer pending continuation can also be stranded when the earlier
+attempt changes the board state to blocked. The existing queued intent is
+restored only for the exact known quota failure (exit 75), unchanged project and
+scope, a current unexpired launch and no active execution, cancellation or later
+explicit block. Ordinary failures, manual blocks, expired/cancelled approvals and
+accepted work stay untouched. Execution still rechecks the saved owner approval
+and cancellation through the normal launch path. No failed attempt is replayed.
