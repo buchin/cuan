@@ -502,6 +502,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		}
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
+			s.ensureTaskCompletionDelivered(ctx, detail, item.SourceRoomID)
 			continue
 		}
 		if err == nil {

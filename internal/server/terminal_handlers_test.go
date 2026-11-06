@@ -763,3 +763,175 @@ func TestServer_GetTaskRunHistory_DecoupledRunnerRequiresCurrentRunningAttempt(t
 		t.Fatal("finished attempt exposed leftover socket")
 	}
 }
+
+func TestServer_TaskTerminal_OnExit_ExitCode137_WithAgentReviewReady(t *testing.T) {
+	srv, _ := setupTestChatServer(t)
+	ctx := context.Background()
+
+	taskID := "task-exit137-ready"
+	tItem := &task.Task{
+		ID:           taskID,
+		Title:        "Feature: Terminal Exit 137 Test",
+		Instructions: "Verify exit code 137 with AgentReviewReady true succeeds",
+		ProjectID:    "default",
+		SourceRoomID: "room-exit-137",
+		Status:       task.TaskStatusDoing,
+		Summary:      "Task completed before SIGKILL",
+		CompleteNote: "Targeted tests passed and verified",
+	}
+	if err := srv.taskSvc.Store().CreateTask(ctx, tItem); err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	attID := "att-exit137-1"
+	att := &task.TaskAttempt{
+		ID:            attID,
+		TaskID:        taskID,
+		AttemptNumber: 1,
+		RunnerID:      "local_terminal",
+		Status:        task.AttemptStatusRunning,
+		CreatedAt:     time.Now().UTC(),
+	}
+	if err := srv.taskSvc.Store().CreateAttempt(ctx, att); err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+
+	if err := srv.taskSvc.RequireAgentReport(ctx, taskID, attID, "runner"); err != nil {
+		t.Fatalf("failed to require agent report: %v", err)
+	}
+	// Record an agent report marking the attempt review-ready
+	if err := srv.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{
+		ID:           "act-report-exit137",
+		TaskID:       taskID,
+		AttemptID:    &attID,
+		ActivityType: "agent_report",
+		Author:       "runner",
+		NewStatus:    "done",
+		Message:      "Task finished and ready for review",
+		CreatedAt:    time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("failed to create report activity: %v", err)
+	}
+
+	ready, err := srv.taskSvc.AgentReviewReady(ctx, taskID, attID)
+	if err != nil || !ready {
+		t.Fatalf("expected AgentReviewReady to be true, got %v, err: %v", ready, err)
+	}
+
+	// Simulate the OnExit logic from terminal_handlers.go
+	h := &terminal.TaskRunHistory{
+		ExitCode:  137,
+		Status:    "stopped",
+		EndReason: "stopped",
+	}
+	output := newTaskOutputRecorder(srv.taskSvc, attID)
+	state := task.AttemptStatusFailed
+	note := output.failureNote()
+	isReady, e := srv.taskSvc.AgentReviewReady(ctx, taskID, attID)
+	if e == nil && isReady {
+		state = task.AttemptStatusSucceeded
+		note = ""
+	}
+	_ = note
+	if state != task.AttemptStatusSucceeded {
+		t.Fatalf("expected state to be AttemptStatusSucceeded for exit 137 with ready report, got %s", state)
+	}
+
+	updatedAttempt, err := srv.taskSvc.FinishReportedAttempt(ctx, attID, h.ExitCode)
+	if err != nil {
+		t.Fatalf("FinishReportedAttempt failed: %v", err)
+	}
+	if updatedAttempt.Status != task.AttemptStatusSucceeded {
+		t.Errorf("expected attempt status 'succeeded', got '%s'", updatedAttempt.Status)
+	}
+	if updatedAttempt.ExitCode == nil || *updatedAttempt.ExitCode != 137 {
+		t.Errorf("expected exit code 137 preserved, got %v", updatedAttempt.ExitCode)
+	}
+
+	if err := srv.taskSvc.ReconcileLocalTask(ctx, taskID, attID); err != nil {
+		t.Fatalf("ReconcileLocalTask failed: %v", err)
+	}
+
+	detail, err := srv.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+	if detail.Status != task.TaskStatusReview {
+		t.Errorf("expected task status 'review', got '%s'", detail.Status)
+	}
+}
+
+func TestServer_TaskTerminal_OnExit_ExitCode137_WithoutAgentReviewReady(t *testing.T) {
+	srv, _ := setupTestChatServer(t)
+	ctx := context.Background()
+
+	taskID := "task-exit137-notready"
+	tItem := &task.Task{
+		ID:           taskID,
+		Title:        "Feature: Terminal Exit 137 Failed Test",
+		Instructions: "Verify exit code 137 without AgentReviewReady marks attempt failed",
+		ProjectID:    "default",
+		SourceRoomID: "room-exit-137-fail",
+		Status:       task.TaskStatusDoing,
+	}
+	if err := srv.taskSvc.Store().CreateTask(ctx, tItem); err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	attID := "att-exit137-fail-1"
+	att := &task.TaskAttempt{
+		ID:            attID,
+		TaskID:        taskID,
+		AttemptNumber: 1,
+		RunnerID:      "local_terminal",
+		Status:        task.AttemptStatusRunning,
+		CreatedAt:     time.Now().UTC(),
+	}
+	if err := srv.taskSvc.Store().CreateAttempt(ctx, att); err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+	if err := srv.taskSvc.RequireAgentReport(ctx, taskID, attID, "runner"); err != nil {
+		t.Fatalf("failed to require agent report: %v", err)
+	}
+
+	ready, err := srv.taskSvc.AgentReviewReady(ctx, taskID, attID)
+	if err != nil || ready {
+		t.Fatalf("expected AgentReviewReady to be false, got %v, err: %v", ready, err)
+	}
+
+	// Simulate OnExit logic when not ready
+	h := &terminal.TaskRunHistory{
+		ExitCode:  137,
+		Status:    "stopped",
+		EndReason: "stopped",
+	}
+	output := newTaskOutputRecorder(srv.taskSvc, attID)
+	output.append([]byte("Process killed by SIGKILL"))
+	state := task.AttemptStatusFailed
+	note := output.failureNote()
+	isReady, e := srv.taskSvc.AgentReviewReady(ctx, taskID, attID)
+	if e == nil && isReady {
+		state = task.AttemptStatusSucceeded
+		note = ""
+	}
+
+	updatedAttempt, err := srv.taskSvc.UpdateAttemptStatus(ctx, attID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
+	if err != nil {
+		t.Fatalf("UpdateAttemptStatus failed: %v", err)
+	}
+	if updatedAttempt.Status != task.AttemptStatusFailed {
+		t.Errorf("expected attempt status 'failed', got '%s'", updatedAttempt.Status)
+	}
+
+	if err := srv.taskSvc.ReconcileLocalTask(ctx, taskID, attID); err != nil {
+		t.Fatalf("ReconcileLocalTask failed: %v", err)
+	}
+
+	detail, err := srv.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+	if detail.Status != task.TaskStatusBlocked {
+		t.Errorf("expected task status 'blocked', got '%s'", detail.Status)
+	}
+}
