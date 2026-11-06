@@ -59,11 +59,11 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 			}
 			input := inboxReviewEvaluation{Decision: "pass", Finding: "Everything passed", RemainingWork: "none"}
 			if strings.HasSuffix(scenario, "revision") {
-				input = inboxReviewEvaluation{Decision: "revise", RemainingWork: strings.Fields(scenario)[0], Finding: "Deployment did not happen", Revision: "Check the approved feature", VisualInspection: "Observed existing view"}
+				input = inboxReviewEvaluation{Decision: "revise", RemainingWork: strings.Fields(scenario)[0], Finding: "Deployment did not happen", Explanation: "Deploy again to obtain a receipt", Revision: "Check the approved feature", VisualInspection: "Observed existing view"}
 			}
 			result := s.requirePublicationReview(ctx, d, input)
 			if scenario == "implementation revision" {
-				if result.Finding != input.Finding || result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") {
+				if result.RemainingWork != input.RemainingWork || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum terverifikasi") {
 					t.Fatal("implementation gap or publication reconciliation lost")
 				}
 				return
