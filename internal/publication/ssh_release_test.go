@@ -31,7 +31,7 @@ func fixtureKey(t *testing.T) ssh.Signer {
 }
 
 func TestVerifyObservedSSHRevisionAndHTTPSHealth(t *testing.T) {
-	for _, scenario := range []string{"healthy", "rsa-host-key", "wrong-revision", "wrong-host-key", "unhealthy", "redirect", "oversized", "cancelled"} {
+	for _, scenario := range []string{"healthy", "rsa-host-key", "wrong-revision", "wrong-host-key", "unhealthy", "redirect", "oversized", "cancelled", "observe", "observe-malformed"} {
 		t.Run(scenario, func(t *testing.T) {
 			commit := strings.Repeat("a", 40)
 			signer := fixtureKey(t)
@@ -96,6 +96,9 @@ func TestVerifyObservedSSHRevisionAndHTTPSHealth(t *testing.T) {
 						if scenario == "wrong-revision" {
 							revision = strings.Repeat("b", 40)
 						}
+						if scenario == "observe-malformed" {
+							revision = "unknown"
+						}
 						if scenario == "oversized" {
 							revision = strings.Repeat("x", 5000)
 						}
@@ -124,14 +127,23 @@ func TestVerifyObservedSSHRevisionAndHTTPSHealth(t *testing.T) {
 			if scenario == "cancelled" {
 				cancel()
 			}
-			err := verify(ctx, c, commit, health.Client().Transport)
-			if (err == nil) != (scenario == "healthy" || scenario == "rsa-host-key") {
+			var err error
+			if strings.HasPrefix(scenario, "observe") {
+				var observed string
+				observed, err = observe(ctx, c, "", health.Client().Transport)
+				if scenario == "observe" && observed != commit {
+					t.Fatal("wrong observed revision", observed)
+				}
+			} else {
+				err = verify(ctx, c, commit, health.Client().Transport)
+			}
+			if (err == nil) != (scenario == "healthy" || scenario == "rsa-host-key" || scenario == "observe") {
 				t.Fatalf("unexpected verification error: %v", err)
 			}
 			if (scenario == "wrong-host-key" || scenario == "cancelled") && authenticated.Load() {
 				t.Fatal("password sent before host trust or after cancellation")
 			}
-			if (scenario == "wrong-revision" || scenario == "wrong-host-key" || scenario == "oversized" || scenario == "cancelled") && healthCalled.Load() {
+			if (scenario == "observe-malformed" || scenario == "wrong-revision" || scenario == "wrong-host-key" || scenario == "oversized" || scenario == "cancelled") && healthCalled.Load() {
 				t.Fatal("health substituted for immutable revision")
 			}
 		})
@@ -189,6 +201,10 @@ func TestNativeRegisteredSSHRelease(t *testing.T) {
 	c, err := FromEnvironment(env)
 	if err != nil {
 		t.Fatal("native project verifier configuration invalid")
+	}
+	observed, err := Observe(context.Background(), c)
+	if err != nil || observed != os.Getenv("CUAN_PUBLICATION_TEST_COMMIT") {
+		t.Fatal("registered live observation mismatch", err)
 	}
 	if err := Verify(context.Background(), c, os.Getenv("CUAN_PUBLICATION_TEST_COMMIT")); err != nil {
 		t.Fatal(err)

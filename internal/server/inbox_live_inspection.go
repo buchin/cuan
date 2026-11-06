@@ -24,6 +24,12 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	}
 	a := d.LatestAttempt
 	unpublished := task.IsUnpublishedLegacyOutcome(&d.Task, a, d.Activities)
+	if !unpublished && task.IsUnpublishedReviewedOutcome(&d.Task, a, d.Activities) {
+		// The task layer validates the saved record shape; the coordinator also
+		// requires its exact current evidence digest before granting inspection.
+		assessment, found := reviewAssessment(d, "")
+		unpublished = found && assessment.Decision == "revise" && assessment.RemainingWork == "verification"
+	}
 	currentOutcome := unpublished || (d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode))
 	if (a.Status != task.AttemptStatusFailed && !unpublished) || a.CancelRequested || a.CanceledAt != nil || (a.FinishedAt == nil && !task.IsUnrecordedLocalFailure(a)) {
 		return false

@@ -112,14 +112,39 @@ func IsCurrentOutcomeFailure(a *TaskAttempt) bool {
 // This permits one independent outcome inspection, never credit for publishing
 // that branch, source ancestry, or an implementation replay.
 func IsUnpublishedLegacyOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity) bool {
+	return unpublishedOutcome(t, a, activities, false)
+}
+
+// A completed implementation rejected solely for verification can inspect the
+// current outcome once, without gaining another implementation or deployment.
+func IsUnpublishedReviewedOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity) bool {
+	return unpublishedOutcome(t, a, activities, true)
+}
+
+func unpublishedOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity, reviewed bool) bool {
 	if t == nil || a == nil || a.TaskID != t.ID || !fullObjectID(t.CommitSHA) || (t.ExecutionCategory != "" && t.ExecutionCategory != ExecutionCategoryCode) || a.Status != AttemptStatusSucceeded || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != "" || a.CancelRequested || a.CanceledAt != nil || a.CreatedAt.IsZero() || a.StartedAt == nil || a.StartedAt.IsZero() || a.FinishedAt == nil || a.FinishedAt.Before(*a.StartedAt) || a.StartedAt.Before(a.CreatedAt) {
 		return false
 	}
-	if executionpolicy.NormalizeManagedInstructions(t.Instructions) == t.Instructions || executionpolicy.FromInstructions(t.Instructions).DenyDeploy || !liveImplementationFinalReport(activities, t.ID, a.ID) || VerifiedDeployment(activities, a, t.CommitSHA, time.Now().UTC()) {
+	limits := executionpolicy.FromInstructions(t.Instructions)
+	if !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") || (!reviewed && executionpolicy.NormalizeManagedInstructions(t.Instructions) == t.Instructions) || limits.DenyDeploy || limits.ReadOnlyRepository || !liveImplementationFinalReport(activities, t.ID, a.ID) || VerifiedDeployment(activities, a, t.CommitSHA, time.Now().UTC()) {
 		return false
 	}
 	for _, event := range activities {
-		if event != nil && event.TaskID == t.ID && event.AttemptID != nil && *event.AttemptID == a.ID && event.ActivityType == ActivityPublicationAcceptanceAudit && event.Author == "coordinator" && event.NewStatus == "review_required" && !event.CreatedAt.Before(*a.FinishedAt) && !event.CreatedAt.After(time.Now().UTC()) {
+		if reviewed && event != nil && event.TaskID == t.ID && event.AttemptID != nil && *event.AttemptID == a.ID && event.ActivityType == "coordinator_review_assessment" && event.Author == "coordinator" && !event.CreatedAt.Before(*a.FinishedAt) && !event.CreatedAt.After(time.Now().UTC()) {
+			var record struct {
+				RequestID        string `json:"request_id"`
+				InstructionsHash string `json:"instructions_hash"`
+				EvidenceDigest   string `json:"evidence_digest"`
+				Assessment       struct {
+					Decision      string `json:"decision"`
+					RemainingWork string `json:"remaining_work"`
+				} `json:"assessment"`
+			}
+			if json.Unmarshal([]byte(event.Message), &record) == nil && record.RequestID != "" && record.InstructionsHash == LaunchInstructionsHash(t.Instructions) && len(record.EvidenceDigest) == 64 && record.Assessment.Decision == "revise" && record.Assessment.RemainingWork == "verification" {
+				return true
+			}
+		}
+		if !reviewed && event != nil && event.TaskID == t.ID && event.AttemptID != nil && *event.AttemptID == a.ID && event.ActivityType == ActivityPublicationAcceptanceAudit && event.Author == "coordinator" && event.NewStatus == "review_required" && !event.CreatedAt.Before(*a.FinishedAt) && !event.CreatedAt.After(time.Now().UTC()) {
 			return true
 		}
 	}
@@ -220,7 +245,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 			if err != nil {
 				return err
 			}
-			if proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0 || !IsUnpublishedLegacyOutcome(t, source, activities) {
+			if proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0 || (!IsUnpublishedLegacyOutcome(t, source, activities) && !IsUnpublishedReviewedOutcome(t, source, activities)) {
 				return ErrInvalidTaskInput
 			}
 		} else if !IsCurrentOutcomeFailure(source) {

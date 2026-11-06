@@ -1110,7 +1110,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.RepositoryVerification = evidence
 				compReq.TestSummary = verification.Summary
 				if verification.Passed && claim.LiveInspection != nil {
-					fresh := runProjectVerification(ctx, workingDir)
+					fresh := runRegisteredProjectVerification(ctx, workingDir, claim.PHPUnitTargets)
 					compReq.TestSummary = fresh.Summary
 					if !fresh.Passed || !task.PassingProjectCheckSummary(fresh.Summary) {
 						verification.Passed = false

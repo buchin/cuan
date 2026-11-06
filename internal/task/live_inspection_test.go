@@ -222,3 +222,51 @@ func TestUnpublishedLegacyOutcomeKeepsBranchAndExecutionHistory(t *testing.T) {
 		})
 	}
 }
+
+func TestReviewedUnpublishedOutcomeRequiresBoundVerificationAssessment(t *testing.T) {
+	now := time.Now().UTC()
+	created := now.Add(-time.Hour)
+	started := created.Add(time.Second)
+	finished := started.Add(time.Minute)
+	exit := 0
+	for _, scenario := range []string{"valid", "wrong author", "wrong attempt", "wrong instructions", "implementation needed", "missing request", "cancelled", "progress only", "verified publication"} {
+		t.Run(scenario, func(t *testing.T) {
+			item := &Task{ID: "reviewed", CommitSHA: strings.Repeat("a", 40), Instructions: "Cuan managed delegation v1.\nImplement approved feature and verify current result."}
+			a := &TaskAttempt{ID: "source", TaskID: item.ID, Status: AttemptStatusSucceeded, ExitCode: &exit, CreatedAt: created, StartedAt: &started, FinishedAt: &finished}
+			record := map[string]any{"request_id": "review-request", "instructions_hash": LaunchInstructionsHash(item.Instructions), "evidence_digest": strings.Repeat("b", 64), "assessment": map[string]string{"decision": "revise", "remaining_work": "verification"}}
+			assessment := &TaskActivity{ID: "assessment", TaskID: item.ID, AttemptID: &a.ID, ActivityType: "coordinator_review_assessment", Author: "coordinator", CreatedAt: now}
+			report := &TaskActivity{TaskID: item.ID, AttemptID: &a.ID, ActivityType: "agent_report", NewStatus: TaskStatusReview, CreatedAt: finished}
+			kind := &TaskActivity{TaskID: item.ID, AttemptID: &a.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", CreatedAt: finished}
+			switch scenario {
+			case "wrong author":
+				assessment.Author = "agent"
+			case "wrong attempt":
+				other := "other"
+				assessment.AttemptID = &other
+			case "wrong instructions":
+				record["instructions_hash"] = "different"
+			case "implementation needed":
+				record["assessment"] = map[string]string{"decision": "revise", "remaining_work": "implementation"}
+			case "missing request":
+				record["request_id"] = ""
+			case "cancelled":
+				a.CancelRequested = true
+			case "progress only":
+				report.NewStatus = "progress"
+			}
+			raw, _ := json.Marshal(record)
+			assessment.Message = string(raw)
+			events := []*TaskActivity{report, kind, assessment}
+			if scenario == "verified publication" {
+				raw, _ := json.Marshal(DeploymentReceipt{Version: 1, TaskID: item.ID, AttemptID: a.ID, CommitSHA: item.CommitSHA, ReleaseSHA: item.CommitSHA, Environment: "production", Health: "healthy"})
+				events = append(events, &TaskActivity{ID: DeploymentReceiptID(item.ID, a.ID, item.CommitSHA), TaskID: item.ID, AttemptID: &a.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(raw), CreatedAt: finished})
+			}
+			if IsUnpublishedReviewedOutcome(item, a, events) != (scenario == "valid") {
+				t.Fatal("invalid read-only outcome authorization", scenario)
+			}
+			if IsUnpublishedLegacyOutcome(item, a, events) {
+				t.Fatal("modern assessment fabricated legacy acceptance")
+			}
+		})
+	}
+}

@@ -45,6 +45,9 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 		result.Verified, result.Provenance = true, "verified_attempt_deployment"
 	} else if running := s.runningProjectRelease(ctx, d); running != nil && running.Commit == d.CommitSHA {
 		result.Verified, result.Provenance = true, "current_project_process_exact_commit"
+		if running.Provenance == "registered_ssh_release" {
+			result.Provenance = "registered_ssh_release_exact_commit"
+		}
 	}
 	if !result.Verified {
 		if running := s.runningProjectRelease(ctx, d); running != nil {

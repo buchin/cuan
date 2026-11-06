@@ -474,3 +474,37 @@ allowance. Owner cancellation keeps its normal behavior. A timely final report
 still needs the fixed project checks, unchanged-source proof and independent
 review. Final duration diagnostics include native verification and finalization,
 rather than stopping the clock when the model exits.
+
+### Inspecting an existing external release
+
+A project's saved `ssh-release` publication connection can identify its existing
+immutable `current/releases/REVISION` release using its pinned host key and HTTPS
+health check. This observation identifies the running revision; it does not
+attribute publication to a task, prove source ancestry, or accept feature claims.
+Observations are shared for 30 seconds per project to avoid repeated SSH work;
+changing or revoking project configuration invalidates them immediately.
+
+A successful managed implementation whose current coordinator assessment requests
+verification may receive one read-only current-outcome inspection. The inspection
+checks a separate snapshot of the observed running revision. It preserves the
+unpublished branch and historical attempt, original acceptance criteria, owner
+restrictions and correction budgets. Missing or changed review evidence,
+cancellation, failed checks, and a changed release prevent acceptance. No new
+implementation or deployment permission is granted.
+
+For Laravel projects, agents can register the original scope's targeted tests in
+Project settings → Environment using the official CLI:
+
+```sh
+cuan project env set PROJECT_ID --file - <<'ENV'
+CUAN_VERIFICATION_PHPUNIT_TARGETS=["tests/Feature/ExampleTest.php","packages/example/tests"]
+ENV
+```
+
+During current-outcome inspection the native runner invokes the private
+workspace's `vendor/bin/phpunit` through PHP, once for each registered test path.
+Only bounded relative paths under `tests/` or `packages/NAME/tests` are accepted.
+Options, traversals, missing targets and symlinks escaping the snapshot fail.
+Every target must exit successfully; unsupported checks and an agent's test
+claims never substitute for this independent result. Existing Go and
+`scripts/test.sh --fast` verification remains available without this setting.

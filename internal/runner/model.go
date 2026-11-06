@@ -93,6 +93,7 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
+	PHPUnitTargets    string                            `json:"phpunit_targets,omitempty"`
 	VisualRecipe      *task.VisualRecipe                `json:"visual_recipe,omitempty"`
 	LiveInspection    *task.LiveInspectionIntent        `json:"live_inspection,omitempty"`
 	Verification      *task.VerificationIntent          `json:"verification,omitempty"`

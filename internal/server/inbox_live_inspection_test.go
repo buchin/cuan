@@ -13,6 +13,7 @@ import (
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -36,7 +37,7 @@ func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "valid preparation", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
+	for _, scenario := range []string{"valid", "valid preparation", "valid registered review", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished "+scenario, nil)
@@ -188,6 +189,14 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			source.Status = task.AttemptStatusFailed
 		}
 	}
+	if scenario == "current outcome unpublished valid registered review" {
+		d.Instructions = strings.ReplaceAll(d.Instructions, "; do not deploy unless authorized.", ".")
+		p, _ := projects.GetProject(ctx, d.ProjectID)
+		p.Metadata = registeredReleaseMetadata(t)
+		_ = projects.UpdateProject(ctx, p)
+		s.cfg.SourceRepository = "example/cuan"
+		s.publicationObserver = func(context.Context, publication.Config) (string, error) { return strings.Repeat("b", 40), nil }
+	}
 	if scenario == "cancelled" {
 		source.CancelRequested = true
 	}
@@ -214,12 +223,19 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "live-source-kind", TaskID: d.ID, AttemptID: &source.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", Message: "implementation", CreatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if unpublished && scenario != "current outcome unpublished missing audit" {
+	if unpublished && scenario != "current outcome unpublished missing audit" && scenario != "current outcome unpublished valid registered review" {
 		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "publication-audit:" + source.ID, TaskID: d.ID, AttemptID: &source.ID, ActivityType: task.ActivityPublicationAcceptanceAudit, Author: "coordinator", NewStatus: "review_required", CreatedAt: now}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if scenario == "current outcome unpublished valid registered review" {
+		_, err := s.saveReviewAssessment(ctx, d, origin, inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Existing release needs inspection", Explanation: "Inspect current outcome", Revision: "Verify existing release"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	}
 	eligible := scenario != "current outcome opaque foreign" && scenario != "current outcome opaque unfinished" && scenario != "current outcome opaque cancelled" && scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
 	if strings.HasPrefix(scenario, "current outcome unrecorded ") && !strings.HasPrefix(scenario, "current outcome unrecorded local") {
 		eligible = false
@@ -327,6 +343,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err != nil || !claim.Claimed || claim.LiveInspection == nil || !claim.PublicationLimits.ReadOnlyRepository || claim.Environment != "" || claim.AutoDeploy {
 		t.Fatal("inspection lost native routing/scope/environment restrictions", err)
 	}
+	if scenario == "current outcome unpublished valid registered review" && claim.PHPUnitTargets != `["tests/Feature/ExampleTest.php"]` {
+		t.Fatal("registered nonsecret test targets lost", claim.PHPUnitTargets)
+	}
 	var nativeReceipt *task.VisualVerification
 	nativeScenario := ""
 	if strings.HasPrefix(scenario, "current outcome unpublished valid native ") {
@@ -376,7 +395,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		req.AgentReportConfirmed = false
 	}
 	completed, err := service.Complete(ctx, inspectionAttempt.ID, req)
-	valid := scenario == "current outcome unpublished valid" || scenario == "current outcome unpublished valid release changed" || scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome unrecorded local release changed" || scenario == "current outcome revalidation"
+	valid := scenario == "current outcome unpublished valid registered review" || scenario == "current outcome unpublished valid" || scenario == "current outcome unpublished valid release changed" || scenario == "valid" || scenario == "release changed" || scenario == "current outcome" || scenario == "current outcome release changed" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome unrecorded local release changed" || scenario == "current outcome revalidation"
 	if err != nil || (completed.Status == task.AttemptStatusSucceeded) != valid {
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
@@ -399,7 +418,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if scenario == "release changed" || scenario == "current outcome release changed" || scenario == "current outcome unrecorded local release changed" || scenario == "current outcome unpublished valid release changed" {
 		s.cfg.CommitSHA = strings.Repeat("d", 40)
 	}
-	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "current outcome unpublished valid" || scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome revalidation") {
+	if got := s.liveInspectionReviewContext(ctx, after); (got != nil) != (scenario == "current outcome unpublished valid registered review" || scenario == "current outcome unpublished valid" || scenario == "valid" || scenario == "current outcome" || scenario == "current outcome reported checks" || scenario == "current outcome opaque local" || scenario == "current outcome unrecorded local" || scenario == "current outcome revalidation") {
 		t.Fatal("review used absent/stale/failed result evidence", got)
 	}
 	if nativeScenario != "" && nativeScenario != "corrupted delivery" {

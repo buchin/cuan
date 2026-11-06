@@ -45,6 +45,8 @@ import (
 
 type Server struct {
 	publicationVerifier    func(context.Context, publication.Config, string) error
+	publicationObserver    func(context.Context, publication.Config) (string, error)
+	releaseObservations    sync.Map
 	extensions             *extensionSDK.Registry
 	crm                    *crmStore
 	canned                 *cannedStore

@@ -81,8 +81,31 @@ func Verify(ctx context.Context, c Config, expected string) error {
 }
 
 func verify(ctx context.Context, c Config, expected string, transport http.RoundTripper) error {
-	if c.validate() != nil || !revisionPattern.MatchString(expected) {
+	if !revisionPattern.MatchString(expected) {
 		return ErrUnavailable
+	}
+	observed, err := observe(ctx, c, expected, transport)
+	if err != nil {
+		return err
+	}
+	if observed != expected {
+		return ErrUnverified
+	}
+	return nil
+}
+
+// Observe identifies the existing registered release, without attributing it to
+// a task or issuing a deployment receipt. HTTPS health is checked separately.
+func Observe(ctx context.Context, c Config) (string, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	defer transport.CloseIdleConnections()
+	return observe(ctx, c, "", transport)
+}
+
+func observe(ctx context.Context, c Config, expected string, transport http.RoundTripper) (string, error) {
+	if c.validate() != nil {
+		return "", ErrUnavailable
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -90,12 +113,12 @@ func verify(ctx context.Context, c Config, expected string, transport http.Round
 	if net.ParseIP(address) != nil || !strings.Contains(address, ":") {
 		address = net.JoinHostPort(address, "22")
 	} else if _, _, err := net.SplitHostPort(address); err != nil {
-		return ErrUnavailable
+		return "", ErrUnavailable
 	}
 	key, _, _, _, _ := ssh.ParseAuthorizedKey([]byte(c.HostKey))
 	socket, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", address)
 	if err != nil {
-		return fmt.Errorf("%w: SSH connection unavailable", ErrUnverified)
+		return "", fmt.Errorf("%w: SSH connection unavailable", ErrUnverified)
 	}
 	defer socket.Close()
 	stop := context.AfterFunc(ctx, func() { _ = socket.Close() })
@@ -109,34 +132,38 @@ func verify(ctx context.Context, c Config, expected string, transport http.Round
 	}
 	connection, channels, requests, err := ssh.NewClientConn(socket, address, &ssh.ClientConfig{User: c.User, Auth: []ssh.AuthMethod{ssh.Password(c.Password)}, HostKeyCallback: ssh.FixedHostKey(key), HostKeyAlgorithms: algorithms, Timeout: 5 * time.Second})
 	if err != nil {
-		return fmt.Errorf("%w: SSH identity or authentication rejected", ErrUnverified)
+		return "", fmt.Errorf("%w: SSH identity or authentication rejected", ErrUnverified)
 	}
 	client := ssh.NewClient(connection, channels, requests)
 	defer client.Close()
 	session, err := client.NewSession()
 	if err != nil {
-		return fmt.Errorf("%w: SSH session unavailable", ErrUnverified)
+		return "", fmt.Errorf("%w: SSH session unavailable", ErrUnverified)
 	}
 	defer session.Close()
 	var output boundedOutput
 	session.Stdout = &output
 	session.Stderr = io.Discard
 	command := `set -eu; current=$(readlink -f -- '` + c.DeployPath + `/current'); case "$current" in '` + c.DeployPath + `/releases/'*) ;; *) exit 42;; esac; cat -- "$current/REVISION"`
-	if session.Run(command) != nil || strings.TrimSpace(output.String()) != expected {
-		return fmt.Errorf("%w: immutable revision mismatch or unreadable", ErrUnverified)
+	if session.Run(command) != nil {
+		return "", fmt.Errorf("%w: immutable revision unreadable", ErrUnverified)
+	}
+	revision := strings.TrimSpace(output.String())
+	if !revisionPattern.MatchString(revision) || (expected != "" && revision != expected) {
+		return "", fmt.Errorf("%w: immutable revision mismatch or unreadable", ErrUnverified)
 	}
 	health := &http.Client{Transport: transport, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.HealthURL, nil)
 	if err != nil {
-		return ErrUnverified
+		return "", ErrUnverified
 	}
 	resp, err := health.Do(req)
 	if err != nil {
-		return ErrUnverified
+		return "", ErrUnverified
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: health response is not healthy", ErrUnverified)
+		return "", fmt.Errorf("%w: health response is not healthy", ErrUnverified)
 	}
-	return nil
+	return revision, nil
 }
