@@ -15,7 +15,7 @@ export function PageHeaderBrand() {
   const section = pathname.split('/')[1]
   const Icon = ({ inbox: Inbox, chat: Inbox, tasks: CheckSquare, projects: FolderGit2, contacts: Users, settings: Settings, account: UserRound, notifications: Bell, schedules: Settings } as Record<string, typeof Inbox>)[section]
   if (Icon) return <span data-nav-tone={section} aria-hidden="true" className="inline-flex h-11 w-8 shrink-0 items-center justify-center text-muted-foreground md:hidden"><Icon className="h-[18px] w-[18px]" /></span>
-  return <Link to="/studio" aria-label={t('Go to Studio')} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden">
+  return <Link to="/studio" aria-label={t('Start new work')} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden">
     <CuanMark decorative className="h-7 w-7" />
   </Link>
 }

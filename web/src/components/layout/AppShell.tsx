@@ -20,6 +20,7 @@ import {
   PanelLeft,
   Users,
   Settings,
+  Plus,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -57,7 +58,7 @@ interface AppShellProps {
   hideSearch?: boolean
 }
 const NAV_ITEMS = [
-  { id: 'studio', label: 'Studio', icon: CuanMark },
+  { id: 'studio', label: 'New work', icon: Plus },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
@@ -82,7 +83,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     id: 'main',
     label: '',
     items: [
-      { id: 'studio', label: 'Studio', icon: CuanMark, to: '/studio', description: 'Start with an idea' },
+      { id: 'studio', label: 'New work', icon: Plus, to: '/studio' },
       { id: 'inbox', label: 'Inbox', icon: Inbox, to: '/inbox', description: 'Chat & pesan masuk' },
       { id: 'tasks', label: 'Tasks', icon: CheckSquare, to: '/tasks', description: 'Papan tiket agen' },
     ],
@@ -224,7 +225,7 @@ export function AppShell({
                 : currentTab === 'projects'
                   ? t('Projects')
                   : currentTab === 'studio'
-                    ? t('Studio')
+                    ? t('New work')
                     : currentTab === 'inbox' || currentTab === 'chat'
                     ? t('Inbox')
                     : (NAV_ITEMS as readonly { id: string; label: string }[]).find((n) => n.id === (currentTab as string))?.label
@@ -258,7 +259,7 @@ export function AppShell({
         )}
       >
         <span className="relative flex items-center justify-center">
-          {id === 'chat' || (id as string) === 'studio' ? (
+          {id === 'chat' ? (
             <CuanMark decorative className="h-4 w-4 text-inherit" />
           ) : (
             <Icon className="h-4 w-4 shrink-0" />
@@ -303,7 +304,7 @@ export function AppShell({
         <div className="sidebar-brand flex h-13 shrink-0 items-center justify-between border-b border-border px-4 box-border">
           <Link
             to="/studio"
-            aria-label={t('Go to Studio')}
+            aria-label={t('Start new work')}
             className="inline-flex h-8 items-center gap-2 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <CuanMark decorative className="h-7 w-7 shrink-0 text-foreground" />
@@ -492,13 +493,13 @@ export function AppShell({
               type="button"
               data-nav-tone="studio"
               data-testid="bottom-nav-studio"
-              aria-label={t('Studio')}
+              aria-label={t('New work')}
               aria-current={currentTab === 'studio' ? 'page' : undefined}
               onClick={() => navigate('studio')}
               className={cn('flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs', currentTab === 'studio' ? 'font-semibold text-primary' : 'text-muted-foreground')}
             >
-              <span className="flex h-7 w-7 items-center justify-center"><CuanMark decorative className="h-5 w-5" /></span>
-              <span>{t('Studio')}</span>
+              <span className="flex h-7 w-7 items-center justify-center"><Plus aria-hidden="true" className="h-5 w-5" /></span>
+              <span>{t('New work')}</span>
             </button>
             {/* Inbox */}
             <button

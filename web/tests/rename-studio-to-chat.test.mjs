@@ -16,34 +16,34 @@ const studioViewPath = path.join(webDir, 'src/features/inbox/StudioView.tsx')
 const createProjectPath = path.join(webDir, 'src/features/projects/CreateProjectModal.tsx')
 const notificationsPath = path.join(webDir, 'src/features/notifications/NotificationsView.tsx')
 
-test('1. Sidebar, Header, & AppShell: Chat replaces Studio in main navigation rail', () => {
+test('1. Sidebar, Header, & AppShell: New work labels the existing entry route', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
-  // NAV_ITEMS must have id 'chat' and label 'Chat' as first rail item
+  // New work keeps the established Studio route identity.
   const navItemsMatch = appShellSource.match(/const NAV_ITEMS = \[([\s\S]*?)\] as const/)
   assert.ok(navItemsMatch, 'NAV_ITEMS must be defined in AppShell.tsx')
   const navItemsText = navItemsMatch[1]
   const items = [...navItemsText.matchAll(/id:\s*'([^']+)',\s*label:\s*'([^']+)'/g)].map(
     (m) => ({ id: m[1], label: m[2] }),
   )
-  assert.equal(items[0].id, 'studio', 'First navigation item id must be chat')
-  assert.equal(items[0].label, 'Studio', 'First navigation item label must be Chat')
+  assert.equal(items[0].id, 'studio', 'Existing Studio route identity remains stable')
+  assert.equal(items[0].label, 'New work', 'First navigation item label must be New work')
 
-  // Top header brand link must route to /chat with "Go to Chat" aria-label
+  // The brand opens the same New work entry.
   assert.ok(
     appShellSource.includes('to="/studio"'),
-    'AppShell must link brand mark to /chat',
+    'AppShell must link brand mark to /studio',
   )
   assert.ok(
-    appShellSource.includes("aria-label={t('Go to Studio')}"),
-    'AppShell must declare aria-label Go to Chat for brand mark',
+    appShellSource.includes("aria-label={t('Start new work')}"),
+    'AppShell must declare the new work action for its brand mark',
   )
 
-  // Label resolution must map studio to Chat for backward compatibility
+  // Existing Studio identifiers remain routable.
   assert.ok(
     appShellSource.includes("currentTab === 'studio'") ||
       appShellSource.includes("(currentTab as string) === 'studio'"),
-    'AppShell label resolution must provide Chat fallback when tab is studio',
+    'AppShell label resolution must preserve the Studio route identity',
   )
 
   // Dynamic document title effect updates browser tab title
@@ -102,16 +102,16 @@ test('3. S59-T6: /studio registered as standalone Studio canvas workspace', () =
   )
 })
 
-test('4. Keyboard Shortcuts: G then H navigates to /chat with Chat label', () => {
+test('4. Keyboard Shortcuts: G then H opens the New work entry', () => {
   const shortcutsSource = fs.readFileSync(shortcutsPath, 'utf8')
 
   assert.ok(
-    shortcutsSource.includes("h: '/chat'"),
+    shortcutsSource.includes("h: '/studio'"),
     'KeyboardShortcuts destination for h key must be /chat',
   )
   assert.ok(
-    shortcutsSource.includes("['G then H', 'Chat']"),
-    'KeyboardShortcuts display list must show G then H as Chat',
+    shortcutsSource.includes("['G then H', 'New work']"),
+    'KeyboardShortcuts display list must show G then H as New work',
   )
 })
 
@@ -119,9 +119,9 @@ test('5. Localization: Indonesian dictionary (id.json) includes Chat translation
   const idJson = JSON.parse(fs.readFileSync(idJsonPath, 'utf8'))
 
   assert.equal(idJson['Chat'], 'Chat', 'id.json must include translation for Chat')
-  assert.equal(idJson['Studio'], 'Studio', 'id.json Studio fallback must map to Chat')
+  assert.equal(idJson['New work'], 'New work', 'Keep the compact New work label in Indonesian')
   assert.equal(idJson['Go to Chat'], 'Ke Chat', 'id.json must include translation for Go to Chat')
-  assert.equal(idJson['Go to Studio'], 'Ke Studio', 'id.json Go to Studio fallback must map to Ke Chat')
+  assert.equal(idJson['Start new work'], 'Mulai pekerjaan baru', 'Translate the accessible action description')
   assert.equal(idJson['← Back to Chat'], '← Kembali ke Chat', 'id.json must include translation for ← Back to Chat')
   assert.equal(idJson['← Back to Studio'], '← Kembali ke Chat', 'id.json ← Back to Studio fallback must map to ← Kembali ke Chat')
 })
@@ -151,7 +151,7 @@ test('6. Internal Navigation References: Updated from Studio to Chat', () => {
 
   const studioViewSource = fs.readFileSync(studioViewPath, 'utf8')
   assert.ok(
-    studioViewSource.includes("aria-label={t('Chat')}"),
-    'StudioView container section must use aria-label Chat',
+    studioViewSource.includes("aria-label={t('New work')}"),
+    'StudioView container section must use aria-label New work',
   )
 })

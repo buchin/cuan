@@ -1250,7 +1250,7 @@ export function InboxView({
       >
         {canvasMode === 'studio' ? (
           <div className="flex h-full flex-1 flex-col overflow-hidden">
-            <PageHeader className="wa-studio-header"><PageTitle>{t('Studio · New Idea')}</PageTitle></PageHeader>
+            <PageHeader className="wa-studio-header"><PageTitle>{t('New work')}</PageTitle></PageHeader>
             <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
               <div className="calm-stream-constraint max-w-2xl mx-auto">
                 <StudioView

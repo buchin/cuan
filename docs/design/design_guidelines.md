@@ -89,6 +89,7 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
 - **Hasil Pengalaman Pengguna:** Aliran percakapan di sebelah kiri tetap utuh, terlihat, dan aktif, sehingga pengguna dapat memeriksa detail teknis tugas tanpa kehilangan konteks diskusi dengan asisten AI.
 
 ### 2.10. Studio, Inbox & Mobile Navigation
+- The user-facing entry label is **New work**, with the Plus icon, in both English and Indonesian. Keep `/studio` and internal Studio identifiers stable. It opens the existing writing canvas; submission still starts an Inbox conversation before any task approval.
 - Studio (`/studio`) is the quiet entry point for an idea. Preserve the existing heading and writing canvas; keep only text, attachments and Send. No agent/project pickers, preference banners, memory chips or redundant return links.
 - A successful submission opens its Inbox conversation. Drafts survive reload and failed delivery; retries reuse the saved request identifier. Explicit `?project=` context remains supported without a picker.
 - Desktop sidebar includes Studio, Inbox, Tasks and the existing management links. Mobile bottom navigation is Studio, Inbox, Tasks, Projects and Account; Contacts and Settings remain available through the account menu. Keep touch targets at least 44px.

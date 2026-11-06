@@ -731,7 +731,7 @@ export function App() {
       : currentTab === 'account'
         ? 'Account'
         : currentTab === 'studio'
-          ? 'Studio'
+          ? 'New work'
           : undefined
   const headerBreadcrumbs = projectDetail
     ? [
