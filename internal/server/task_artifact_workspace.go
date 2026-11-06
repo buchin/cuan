@@ -10,11 +10,11 @@ import (
 )
 
 // Native code workers prepare a second isolated checkout after claim. The
-// original grant points to the project clone; reports must read the worker's
-// actual task checkout, never silently deliver an older project-clone file.
+// original grant points to the project clone; reports and publication must use
+// the worker's actual task checkout, never an older project-clone file/commit.
 // Paths derive only from server configuration and the authenticated task. Local
 // sessions and independently bound inspection snapshots retain their own roots.
-func (s *Server) taskReportArtifactRoot(ctx context.Context, grant taskAgentGrant, detail *task.TaskDetailResponse) (*os.Root, func(), error) {
+func (s *Server) taskExecutionRoot(ctx context.Context, grant taskAgentGrant, detail *task.TaskDetailResponse) (*os.Root, func(), error) {
 	keep := func() {}
 	if grant.ArtifactRoot == nil || s.cfg == nil || s.cfg.WorkspacesDir == "" || s.runnerSvc == nil || s.projectSvc == nil || detail == nil || detail.LatestAttempt == nil || (detail.ExecutionCategory != "" && detail.ExecutionCategory != task.ExecutionCategoryCode) {
 		return grant.ArtifactRoot, keep, nil

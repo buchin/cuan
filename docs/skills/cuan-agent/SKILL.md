@@ -310,3 +310,13 @@ root. Explicit local sessions and verification snapshots keep their own roots.
 Session artifacts retain the `session:PATH` form. Missing worker files never fall
 back to similarly named files in the project clone. A reporting error names the
 requested missing file; preserve the active report capability when correcting it.
+
+Native task push uses that same server-derived execution checkout and its saved
+task branch. The repository origin must match the task's saved project binding;
+branch/repository mismatches preserve local work and reject publication. Cuan
+uses the owner's saved GitHub connection for push and optional PR metadata, never
+the runner host's `GH_TOKEN`, `GITHUB_TOKEN` or standalone `gh` login. The runner
+requires an exact branch/commit push receipt; a successful push still does not
+establish deployment or task acceptance. Missing/uncertain PR lookup does not
+authorize creating another PR. No production branch is force-pushed or merged by
+this task publication channel.

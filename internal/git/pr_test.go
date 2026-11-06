@@ -5,18 +5,68 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
+func TestPullRequestFailureDoesNotUseAmbientIdentityOrCreateAfterUncertainLookup(t *testing.T) {
+	for _, scenario := range []string{"lookup unavailable", "invalid lookup", "create unavailable"} {
+		t.Run(scenario, func(t *testing.T) {
+			root := t.TempDir()
+			marker := filepath.Join(root, "ambient-gh-called")
+			if err := os.WriteFile(filepath.Join(root, "gh"), []byte("#!/bin/sh\ntouch \"$GH_FIXTURE_MARKER\"\nexit 1\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GH_FIXTURE_MARKER", marker)
+			t.Setenv("PATH", root+":"+os.Getenv("PATH"))
+			t.Setenv("GH_TOKEN", "wrong-host-owner")
+			creates := 0
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer saved-owner" {
+					t.Error("saved identity lost")
+				}
+				if r.Method == "POST" {
+					creates++
+					w.WriteHeader(503)
+					return
+				}
+				if scenario == "lookup unavailable" {
+					w.WriteHeader(503)
+					return
+				}
+				if scenario == "invalid lookup" {
+					w.Write([]byte("broken"))
+					return
+				}
+				w.Write([]byte(`[]`))
+			}))
+			defer api.Close()
+			client := NewClient()
+			client.SetAPIBaseURL(api.URL)
+			_, err := client.CreateOrUpdatePullRequest(context.Background(), PullRequestRequest{Owner: "owner", Repo: "repo", HeadBranch: "task/one", Token: "saved-owner"})
+			if err == nil {
+				t.Fatal("uncertain PR accepted")
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatal("ambient gh identity used", err)
+			}
+			if scenario != "create unavailable" && creates != 0 || creates > 1 {
+				t.Fatal("uncertain lookup created PR", creates)
+			}
+		})
+	}
+}
+
 func TestFormatPRBody(t *testing.T) {
 	req := PullRequestRequest{
-		Title:        "Feature: Isolated Git Workspaces",
-		Description:  "Implement isolated workspaces per task",
-		DiffSummary:  "2 files changed, 50 insertions(+)",
-		Verification: "Run targeted tests: ./scripts/test.sh --fast",
-		TestStatus:   "Targeted tests passed (exit 0)",
-		IsRevision:   true,
+		Title:         "Feature: Isolated Git Workspaces",
+		Description:   "Implement isolated workspaces per task",
+		DiffSummary:   "2 files changed, 50 insertions(+)",
+		Verification:  "Run targeted tests: ./scripts/test.sh --fast",
+		TestStatus:    "Targeted tests passed (exit 0)",
+		IsRevision:    true,
 		RevisionNotes: "Updated branch protection hook and added pre-push guardrail",
 	}
 

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
@@ -280,7 +281,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, 409, "This task attempt is no longer active")
 		return
 	}
-	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/push") {
+	if r.Method == "POST" && (strings.HasSuffix(r.URL.Path, "/push") || strings.HasSuffix(r.URL.Path, "/publish")) {
 		limits, policyErr := s.taskSvc.AttemptPublicationPolicy(r.Context(), g.TaskID, g.AttemptID)
 		if policyErr != nil {
 			respondJSONError(w, 503, "Task publication limits are unavailable")
@@ -296,7 +297,26 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
-		commit, err := s.projectSvc.PushTaskBranch(ctx, g.TaskID, latest.ProjectID, latest.Instructions)
+		root, closeRoot, err := s.taskExecutionRoot(ctx, g, latest)
+		if err != nil {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
+		defer closeRoot()
+		var commit string
+		var pr *git.PullRequestResult
+		branch := latest.BranchName
+		publish := strings.HasSuffix(r.URL.Path, "/publish")
+		if root != nil && g.ArtifactRoot != nil && root != g.ArtifactRoot {
+			if branch == "" {
+				branch = "task/" + latest.ID
+			}
+			commit, pr, err = s.projectSvc.PushNativeTaskBranch(ctx, latest.ID, latest.ProjectID, latest.Instructions, root.Name(), branch, publish, latest.Title)
+		} else if publish {
+			err = errors.New("The native execution workspace could not be verified. Local work is preserved")
+		} else {
+			commit, err = s.projectSvc.PushTaskBranch(ctx, g.TaskID, latest.ProjectID, latest.Instructions)
+		}
 		if err != nil {
 			if errors.Is(err, project.ErrGitHubConnectionRequired) {
 				if e := s.taskSvc.RecordGitHubPrerequisite(ctx, g.TaskID, g.AttemptID, false); e != nil {
@@ -310,7 +330,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = s.taskSvc.RecordGitHubPrerequisite(ctx, g.TaskID, g.AttemptID, true)
-		respondJSON(w, 200, map[string]any{"commit_sha": commit, "pushed": true, "scope": "bound task branch", "uncommitted_files_saved": false})
+		respondJSON(w, 200, map[string]any{"commit_sha": commit, "branch": branch, "pull_request": pr, "pushed": true, "scope": "bound task branch", "uncommitted_files_saved": false})
 		return
 	}
 	if r.Method == "GET" {
@@ -350,7 +370,7 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		artifactRoot, closeRoot := g.ArtifactRoot, func() {}
 		for _, path := range report.Artifacts {
 			if !strings.HasPrefix(path, "session:") {
-				artifactRoot, closeRoot, e = s.taskReportArtifactRoot(r.Context(), g, latest)
+				artifactRoot, closeRoot, e = s.taskExecutionRoot(r.Context(), g, latest)
 				if e != nil {
 					respondJSONError(w, 409, e.Error())
 					return

@@ -119,28 +119,15 @@ func (c *Client) CreateOrUpdatePullRequest(ctx context.Context, req PullRequestR
 			updatedPR.IsUpdated = true
 			return updatedPR, nil
 		}
-		// If REST update failed, try gh CLI update fallback
-		if ghPR, ghErr := c.ghUpdatePR(ctx, req.Owner, req.Repo, existingPR.Number, req.Title, body); ghErr == nil {
-			ghPR.IsUpdated = true
-			return ghPR, nil
-		}
+		return nil, errors.New("GitHub pull request update was not confirmed")
 	}
-
-	// Step 2: No existing PR -> CREATE NEW PR
-	newPR, err := c.createPullRequestREST(ctx, req.Owner, req.Repo, req.Title, req.HeadBranch, req.BaseBranch, body, req.Token)
-	if err == nil {
-		newPR.IsUpdated = false
-		return newPR, nil
+	if !errors.Is(err, errNoOpenPullRequest) {
+		return nil, errors.New("GitHub pull request lookup was not confirmed")
 	}
-
-	// Step 3: Fallback to gh CLI
-	ghPR, ghErr := c.ghCreatePR(ctx, req.Owner, req.Repo, req.Title, req.HeadBranch, req.BaseBranch, body)
-	if ghErr == nil {
-		return ghPR, nil
-	}
-
-	return nil, fmt.Errorf("create/update pull request failed: REST error: %v, gh CLI error: %v", err, ghErr)
+	return c.createPullRequestREST(ctx, req.Owner, req.Repo, req.Title, req.HeadBranch, req.BaseBranch, body, req.Token)
 }
+
+var errNoOpenPullRequest = errors.New("no existing PR found")
 
 func (c *Client) findExistingPullRequest(ctx context.Context, owner, repo, headBranch, token string) (*PullRequestResult, error) {
 	headParam := fmt.Sprintf("%s:%s", owner, headBranch)
@@ -176,7 +163,10 @@ func (c *Client) findExistingPullRequest(ctx context.Context, owner, repo, headB
 				Ref string `json:"ref"`
 			} `json:"base"`
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&prs); err == nil && len(prs) > 0 {
+		if err := json.NewDecoder(resp.Body).Decode(&prs); err != nil {
+			return nil, errors.New("GitHub pull request lookup response was invalid")
+		}
+		if len(prs) > 0 {
 			first := prs[0]
 			return &PullRequestResult{
 				Number:  first.Number,
@@ -189,32 +179,10 @@ func (c *Client) findExistingPullRequest(ctx context.Context, owner, repo, headB
 		}
 	}
 
-	// Fallback to checking via gh CLI
-	cmd := exec.CommandContext(ctx, "gh", "pr", "list", "--repo", fmt.Sprintf("%s/%s", owner, repo), "--head", headBranch, "--state", "open", "--json", "number,url,title,headRefName,baseRefName,state")
-	out, err := cmd.Output()
-	if err == nil {
-		var ghPRs []struct {
-			Number      int    `json:"number"`
-			URL         string `json:"url"`
-			Title       string `json:"title"`
-			HeadRefName string `json:"headRefName"`
-			BaseRefName string `json:"baseRefName"`
-			State       string `json:"state"`
-		}
-		if err := json.Unmarshal(out, &ghPRs); err == nil && len(ghPRs) > 0 {
-			first := ghPRs[0]
-			return &PullRequestResult{
-				Number:  first.Number,
-				HTMLURL: first.URL,
-				Title:   first.Title,
-				Head:    first.HeadRefName,
-				Base:    first.BaseRefName,
-				State:   first.State,
-			}, nil
-		}
+	if resp.StatusCode == http.StatusOK {
+		return nil, errNoOpenPullRequest
 	}
-
-	return nil, errors.New("no existing PR found")
+	return nil, errors.New("GitHub pull request lookup failed")
 }
 
 func (c *Client) createPullRequestREST(ctx context.Context, owner, repo, title, head, base, body, token string) (*PullRequestResult, error) {
@@ -342,79 +310,6 @@ func (c *Client) updatePullRequest(ctx context.Context, owner, repo string, prNu
 	}
 
 	return nil, fmt.Errorf("github api update PR failed with status %d", resp.StatusCode)
-}
-
-func (c *Client) ghCreatePR(ctx context.Context, owner, repo, title, head, base, body string) (*PullRequestResult, error) {
-	repoFullName := fmt.Sprintf("%s/%s", owner, repo)
-	cmd := exec.CommandContext(ctx, "gh", "pr", "create",
-		"--repo", repoFullName,
-		"--title", title,
-		"--head", head,
-		"--base", base,
-		"--body", body,
-	)
-
-	out, err := cmd.CombinedOutput()
-	cleanOut := agent.MaskSecrets(string(out), nil)
-	if err != nil {
-		return nil, fmt.Errorf("gh pr create: %s", cleanOut)
-	}
-
-	prURL := strings.TrimSpace(cleanOut)
-	// Query details for number
-	checkCmd := exec.CommandContext(ctx, "gh", "pr", "view", prURL, "--repo", repoFullName, "--json", "number,url,title,headRefName,baseRefName,state")
-	checkOut, checkErr := checkCmd.Output()
-	if checkErr == nil {
-		var detail struct {
-			Number      int    `json:"number"`
-			URL         string `json:"url"`
-			Title       string `json:"title"`
-			HeadRefName string `json:"headRefName"`
-			BaseRefName string `json:"baseRefName"`
-			State       string `json:"state"`
-		}
-		if err := json.Unmarshal(checkOut, &detail); err == nil {
-			return &PullRequestResult{
-				Number:  detail.Number,
-				HTMLURL: detail.URL,
-				Title:   detail.Title,
-				Head:    detail.HeadRefName,
-				Base:    detail.BaseRefName,
-				State:   detail.State,
-			}, nil
-		}
-	}
-
-	return &PullRequestResult{
-		HTMLURL: prURL,
-		Title:   title,
-		Head:    head,
-		Base:    base,
-		State:   "OPEN",
-	}, nil
-}
-
-func (c *Client) ghUpdatePR(ctx context.Context, owner, repo string, prNumber int, title, body string) (*PullRequestResult, error) {
-	repoFullName := fmt.Sprintf("%s/%s", owner, repo)
-	cmd := exec.CommandContext(ctx, "gh", "pr", "edit", fmt.Sprintf("%d", prNumber),
-		"--repo", repoFullName,
-		"--title", title,
-		"--body", body,
-	)
-
-	out, err := cmd.CombinedOutput()
-	cleanOut := agent.MaskSecrets(string(out), nil)
-	if err != nil {
-		return nil, fmt.Errorf("gh pr edit: %s", cleanOut)
-	}
-
-	prURL := strings.TrimSpace(cleanOut)
-	return &PullRequestResult{
-		Number:  prNumber,
-		HTMLURL: prURL,
-		Title:   title,
-		State:   "OPEN",
-	}, nil
 }
 
 // MergePullRequestRequest defines the inputs for merging a GitHub Pull Request.

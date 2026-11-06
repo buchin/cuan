@@ -29,6 +29,33 @@ func (c *Client) PushBoundBranch(ctx context.Context, path, repoURL, branch, tok
 	if !regexp.MustCompile(`^cuan/task-[a-f0-9]{64}$`).MatchString(branch) {
 		return "", errors.New("Only the bound task branch can be pushed")
 	}
+	return c.pushExactBranch(ctx, path, repoURL, branch, token)
+}
+
+// PushExecutionBranch accepts only a server-bound execution branch. The caller
+// must derive path/branch from the authenticated task, never request arguments.
+// Retained native clones must still identify the saved repository: a changed
+// project connection cannot redirect historical work into another repository.
+func (c *Client) PushExecutionBranch(ctx context.Context, path, repoURL, branch, defaultBranch, token string) (string, error) {
+	if branch == "" || branch == defaultBranch || branch == "main" || branch == "master" {
+		return "", ErrDefaultBranchProtected
+	}
+	if err := exec.CommandContext(ctx, c.gitBinary, "check-ref-format", "--branch", branch).Run(); err != nil {
+		return "", errors.New("The bound task branch is invalid")
+	}
+	origin, err := exec.CommandContext(ctx, c.gitBinary, "-C", path, "remote", "get-url", "origin").Output()
+	if err != nil {
+		return "", errors.New("The execution repository identity is unavailable")
+	}
+	wantOwner, wantRepo, wantErr := ParseGitHubURL(repoURL)
+	owner, repo, err := ParseGitHubURL(strings.TrimSpace(string(origin)))
+	if err != nil || wantErr != nil || !strings.EqualFold(owner, wantOwner) || !strings.EqualFold(repo, wantRepo) {
+		return "", errors.New("The execution repository differs from the saved task repository. Local work is preserved")
+	}
+	return c.pushExactBranch(ctx, path, repoURL, branch, token)
+}
+
+func (c *Client) pushExactBranch(ctx context.Context, path, repoURL, branch, token string) (string, error) {
 	owner, repo, err := ParseGitHubURL(repoURL)
 	if err != nil {
 		return "", err

@@ -6,7 +6,10 @@ import (
 	"github.com/buchin/cuan/internal/db"
 	cuangit "github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -16,9 +19,11 @@ import (
 	"time"
 )
 
-func TestTaskPushConnectionRecoveryRealGit(t *testing.T)      { runTaskPushRecovery(t, false) }
-func TestGitHubQueuedProcessContinuationRealGit(t *testing.T) { runTaskPushRecovery(t, true) }
-func runTaskPushRecovery(t *testing.T, automatic bool) {
+func TestTaskPushConnectionRecoveryRealGit(t *testing.T)        { runTaskPushRecovery(t, false) }
+func TestGitHubQueuedProcessContinuationRealGit(t *testing.T)   { runTaskPushRecovery(t, true) }
+func TestNativeTaskPushUsesActualExecutionRealGit(t *testing.T) { runTaskPushRecovery(t, false, true) }
+func runTaskPushRecovery(t *testing.T, automatic bool, nativeMode ...bool) {
+	native := len(nativeMode) > 0 && nativeMode[0]
 	if testing.Short() {
 		t.Skip("skipping slow real git push recovery test in short mode")
 	}
@@ -48,9 +53,39 @@ func runTaskPushRecovery(t *testing.T, automatic bool) {
 	projects := project.NewMemoryStore()
 	p := &project.Project{ID: "repo-task-project", Name: "Repo task", RepoURL: "https://github.com/fixture/repo", LocalPath: source, DefaultBranch: "main", UpdatedAt: time.Now()}
 	projects.CreateProject(ctx, p)
-	svc := project.NewService(projects, nil, s.cfg.AuthSecret, filepath.Join(root, "workspaces"))
+	client := cuangit.NewClient()
+	if native {
+		api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer fixture-token" {
+				t.Error("wrong GitHub identity")
+			}
+			body, _ := io.ReadAll(r.Body)
+			if strings.Contains(string(body), "cuan-project-context") {
+				t.Error("private project snapshot sent to GitHub")
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == "GET" {
+				io.WriteString(w, `[]`)
+				return
+			}
+			w.WriteHeader(201)
+			io.WriteString(w, `{"number":7,"html_url":"https://github.com/fixture/repo/pull/7","state":"open"}`)
+		}))
+		defer api.Close()
+		client.SetAPIBaseURL(api.URL)
+	}
+	svc := project.NewService(projects, client, s.cfg.AuthSecret, filepath.Join(root, "workspaces"))
 	s.SetProjectService(svc)
 	s.taskSvc = task.NewService(task.NewMemoryStore(), svc)
+	if native {
+		t.Setenv("GH_TOKEN", "ambient-wrong-owner")
+		t.Setenv("GITHUB_TOKEN", "ambient-wrong-owner")
+		s.cfg.WorkspacesDir = filepath.Join(root, "native-workspaces")
+		s.runnerSvc = runner.NewService(runner.NewMemoryStore(s.taskSvc.Store()), s.taskSvc.Store())
+		if _, e := s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: "native-push", Hostname: "fixture"}, time.Minute); e != nil {
+			t.Fatal(e)
+		}
+	}
 	owner, _ := s.authSvc.ValidateToken(ctx, ownerToken)
 	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
 	now := time.Now().UTC()
@@ -62,18 +97,32 @@ func runTaskPushRecovery(t *testing.T, automatic bool) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	attempt, e := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "agent_lifecycle"})
+	runnerID := "local_terminal"
+	if native {
+		runnerID = "native-push"
+	}
+	attempt, e := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: "agent_lifecycle"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
-	_, _, capability, cleanup, e := s.issueTaskAgent(ctx, created.ID, attempt.ID, "agent_lifecycle")
+	issueCtx := ctx
+	nativeWorkspace := ""
+	if native {
+		nativeWorkspace = filepath.Join(s.cfg.WorkspacesDir, created.ID)
+		run("clone", source, nativeWorkspace)
+		run("-C", nativeWorkspace, "remote", "set-url", "origin", "https://github.com/fixture/repo.git")
+		run("-C", nativeWorkspace, "checkout", "-b", "task/"+created.ID)
+		issueCtx = context.WithValue(ctx, taskAgentWorkspaceKey{}, source)
+	}
+	_, _, capability, cleanup, e := s.issueTaskAgent(issueCtx, created.ID, attempt.ID, "agent_lifecycle")
 	if e != nil {
 		t.Fatal(e)
 	}
 	defer cleanup()
+	operation := "push"
 	push := func() *httptest.ResponseRecorder {
-		r := httptest.NewRequest("POST", "/api/v1/task-agent/"+created.ID+"/push", nil)
+		r := httptest.NewRequest("POST", "/api/v1/task-agent/"+created.ID+"/"+operation, nil)
 		r.Header.Set("Authorization", "Bearer "+capability)
 		w := httptest.NewRecorder()
 		s.Router().ServeHTTP(w, r)
@@ -88,6 +137,11 @@ func runTaskPushRecovery(t *testing.T, automatic bool) {
 	workspace, e := svc.TaskExecutionWorkspace(ctx, created.ID, detail.Instructions, response)
 	if e != nil {
 		t.Fatal(e)
+	}
+	if native {
+		// Retain a conflicting server worktree to prove it is never published.
+		os.WriteFile(filepath.Join(workspace, "decoy.txt"), []byte("stale server worktree"), 0600)
+		workspace = nativeWorkspace
 	}
 	os.WriteFile(filepath.Join(workspace, "result.txt"), []byte("one delivery"), 0600)
 	run("-C", workspace, "add", "result.txt")
@@ -151,6 +205,27 @@ while :;do sleep 0.1;done
 			if saved.Code != 200 || !strings.Contains(saved.Body.String(), commit) {
 				t.Fatal(saved.Code, saved.Body.String())
 			}
+		}
+		if native {
+			operation = "publish"
+			if published := push(); published.Code != 200 || !strings.Contains(published.Body.String(), `"number":7`) {
+				t.Fatal("bound publication route failed", published.Code, published.Body.String())
+			}
+			operation = "push"
+			branch := "task/" + created.ID
+			if got := run("--git-dir", remote, "rev-parse", "refs/heads/"+branch); got != commit {
+				t.Fatal("wrong checkout published", got, commit)
+			}
+			run("-C", workspace, "remote", "set-url", "origin", "https://github.com/other/repo.git")
+			if rejected := push(); rejected.Code != 409 {
+				t.Fatal("foreign repository accepted", rejected.Code)
+			}
+			run("-C", workspace, "remote", "set-url", "origin", "https://github.com/fixture/repo.git")
+			run("-C", workspace, "checkout", "main")
+			if rejected := push(); rejected.Code != 409 {
+				t.Fatal("changed native branch accepted", rejected.Code)
+			}
+			run("-C", workspace, "checkout", branch)
 		}
 	}
 	final, _ := s.taskSvc.GetTaskDetail(ctx, created.ID)

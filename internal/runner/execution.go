@@ -305,66 +305,13 @@ func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace
 		compReq.TestSummary = "No project verifier was available; agent report evidence retained."
 	}
 
-	// 3. Push branch & generate/update Pull Request if remote repo info is present
+	// Publication uses the task capability and the owner's saved connection.
+	// Never import runner-host GitHub credentials into a Cuan user's work.
 	if claim.RepoOwner != "" && claim.RepoName != "" {
-		token := os.Getenv("GH_TOKEN")
-		if token == "" {
-			token = os.Getenv("GITHUB_TOKEN")
-		}
-
-		pushErr := r.gitClient.PushTaskBranch(ctx, ws.Path, ws.BranchName, defaultBranch, token)
-		if pushErr != nil {
-			// Fallback: if runner host has no GH_TOKEN, request server push using project's encrypted token
-			if claim.TaskAgent != nil && claim.TaskAgent.API != "" && claim.TaskAgent.Token != "" {
-				pushEndpoint := strings.TrimRight(claim.TaskAgent.API, "/") + "/push"
-				pushReq, httpErr := http.NewRequestWithContext(ctx, http.MethodPost, pushEndpoint, nil)
-				if httpErr == nil {
-					pushReq.Header.Set("Authorization", "Bearer "+claim.TaskAgent.Token)
-					pushResp, doErr := r.httpClient.Do(pushReq)
-					if doErr == nil {
-						defer pushResp.Body.Close()
-						if pushResp.StatusCode == http.StatusOK {
-							pushErr = nil
-							r.streamLogLine(ctx, att.ID, "system", "Task branch pushed to GitHub via project connection.")
-						} else {
-							pushErr = fmt.Errorf("project push returned status %d", pushResp.StatusCode)
-						}
-					}
-				}
-			}
-		}
-
-		if pushErr != nil {
-			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan git push: %v", pushErr))
+		if err := r.publishTaskExecution(ctx, claim.TaskAgent, compReq, ws.BranchName); err != nil {
+			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Task publication not confirmed: %v. Local commit is preserved.", err))
 		} else {
-			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Task branch '%s' pushed to GitHub.", ws.BranchName))
-
-			// Create or Update Pull Request (no duplicate PR on revision)
-			prRes, prErr := r.gitClient.CreateOrUpdatePullRequest(ctx, git.PullRequestRequest{
-				Owner:         claim.RepoOwner,
-				Repo:          claim.RepoName,
-				Title:         fmt.Sprintf("Task %s: %s", t.ID, t.Title),
-				HeadBranch:    ws.BranchName,
-				BaseBranch:    defaultBranch,
-				Description:   t.Instructions,
-				DiffSummary:   diffSummary,
-				Verification:  "Run targeted automated tests:\n```bash\n./scripts/test.sh --fast\n```",
-				TestStatus:    compReq.TestSummary,
-				IsRevision:    att.AttemptNumber > 1,
-				RevisionNotes: fmt.Sprintf("Revision cycle on attempt #%d", att.AttemptNumber),
-				Token:         token,
-			})
-			if prErr == nil && prRes != nil {
-				compReq.PRURL = prRes.HTMLURL
-				compReq.PRNumber = prRes.Number
-				actionWord := "created"
-				if prRes.IsUpdated {
-					actionWord = "diperbarui (siklus revisi)"
-				}
-				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Pull Request #%d %s di GitHub: %s", prRes.Number, actionWord, prRes.HTMLURL))
-			} else if prErr != nil {
-				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Catatan pembuatan PR: %v", prErr))
-			}
+			r.streamLogLine(ctx, att.ID, "system", "Task branch saved through the project's GitHub connection.")
 		}
 	}
 }

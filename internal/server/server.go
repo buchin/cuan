@@ -732,6 +732,7 @@ func (s *Server) routes() {
 	s.router.Get("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
+	s.router.Post("/api/v1/task-agent/{id}/publish", s.handleTaskAgent)
 
 	// Domain route registrations (root router)
 	s.registerSystemRoutes(s.router)
@@ -765,6 +766,7 @@ func (s *Server) routes() {
 		r.Get("/task-agent/{id}", s.handleTaskAgent)
 		r.Post("/task-agent/{id}", s.handleTaskAgent)
 		r.Post("/task-agent/{id}/push", s.handleTaskAgent)
+		r.Post("/task-agent/{id}/publish", s.handleTaskAgent)
 		r.Get("/item-preferences", s.handleItemPreferences)
 		r.Patch("/item-preferences", s.handleItemPreferences)
 

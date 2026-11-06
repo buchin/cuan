@@ -71,7 +71,7 @@ func TestNativeArtifactReportUsesWorkerCheckoutWithoutProjectFallback(t *testing
 			case "foreign attempt":
 				grant.AttemptID = "another-attempt"
 			}
-			selected, closeRoot, err := s.taskReportArtifactRoot(ctx, grant, detail)
+			selected, closeRoot, err := s.taskExecutionRoot(ctx, grant, detail)
 			if err != nil {
 				if scenario != "missing workspace" && scenario != "linked workspace" && scenario != "linked repository" && scenario != "foreign attempt" {
 					t.Fatal(err)
