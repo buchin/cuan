@@ -92,3 +92,27 @@ and fresh native-check gates still apply. It cannot edit, push, deploy, fabricat
 ancestry, change the source attempt's failed status, or accept the task itself.
 Its request identity uses the existing source-attempt budget; moving production
 does not grant an unlimited new implementation/retry allowance.
+
+### Recheck a repaired native assertion without resetting retries
+
+When a current-outcome inspection fails an actual Go assertion, the coordinator
+keeps that concrete check failure separate from the older branch's missing
+publication receipt. Current support derives conservative repository paths from
+one failing internal/pkg package and its reported test source files; ambiguous,
+unsupported or infrastructure-only output grants no repair allowance.
+
+Revalidation requires the exact authenticated native check record, a final
+implementation report, a matching point-in-time repository observation, the
+same scoped coordinator review, and a newly observed running commit that actually
+changes the named failing files. A pre-check observation from an older runner is
+not final scope verification or evidence that the failed attempt succeeded.
+The new inspection uses a separate exact snapshot and must supply fresh native
+checks, source-boundary verification and any required visual evidence. Original
+scope, ownership, cancellation and publication restrictions still apply.
+
+The existing single revalidation request identity is retained. An unchanged or
+unrelated release, foreign owner, modified source observation, missing evidence,
+or another deployment after that allowance is consumed cannot open another retry.
+The failed attempt and unpublished original branch keep their recorded states.
+Native runners now remeasure repository state after project checks even when
+those checks fail, preserving any mutation rather than resetting the files.

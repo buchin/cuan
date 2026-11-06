@@ -13,7 +13,7 @@ import (
 // One read-only revalidation may inspect a newly changed rejected result. It is
 // not another implementation attempt and is never granted for a deploy alone.
 func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || d.LatestAttempt == nil || d.CommitSHA != "" || d.LatestAttempt.Status != task.AttemptStatusSucceeded || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || d.LatestAttempt.FinishedAt == nil || s.projectSvc == nil || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
+	if d == nil || d.LatestAttempt == nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && len(task.FailedCheckRevalidationPaths(d)) == 0) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || d.LatestAttempt.FinishedAt == nil || s.projectSvc == nil || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
 		return false
 	}
 	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
@@ -21,7 +21,7 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 		return false
 	}
 	assessment, found := reviewAssessment(d, "")
-	if !found || assessment.Decision != "revise" || assessment.RemainingWork != "implementation" {
+	if !found || assessment.Decision != "revise" || (assessment.RemainingWork != "implementation" && !(len(task.FailedCheckRevalidationPaths(d)) > 0 && assessment.RemainingWork == "verification")) {
 		return false
 	}
 	request, paths := task.OutcomeRevalidationReview(&d.Task, d.LatestAttempt, d.Activities, "")

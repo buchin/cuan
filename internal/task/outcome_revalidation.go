@@ -25,7 +25,11 @@ type outcomeRevalidationReviewRecord struct {
 // OutcomeRevalidationReview returns the exact rejected inspection's latest
 // assessment and named source paths. Generic failure prose is not fresh evidence.
 func OutcomeRevalidationReview(t *Task, previous *TaskAttempt, events []*TaskActivity, requestID string) (string, []string) {
-	if t == nil || previous == nil || previous.Status != AttemptStatusSucceeded || previous.FinishedAt == nil || previous.CancelRequested || previous.CanceledAt != nil {
+	if t == nil || previous == nil || (previous.Status != AttemptStatusSucceeded && previous.Status != AttemptStatusFailed) || previous.FinishedAt == nil || previous.CancelRequested || previous.CanceledAt != nil {
+		return "", nil
+	}
+	failedPaths := FailedCheckRevalidationPaths(&TaskDetailResponse{Task: *t, LatestAttempt: previous, Activities: events})
+	if previous.Status == AttemptStatusFailed && len(failedPaths) == 0 {
 		return "", nil
 	}
 	var latest *TaskActivity
@@ -43,7 +47,7 @@ func OutcomeRevalidationReview(t *Task, previous *TaskAttempt, events []*TaskAct
 			selected = record
 		}
 	}
-	if latest == nil || (requestID != "" && requestID != selected.RequestID) || selected.Assessment.Decision != "revise" || selected.Assessment.RemainingWork != "implementation" || len(selected.Assessment.Revision) > 16000 {
+	if latest == nil || (requestID != "" && requestID != selected.RequestID) || selected.Assessment.Decision != "revise" || (selected.Assessment.RemainingWork != "implementation" && !(len(failedPaths) > 0 && selected.Assessment.RemainingWork == "verification")) || len(selected.Assessment.Revision) > 16000 {
 		return "", nil
 	}
 	unique := map[string]bool{}
@@ -53,6 +57,14 @@ func OutcomeRevalidationReview(t *Task, previous *TaskAttempt, events []*TaskAct
 		}
 		name := selected.Assessment.Revision[span[0]:span[1]]
 		if path.Clean(name) == name && !strings.Contains(name, "../") {
+			unique[name] = true
+		}
+	}
+	if len(failedPaths) > 0 {
+		// Native assertion output supplies exact paths even when the reviewer
+		// only describes the failed check. Do not substitute unrelated paths.
+		unique = map[string]bool{}
+		for _, name := range failedPaths {
 			unique[name] = true
 		}
 	}
@@ -94,6 +106,11 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 		return ErrInvalidTaskInput
 	}
 	detail := &TaskDetailResponse{Task: *t, LatestAttempt: previous, Attempts: []*TaskAttempt{previous}, Activities: events}
+	if len(FailedCheckRevalidationPaths(detail)) > 0 {
+		// The immutable inspection binding plus authenticated unchanged-source
+		// observation preserves failure provenance; no successful receipt exists.
+		return nil
+	}
 	if !ProjectChecksPassed(detail) || VerificationScopeBaseline(detail, previous.ID) == "" {
 		return ErrInvalidTaskInput
 	}
@@ -102,7 +119,7 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 			continue
 		}
 		var receipt LiveInspectionReceipt
-		if json.Unmarshal([]byte(event.Message), &receipt) == nil && receipt.Purpose == CurrentOutcomeInspection && receipt.SourceAttemptID == binding.SourceAttemptID && receipt.SourceCommit == "" && receipt.TargetCommit == binding.TargetCommit && receipt.Repository == binding.Repository && receipt.ProjectChecksHash == VerificationSummaryHash(AttemptVerificationEvidence(detail).Current) {
+		if json.Unmarshal([]byte(event.Message), &receipt) == nil && receipt.Purpose == CurrentOutcomeInspection && receipt.SourceAttemptID == binding.SourceAttemptID && receipt.SourceCommit == binding.SourceCommit && receipt.TargetCommit == binding.TargetCommit && receipt.Repository == binding.Repository && receipt.ProjectChecksHash == VerificationSummaryHash(AttemptVerificationEvidence(detail).Current) {
 			return nil
 		}
 	}

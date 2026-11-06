@@ -11,7 +11,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxPublicationReviewPolicy = "Production publication review policy: v1"
+const inboxPublicationReviewPolicy = "Production publication review policy: v2"
 
 type reviewPublication struct {
 	Required        bool   `json:"required"`
@@ -66,6 +66,19 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
 	if decision.Decision != "pass" && decision.Decision != "revise" {
 		return decision
+	}
+	if paths := task.FailedCheckRevalidationPaths(d); len(paths) > 0 && d.LatestAttempt != nil {
+		intent, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		if err == nil && intent != nil && intent.Purpose == task.CurrentOutcomeInspection {
+			const prefix = "Recorded native current-outcome checks failed at: "
+			if !strings.HasPrefix(decision.Revision, prefix) {
+				decision.Revision = prefix + strings.Join(paths, ", ") + ". This is the concrete remaining gap; do not replace it with an assumption that publication must be repeated or repository mutation occurred. A native observation recorded no source changes; that observation is not successful execution or final post-check integrity. Keep the failed attempt and original criteria. The inspection remains read-only: do not repair its files, merge the old branch or deploy. If the registered running revision changes those exact files, obtain fresh evidence only through the existing bounded native current-outcome revalidation. Reviewer assessment to reconcile with native evidence: " + decision.Revision
+			}
+			decision.Decision, decision.RequestedOutcome, decision.RemainingWork = "revise", "unfinished", "verification"
+			decision.Finding = "Pemeriksaan otomatis pada versi yang berjalan belum lulus."
+			decision.Explanation = "Hasilnya belum bisa dinyatakan selesai karena pengujian otomatis masih gagal."
+			return decision
+		}
 	}
 	observation := s.inboxReviewPublication(ctx, d)
 	if observation == nil || !observation.Required || observation.Verified {

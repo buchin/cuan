@@ -21,7 +21,7 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	}
 	if d.Status == task.TaskStatusReview {
 		assessment, found := reviewAssessment(d, "")
-		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || (!task.IsUnpublishedReviewedOutcome(&d.Task, d.LatestAttempt, d.Activities) && !task.IsPublicationReconciliationOutcome(&d.Task, d.LatestAttempt, d.Activities)) {
+		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || (!task.IsUnpublishedReviewedOutcome(&d.Task, d.LatestAttempt, d.Activities) && !task.IsPublicationReconciliationOutcome(&d.Task, d.LatestAttempt, d.Activities) && len(task.FailedCheckRevalidationPaths(d)) == 0) {
 			return false
 		}
 	}

@@ -31,6 +31,21 @@ func testChangedOutcomeRevalidation(t *testing.T, s *Server, origin db.InboxRequ
 	q := origin
 	q.RequestID = db.GenerateUUID()
 	assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "implementation", Finding: "Terminal reconciliation is still missing.", Explanation: "Needs correction", Revision: "Fix internal/server/terminal_handlers.go, then verify every original criterion."}
+	if len(task.FailedCheckRevalidationPaths(d)) > 0 {
+		assessment.RemainingWork, assessment.Revision = "verification", "The recorded native assertion failed; inspect a verified repair without changing the old snapshot."
+		assessment = s.requirePublicationReview(ctx, d, assessment)
+		if !strings.Contains(assessment.Revision, "internal/runner/criterion_test.go") || assessment.Decision != "revise" {
+			t.Fatal("native failure lost to generic publication question", assessment)
+		}
+		again := s.requirePublicationReview(ctx, d, assessment)
+		if again != assessment {
+			t.Fatal("failed-check classification is not idempotent")
+		}
+		pass := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "pass"})
+		if pass.Decision != "revise" {
+			t.Fatal("failed native checks were accepted")
+		}
+	}
 	if _, err := s.saveReviewAssessment(ctx, d, q, assessment); err != nil {
 		t.Fatal("save prior assessment", err)
 	}
