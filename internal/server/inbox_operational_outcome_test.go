@@ -70,10 +70,16 @@ func TestOperationalAcceptanceAuditRechecksEvidenceWithoutExecution(t *testing.T
 
 func TestToolFreeReviewUsesTrustedWorkspaceAndBoundedNativeBudget(t *testing.T) {
 	home, bin := t.TempDir(), t.TempDir()
+	projectDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(projectDir, "AGENTS.md"), []byte("PROJECT_REVIEW_GUIDANCE_MARKER"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	script := `#!/bin/sh
 [ "$PWD" = "$HOME/.cuan-chat-workspace" ] || exit 21
 case "$*" in *"--print-timeout 120s"*) ;; *) exit 22;; esac
 case "$2" in *"Native finish/format-response is allowed"*) ;; *) exit 23;; esac
+case "$2" in *"PROJECT_REVIEW_GUIDANCE_MARKER"*) ;; *) exit 24;; esac
+for arg in "$@";do [ "$arg" != "--add-dir" ] || exit 25;done
 printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"decision\":\"blocked\",\"requested_outcome\":\"needs_input\",\"explanation\":\"Which account and product?\",\"revision\":\"\"}"}}'
 `
 	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
@@ -83,7 +89,7 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"dec
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	ctx := context.WithValue(context.Background(), inboxTaskReviewKey{}, true)
-	output, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Review the original operation", home, "", nil)
+	output, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Review the original operation", home, projectDir, nil)
 	if output == "" || failure != "" {
 		t.Fatal("tool-free review was not isolated and bounded", failure)
 	}

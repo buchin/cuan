@@ -129,3 +129,12 @@ failure receive one deduplicated, authorized snapshot reassessment under the
 review inference reliability policy. Historical attempts, results and the failed
 provider events remain unchanged. No deterministic assessment substitutes for a
 provider that returned no decision.
+
+Snapshot review runs in the isolated reply workspace. The original repository is
+not added to the provider session; only explicitly delivered image directories
+may be exposed for visual review. Repository AGENTS.md constraints remain in the
+supplied prompt, along with saved project goal/instructions and all original
+acceptance data. A focused review supplement retains ownership rules without
+repeating sprint planning and worker execution procedures. Model, reasoning
+preferences, timeout and native acceptance gates are unchanged. Reduced input and
+workspace scope do not by themselves prove faster or successful provider output.

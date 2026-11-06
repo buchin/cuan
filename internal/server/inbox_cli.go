@@ -203,7 +203,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
 		}
 		if snapshotReview {
-			system = inboxReviewEvaluationInstruction + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
+			system = inboxReviewEvaluationInstruction + "\n\n" + cuanPrompt.GetReviewPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
 			if ctx.Value(inboxCustomerReplyKey{}) == true {
 				system = customerReplyDeliveryInstruction + "\n\nResponse schema:\n" + inboxReviewEvaluationSchema + "\n\nAccepted result data:\n" + prompt
 			}
@@ -275,7 +275,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			timeout = "40s"
 		}
 		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
-		if workspace != "" && !directCoordinator && !formatRepair {
+		if workspace != "" && !directCoordinator && !formatRepair && !snapshotReview {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {

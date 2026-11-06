@@ -62,6 +62,13 @@ func GetChatPromptAdditions(dirs ...string) string {
 	return sb.String()
 }
 
+// GetReviewPromptAdditions keeps repository constraints and ownership for a
+// supplied-result evaluation. Sprint planning and worker execution procedures
+// are not repeated: review's explicit contract and saved scope govern this stage.
+func GetReviewPromptAdditions(dirs ...string) string {
+	return "=== MANDATORY REPOSITORY GUIDANCE (AGENTS.md) ===\n" + GetAgentsGuidance(dirs...) + "\n\n" + AutonomousOwnership
+}
+
 // GetRunnerPromptAdditions formats the combined AGENTS.md guidance and Scrum Rules
 // specifically structured for the Runner Agent (acting as Development Team).
 func GetRunnerPromptAdditions(dirs ...string) string {
