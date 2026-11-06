@@ -1284,12 +1284,13 @@ func (r *SQLProjectStudioRepository) DeleteTask(ctx context.Context, id string) 
 
 // MemoryProjectStudioRepository provides a thread-safe in-memory implementation of ProjectStudioRepository.
 type MemoryProjectStudioRepository struct {
-	mu       sync.RWMutex
-	rooms    map[string]*ProjectRoom
-	messages map[string]*ProjectMessage
-	tasks    map[string]*ProjectTask
-	requests map[string]InboxRequest
-	receipts map[string]MessageReceipt
+	mu          sync.RWMutex
+	rooms       map[string]*ProjectRoom
+	messages    map[string]*ProjectMessage
+	tasks       map[string]*ProjectTask
+	requests    map[string]InboxRequest
+	stepJournal map[string][]InboxStep
+	receipts    map[string]MessageReceipt
 }
 
 // NewMemoryProjectStudioRepository creates a new thread-safe in-memory ProjectStudioRepository.

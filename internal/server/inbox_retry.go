@@ -12,6 +12,8 @@ import (
 type inboxRecoveryDTO struct {
 	db.InboxRequest
 	RecoveryAction string `json:"recovery_action,omitempty"`
+	StepCount      int    `json:"step_count"`
+	StepsTruncated bool   `json:"steps_truncated,omitempty"`
 }
 
 func inboxRecoveryRequests(requests []db.InboxRequest) []inboxRecoveryDTO {
@@ -32,7 +34,11 @@ func inboxRecoveryRequests(requests []db.InboxRequest) []inboxRecoveryDTO {
 		for i := range q.Steps {
 			q.Steps[i].Text = visibleInboxToolText(q.Steps[i].Kind, q.Steps[i].Text)
 		}
-		out = append(out, inboxRecoveryDTO{InboxRequest: q, RecoveryAction: action})
+		count := 0
+		if len(q.Steps) > 0 {
+			count = q.Steps[len(q.Steps)-1].Seq
+		}
+		out = append(out, inboxRecoveryDTO{InboxRequest: q, RecoveryAction: action, StepCount: count, StepsTruncated: count > len(q.Steps)})
 	}
 	return out
 }

@@ -24,6 +24,8 @@ func RunChatCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "trace":
+		return runChatTrace(ctx, extraArgs, out, errOut)
 	case "retry":
 		return runChatRetry(ctx, extraArgs, out, errOut)
 	case "download":
@@ -50,6 +52,7 @@ Usage:
   cuan chat send <room-id> "<message>" [--wait] [--timeout 30] [--json]
   cuan chat list [--project default] [--limit 20] [--json]
   cuan chat messages <room-id> [--limit 30] [--json]
+  cuan chat trace <room-id> <request-id> [--after-seq 0] [--limit 100]
   cuan chat retry <room-id> <request-id>
   cuan chat download <attachment-id> --output PATH
 

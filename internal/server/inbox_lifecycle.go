@@ -249,6 +249,12 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		defer eventCancel()
 		if err := store.AppendInboxStep(eventCtx, q.RoomID, q.RequestID, kind, text); err == nil {
 			s.publishInbox(q.RoomID)
+		} else {
+			// Recovery must never infer safety from a silently incomplete trace.
+			// Stop this execution; the existing unknown-outcome path preserves
+			// its message and requires reconciliation rather than replay.
+			log.Printf("inbox stage persistence failed room=%s request=%s kind=%s", q.RoomID, q.RequestID, kind)
+			cancel()
 		}
 	}
 	step("accepted", "Message received.")
@@ -479,12 +485,12 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 			q.SafeError = "The verified handoff could not be saved. The result remains available; acceptance has not been confirmed."
 		}
 	}
+	step("persistence", "Saving the final conversation state.")
 	if ctx.Err() != nil {
 		q.State = "interrupted"
 		q.SafeError = "The process was interrupted or timed out. The provider's result is unknown. The request was not rerun."
 		reply = nil
 	}
-	step("persistence", "Saving the final conversation state.")
 	save, c := context.WithTimeout(context.Background(), 5*time.Second)
 	defer c()
 	if err := store.FinishInboxRequest(save, q, reply); err != nil {

@@ -260,3 +260,18 @@ caller-supplied target or receipt, and requests no deployment or task acceptance
 This Owner diagnostic supports already-running older workers; new native runners
 request the same check automatically when publication proof is absent. A failed
 or uncertain response must be inspected on that same task before retrying.
+
+### Complete response stage history
+
+`cuan chat trace ROOM_ID REQUEST_ID --after-seq 0 --limit 100` reads the owner-only
+stage journal without rerunning the request. Continue using `next_seq` while
+`has_more` is true (maximum page size 200). `chat messages --json` remains a bounded
+live snapshot: `step_count` is the latest sequence and `steps_truncated` signals
+that complete history belongs in the journal. Late tool failures and recovery
+safety evidence remain in the live snapshot even after the first100 stages.
+
+The journal records newly observed sanitized stage events, not arbitrary raw
+terminal content. Input/output excerpts retain their existing privacy and length
+limits. Previously discarded stages cannot be recovered: old histories that hit
+the storage cap carry `trace_history_incomplete`, which prevents unsafe automatic
+replay. It does not claim a historical execution failed or rerun its actions.

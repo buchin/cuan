@@ -26,6 +26,9 @@ func InboxRecoveryAction(q InboxRequest) string {
 	hasPermissionDenied := false
 	hasToolBudgetExceeded := false
 	for _, step := range q.Steps {
+		if step.Kind == "trace_history_incomplete" {
+			return "check_status"
+		}
 		if step.Kind == "runtime_permission_denied" {
 			hasPermissionDenied = true
 			return "check_status"

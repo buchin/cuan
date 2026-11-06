@@ -105,10 +105,23 @@ func (r *SQLProjectStudioRepository) FinishInboxRequest(ctx context.Context, q I
 	}
 	defer tx.Rollback()
 	var finalState string
-	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET deadline=CASE WHEN $3='queued' THEN NOW()+INTERVAL '24 hours' ELSE deadline END,state=CASE WHEN state='cancelling' THEN 'cancelled' ELSE $3 END,safe_error=CASE WHEN state='cancelling' THEN safe_error ELSE $4 END,steps=steps || jsonb_build_array(jsonb_build_object('seq',jsonb_array_length(steps)+1,'kind','finished','text','Reply processing ended.','at',NOW())) WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued','cancelling') RETURNING state`, q.RoomID, q.RequestID, q.State, q.SafeError).Scan(&finalState)
+	var raw []byte
+	var archived int
+	err = tx.QueryRowContext(ctx, `SELECT state,steps,COALESCE((SELECT MAX(seq) FROM inbox_request_steps s WHERE s.room_id=q.room_id AND s.request_id=q.request_id),0) FROM inbox_requests q WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued','cancelling') FOR UPDATE`, q.RoomID, q.RequestID).Scan(&finalState, &raw, &archived)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	var steps []InboxStep
+	if err = json.Unmarshal(raw, &steps); err != nil {
+		return err
+	}
+	if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, "finished", "Reply processing ended."); err != nil {
+		return err
+	}
+	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET deadline=CASE WHEN $3='queued' THEN NOW()+INTERVAL '24 hours' ELSE deadline END,state=CASE WHEN state='cancelling' THEN 'cancelled' ELSE $3 END,safe_error=CASE WHEN state='cancelling' THEN safe_error ELSE $4 END WHERE room_id=$1 AND request_id=$2 RETURNING state`, q.RoomID, q.RequestID, q.State, q.SafeError).Scan(&finalState)
 	if err != nil {
 		return err
 	}
@@ -185,7 +198,7 @@ func (r *MemoryProjectStudioRepository) FinishInboxRequest(ctx context.Context, 
 			m = nil
 		}
 		q.Steps = append([]InboxStep(nil), old.Steps...)
-		q.Steps = append(q.Steps, InboxStep{Seq: len(q.Steps) + 1, Kind: "finished", Text: "Reply processing ended.", At: time.Now().UTC()})
+		r.recordInboxStep(key, &q, "finished", "Reply processing ended.")
 		q.StartedAt = old.StartedAt
 		r.requests[key] = q
 		if m != nil {
@@ -249,9 +262,30 @@ func (r *SQLProjectStudioRepository) ClaimInboxRequest(ctx context.Context, room
 	return q, true, tx.Commit()
 }
 func (r *SQLProjectStudioRepository) AppendInboxStep(ctx context.Context, room, id, kind, text string) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE inbox_requests SET steps=steps || jsonb_build_array(jsonb_build_object('seq',jsonb_array_length(steps)+1,'kind',$3::text,'text',$4::text,'at',NOW())) WHERE room_id=$1 AND request_id=$2 AND state='running' AND jsonb_array_length(steps)<100`, room, id, kind, text)
-	return err
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var raw []byte
+	var archived int
+	err = tx.QueryRowContext(ctx, `SELECT steps,COALESCE((SELECT MAX(seq) FROM inbox_request_steps s WHERE s.room_id=q.room_id AND s.request_id=q.request_id),0) FROM inbox_requests q WHERE room_id=$1 AND request_id=$2 AND state='running' FOR UPDATE`, room, id).Scan(&raw, &archived)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var steps []InboxStep
+	if err = json.Unmarshal(raw, &steps); err != nil {
+		return err
+	}
+	if err = recordInboxStepTx(ctx, tx, room, id, steps, archived, kind, text); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
+
 func (r *SQLProjectStudioRepository) CancelInboxRequest(ctx context.Context, room, id string) (bool, error) {
 	result, err := r.db.ExecContext(ctx, `UPDATE inbox_requests SET state=CASE WHEN state='running' THEN 'cancelling' ELSE 'cancelled' END,safe_error='Dibatalkan. Pesan tersimpan; efek provider yang sudah terjadi tidak dapat ditarik kembali.' WHERE room_id=$1 AND request_id=$2 AND state IN ('queued','running')`, room, id)
 	if err != nil {
@@ -289,8 +323,8 @@ func (r *MemoryProjectStudioRepository) AppendInboxStep(ctx context.Context, roo
 	defer r.mu.Unlock()
 	key := room + id
 	q, ok := r.requests[key]
-	if ok && q.State == "running" && len(q.Steps) < 100 {
-		q.Steps = append(q.Steps, InboxStep{Seq: len(q.Steps) + 1, Kind: kind, Text: text, At: time.Now().UTC()})
+	if ok && q.State == "running" {
+		r.recordInboxStep(key, &q, kind, text)
 		r.requests[key] = q
 	}
 	return nil

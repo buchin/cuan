@@ -34,6 +34,7 @@ func (s *Server) registerVisitorChatRoutes(r chi.Router) {
 		cr.Post("/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
 		cr.Post("/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
 		cr.Post("/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
+		cr.Get("/conversations/{id}/requests/{requestID}/steps", s.handleInboxRequestSteps)
 	})
 }
 
@@ -79,4 +80,5 @@ func (s *Server) registerInboxRoutes(pr chi.Router) {
 	pr.Post("/chat/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
 	pr.Post("/chat/conversations/{id}/requests/{requestID}/cancel", s.handleCancelInboxRequest)
 	pr.Post("/chat/conversations/{id}/requests/{requestID}/retry", s.handleRetryInboxRequest)
+	pr.Get("/chat/conversations/{id}/requests/{requestID}/steps", s.handleInboxRequestSteps)
 }

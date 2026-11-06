@@ -125,12 +125,12 @@ func TestInboxFinalTimestampSurvivesFullTimeline(t *testing.T) {
 	q.State = "interrupted"
 	r.FinishInboxRequest(ctx, q, nil)
 	all, _ := r.ListInboxRequests(ctx, q.RoomID)
-	if len(all[0].Steps) != 101 || all[0].Steps[100].Kind != "finished" {
+	if len(all[0].Steps) != 100 || all[0].Steps[99].Kind != "finished" || all[0].Steps[99].Seq != 121 {
 		t.Fatal("final timestamp lost at activity limit")
 	}
 	r.FinishInboxRequest(ctx, q, nil)
 	all, _ = r.ListInboxRequests(ctx, q.RoomID)
-	if len(all[0].Steps) != 101 {
+	if len(all[0].Steps) != 100 {
 		t.Fatal("duplicate final timestamp")
 	}
 }
