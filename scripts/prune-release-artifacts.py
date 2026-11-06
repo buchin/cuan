@@ -107,7 +107,15 @@ def main():
     # Serialize with atomic activation/rollback so their targets cannot become
     # eligible between the reference checks and deletion.
     with (args.base / '.release.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(1)
         paths = candidates(args.base, args.keep, args.min_age_hours)
         staged = staging_candidates(args.base, args.staging.resolve(), args.keep) if args.staging else []
         if args.apply:
