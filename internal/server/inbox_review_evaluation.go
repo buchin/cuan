@@ -327,6 +327,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
 	}
 	decision, err := parseInboxReviewEvaluation(raw)
+	structuredValid := err == nil
 	if isCustomerReplyDelivery(q, d) {
 		if err != nil {
 			return "Draf balasan belum berhasil disiapkan. Hasil investigasi tetap tersimpan."
@@ -336,6 +337,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	if err != nil {
 		decision, err = parseFallbackTextReview(raw)
 	}
+	traceInboxReviewContract(q, len(raw), structuredValid, err == nil, decision)
 	if err != nil && d != nil && d.LatestAttempt != nil {
 		decision = evaluateTaskDoDDeterministic(s.reviewBudgetDetail(ctx, d))
 		err = nil

@@ -8,7 +8,33 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/buchin/cuan/internal/db"
 )
+
+func TestReviewContractTraceDistinguishesFallbackWithoutPrivateEvidence(t *testing.T) {
+	var output bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&output)
+	defer log.SetOutput(previous)
+	decision := inboxReviewEvaluation{VisualInspection: "PRIVATE_IMAGE_DESCRIPTION", Explanation: "PRIVATE_CHAT_CONTENT"}
+	traceInboxReviewContract(db.InboxRequest{}, 100, true, true, decision)
+	if output.Len() != 0 {
+		t.Fatal("uncorrelated review trace")
+	}
+	traceInboxReviewContract(db.InboxRequest{RequestID: "review-fixture", RoomID: "room-fixture"}, 100, false, true, decision)
+	line := output.String()
+	if strings.Contains(line, "PRIVATE_") {
+		t.Fatal("private review evidence logged")
+	}
+	var record map[string]any
+	if err := json.Unmarshal([]byte(line[strings.IndexByte(line, '{'):]), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record["request_id"] != "review-fixture" || record["room_id"] != "room-fixture" || record["structured_valid"] != false || record["parsed"] != true || record["visual_inspection_present"] != true || record["response_bytes"] != float64(100) {
+		t.Fatal("lost contract diagnosis", record)
+	}
+}
 
 func TestInboxResponseStageDistinguishesParentAndFormattingDeadline(t *testing.T) {
 	parent := context.Background()

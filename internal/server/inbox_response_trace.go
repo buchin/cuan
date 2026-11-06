@@ -7,7 +7,27 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/buchin/cuan/internal/db"
 )
+
+// Record contract loss before deterministic recovery or acceptance guards can
+// replace the model decision. Do not archive response text or inspection prose.
+func traceInboxReviewContract(q db.InboxRequest, responseBytes int, structuredValid, parsed bool, decision inboxReviewEvaluation) {
+	if q.RequestID == "" {
+		return
+	}
+	record := struct {
+		RequestID       string `json:"request_id"`
+		RoomID          string `json:"room_id"`
+		ResponseBytes   int    `json:"response_bytes"`
+		StructuredValid bool   `json:"structured_valid"`
+		Parsed          bool   `json:"parsed"`
+		VisualPresent   bool   `json:"visual_inspection_present"`
+	}{q.RequestID, q.RoomID, responseBytes, structuredValid, parsed, strings.TrimSpace(decision.VisualInspection) != ""}
+	raw, _ := json.Marshal(record)
+	log.Printf("inbox review contract %s", raw)
+}
 
 type inboxRequestTraceKey struct{}
 type inboxProviderAccountTraceKey struct{}
