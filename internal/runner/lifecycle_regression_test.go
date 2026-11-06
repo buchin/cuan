@@ -116,20 +116,36 @@ func TestExecutionCompletionCannotApproveUncheckedEvidence(t *testing.T) {
 	}
 }
 func TestExecutionGapRetryPreservesTaskAndBranch(t *testing.T) {
-	ctx := context.Background()
-	svc, store, item, att := lifecycleFixture(t)
-	req := lifecycleResult()
-	req.DoDValidation = &DoDValidationResult{Passed: false, Action: "auto_requeue", Fixable: true, RequeueInstructions: "Fix only the missing output check"}
-	if _, err := svc.Complete(ctx, att.ID, req); err != nil {
-		t.Fatal(err)
-	}
-	after, _ := store.GetTask(ctx, item.ID)
-	attempts, _ := store.ListAttempts(ctx, item.ID)
-	if after.ID != item.ID || after.BranchName != item.BranchName || after.Status != task.TaskStatusQueued || len(attempts) != 2 {
-		t.Fatalf("lost continuation: %+v attempts=%d", after, len(attempts))
-	}
-	if len(after.DoDChecklist) != 1 || after.DoDChecklist[0].Text != item.DoDChecklist[0].Text {
-		t.Fatal("retry changed approved criteria")
+	for _, inbox := range []bool{false, true} {
+		name := "board worker retry"
+		if inbox {
+			name = "Inbox coordinator continuation"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			svc, store, item, att := lifecycleFixture(t)
+			expectedStatus, expectedAttempts := task.TaskStatusReview, 1
+			if !inbox {
+				item.SourceRoomID = ""
+				if err := store.UpdateTask(ctx, item); err != nil {
+					t.Fatal(err)
+				}
+				expectedStatus, expectedAttempts = task.TaskStatusQueued, 2
+			}
+			req := lifecycleResult()
+			req.DoDValidation = &DoDValidationResult{Passed: false, Action: "auto_requeue", Fixable: true, RequeueInstructions: "Fix only the missing output check"}
+			if _, err := svc.Complete(ctx, att.ID, req); err != nil {
+				t.Fatal(err)
+			}
+			after, _ := store.GetTask(ctx, item.ID)
+			attempts, _ := store.ListAttempts(ctx, item.ID)
+			if after.ID != item.ID || after.BranchName != item.BranchName || after.Status != expectedStatus || len(attempts) != expectedAttempts {
+				t.Fatalf("lost continuation authority or task identity: %+v attempts=%d", after, len(attempts))
+			}
+			if len(after.DoDChecklist) != 1 || after.DoDChecklist[0].Text != item.DoDChecklist[0].Text {
+				t.Fatal("retry changed approved criteria")
+			}
+		})
 	}
 }
 func TestExecutionHeartbeatCannotReviveEndedOrForeignAttempt(t *testing.T) {
