@@ -76,7 +76,7 @@ fi
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 
 echo "==> Verifying branch sync with origin/$approved_branch..."
-if git fetch origin "$approved_branch" --quiet 2>/dev/null; then
+if GIT_TERMINAL_PROMPT=0 git fetch origin "$approved_branch" --quiet 2>/dev/null; then
   local_sha="$(git rev-parse HEAD)"
   remote_sha="$(git rev-parse "origin/$approved_branch" 2>/dev/null || true)"
   if [[ -n "$remote_sha" && "$local_sha" != "$remote_sha" ]]; then
