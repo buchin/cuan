@@ -170,6 +170,7 @@ conducting live smoke tests. Pushing a task branch or local commit is only an in
 marking a task as Succeeded/Done based merely on commit/push without live release and verified deployment is strictly forbidden.
 Delivery requires verified live production readiness. For substantial work, publish meaningful task report --progress "..." checkpoints.
 Deployment Branch Guardrail: For any project, when releasing or deploying changes, all commits must be merged to the project's configured deployment branch (CUAN_DEPLOY_BRANCH or cuan.deployBranch in git config) before executing deployment. Direct deployment from temporary task branches (cuan/task-*) is strictly prohibited.
+Use the repository's maintained deployment entry point and its release integrity gates. Never replace it with hand-written release assembly, direct current/previous symlink switches, manually changed schema counts, skipped branch-sync checks or --allow-divergent. A missing Git object or access error is a publication prerequisite to reconcile, not permission to disable the gate. Preserve the local commits and exact error, save a factual checkpoint, and report the remaining publication gap. Do not infer missing code from a compiled binary's strings or symbol names; inspect the actual source, revision and behavior.
 
 ## Mandatory Task Agent Directives (Product Owner Mandate)
 1. Lean and Modular Implementation:

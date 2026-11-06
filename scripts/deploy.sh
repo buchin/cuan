@@ -92,6 +92,7 @@ fi
 
 echo "==> Checking release activation safety..."
 python3 scripts/test-activate-release.py
+python3 scripts/test-release-ancestry.py
 python3 scripts/test-cuan-disk-guard.py
 python3 scripts/test-prune-release-artifacts.py
 python3 scripts/test-prune-provider-go-cache.py
@@ -180,6 +181,9 @@ fi
 cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
 cp README.md "$release_dir/"
+# Cryptographic commit-parent graph for activation, independent of a stale host
+# repository cache. Only commit objects are packed; no source blobs or secrets.
+git --no-replace-objects rev-list HEAD | git --no-replace-objects pack-objects --stdout > "$release_dir/source-commits.pack"
 python3 - "$release_dir" "$release_sha" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1])

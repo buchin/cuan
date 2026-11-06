@@ -224,3 +224,26 @@ paths and the existing scheduled guard. Default host Go caches are excluded
 because they have no Cuan execution lease. The policy is intentionally unable
 to free disk by deleting uncoordinated application data; insufficient reclamation
 leaves task admission queued rather than weakening safety.
+
+## Release ancestry must fail closed
+
+Native activation must prove that a new release contains the active release's
+commit. Missing host-cache objects previously skipped this check, allowing a
+stale task workspace to replace a newer production revision. New release payloads
+include `source-commits.pack`, a checksum-covered Git pack containing actual commit
+objects and their parent hashes, without source trees or blobs. Activation imports
+it into a temporary bare repository with host Git configuration and replace refs
+disabled, and proves ancestry there. It does not fetch credentials or depend on a
+warm server repository cache. The temporary graph is disposed afterward.
+
+An older payload may use the registered native cache only when both exact objects
+and their ancestry can be verified. Missing metadata/objects, malformed packs,
+grafts, timeouts and divergent history block activation before switching the
+running release. The normal rollback path remains explicit. `--allow-divergent`
+is an operator recovery action; task-capability executions cannot use it. It is
+not an automatic response to a failed check. Keep any rejected task commits for
+review and proper integration rather than weakening deployment checks.
+
+This is an integrity gate in the maintained native deployment path, not an OS
+sandbox against a process with unrestricted sudo or direct installation write
+access. Such privilege separation remains a separate deployment concern.

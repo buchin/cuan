@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import time
+import tempfile
 import urllib.request
 import urllib.parse
 
@@ -216,40 +217,64 @@ def assert_task_worktree_support(manifest, retained_environment=None):
 
 
 def assert_no_accidental_downgrade(old_dir, target_dir, base, allow_divergent=False):
-    if allow_divergent or not old_dir.exists() or not target_dir.exists():
-        return
-    old_manifest_path = old_dir / 'release.json'
-    target_manifest_path = target_dir / 'release.json'
-    if not old_manifest_path.exists() or not target_manifest_path.exists():
-        return
+    if allow_divergent or not old_dir.exists():
+        return  # Explicit operator rollback, never an automatic fallback.
+    if old_dir.name == 'legacy-before-s25' and not (old_dir / 'release.json').exists():
+        return  # First native migration has no earlier versioned release.
     try:
-        old_sha = json.loads(old_manifest_path.read_text()).get('sha', '')
-        target_sha = json.loads(target_manifest_path.read_text()).get('sha', '')
-        if old_sha and target_sha and old_sha != target_sha:
-            git_dir = base / 'data/projects/default/.git'
-            if git_dir.exists():
-                has_old = subprocess.run(
-                    ['git', '--git-dir', str(git_dir), 'cat-file', '-e', old_sha + '^{commit}'],
-                    capture_output=True
-                ).returncode == 0
-                has_target = subprocess.run(
-                    ['git', '--git-dir', str(git_dir), 'cat-file', '-e', target_sha + '^{commit}'],
-                    capture_output=True
-                ).returncode == 0
-                if has_old and has_target:
-                    res = subprocess.run(
-                        ['git', '--git-dir', str(git_dir), 'merge-base', '--is-ancestor', old_sha, target_sha],
-                        capture_output=True
-                    )
-                    if res.returncode != 0:
-                        raise RuntimeError(
-                            f'Regression guard: target release {target_sha[:10]} does not contain active release {old_sha[:10]}. '
-                            'Activation aborted to prevent overwriting merged production state. Use --allow-divergent to override.'
-                        )
-    except RuntimeError:
-        raise
-    except Exception:
-        pass
+        old_sha = json.loads((old_dir / 'release.json').read_text())['sha']
+        target_sha = json.loads((target_dir / 'release.json').read_text())['sha']
+    except (OSError, ValueError, KeyError) as error:
+        raise RuntimeError('Release ancestry metadata is unavailable; activation was not changed') from error
+    if not all(re.fullmatch('[0-9a-f]{40}', value) for value in (old_sha, target_sha)):
+        raise RuntimeError('Release ancestry identity is invalid; activation was not changed')
+    if old_sha == target_sha:
+        return
+    environment = {'PATH': os.defpath, 'GIT_CONFIG_GLOBAL': '/dev/null',
+                   'GIT_CONFIG_NOSYSTEM': '1', 'GIT_TERMINAL_PROMPT': '0',
+                   'GIT_NO_REPLACE_OBJECTS': '1', 'GIT_NO_LAZY_FETCH': '1'}
+
+    def prove(git_dir):
+        # Work only with local objects, without hooks, replace refs, grafts,
+        # repository-owned configuration or credential-dependent lazy fetching.
+        grafts = git_dir / 'info/grafts'
+        if grafts.exists() and grafts.stat().st_size:
+            raise RuntimeError('Release ancestry cannot use Git grafts')
+        for sha in (old_sha, target_sha):
+            result = subprocess.run(['git', '--git-dir', str(git_dir), 'cat-file', '-e', sha + '^{commit}'],
+                                    env=environment, capture_output=True, timeout=10)
+            if result.returncode:
+                raise RuntimeError('Release ancestry objects are unavailable; reconcile source history before activation')
+        result = subprocess.run(['git', '--git-dir', str(git_dir), 'merge-base', '--is-ancestor', old_sha, target_sha],
+                                env=environment, capture_output=True, timeout=10)
+        if result.returncode:
+            raise RuntimeError('Regression guard: candidate does not provably contain the active release; activation was not changed')
+
+    pack = target_dir / 'source-commits.pack'
+    try:
+        if pack.is_file() and not pack.is_symlink():
+            if not 0 < pack.stat().st_size <= 64 * 1024 * 1024:
+                raise RuntimeError('Release ancestry pack size is invalid')
+            # The payload manifest validates this file before this gate. Commit
+            # objects carry their real parent hashes; a list of claimed SHAs
+            # cannot establish ancestry. No trees/blobs or source checkout needed.
+            with tempfile.TemporaryDirectory(prefix='.release-ancestry-', dir=base) as temporary:
+                graph = Path(temporary)
+                subprocess.run(['git', 'init', '--bare', '--quiet', str(graph)], env=environment,
+                               capture_output=True, timeout=10, check=True)
+                with pack.open('rb') as source:
+                    subprocess.run(['git', '--git-dir', str(graph), 'index-pack', '--stdin'],
+                                   stdin=source, env=environment, capture_output=True, timeout=30, check=True)
+                prove(graph)
+        else:
+            # Older retained payloads may use the registered native cache, but
+            # missing objects are a blocker, never permission to skip the gate.
+            graph = base / 'data/projects/default/.git'
+            if not graph.is_dir():
+                raise RuntimeError('Release source history is unavailable; activation was not changed')
+            prove(graph)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError('Release ancestry could not be verified; activation was not changed') from error
 
 
 def backup_database(release):
@@ -486,6 +511,8 @@ def main():
     parser.add_argument('--allow-divergent', action='store_true', help='Allow activating a release that does not contain active release commits')
     parser.add_argument('--no-restart', action='store_true', help='Skip service restart for zero-downtime static asset releases')
     args = parser.parse_args()
+    if args.allow_divergent and (os.environ.get('CUAN_TASK_CAPABILITY_FILE') or os.environ.get('CUAN_TASK_CAPABILITY_JSON')):
+        parser.error('Task executions cannot override release ancestry; retain saved work for publication reconciliation')
     BASE, SERVICE, PORT, SCHEMA_COUNT = args.base.resolve(), args.service, args.port, args.schema_count
     if not re.fullmatch(r'[a-zA-Z0-9_-]+', SERVICE) or not 1 <= PORT <= 65535:
         parser.error('Invalid service or port')
