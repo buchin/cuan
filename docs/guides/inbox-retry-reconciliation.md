@@ -96,6 +96,13 @@ original requirements and unintended changes still need reconciliation. Reaccept
 the same attempt cannot cause another audit. Discovery is capped at50 candidates
 and runs at most once per minute per chat worker.
 
+Fresh snapshot review also supports automatically generated phase inputs. Their
+system message does not itself authorize work: recovery must revalidate the
+original user approval, owner, unchanged plan/project and accepted predecessor
+lineage. A changed approval or canceled predecessor blocks recovery. A completed
+old provider review remains immutable; new evidence gets one deterministic fresh
+review request, without creating another execution attempt.
+
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
 must still complete its original acceptance checks and coordinator review.

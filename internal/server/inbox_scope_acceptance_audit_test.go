@@ -107,6 +107,22 @@ func scopeAcceptanceAuditContract(t *testing.T, scenario string, database *sql.D
 	if err != nil {
 		t.Fatal(err)
 	}
+	want := scenario == "affected phase" || scenario == "changed snapshot"
+	oldReviewID := ""
+	if want {
+		key := "task-review:" + a.ID
+		oldReviewID = delegationMessageID(key)
+		old := db.InboxRequest{OwnerID: owner.OwnerID, AgentID: owner.AgentID, RoomID: child.SourceRoomID, RequestID: oldReviewID, MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: oldReviewID, State: "queued", CreatedAt: now, Deadline: now.Add(time.Hour)}
+		content := "Review [/tasks/" + child.ID + "]\nReview evidence digest: " + inboxReviewEvidenceDigest(before) + "\n" + strings.Join([]string{inboxReportProvenancePolicy, inboxReviewAssessmentPolicy, inboxVerificationReviewPolicy, inboxVisualReviewPolicy, inboxOperationalReviewPolicy, inboxPublicationReviewPolicy, inboxOwnershipPolicy, inboxReviewProviderPolicy}, "\n")
+		repo := s.projectStudioRepo.(db.InboxRequestRepository)
+		if _, _, err := repo.AcceptInboxRequest(ctx, old, &db.ProjectMessage{ID: old.MessageID, RoomID: old.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: content, CreatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		old.State = "completed"
+		if err := repo.FinishInboxRequest(ctx, old, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if scenario == "changed snapshot" {
 		changed, err := store.(task.ScopeAcceptanceAuditStore).RequeueScopeAcceptance(ctx, child.ID, a.ID, before.UpdatedAt.Add(-time.Second), "stale audit")
 		if err != nil || changed {
@@ -118,7 +134,6 @@ func scopeAcceptanceAuditContract(t *testing.T, scenario string, database *sql.D
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := scenario == "affected phase" || scenario == "changed snapshot"
 	if (after.Status == task.TaskStatusReview) != want {
 		t.Fatalf("audit status %s; should reopen=%t", after.Status, want)
 	}
@@ -128,6 +143,25 @@ func scopeAcceptanceAuditContract(t *testing.T, scenario string, database *sql.D
 	if want {
 		if scopeAcceptanceAudit(after) == nil || inboxReviewEvidenceDigest(after) == inboxReviewEvidenceDigest(before) {
 			t.Fatal("atomic audit receipt missing from fresh review evidence")
+		}
+		s.queueInboxTaskReview(ctx, after)
+		fresh := 0
+		for _, q := range reviewRequests(t, s, after.SourceRoomID) {
+			if q.RequestID == oldReviewID {
+				if q.State != "completed" {
+					t.Fatal("old provider review was replayed")
+				}
+				continue
+			}
+			if d := s.inboxReviewedTask(ctx, q); d != nil && d.ID == after.ID {
+				if q.State != "queued" {
+					t.Fatal("fresh review not queued")
+				}
+				fresh++
+			}
+		}
+		if fresh != 1 {
+			t.Fatalf("phase recovery queued %d fresh snapshot reviews", fresh)
 		}
 		// A repeated discovery after acceptance must not reopen the same attempt.
 		after.Status = task.TaskStatusDone

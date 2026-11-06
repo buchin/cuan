@@ -80,5 +80,17 @@ func (s *Server) reviewSnapshotRecoveryAuthorized(ctx context.Context, d *task.T
 		return false
 	}
 	message, err := s.projectStudioRepo.GetMessageByID(ctx, origin.MessageID)
-	return err == nil && message != nil && message.RoomID == origin.RoomID && message.AuthorType == "user"
+	if err != nil || message == nil || message.RoomID != origin.RoomID {
+		return false
+	}
+	if message.AuthorType == "user" {
+		return true
+	}
+	if message.AuthorType != "system" || message.AuthorID != "cuan_auto_delegation" {
+		return false
+	}
+	// Generated phase inputs carry no independent user authority. Recover their
+	// review only through the original approval and unchanged accepted lineage.
+	_, err = s.phaseApproval(ctx, d, origin.OwnerID, origin.RoomID)
+	return err == nil
 }
