@@ -152,7 +152,7 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 		return false
 	}
 	if saved != nil {
-		if proof.PreparationLaunchID == "" && saved.State == "stopped" && saved.SafeError == task.InspectionPublicationPreparationError {
+		if proof.PreparationLaunchID == "" && task.IsInspectionPreparationFailure(saved) {
 			replacement := *proof
 			replacement.PreparationLaunchID = saved.ID
 			if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, &replacement) == nil {

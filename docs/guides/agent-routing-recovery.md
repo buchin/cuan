@@ -82,3 +82,16 @@ queue correction to claim two conflicting project tasks. Actual running attempts
 live claimed preparation and started launches with unknown attempt ownership
 retain their existing protections. Existing attempts advance through normal
 claiming; no retry, task rewrite or manual lock deletion is required.
+
+### Inspection stopped before a worker existed
+
+A saved live-result inspection can fail preparation before any execution attempt
+is reserved. Cuan permits one separately identified preparation repair for the
+known snapshot-publication failure, or a scope-validation rejection whose saved
+intent now passes validation. The original launch stays stopped as history.
+Malformed intent, changed instructions/owner/source/repository, cancellation,
+expired admission, any existing attempt, and repair chains remain ineligible.
+The replacement retains the original expiry and authorization, observes the
+current release, and passes normal source and lane checks. It only inspects an
+exact snapshot; it cannot implement, push, deploy or accept the task. This shares
+the existing preparation allowance rather than resetting task retry budgets.

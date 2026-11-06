@@ -8,6 +8,14 @@ import (
 )
 
 const InspectionPublicationPreparationError = "verification snapshot could not be published; existing files were preserved"
+const InspectionScopePreparationError = "The live result inspection scope could not be validated."
+
+// Only known failures before attempt reservation may use this single repair.
+// Eligibility alone is not authorization: the original intent must parse now,
+// source/owner/scope must still validate, and no attempt may exist for its request.
+func IsInspectionPreparationFailure(parent *TaskLaunch) bool {
+	return parent != nil && parent.State == "stopped" && (parent.SafeError == InspectionPublicationPreparationError || parent.SafeError == InspectionScopePreparationError)
+}
 
 // A failed preparation has no execution to retry. Preserve that durable intent
 // and permit one separately identified preparation, never a chain of attempts.
@@ -20,7 +28,7 @@ func ValidateInspectionPreparationRecovery(ctx context.Context, store Store, t *
 	if err != nil {
 		return err
 	}
-	if parent == nil || parent.State != "stopped" || parent.SafeError != InspectionPublicationPreparationError || !parent.ExpiresAt.After(time.Now().UTC()) {
+	if !IsInspectionPreparationFailure(parent) || !parent.ExpiresAt.After(time.Now().UTC()) {
 		return ErrInvalidTaskInput
 	}
 	old, err := LiveInspectionForLaunch(t, parent)

@@ -9,7 +9,7 @@ import (
 )
 
 func TestInspectionPreparationRecoveryRequiresUnstartedApprovedParent(t *testing.T) {
-	for _, scenario := range []string{"valid", "reserved failed attempt", "active attempt", "wrong error", "cancelled parent", "expired parent", "foreign owner", "changed scope", "changed source", "changed repository", "changed purpose", "foreign parent", "chained recovery", "earlier observation", "parent revalidation"} {
+	for _, scenario := range []string{"valid", "valid scope repair", "malformed scope parent", "reserved failed attempt", "active attempt", "wrong error", "cancelled parent", "expired parent", "foreign owner", "changed scope", "changed source", "changed repository", "changed purpose", "foreign parent", "chained recovery", "earlier observation", "parent revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			store := NewMemoryStore()
@@ -42,6 +42,11 @@ func TestInspectionPreparationRecoveryRequiresUnstartedApprovedParent(t *testing
 			proof.TargetCommit = strings.Repeat("c", 40)
 			proof.ObservedAt = now
 			switch scenario {
+			case "valid scope repair":
+				saved.SafeError = InspectionScopePreparationError
+			case "malformed scope parent":
+				saved.SafeError = InspectionScopePreparationError
+				saved.Revision = LiveInspectionMarker + "invalid"
 			case "reserved failed attempt", "active attempt":
 				status := AttemptStatusFailed
 				if scenario == "active attempt" {
@@ -70,7 +75,7 @@ func TestInspectionPreparationRecoveryRequiresUnstartedApprovedParent(t *testing
 				proof.ObservedAt = now.Add(-time.Hour)
 			}
 			err = ValidateInspectionPreparationRecovery(ctx, store, item, &proof)
-			if (err == nil) != (scenario == "valid") {
+			if (err == nil) != (scenario == "valid" || scenario == "valid scope repair") {
 				t.Fatalf("invalid preparation recovery: %v", err)
 			}
 		})

@@ -38,7 +38,7 @@ func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
-	for _, scenario := range []string{"valid", "valid preparation", "valid verifier repair", "valid registered review", "valid registered review handoff", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
+	for _, scenario := range []string{"valid", "valid preparation", "valid scope preparation", "valid verifier repair", "valid registered review", "valid registered review handoff", "valid missing report", "valid failed checks", "valid changed repository", "valid missing identity", "valid forged ancestry", "valid release changed", "missing audit", "missing source report", "owner prohibition", "cancelled source", "failed source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished "+scenario, nil)
@@ -47,7 +47,7 @@ func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome publication valid", "current outcome failed checks revalidation"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome publication valid", "current outcome failed checks revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -318,13 +318,17 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal("inspection did not deduplicate")
 	}
 	_ = store.DeleteTask(ctx, "phase-blocker")
-	if scenario == "current outcome unpublished valid preparation" {
+	if scenario == "current outcome unpublished valid preparation" || scenario == "current outcome unpublished valid scope preparation" {
 		parent := launch
 		owned, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "preparing", parent.ID)
 		if err != nil || owned == nil {
 			t.Fatal("could not reserve preparation", err)
 		}
-		if err := store.(task.LaunchStore).FinishLaunch(ctx, parent.ID, owned.LeaseToken, "stopped", time.Now(), task.InspectionPublicationPreparationError); err != nil {
+		reason := task.InspectionPublicationPreparationError
+		if strings.Contains(scenario, "scope preparation") {
+			reason = task.InspectionScopePreparationError
+		}
+		if err := store.(task.LaunchStore).FinishLaunch(ctx, parent.ID, owned.LeaseToken, "stopped", time.Now(), reason); err != nil {
 			t.Fatal(err)
 		}
 		if err := store.CreateTask(ctx, &task.Task{ID: "phase-blocker", ProjectID: d.ProjectID, Title: "Other work", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {

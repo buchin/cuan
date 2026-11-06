@@ -164,7 +164,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	}
 	liveInspection, inspectionErr := task.LiveInspectionForLaunch(&detail.Task, &job)
 	if inspectionErr != nil {
-		return finish("stopped", "The live result inspection scope could not be validated.")
+		return finish("stopped", task.InspectionScopePreparationError)
 	}
 	recoverySource := automaticRecoverySource(detail, job.RequestID)
 	trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
