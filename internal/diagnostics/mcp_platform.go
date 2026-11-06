@@ -88,21 +88,16 @@ func ListProjects(ctx context.Context, limit int) (any, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		projects, err := client.ListProjects(ctx, limit)
+		if err != nil {
+			return nil, fmt.Errorf("Cuan connection unavailable; project list could not be confirmed")
+		}
+		return map[string]any{"projects": redactProjectEnvironments(projects), "total": len(projects)}, nil
+	}
 	db := getPlatformDB()
 	if db == nil {
-		if client := GetCuanClient(); client != nil && client.IsConfigured() {
-			if projects, err := client.ListProjects(ctx, limit); err == nil {
-				return map[string]any{
-					"projects": redactProjectEnvironments(projects),
-					"total":    len(projects),
-				}, nil
-			}
-		}
-		return map[string]any{
-			"projects": []ProjectSummary{},
-			"total":    0,
-			"status":   "database_offline",
-		}, nil
+		return nil, fmt.Errorf("Configure a Cuan connection before reading projects")
 	}
 
 	rows, err := db.QueryContext(ctx, "SELECT id, name, repo_url, default_branch, COALESCE(local_path, ''), created_at, updated_at FROM projects ORDER BY updated_at DESC LIMIT $1", limit)
@@ -138,18 +133,17 @@ func GetProject(ctx context.Context, projectID string) (any, error) {
 	if projectID == "" {
 		return nil, fmt.Errorf("project_id is required")
 	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		result, err := client.GetProject(ctx, projectID)
+		if err != nil {
+			return nil, fmt.Errorf("Cuan connection unavailable; project state could not be confirmed")
+		}
+		redactProjectEnvironment(result)
+		return result, nil
+	}
 	db := getPlatformDB()
 	if db == nil {
-		if client := GetCuanClient(); client != nil && client.IsConfigured() {
-			if proj, err := client.GetProject(ctx, projectID); err == nil {
-				redactProjectEnvironment(proj)
-				return proj, nil
-			}
-		}
-		return map[string]any{
-			"id":     projectID,
-			"status": "database_offline",
-		}, nil
+		return nil, fmt.Errorf("Configure a Cuan connection before reading a project")
 	}
 
 	var p ProjectSummary

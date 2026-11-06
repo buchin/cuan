@@ -132,9 +132,10 @@ Read-only MCP equivalents: `list_provider_accounts` and `get_provider_account_us
 
 `cuan chat messages ROOM_ID --json` preserves request state/recovery metadata and task count, not only message text. Inspect the same request after a wait timeout; do not blindly resend. See [routing recovery](../../guides/agent-routing-recovery.md).
 
-For task reads, a configured Owner API is authoritative. A failed connection is
-an error, not an empty board or permission to query a different local database.
-Do not infer idle capacity or missing work from a failed `task list`/`task get`.
+For task/project reads, a configured Owner API is authoritative. A failed
+connection is an error, not an empty board/project list or permission to query a
+different local database. Do not infer idle capacity, missing work or a missing
+project from failed reads; they cannot justify duplicating tasks or projects.
 
 `cuan chat retry ROOM_ID REQUEST_ID` explicitly retries the saved original
 message through the Owner API. It returns the deduplicated child request ID and
