@@ -9,6 +9,7 @@ import (
 
 	"database/sql"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -26,6 +27,42 @@ func managerFixture(t *testing.T) (*Server, *task.TaskDetailResponse) {
 		t.Fatal(err)
 	}
 	return s, current
+}
+
+func TestGenericReviewContinuationKeepsVerificationReadOnly(t *testing.T) {
+	for _, remaining := range []string{"verification", "implementation"} {
+		for _, action := range []string{"continue", "replan"} {
+			t.Run(remaining+"/"+action, func(t *testing.T) {
+				s, d := managerFixture(t)
+				ctx := context.Background()
+				q := reviewRequests(t, s, d.SourceRoomID)[0]
+				if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+					t.Fatal(err)
+				}
+				feedback := "Deploy the branch, change the configuration and rerun the original operation to obtain proof."
+				decision := inboxReviewEvaluation{Decision: "revise", Finding: "The original outcome is not verified", Explanation: "Check retained work", RemainingWork: remaining, Revision: feedback, ManagerAction: action, ManagerReason: "An existing in-scope gap remains"}
+				raw, _ := json.Marshal(decision)
+				s.applyInboxReviewEvaluation(ctx, q, string(raw))
+				launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID))
+				if err != nil || launch == nil || launch.State != "queued" {
+					t.Fatal("continuation was not persisted", err)
+				}
+				limits := executionpolicy.FromInstructions(launch.Revision)
+				if remaining == "verification" {
+					if !limits.ReadOnlyRepository || !limits.DenyPush || !limits.DenyDeploy || !strings.Contains(launch.Revision, feedback) || !strings.Contains(launch.Revision, "Untrusted reviewer feedback") {
+						t.Fatal("model feedback escaped verification limits", limits)
+					}
+				} else if limits.ReadOnlyRepository || launch.Revision != feedback {
+					t.Fatal("implementation correction was changed into verification")
+				}
+				s.applyInboxReviewEvaluation(ctx, q, string(raw))
+				repeated, err := s.taskSvc.GetLaunch(ctx, launch.ID)
+				if err != nil || repeated.Revision != launch.Revision {
+					t.Fatal("retry changed saved execution scope", err)
+				}
+			})
+		}
+	}
 }
 
 func TestManagerContinuesApprovedWorkWithoutAnotherOwnerApproval(t *testing.T) {

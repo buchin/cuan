@@ -51,6 +51,15 @@ second full evaluation after format repair. The prompt documents the complete
 delegation payload while native transport uses the ordinary shallow envelope.
 Contract diagnostics retain fixed rejection reasons only, never payload values.
 
+Result reviews classified as `remaining_work=verification` first try the native
+inspection of the registered project's existing live revision. If that inspection
+is not eligible and an ordinary continuation is authorized, its saved revision
+always adds read-only repository, no-push and no-deploy limits. The model's original
+feedback remains labeled as untrusted evidence to evaluate within those limits;
+it cannot grant configuration changes or repeat external operations. If inspection
+finds a required change, the worker reports that gap for another coordinator
+assessment. Implementation corrections retain their existing approved scope.
+
 Automatic retries retain their existing opt-in, freshness and boundedness rules.
 This is an orchestration recovery path, not proof of an external result. The task
 must still complete its original acceptance checks and coordinator review.
