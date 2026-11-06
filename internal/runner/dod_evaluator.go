@@ -74,8 +74,6 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 		CleanWorkingTree:  true,
 		TargetedTestsPass: true,
 		BuildZeroError:    true,
-		LeanStandardPass:  true,
-		DocsAndLPPass:     true,
 		Fixable:           true,
 		Gaps:              make([]string, 0),
 	}
@@ -140,19 +138,10 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 		res.Gaps = append(res.Gaps, fmt.Sprintf("Kompilasi build gagal: %s", buildMsg))
 	}
 
-	// 4. Check Lean & Modular Standard + Documentation & Landing Page Update Directive
-	leanPass, docsPass, directiveMsg, err := e.checkLeanAndDocsLPCompliance(ctx, workingDir, req.TaskTitle, req.Instructions, req.Summary)
-	res.LeanStandardPass = leanPass
-	res.DocsAndLPPass = docsPass
-	if testDur > 10*time.Second {
-		res.LeanStandardPass = false
-		res.Gaps = append(res.Gaps, fmt.Sprintf("Durasi verifikasi/uji melebihi batas kilat lean (<10s): terukur %v", testDur.Round(time.Millisecond)))
-	}
-	if err != nil || !leanPass || !docsPass {
-		if directiveMsg != "" {
-			res.Gaps = append(res.Gaps, directiveMsg)
-		}
-	}
+	// Documentation, product pages and architectural quality are evaluated
+	// against the bound project's actual acceptance requirements by review.
+	// File existence, keywords or wall-clock duration cannot prove those facts
+	// or introduce Cuan-specific requirements into another repository.
 
 	// 5. Check Criteria Acceptance & Markdown DoD Checklist via pkg/dodeval
 	if req.Instructions != "" {
@@ -183,15 +172,13 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 		res.Passed = true
 		res.Action = "mark_done"
 		res.Details = fmt.Sprintf("### Evaluasi Definition of Done (DoD) Otonom\n"+
-			"**Status:** LULUS (100%% Kriteria Terpenuhi)\n\n"+
+			"**Status:** LULUS (pemeriksaan workspace)\n\n"+
 			"**Bukti yang Terverifikasi:**\n"+
 			"- [x] Working tree bersih (git clean, status bebas uncommitted changes)\n"+
 			"- [x] Targeted tests lulus 100%% (Go & Vitest pass, durasi: %v)\n"+
 			"- [x] Kompilasi build 0 error (Go & frontend build bersih)\n"+
-			"- [x] Standar lean & modular terpenuhi (<10s verification, zero bloat)\n"+
-			"- [x] Dokumentasi & Landing Page tersinkronisasi merefleksikan nilai bisnis terbaru\n\n"+
-			"**Tindakan:** Menandai task 'done' secara otomatis dan memancarkan notifikasi chat ramah bisnis.",
-			res.Duration.Round(time.Millisecond))
+			"\nKualitas implementasi, dokumentasi, halaman produk dan hasil yang diminta tetap dinilai terhadap scope proyek oleh koordinator.",
+			testDur.Round(time.Millisecond))
 	} else {
 		res.Passed = false
 		if req.AttemptNumber < MaxAttempts {
@@ -209,8 +196,8 @@ func (e *DoDEvaluator) EvaluateDoD(ctx context.Context, req DoDValidationRequest
 				"**Gap yang Perlu Diperbaiki:**\n%s\n"+
 				"**Instruksi Perbaikan Terarah untuk Agent:**\n"+
 				"1. Perbaiki celah kriteria di atas pada workspace.\n"+
-				"2. Pastikan targeted tests lulus 100%% dan kompilasi 0 error dalam waktu <10 detik.\n"+
-				"3. Commit perubahan terarah, bersihkan working tree, dan perbarui dokumentasi/Landing Page bila menambahkan kapabilitas baru sebelum melapor selesai.\n",
+				"2. Jalankan targeted tests dan pemeriksaan build yang relevan.\n"+
+				"3. Tetap dalam scope dan aturan repository proyek; laporkan perubahan serta bukti penerimaan yang benar-benar diverifikasi.\n",
 				req.AttemptNumber, res.NextAttemptNumber, res.NextTimeout, gapList.String())
 
 			res.Details = res.RequeueInstructions
@@ -318,50 +305,6 @@ func (e *DoDEvaluator) checkBuildZeroError(ctx context.Context, workingDir strin
 	}
 
 	return true, "Build and syntax verification 0 errors", nil
-}
-
-func (e *DoDEvaluator) checkLeanAndDocsLPCompliance(ctx context.Context, workingDir, title, instructions, summary string) (bool, bool, string, error) {
-	combined := strings.ToLower(title + " " + instructions + " " + summary)
-
-	// Check if this task introduces a new feature or capability
-	isNewCapability := strings.Contains(combined, "feat") ||
-		strings.Contains(combined, "fitur") ||
-		strings.Contains(combined, "kapabilitas") ||
-		strings.Contains(combined, "capability") ||
-		strings.Contains(combined, "worker") ||
-		strings.Contains(combined, "evaluator") ||
-		strings.Contains(combined, "requeue") ||
-		strings.Contains(combined, "timeout")
-
-	if !isNewCapability {
-		return true, true, "", nil
-	}
-
-	// Validate Documentation (docs/ or README.md exists and is touched/valid)
-	readmePath := filepath.Join(workingDir, "README.md")
-	docsDir := filepath.Join(workingDir, "docs")
-	hasDocs := false
-	if _, err := os.Stat(readmePath); err == nil {
-		hasDocs = true
-	} else if _, err := os.Stat(docsDir); err == nil {
-		hasDocs = true
-	}
-
-	// Validate Landing Page exists
-	lpPath := filepath.Join(workingDir, "web", "src", "features", "landing", "LandingPage.tsx")
-	hasLP := false
-	if _, err := os.Stat(lpPath); err == nil {
-		hasLP = true
-	}
-
-	if !hasDocs {
-		return true, false, "Kepatuhan dokumentasi: task memperkenalkan fitur/kapabilitas baru tetapi dokumentasi teknis (README.md / docs/) belum tersedia atau diperbarui", nil
-	}
-	if !hasLP {
-		return true, false, "Kepatuhan Landing Page: task memperkenalkan fitur/kapabilitas baru tetapi Landing Page Cuan (web/src/features/landing/LandingPage.tsx) belum tersedia atau diperbarui", nil
-	}
-
-	return true, true, "", nil
 }
 
 // AttachToEventBus registers this DoD evaluator to automatically handle task:attempt_succeeded events.

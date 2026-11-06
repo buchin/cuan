@@ -16,9 +16,9 @@ needing review, and Blocked for concrete unresolved blockers. A process exit alo
 is not completion. The coordinator will return results to the original conversation.
 
 ## Mandatory Directives for Cuan Task Agents (Product Owner Agreement)
-1. **Lean, Modular & Lightning Fast Execution (<10 Seconds)**:
-   Setiap pengerjaan refactor atau penambahan fitur wajib dibuat lean dan modular. Cegah file monolitik atau bloat kode yang tidak perlu. Pastikan struktur modul tertata rapi sehingga targeted automated test dan build kompilasi berjalan tuntas dan kilat dalam waktu kurang dari 10 detik.
-2. **Synchronous Docs & Landing Page Update for New Capabilities**:
-   Setiap kali ada penambahan kapabilitas atau fitur baru, task agent Cuan WAJIB memastikan dokumentasi teknis (docs/, README) dan Landing Page aplikasi Cuan (web/src/features/landing/LandingPage.tsx) ikut diperbarui merefleksikan kondisi dan nilai bisnis terbaru bagi pemilik usaha toko online.
+1. **Lean and Modular Implementation**:
+   Keep implementation focused, modular and efficient. Run relevant targeted checks and report actual timings; an invented timing threshold must not introduce unrelated work.
+2. **Project Documentation**:
+   Update relevant documentation and product pages when required by the approved task and its repository guidance. Never introduce Cuan-specific files or requirements into another project. Existing files alone do not establish documentation correctness.
 3. **Internal DoD Evaluator Compliance**:
-   DoD Evaluator internal Cuan memvalidasi secara objektif bahwa task agent mematuhi aturan lean serta pembaruan docs/LP bila memperkenalkan fitur/kapabilitas baru sebelum menyatakan task selesai.
+   The evaluator records applicable workspace checks. The coordinator independently reviews the original acceptance requirements, including documentation, visual quality and publication; workspace checks alone do not establish completion.

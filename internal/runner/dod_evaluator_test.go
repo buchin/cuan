@@ -7,7 +7,31 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/buchin/cuan/internal/task"
 )
+
+func TestDoDEvaluatorDoesNotInventCrossProjectAcceptanceCriteria(t *testing.T) {
+	evaluator := NewDoDEvaluator()
+	calls := 0
+	evaluator.CustomCommandRunner = func(context.Context, string, string, ...string) ([]byte, error) {
+		calls++
+		return []byte(""), nil
+	}
+	req := DoDValidationRequest{WorkingDir: t.TempDir(), TaskTitle: "Implement standalone protocol worker package", Instructions: "Implement the approved standalone package feature in Dojo", Summary: "Standalone protocol and worker CLI implemented", CompleteNote: "Package test output and original acceptance evidence delivered", AttemptNumber: 1}
+	result, err := evaluator.EvaluateDoD(context.Background(), req)
+	if err != nil || !result.Passed || calls < 2 || len(result.Gaps) != 0 {
+		t.Fatal("unrelated Cuan files became a project requirement", result, err)
+	}
+	if result.DocsAndLPPass || result.LeanStandardPass || strings.Contains(result.Details, "100% Kriteria") || strings.Contains(result.Details, "Landing Page tersinkronisasi") {
+		t.Fatal("workspace checks claimed unperformed semantic verification", result)
+	}
+	req.Checklist = []task.DoDItem{{Text: "Update the project's required documentation", Completed: false}}
+	result, err = evaluator.EvaluateDoD(context.Background(), req)
+	if err != nil || result.Passed || result.Action != "review" || len(result.Gaps) == 0 {
+		t.Fatal("original documentation requirement was waived", result, err)
+	}
+}
 
 func TestDoDEvaluator_AllCriteriaPass_MarkDone(t *testing.T) {
 	evaluator := NewDoDEvaluator()
@@ -44,7 +68,7 @@ func TestDoDEvaluator_AllCriteriaPass_MarkDone(t *testing.T) {
 	if !res.CleanWorkingTree || !res.TargetedTestsPass || !res.BuildZeroError {
 		t.Fatalf("expected all checks true: %+v", res)
 	}
-	if !strings.Contains(res.Details, "LULUS (100% Kriteria Terpenuhi)") {
+	if !strings.Contains(res.Details, "LULUS (pemeriksaan workspace)") {
 		t.Fatalf("expected LULUS in details, got: %s", res.Details)
 	}
 }

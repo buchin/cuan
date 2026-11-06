@@ -1,7 +1,7 @@
 # Panduan Integrasi Task Orchestration & DoD Evaluator (`pkg/taskfsm` & `pkg/dodeval`)
 
 ## Ringkasan Eksekutif
-Dalam rangka mendukung performa yang ramping, modular, dan kilat (<10 detik) sesuai kesepakatan Agentic Scrum, modul orkestrasi tugas dan evaluasi Definition of Done (DoD) dipisahkan menjadi dua micro-packages mandiri (*zero external dependencies*):
+Modul orkestrasi tugas dan evaluasi Definition of Done (DoD) memakai library mandiri agar implementasi inti tetap modular:
 1. **`pkg/taskfsm`**: State Machine Engine yang mengelola siklus hidup status tugas (`planning → approved → running → review → completed`, `blocked`, `canceled`) dengan guardrails pencegahan lonjakan ilegal.
 2. **`pkg/dodeval`**: Definition of Done Evaluator yang mem-parsing kriteria markdown secara otomatis dan membandingkannya terhadap korpus bukti laporan verifikasi.
 
@@ -32,3 +32,13 @@ Fungsi `AnalyzeGaps` dan `Evaluate` memvalidasi ketersediaan bukti pada ringkasa
 ## 3. Integrasi ke Cuan Runner (`internal/runner`)
 - `internal/runner/service.go`: Memvalidasi setiap transisi status tugas menggunakan `ValidateTaskTransition` dan mencegah lonjakan ilegal ke terminal state.
 - `internal/runner/dod_evaluator.go`: Menjalankan evaluasi checklist acceptance criteria otonom sebelum menandai tugas selesai.
+
+Pemeriksaan workspace tidak membuktikan seluruh hasil pekerjaan. Koordinator
+tetap menilai scope asli, bukti acceptance, dokumentasi, kualitas visual dan
+publikasi yang diwajibkan proyek. Evaluator umum tidak menambahkan syarat file
+landing page Cuan ke repository lain atau menyimpulkan dokumentasi tersinkron
+hanya karena README tersedia. Durasi tes dicatat sebagai fakta, bukan bukti
+arsitektur lean atau alasan otomatis mengubah kode yang sudah benar. Field
+kompatibilitas `lean_standard_pass` dan `docs_and_lp_pass` bernilai false ketika
+aspek itu tidak diperiksa oleh evaluator workspace; false ini tidak membuat gap
+baru. Kriteria dokumentasi yang benar-benar diminta tetap harus dibuktikan.
