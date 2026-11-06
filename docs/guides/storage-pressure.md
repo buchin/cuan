@@ -175,3 +175,12 @@ remove read-only distribution directories without elevated privileges. Provider
 credentials, conversation history, other modules and the warm owner build cache
 remain outside cleanup. Preview mode may create coordination gates, but does not
 remove distributions; `--apply` performs deletion.
+
+The same policy also covers their retained Go download ZIPs. These live only in
+the private `go/pkg/mod/cache/download/golang.org/toolchain/@v` directory and must
+have a recognized version/platform filename, a regular Go checksum marker and
+an existing download lock. Maintenance holds both the account execution gate
+and the Go download lock, observes the normal24-hour age window, and protects
+open file descriptors as well as executables/cwd. It removes only the ZIP,
+retaining checksum and lock inodes. Unknown/private modules, partial downloads,
+linked files, current downloads and warm compiled build caches remain untouched.

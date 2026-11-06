@@ -12,7 +12,9 @@ import stat
 import time
 
 ACCOUNT = re.compile(r"acct_[0-9a-f]{32}")
-TOOLCHAIN = re.compile(r"toolchain@v0\.0\.1-go[0-9]+\.[0-9]+\.[0-9]+(?:[a-z]+[0-9]+)?\.linux-(?:amd64|arm64)")
+VERSION = r"v0\.0\.1-go[0-9]+\.[0-9]+\.[0-9]+(?:[a-z]+[0-9]+)?\.linux-(?:amd64|arm64)"
+TOOLCHAIN = re.compile('toolchain@' + VERSION)
+ARCHIVE = re.compile(VERSION + r'\.zip')
 
 
 def private_directory(path):
@@ -51,13 +53,58 @@ def idle_account(account):
 
 def process_uses(path, proc=Path('/proc')):
     for process in proc.glob('[0-9]*'):
-        for kind in ('exe', 'cwd'):
+        try:
+            descriptors = list((process / 'fd').iterdir())
+        except OSError:
+            descriptors = []
+        for link in [process / 'exe', process / 'cwd', *descriptors]:
             try:
-                if (process / kind).resolve(strict=True).is_relative_to(path):
+                if link.resolve(strict=True).is_relative_to(path):
                     return True
             except (OSError, RuntimeError):
                 continue
     return False
+
+
+def prune_downloads(modules, result, *, apply, min_age_hours, now, in_use):
+    directory = modules
+    for part in ('cache', 'download', 'golang.org', 'toolchain', '@v'):
+        directory /= part
+        if not private_directory(directory):
+            return
+    for archive in directory.iterdir():
+        if not ARCHIVE.fullmatch(archive.name) or archive.is_symlink() or not archive.is_file():
+            continue
+        marker = archive.with_suffix('.ziphash')
+        lock = archive.with_suffix('.lock')
+        try:
+            fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        except OSError:
+            continue
+        with os.fdopen(fd, 'r+b') as lease:
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    continue
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                original = archive.lstat()
+                if not stat.S_ISREG(original.st_mode) or now-original.st_mtime < min_age_hours*3600:
+                    continue
+                if marker.is_symlink() or not marker.is_file() or marker.stat().st_size > 128:
+                    continue
+                if not re.fullmatch(r'h1:[A-Za-z0-9+/]{43}=', marker.read_text().strip()) or in_use(archive):
+                    continue
+                result['eligible'] += 1
+                result['download_eligible'] += 1
+                if apply:
+                    current = archive.lstat()
+                    if (original.st_dev, original.st_ino) != (current.st_dev, current.st_ino):
+                        continue
+                    archive.unlink()  # Retain the checksum and download lock inode.
+                    result['removed'] += 1
+                    result['download_removed'] += 1
+                    result['download_bytes_removed'] += original.st_size
+            except (OSError, UnicodeError):
+                continue
 
 
 def remove_toolchain(path):
@@ -77,7 +124,8 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
     if min_age_hours < 1 or not private_directory(accounts):
         raise ValueError('Use a real accounts directory and retain at least one hour')
     now = time.time() if now is None else now
-    result = {'eligible': 0, 'removed': 0, 'busy_accounts': 0}
+    result = {'eligible': 0, 'removed': 0, 'busy_accounts': 0,
+              'download_eligible': 0, 'download_removed': 0, 'download_bytes_removed': 0}
     for account in sorted(accounts.iterdir()):
         if not ACCOUNT.fullmatch(account.name) or not private_directory(account):
             continue
@@ -86,12 +134,13 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
                 result['busy_accounts'] += 1
                 continue
             relative = account
-            for part in ('home', 'go', 'pkg', 'mod', 'golang.org'):
+            for part in ('home', 'go', 'pkg', 'mod'):
                 relative /= part
                 if not private_directory(relative):
                     break
             else:
-                for toolchain in relative.iterdir():
+                distributions = relative / 'golang.org'
+                for toolchain in distributions.iterdir() if private_directory(distributions) else []:
                     if not TOOLCHAIN.fullmatch(toolchain.name) or not private_directory(toolchain):
                         continue
                     if now - toolchain.stat().st_mtime < min_age_hours * 3600 or in_use(toolchain):
@@ -103,6 +152,7 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
                     if apply:
                         remove_toolchain(toolchain)
                         result['removed'] += 1
+                prune_downloads(relative, result, apply=apply, min_age_hours=min_age_hours, now=now, in_use=in_use)
     return result
 
 

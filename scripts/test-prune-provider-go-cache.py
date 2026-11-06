@@ -117,6 +117,80 @@ class CachePruneTest(unittest.TestCase):
             self.assertTrue((outside / 'go/pkg/mod/golang.org' / toolchain.name).exists())
             self.assertTrue((outside / '.gemini/credentials.json').exists())
 
+    def test_idle_download_archives_preserve_checksums_locks_and_saved_data(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            account, _, credentials = self.fixture(root)
+            directory = account / 'home/go/pkg/mod/cache/download/golang.org/toolchain/@v'
+            directory.mkdir(parents=True)
+            archive = directory / 'v0.0.1-go1.27.0.linux-amd64.zip'
+            archive.write_bytes(b'fixture downloaded distribution')
+            marker = archive.with_suffix('.ziphash')
+            marker.write_text('h1:' + 'a' * 43 + '=')
+            lock = archive.with_suffix('.lock')
+            lock.touch()
+            inode = lock.stat().st_ino
+            warm = account / 'home/.cache/go-build/object'
+            warm.parent.mkdir(parents=True)
+            warm.write_text('warm compiled cache')
+            now = archive.stat().st_mtime + 25*3600
+            preview = module.prune(root, now=now, in_use=lambda _: False)
+            self.assertEqual(preview['download_eligible'], 1)
+            self.assertTrue(archive.exists())
+            result = module.prune(root, apply=True, now=now, in_use=lambda _: False)
+            self.assertEqual(result['download_removed'], 1)
+            self.assertEqual(result['download_bytes_removed'], len(b'fixture downloaded distribution'))
+            self.assertFalse(archive.exists())
+            self.assertTrue(marker.exists())
+            self.assertEqual(lock.stat().st_ino, inode)
+            self.assertEqual(warm.read_text(), 'warm compiled cache')
+            self.assertEqual(credentials.read_text(), 'private fixture')
+
+    def test_unproven_or_busy_downloads_are_kept(self):
+        for scenario in ('account busy', 'download busy', 'open descriptor', 'fresh',
+                         'bad hash', 'missing lock', 'linked archive', 'unknown archive'):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as raw:
+                root = Path(raw)
+                account, _, credentials = self.fixture(root)
+                directory = account / 'home/go/pkg/mod/cache/download/golang.org/toolchain/@v'
+                directory.mkdir(parents=True)
+                archive = directory / 'v0.0.1-go1.27.0.linux-amd64.zip'
+                archive.write_bytes(b'fixture')
+                marker = archive.with_suffix('.ziphash')
+                marker.write_text('h1:' + 'a'*43 + '=')
+                lock = archive.with_suffix('.lock')
+                lock.touch()
+                now = archive.stat().st_mtime + 25*3600
+                held = None
+                if scenario == 'account busy':
+                    held = (account / '.execution.lock').open('r+')
+                    fcntl.flock(held, fcntl.LOCK_SH)
+                elif scenario == 'download busy':
+                    held = lock.open('r+')
+                    fcntl.flock(held, fcntl.LOCK_EX)
+                elif scenario == 'open descriptor':
+                    held = archive.open('rb')
+                elif scenario == 'fresh':
+                    os.utime(archive, (now, now))
+                elif scenario == 'bad hash':
+                    marker.write_text('unproven artifact')
+                elif scenario == 'missing lock':
+                    lock.unlink()
+                elif scenario == 'linked archive':
+                    archive.unlink()
+                    archive.symlink_to(credentials)
+                else:
+                    archive.rename(directory / 'private-library.zip')
+                try:
+                    result = module.prune(root, apply=True, now=now,
+                                          in_use=module.process_uses if scenario == 'open descriptor' else lambda _: False)
+                    self.assertEqual(result['download_removed'], 0)
+                    self.assertTrue(archive.exists() or (directory / 'private-library.zip').exists())
+                    self.assertEqual(credentials.read_text(), 'private fixture')
+                finally:
+                    if held is not None:
+                        held.close()
+
 
 if __name__ == '__main__':
     unittest.main()
