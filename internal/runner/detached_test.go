@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -162,6 +163,17 @@ func TestDetachedLauncher_SpawnWithSetsid(t *testing.T) {
 	if loadedClaim.Attempt.ID != "att_launcher_01" {
 		t.Errorf("loaded claim mismatch: %s", loadedClaim.Attempt.ID)
 	}
+
+	// A detached child must actually be reaped, not merely classified as dead
+	// by IsProcessAlive's zombie check. Keep the supervisor alive for this check.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(rec.PID, 0); err == syscall.ESRCH {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("completed detached worker %d was not reaped", rec.PID)
 }
 
 func TestRunner_DetachedWorker_ReconciliationStartup_PreventsDuplicateClaim(t *testing.T) {
@@ -510,11 +522,11 @@ func TestDetachedWorker_SupervisorRestart_NonDisruptive(t *testing.T) {
 	defer server.Close()
 
 	cfg1 := &config.Config{
-		RunnerID:              "runner-supervisor-1",
-		RunnerServerURL:       server.URL,
-		RunnerBinPath:         runnerBin,
+		RunnerID:                "runner-supervisor-1",
+		RunnerServerURL:         server.URL,
+		RunnerBinPath:           runnerBin,
 		RunnerWorkerRegistryDir: regDir,
-		RunnerDetachedWorkers: true,
+		RunnerDetachedWorkers:   true,
 	}
 
 	claim := ClaimTaskResponse{
@@ -559,11 +571,11 @@ func TestDetachedWorker_SupervisorRestart_NonDisruptive(t *testing.T) {
 
 	// 3. Start Supervisor 2 (new release daemon)
 	cfg2 := &config.Config{
-		RunnerID:              "runner-supervisor-2",
-		RunnerServerURL:       server.URL,
-		RunnerBinPath:         runnerBin,
+		RunnerID:                "runner-supervisor-2",
+		RunnerServerURL:         server.URL,
+		RunnerBinPath:           runnerBin,
 		RunnerWorkerRegistryDir: regDir,
-		RunnerDetachedWorkers: true,
+		RunnerDetachedWorkers:   true,
 	}
 	supervisor2 := NewRunner(cfg2, &detachedTestAdapter{name: "mock"})
 	supervisor2.SetWorkerRegistry(reg)

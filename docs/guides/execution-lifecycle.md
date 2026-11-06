@@ -91,3 +91,9 @@ that the sweeps do not issue thousands of latest-attempt reads. Existing reaper
 checks still require failed attempts to leave a blocked task, stopped launch and
 available project lane. This optimization does not remove the separate Inbox
 result-delivery history scan; that remains a distinct performance concern.
+
+Detached task workers survive supervisor shutdown. While the supervisor remains
+alive, it asynchronously waits for each child process to release OS process
+resources after exit. This wait does not join supervisor shutdown, cancel a
+worker, or interpret its exit as task acceptance; completion remains governed
+by the worker reporting and verification protocol.

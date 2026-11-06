@@ -330,6 +330,11 @@ func (l *DetachedLauncher) Spawn(ctx context.Context, cfg *config.Config, claim 
 	pid := 0
 	if cmd.Process != nil {
 		pid = cmd.Process.Pid
+		// Detachment must survive supervisor shutdown, but while the parent
+		// remains alive it still owns wait(2). Reap asynchronously so completed
+		// workers do not accumulate as zombies. Exit reporting belongs to the
+		// worker protocol; waiting here neither accepts nor retries the task.
+		go func() { _ = cmd.Wait() }()
 	}
 
 	rec := &DetachedWorkerRecord{
