@@ -15,7 +15,7 @@ const appPath = path.resolve(webSrcRoot, 'App.tsx')
 const settingsViewPath = path.resolve(webSrcRoot, 'features', 'settings', 'SettingsView.tsx')
 const s62DocPath = path.resolve(repoRoot, 'docs', 'sprints', 'S62.md')
 
-test('1. S62-T1: 4-Pillar Mobile Bottom Navigation with Contacts as Core Pillar', () => {
+test('1. Mobile navigation retains New work, Inbox, tasks and account access', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
   // Pillar 1: Chat (/inbox)
@@ -46,22 +46,21 @@ test('1. S62-T1: 4-Pillar Mobile Bottom Navigation with Contacts as Core Pillar'
     'Pillar 2 Tasks must render CheckSquare icon'
   )
 
-  // Pillar 3: Contacts (/contacts) - Core S62 requirement
+  // New work keeps the existing creation route and gains the Plus icon.
   assert.ok(
     appShellSource.includes('data-testid="bottom-nav-studio"'),
-    'Bottom navigation must render Pillar 3: Contacts with data-testid="bottom-nav-studio"'
+    'Bottom navigation must retain the work entry'
   )
   assert.ok(
     appShellSource.includes("navigate('studio')"),
-    'Pillar 3 Contacts must navigate to contacts tab'
+    'New work must open the existing Studio route'
   )
-  assert.ok(
-    appShellSource.includes('<CuanMark decorative className="h-5 w-5" />'),
-    'Pillar 3 Contacts must render Users icon'
-  )
+  const start = appShellSource.indexOf('data-testid="bottom-nav-studio"')
+  const workEntry = appShellSource.slice(start, appShellSource.indexOf('{/* Inbox */}', start))
+  assert.match(workEntry, /<Plus\b/, 'New work must show the Plus icon')
   assert.ok(
     appShellSource.includes("currentTab === 'studio' ? 'page' : undefined"),
-    'Pillar 3 Contacts must properly indicate active page state via aria-current'
+    'New work must expose its active page state'
   )
 
   // Pillar 4 / 5: Menu (SlideDrawer opener in S62) or NavUser in S63
