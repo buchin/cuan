@@ -112,15 +112,18 @@ const verifyHtml = `<!DOCTYPE html>
             </div>
 
             <!-- Action Controls -->
-            <div class="flex items-center gap-1.5 shrink-0">
-              <button id="btn-toggle-view" class="inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40">
-                \${viewMode === 'diagram' ? 'Sintaks' : 'Visual'}
+            <div class="flex items-center gap-1 shrink-0">
+              <button id="btn-toggle-view" class="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                <span class="hidden sm:inline">\${viewMode === 'diagram' ? 'Sintaks' : 'Visual'}</span>
               </button>
-              <button id="btn-copy" class="inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40">
-                Salin
+              <button id="btn-copy" class="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                <span class="hidden sm:inline">Salin</span>
               </button>
-              <button id="btn-fullscreen" class="inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40">
-                Perbesar
+              <button id="btn-fullscreen" class="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="M9 21H3v-6"/><path d="m3 21 7-7"/></svg>
+                <span class="hidden sm:inline">Perbesar</span>
               </button>
             </div>
           </div>
