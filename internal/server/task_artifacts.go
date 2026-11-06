@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"os"
@@ -57,7 +58,7 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string, 
 		}
 		f, err := selectedRoot.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 		if err != nil {
-			return nil, errors.New("An output file is unavailable in this task's workspace")
+			return nil, fmt.Errorf("Output file %q is unavailable in this task's bound workspace", sourcePath)
 		}
 		info, err := f.Stat()
 		if err != nil || !info.Mode().IsRegular() || info.Size() > attachmentLimit {

@@ -302,3 +302,11 @@ These checks establish component behavior only; production health, publication
 and the original task outcome require separate independent evidence. Do not
 capture the public landing page as a substitute for the protected screen or
 borrow Owner credentials. Report uncovered workflows explicitly.
+
+Native code-task artifact paths refer to the worker's isolated task checkout,
+not the shared project clone used before claim. The server derives this checkout
+from its configuration and the authenticated task; callers cannot select another
+root. Explicit local sessions and verification snapshots keep their own roots.
+Session artifacts retain the `session:PATH` form. Missing worker files never fall
+back to similarly named files in the project clone. A reporting error names the
+requested missing file; preserve the active report capability when correcting it.

@@ -347,7 +347,19 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, 409, e.Error())
 			return
 		}
-		artifacts, e = readTaskArtifacts(g.ArtifactRoot, g.TaskID, g.AttemptID, report.Artifacts, g.EvidenceRoot)
+		artifactRoot, closeRoot := g.ArtifactRoot, func() {}
+		for _, path := range report.Artifacts {
+			if !strings.HasPrefix(path, "session:") {
+				artifactRoot, closeRoot, e = s.taskReportArtifactRoot(r.Context(), g, latest)
+				if e != nil {
+					respondJSONError(w, 409, e.Error())
+					return
+				}
+				break
+			}
+		}
+		defer closeRoot()
+		artifacts, e = readTaskArtifacts(artifactRoot, g.TaskID, g.AttemptID, report.Artifacts, g.EvidenceRoot)
 		if e != nil {
 			respondJSONError(w, 400, e.Error())
 			return

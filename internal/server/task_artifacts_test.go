@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -79,7 +81,7 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 		t.Run(name, func(t *testing.T) { taskArtifactDeliveryContract(t, session) })
 	}
 }
-func taskArtifactDeliveryContract(t *testing.T, session bool) {
+func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 	s, token, call, _ := inboxFixture(t)
 	ctx := context.Background()
 	owner, err := s.authSvc.ValidateToken(ctx, token)
@@ -97,7 +99,11 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := s.taskSvc.CreateAttempt(ctx, saved.ID, owner.ID, task.CreateAttemptRequest{RunnerID: "local_terminal", AgentName: q.AgentID})
+	runnerID := "local_terminal"
+	if len(native) > 0 && native[0] {
+		runnerID = "artifact-native"
+	}
+	a, err := s.taskSvc.CreateAttempt(ctx, saved.ID, owner.ID, task.CreateAttemptRequest{RunnerID: runnerID, AgentName: q.AgentID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,6 +119,27 @@ func taskArtifactDeliveryContract(t *testing.T, session bool) {
 	}
 	defer cleanup()
 	sourceFile := filepath.Join(workspace, "output.html")
+	if len(native) > 0 && native[0] {
+		s.cfg.WorkspacesDir = t.TempDir()
+		projects := project.NewMemoryStore()
+		if err := projects.CreateProject(ctx, &project.Project{ID: "default", Name: "Fixture", LocalPath: workspace}); err != nil {
+			t.Fatal(err)
+		}
+		s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
+		s.runnerSvc = runner.NewService(runner.NewMemoryStore(s.taskSvc.Store()), s.taskSvc.Store())
+		if _, err := s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: runnerID, Hostname: "fixture", CurrentAttemptID: a.ID}, time.Minute); err != nil {
+			t.Fatal(err)
+		}
+		worker := filepath.Join(s.cfg.WorkspacesDir, saved.ID)
+		if err := os.MkdirAll(filepath.Join(worker, ".git"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		// Both directories contain the same filename, with different content.
+		// The delivered attachment must come from the actual worker checkout.
+		os.WriteFile(sourceFile, []byte("STALE PROJECT CLONE OUTPUT"), 0600)
+		sourceFile = filepath.Join(worker, "output.html")
+		os.WriteFile(sourceFile, []byte(original), 0600)
+	}
 	paths := `["output.html"]`
 	if session {
 		var directory string
