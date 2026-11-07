@@ -10,19 +10,27 @@ import (
 // launch. Parsed intent and scope are diagnostic data, never acceptance proof.
 // Deliberately exclude revision prose, environment, credentials and owner data.
 type ExecutionInfo struct {
-	TaskID            string                            `json:"task_id"`
-	AttemptID         string                            `json:"attempt_id,omitempty"`
-	AttemptStatus     string                            `json:"attempt_status,omitempty"`
-	LaunchState       string                            `json:"launch_state,omitempty"`
-	IntentKind        string                            `json:"intent_kind"`
-	IntentParsed      bool                              `json:"intent_parsed"`
-	SourceAttemptID   string                            `json:"source_attempt_id,omitempty"`
-	SourceCommit      string                            `json:"source_commit,omitempty"`
-	TargetCommit      string                            `json:"target_commit,omitempty"`
-	RecoveryAttemptID string                            `json:"recovery_attempt_id,omitempty"`
-	RecoveryCause     string                            `json:"recovery_cause,omitempty"`
-	Scope             executionpolicy.PublicationPolicy `json:"scope"`
-	LatestLaunch      *LaunchDiagnostic                 `json:"latest_launch,omitempty"`
+	TaskID             string                            `json:"task_id"`
+	AttemptID          string                            `json:"attempt_id,omitempty"`
+	AttemptStatus      string                            `json:"attempt_status,omitempty"`
+	LaunchState        string                            `json:"launch_state,omitempty"`
+	IntentKind         string                            `json:"intent_kind"`
+	IntentParsed       bool                              `json:"intent_parsed"`
+	SourceAttemptID    string                            `json:"source_attempt_id,omitempty"`
+	SourceCommit       string                            `json:"source_commit,omitempty"`
+	TargetCommit       string                            `json:"target_commit,omitempty"`
+	RecoveryAttemptID  string                            `json:"recovery_attempt_id,omitempty"`
+	RecoveryCause      string                            `json:"recovery_cause,omitempty"`
+	Scope              executionpolicy.PublicationPolicy `json:"scope"`
+	LatestLaunch       *LaunchDiagnostic                 `json:"latest_launch,omitempty"`
+	LiveInspectionPlan *InspectionPlanDiagnostic         `json:"live_inspection_plan,omitempty"`
+}
+
+type InspectionPlanDiagnostic struct {
+	Code                       string `json:"code"`
+	SourceAttemptID            string `json:"source_attempt_id,omitempty"`
+	SupplementalSourceVerified bool   `json:"supplemental_source_verified"`
+	TargetCommit               string `json:"target_commit,omitempty"`
 }
 
 // Latest admission is separate from the attempt's binding: it may have stopped

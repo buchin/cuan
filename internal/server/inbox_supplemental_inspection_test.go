@@ -59,6 +59,9 @@ func supplementalInspectionFixture(t *testing.T, s *Server, origin db.InboxReque
 		workerStore = runner.NewDBStore(database)
 	}
 	service := runner.NewService(workerStore, store, s.projectSvc)
+	// This contract drives review explicitly. A process-global completion
+	// subscriber must not race the synthetic review or read-only diagnostics.
+	service.SetEventBus(runner.NewEventBus())
 	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "supplemental-runner"}, time.Minute)
 	if err != nil || !claim.Claimed {
 		t.Fatal("supplemental claim failed", err)

@@ -353,6 +353,28 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if unpublished && !strings.HasPrefix(scenario, "current outcome unpublished valid") {
 		eligible = false
 	}
+	if scenario == "current outcome unpublished valid" {
+		before, _ := store.GetTask(ctx, d.ID)
+		previousLaunch, _ := s.taskSvc.LatestLaunch(ctx, d.ID)
+		attempts, _ := store.ListAttempts(ctx, d.ID)
+		previousService := s.taskSvc
+		if memory, ok := store.(*task.MemoryStore); ok {
+			s.taskSvc = task.NewService(inspectionReadGuard{MemoryStore: memory}, s.projectSvc)
+		}
+		for range 2 {
+			plan := s.liveInspectionPlanDiagnostic(ctx, d)
+			if plan.Code != "ready" || plan.SourceAttemptID != source.ID || plan.TargetCommit != s.cfg.CommitSHA || plan.SupplementalSourceVerified != (d.LatestAttempt.ID != source.ID) {
+				t.Fatal("read-only diagnostic diverged from native plan", plan)
+			}
+		}
+		s.taskSvc = previousService
+		after, _ := store.GetTask(ctx, d.ID)
+		latest, _ := s.taskSvc.LatestLaunch(ctx, d.ID)
+		afterAttempts, _ := store.ListAttempts(ctx, d.ID)
+		if !after.UpdatedAt.Equal(before.UpdatedAt) || len(afterAttempts) != len(attempts) || ((latest == nil) != (previousLaunch == nil)) || (latest != nil && latest.ID != previousLaunch.ID) {
+			t.Fatal("diagnostic admitted or changed work")
+		}
+	}
 	if got := s.recoverLiveResultInspection(ctx, d, origin); got != eligible {
 		t.Fatal("incorrect live inspection eligibility", got, scenario)
 	}
@@ -472,6 +494,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		workerStore = runner.NewDBStore(database)
 	}
 	service := runner.NewService(workerStore, store, s.projectSvc)
+	service.SetEventBus(runner.NewEventBus())
 	oldWorker, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner"}, time.Minute)
 	if err != nil || oldWorker.Claimed {
 		t.Fatal("unsupported worker consumed inspection", err)

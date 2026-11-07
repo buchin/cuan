@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
@@ -15,27 +14,21 @@ import (
 var liveInspectionCheckProhibition = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang|tanpa|without)[^\n.!?]{0,40}\b(?:run|running|execute|jalankan|menjalankan|eksekusi)\b[^\n.!?]{0,40}\b(?:tests?|tes|pengujian)\b|(?:no|tanpa)\s+(?:tests?|tes|pengujian)\b)`)
 
 func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
+	if s.liveInspectionEligibility(ctx, d, origin) != "" {
 		return false
 	}
 	// A verifier is read-only and cannot become the implementation source.
 	// Keep the current review/approval, resolving only its native-bound original
 	// source for the existing single current-outcome inspection allowance.
-	source := d.LatestAttempt
-	if original, proof := s.verifiedSupplementalSource(ctx, d); original != nil {
-		if proof.OwnerID != origin.OwnerID || proof.RoomID != origin.RoomID || proof.SourceRequestID != origin.RequestID {
-			return false
-		}
-		source = original.LatestAttempt
+	source, code := s.liveInspectionSource(ctx, d, origin)
+	if code != "" {
+		return false
 	}
 	if s.recoverUnstartedLiveInspection(ctx, d, origin, source.ID) {
 		return true
 	}
-	if d.Status == task.TaskStatusReview {
-		assessment, found := reviewAssessment(d, "")
-		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || (!task.IsUnpublishedReviewedOutcome(&d.Task, source, d.Activities) && !task.IsPublicationReconciliationOutcome(&d.Task, source, d.Activities) && len(task.FailedCheckRevalidationPaths(d)) == 0) {
-			return false
-		}
+	if liveInspectionReviewGate(d, source) != "" {
+		return false
 	}
 	if restored, err := s.taskSvc.ReconcileInspectionIdentity(ctx, d.ID); err == nil && restored {
 		s.publishInbox(d.SourceRoomID)
@@ -47,6 +40,19 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if s.recoverChangedOutcomeInspection(ctx, d, origin) {
 		return true
 	}
+	proof, _ := s.planLiveResultInspection(ctx, d, origin, source)
+	if proof == nil {
+		return false
+	}
+	return s.startLiveResultInspection(ctx, d, origin, proof, proof.Purpose == task.CurrentOutcomeInspection)
+}
+
+// Planning is read-only and shared by execution and Owner diagnostics. A valid
+// plan is neither admission, account readiness nor acceptance of the outcome.
+func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest, source *task.TaskAttempt) (*task.LiveInspectionIntent, string) {
+	if code := liveInspectionReviewGate(d, source); code != "" {
+		return nil, code
+	}
 	a := source
 	unpublished := task.IsUnpublishedLegacyOutcome(&d.Task, a, d.Activities)
 	if !unpublished && (task.IsUnpublishedReviewedOutcome(&d.Task, a, d.Activities) || task.IsPublicationReconciliationOutcome(&d.Task, a, d.Activities)) {
@@ -57,48 +63,51 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	}
 	currentOutcome := unpublished || (d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode))
 	if (a.Status != task.AttemptStatusFailed && !unpublished) || a.CancelRequested || a.CanceledAt != nil || (a.FinishedAt == nil && !task.IsUnrecordedLocalFailure(a)) {
-		return false
+		return nil, "source_not_eligible"
 	}
 	if !currentOutcome && (!releaseObjectID.MatchString(d.CommitSHA) || len(task.AcceptanceGaps(&d.Task)) > 0 || a.ExitCode == nil || *a.ExitCode != 0 || inboxReportEvidence(d).Provenance != "current_attempt_report") {
-		return false
+		return nil, "source_acceptance_evidence_missing"
 	}
 	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, a.ID)
 	if err != nil {
-		return false
+		return nil, "source_intent_unavailable"
 	}
 	sourceAttempt := a.ID
 	if currentOutcome {
 		if previous != nil {
-			return false
+			return nil, "source_is_already_an_inspection"
 		}
 	} else if previous != nil {
 		if previous.Purpose != "" {
-			return false
+			return nil, "inspection_purpose_not_recoverable"
 		}
 		if previous.PreviousAttemptID != "" || a.ErrorMessage != "Live result inspection project checks did not pass" {
-			return false
+			return nil, "inspection_recovery_not_eligible"
 		}
 		sourceAttempt = previous.SourceAttemptID
 	} else if a.ErrorMessage != "Project verification failed" || d.ResultKind != "implementation" {
-		return false
+		return nil, "source_not_project_check_failure"
 	}
 	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, sourceAttempt)
 	if err != nil || limits.ReadOnlyRepository {
-		return false
+		return nil, "source_scope_not_implementation"
 	}
 	if !s.liveInspectionReadScopeAllowed(ctx, d, sourceAttempt) {
-		return false
+		return nil, "inspection_checks_not_allowed"
 	}
 	observed := s.runningProjectRelease(ctx, d)
-	if observed == nil || observed.Commit == d.CommitSHA {
-		return false
+	if observed == nil {
+		return nil, "running_release_unavailable"
+	}
+	if observed.Commit == d.CommitSHA {
+		return nil, "running_release_is_source"
 	}
 	if previous != nil && observed.Commit == previous.TargetCommit {
-		return false
+		return nil, "running_release_already_inspected"
 	}
 	_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
-		return false
+		return nil, "original_authorization_unavailable"
 	}
 	proof := &task.LiveInspectionIntent{SourceAttemptID: sourceAttempt, SourceCommit: d.CommitSHA, TargetCommit: observed.Commit, Repository: observed.Repository, OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), ObservedAt: observed.ObservedAt}
 	if currentOutcome {
@@ -108,9 +117,9 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 		proof.PreviousAttemptID, proof.PreviousCommit = a.ID, previous.TargetCommit
 	}
 	if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, proof) != nil {
-		return false
+		return nil, "source_binding_invalid"
 	}
-	return s.startLiveResultInspection(ctx, d, origin, proof, currentOutcome)
+	return proof, "ready"
 }
 
 // A current review may grant a new correction before the correction budget is

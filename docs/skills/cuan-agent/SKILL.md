@@ -197,6 +197,16 @@ replace the exact attempt's intent or establish authorization/source acceptance.
 Diagnosis reruns validation against current saved task scope; it does not rewrite
 historical reasons, retry work, or waive a rejected binding.
 
+`live_inspection_plan` reports the first fixed gate from the same read-only
+planner used by the ordinary existing-release inspection route. It identifies
+the resolved implementation source and whether native supplemental receipts
+verified that linkage. `ready` is a candidate plan, not lane/account readiness,
+an admitted execution, publication or acceptance. Separate identity, verifier
+and unstarted-preparation repairs are not described by this ordinary plan.
+Only this explicit Owner diagnostic loads the extra recovery context; task-board
+polling is unchanged. It never starts/retries work or exposes raw approval text,
+member identities, launch revisions, environments or provider credentials.
+
 `cuan task logs TASK_ID ATTEMPT_ID --after-id 0 --limit 100 --json` reads bounded
 saved output from an explicit attempt (limit 1–1000). Use the highest returned
 record ID as the next cursor. Logs are diagnostic evidence, not proof of successful

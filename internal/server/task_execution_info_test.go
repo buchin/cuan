@@ -9,6 +9,17 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+type inspectionReadGuard struct {
+	*task.MemoryStore
+}
+
+func (g inspectionReadGuard) UpdateTask(context.Context, *task.Task) error {
+	panic("inspection diagnostic attempted UpdateTask")
+}
+func (g inspectionReadGuard) SaveLaunch(context.Context, task.TaskLaunch) (*task.TaskLaunch, error) {
+	panic("inspection diagnostic attempted SaveLaunch")
+}
+
 func TestExecutionInspectionIsAuthenticatedAndExcludesTaskContent(t *testing.T) {
 	s, token, _, _ := inboxFixture(t)
 	created, err := s.taskSvc.CreateTask(context.Background(), "owner", task.CreateTaskRequest{Title: "PRIVATE_TITLE", Instructions: "PRIVATE_INSTRUCTIONS"})
@@ -30,6 +41,9 @@ func TestExecutionInspectionIsAuthenticatedAndExcludesTaskContent(t *testing.T) 
 		}
 		if strings.Contains(response.Body.String(), "PRIVATE_") {
 			t.Fatal("private content escaped diagnostic projection")
+		}
+		if authorized && !strings.Contains(response.Body.String(), `"code":"not_managed_inbox_work"`) {
+			t.Fatal("missing native plan diagnostic")
 		}
 	}
 }
