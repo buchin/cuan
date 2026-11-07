@@ -109,10 +109,10 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 	if err != nil || limits.ReadOnlyRepository {
 		return nil, "source_scope_not_implementation"
 	}
-	// A local-only implementation cannot have delivered its new source to the
-	// running release. Missing result metadata must not redirect its verifier
-	// to unrelated deployed code.
-	if currentOutcome && limits.DenyPush && limits.DenyDeploy {
+	// A local-only implementation must not substitute an unrelated release.
+	// A later publication-restricted reconciliation can inspect its original
+	// native-prepared source only when current publication proves containment.
+	if currentOutcome && limits.DenyPush && limits.DenyDeploy && !s.preparedSourceAlreadyPublished(ctx, d) {
 		return nil, "local_implementation_requires_source_verification"
 	}
 	if !s.liveInspectionReadScopeAllowed(ctx, d, sourceAttempt) {
@@ -133,6 +133,13 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 		return nil, "original_authorization_unavailable"
 	}
 	proof := &task.LiveInspectionIntent{SourceAttemptID: sourceAttempt, SourceCommit: d.CommitSHA, TargetCommit: observed.Commit, Repository: observed.Repository, OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), ObservedAt: observed.ObservedAt}
+	if currentOutcome && limits.DenyPush && limits.DenyDeploy {
+		prepared, _ := s.validatedNativePreparationHistory(ctx, d)
+		if prepared == nil {
+			return nil, "native_preparation_history_unavailable"
+		}
+		proof.PreparedPublicationAttemptID = prepared.AttemptID
+	}
 	if currentOutcome {
 		if d.LatestAttempt != nil && d.LatestAttempt.ID != sourceAttempt && previous == nil {
 			proof.SourceVerifierAttemptID = d.LatestAttempt.ID

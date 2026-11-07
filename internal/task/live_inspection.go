@@ -17,24 +17,25 @@ const NativeReleaseInspection = "native_release"
 const EvidenceRevalidation = "evidence"
 
 type LiveInspectionIntent struct {
-	SourceVerifierAttemptID   string    `json:"source_verifier_attempt_id,omitempty"`
-	RevalidationKind          string    `json:"revalidation_kind,omitempty"`
-	VerifierRecoveryAttemptID string    `json:"verifier_recovery_attempt_id,omitempty"`
-	PreparationLaunchID       string    `json:"preparation_launch_id,omitempty"`
-	ReviewRequestID           string    `json:"review_request_id,omitempty"`
-	ReviewPaths               []string  `json:"review_paths,omitempty"`
-	Purpose                   string    `json:"purpose,omitempty"`
-	PreviousAttemptID         string    `json:"previous_attempt_id,omitempty"`
-	PreviousCommit            string    `json:"previous_commit,omitempty"`
-	SourceAttemptID           string    `json:"source_attempt_id"`
-	SourceCommit              string    `json:"source_commit"`
-	TargetCommit              string    `json:"target_commit"`
-	Repository                string    `json:"repository"`
-	OwnerID                   string    `json:"owner_id"`
-	RoomID                    string    `json:"room_id"`
-	SourceRequestID           string    `json:"source_request_id"`
-	InstructionsHash          string    `json:"instructions_hash"`
-	ObservedAt                time.Time `json:"observed_at"`
+	PreparedPublicationAttemptID string    `json:"prepared_publication_attempt_id,omitempty"`
+	SourceVerifierAttemptID      string    `json:"source_verifier_attempt_id,omitempty"`
+	RevalidationKind             string    `json:"revalidation_kind,omitempty"`
+	VerifierRecoveryAttemptID    string    `json:"verifier_recovery_attempt_id,omitempty"`
+	PreparationLaunchID          string    `json:"preparation_launch_id,omitempty"`
+	ReviewRequestID              string    `json:"review_request_id,omitempty"`
+	ReviewPaths                  []string  `json:"review_paths,omitempty"`
+	Purpose                      string    `json:"purpose,omitempty"`
+	PreviousAttemptID            string    `json:"previous_attempt_id,omitempty"`
+	PreviousCommit               string    `json:"previous_commit,omitempty"`
+	SourceAttemptID              string    `json:"source_attempt_id"`
+	SourceCommit                 string    `json:"source_commit"`
+	TargetCommit                 string    `json:"target_commit"`
+	Repository                   string    `json:"repository"`
+	OwnerID                      string    `json:"owner_id"`
+	RoomID                       string    `json:"room_id"`
+	SourceRequestID              string    `json:"source_request_id"`
+	InstructionsHash             string    `json:"instructions_hash"`
+	ObservedAt                   time.Time `json:"observed_at"`
 }
 
 type LiveInspectionReceipt struct {
@@ -214,7 +215,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
 		return invalid("preparation_shape")
 	}
-	if proof.Purpose == NativeReleaseInspection && (proof.SourceVerifierAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "") {
+	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.SourceVerifierAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "") {
 		return invalid("native_release_shape")
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
@@ -289,6 +290,11 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection && proof.Purpose != NativeReleaseInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
 	}
+	if proof.PreparedPublicationAttemptID != "" {
+		if err := ValidatePreparedPublicationInspection(ctx, store, t, proof); err != nil {
+			return err
+		}
+	}
 	if proof.Purpose == NativeReleaseInspection {
 		return validateNativeReleaseInspectionSource(ctx, store, t, proof)
 	}
@@ -318,7 +324,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		if err != nil {
 			return err
 		}
-		if limits.DenyPush && limits.DenyDeploy {
+		if limits.DenyPush && limits.DenyDeploy && proof.PreparedPublicationAttemptID == "" {
 			return ErrInvalidTaskInput
 		}
 		if source == nil || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil {
@@ -383,7 +389,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 			return ErrInvalidTaskInput
 		}
 		binding, err := LiveInspectionForAttempt(ctx, store, t, previous.ID)
-		if err != nil || binding == nil || binding.PreviousAttemptID != "" || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
+		if err != nil || binding == nil || binding.PreviousAttemptID != "" || binding.PreparedPublicationAttemptID != proof.PreparedPublicationAttemptID || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
 			return ErrInvalidTaskInput
 		}
 		var report, checks bool
@@ -427,4 +433,28 @@ func liveImplementationFinalReport(activities []*TaskActivity, taskID, attemptID
 // this exact attempt. It is evidence of a handoff, not independent acceptance.
 func ImplementationFinalReport(activities []*TaskActivity, taskID, attemptID string) bool {
 	return liveImplementationFinalReport(activities, taskID, attemptID)
+}
+
+// Prior native effects can justify inspecting the current outcome of a later
+// publication-restricted reconciliation. This is never a publication grant.
+func ValidatePreparedPublicationInspection(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
+	if t == nil || proof == nil || proof.Purpose != CurrentOutcomeInspection || proof.PreparedPublicationAttemptID == "" {
+		return ErrInvalidTaskInput
+	}
+	prepared, err := HistoricalNativeReleasePreparationForAttempt(ctx, store, t, proof.PreparedPublicationAttemptID)
+	if err != nil || prepared == nil || prepared.SourceCommit != proof.SourceCommit || prepared.Repository != proof.Repository {
+		return ErrInvalidTaskInput
+	}
+	attempt, err := store.GetAttempt(ctx, proof.PreparedPublicationAttemptID)
+	if err != nil {
+		return err
+	}
+	activities, err := store.ListActivities(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	if !VerifiedDeployment(activities, attempt, prepared.TargetCommit, time.Now().UTC()) {
+		return ErrInvalidTaskInput
+	}
+	return nil
 }

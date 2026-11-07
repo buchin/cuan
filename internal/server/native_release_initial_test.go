@@ -264,6 +264,9 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, it
 		source.CancelRequested = true
 		must(s.taskSvc.Store().UpdateAttempt(ctx, source))
 	}
+	if s.preparedSourceAlreadyPublished(ctx, detail) == invalid {
+		t.Fatal("historical preparation/current publication inspection eligibility mismatch", scenario)
+	}
 	requests := s.projectStudioRepo.(db.InboxRequestRepository)
 	beforeRequests, err := requests.ListInboxRequests(ctx, item.SourceRoomID)
 	must(err)

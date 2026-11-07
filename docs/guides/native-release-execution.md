@@ -377,3 +377,12 @@ history reader revalidates original scope, source lineage, native event ownershi
 and attempt timestamps; changed/cancelled context is rejected. This read grants
 no execution authority and does not establish deployment, feature correctness or
 acceptance. Current publication and independent verification remain separate.
+
+A publication-restricted reconciliation may inspect an existing production outcome
+when the original source has validated terminal native preparation, a recorded
+publication observation for that prepared target, and current registered source
+containment. Its inspection intent binds `prepared_publication_attempt_id`; task
+claim/completion revalidate that historical source/repository/receipt. This grants
+only read-only inspection, not publication or acceptance. Purely local work,
+missing/revoked history, unverified containment and unrelated releases retain the
+existing source-verification requirement.

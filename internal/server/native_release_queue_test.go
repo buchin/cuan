@@ -493,6 +493,23 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 		if _, activeErr := task.NativeReleasePreparationForAttempt(ctx, store, &current.Task, claim.Attempt.ID); activeErr == nil {
 			t.Fatal("historical read reopened native preparation authority")
 		}
+		inspectionProof := &task.LiveInspectionIntent{Purpose: task.CurrentOutcomeInspection, PreparedPublicationAttemptID: claim.Attempt.ID, SourceCommit: intent.SourceCommit, Repository: intent.Repository}
+		proofErr := task.ValidatePreparedPublicationInspection(ctx, store, &current.Task, inspectionProof)
+		if (proofErr == nil) != (want == 200) {
+			t.Fatal("prepared publication history did not require actual deployment observation", proofErr)
+		}
+		if want == 200 {
+			wrong := *inspectionProof
+			wrong.Repository = "foreign/repo"
+			if task.ValidatePreparedPublicationInspection(ctx, store, &current.Task, &wrong) == nil {
+				t.Fatal("foreign preparation accepted")
+			}
+			wrong = *inspectionProof
+			wrong.SourceCommit = strings.Repeat("f", 40)
+			if task.ValidatePreparedPublicationInspection(ctx, store, &current.Task, &wrong) == nil {
+				t.Fatal("wrong historical source accepted")
+			}
+		}
 		projection := s.inboxNativePreparationHistory(ctx, current)
 		encoded, _ := json.Marshal(projection)
 		if projection == nil || !strings.Contains(string(encoded), "\"attempt_status\":\""+completed.Status+"\"") || !strings.Contains(string(encoded), "\"preparation_only\":true") {
