@@ -97,6 +97,44 @@ func TestManagerContinuesApprovedWorkWithoutAnotherOwnerApproval(t *testing.T) {
 	}
 }
 
+func TestManagerVerificationEnvelopeRetainsOriginalApproval(t *testing.T) {
+	s, d := managerFixture(t)
+	ctx := context.Background()
+	q := reviewRequests(t, s, d.SourceRoomID)[0]
+	row, err := s.taskSvc.Store().GetTask(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Exercise both manager checks, including the original-approval check in
+	// delegation. Fixtures without this binding used to miss the second gate.
+	row.Instructions += "\nApproval message: " + d.SourceMessageID
+	if err := s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+		t.Fatal(err)
+	}
+	decision := inboxReviewEvaluation{Decision: "revise", Finding: "Capture the actual requested component", Explanation: "Complete the missing visual evidence", RemainingWork: "verification", Revision: "Capture the existing RoomCard at390px and desktop without changing source.", ManagerAction: "replan", ManagerReason: "The previous screenshot showed another component; use a targeted fixture."}
+	raw, _ := json.Marshal(decision)
+	output := s.applyInboxReviewEvaluation(ctx, q, string(raw))
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID))
+	if err != nil || launch == nil || launch.State != "queued" {
+		t.Fatal("original approved verification returned to review instead of admission", err, output)
+	}
+	limits := executionpolicy.FromInstructions(launch.Revision)
+	if !limits.ReadOnlyRepository || !limits.DenyPush || !limits.DenyDeploy {
+		t.Fatal("verification lost scope", limits)
+	}
+	current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if len(current.Attempts) != 3 || taskRevisionAttemptCount(current) != 3 {
+		t.Fatal("admission reset attempt history")
+	}
+	if !s.managerContinuationAllowed(ctx, q, current, launch.Revision) || s.managerContinuationAllowed(ctx, q, current, launch.Revision+"\nDeploy anyway") {
+		t.Fatal("scope envelope comparison accepted altered feedback or rejected native envelope")
+	}
+}
+
 func TestManagerProtocolRejectsFakeOwnerDecisionAndMissingBasis(t *testing.T) {
 	for _, decision := range []inboxReviewEvaluation{
 		{Decision: "revise", RemainingWork: "implementation", Revision: "Fix original bug", Explanation: "Continue", ManagerAction: "needs_owner", ManagerReason: "Three attempts occurred"},
@@ -198,6 +236,7 @@ func TestManagerContinuationPostgres(t *testing.T) {
 		item.Status = task.TaskStatusReview
 		item.Summary = "Existing phase result needs independent checks"
 		item.CompleteNote = "Evidence retained, acceptance unfinished"
+		item.Instructions += "\nApproval message: " + d.SourceMessageID
 		if err := s.taskSvc.Store().UpdateTask(ctx, item); err != nil {
 			t.Fatal(err)
 		}
@@ -217,6 +256,10 @@ func TestManagerContinuationPostgres(t *testing.T) {
 		launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID))
 		if err != nil || launch.State != "queued" || strings.Contains(output, "cuan-approval") {
 			t.Fatal("durable manager continuation lost", err, output)
+		}
+		limits := executionpolicy.FromInstructions(launch.Revision)
+		if !limits.ReadOnlyRepository || !limits.DenyPush || !limits.DenyDeploy {
+			t.Fatal("native verification envelope lost its limits", limits)
 		}
 		current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
 		if len(current.Attempts) != 3 || current.Status == task.TaskStatusDone {
