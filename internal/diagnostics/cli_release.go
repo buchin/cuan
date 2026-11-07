@@ -18,7 +18,7 @@ import (
 // RunReleaseCLI is an explicit maintainer operation, not an Inbox delivery grant.
 func RunReleaseCLI(args []string, out, errOut io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		fmt.Fprintln(out, "Usage: cuan release <inspect|run> --path REPO --commit FULL_SHA --branch BRANCH [--logs]\nUses tracked .cuan/release.json. Run uses the operator environment; process success does not prove deployment or accept tasks.")
+		fmt.Fprintln(out, "Usage: cuan release <inspect|run> --path REPO --commit FULL_SHA --branch BRANCH [--runtime-path PATH] [--logs]\nUses tracked .cuan/release.json. Run uses the operator environment; process success does not prove deployment or accept tasks.")
 		return 0
 	}
 	if args[0] != "inspect" && args[0] != "run" {
@@ -37,6 +37,7 @@ func RunReleaseCLI(args []string, out, errOut io.Writer) int {
 	commit := fs.String("commit", "", "Exact clean source commit")
 	branch := fs.String("branch", "", "Expected release branch")
 	logs := fs.Bool("logs", false, "Print bounded redacted process diagnostics to stderr")
+	runtimePath := fs.String("runtime-path", "\x00", "Verify required_tools exist in this explicit PATH. Empty string fails if any tools are required. Omit flag to skip runtime check (backward-compatible).")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -55,6 +56,14 @@ func RunReleaseCLI(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	if args[0] == "inspect" {
+		// --runtime-path flag: sentinel \x00 means flag was not supplied → skip check (backward-compatible).
+		// Any other value (including "") uses that PATH explicitly via CheckRuntime.
+		if *runtimePath != "\x00" {
+			if err := release.CheckRuntime(plan, []string{"PATH=" + *runtimePath}); err != nil {
+				fmt.Fprintln(errOut, err)
+				return 1
+			}
+		}
 		json.NewEncoder(out).Encode(plan.Description())
 		return 0
 	}
