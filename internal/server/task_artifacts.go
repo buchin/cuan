@@ -35,6 +35,9 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string, 
 	}
 	var result []preparedTaskArtifact
 	seen := map[string]bool{}
+	// Workspace and session output roots can contain copies of the same
+	// deliverable. Validate every source, but show one identical named file.
+	delivered := map[string]bool{}
 	total := 0
 	for _, sourcePath := range paths {
 		path, selectedRoot := sourcePath, root
@@ -75,6 +78,11 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string, 
 			return nil, errors.New("Output files exceed the 25 MB total limit")
 		}
 		hash := sha256.Sum256(data)
+		deliveryKey := filepath.Base(path) + ":" + hex.EncodeToString(hash[:])
+		if delivered[deliveryKey] {
+			continue
+		}
+		delivered[deliveryKey] = true
 		id := delegationMessageID("task-artifact:" + taskID + ":" + attemptID + ":" + sourcePath + ":" + hex.EncodeToString(hash[:]))
 		kind := mime.TypeByExtension(filepath.Ext(path))
 		if kind == "" {

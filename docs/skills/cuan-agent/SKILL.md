@@ -388,3 +388,9 @@ saved scope, project goal and instructions. Use that supplied context directly;
 scoped task/history reads remain available for missing data or uncertain/rejected
 reports. This avoids mandatory duplicate startup reads without truncating context
 or changing provider/model/effort policy. Independent result acceptance is unchanged.
+
+Attach a deliverable once from either the workspace or session output root; no
+copy into both roots is needed. Within one report, identical filename/content
+copies are delivered once. Different names or contents remain distinct, all
+source paths and limits are still validated, and uncertain delivery still requires
+reconciliation on the same attempt.

@@ -80,6 +80,43 @@ func TestTaskArtifactReportDeliversPrivateDownloadInInbox(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) { taskArtifactDeliveryContract(t, session) })
 	}
+	t.Run("identical workspace and session copies", func(t *testing.T) {
+		taskArtifactDeliveryContract(t, false, false, true)
+	})
+}
+
+func TestTaskArtifactsCoalesceIdenticalNamedCopiesAcrossRoots(t *testing.T) {
+	workspace, session := t.TempDir(), t.TempDir()
+	for _, dir := range []string{workspace, session} {
+		if err := os.WriteFile(filepath.Join(dir, "result.txt"), []byte("verified\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root, err := os.OpenRoot(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	evidence, err := os.OpenRoot(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer evidence.Close()
+	files, err := readTaskArtifacts(root, "task", "attempt", []string{"result.txt", "session:result.txt"}, evidence)
+	if err != nil || len(files) != 1 || string(files[0].data) != "verified\n" {
+		t.Fatalf("duplicate delivery: %v, %#v", err, files)
+	}
+	// Different requested names or changed bytes are distinct deliverables.
+	os.WriteFile(filepath.Join(session, "other.txt"), []byte("verified\n"), 0600)
+	os.WriteFile(filepath.Join(session, "result.txt"), []byte("revised\n"), 0600)
+	files, err = readTaskArtifacts(root, "task", "attempt", []string{"result.txt", "session:result.txt", "session:other.txt"}, evidence)
+	if err != nil || len(files) != 3 {
+		t.Fatalf("distinct results lost: %v, %d", err, len(files))
+	}
+	// A valid copy never excuses an inaccessible second source.
+	if _, err := readTaskArtifacts(root, "task", "attempt", []string{"result.txt", "session:missing.txt"}, evidence); err == nil {
+		t.Fatal("unavailable source hidden by deduplication")
+	}
 }
 func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 	s, token, call, _ := inboxFixture(t)
@@ -141,7 +178,8 @@ func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 		os.WriteFile(sourceFile, []byte(original), 0600)
 	}
 	paths := `["output.html"]`
-	if session {
+	duplicate := len(native) > 1 && native[1]
+	if session || duplicate {
 		var directory string
 		for _, item := range env {
 			if strings.HasPrefix(item, "CUAN_TASK_ARTIFACTS_DIR=") {
@@ -151,12 +189,17 @@ func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 		if directory == "" || strings.HasPrefix(directory, workspace+string(filepath.Separator)) {
 			t.Fatal("missing isolated evidence directory")
 		}
-		os.Remove(sourceFile)
-		sourceFile = filepath.Join(directory, "output.html")
-		if err := os.WriteFile(sourceFile, []byte(original), 0600); err != nil {
+		if session {
+			os.Remove(sourceFile)
+			sourceFile = filepath.Join(directory, "output.html")
+		}
+		if err := os.WriteFile(filepath.Join(directory, "output.html"), []byte(original), 0600); err != nil {
 			t.Fatal(err)
 		}
 		paths = `["session:output.html"]`
+		if duplicate {
+			paths = `["output.html","session:output.html"]`
+		}
 		// Reopen both roots from the durable encrypted grant, as after restart.
 		s.forgetTaskGrant(sha256.Sum256([]byte(capability)))
 	}
