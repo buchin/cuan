@@ -156,3 +156,6 @@ candidate discovery failures, so fast early exits are observable too. This disti
 slow acceptance audits, candidate discovery, task reads, recovery, and coordinator
 review without logging conversation content or credentials. A ready inspection
 plan alone does not prove that the delivery scan reached or admitted that task.
+The same periodic diagnostic scan records fixed review checkpoints and inspection
+eligibility/plan/admission codes per task. These observations neither retry work
+nor change authorization; they distinguish reaching a task from admitting it.

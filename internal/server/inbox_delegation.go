@@ -478,6 +478,8 @@ func delegationMessageID(key string) string {
 
 // Durable messages act as delivery receipts. Reconnect/restart cannot duplicate
 // notifications; the dispatcher never restarts a terminal attempt.
+type inboxDeliveryDiagnosticKey struct{}
+
 func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	if !s.executesInbox() || s.taskSvc == nil || s.projectStudioRepo == nil {
 		return
@@ -485,10 +487,11 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	started := time.Now()
 	stage, currentTask := "scope_audit", ""
 	candidates, examined := 0, 0
+	now := time.Now().Unix()
+	next := s.inboxDeliveryDiagnosticNext.Load()
+	periodic := next <= now && s.inboxDeliveryDiagnosticNext.CompareAndSwap(next, now+60)
+	ctx = context.WithValue(ctx, inboxDeliveryDiagnosticKey{}, periodic)
 	defer func() {
-		now := time.Now().Unix()
-		next := s.inboxDeliveryDiagnosticNext.Load()
-		periodic := next <= now && s.inboxDeliveryDiagnosticNext.CompareAndSwap(next, now+60)
 		if elapsed := time.Since(started); periodic || elapsed >= 5*time.Second || ctx.Err() != nil {
 			// Fixed stage codes and IDs only: no prompts, credentials, reports,
 			// provider errors, or conversation content enter infrastructure logs.
@@ -597,15 +600,23 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 // Queue one coordinator review per terminal attempt, including failures with no
 // final report. The synthetic input is system-authored, never user authorization.
 func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDetailResponse) {
+	gate := "eligibility"
+	defer func() {
+		if ctx.Value(inboxDeliveryDiagnosticKey{}) == true && detail != nil {
+			log.Printf("inbox review checkpoint task=%s gate=%s", detail.ID, gate)
+		}
+	}()
 	// Accepted work is final until a fresh user instruction reopens it. A late
 	// review or repaired provider must never reject an already accepted result.
 	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" || detail.Status == task.TaskStatusQueued || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
 		return
 	}
 
+	gate = "finalization_artifacts"
 	if ok, err := s.linkFinalizationArtifacts(ctx, detail); err != nil || !ok {
 		return
 	}
+	gate = "origin_lookup"
 	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
 		return
@@ -686,12 +697,15 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if s.recoverCapacityVerification(ctx, detail, *origin) {
 		return
 	}
+	gate = "live_inspection"
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return
 	}
+	gate = "manager_handoff"
 	if s.recoverManagerVerificationHandoff(ctx, detail, *origin, requests) {
 		return
 	}
+	gate = "saved_evidence"
 	if s.recoverSavedEvidence(ctx, detail, *origin) {
 		return
 	}

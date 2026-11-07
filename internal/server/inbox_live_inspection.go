@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"regexp"
 	"time"
 
@@ -14,7 +15,13 @@ import (
 var liveInspectionCheckProhibition = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang|tanpa|without)[^\n.!?]{0,40}\b(?:run|running|execute|jalankan|menjalankan|eksekusi)\b[^\n.!?]{0,40}\b(?:tests?|tes|pengujian)\b|(?:no|tanpa)\s+(?:tests?|tes|pengujian)\b)`)
 
 func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if s.liveInspectionEligibility(ctx, d, origin) != "" {
+	diagnostic := func(code string) {
+		if ctx.Value(inboxDeliveryDiagnosticKey{}) == true && d != nil {
+			log.Printf("inbox inspection checkpoint task=%s code=%s", d.ID, code)
+		}
+	}
+	if code := s.liveInspectionEligibility(ctx, d, origin); code != "" {
+		diagnostic(code)
 		return false
 	}
 	// A verifier is read-only and cannot become the implementation source.
@@ -22,12 +29,14 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	// source for the existing single current-outcome inspection allowance.
 	source, code := s.liveInspectionSource(ctx, d, origin)
 	if code != "" {
+		diagnostic(code)
 		return false
 	}
 	if s.recoverUnstartedLiveInspection(ctx, d, origin, source.ID) {
 		return true
 	}
-	if liveInspectionReviewGate(d, source) != "" {
+	if code := liveInspectionReviewGate(d, source); code != "" {
+		diagnostic(code)
 		return false
 	}
 	if restored, err := s.taskSvc.ReconcileInspectionIdentity(ctx, d.ID); err == nil && restored {
@@ -40,11 +49,18 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if s.recoverChangedOutcomeInspection(ctx, d, origin) {
 		return true
 	}
-	proof, _ := s.planLiveResultInspection(ctx, d, origin, source)
+	proof, code := s.planLiveResultInspection(ctx, d, origin, source)
 	if proof == nil {
+		diagnostic(code)
 		return false
 	}
-	return s.startLiveResultInspection(ctx, d, origin, proof, proof.Purpose == task.CurrentOutcomeInspection)
+	started := s.startLiveResultInspection(ctx, d, origin, proof, proof.Purpose == task.CurrentOutcomeInspection)
+	if started {
+		diagnostic("admitted")
+	} else {
+		diagnostic("ready_admission_unsaved")
+	}
+	return started
 }
 
 // Planning is read-only and shared by execution and Owner diagnostics. A valid
