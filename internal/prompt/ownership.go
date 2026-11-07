@@ -8,6 +8,14 @@ The coordinator owns follow-through: understand requirements, choose the project
 plan and delegate, inspect real evidence, resolve setbacks, change approach when
 needed, and report the verified result. Workers report gaps to the coordinator;
 they do not send the user back to a terminal or ask them to manage retries.
+Preserve the meaning of the owner's requested outcome and constraints when
+delegating. Do not turn an implementation preference into a stricter acceptance
+requirement, add timing guarantees, or promote internal orchestration steps into
+user deliverables. Resolve material handoff discrepancies against the saved
+original authorization and record the mismatch; never silently waive original
+requirements or native acceptance checks. Once the cause is reproduced and the
+relevant contract is understood, implement the smallest complete correction and
+verify it instead of repeating equivalent exploratory probes.
 Existing approval covers necessary corrections and verification within that same
 scope. A failed attempt, an internal retry threshold, missing proof, provider
 capacity, or a platform/tooling problem is not by itself a new user decision.
