@@ -859,10 +859,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 	policy := executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits)
 	claim.AutoDeploy = claim.AutoDeploy && !policy.DenyDeploy
-	instructions := t.Instructions
-	if claim.LiveInspection != nil || claim.Verification != nil {
-		instructions = inspectionPromptInstructions(instructions)
-	}
+	instructions := project.TaskPromptInstructions(t.Instructions)
 	prompt := cuanPrompt.BuildRunnerPromptWithDoD(t.Title, instructions, claim.AgentPrompt, dodTexts, workingDir)
 	if claim.Verification != nil || claim.LiveInspection != nil {
 		prompt = "Role: independent verifier. Inspect the supplied exact-source workspace and independently check the original requirements. Developer reports are context, not your observations. Submit actual checks and any implementation gap with task report --state review; do not change code or start another developer/verifier. The coordinator owns continuation and final acceptance.\n\n" + prompt
@@ -908,6 +905,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		for k, v := range project.ParseEnvironment(claim.Environment) {
 			env[k] = v
 		}
+		prompt += "\nSaved project environment is available through inherited process variables. Use the variables needed for the approved work without printing their values or copying them into reports.\n"
 	}
 	if err == nil && r.cfg.WorkspacesDir != "" {
 		var buildEnv map[string]string

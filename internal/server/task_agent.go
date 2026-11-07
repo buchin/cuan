@@ -384,11 +384,13 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
+		view := *latest
+		view.Instructions = project.TaskPromptInstructions(latest.Instructions)
 		respondJSON(w, 200, struct {
 			*task.TaskDetailResponse
 			GitHubConnection         map[string]any `json:"github_connection"`
 			PublicationConfiguration string         `json:"publication_configuration"`
-		}{latest, s.boundTaskGitHubConnection(r.Context(), latest), s.publicationConfigurationForTask(r.Context(), latest)})
+		}{&view, s.boundTaskGitHubConnection(r.Context(), latest), s.publicationConfigurationForTask(r.Context(), latest)})
 		return
 	}
 	var report struct {

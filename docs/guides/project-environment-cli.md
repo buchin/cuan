@@ -66,6 +66,13 @@ existing tasks keep their original project guidance snapshot. Values use the
 same storage and access model as the UI; masking output does not add encryption
 or change which project agents receive them.
 
+Task execution passes saved values through the child process environment.
+Developer and verifier prompts, and scoped `task get`/`get_current_task` reads,
+include the approved scope, saved goal and instructions without embedding the raw
+environment snapshot. The canonical snapshot remains unchanged for execution
+and policy checks. Agents should use only required variables and avoid printing
+their values or including them in reports.
+
 ## Project Goal and Instructions
 
 Use the same owner-authenticated settings API through the CLI:
