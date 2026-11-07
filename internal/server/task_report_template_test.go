@@ -58,20 +58,32 @@ func TestReportTemplateRoundTripPreservesPendingIndependentEvidence(t *testing.T
 	if strings.Count(combined, "=== MANDATORY REPOSITORY GUIDANCE (AGENTS.md) ===") != 1 || !strings.Contains(combined, "TARGET_REPOSITORY_RULE") || !strings.Contains(string(guide), "task report-template") || !strings.Contains(combined, criteria[1].Text) {
 		t.Fatal("duplicate/missing repository guidance or report context")
 	}
+	preparedPath := ""
 	for _, entry := range env {
 		key, value, ok := strings.Cut(entry, "=")
 		if ok {
 			t.Setenv(key, value)
+			if key == "CUAN_TASK_REPORT_FILE" {
+				preparedPath = value
+			}
 		}
+	}
+	prepared, err := os.ReadFile(preparedPath)
+	if err != nil || !strings.Contains(string(guide), "CUAN_TASK_REPORT_FILE") {
+		t.Fatal("launch did not supply prepared report", err)
+	}
+	info, err := os.Stat(preparedPath)
+	if err != nil || info.Mode().Perm() != 0600 || strings.Contains(string(prepared), "Old evidence") {
+		t.Fatal("prepared report permissions or inherited claims", err)
 	}
 	var out, errs bytes.Buffer
 	if code := taskcli.Run([]string{"report-template"}, &out, &errs); code != 0 {
 		t.Fatal(code, errs.String())
 	}
-	path := filepath.Join(t.TempDir(), "report.json")
-	if err := os.WriteFile(path, out.Bytes(), 0600); err != nil {
-		t.Fatal(err)
+	if !bytes.Equal(prepared, out.Bytes()) && strings.TrimSpace(string(prepared)) != strings.TrimSpace(out.String()) {
+		t.Fatal("launch and scoped CLI report schemas differ")
 	}
+	path := preparedPath
 	if code := taskcli.Run([]string{"report", "--report-file", path}, &bytes.Buffer{}, &bytes.Buffer{}); code == 0 {
 		t.Fatal("empty template accepted as a factual handoff")
 	}

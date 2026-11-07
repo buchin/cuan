@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// Build only the writable report fields from the currently bound task. History,
+// PrepareReportTemplate builds only writable fields from the bound task. History,
 // instructions, account metadata and previous evidence never become defaults.
-func reportTemplate(raw []byte, capability Capability) ([]byte, error) {
+func PrepareReportTemplate(raw []byte, capability Capability) ([]byte, error) {
 	var current struct {
 		ID      string `json:"id"`
 		Attempt *struct {

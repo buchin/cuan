@@ -205,7 +205,7 @@ Use task report-template for current criterion IDs/text/order, or task get when 
 		return 1
 	}
 	if command == "report-template" {
-		data, e = reportTemplate(data, c)
+		data, e = PrepareReportTemplate(data, c)
 		if e != nil {
 			fmt.Fprintln(errOut, e.Error())
 			return 1

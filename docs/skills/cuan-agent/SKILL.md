@@ -450,6 +450,14 @@ In a bound worker session:
 "$CUAN_TASK_EXECUTABLE" task report --report-file "$CUAN_TASK_ARTIFACTS_DIR/report.json"
 ```
 
+New native sessions already have a blank template at `CUAN_TASK_REPORT_FILE`.
+Fill that file and submit it with `task report --report-file
+"$CUAN_TASK_REPORT_FILE"`, adding actual deliverable attachments as needed.
+It has the same schema and original criteria as `report-template`, without old
+evidence or completion claims. Use the CLI template command when that prepared
+file is unavailable, and scoped `task get` for missing or uncertain context.
+Preparing this file performs no report submission or task acceptance.
+
 MCP equivalent: `prepare_current_task_report {}`, then fill the returned fields and
 submit with `report_current_task`. The template performs one scoped current-task
 read and checks the bound task/attempt identity. It preserves original criterion

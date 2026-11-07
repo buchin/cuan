@@ -242,6 +242,27 @@ capability file. Need structured metadata? task --help documents --report-file.
 		cleanup()
 		return nil, "", "", none, errors.New("The original task reporting context is unavailable")
 	}
+	// Prepare the same blank writable report as the scoped CLI, once at launch.
+	// No current or historical completion claim becomes a default observation.
+	var currentAttempt any
+	if detail.LatestAttempt != nil {
+		currentAttempt = map[string]string{"id": detail.LatestAttempt.ID}
+	}
+	currentJSON, e := json.Marshal(map[string]any{"id": detail.ID, "latest_attempt": currentAttempt, "dod_checklist": detail.DoDChecklist})
+	if e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
+	reportJSON, e := taskcli.PrepareReportTemplate(currentJSON, c)
+	if e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
+	reportFile := filepath.Join(dir, "report.json")
+	if e = os.WriteFile(reportFile, reportJSON, 0600); e != nil {
+		cleanup()
+		return nil, "", "", none, e
+	}
 	artifactOnly := executionpolicy.StandaloneArtifactWork(detail.Instructions)
 	if artifactOnly {
 		instructions = artifactSessionGuidance(detail.DoDChecklist)
@@ -266,6 +287,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 			instructions += "\n" + part + "\n"
 		}
 	}
+	instructions += "\n## Prepared report file\nA fresh report template is already available at CUAN_TASK_REPORT_FILE for this exact task/attempt. It preserves every original criterion with empty evidence and completed=false. Fill that existing JSON with your factual summary, complete_note and observed criterion evidence, then submit:\n\"$CUAN_TASK_EXECUTABLE\" task report --report-file \"$CUAN_TASK_REPORT_FILE\"\nAdd --artifact for each actual deliverable. Do not run help, inspect environment variables, or fetch another template just to rediscover this reporting format. Use scoped task get if actual task context is missing or a report is uncertain/rejected. Template preparation does not submit or accept work.\n"
 	guide := filepath.Join(dir, "session.md")
 	if e = os.WriteFile(guide, []byte(instructions), 0600); e != nil {
 		cleanup()
@@ -275,7 +297,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 	if artifactOnly {
 		prompt = "\n\n" + instructions
 	}
-	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable, "CUAN_TASK_ARTIFACTS_DIR=" + evidenceDir, "CUAN_TASK_CAPABILITY_JSON="}, prompt, token, cleanup, nil
+	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable, "CUAN_TASK_ARTIFACTS_DIR=" + evidenceDir, "CUAN_TASK_REPORT_FILE=" + reportFile, "CUAN_TASK_CAPABILITY_JSON="}, prompt, token, cleanup, nil
 
 }
 func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
