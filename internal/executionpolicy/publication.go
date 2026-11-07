@@ -18,6 +18,11 @@ var pushAction = regexp.MustCompile(`(?i)\b(?:push|publishing|publish)\b`)
 var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspection|investigasi|pemeriksaan)\s+(?:read[ -]only|baca[ -]saja)\b|\bread[ -]only\s+(?:audit|investigation|inspection)\b|\b(?:repository|repositori|repo)\s+(?:is |must remain |harus tetap )?read[ -]only\b|^\s*(?:scope|batasan)\s*:\s*read[ -]only\b)`)
 var deployAction = regexp.MustCompile(`(?i)\b(?:deploy|deployment|deploying)\b`)
 
+// A prohibition explicitly limited to the inspect command describes product
+// behavior. It cannot grant publication: a separate positive task request is
+// required, and any other task-wide prohibition still wins.
+var inspectBehaviorLimit = regexp.MustCompile("(?i)^\\s*(?:jangan\\s+(?:jalankan|menjalankan)|do not\\s+(?:run|execute))\\s+(?:(?:tool|tools)\\s+(?:atau|or)\\s+)?(?:script\\s+)?deploy\\s+(?:saat|ketika|during)\\s+(?:`?inspect`?|(?:the\\s+)?inspect\\s+command)\\s*$")
+
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
@@ -26,7 +31,7 @@ func FromInstructions(instructions string) PublicationPolicy {
 	}
 	for _, clause := range publicationProhibition.FindAllString(instructions, -1) {
 		policy.DenyPush = policy.DenyPush || pushAction.MatchString(clause)
-		policy.DenyDeploy = policy.DenyDeploy || deployAction.MatchString(clause)
+		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !(inspectBehaviorLimit.MatchString(clause) && managedPublicationRequested(instructions)))
 	}
 	if policy.DenyDeploy && standaloneArtifactShape(instructions) {
 		policy.DenyPush = true

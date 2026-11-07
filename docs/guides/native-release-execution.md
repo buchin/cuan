@@ -291,3 +291,10 @@ Production readiness still requires saved publication-verifier configuration,
 pinned SSH trust, actual worker tool availability and a real autonomous code plus
 deployment benchmark through independent verification. Local protocol tests do
 not establish those outcomes.
+
+Publication scope distinguishes a narrow product behavior limit on the `inspect`
+command from whole-task release limits. A prohibition explicitly limited to
+running deploy during inspect is not a whole-task deploy ban when the approved
+scope separately requests deployment. Without that separate request it remains
+restrictive. Any additional whole-task prohibition still wins. This changes no
+saved instructions, existing attempt contract, approval or acceptance evidence.
