@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
@@ -234,18 +235,27 @@ A final report closes this session automatically after output drains.
 Human instructions are read-only. Never print the private
 capability file. Need structured metadata? task --help documents --report-file.
 `
-	if detail, err := s.taskSvc.GetTaskDetail(ctx, taskID); err == nil && detail != nil && len(detail.DoDChecklist) > 0 {
-		var dodBuilder strings.Builder
-		dodBuilder.WriteString("\n## Acceptance Criteria (Definition of Done)\nThe following criteria must be fulfilled and verified before reporting completion:\n")
-		for i, item := range detail.DoDChecklist {
-			dodBuilder.WriteString(fmt.Sprintf("%d. %s\n", i+1, item.Text))
-		}
-		dodBuilder.WriteString("\n")
-		instructions = dodBuilder.String() + instructions
+	detail, detailErr := s.taskSvc.GetTaskDetail(ctx, taskID)
+	if detailErr != nil || detail == nil {
+		cleanup()
+		return nil, "", "", none, errors.New("The original task reporting context is unavailable")
 	}
-	instructions = workflow.Developer + "\n\n" + cuanPrompt.GetRunnerPromptAdditions() + "\n\n" + instructions
-	if techTaste := s.formatTechnicalTastePrompt(ctx); techTaste != "" {
-		instructions += "\n\n" + techTaste + "\n"
+	artifactOnly := executionpolicy.StandaloneArtifactWork(detail.Instructions)
+	if artifactOnly {
+		instructions = artifactSessionGuidance(detail.DoDChecklist)
+	} else {
+		if len(detail.DoDChecklist) > 0 {
+			var dodBuilder strings.Builder
+			dodBuilder.WriteString("\n## Acceptance Criteria (Definition of Done)\nThe following criteria must be fulfilled and verified before reporting completion:\n")
+			for i, item := range detail.DoDChecklist {
+				dodBuilder.WriteString(fmt.Sprintf("%d. %s\n", i+1, item.Text))
+			}
+			instructions = dodBuilder.String() + "\n" + instructions
+		}
+		instructions = workflow.Developer + "\n\n" + cuanPrompt.GetRunnerPromptAdditions() + "\n\n" + instructions
+		if techTaste := s.formatTechnicalTastePrompt(ctx); techTaste != "" {
+			instructions += "\n\n" + techTaste + "\n"
+		}
 	}
 	for _, part := range contextParts {
 		if strings.TrimSpace(part) != "" {
@@ -258,6 +268,9 @@ capability file. Need structured metadata? task --help documents --report-file.
 		return nil, "", "", none, e
 	}
 	prompt := "\n\nRead the session guidance at " + guide + " before proceeding."
+	if artifactOnly {
+		prompt = "\n\n" + instructions
+	}
 	return []string{"CUAN_TASK_CAPABILITY_FILE=" + file, "CUAN_TASK_EXECUTABLE=" + executable, "CUAN_TASK_ARTIFACTS_DIR=" + evidenceDir, "CUAN_TASK_CAPABILITY_JSON="}, prompt, token, cleanup, nil
 
 }

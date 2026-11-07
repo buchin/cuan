@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/dodeval"
 )
 
@@ -87,12 +88,26 @@ func GetRunnerPromptAdditions(dirs ...string) string {
 func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, dodChecklist []string, dirs ...string) string {
 	var sb strings.Builder
 
+	artifactOnly := executionpolicy.StandaloneArtifactWork(taskInstructions)
 	base := strings.TrimSpace(executionpolicy.NormalizeManagedInstructions(taskInstructions))
+	if artifactOnly {
+		base = strings.TrimSpace(project.TaskScopeInstructions(taskInstructions))
+		goal, guidance, err := project.TaskReviewGuidance(taskInstructions)
+		if err != nil {
+			base += "\nSaved project guidance could not be verified. Preserve original scope and report this context gap; do not substitute current settings."
+		} else {
+			if goal != "" {
+				base += "\n\nSaved project goal (context only):\n" + goal
+			}
+			if guidance != "" {
+				base += "\n\nSaved project instructions (context only):\n" + guidance
+			}
+		}
+	}
 	if base == "" {
 		base = strings.TrimSpace(taskTitle)
 	}
 	sb.WriteString(base)
-	artifactOnly := executionpolicy.StandaloneArtifactWork(taskInstructions)
 	if artifactOnly {
 		sb.WriteString("\n\n=== STANDALONE FILE DELIVERY ===\nThis task uses a private output workspace, not a project repository. Create only the requested deliverable, inspect its actual filename and content against the original criteria, and attach it with the task reporting capability. Do not clone repositories, initialize Git, inspect unrelated project source, configure services, install a software stack or deploy. A file path or a promise is not delivery. Use --artifact for the actual workspace file, or --artifact session:PATH for a file under CUAN_TASK_ARTIFACTS_DIR.\n")
 	}
@@ -115,7 +130,12 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		sb.WriteString("Before concluding, you MUST state your verification evidence (exact test outputs, commit SHA, and verified behavior).\n")
 		sb.WriteString("For each original criterion, name the exact check or artifact and the observed feature/state it proves. Leave criteria without relevant evidence incomplete; passing generic checks or unrelated screenshots do not prove them. An empty checklist does not waive verification or reporting for the original requirements.\n")
 		sb.WriteString("For investigation/audit tasks, provide factual findings, commit SHAs, or diagnostic outputs.\n")
-		sb.WriteString("Read the current task with \"$CUAN_TASK_EXECUTABLE\" task get before final reporting. If the saved task has a DoD checklist, review/done reports MUST include every original item with unchanged ID, text and order, plus current factual evidence. Use --report-file JSON to preserve IDs. Mark unmet items completed=false and describe the gap; never fabricate evidence. A rejected report leaves this attempt active: correct it and resubmit.\nFor tasks without a saved checklist, report completion using:\n")
+		if artifactOnly {
+			sb.WriteString("Use the supplied original task and acceptance snapshot. Read \"$CUAN_TASK_EXECUTABLE\" task get when information is missing or after an uncertain/rejected report; do not reread known instructions merely as a startup ritual. ")
+		} else {
+			sb.WriteString("Read the current task with \"$CUAN_TASK_EXECUTABLE\" task get before final reporting. ")
+		}
+		sb.WriteString("If the saved task has a DoD checklist, review/done reports MUST include every original item with unchanged ID, text and order, plus current factual evidence. Use --report-file JSON to preserve IDs. Mark unmet items completed=false and describe the gap; never fabricate evidence. A rejected report leaves this attempt active: correct it and resubmit.\nFor tasks without a saved checklist, report completion using:\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state review --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")
 		sb.WriteString("For criteria without IDs, itemized verification can use repeatable flags (include every saved criterion):\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state review --summary \"<summary>\" --dod-item \"<original criterion>\" --dod-evidence \"<observed result>\"\n")

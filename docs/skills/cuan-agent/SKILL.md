@@ -382,3 +382,9 @@ Inspect the actual requested content and attach the file through the existing
 bound task report; completion still requires the original checklist and independent
 result review. Existing stopped pre-launch failures from the old repository route
 can recover once under the same original authorization, scope and expiry.
+
+Standalone file workers receive the original acceptance IDs/text inline, alongside
+saved scope, project goal and instructions. Use that supplied context directly;
+scoped task/history reads remain available for missing data or uncertain/rejected
+reports. This avoids mandatory duplicate startup reads without truncating context
+or changing provider/model/effort policy. Independent result acceptance is unchanged.
