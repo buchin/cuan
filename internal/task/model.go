@@ -214,6 +214,8 @@ type CreateCommentRequest struct {
 }
 
 type CreateAttemptRequest struct {
+	InitializeQueuedTask  bool   `json:"-"`
+	PreserveQueuedReport  bool   `json:"-"`
 	ExpectedPredecessorID string `json:"-"`
 	RequestID             string `json:"request_id,omitempty"`
 	RequestHash           string `json:"-"`

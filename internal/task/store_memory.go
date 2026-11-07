@@ -228,20 +228,35 @@ func (m *MemoryStore) DeleteTask(ctx context.Context, id string) error {
 }
 
 func (m *MemoryStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
-	return m.createAttempt(ctx, a, "")
+	return m.createAttempt(ctx, a, "", nil)
 }
 func (m *MemoryStore) CreateAttemptAfter(ctx context.Context, a *TaskAttempt, predecessor string) error {
 	if predecessor == "" {
 		return ErrInvalidTaskInput
 	}
-	return m.createAttempt(ctx, a, predecessor)
+	return m.createAttempt(ctx, a, predecessor, nil)
 }
-func (m *MemoryStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor string) error {
+func (m *MemoryStore) CreateQueuedAttempt(ctx context.Context, a *TaskAttempt, predecessor string, resetReport bool) error {
+	if a.RunnerID != "cuan-runner" || a.Status != AttemptStatusQueued {
+		return ErrInvalidTaskInput
+	}
+	return m.createAttempt(ctx, a, predecessor, &resetReport)
+}
+func (m *MemoryStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor string, resetReport *bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, exists := m.attempts[a.ID]; exists {
 		return ErrTaskDuplicate
+	}
+	if resetReport != nil {
+		item := m.tasks[a.TaskID]
+		if item == nil {
+			return ErrTaskNotFound
+		}
+		if item.Status == TaskStatusDone || item.Status == "cancelled" {
+			return ErrInvalidTaskInput
+		}
 	}
 	if predecessor != "" {
 		var latest *TaskAttempt
@@ -288,6 +303,19 @@ func (m *MemoryStore) createAttempt(ctx context.Context, a *TaskAttempt, predece
 		cp.CreatedAt = time.Now().UTC()
 	}
 	m.attempts[cp.ID] = &cp
+	if resetReport != nil {
+		item := *m.tasks[a.TaskID]
+		item.Status, item.AssignedAgent = TaskStatusQueued, a.AgentName
+		item.UpdatedAt = time.Now().UTC()
+		item.DoDChecklist = append([]DoDItem{}, item.DoDChecklist...)
+		if *resetReport {
+			item.Summary, item.CompleteNote = "", ""
+			for i := range item.DoDChecklist {
+				item.DoDChecklist[i].Completed = false
+			}
+		}
+		m.tasks[item.ID] = &item
+	}
 	return nil
 }
 

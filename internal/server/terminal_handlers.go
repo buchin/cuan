@@ -751,7 +751,15 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					runnerID = "cuan-runner"
 				}
 			}
-			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash, ExpectedPredecessorID: payload.RecoverySourceAttemptID})
+			// Save feedback before exposing work to the queue. Once published,
+			// an attempt belongs to its worker and must not be reset by this handler.
+			if revision != "" {
+				if _, e := s.taskSvc.AddComment(r.Context(), taskID, "owner", "Revision requested:\n"+revision); e != nil {
+					respondJSONError(w, 503, "Could not save revision feedback. Execution did not start.")
+					return
+				}
+			}
+			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash, ExpectedPredecessorID: payload.RecoverySourceAttemptID, InitializeQueuedTask: runnerID == "cuan-runner", PreserveQueuedReport: revision != ""})
 			if errors.Is(err, task.ErrTaskActive) {
 				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
 				return
@@ -768,13 +776,6 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				respondJSONError(w, 503, "Could not save the attempt. Execution has not started.")
 				return
 			}
-			if revision != "" {
-				if _, e := s.taskSvc.AddComment(r.Context(), taskID, "owner", "Revision requested:\n"+revision); e != nil {
-					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Revision feedback could not be saved. Execution did not start."})
-					respondJSONError(w, 503, "Could not save revision feedback. Execution did not start.")
-					return
-				}
-			}
 			var updateSummary *string
 			var updateCompleteNote *string
 			resetCriteria := append([]task.DoDItem{}, detail.DoDChecklist...)
@@ -789,10 +790,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 
 			// If delegated to cuan-runner, attempt stays in AttemptStatusQueued and task is queued for worker daemon
 			if runnerID == "cuan-runner" {
-				queuedStatus := task.TaskStatusQueued
-				if _, err = s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{Status: &queuedStatus, AssignedAgent: &agentID, DoDChecklist: &resetCriteria, Summary: updateSummary, CompleteNote: updateCompleteNote}); err != nil {
-					_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Could not save task status before starting."})
-					respondJSONError(w, 503, "Task status could not be saved")
+				// Metadata and queue visibility were committed atomically. Only
+				// observe worker state after publication; never overwrite it.
+				if s.acknowledgeClaimedWorkerAttempt(w, r.Context(), taskID, attempt.ID) {
 					return
 				}
 				respondJSON(w, http.StatusOK, map[string]interface{}{

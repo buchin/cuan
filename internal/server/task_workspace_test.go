@@ -109,7 +109,9 @@ func TestTaskWorkspaceLaunchReviewRevisionAndReplay(t *testing.T) {
 	if !found {
 		t.Fatal("revision feedback not retained")
 	}
-	rejected := call("PUT", path, `{"status":"done","complete_note":"Verified mobile layout"}`)
+	// The fixture reporter now supplies completed criteria and evidence. Explicitly
+	// submit an unchecked criterion to exercise the incomplete-result approval gate.
+	rejected := call("PUT", path, `{"status":"done","complete_note":"Verified mobile layout","dod_checklist":[{"text":"Verify the result","completed":false}]}`)
 	if rejected.Code != 400 {
 		t.Fatal("unchecked result approved", rejected.Code)
 	}

@@ -150,7 +150,7 @@ case "$2" in
    auth=$(cat "$HOME/recovery-auth")
    printf '%s' '` + revision + `' | sed "s/AUTH/$auth/g"
   fi ;;
- *) auth="${2##*Target message ID: }"; printf '%s' "$auth" > "$HOME/recovery-auth"; printf '%s' '` + first + `' | sed "s/AUTH/$auth/g" ;;
+ *) auth="${2##*Target message ID: }"; auth=$(printf '%s\n' "$auth" | head -n 1); printf '%s' "$auth" > "$HOME/recovery-auth"; printf '%s' '` + first + `' | sed "s/AUTH/$auth/g" ;;
 esac
 `
 	if missing {

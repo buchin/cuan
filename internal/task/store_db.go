@@ -386,15 +386,21 @@ func (s *DBStore) DeleteTask(ctx context.Context, id string) error {
 }
 
 func (s *DBStore) CreateAttempt(ctx context.Context, a *TaskAttempt) error {
-	return s.createAttempt(ctx, a, "")
+	return s.createAttempt(ctx, a, "", nil)
 }
 func (s *DBStore) CreateAttemptAfter(ctx context.Context, a *TaskAttempt, predecessor string) error {
 	if predecessor == "" {
 		return ErrInvalidTaskInput
 	}
-	return s.createAttempt(ctx, a, predecessor)
+	return s.createAttempt(ctx, a, predecessor, nil)
 }
-func (s *DBStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor string) error {
+func (s *DBStore) CreateQueuedAttempt(ctx context.Context, a *TaskAttempt, predecessor string, resetReport bool) error {
+	if a.RunnerID != "cuan-runner" || a.Status != AttemptStatusQueued {
+		return ErrInvalidTaskInput
+	}
+	return s.createAttempt(ctx, a, predecessor, &resetReport)
+}
+func (s *DBStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor string, resetReport *bool) error {
 	if a.CreatedAt.IsZero() {
 		a.CreatedAt = time.Now().UTC()
 	}
@@ -488,6 +494,32 @@ func (s *DBStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor
 		return fmt.Errorf("create attempt: %w", err)
 	}
 	if tx != nil {
+		if resetReport != nil {
+			var checklist []byte
+			var status string
+			if err := tx.QueryRowContext(ctx, `SELECT status,dod_checklist FROM tasks WHERE id=$1`, a.TaskID).Scan(&status, &checklist); err != nil {
+				return err
+			}
+			if status == TaskStatusDone || status == "cancelled" {
+				return ErrInvalidTaskInput
+			}
+			if *resetReport {
+				var criteria []DoDItem
+				if err := json.Unmarshal(checklist, &criteria); err != nil {
+					return err
+				}
+				for i := range criteria {
+					criteria[i].Completed = false
+				}
+				checklist, err = json.Marshal(criteria)
+				if err != nil {
+					return err
+				}
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE tasks SET status='queued',assigned_agent=$2,dod_checklist=$3,summary=CASE WHEN $4 THEN '' ELSE summary END,complete_note=CASE WHEN $4 THEN '' ELSE complete_note END,updated_at=NOW() WHERE id=$1`, a.TaskID, a.AgentName, checklist, *resetReport); err != nil {
+				return err
+			}
+		}
 		return tx.Commit()
 	}
 	return nil

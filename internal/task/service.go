@@ -723,6 +723,9 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 		att.LeaseExpiresAt = &lease
 	}
 	var createErr error
+	if req.InitializeQueuedTask && runnerID != "cuan-runner" {
+		return nil, ErrInvalidTaskInput
+	}
 	if req.ExpectedPredecessorID != "" {
 		// Successful predecessors require an authenticated typed native
 		// continuation, never a generic implementation retry.
@@ -757,7 +760,13 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 				}
 			}
 		}
-		if guarded, ok := s.store.(interface {
+		if queued, ok := s.store.(interface {
+			CreateQueuedAttempt(context.Context, *TaskAttempt, string, bool) error
+		}); req.InitializeQueuedTask && ok {
+			createErr = queued.CreateQueuedAttempt(ctx, att, req.ExpectedPredecessorID, !req.PreserveQueuedReport)
+		} else if req.InitializeQueuedTask {
+			createErr = ErrInvalidTaskInput
+		} else if guarded, ok := s.store.(interface {
 			CreateAttemptAfter(context.Context, *TaskAttempt, string) error
 		}); ok {
 			createErr = guarded.CreateAttemptAfter(ctx, att, req.ExpectedPredecessorID)
@@ -765,7 +774,17 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 			createErr = ErrRequestConflict
 		}
 	} else {
-		createErr = s.store.CreateAttempt(ctx, att)
+		if req.InitializeQueuedTask {
+			if queued, ok := s.store.(interface {
+				CreateQueuedAttempt(context.Context, *TaskAttempt, string, bool) error
+			}); ok {
+				createErr = queued.CreateQueuedAttempt(ctx, att, "", !req.PreserveQueuedReport)
+			} else {
+				createErr = ErrInvalidTaskInput
+			}
+		} else {
+			createErr = s.store.CreateAttempt(ctx, att)
+		}
 	}
 	if createErr != nil {
 		return nil, fmt.Errorf("create attempt: %w", createErr)

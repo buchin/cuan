@@ -322,10 +322,18 @@ scope separately requests deployment. Without that separate request it remains
 restrictive. Any additional whole-task prohibition still wins. This changes no
 saved instructions, existing attempt contract, approval or acceptance evidence.
 
-Cuan build and test tooling is independent of the Fural development environment.
+Cuan build and test tooling is independent of the development hosting platform.
 The standard frontend tests validate documentation and components without calling
 an external platform renderer. Product operations belong to the `cuan` CLI/MCP;
 required capabilities must not depend on a developer platform session or identity.
+
+Worker queue admission saves initial task status, assigned agent and report reset
+in the same transaction as the claimable attempt. Revision continuations preserve
+the saved report and criteria. Rejected admission rolls back both records. Revision
+feedback is saved before publishing queue work. After publication, the launch
+handler only observes that attempt: it cannot reset a worker's running or terminal
+outcome, report, or checklist. A fast claim is acknowledged using the exact saved
+attempt, without starting another process or granting acceptance.
 
 Native process journals retain a bounded, redacted diagnostic tail, and native
 workers send process start/end plus that tail to the existing task log transport.
