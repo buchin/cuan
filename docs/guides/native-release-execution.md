@@ -162,3 +162,14 @@ The publication observer validates frozen repo/branch/settings and active source
 before and after observing health/revision. Late project archive or identity
 changes reject new evidence. Neither process exit, preparation nor delivery alone
 marks the original task Done.
+
+## Immutable source push prerequisite
+
+`PushNativeReleaseSource` validates frozen managed publication settings and the
+registered saved connection, and prohibits using the deployment branch as the
+developer task branch. `git.PushExecutionSource` checks exact clean source,
+repository origin and task branch, observes that remote branch first, then pushes
+the admitted SHA as a literal non-forced refspec. A later local HEAD cannot replace
+that SHA. An already matching remote branch needs no new push; unavailable remote
+observation prevents mutation. These source-push helpers are not yet invoked by
+the initial preparation endpoint; automatic initial push/merge remains staged.
