@@ -709,7 +709,10 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				completionActivities = append(completionActivities, requeueAct)
 			} else {
 				t.Status = task.TaskStatusReview
-				if len(task.AcceptanceGaps(t)) > 0 {
+				// Inbox owns acceptance and can supply pending evidence through
+				// its separate verifier. A successful handoff awaits that review;
+				// incomplete criteria alone do not mean execution is blocked.
+				if t.SourceRoomID == "" && len(task.AcceptanceGaps(t)) > 0 {
 					t.Status = task.TaskStatusBlocked
 				}
 				if s.chatNotifier != nil && t.SourceRoomID == "" {

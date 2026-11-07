@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/buchin/cuan/internal/task"
 	"sync"
 	"sync/atomic"
@@ -102,17 +103,32 @@ func TestExecutionCompletionConcurrentDuplicateCommitsOnce(t *testing.T) {
 	}
 }
 func TestExecutionCompletionCannotApproveUncheckedEvidence(t *testing.T) {
-	ctx := context.Background()
-	svc, store, item, att := lifecycleFixture(t)
-	item.DoDChecklist[0].Completed = false
-	item.DoDChecklist[0].Evidence = ""
-	store.UpdateTask(ctx, item)
-	if _, err := svc.Complete(ctx, att.ID, lifecycleResult()); err != nil {
-		t.Fatal(err)
-	}
-	after, _ := store.GetTask(ctx, item.ID)
-	if after.Status != task.TaskStatusBlocked || after.DoDChecklist[0].Completed {
-		t.Fatalf("missing evidence was accepted: %+v", after)
+	for _, inbox := range []bool{false, true} {
+		t.Run(fmt.Sprintf("inbox=%v", inbox), func(t *testing.T) {
+			ctx := context.Background()
+			svc, store, item, att := lifecycleFixture(t)
+			if !inbox {
+				item.SourceRoomID = ""
+			}
+			item.DoDChecklist[0].Completed = false
+			item.DoDChecklist[0].Evidence = "Independent verification is pending."
+			store.UpdateTask(ctx, item)
+			if _, err := svc.Complete(ctx, att.ID, lifecycleResult()); err != nil {
+				t.Fatal(err)
+			}
+			after, _ := store.GetTask(ctx, item.ID)
+			want := task.TaskStatusBlocked
+			if inbox {
+				want = task.TaskStatusReview
+			}
+			if after.Status != want || after.DoDChecklist[0].Completed || after.DoDChecklist[0].Evidence != item.DoDChecklist[0].Evidence {
+				t.Fatalf("missing evidence was accepted: %+v", after)
+			}
+			saved, _ := store.GetAttempt(ctx, att.ID)
+			if saved.Status != task.AttemptStatusSucceeded {
+				t.Fatal("pending acceptance changed successful execution", saved.Status)
+			}
+		})
 	}
 }
 func TestExecutionGapRetryPreservesTaskAndBranch(t *testing.T) {

@@ -475,3 +475,9 @@ scope remains binding: preserve uncommitted work and report the source-binding
 gap; do not attribute those changes to HEAD or claim independent verification.
 The native runner still never auto-commits under no-push policy. The coordinator
 owns the separate exact-source verification and acceptance.
+
+A successful Inbox execution with pending acceptance criteria remains in review
+while the coordinator evaluates evidence and schedules any required verifier.
+Pending criteria are preserved; review is not acceptance. Failed, interrupted or
+cancelled execution still records its actual stopped/blocked state. Board tasks
+without an Inbox coordinator retain their existing incomplete-evidence handling.
