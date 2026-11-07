@@ -53,6 +53,9 @@ func initialPhaseScopeContractMode(t *testing.T, conversational bool, databases 
 	}
 	first := "Deliver validated source JSON for download without creating the summary"
 	plan := inboxApprovalPlan{Title: "Two connected files", ProjectID: "phase-project", Description: "Standalone file work. Do not modify the repository. Do not push or deploy.\nPhase 1: " + first + " | Phase 2: Deliver a checked summary using the accepted source file\nAcceptance:\n- Deliver source JSON.\n- Deliver the derived summary."}
+	if conversational {
+		plan.Description = strings.Replace(plan.Description, "Standalone file work. Do not modify the repository. Do not push or deploy.", "Pengujian alur kerja mandiri dalam dua task/sesi terpisah. Berkas sebagai lampiran unduhan. Zero repository mutation (tidak mengubah kode, file repositori, atau konfigurasi), zero deployment (tidak membuat project baru, branch, commit, push, PR, deploy, atau mengirim pesan keluar).", 1)
+	}
 	now := time.Now().UTC()
 	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now, Deadline: now.Add(time.Hour)}
 	raw, _ := json.Marshal(attachmentMessage{Text: "Approved: Two connected files", Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: plan}})
@@ -70,6 +73,16 @@ func initialPhaseScopeContractMode(t *testing.T, conversational bool, databases 
 	}
 	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: room, AuthorID: "owner", AuthorType: "user", Content: content, CreatedAt: now}); err != nil {
 		t.Fatal(err)
+	}
+	if conversational {
+		if !s.inboxProposalDecision(ctx, q) {
+			t.Fatal("saved proposal reply did not select tool-free context")
+		}
+		foreign := q
+		foreign.OwnerID = "different-owner"
+		if s.inboxProposalDecision(ctx, foreign) {
+			t.Fatal("foreign owner selected proposal context")
+		}
 	}
 	delegation, _ := json.Marshal(inboxDelegation{Action: "run", Title: plan.Title, Description: plan.Description, ProjectID: plan.ProjectID, AuthorizationID: q.MessageID})
 	if conversational {

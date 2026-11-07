@@ -557,3 +557,13 @@ and acceptance context too. The native path checks proposal provenance and exact
 scope; it does not rewrite the user's message, infer consent from arbitrary text,
 or select an older proposal across intervening messages. Explicit defer remains
 nonexecution. Short approvals and the approval button keep their existing path.
+
+Replies to the immediately preceding trusted completed proposal use an isolated,
+tool-free coordinator turn when no new attachment needs inspection. The PM uses
+the conversation to distinguish approval from questions, objections and changed
+requirements; this mode itself grants no execution permission. Repository rules
+and workspace inspection are for execution, not deciding a saved proposal.
+
+Standalone file classification recognizes `mandiri` in natural Indonesian
+sentences alongside an explicit artifact outcome, no repository changes and no
+deployment. It does not require a particular adjacent noun such as `sesi`.

@@ -345,6 +345,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							output = autoDelegation
 						} else {
 							inferenceCtx := ctx
+							if s.inboxProposalDecision(ctx, q) {
+								inferenceCtx = context.WithValue(inferenceCtx, inboxProposalDecisionKey{}, true)
+							}
 							if snapshot, ok := s.inboxTaskReviewPrompt(ctx, q); ok {
 								inferenceCtx = context.WithValue(ctx, inboxTaskReviewKey{}, true)
 								if isCustomerReplyDelivery(q, s.inboxReviewedTask(ctx, q)) {

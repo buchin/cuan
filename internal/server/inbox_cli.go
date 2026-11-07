@@ -66,6 +66,7 @@ func inboxToolFreeContext(parent context.Context) (context.Context, context.Canc
 
 type inboxAnalysisRecoveryKey struct{}
 type inboxCoordinatorDirectKey struct{}
+type inboxProposalDecisionKey struct{}
 type commandCodeAPIKeyContext struct{}
 
 // boundedInboxOutput prevents noisy subprocesses exhausting server memory.
@@ -163,8 +164,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
 	directCoordinator, _ := ctx.Value(inboxCoordinatorDirectKey{}).(bool)
+	proposalDecision, _ := ctx.Value(inboxProposalDecisionKey{}).(bool)
 	regenerate, _ := ctx.Value(inboxRegenerateReplyKey{}).(bool)
-	directCoordinator = directCoordinator || reconcileRetry || regenerate
+	directCoordinator = directCoordinator || reconcileRetry || regenerate || proposalDecision
 	toolFreeReview := snapshotReview && len(attachmentPaths) == 0
 	coordinator := !snapshotReview && !answerOnly
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
@@ -194,6 +196,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		phase = "retry_reconciliation"
 	case regenerate:
 		phase = "draft_regeneration"
+	case proposalDecision:
+		phase = "proposal_decision"
 	case directCoordinator:
 		phase = "direct_recovery"
 	case snapshotReview:
@@ -219,6 +223,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		if analysisRecovery {
 			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxDeniedToolRecoverySchema + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
+		}
+		if proposalDecision && !analysisRecovery {
+			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\n" + inboxProposalDecisionInstruction + "\n\nContext data:\n" + prompt
 		}
 		if reconcileRetry && !analysisRecovery {
 			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
