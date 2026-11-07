@@ -54,19 +54,21 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
 		return false
 	}
-	proof := *previous
-	// The previous attempt already binds its preparation/verifier repair.
-	// This stage uses the single revalidation key, not the old repair key.
-	proof.PreparationLaunchID = ""
-	proof.VerifierRecoveryAttemptID = ""
+	// Build the next stage from its source binding, not a copy of every
+	// previous-stage flag. The completed parent retains its repair history.
+	proof := task.LiveInspectionIntent{
+		Purpose:                 task.CurrentOutcomeInspection,
+		SourceVerifierAttemptID: previous.SourceVerifierAttemptID,
+		SourceAttemptID:         previous.SourceAttemptID, SourceCommit: previous.SourceCommit,
+		Repository: previous.Repository, OwnerID: previous.OwnerID, RoomID: previous.RoomID,
+		SourceRequestID: previous.SourceRequestID, InstructionsHash: previous.InstructionsHash,
+		PreviousAttemptID: d.LatestAttempt.ID, PreviousCommit: previous.TargetCommit,
+		TargetCommit: observed.Commit, ObservedAt: observed.ObservedAt,
+		ReviewRequestID: request, ReviewPaths: paths,
+	}
 	if evidence {
 		proof.RevalidationKind = task.EvidenceRevalidation
 	}
-	proof.PreviousAttemptID = d.LatestAttempt.ID
-	proof.PreviousCommit = previous.TargetCommit
-	proof.TargetCommit = observed.Commit
-	proof.ObservedAt = observed.ObservedAt
-	proof.ReviewRequestID, proof.ReviewPaths = request, paths
 	if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, &proof) != nil {
 		return false
 	}

@@ -176,3 +176,9 @@ attempt as its parent. Preparation and verifier-repair markers belong to the
 parent's history and are not copied into the new stage or its request key. The
 parent's native provenance is still validated recursively. This keeps one
 revalidation allowance across deployment revisions and prior repair paths.
+
+New revalidation stages explicitly select their source and approval fields rather
+than copying all flags from an earlier stage. Chat instructions likewise separate
+proposed, implemented, tested, and deployed capability: dependencies, approval,
+and worker reports alone never establish compatibility or data safety. Missing
+prerequisites remain work to verify, not guarantees to present to the owner.

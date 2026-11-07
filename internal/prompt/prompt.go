@@ -109,7 +109,7 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 	if !strings.Contains(sb.String(), "=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===") {
 		sb.WriteString("\n\n=== TASK COMPLETION & VERIFICATION REPORTING REQUIREMENT ===\n")
 		sb.WriteString("Before concluding, you MUST state your verification evidence (exact test outputs, commit SHA, and verified behavior).\n")
-		sb.WriteString("For each original criterion, name the exact check or artifact and the observed feature/state it proves. Leave criteria without relevant evidence incomplete; passing generic checks or unrelated screenshots do not prove them. An empty checklist does not waive the original requirements.\n")
+		sb.WriteString("For each original criterion, name the exact check or artifact and the observed feature/state it proves. Leave criteria without relevant evidence incomplete; passing generic checks or unrelated screenshots do not prove them. An empty checklist does not waive verification or reporting for the original requirements.\n")
 		sb.WriteString("For investigation/audit tasks, provide factual findings, commit SHAs, or diagnostic outputs.\n")
 		sb.WriteString("If using the cuan CLI in workspace, report completion using:\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state review --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")
