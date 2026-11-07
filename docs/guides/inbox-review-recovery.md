@@ -536,3 +536,15 @@ running/snapshot revision belongs in verification evidence. Both staged artifact
 reports and final reports enforce this before metadata is saved. Completion
 context conflicts are reported as conflicts and logged with attempt/runner
 identity, rather than silently appearing as an unexplained HTTP 500.
+
+### Owner scope and verifier scope
+
+Review data distinguishes `execution_scope` and `current_execution_revision` for
+the exact supplied attempt from `approved_task_scope` and `approved_continuation`
+for the original task plus later owner restrictions. A server-created read-only
+verifier never permits changing its own snapshot. It also does not turn an
+original implementation approval into an owner prohibition. The reviewer can
+identify missing implementation for a separately authorized continuation; native
+admission, cancellation, publication and acceptance guards still decide what may
+run. Missing owner-scope storage yields an unavailable scope rather than inferred
+permission, and a genuinely owner-approved read-only audit remains read-only.

@@ -43,7 +43,7 @@ A report_provenance=current_runner_finalization is a server-validated machine re
 
 failed_repository_observation is a runner-authenticated point-in-time observation from this failed/interrupted read-only attempt, not successful execution or repository_scope_verified. If its state is unchanged, do not claim repository integrity was never observed; report the actual remaining missing final report, project checks or task-specific evidence. Changed means preserve the files and identify the scope gap; unavailable does not establish a mutation. It never waives successful execution, exact-source checks or any original criterion, and never grants a retry or implementation permission.
 
-execution_scope and approved_continuation are server-supplied boundaries on the original task. If execution_scope.read_only_repository is true, require repository_scope_verified for this exact attempt. Never request changes to code, configuration, documentation, test scripts, commits, push or deployment. Unrelated failing implementation tests are audit findings, not authorization to repair the project. Request factual audit evidence and verification of the unchanged repository only. Automatic correction feedback cannot expand an approved continuation.
+execution_scope and current_execution_revision constrain this exact attempt. If execution_scope.read_only_repository is true, require repository_scope_verified; never request mutations or publication inside that verification attempt. approved_task_scope and approved_continuation describe the original task limits and any later owner-approved limits, not new permission. A read-only automatic verification stage is not an owner prohibition on completing the original implementation. When actual implementation or publication is still missing, classify that concrete gap as remaining_work implementation for a separately authorized coordinator execution if approved_task_scope permits it; do not ask for renewed consent merely because the verifier was read-only. If approved_task_scope is unavailable or also read-only, do not infer broader authority or request repairs outside that approved audit. Unrelated failures remain audit findings. Automatic feedback cannot expand owner scope, and native admission and acceptance gates remain authoritative.
 
 For code implementation tasks, require concrete verification evidence (test outputs, commit hashes, specific verified file changes). Set remaining_work=verification only when implementation is complete and the remaining work consists exclusively of checking the same result or supplying missing verification evidence without changing code, configuration, tests, documentation, commits or production. Any required implementation change or publication is remaining_work=implementation; a genuine external prerequisite is external; pass is none. This classification never grants execution permission.
 runner_verification is bound only to runner_verification_attempt_id with runner_verification_provenance=current_attempt_verification. Empty output does not prove a check ran. historical_runner_verification is retained task-level history, never proof of current checks or the cause of the latest failure. When continuing work, re-check historical failures against the current approved baseline rather than blindly repairing obsolete failures.
@@ -145,7 +145,10 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 			continuation = launch.Revision
 		}
 	}
+	approvedScope, approvedContinuation := s.inboxApprovedTaskScope(ctx, d)
 	raw, _ := json.Marshal(map[string]any{
+		"approved_task_scope":            approvedScope,
+		"current_execution_revision":     truncateProjectText(continuation, 9000),
 		"original_scope_requirements":    originalScopeRequirements,
 		"github_connection_observation":  githubReviewObservation(d),
 		"registered_project":             s.registeredReviewProject(ctx, d),
@@ -163,7 +166,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"repository_scope_verified":      scope.ReadOnlyRepository && scopeVerified,
 		"failed_repository_observation":  failedRepositoryObservation(d, scope.ReadOnlyRepository),
 		"failed_project_check_paths":     task.FailedCheckRevalidationPaths(d),
-		"approved_continuation":          truncateProjectText(continuation, 9000),
+		"approved_continuation":          truncateProjectText(approvedContinuation, 9000),
 		"delivered_files":                files,
 		"original_request":               project.TaskScopeInstructions(d.Instructions),
 		"saved_project_goal":             goal,
