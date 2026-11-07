@@ -30,7 +30,7 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 				t.Fatal(err)
 			}
 			manifest := `{"version":1,"command":["release.sh"],"timeout_seconds":5}`
-			for name, body := range map[string]string{".cuan/release.json": manifest, "release.sh": "#!/bin/sh\nprintf '%s/%s\\n' \"$BOUND_VALUE\" \"${NATIVE_AMBIENT_CREDENTIAL:-absent}\" >> \"$MARKER\"\n"} {
+			for name, body := range map[string]string{".cuan/release.json": manifest, "release.sh": "#!/bin/sh\nprintf '%s/%s\\n' \"$BOUND_VALUE\" \"${NATIVE_AMBIENT_CREDENTIAL:-absent}\" >> \"$MARKER\"\nprintf 'diagnostic failure detail %s\\n' \"$SSH_PASSWORD\"\n"} {
 				if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0700); err != nil {
 					t.Fatal(err)
 				}
@@ -49,7 +49,7 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 			commit := run("rev-parse", "HEAD")
 			hash := sha256.Sum256([]byte(manifest))
 			now := time.Now().UTC()
-			claim := ClaimTaskResponse{Task: &task.Task{ID: "task", CreatedAt: now}, Attempt: &task.TaskAttempt{ID: "attempt", TaskID: "task", RunnerID: "native", CreatedAt: now, StartedAt: &now}, NativeRelease: &task.NativeReleaseIntent{SourceCommit: commit, TargetBranch: "production", ManifestHash: hex.EncodeToString(hash[:])}, NativeReleaseExecution: &NativeReleaseExecution{Workspace: &project.PreparedNativeReleaseWorkspace{Path: root, SourceCommit: commit, TargetCommit: commit, Branch: "production", ManifestHash: hex.EncodeToString(hash[:])}, Environment: []string{"MARKER=" + marker, "BOUND_VALUE=saved"}}}
+			claim := ClaimTaskResponse{Task: &task.Task{ID: "task", CreatedAt: now}, Attempt: &task.TaskAttempt{ID: "attempt", TaskID: "task", RunnerID: "native", CreatedAt: now, StartedAt: &now}, NativeRelease: &task.NativeReleaseIntent{SourceCommit: commit, TargetBranch: "production", ManifestHash: hex.EncodeToString(hash[:])}, NativeReleaseExecution: &NativeReleaseExecution{Workspace: &project.PreparedNativeReleaseWorkspace{Path: root, SourceCommit: commit, TargetCommit: commit, Branch: "production", ManifestHash: hex.EncodeToString(hash[:])}, Environment: []string{"MARKER=" + marker, "BOUND_VALUE=saved", "SSH_PASSWORD=private-child-password"}}}
 			observations, completions, preparations := 0, 0, 0
 			preparedExecution := claim.NativeReleaseExecution
 			if scenario == "fetch preparation" {
@@ -57,6 +57,19 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 			}
 			var completed CompleteAttemptRequest
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/logs") {
+					var payload StreamLogsRequest
+					if json.NewDecoder(r.Body).Decode(&payload) != nil {
+						t.Error("invalid log payload")
+					}
+					for _, line := range payload.Logs {
+						if strings.Contains(line.Line, "private-child-password") {
+							t.Error("log leaked secret")
+						}
+					}
+					w.WriteHeader(200)
+					return
+				}
 				if strings.HasSuffix(r.URL.Path, "/release/prepare") {
 					preparations++
 					var identity map[string]string
@@ -176,6 +189,9 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 				t.Fatal("release executed more than once")
 			}
 			records, err := os.ReadFile(filepath.Join(worker.completionDirectory(), "native-process", "attempt.json"))
+			if !strings.Contains(string(records), "diagnostic failure detail [REDACTED]") || strings.Contains(string(records), "private-child-password") {
+				t.Fatal("journal lost redacted child diagnostic")
+			}
 			if err != nil || strings.Contains(string(records), "BOUND_VALUE") || strings.Contains(string(records), "MARKER=") || strings.Contains(string(records), "host-secret") {
 				t.Fatal("journal leaked environment")
 			}

@@ -321,3 +321,16 @@ running deploy during inspect is not a whole-task deploy ban when the approved
 scope separately requests deployment. Without that separate request it remains
 restrictive. Any additional whole-task prohibition still wins. This changes no
 saved instructions, existing attempt contract, approval or acceptance evidence.
+
+Cuan build and test tooling is independent of the Fural development environment.
+The standard frontend tests validate documentation and components without calling
+an external platform renderer. Product operations belong to the `cuan` CLI/MCP;
+required capabilities must not depend on a developer platform session or identity.
+
+Native process journals retain a bounded, redacted diagnostic tail, and native
+workers send process start/end plus that tail to the existing task log transport.
+Selected credential environment values are removed before persistence/logging;
+raw output is never added to the public process-result JSON. Saved diagnostics
+can be re-emitted when observing a completed journal without replaying release.
+This is an end-of-process tail, not live line-by-line streaming. Older journals
+without diagnostics cannot recover discarded process output.

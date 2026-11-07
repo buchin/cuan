@@ -10,15 +10,19 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/release"
+	"strings"
+	"time"
 )
 
 var errNativeReleaseActive = errors.New("native release process is already owned by another worker")
 
 type nativeProcessRecord struct {
-	Version int             `json:"version"`
-	Binding string          `json:"binding"`
-	Result  *release.Result `json:"result,omitempty"`
+	Version    int             `json:"version"`
+	Diagnostic string          `json:"diagnostic,omitempty"`
+	Binding    string          `json:"binding"`
+	Result     *release.Result `json:"result,omitempty"`
 }
 
 // A durable start marker forbids replay after an unknown external outcome. A
@@ -67,6 +71,7 @@ func (r *Runner) executeNativeReleaseOnce(ctx context.Context, claim ClaimTaskRe
 		if record.Result == nil {
 			return unknown, errors.New("native process outcome unknown; no execution replay permitted")
 		}
+		r.logNativeProcessResult(ctx, claim.Attempt.ID, record.Diagnostic)
 		return *record.Result, nil
 	} else if !os.IsNotExist(readErr) {
 		return unknown, readErr
@@ -75,15 +80,18 @@ func (r *Runner) executeNativeReleaseOnce(ctx context.Context, claim ClaimTaskRe
 	if err := writeNativeProcessRecord(root, name, record, true); err != nil {
 		return unknown, err
 	}
+	r.streamLogLine(ctx, claim.Attempt.ID, "system", "Native release process starting from its prepared exact source.")
 	execution := claim.NativeReleaseExecution
 	result, executeErr := executePreparedNativeRelease(ctx, claim.NativeRelease, execution.Workspace, execution.Environment)
 	if executeErr != nil {
 		result.Error = "Native release preparation could not be verified; no script execution confirmed"
 	}
 	record.Result = &result
+	record.Diagnostic = nativeReleaseDiagnostic(result.Diagnostic(func(s string) string { return s }), execution.Environment)
 	if err := writeNativeProcessRecord(root, name, record, false); err != nil {
 		return unknown, err
 	}
+	r.logNativeProcessResult(ctx, claim.Attempt.ID, record.Diagnostic)
 	return result, nil
 }
 
@@ -140,4 +148,38 @@ func nativeExecutionBinding(claim ClaimTaskResponse, runnerID string) string {
 		Execution        *NativeReleaseExecution
 	}{claim.Task.ID, runnerID, claim.NativeRelease, claim.NativeReleaseExecution})
 	return completionHash(raw)
+}
+
+// Retain only a bounded redacted tail; raw child output never enters the journal.
+func nativeReleaseDiagnostic(output string, environment []string) string {
+	for _, entry := range environment {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok || value == "" {
+			continue
+		}
+		key = strings.ToUpper(key)
+		if strings.Contains(key, "PASSWORD") || strings.Contains(key, "TOKEN") || strings.Contains(key, "SECRET") || strings.Contains(key, "KEY") || strings.Contains(key, "AUTH") || strings.Contains(key, "CREDENTIAL") || key == "DATABASE_URL" || strings.HasSuffix(key, "_DSN") {
+			output = strings.ReplaceAll(output, value, "[REDACTED]")
+		}
+	}
+	output = agent.MaskSecrets(output, nil)
+	output = strings.Map(func(r rune) rune {
+		if r < 32 && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, output)
+	if len(output) > 6000 {
+		output = "[earlier output omitted]\n" + output[len(output)-6000:]
+	}
+	return output
+}
+
+func (r *Runner) logNativeProcessResult(ctx context.Context, attemptID, diagnostic string) {
+	logCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	r.streamLogLine(logCtx, attemptID, "system", "Native release process ended; reconciling its saved result and production state.")
+	if diagnostic != "" {
+		r.streamLogLine(logCtx, attemptID, "system", diagnostic)
+	}
 }
