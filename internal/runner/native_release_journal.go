@@ -82,7 +82,9 @@ func (r *Runner) executeNativeReleaseOnce(ctx context.Context, claim ClaimTaskRe
 	}
 	r.streamLogLine(ctx, claim.Attempt.ID, "system", "Native release process starting from its prepared exact source.")
 	execution := claim.NativeReleaseExecution
-	result, executeErr := executePreparedNativeRelease(ctx, claim.NativeRelease, execution.Workspace, execution.Environment)
+	result, executeErr := executePreparedNativeRelease(ctx, claim.NativeRelease, execution.Workspace, execution.Environment, func(stage string) {
+		r.streamLogLine(ctx, claim.Attempt.ID, "system", "Release progress: "+stage+".")
+	})
 	if executeErr != nil {
 		result.Error = "Native release preparation could not be verified; no script execution confirmed"
 	}

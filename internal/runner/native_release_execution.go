@@ -13,7 +13,7 @@ import (
 // executePreparedNativeRelease consumes only a native coordinator preparation.
 // It runs no model and returns process facts, never deployment/DoD acceptance.
 // The caller must retain those facts, reconcile live state and schedule review.
-func executePreparedNativeRelease(ctx context.Context, intent *task.NativeReleaseIntent, prepared *project.PreparedNativeReleaseWorkspace, environment []string) (release.Result, error) {
+func executePreparedNativeRelease(ctx context.Context, intent *task.NativeReleaseIntent, prepared *project.PreparedNativeReleaseWorkspace, environment []string, observers ...func(string)) (release.Result, error) {
 	unknown := release.Result{ExitCode: -1}
 	if intent == nil || prepared == nil || environment == nil || prepared.Path == "" || prepared.SourceCommit != intent.SourceCommit || prepared.Branch != intent.TargetBranch || prepared.ManifestHash != intent.ManifestHash || !git.IsCommitHash(prepared.SourceCommit) || !git.IsCommitHash(prepared.TargetCommit) {
 		return unknown, errors.New("native release preparation does not match admitted source")
@@ -28,5 +28,9 @@ func executePreparedNativeRelease(ctx context.Context, intent *task.NativeReleas
 	if plan.Description().ManifestHash != intent.ManifestHash {
 		return unknown, errors.New("native release descriptor changed after preparation")
 	}
-	return release.Run(ctx, plan, environment), nil
+	var observe func(string)
+	if len(observers) > 0 {
+		observe = observers[0]
+	}
+	return release.RunWithProgress(ctx, plan, environment, observe), nil
 }

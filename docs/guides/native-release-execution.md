@@ -343,6 +343,14 @@ can be re-emitted when observing a completed journal without replaying release.
 This is an end-of-process tail, not live line-by-line streaming. Older journals
 without diagnostics cannot recover discarded process output.
 
+Release scripts can emit exact newline-terminated milestones such as
+`::cuan-release-stage::build` to publish live progress in the existing task logs.
+Supported stages are `checks`, `dependencies`, `tests`, `build`, `transfer`,
+`activate`, and `health`. The executor forwards only fixed labels, once per
+stage; unknown, overlong and ordinary output lines remain private diagnostics.
+Milestones are untrusted progress hints, never successful check, publication or
+acceptance evidence. Existing scripts without markers keep their prior behavior.
+
 Inbox PM processes use backend-supplied task/project/room snapshots and validated
 coordinator actions. Their sandbox masks account/workspace MCP discovery files
 with an empty private configuration. This avoids advertising unconfigured Owner

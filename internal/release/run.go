@@ -60,6 +60,12 @@ func (r Result) Diagnostic(redact func(string) string) string {
 // Run never retries, merges, accepts a task or claims that production is healthy.
 // Native callers must supply their own owner-scoped environment explicitly.
 func Run(parent context.Context, p *Plan, environment []string) Result {
+	return RunWithProgress(parent, p, environment, nil)
+}
+
+// RunWithProgress reports allowlisted script milestones without forwarding raw
+// output. Milestones never replace the returned execution facts or verification.
+func RunWithProgress(parent context.Context, p *Plan, environment []string, observe func(string)) Result {
 	result := Result{ExitCode: -1}
 	if p == nil || environment == nil {
 		result.Error = "release plan and explicit environment are required"
@@ -109,8 +115,9 @@ func Run(parent context.Context, p *Plan, environment []string) Result {
 	}
 	cmd.WaitDelay = 500 * time.Millisecond
 	var output outputTail
-	cmd.Stdout = &output
-	cmd.Stderr = &output
+	writer := io.MultiWriter(&output, &progressWriter{observe: observe})
+	cmd.Stdout = writer
+	cmd.Stderr = writer
 	result.StartedAt = time.Now().UTC()
 	err = cmd.Run()
 	result.FinishedAt = time.Now().UTC()

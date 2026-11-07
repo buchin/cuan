@@ -98,6 +98,7 @@ if [ ! -d "web/dist" ] && [ -d "/opt/cuan/current/web/dist" ]; then
   cp -a /opt/cuan/current/web/dist web/
 fi
 
+echo '::cuan-release-stage::checks'
 echo "==> Checking release activation safety..."
 python3 scripts/test-activate-release.py
 python3 scripts/test-release-ancestry.py
@@ -109,9 +110,11 @@ python3 scripts/test-prune-verification-dependencies.py
 python3 scripts/test-prune-runtime-build-cache.py
 python3 scripts/test-runtime-cache-maintenance.py
 
+echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
 npm ci --prefix web --no-audit --no-fund
 
+echo '::cuan-release-stage::tests'
 echo "==> Running frontend test gate..."
 npm test --prefix web
 
@@ -173,6 +176,7 @@ release_dir="$HOME/.local/share/cuan-releases/$release_sha"
 release_repository="$(python3 scripts/release-repository.py)"
 release_linker_flags="-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha -X github.com/buchin/cuan/internal/config.SourceRepository=$release_repository"
 mkdir -p "$release_dir/bin" "$release_dir/web"
+echo '::cuan-release-stage::build'
 echo "==> Compiling Go backend binaries in parallel for $release_sha..."
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-server" ./cmd/server &
 pid_server=$!
@@ -237,6 +241,7 @@ else
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-provider-go-cache.py /opt/cuan/maintenance/prune-provider-go-cache.py && if [ -d /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan/accounts ]; then python3 /opt/cuan/maintenance/prune-provider-go-cache.py --accounts /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan/accounts --apply; fi"
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/cuan-disk-guard.sh /usr/local/bin/cuan-disk-guard.sh && if [ -f /etc/cron.hourly/cuan-disk-guard ]; then sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/cuan-disk-guard.sh /etc/cron.hourly/cuan-disk-guard; fi"
   sshpass -e ssh "$release_host" "sudo -n python3 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/install-runtime-cache-maintenance.py --service-home /home/$DOJO_TERMAPI_VPS_USERNAME"
+  echo '::cuan-release-stage::transfer'
   echo "==> Transferring verified payload (compressed, resumable)..."
   sshpass -e rsync -az --partial --append-verify -e ssh "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
@@ -245,6 +250,7 @@ else
   unset SSHPASS
 fi
 
+echo '::cuan-release-stage::health'
 echo "==> Verifying production health & commit SHA ($release_sha)..."
 verified_sha=""
 for attempt in {1..20}; do
