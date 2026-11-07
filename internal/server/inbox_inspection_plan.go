@@ -76,6 +76,14 @@ func (s *Server) liveInspectionPlanDiagnostic(ctx context.Context, d *task.TaskD
 			diagnostic.Code = code
 			return diagnostic
 		}
+		if task.QuotaStoppedVerification(d.LatestAttempt) {
+			proof, code := s.planCapacityInspection(ctx, d, origin)
+			diagnostic.Code = code
+			if proof != nil {
+				diagnostic.SourceAttemptID, diagnostic.TargetCommit = proof.SourceAttemptID, proof.TargetCommit
+			}
+			return diagnostic
+		}
 		source, code := s.liveInspectionSource(ctx, d, origin)
 		if code != "" {
 			diagnostic.Code = code

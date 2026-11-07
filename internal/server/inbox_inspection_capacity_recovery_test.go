@@ -94,6 +94,10 @@ func testInspectionCapacityContinuation(t *testing.T, s *Server, origin db.Inbox
 	if err := task.ValidateLiveInspectionSource(ctx, store, &d.Task, &proof); err != nil {
 		t.Fatal("capacity continuation invalid", err)
 	}
+	diagnostic := s.liveInspectionPlanDiagnostic(ctx, d)
+	if diagnostic.Code != "capacity_ready" || diagnostic.SourceAttemptID != previous.SourceAttemptID || diagnostic.TargetCommit != s.cfg.CommitSHA {
+		t.Fatalf("Owner diagnostic disagrees with capacity planner: %+v", diagnostic)
+	}
 	for _, bad := range []string{"owner", "repository", "source", "scope", "parent", "stale observation", "wrong purpose"} {
 		altered := proof
 		switch bad {
