@@ -51,7 +51,7 @@ func TestNativeReleasePreparationPublishesActualBoundCheckout(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "prepare")
 }
 func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
-	for _, scenario := range []string{"initial merge", "initial contained", "initial no access", "initial wrong source", "initial revoked"} {
+	for _, scenario := range []string{"initial merge", "initial verify", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial wrong source", "initial revoked"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
@@ -61,7 +61,7 @@ func TestNativeReleaseHandoffSchedulesWithoutPMModel(t *testing.T) {
 	}
 }
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "schedule"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})

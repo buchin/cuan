@@ -214,4 +214,14 @@ commit fields. Validation requires the completed canonical delivery and original
 owner/request binding, rejects unrelated targets and mixed recovery modes, and
 admits only the existing read-only inspection lane through a claimed launch and
 exact native-stage predecessor. It grants no implementation/publication authority.
-Automatic native-delivery→inspection scheduling is not connected yet.
+Inbox now schedules that inspection after validating completed delivery,
+original saved approval and the current running release identity. It reuses the
+existing live-inspection launcher rather than generating another PM model turn.
+Actual verifier execution and final acceptance still need end-to-end proof.
+
+Native delivery scheduling rejects archived projects, revoked developer source or
+a running release different from the recorded target. GitHub repository identity
+comparison follows provider case-insensitive owner/repository semantics; commit
+identity remains exact. Reconstructed review scans reuse the deterministic launch.
+The original task stays pending until the independent verifier establishes its
+original criteria and the normal acceptance gates pass.

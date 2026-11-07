@@ -31,7 +31,7 @@ func (s *Server) runningProjectRelease(ctx context.Context, d *task.TaskDetailRe
 		return nil
 	}
 	p, err := s.projectSvc.Get(ctx, d.ProjectID)
-	if err != nil || p == nil {
+	if err != nil || p == nil || p.IsArchived {
 		return nil
 	}
 	owner, name, err := git.ParseGitHubURL(p.RepoURL)

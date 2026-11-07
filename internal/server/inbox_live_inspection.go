@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
@@ -274,7 +275,7 @@ func (s *Server) liveInspectionReviewContext(ctx context.Context, d *task.TaskDe
 
 func (s *Server) liveInspectionMatchesRelease(ctx context.Context, d *task.TaskDetailResponse, proof *task.LiveInspectionIntent) bool {
 	observed := s.runningProjectRelease(ctx, d)
-	return observed != nil && proof != nil && observed.Commit == proof.TargetCommit && observed.Repository == proof.Repository
+	return observed != nil && proof != nil && observed.Commit == proof.TargetCommit && strings.EqualFold(observed.Repository, proof.Repository)
 }
 
 func (s *Server) prepareLiveInspection(ctx context.Context, d *task.TaskDetailResponse, requestID string) (string, *task.LiveInspectionIntent, error) {

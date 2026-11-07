@@ -721,6 +721,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			RoomID:  targetRoomID,
 		}
 	}
+	gate = "native_release_verification"
+	if s.recoverNativeReleaseVerification(ctx, detail, requests) {
+		return
+	}
 	gate = "native_release"
 	if s.recoverNativeReleaseHandoff(ctx, detail, requests) {
 		return

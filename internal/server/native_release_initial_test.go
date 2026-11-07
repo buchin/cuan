@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/release"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
@@ -143,7 +147,7 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 	} else {
 		response = request()
 	}
-	success := scenario == "initial merge" || scenario == "initial contained"
+	success := scenario == "initial merge" || strings.HasPrefix(scenario, "initial verify") || scenario == "initial contained"
 	if !success {
 		if response.Code != 409 || merges != 0 || gets != 0 {
 			t.Fatal("invalid initial source reached merge")
@@ -196,5 +200,102 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 	}
 	if access != 2 {
 		t.Fatal("prepared recovery accessed connection again", access)
+	}
+	if strings.HasPrefix(scenario, "initial verify") {
+		verifyNativeDeliveryStartsIndependentInspection(t, s, item, claim, intent, target, scenario)
+	}
+}
+
+func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, item *task.Task, claim *runner.ClaimTaskResponse, intent task.NativeReleaseIntent, target, scenario string) {
+	t.Helper()
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Native process/observation facts are fixture receipts here; actual process
+	// dispatch and registered observation have separate integration coverage.
+	started := time.Now().UTC()
+	finished := time.Now().UTC()
+	receipt := task.DeploymentReceipt{Version: 1, TaskID: item.ID, AttemptID: claim.Attempt.ID, CommitSHA: target, ReleaseSHA: target, Environment: "production", Health: "healthy"}
+	raw, _ := json.Marshal(receipt)
+	must(s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(item.ID, claim.Attempt.ID, target), TaskID: item.ID, AttemptID: &claim.Attempt.ID, Author: "cuan-deploy", ActivityType: "deployment_verified", Message: string(raw), CreatedAt: time.Now().UTC()}))
+	s.runnerSvc.SetProjectFinder(s.projectSvc)
+	completed, err := s.runnerSvc.Complete(ctx, claim.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: claim.Attempt.RunnerID, Status: task.AttemptStatusSucceeded, ExitCode: 0, NativeReleaseProcess: &release.Result{Commit: target, Branch: intent.TargetBranch, StartedAt: started, FinishedAt: finished, ExitCode: 0, SourceUnchanged: true}})
+	must(err)
+	if completed.Status != task.AttemptStatusSucceeded {
+		t.Fatal("fixture native completion rejected", completed.ErrorMessage)
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	s.cfg.Environment = "production"
+	s.cfg.SourceRepository = intent.Repository
+	s.cfg.CommitSHA = target
+	invalid := scenario != "initial verify"
+	switch scenario {
+	case "initial verify changed release":
+		s.cfg.CommitSHA = strings.Repeat("f", 40)
+	case "initial verify archived":
+		p, err := s.projectSvc.Store().GetProject(ctx, item.ProjectID)
+		must(err)
+		p.IsArchived = true
+		must(s.projectSvc.Store().UpdateProject(ctx, p))
+	case "initial verify revoked":
+		source, err := s.taskSvc.Store().GetAttempt(ctx, intent.SourceAttemptID)
+		must(err)
+		source.CancelRequested = true
+		must(s.taskSvc.Store().UpdateAttempt(ctx, source))
+	}
+	requests := s.projectStudioRepo.(db.InboxRequestRepository)
+	beforeRequests, err := requests.ListInboxRequests(ctx, item.SourceRoomID)
+	must(err)
+	s.queueInboxTaskReview(ctx, detail)
+	proof := task.LiveInspectionIntent{Purpose: task.NativeReleaseInspection, SourceAttemptID: claim.Attempt.ID, InstructionsHash: intent.InstructionsHash}
+	saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, proof.RequestID(item.ID)))
+	if invalid {
+		if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
+			t.Fatal(err)
+		}
+		if saved != nil {
+			t.Fatal("invalid current release/source scheduled native verification")
+		}
+		current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		if current.Status == task.TaskStatusDone {
+			t.Fatal("invalid source accepted")
+		}
+		return
+	}
+	must(err)
+	afterRequests, err := requests.ListInboxRequests(ctx, item.SourceRoomID)
+	must(err)
+	if len(beforeRequests) != len(afterRequests) {
+		t.Fatal("native verifier scheduling created a model PM turn")
+	}
+	if saved == nil {
+		t.Fatal("native delivery did not schedule independent inspection")
+	}
+	parsed, err := task.LiveInspectionForLaunch(&detail.Task, saved)
+	must(err)
+	if parsed == nil || parsed.Purpose != task.NativeReleaseInspection || parsed.SourceAttemptID != claim.Attempt.ID || parsed.SourceCommit != intent.SourceCommit || parsed.TargetCommit != target || parsed.SourceRequestID != intent.SourceRequestID {
+		t.Fatal("scheduled inspection lost original source/approval")
+	}
+	if saved.State != "queued" && saved.State != "claimed" && saved.State != "started" {
+		t.Fatal("native verifier was not durably queued", saved.State, saved.SafeError)
+	}
+	current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if current.CommitSHA != intent.SourceCommit || current.Status == task.TaskStatusDone {
+		t.Fatal("scheduling rewrote source or accepted task")
+	}
+	before := len(current.Attempts)
+	restarted := *s
+	restarted.queueInboxTaskReview(ctx, detail)
+	after, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if len(after.Attempts) != before {
+		t.Fatal("reconstructed review duplicated independent verifier")
 	}
 }
