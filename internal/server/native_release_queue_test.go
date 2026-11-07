@@ -51,7 +51,7 @@ func TestNativeReleasePreparationPublishesActualBoundCheckout(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "prepare")
 }
 func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
-	for _, scenario := range []string{"initial merge", "initial verify", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial missing verifier", "initial wrong source", "initial revoked"} {
+	for _, scenario := range []string{"initial merge", "initial verify", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial missing verifier", "initial missing tool", "initial wrong source", "initial revoked"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
@@ -105,7 +105,11 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	nativeSource, nativeManifest := strings.Repeat("a", 40), strings.Repeat("b", 64)
 	preparedTarget := ""
 	if scenario == "prepare" || strings.HasPrefix(scenario, "initial") {
-		nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s)
+		if scenario == "initial missing tool" {
+			nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s, "cuan-fixture-unavailable-tool")
+		} else {
+			nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s)
+		}
 	}
 	item := &task.Task{ID: "native-release-task", ProjectID: "default", SourceRoomID: q.RoomID, SourceMessageID: q.MessageID, AssignedAgent: q.AgentID, Title: "Implement approved feature", Instructions: "Cuan managed delegation v1.\nImplement and deploy the approved feature.", Status: task.TaskStatusReview, ExecutionCategory: task.ExecutionCategoryCode, CommitSHA: nativeSource, Summary: "Source handoff", CompleteNote: "Native checks passed; publication pending", CreatedAt: now, UpdatedAt: now}
 	if scenario == "initial verify" {
@@ -477,7 +481,7 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	}
 }
 
-func nativeReleaseProjectFixture(t *testing.T, s *Server) (string, string, string) {
+func nativeReleaseProjectFixture(t *testing.T, s *Server, tools ...string) (string, string, string) {
 	t.Helper()
 	root := t.TempDir()
 	must := func(err error) {
@@ -488,6 +492,10 @@ func nativeReleaseProjectFixture(t *testing.T, s *Server) (string, string, strin
 	}
 	must(os.Mkdir(filepath.Join(root, ".cuan"), 0700))
 	manifest := `{"version":1,"command":["release.sh"],"timeout_seconds":5}`
+	if len(tools) > 0 {
+		raw, _ := json.Marshal(map[string]any{"version": 1, "command": []string{"release.sh"}, "timeout_seconds": 5, "required_tools": tools})
+		manifest = string(raw)
+	}
 	for name, body := range map[string]string{".cuan/release.json": manifest, "release.sh": "#!/bin/sh\ntouch executed\n", "work.txt": "source"} {
 		must(os.WriteFile(filepath.Join(root, name), []byte(body), 0700))
 	}

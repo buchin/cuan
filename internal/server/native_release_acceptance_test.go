@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,7 +79,22 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	}
 	key := "task-review:" + attempt.ID
 	message := &db.ProjectMessage{ID: delegationMessageID(key + ":input"), RoomID: item.SourceRoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: "Review [/tasks/" + item.ID + "]", CreatedAt: time.Now().UTC()}
-	must(s.projectStudioRepo.CreateMessage(ctx, message))
+	existing, err := s.projectStudioRepo.GetMessageByID(ctx, message.ID)
+	if err != nil && !errors.Is(err, db.ErrMessageNotFound) {
+		t.Fatal(err)
+	}
+	if existing == nil {
+		createErr := s.projectStudioRepo.CreateMessage(ctx, message)
+		if createErr != nil && !errors.Is(createErr, db.ErrDuplicateMessage) {
+			t.Fatal(createErr)
+		}
+		existing, err = s.projectStudioRepo.GetMessageByID(ctx, message.ID)
+		must(err)
+	}
+	if existing == nil || existing.RoomID != message.RoomID || existing.AuthorType != "system" || existing.AuthorID != "cuan_work_review" || !strings.Contains(existing.Content, "/tasks/"+item.ID) {
+		t.Fatal("existing native review message has different provenance")
+	}
+
 	q := db.InboxRequest{OwnerID: launch.OwnerID, AgentID: launch.AgentID, RoomID: item.SourceRoomID, RequestID: delegationMessageID(key), MessageID: message.ID, ReplyID: delegationMessageID(key + ":reply"), CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour)}
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"pass","finding":"Delivered fixture content verified.","explanation":"Exact delivered content checked","remaining_work":"none","revision":""}`)
 	accepted, err := s.taskSvc.GetTaskDetail(ctx, item.ID)

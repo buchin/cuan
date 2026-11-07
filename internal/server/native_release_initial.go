@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/buchin/cuan/internal/release"
 	"os"
 	"path/filepath"
 
@@ -76,6 +77,18 @@ func (s *Server) ensureNativeReleasePreparation(ctx context.Context, taskID, att
 		return prepared, err
 	}
 	if err := git.NewClient().VerifySnapshotCommit(ctx, sourcePath, intent.SourceCommit, intent.SourceCommit); err != nil {
+		return nil, err
+	}
+	plan, planErr := release.Load(ctx, sourcePath, intent.SourceCommit, d.BranchName)
+	if planErr != nil || plan.Description().ManifestHash != intent.ManifestHash {
+		return nil, errors.New("native source release descriptor differs from admission")
+	}
+	selected := project.ParseEnvironment(project.SettingsFromMetadata(projectContext.Metadata).Environment)
+	path := selected["PATH"]
+	if path == "" {
+		path = "/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
+	}
+	if err := release.CheckRuntime(plan, []string{"PATH=" + path}); err != nil {
 		return nil, err
 	}
 	pushed, err := s.projectSvc.PushNativeReleaseSource(ctx, d.ProjectID, d.Instructions, intent.Repository, sourcePath, d.BranchName, intent.SourceCommit)

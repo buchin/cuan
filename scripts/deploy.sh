@@ -101,6 +101,9 @@ python3 scripts/test-prune-verification-dependencies.py
 python3 scripts/test-prune-runtime-build-cache.py
 python3 scripts/test-runtime-cache-maintenance.py
 
+echo "==> Installing locked frontend dependencies in this release checkout..."
+npm ci --prefix web --no-audit --no-fund
+
 echo "==> Running frontend test gate..."
 npm test --prefix web
 

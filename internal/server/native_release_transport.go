@@ -89,6 +89,16 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	environment["GOCACHE"] = filepath.Join(base, "cache", "go")
 	environment["GOPATH"] = filepath.Join(base, "data", "go")
 	environment["NPM_CONFIG_CACHE"] = filepath.Join(base, "cache", "npm")
+	npmrc := ".git/cuan-native-runtime/config/npmrc"
+	if err := writeNativeRuntimeFile(root, npmrc, []byte{}, 0600); err != nil {
+		respondJSONError(w, 503, "Private npm configuration unavailable")
+		return
+	}
+	environment["NPM_CONFIG_USERCONFIG"] = filepath.Join(base, "config", "npmrc")
+	environment["NPM_CONFIG_GLOBALCONFIG"] = "/dev/null"
+	environment["GIT_CONFIG_GLOBAL"] = "/dev/null"
+	environment["GIT_CONFIG_NOSYSTEM"] = "1"
+
 	if environment["PATH"] == "" {
 		environment["PATH"] = "/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
 	}

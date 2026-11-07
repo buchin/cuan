@@ -65,6 +65,10 @@ func Run(parent context.Context, p *Plan, environment []string) Result {
 		result.Error = "release plan and explicit environment are required"
 		return result
 	}
+	if err := CheckRuntime(p, environment); err != nil {
+		result.Error = err.Error()
+		return result
+	}
 	result.Commit, result.Branch = p.commit, p.branch
 	ctx, cancel := context.WithTimeout(parent, time.Duration(p.spec.TimeoutSeconds)*time.Second)
 	defer cancel()

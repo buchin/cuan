@@ -1,5 +1,22 @@
 {
   "version": 1,
-  "command": ["scripts/deploy.sh"],
-  "timeout_seconds": 1200
+  "command": [
+    "scripts/deploy.sh"
+  ],
+  "timeout_seconds": 1200,
+  "required_tools": [
+    "bash",
+    "git",
+    "go",
+    "node",
+    "npm",
+    "ssh",
+    "scp",
+    "sshpass",
+    "rsync",
+    "python3",
+    "tar",
+    "sha256sum",
+    "curl"
+  ]
 }

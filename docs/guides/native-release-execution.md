@@ -36,7 +36,8 @@ Track `.cuan/release.json` alongside its executable entry point:
 {
   "version": 1,
   "command": ["scripts/deploy.sh"],
-  "timeout_seconds": 1200
+  "timeout_seconds": 1200,
+  "required_tools": ["bash", "git", "go", "node", "npm", "ssh", "scp", "sshpass", "rsync", "python3", "tar", "sha256sum", "curl"]
 }
 ```
 
@@ -249,3 +250,25 @@ Cuan does not copy ambient developer known_hosts, discover-and-silently-trust a
 new key, or write password values into SSH runtime files. A missing observer/key
 stops preparation before source push/merge. Runtime setup includes public trust
 only; authentication remains the explicit saved project environment.
+
+## Runtime tool and dependency checks
+
+An optional `required_tools` descriptor list names up to32 distinct bare executable
+names. Invalid paths/arguments/duplicates are rejected. `CheckRuntime` searches
+only the explicitly selected PATH, ignores relative entries, checks executability
+and never executes the tools or inherits the maintainer PATH. `Run` enforces the
+same check before any process. Native initial publication loads the exact admitted
+source descriptor/hash and checks this runtime before push. These are availability
+checks, not version or functional probes.
+
+The maintained Cuan release script runs locked `npm ci` before frontend tests,
+since private source checkouts do not contain node_modules. Native npm config/cache
+and Git global/system config are isolated from host credentials. A clean private
+npm installation has been tested locally; it does not prove production build or
+deployment compatibility.
+
+Known remaining blocker: the maintained script still fetches `origin` to check
+branch synchronization, while a private release checkout intentionally has no
+credential-bearing remote. This must be bridged through saved-owner native remote
+observation before enabling execution; do not substitute an ambient Git login or
+claim the release path is ready yet.

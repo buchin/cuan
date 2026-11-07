@@ -22,6 +22,7 @@ import (
 const ManifestPath = ".cuan/release.json"
 
 type specification struct {
+	RequiredTools  []string `json:"required_tools,omitempty"`
 	Version        int      `json:"version"`
 	Command        []string `json:"command"`
 	TimeoutSeconds int      `json:"timeout_seconds"`
@@ -36,6 +37,7 @@ type Plan struct {
 }
 
 type Description struct {
+	RequiredTools  []string `json:"required_tools,omitempty"`
 	Commit         string   `json:"commit"`
 	Branch         string   `json:"branch"`
 	Command        []string `json:"command"`
@@ -44,7 +46,7 @@ type Description struct {
 }
 
 func (p *Plan) Description() Description {
-	return Description{Commit: p.commit, Branch: p.branch, Command: append([]string(nil), p.spec.Command...), TimeoutSeconds: p.spec.TimeoutSeconds, ManifestHash: hex.EncodeToString(p.manifestHash[:])}
+	return Description{RequiredTools: append([]string(nil), p.spec.RequiredTools...), Commit: p.commit, Branch: p.branch, Command: append([]string(nil), p.spec.Command...), TimeoutSeconds: p.spec.TimeoutSeconds, ManifestHash: hex.EncodeToString(p.manifestHash[:])}
 }
 
 func source(ctx context.Context, root, commit, branch string) error {
@@ -118,6 +120,16 @@ func Load(ctx context.Context, root, commit, branch string) (*Plan, error) {
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&spec) != nil || decoder.Decode(&struct{}{}) != io.EOF || spec.Version != 1 || len(spec.Command) == 0 || len(spec.Command) > 16 || spec.TimeoutSeconds < 1 || spec.TimeoutSeconds > 1800 {
 		return nil, errors.New("invalid release descriptor")
+	}
+	if len(spec.RequiredTools) > 32 {
+		return nil, errors.New("too many release runtime requirements")
+	}
+	seenTools := map[string]bool{}
+	for _, tool := range spec.RequiredTools {
+		if !runtimeToolName.MatchString(tool) || seenTools[tool] {
+			return nil, errors.New("invalid release runtime tool requirement")
+		}
+		seenTools[tool] = true
 	}
 	for _, arg := range spec.Command {
 		if arg == "" || len(arg) > 2048 || strings.ContainsRune(arg, 0) {
