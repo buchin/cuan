@@ -54,6 +54,15 @@ func (s *RunnerService) prepareNativeReleaseCompletion(ctx context.Context, t *t
 	if !task.VerifiedDeployment(activities, att, prep.TargetCommit, now) {
 		return nil, errors.New("native release requires independent target deployment observation")
 	}
+	preparedBeforeProcess := false
+	for _, event := range activities {
+		if event != nil && event.ID == "native-release-preparation:"+att.ID && !event.CreatedAt.After(result.StartedAt) {
+			preparedBeforeProcess = true
+		}
+	}
+	if !preparedBeforeProcess {
+		return nil, errors.New("native release process predates preparation")
+	}
 	observedAfterProcess := false
 	for _, event := range activities {
 		if event != nil && event.ID == task.DeploymentReceiptID(t.ID, att.ID, prep.TargetCommit) && !event.CreatedAt.Before(result.FinishedAt) {

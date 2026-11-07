@@ -382,6 +382,7 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	receipt := task.NativeReleasePreparation{Version: 1, TaskID: item.ID, AttemptID: claim.Attempt.ID, SourceCommit: intent.SourceCommit, TargetCommit: target, InstructionsHash: intent.InstructionsHash, Repository: intent.Repository, TargetBranch: intent.TargetBranch, ManifestHash: intent.ManifestHash}
 	raw, _ := json.Marshal(receipt)
 	must(store.CreateActivity(ctx, &task.TaskActivity{ID: "native-release-preparation:" + claim.Attempt.ID, TaskID: item.ID, AttemptID: &claim.Attempt.ID, Author: "cuan-native-release", ActivityType: task.ActivityNativeReleasePreparation, Message: string(raw), CreatedAt: time.Now().UTC()}))
+	processStarted := time.Now().UTC()
 	calls := 0
 	s.publicationVerifier = func(_ context.Context, c publication.Config, expected string) error {
 		calls++
@@ -429,7 +430,7 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	}
 	if want == 200 || scenario == "publication no live proof" {
 		s.runnerSvc.SetProjectFinder(s.projectSvc)
-		process := &release.Result{Commit: target, Branch: intent.TargetBranch, StartedAt: *claim.Attempt.StartedAt, FinishedAt: processFinished, ExitCode: 0, SourceUnchanged: true}
+		process := &release.Result{Commit: target, Branch: intent.TargetBranch, StartedAt: processStarted, FinishedAt: processFinished, ExitCode: 0, SourceUnchanged: true}
 		switch scenario {
 		case "publication missing process":
 			process = nil
@@ -456,6 +457,11 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 			}
 		}
 		if scenario == "publication" {
+			delivery, err := task.NativeReleaseDeliveryForAttempt(ctx, store, &current.Task, claim.Attempt.ID)
+			must(err)
+			if delivery == nil || delivery.SourceCommit != intent.SourceCommit || delivery.TargetCommit != target {
+				t.Fatal("completed native delivery cannot be read for verification")
+			}
 			if completed.Status != task.AttemptStatusSucceeded || current.Status != task.TaskStatusReview || deliveries != 1 {
 				t.Fatal("native delivery did not await independent verification")
 			}

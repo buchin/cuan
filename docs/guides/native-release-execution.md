@@ -194,3 +194,15 @@ model request or AI-capacity query. Reconstructed scans reuse the recorded launc
 This scheduling does not check off criteria, claim deployment or mark Done.
 The poller capability remains off until delivered-source verification and owner
 runtime readiness are completed and exercised in production.
+
+## Completed delivery lineage for verification
+
+`NativeReleaseDeliveryForAttempt` reads a completed successful native attempt's
+canonical delivery, preparation and post-process deployment observation together
+with the original developer source/check evidence. It preserves source and target
+as distinct commits and rejects revoked/changed source, failed stages, mismatched
+records and invalid process chronology. Reading historical delivery does not
+reopen completed release admission or assert that production has not changed
+since that observation. The native completion gate also requires preparation to
+precede process startup. Delivered-source verifier intent/admission and final
+acceptance still need to be connected to this validated lineage.

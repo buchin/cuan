@@ -104,7 +104,14 @@ func NativeReleaseIntentForAttempt(ctx context.Context, store Store, t *Task, at
 // ValidateNativeReleaseSource requires current native evidence. Historical
 // failures and model prose cannot be reinterpreted as a fresh publication grant.
 func ValidateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *NativeReleaseIntent) error {
-	if !nativeReleaseShape(t, p) || t.CommitSHA != p.SourceCommit || t.Status == TaskStatusDone || t.Status == "cancelled" || t.Status == "canceled" || t.ExecutionCategory != ExecutionCategoryCode {
+	return validateNativeReleaseSource(ctx, store, t, p, true)
+}
+
+// Historical delivery validation checks the same source evidence without
+// pretending its completed native stage is still queued/running. This grants
+// no new execution admission; current-stage validation retains the latest gate.
+func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *NativeReleaseIntent, requireLatest bool) error {
+	if !nativeReleaseShape(t, p) || t.CommitSHA != p.SourceCommit || (requireLatest && t.Status == TaskStatusDone) || t.Status == "cancelled" || t.Status == "canceled" || t.ExecutionCategory != ExecutionCategoryCode {
 		return ErrInvalidTaskInput
 	}
 	source, err := store.GetAttempt(ctx, p.SourceAttemptID)
@@ -118,7 +125,7 @@ func ValidateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	if latest == nil {
 		return ErrInvalidTaskInput
 	}
-	if latest.ID != p.SourceAttemptID {
+	if requireLatest && latest.ID != p.SourceAttemptID {
 		if latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusQueued && latest.Status != AttemptStatusRunning) {
 			return ErrRequestConflict
 		}
