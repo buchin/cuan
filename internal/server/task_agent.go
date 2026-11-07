@@ -19,7 +19,6 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
-	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
 	"github.com/buchin/cuan/internal/workflow"
@@ -213,7 +212,10 @@ For completed implementation, finish with:
 For a greeting/question with no file changes, use --state review --result-kind answer.
 Use --state review when implementation still needs review.
 For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
-Read task get before final reporting. Both review and done require current
+Use task report-template (or prepare_current_task_report in MCP) to obtain the
+original criteria as review JSON with empty evidence, rather than reconstructing
+their IDs and text. Fill actual findings before submission. Read task get when
+additional scope/context is needed or a report is uncertain/rejected. Both review and done require current
 observations for EVERY saved acceptance criterion, preserving its text, ID and
 order. Previous attempts' checklist evidence cannot substitute for this report.
 Supply completed:true only for verified criteria, with a concrete "evidence"
@@ -252,7 +254,9 @@ capability file. Need structured metadata? task --help documents --report-file.
 			}
 			instructions = dodBuilder.String() + "\n" + instructions
 		}
-		instructions = workflow.Developer + "\n\n" + cuanPrompt.GetRunnerPromptAdditions() + "\n\n" + instructions
+		// Entry points supply the actual repository guidance once. This private
+		// guide carries reporting/workflow context, never the API host's AGENTS.
+		instructions = workflow.Developer + "\n\n" + instructions
 		if techTaste := s.formatTechnicalTastePrompt(ctx); techTaste != "" {
 			instructions += "\n\n" + techTaste + "\n"
 		}

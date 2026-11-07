@@ -12,6 +12,7 @@ import (
 )
 
 var taskSessionMCPTools = []mcpToolDefinition{
+	{Name: "prepare_current_task_report", Description: "Read the bound current task and prepare review JSON with unchanged original acceptance IDs/text/order and empty evidence. This does not submit a report or accept work. Fill factual observations and leave unmet criteria false before report_current_task. No task IDs or Owner credentials are accepted.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 	{Name: "get_current_task", Description: "Read the task and attempt bound to this worker session using its private task capability. No task ID or Owner credentials are accepted.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 	{Name: "report_current_task", Description: "Report progress or verified results for the bound task attempt. Use state progress for checkpoints; final reports need actual summary, verification and unchanged acceptance criteria with evidence. Attach deliverables using workspace-relative artifacts, or session:PATH for files under CUAN_TASK_ARTIFACTS_DIR outside the repository. This is a worker report, not an Owner message or coordinator acceptance.", InputSchema: taskSessionReportSchema()},
 	{Name: "push_current_task", Description: "Publish only the bound task branch through its scoped capability when approved scope allows it. Does not prove deployment or complete the task. Never use for no-push work.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
@@ -57,6 +58,8 @@ func callTaskSessionTool(name string, arguments map[string]any) (any, error) {
 	}
 	var args []string
 	switch name {
+	case "prepare_current_task_report":
+		args = []string{"report-template"}
 	case "get_current_task":
 		args = []string{"get"}
 	case "push_current_task":

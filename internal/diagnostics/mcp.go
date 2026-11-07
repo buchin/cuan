@@ -615,7 +615,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		var toolErr error
 
 		switch callParams.Name {
-		case "get_current_task", "report_current_task", "push_current_task":
+		case "get_current_task", "prepare_current_task_report", "report_current_task", "push_current_task":
 			toolResult, toolErr = callTaskSessionTool(callParams.Name, callParams.Arguments)
 		case "inspect_git_status":
 			toolResult, toolErr = InspectGitStatus(ctx, pathVal)

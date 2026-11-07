@@ -37,6 +37,10 @@ func TestTaskSessionMCPUsesOnlyBoundCapability(t *testing.T) {
 					w.Write([]byte(`{"error":"attempt ended"}`))
 					return
 				}
+				if r.Method == http.MethodGet {
+					w.Write([]byte(`{"id":"bound","latest_attempt":{"id":"attempt"},"dod_checklist":[{"id":"criterion","text":"Original criterion","completed":true,"evidence":"Old claim"}]}`))
+					return
+				}
 				w.Write([]byte(`{"task_id":"bound","accepted_report":true}`))
 			}))
 			defer api.Close()
@@ -61,6 +65,15 @@ func TestTaskSessionMCPUsesOnlyBoundCapability(t *testing.T) {
 			if _, err := callTaskSessionTool("get_current_task", nil); err != nil {
 				t.Fatal(err)
 			}
+			template, err := callTaskSessionTool("prepare_current_task_report", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := template.(map[string]any)["dod_checklist"].([]any)
+			item := items[0].(map[string]any)
+			if item["id"] != "criterion" || item["completed"] != false || item["evidence"] != "" {
+				t.Fatal("template inherited success", template)
+			}
 			report := map[string]any{"state": "review", "summary": "Actual result", "complete_note": "Observed checks", "artifacts": []string{"output.md"}, "dod_checklist": []any{map[string]any{"id": "criterion", "text": "Original criterion", "completed": true, "evidence": "Observed output"}}}
 			if _, err := callTaskSessionTool("report_current_task", report); err != nil {
 				t.Fatal(err)
@@ -71,7 +84,7 @@ func TestTaskSessionMCPUsesOnlyBoundCapability(t *testing.T) {
 			if _, err := callTaskSessionTool("push_current_task", nil); err != nil {
 				t.Fatal(err)
 			}
-			if requests != 3 || ownerRequests != 0 {
+			if requests != 4 || ownerRequests != 0 {
 				t.Fatalf("wrong identity or duplicate calls: bound=%d owner=%d", requests, ownerRequests)
 			}
 			for _, args := range []map[string]any{{"task_id": "foreign"}, {"api": "https://foreign.invalid"}, {"token": "foreign"}, {"instructions": "replace scope"}, {"state": "accepted"}, {"dod_checklist": []any{map[string]any{"instructions": "replace"}}}} {
@@ -82,7 +95,10 @@ func TestTaskSessionMCPUsesOnlyBoundCapability(t *testing.T) {
 			if _, err := callTaskSessionTool("get_current_task", map[string]any{"task_id": "foreign"}); err == nil {
 				t.Fatal("cross-task read accepted")
 			}
-			if requests != 3 {
+			if _, err := callTaskSessionTool("prepare_current_task_report", map[string]any{"task_id": "foreign"}); err == nil {
+				t.Fatal("template accepted cross-task identity")
+			}
+			if requests != 4 {
 				t.Fatal("invalid arguments caused network effects")
 			}
 			reject = true
@@ -105,7 +121,7 @@ func TestTaskSessionMCPUsesOnlyBoundCapability(t *testing.T) {
 func TestTaskSessionMCPWithoutCapabilityNeverUsesOwner(t *testing.T) {
 	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
 	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
-	for _, name := range []string{"get_current_task", "report_current_task", "push_current_task"} {
+	for _, name := range []string{"get_current_task", "prepare_current_task_report", "report_current_task", "push_current_task"} {
 		if _, err := callTaskSessionTool(name, map[string]any{"progress": "Checkpoint"}); err == nil {
 			t.Fatal("unbound tool accepted")
 		}

@@ -439,3 +439,31 @@ operate Owner tooling or searching orchestration code just to start a verifier.
 Native verification/inspection workers receive the independent verifier role and
 report their own observations and gaps; the coordinator owns subsequent execution
 and acceptance. Original scope and every saved criterion remain authoritative.
+
+### Prepare a factual worker report without rebuilding its schema
+
+In a bound worker session:
+
+```bash
+"$CUAN_TASK_EXECUTABLE" task report-template > "$CUAN_TASK_ARTIFACTS_DIR/report.json"
+# Fill summary, complete_note and current evidence for every original criterion.
+"$CUAN_TASK_EXECUTABLE" task report --report-file "$CUAN_TASK_ARTIFACTS_DIR/report.json"
+```
+
+MCP equivalent: `prepare_current_task_report {}`, then fill the returned fields and
+submit with `report_current_task`. The template performs one scoped current-task
+read and checks the bound task/attempt identity. It preserves original criterion
+IDs, text and order, sets state review, and starts with empty evidence and all
+criteria false. It copies no historical claims, instructions, environment or
+account metadata. An unfilled template is not an acceptable report. Pending
+independent verification stays false with its factual gap; preparation never
+submits, starts or accepts work. Read `task get` for missing context or after an
+uncertain/rejected report, rather than regenerating an existing unconfirmed report.
+Bound `task --help` lists worker reporting commands rather than Owner operations.
+
+Repository/Scrum guidance is supplied once by the execution entry point. Native
+runners use their actual checkout; local terminal launches use their resolved
+workspace. Private capability guidance retains workflow, reporting, criteria and
+Technical Taste. An explicit target root without AGENTS.md never silently borrows
+the Cuan API server's repository rules. Saved goal/instructions and original scope
+remain authoritative; missing required guidance must be reported as a context gap.

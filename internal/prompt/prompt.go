@@ -22,26 +22,33 @@ var EmbeddedAgentsGuidance string
 var EmbeddedScrumRules string
 
 // GetAgentsGuidance returns the contents of AGENTS.md.
-// It attempts to read AGENTS.md from the provided directory or common repository locations,
-// falling back to the embedded copy if the file is not accessible on disk.
+// Explicit repository roots never borrow the API host's rules. Without an
+// explicit root, platform callers retain the common-path/embedded fallback.
 func GetAgentsGuidance(dirs ...string) string {
 	candidates := make([]string, 0, len(dirs)+4)
+	explicitRoot := false
 	for _, d := range dirs {
 		if strings.TrimSpace(d) != "" {
+			explicitRoot = true
 			candidates = append(candidates, filepath.Join(d, "AGENTS.md"))
 		}
 	}
-	candidates = append(candidates,
-		"AGENTS.md",
-		filepath.Join(".", "AGENTS.md"),
-		filepath.Join("..", "AGENTS.md"),
-		filepath.Join("..", "..", "AGENTS.md"),
-	)
+	if !explicitRoot {
+		candidates = append(candidates,
+			"AGENTS.md",
+			filepath.Join(".", "AGENTS.md"),
+			filepath.Join("..", "AGENTS.md"),
+			filepath.Join("..", "..", "AGENTS.md"),
+		)
+	}
 
 	for _, path := range candidates {
 		if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 			return strings.TrimSpace(string(data))
 		}
+	}
+	if explicitRoot {
+		return "Repository AGENTS.md is not available at the supplied root. Follow the saved project instructions and approved task scope; never substitute another repository's guidance. If required guidance cannot be read, report that context gap."
 	}
 
 	return strings.TrimSpace(EmbeddedAgentsGuidance)
@@ -133,7 +140,7 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		if artifactOnly {
 			sb.WriteString("Use the supplied original task and acceptance snapshot. Read \"$CUAN_TASK_EXECUTABLE\" task get when information is missing or after an uncertain/rejected report; do not reread known instructions merely as a startup ritual. ")
 		} else {
-			sb.WriteString("Read the current task with \"$CUAN_TASK_EXECUTABLE\" task get before final reporting. ")
+			sb.WriteString("Use the supplied original criteria or \"$CUAN_TASK_EXECUTABLE\" task report-template to prepare report JSON with original IDs/text/order and empty evidence. Read task get for missing task context or an uncertain/rejected report. ")
 		}
 		sb.WriteString("If the saved task has a DoD checklist, review/done reports MUST include every original item with unchanged ID, text and order, plus current factual evidence. Use --report-file JSON to preserve IDs. Mark unmet items completed=false and describe the gap; never fabricate evidence. A rejected report leaves this attempt active: correct it and resubmit.\nFor tasks without a saved checklist, report completion using:\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state review --summary \"<concise summary of work done>\" --complete-note \"<detailed DoD verification evidence>\"\n")

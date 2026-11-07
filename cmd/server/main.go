@@ -43,7 +43,7 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "task" {
 		hasCapability := os.Getenv("CUAN_TASK_CAPABILITY_FILE") != "" || os.Getenv("CUAN_TASK_CAPABILITY_JSON") != ""
-		isRunnerAction := len(os.Args) > 2 && (os.Args[2] == "report" || os.Args[2] == "push" || ((os.Args[2] == "get" || os.Args[2] == "stop-hook") && len(os.Args) == 3))
+		isRunnerAction := len(os.Args) > 2 && (os.Args[2] == "report" || os.Args[2] == "report-template" || os.Args[2] == "--help" || os.Args[2] == "help" || os.Args[2] == "push" || ((os.Args[2] == "get" || os.Args[2] == "stop-hook") && len(os.Args) == 3))
 		if hasCapability && isRunnerAction {
 			os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
 		}

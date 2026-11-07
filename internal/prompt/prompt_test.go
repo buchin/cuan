@@ -1,10 +1,27 @@
 package prompt
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestExplicitRepositoryGuidanceNeverBorrowsServerRepository(t *testing.T) {
+	root := t.TempDir()
+	guidance := GetAgentsGuidance(root)
+	if strings.Contains(guidance, "Cuan repository guidance") || strings.Contains(guidance, "Zero Cognitive Fatigue") {
+		t.Fatal("unrelated target inherited host repository rules")
+	}
+	const expected = "Target project rule: preserve its actual conventions."
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(expected), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if guidance := GetAgentsGuidance(root); guidance != expected {
+		t.Fatal("target repository rules lost", guidance)
+	}
+}
 
 func TestGetAgentsGuidance(t *testing.T) {
 	guidance := GetAgentsGuidance()

@@ -27,20 +27,26 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runStopHook(os.Stdin, out)
 	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(out, "Usage: cuan-server task get | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done requests verified implementation completion; it does not bypass independent review. Review requires summary and verification evidence; workflow changes after process exit.")
+		fmt.Fprintln(out, "Usage: cuan-server task get | report-template | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done requests verified implementation completion; it does not bypass independent review. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true,"evidence":"Observed output or check result"}],"commit_sha":"optional commit","test_summary":"Actual checks"}
-Read task get first. If the task has saved criteria, review/done require every original criterion with unchanged ID, text and order and current observed evidence. Use completed:false with a factual gap for unmet criteria, or state blocked for a blocker. Correct rejected reports within the same attempt. Only tasks without a saved checklist may use --state review --summary TEXT --complete-note TEXT alone. Final results require an explicit state; progress checkpoints do not finish the session.`)
+Use task report-template for current criterion IDs/text/order, or task get when more task context is needed. If the task has saved criteria, review/done require every original criterion with unchanged ID, text and order and current observed evidence. Use completed:false with a factual gap for unmet criteria, or state blocked for a blocker. Correct rejected reports within the same attempt. Only tasks without a saved checklist may use --state review --summary TEXT --complete-note TEXT alone. Final results require an explicit state; progress checkpoints do not finish the session.`)
 		fmt.Fprintln(out, "For read-only verification, write output under CUAN_TASK_ARTIFACTS_DIR and use --artifact session:PATH. Ordinary artifact paths remain relative to WORKSPACE_DIR. Both sources share the eight-file and 25 MB limits.")
+		fmt.Fprintln(out, "Use task report-template to print a review JSON template with current original criteria and empty evidence. Fill actual findings before task report --report-file FILE; generating a template does not submit or accept work.")
 		return 0
 	}
 	command := args[0]
-	if command != "get" && command != "report" && command != "push" {
+	if command != "get" && command != "report" && command != "push" && command != "report-template" {
 		fmt.Fprintln(errOut, "Unknown task command; use task --help")
 		return 2
 	}
 	fs := flag.NewFlagSet("task "+command, flag.ContinueOnError)
 	fs.SetOutput(errOut)
+	if command == "report-template" {
+		fs.Usage = func() {
+			fmt.Fprintln(errOut, "Usage: task report-template\nPrint review JSON with current original criteria and empty evidence. Fill actual findings before submitting; this command performs one scoped read and no report mutation.")
+		}
+	}
 	title := fs.String("title", "", "Refined task title")
 	priority := fs.String("priority", "", "Task priority")
 	summary := fs.String("summary", "", "Work plan or result summary")
@@ -62,6 +68,10 @@ Read task get first. If the task has saved criteria, review/done require every o
 	}
 	if fs.NArg() != 0 {
 		fmt.Fprintln(errOut, "Unexpected arguments; use task --help")
+		return 2
+	}
+	if command == "report-template" && fs.NFlag() != 0 {
+		fmt.Fprintln(errOut, "task report-template does not accept report flags; fill the printed JSON with actual findings")
 		return 2
 	}
 	if command != "report" && len(artifacts) > 0 {
@@ -193,6 +203,13 @@ Read task get first. If the task has saved criteria, review/done require every o
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		fmt.Fprintf(errOut, "Task API %d: %s\n", resp.StatusCode, bytes.TrimSpace(data))
 		return 1
+	}
+	if command == "report-template" {
+		data, e = reportTemplate(data, c)
+		if e != nil {
+			fmt.Fprintln(errOut, e.Error())
+			return 1
+		}
 	}
 	_, e = out.Write(data)
 	if e != nil {

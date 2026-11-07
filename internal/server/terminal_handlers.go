@@ -19,6 +19,7 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	cuangit "github.com/buchin/cuan/internal/git"
 	projectpkg "github.com/buchin/cuan/internal/project"
+	cuanPrompt "github.com/buchin/cuan/internal/prompt"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskprocess"
 	"github.com/buchin/cuan/internal/terminal"
@@ -861,6 +862,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			taskPrompt = ""
 		} else {
 			taskPrompt += extra
+			// Native runners add guidance in BuildRunnerPromptWithDoD. Local
+			// terminal launches use this entry point and need the target copy.
+			if detail != nil && !executionpolicy.StandaloneArtifactWork(detail.Instructions) {
+				taskPrompt = cuanPrompt.GetRunnerPromptAdditions(workDir) + "\n\n" + taskPrompt
+			}
 		}
 	}
 	var quotaHit atomic.Bool
