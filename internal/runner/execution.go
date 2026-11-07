@@ -276,7 +276,8 @@ func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace
 		// Preserve a developer-created local checkpoint as native source
 		// identity. Observing a clean HEAD creates no commit or publication;
 		// dirty/uncommitted work must never be attributed to that HEAD.
-		if !policy.ReadOnlyRepository && lane == task.ExecutionCategoryCode && compReq.Status == task.AttemptStatusSucceeded && ws != nil {
+		localResult := compReq.Status == task.AttemptStatusSucceeded || (compReq.Status == task.AttemptStatusFailed && compReq.AgentReportConfirmed && compReq.ErrorMessage == "Project verification failed")
+		if !policy.ReadOnlyRepository && lane == task.ExecutionCategoryCode && localResult && ws != nil {
 			head, headErr := fingerprintGit(ctx, ws.Path, "rev-parse", "--verify", "HEAD")
 			status, statusErr := fingerprintGit(ctx, ws.Path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
 			if headErr == nil && statusErr == nil && len(status) == 0 {

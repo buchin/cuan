@@ -108,6 +108,12 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 	if err != nil || limits.ReadOnlyRepository {
 		return nil, "source_scope_not_implementation"
 	}
+	// A local-only implementation cannot have delivered its new source to the
+	// running release. Missing result metadata must not redirect its verifier
+	// to unrelated deployed code.
+	if currentOutcome && limits.DenyPush && limits.DenyDeploy {
+		return nil, "local_implementation_requires_source_verification"
+	}
 	if !s.liveInspectionReadScopeAllowed(ctx, d, sourceAttempt) {
 		return nil, "inspection_checks_not_allowed"
 	}

@@ -28,6 +28,11 @@ func TestLiveResultInspectionLifecycle(t *testing.T) {
 	}
 }
 
+func TestLocalOnlyFailureDoesNotInspectUnrelatedRelease(t *testing.T) {
+	s, origin, d := phaseLineageSetup(t)
+	liveInspectionContract(t, s, origin, d, "current outcome local only", nil)
+}
+
 func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 	for _, scenario := range []string{"local", "local missing report", "local failed checks", "local missing identity", "local changed repository", "local release changed", "foreign runner", "missing start", "zero start", "future start", "future creation", "cancelled", "cancelled at", "running", "foreign owner", "different repository", "checks forbidden"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -160,6 +165,11 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		d.DoDChecklist = []task.DoDItem{{Text: "Original requested behavior works", Completed: false}}
 		exit = 124
 		source.ErrorMessage = "Execution timed out after adaptive timeout (45m0s)"
+	}
+	if scenario == "current outcome local only" {
+		d.Instructions += "\nDo not push. Do not deploy."
+		d.ResultKind = "implementation"
+		source.ErrorMessage, exit = "Project verification failed", 0
 	}
 	if strings.HasPrefix(scenario, "current outcome opaque") {
 		source.RunnerID, source.ErrorMessage = "local_terminal", ""
@@ -361,6 +371,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		}
 	}
 	eligible := scenario != "current outcome opaque foreign" && scenario != "current outcome opaque unfinished" && scenario != "current outcome opaque cancelled" && scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
+	if scenario == "current outcome local only" {
+		eligible = false
+	}
 	if strings.HasPrefix(scenario, "current outcome unrecorded ") && !strings.HasPrefix(scenario, "current outcome unrecorded local") {
 		eligible = false
 	}

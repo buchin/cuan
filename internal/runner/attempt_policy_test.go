@@ -90,6 +90,13 @@ func TestRevisionNoPushPreventsAutomaticCommit(t *testing.T) {
 	if outcome.CommitSHA != checkpoint || run("rev-parse", "HEAD") != checkpoint || run("status", "--porcelain") != "" {
 		t.Fatal("native local source observation changed or lost developer checkpoint")
 	}
+	for _, confirmed := range []bool{false, true} {
+		outcome = CompleteAttemptRequest{Status: task.AttemptStatusFailed, AgentReportConfirmed: confirmed, ErrorMessage: "Project verification failed", TestSummary: "registered checks failed"}
+		runner.postExecutionGitFlow(context.Background(), &cuangit.TaskWorkspace{Path: root, BranchName: "main"}, &task.Task{ID: "task"}, &task.TaskAttempt{ID: "attempt"}, ClaimTaskResponse{PublicationLimits: executionpolicy.PublicationPolicy{DenyPush: true}}, &outcome, task.ExecutionCategoryCode)
+		if (outcome.CommitSHA == checkpoint) != confirmed || outcome.Status != task.AttemptStatusFailed || outcome.TestSummary != "registered checks failed" {
+			t.Fatal("failed check source observation lost identity or changed failure", outcome)
+		}
+	}
 	outcome = CompleteAttemptRequest{Status: task.AttemptStatusSucceeded}
 	runner.postExecutionGitFlow(context.Background(), &cuangit.TaskWorkspace{Path: root, BranchName: "main"}, &task.Task{ID: "task", Title: "Read-only audit"}, &task.TaskAttempt{ID: "attempt"}, ClaimTaskResponse{PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyPush: true}}, &outcome, task.ExecutionCategoryCode)
 	if outcome.CommitSHA != "" || outcome.BranchName != "" || run("rev-parse", "HEAD") != checkpoint {
