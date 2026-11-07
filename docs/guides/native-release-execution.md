@@ -160,3 +160,12 @@ without checkout or ref changes. The returned structure contains identities and
 workspace path only, no environment/credentials. It does not merge, deploy,
 issue a task receipt or establish health. Native HTTP dispatch is not yet wired
 to this project helper.
+
+The staged worker primitive `executePreparedNativeRelease` now checks a prepared
+checkout against the admitted source, release branch and descriptor, verifies
+source-to-target ancestry and clean state, reloads the plan and invokes the
+existing native release executor with an explicit environment. A nil environment
+is rejected; no ambient environment is substituted. It returns real process
+facts only. No model, task completion, live observation or acceptance is performed
+by this primitive. Worker dispatch still rejects unprepared native stages;
+preparation/receipt transport and actual dispatch integration remain unfinished.
