@@ -424,3 +424,10 @@ A clean commit already made by a developer can be recorded by the runner even
 when push is forbidden. This observation performs no commit, push or PR. Dirty
 local changes cannot be attributed to that HEAD; verifying uncommitted changes
 still requires an independently bound immutable source, not a waiver of the gate.
+
+A developer's review handoff may truthfully leave original verification criteria
+incomplete. An explicit saved verification-only assessment can admit the separate
+read-only verifier for a successful, natively checked exact source commit even
+with those pending criteria. Admission never checks them off or accepts the task;
+Done still requires actual current evidence for every original criterion. Reviewer
+classification cannot grant implementation or publication authority.

@@ -23,7 +23,10 @@ func verificationClassificationMissing(d *task.TaskDetailResponse) bool {
 // This is one supplemental read-only verification for an already tested commit,
 // not a reset or extension of the implementation correction budget.
 func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, assessment inboxReviewEvaluation) (string, bool) {
-	if d == nil || d.LatestAttempt == nil || q.RoomID != d.SourceRoomID || d.Status == "cancelled" || d.Status == "canceled" || d.Status == task.TaskStatusDone || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || d.ResultKind != "implementation" || len(task.AcceptanceGaps(&d.Task)) > 0 {
+	// Verification may itself be an unmet original criterion. Admission is a
+	// read-only evidence run, not acceptance: the original checklist stays
+	// incomplete until the verifier supplies current observed evidence.
+	if d == nil || d.LatestAttempt == nil || q.RoomID != d.SourceRoomID || d.Status == "cancelled" || d.Status == "canceled" || d.Status == task.TaskStatusDone || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || d.ResultKind != "implementation" {
 		return "", false
 	}
 	// Require the exact saved assessment, never text inferred from a chat promise.

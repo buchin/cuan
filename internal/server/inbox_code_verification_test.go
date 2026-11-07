@@ -12,8 +12,9 @@ import (
 )
 
 func TestCodePassRequiresSeparateVerifier(t *testing.T) {
-	for _, ready := range []bool{false, true} {
-		t.Run(map[bool]string{false: "missing source checks", true: "first successful implementation"}[ready], func(t *testing.T) {
+	for _, scenario := range []string{"missing source checks", "first successful implementation", "independent criterion pending"} {
+		ready := scenario != "missing source checks"
+		t.Run(scenario, func(t *testing.T) {
 			s, d, q := stalledReviewFixture(t, "completed")
 			ctx := context.Background()
 			store := s.taskSvc.Store()
@@ -24,6 +25,9 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			row.ExecutionCategory = task.ExecutionCategoryCode
 			row.Instructions += "\nDo not push. Do not deploy."
 			row.CommitSHA = strings.Repeat("a", 40)
+			if scenario == "independent criterion pending" {
+				row.DoDChecklist = []task.DoDItem{{ID: "independent-check", Text: "Independently verify the exact implemented result", Completed: false, Evidence: "Awaiting separate verification"}}
+			}
 			if err := store.UpdateTask(ctx, row); err != nil {
 				t.Fatal(err)
 			}
@@ -42,6 +46,9 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			before, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
 			t.Logf("source kind=%s checks=%v gaps=%v report=%s", before.ResultKind, task.ProjectChecksPassed(before), task.AcceptanceGaps(&before.Task), inboxReportEvidence(before).Provenance)
 			raw := `{"decision":"pass","finding":"Code ready","explanation":"Passed","remaining_work":"none","revision":""}`
+			if scenario == "independent criterion pending" {
+				raw = `{"decision":"revise","finding":"Independent evidence pending","explanation":"Needs verification","remaining_work":"verification","revision":"Independently inspect the exact source commit and verify original criteria without implementation changes."}`
+			}
 			if ready {
 				s.taskSvc = task.NewService(reviewLaunchFailureStore{Store: store, LaunchStore: store.(task.LaunchStore), failure: errors.New("temporary storage outage")}, s.projectSvc)
 				retry := false
@@ -72,6 +79,9 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			}
 			if len(after.Attempts) != 1 {
 				t.Fatal("changed attempts before native claim")
+			}
+			if scenario == "independent criterion pending" && (len(after.DoDChecklist) != 1 || after.DoDChecklist[0].Completed || after.DoDChecklist[0].ID != "independent-check") {
+				t.Fatal("verification admission waived or replaced original criterion")
 			}
 		})
 	}

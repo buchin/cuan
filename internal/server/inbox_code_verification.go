@@ -7,7 +7,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxIndependentCodeReviewPolicy = "Independent code execution review: v1"
+const inboxIndependentCodeReviewPolicy = "Independent code execution review: v2"
 
 func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskDetailResponse) bool {
 	return d != nil && d.Status != task.TaskStatusDone && d.ExecutionCategory == task.ExecutionCategoryCode &&
