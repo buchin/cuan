@@ -171,6 +171,15 @@ API. This does not prove the worker has stopped: inspect the same task with
 Failures do not retry automatically or echo response bodies. Saved task scope
 and conversation remain available for a scoped resume.
 
+### Stop and delete an explicitly approved conversation
+
+Use `cuan chat cancel ROOM_ID REQUEST_ID` to request cancellation of a saved
+Inbox request, then read the same request until terminal. For explicitly approved
+cleanup, `cuan chat delete ROOM_ID` permanently removes an inactive conversation
+through the existing authenticated room API. Active or unknown request states
+are rejected. These commands never fall back to a local database or task-worker
+credentials. An uncertain operation must be read back before retrying.
+
 ### Download delivered files
 
 `cuan chat download ATTACHMENT_ID --output PATH` downloads an owner-authorized
@@ -365,3 +374,11 @@ requires an exact branch/commit push receipt; a successful push still does not
 establish deployment or task acceptance. Missing/uncertain PR lookup does not
 authorize creating another PR. No production branch is force-pushed or merged by
 this task publication channel.
+
+Standalone file delivery explicitly scoped without repository changes or deployment
+uses an operations task with a private output workspace. No repository sync,
+Git initialization, unrelated project environment, build or deployment is needed.
+Inspect the actual requested content and attach the file through the existing
+bound task report; completion still requires the original checklist and independent
+result review. Existing stopped pre-launch failures from the old repository route
+can recover once under the same original authorization, scope and expiry.

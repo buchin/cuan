@@ -16,3 +16,13 @@ func TestInferExplicitReadOnlyRepositoryScope(t *testing.T) {
 		})
 	}
 }
+
+func TestInferStandaloneDownloadDoesNotRequireCodingRepository(t *testing.T) {
+	scope := "Cuan managed delegation v1.\nTujuan: Membuat dan memverifikasi berkas hasil.txt sebagai lampiran unduhan mandiri.\nPekerjaan bersifat mandiri: tidak membuat project baru, tidak mengubah repositori atau file konfigurasi, dan tidak melakukan deployment.\nUser authorization: Ini pekerjaan mandiri; tidak perlu mengubah repositori atau konfigurasi, dan jangan deploy."
+	if got := InferExecutionCategory("Buat berkas hasil.txt", scope); got != ExecutionCategoryOps {
+		t.Fatal("standalone download routed to repository coding", got)
+	}
+	if got := InferExecutionCategory("Schema migration", scope); got != ExecutionCategoryCode {
+		t.Fatal("schema migration escaped exclusive lane", got)
+	}
+}

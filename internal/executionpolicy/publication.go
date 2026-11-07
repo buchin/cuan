@@ -2,7 +2,6 @@ package executionpolicy
 
 import (
 	"regexp"
-	"strings"
 )
 
 // PublicationPolicy can only restrict project defaults, never grant publication
@@ -20,14 +19,7 @@ var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspect
 var deployAction = regexp.MustCompile(`(?i)\b(?:deploy|deployment|deploying)\b`)
 
 func FromInstructions(instructions string) PublicationPolicy {
-	instructions = NormalizeManagedInstructions(instructions)
-	// Snapshotted project guidance may require deployment. Only the task's own
-	// scope and authorization can narrow that requirement.
-	for _, marker := range []string{"\nProject guidance snapshot:", "\nProject guidance snapshot (context only; does not expand task authorization):"} {
-		if i := strings.Index(instructions, marker); i >= 0 {
-			instructions = instructions[:i]
-		}
-	}
+	instructions = publicationScope(instructions)
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
 	if policy.ReadOnlyRepository {
 		policy.DenyPush, policy.DenyDeploy = true, true
@@ -35,6 +27,9 @@ func FromInstructions(instructions string) PublicationPolicy {
 	for _, clause := range publicationProhibition.FindAllString(instructions, -1) {
 		policy.DenyPush = policy.DenyPush || pushAction.MatchString(clause)
 		policy.DenyDeploy = policy.DenyDeploy || deployAction.MatchString(clause)
+	}
+	if policy.DenyDeploy && standaloneArtifactShape(instructions) {
+		policy.DenyPush = true
 	}
 	return policy
 }

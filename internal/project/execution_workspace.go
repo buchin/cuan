@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -156,6 +157,9 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 // TaskExecutionWorkspace preserves pre-isolation task bindings. Only newly
 // snapshotted tasks opt in, so an upgrade cannot abandon older pending edits.
 func (s *Service) TaskExecutionWorkspace(ctx context.Context, taskID, instructions string, p *ProjectResponse) (string, error) {
+	if executionpolicy.StandaloneArtifactWork(instructions) {
+		return s.artifactWorkspace(taskID)
+	}
 	if p == nil {
 		return "", errors.New("Project workspace is unavailable")
 	}

@@ -92,6 +92,10 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		base = strings.TrimSpace(taskTitle)
 	}
 	sb.WriteString(base)
+	artifactOnly := executionpolicy.StandaloneArtifactWork(taskInstructions)
+	if artifactOnly {
+		sb.WriteString("\n\n=== STANDALONE FILE DELIVERY ===\nThis task uses a private output workspace, not a project repository. Create only the requested deliverable, inspect its actual filename and content against the original criteria, and attach it with the task reporting capability. Do not clone repositories, initialize Git, inspect unrelated project source, configure services, install a software stack or deploy. A file path or a promise is not delivery. Use --artifact for the actual workspace file, or --artifact session:PATH for a file under CUAN_TASK_ARTIFACTS_DIR.\n")
+	}
 
 	if len(dodChecklist) == 0 {
 		dodChecklist = ApprovedScopeRequirements(taskInstructions)
@@ -126,6 +130,12 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		sb.WriteString(strings.TrimSpace(agentPrompt))
 	}
 
+	if artifactOnly {
+		// The output workspace has no repository. Do not borrow the server's
+		// ambient AGENTS.md or coding/sprint procedures for an unrelated file.
+		sb.WriteString("\n\n" + AutonomousOwnership)
+		return sb.String()
+	}
 	additions := GetRunnerPromptAdditions(dirs...)
 	// Prevent duplicate injection if already present
 	if !strings.Contains(sb.String(), "=== MANDATORY REPOSITORY GUIDANCE (AGENTS.md) ===") {

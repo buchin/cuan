@@ -75,10 +75,14 @@ func (s *Server) authorizeSavedTaskLaunch(ctx context.Context, j task.TaskLaunch
 }
 
 func (s *Server) recoverUnstartedInboxTask(ctx context.Context, d *task.TaskDetailResponse, j task.TaskLaunch) bool {
-	if d == nil || j.State != "stopped" || task.UnstartedLaunchRecoveryKind(j) == "" || j.Revision == "" || !j.ExpiresAt.After(time.Now()) || (d.Status != task.TaskStatusQueued && d.Status != task.TaskStatusBlocked) {
+	if d == nil {
 		return false
 	}
-	if task.UnstartedLaunchRecoveryKind(j) == "legacy-agent-routing-v1" {
+	kind := task.UnstartedLaunchRecoveryKind(j, &d.Task)
+	if j.State != "stopped" || kind == "" || (j.Revision == "" && kind != task.StandaloneArtifactRecoveryKind) || !j.ExpiresAt.After(time.Now()) || (d.Status != task.TaskStatusQueued && d.Status != task.TaskStatusBlocked) {
+		return false
+	}
+	if kind == "legacy-agent-routing-v1" {
 		if s.agentRepo == nil {
 			return false
 		}

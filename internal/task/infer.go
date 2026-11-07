@@ -62,6 +62,10 @@ func InferExecutionCategory(title, instructions string) string {
 		return ExecutionCategoryCode
 	}
 
+	if executionpolicy.StandaloneArtifactWork(instructions) {
+		return ExecutionCategoryOps
+	}
+
 	// Explicit repository inspection limits override incidental creation words
 	// in task bookkeeping and prohibitions (for example, “jangan ubah”).
 	// A feature described as read-only is not itself a read-only inspection.

@@ -48,7 +48,10 @@ func TestLaunchPostgresContract(t *testing.T) {
 	launchContract(t, store, created.ID, room)
 	stoppedLaunchBoardContract(t, store, "launch-project")
 	attemptPublicationPolicyContract(t, store, "launch-project")
-	unstartedWorkspaceRecoveryContract(t, store, "launch-project")
+	if _, e := db.ExecContext(ctx, `INSERT INTO projects(id,name,repo_url) VALUES('artifact-launch-project','Artifact recovery fixture','')`); e != nil {
+		t.Fatal(e)
+	}
+	unstartedWorkspaceRecoveryContract(t, store, "launch-project", "artifact-launch-project")
 	localInboxAcceptanceContract(t, store, "launch-project")
 	latestProgressAttemptContract(t, store, "launch-project")
 	operationalAcceptanceAuditContract(t, store, "launch-project")

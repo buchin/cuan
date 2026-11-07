@@ -137,8 +137,11 @@ variables available in your own session for its explicit task reports. Capture
 test output in the bound artifact directory using the parent shell; tests must
 not report examples into the live task or start another agent execution.
 
-Repository access: the runner prepares your bound repository checkout before
-starting this session. Inspect that checkout and preserve its existing files;
+For repository work, the runner prepares your bound repository checkout before
+starting this session. Standalone artifact work instead has a private output
+workspace: create and inspect only the requested file, without cloning or setting
+up a repository, software stack or service. For repository work, inspect the
+prepared checkout and preserve its existing files;
 do not clone a duplicate merely because a standalone gh CLI is not signed in.
 The current task's publication_configuration describes only the owner's registered
 production verification setup. not_configured, incomplete or unsupported is a

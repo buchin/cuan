@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"log"
 	"net/http"
 	"os"
@@ -592,6 +593,21 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 				resp.WorkingDir, resp.Environment, resp.AutoDeploy = path, "", false
 				resp.OwnerID = resp.LiveInspection.OwnerID
 			}
+		}
+		if executionpolicy.StandaloneArtifactWork(resp.Task.Instructions) {
+			projectContext, contextErr := s.projectSvc.TaskContext(r.Context(), resp.Task.ProjectID, resp.Task.Instructions)
+			if contextErr != nil {
+				respondJSONError(w, 503, "The saved task context is unavailable")
+				return
+			}
+			path, workspaceErr := s.projectSvc.TaskExecutionWorkspace(r.Context(), resp.Task.ID, resp.Task.Instructions, projectContext)
+			if workspaceErr != nil {
+				respondJSONError(w, 503, "The task output workspace could not be prepared")
+				return
+			}
+			resp.WorkingDir, resp.Environment, resp.AutoDeploy = path, "", false
+			resp.ProjectRepo, resp.RepoURL, resp.RepoOwner, resp.RepoName = "", "", "", ""
+			resp.DefaultBranch, resp.DeployBranch = "", ""
 		}
 		claimCtx := r.Context()
 		if resp.WorkingDir != "" {

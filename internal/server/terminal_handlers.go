@@ -662,7 +662,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						respondJSONError(w, 409, "Restore the archived project before starting a task")
 						return
 					}
-					if project.RepoURL != "" || project.LocalPath != "" {
+					if executionpolicy.StandaloneArtifactWork(detail.Instructions) {
+						workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
+						if e != nil {
+							respondJSONError(w, 503, "The task output workspace could not be prepared")
+							return
+						}
+					} else if project.RepoURL != "" || project.LocalPath != "" {
 						info, e := os.Stat(project.LocalPath)
 						if project.RepoURL != "" && (project.LocalPath == "" || e != nil || !info.IsDir() || project.CloneStatus != "synced") {
 							// Auto-sync repository workspace automatically before launching agent session
