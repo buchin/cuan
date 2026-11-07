@@ -38,6 +38,29 @@ Verification is bounded: Git output at8MiB per command,4096 untracked files,
 the budget fails verification explicitly, retaining saved work for inspection.
 No secret contents are returned in receipts or logs; only hashes are recorded.
 
+## Local implementation handoff
+
+For an implementation that forbids publication, the developer creates a local
+checkpoint and reports the original criteria with observed evidence. Independent
+verification may remain incomplete in that developer report. The runner observes
+the clean repository HEAD and branch; a commit written only in report prose is
+not native source identity. Uncommitted work is never attributed to HEAD.
+
+The coordinator schedules a separate read-only verifier against that exact
+checkpoint after native project checks pass. The verifier uses an isolated
+snapshot, supplies its own findings and leaves the repository unchanged. Only
+the coordinator accepts the task after checking the original criteria and native
+receipts. A completed developer process alone is not Done.
+
+If project checks fail after a confirmed developer report, the runner retains
+the observed clean checkpoint for diagnosis while preserving the failed result.
+That observation does not waive failing tests or authorize verifier admission.
+A local implementation that forbids both push and deployment cannot be verified
+against the running release, including through automatic revalidation. A release
+update does not establish that an unpublished checkpoint was delivered. Historical
+attempts without native source identity retain that uncertainty; do not reconstruct
+their provenance from an agent's claimed commit.
+
 ## Regression evidence
 
 - `go test ./internal/executionpolicy ./internal/task -run 'TestTaskPublication|TestReadOnly|TestAttemptPublication'`
