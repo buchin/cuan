@@ -298,4 +298,5 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, it
 	if len(after.Attempts) != before {
 		t.Fatal("reconstructed review duplicated independent verifier")
 	}
+	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed)
 }

@@ -21,7 +21,7 @@ import (
 )
 
 func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T) {
-	for _, scenario := range []string{"valid", "current outcome", "current outcome unpublished", "failed checks", "changed source", "valid recovery", "unavailable previous", "verification deadline", "native visual", "native tamper", "native delivery failure"} {
+	for _, scenario := range []string{"valid", "delivered release", "current outcome", "current outcome unpublished", "failed checks", "changed source", "valid recovery", "unavailable previous", "verification deadline", "native visual", "native tamper", "native delivery failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			source := documentationFixture(t)
 			run := func(args ...string) string {
@@ -119,7 +119,7 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 					return delegate.Execute(ctx, req)
 				}}
 			}
-			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, adapter, api.Client())
+			runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerWorkerRegistryDir: t.TempDir(), RunnerServerURL: api.URL, WorkspacesDir: t.TempDir()}, adapter, api.Client())
 			now := time.Now()
 			claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: snapshot, AutoDeploy: false, PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyDeploy: true, DenyPush: true}, Task: &task.Task{ID: "live", Title: "Inspect current implementation", Instructions: "Approved result inspection", SourceRoomID: "room", ExecutionCategory: task.ExecutionCategoryCode}, Attempt: &task.TaskAttempt{ID: "live-attempt", TaskID: "live", CreatedAt: now}, LiveInspection: &task.LiveInspectionIntent{SourceCommit: original, TargetCommit: live}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}}
 			if strings.HasPrefix(scenario, "current outcome") {
@@ -128,6 +128,9 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 				if scenario == "current outcome unpublished" {
 					claim.LiveInspection.SourceCommit = strings.Repeat("f", 40)
 				}
+			}
+			if scenario == "delivered release" {
+				claim.LiveInspection.Purpose = task.NativeReleaseInspection
 			}
 			if scenario == "valid recovery" {
 				claim.LiveInspection.PreviousCommit = original
@@ -153,13 +156,13 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 					t.Fatal("read-only inspection wrote workspace MCP configuration", config, err)
 				}
 			}
-			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "valid recovery" || scenario == "native visual" || strings.HasPrefix(scenario, "current outcome")) {
+			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "delivered release" || scenario == "valid recovery" || scenario == "native visual" || strings.HasPrefix(scenario, "current outcome")) {
 				t.Fatal("snapshot verification outcome incorrect", completion.Status, completion.ErrorMessage)
 			}
 			if scenario != "changed source" && scenario != "unavailable previous" && scenario != "native delivery failure" && !strings.Contains(completion.TestSummary, "LIVE_MACHINE_CHECK") {
 				t.Fatal("native runner skipped fresh fixed project checks")
 			}
-			if scenario == "valid" && (!completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {
+			if (scenario == "valid" || scenario == "delivered release") && (!completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {
 				t.Fatal("missing source/target/scope/report evidence")
 			}
 			if strings.HasPrefix(scenario, "current outcome") && (!completion.CurrentOutcomeVerified || completion.SourceAncestryVerified || completion.LiveInspectionCommit != live || !completion.RepositoryVerification.Unchanged() || !completion.AgentReportConfirmed) {

@@ -225,3 +225,15 @@ comparison follows provider case-insensitive owner/repository semantics; commit
 identity remains exact. Reconstructed review scans reuse the deterministic launch.
 The original task stays pending until the independent verifier establishes its
 original criteria and the normal acceptance gates pass.
+
+## Acceptance verification status
+
+The runner treats delivered native inspection as source-ancestry verification,
+while current-outcome inspection remains separate. Backend protocol tests now
+exercise native delivery → claimed read-only verifier → exact snapshot content
+inspection → verifier completion → normal PM acceptance gates → Done, preserving
+the original dev SHA and original criterion IDs/text/evidence. Only the verifier
+report completes that fixture's pending criterion. These tests use synthetic
+model/process/health facts and do not establish autonomous production execution.
+The native capability remains disabled pending private runtime readiness and a
+real production end-to-end run without owner intervention.

@@ -1095,7 +1095,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	compReq.RunnerID = r.cfg.RunnerID
 	if claim.LiveInspection != nil && err == nil {
 		compReq.LiveInspectionCommit = claim.LiveInspection.TargetCommit
-		compReq.SourceAncestryVerified = claim.LiveInspection.Purpose == ""
+		compReq.SourceAncestryVerified = claim.LiveInspection.Purpose == "" || claim.LiveInspection.Purpose == task.NativeReleaseInspection
 		compReq.CurrentOutcomeVerified = claim.LiveInspection.Purpose == task.CurrentOutcomeInspection
 	}
 	compReq.VerificationRuntimeFingerprint = verificationRuntimeFingerprint

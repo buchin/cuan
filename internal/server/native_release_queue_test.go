@@ -108,6 +108,9 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s)
 	}
 	item := &task.Task{ID: "native-release-task", ProjectID: "default", SourceRoomID: q.RoomID, SourceMessageID: q.MessageID, AssignedAgent: q.AgentID, Title: "Implement approved feature", Instructions: "Cuan managed delegation v1.\nImplement and deploy the approved feature.", Status: task.TaskStatusReview, ExecutionCategory: task.ExecutionCategoryCode, CommitSHA: nativeSource, Summary: "Source handoff", CompleteNote: "Native checks passed; publication pending", CreatedAt: now, UpdatedAt: now}
+	if scenario == "initial verify" {
+		item.DoDChecklist = []task.DoDItem{{ID: "delivered-content", Text: "work.txt contains target in the delivered revision", Completed: false, Evidence: "Awaiting independent inspection"}}
+	}
 	start, finish := now.Add(-time.Minute), now.Add(-time.Second)
 	exit := 0
 	source := &task.TaskAttempt{ID: "native-source", TaskID: item.ID, RunnerID: "source-runner", AgentName: "agy", Status: task.AttemptStatusSucceeded, ExitCode: &exit, CreatedAt: start.Add(-time.Second), StartedAt: &start, FinishedAt: &finish}
