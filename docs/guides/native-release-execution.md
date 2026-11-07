@@ -22,12 +22,12 @@ This reservation bypasses AI account selection. Memory and PostgreSQL stores kee
 native stages out of older runners; a capable claimant revalidates source before
 execution. A revoked source fails before any release process starts.
 
-This contract is staged: the current poller does not advertise native-release
-support, and ordinary source completion does not emit managed-release handoffs
-yet. Automatic production delivery therefore remains disabled until the native
-worker and handoff producer are connected. Existing deployment acceptance gates
-remain unchanged. `cuan task execution` identifies the saved native intent without
-exposing its approval or credentials; parsing it is not proof of release success.
+The source handoff, native worker and preparation transport are implemented but
+staged. The current poller does not advertise native-release support, automatic
+source push/merge scheduling is not connected, and delivered-source independent
+verification is unfinished. Do not enable this as an operational automatic
+production release workflow. `cuan task execution` identifies saved intent without
+exposing approval or credentials; parsing is not proof of release success.
 
 ## Repository contract
 
@@ -87,145 +87,78 @@ publication, and an independent review must still check the original criteria.
 A successful operator invocation does not write those receipts or mark Inbox work
 Done by itself. See [deployment evidence](task-deployment-evidence.md).
 
-### Staged managed-release claim binding
+## Managed developer handoff
 
-The claim service can record native publication ownership only when the frozen
-project environment contains exactly `CUAN_MANAGED_RELEASE=1`, auto-deploy is on,
-and a native-release-capable runner claims ordinary code work from Inbox. The
-native poller does not advertise that capability yet. Do not enable the setting
-as a completed automatic release workflow.
+Admission requires frozen `CUAN_MANAGED_RELEASE=1`, auto-deploy, native-capable
+runner and ordinary Inbox code scope. Read-only, standalone-file, verifier,
+inspection and publication-restricted work cannot acquire this mode. The backend
+pins task, project, room, attempt, runner, instructions hash, repo and target
+branch in a canonical claim. Settings enabled later never grant old attempts
+retroactive publication ownership.
 
-The server records the exact task, project, Inbox room, attempt, runner,
-instructions hash, repository and target branch as a `managed_release_claim`
-activity. No environment values are copied into that receipt. Read-only,
-verification, inspection, standalone-file and publication-restricted work cannot
-acquire it. Completion revalidates canonical admission against its original
-identity and frozen project context. Absent admissions never become retroactive
-grants.
+The developer owns implementation, local checks and a clean task checkpoint.
+Native coordination owns push/merge/deploy. The worker observes the exact commit,
+actual task branch, tracked descriptor hash and native passing-check hash; it
+skips generic post-execution PR/publication. Completion requires a saved final
+implementation report, matching source/checks, meaningful diff, zero exit and no
+claimed deployment. It atomically records `native_release_handoff` and leaves the
+task in Review with original criteria untouched. Ordinary execution retains its
+existing exact-deployment gate.
 
-Managed developer sessions own implementation, local checks and a clean task
-checkpoint. Their prompt leaves push, PR, merge and deployment to native
-coordination, and the generic post-execution publication flow is skipped. The
-runner observes the exact clean checkpoint, actual task branch, tracked release
-descriptor hash and passing native check hash through the release plan loader;
-it never executes the release script during observation.
+## Publication and private preparation
 
-A successful managed source completion additionally requires a saved final
-implementation report, native check/source consistency, meaningful branch diff,
-zero exit, no PR claim and no claimed live deployment. It atomically persists
-`native_release_handoff` with completion and verification records, and keeps the
-task in Review with original acceptance criteria untouched. This validated
-pending-publication handoff can finish developer execution without a deployment
-receipt; it does not establish deployment or permit Done. Ordinary executions
-retain the strict exact-deployment receipt requirement.
+`ApplyNativeReleaseSource` uses the frozen repo/branch and saved connection with
+read-first immutable ancestry reconciliation. Its caller must validate original
+approval and canonical source first. It performs no project-cache checkout.
 
-The source handoff producer is connected, but the native poller still does not
-advertise support. Native release workspace preparation, execution, trusted live
-observation and subsequent independent delivered-source verification remain
-unfinished. Do not enable the project setting or call this an operational
-end-to-end release workflow yet.
+`NativeReleaseWorkspace` and `git.PrepareReleaseWorkspace` create a separate
+checkout binding dev source, prepared target and release branch. Source-to-target
+ancestry must hold. Missing objects use the explicit saved connection to fetch
+exact SHAs into the frozen cache without ref or working-tree changes. Existing
+private workspaces are validated rather than reset. Descriptor hash is checked
+through `release.Load` before any script runs.
 
-Native HTTP claims bypass generic model-capability, vision and workspace setup.
-Until the native release workspace/executor path is connected, they carry no
-working directory, project environment or model grant. The worker dispatches a
-native intent before accessing any AI adapter; an unprepared stage reports a
-terminal preparation failure through the durable completion outbox. It never
-falls back to a model. The poller still does not advertise native capability.
+Internal `prepareNativeReleaseWorkspace` reauthorizes original Inbox approval,
+serializes work with the frozen repository lease, prepares the checkout, rereads
+scope/project/source, and persists `native_release_preparation`. Identical recovery
+reuses that record; a different target cannot replace it. A new target must come
+from a reconciled native merge receipt, never an HTTP input.
 
-The staged project publication helper `ApplyNativeReleaseSource` resolves the
-saved task context and requires an exact matching repository, frozen deployment
-branch, explicit managed-release setting and allowed publication scope. It uses
-the registered saved connection and the existing GitHub merge API client with
-read-first ancestry reconciliation; it never falls back to ambient CLI login or
-touches the project cache. This helper is not yet called by native dispatch.
-Its caller must first validate the canonical source handoff and original owner
-authorization. A merge receipt is not deployment or independent acceptance.
+## Worker preparation transport and execution
 
-`git.PrepareReleaseWorkspace` now creates a separate private checkout from exact
-locally available source and target commits, verifies ancestry, then checks out
-the frozen release branch in that clone. Its metadata pins source repository,
-source commit, target commit and branch. It transfers no remote credentials and
-never fetches from a network or executes the release script. Existing checkouts
-must retain clean exact source, branch and binding; changed work is preserved and
-rejected rather than reset. This primitive is compatible with `release.Load`,
-but project-level remote reconciliation/fetch and native worker preparation are
-not yet connected to it.
+Authenticated `POST /api/v1/runner/attempts/{id}/release/prepare` accepts only
+`task_id` and `runner_id`. It derives target from canonical preparation, validates
+authorization, recreates/rechecks the exact private checkout and returns typed
+workspace plus explicit frozen project environment. Response is `no-store`.
+The endpoint currently requires preparation to exist; it does not automatically
+push/merge or create an initial target.
 
-`project.NativeReleaseWorkspace` now resolves frozen task repository/branch and
-managed publication settings, prepares a separately hashed project/task/source/
-target/branch/descriptor checkout, and checks its descriptor through the native
-release loader. Cached exact commits need no connection read. Missing objects
-use explicit saved access to fetch exact SHAs into the frozen repository cache,
-without checkout or ref changes. The returned structure contains identities and
-workspace path only, no environment/credentials. It does not merge, deploy,
-issue a task receipt or establish health. Native HTTP dispatch is not yet wired
-to this project helper.
+HOME, XDG directories, Go/npm caches and temporary files use private paths under
+that checkout's Git metadata. Selected project values are not replaced by ambient
+host credentials. The worker runs no model, MCP or account/profile setup. It
+revalidates intent/source/target/branch/descriptor and invokes the native executor
+with explicit environment. Nil environment never inherits the host environment.
+Owner SSH trust, dependency preparation and actual production compatibility must
+still be established before activation; local fixtures do not prove them.
 
-The staged worker primitive `executePreparedNativeRelease` now checks a prepared
-checkout against the admitted source, release branch and descriptor, verifies
-source-to-target ancestry and clean state, reloads the plan and invokes the
-existing native release executor with an explicit environment. A nil environment
-is rejected; no ambient environment is substituted. It returns real process
-facts only. No model, task completion, live observation or acceptance is performed
-by this primitive. Worker dispatch still rejects unprepared native stages;
-preparation/receipt transport and actual dispatch integration remain unfinished.
+## Process journal and completion
 
-The staged task contract `NativeReleasePreparation` records admitted source and
-prepared target as separate identities, alongside attempt, original instructions,
-repository, branch and descriptor. `NativeReleasePreparationForAttempt` accepts
-only the canonical native-coordinator activity for a currently running, uncanceled
-and unexpired exact native attempt whose source handoff remains valid. Unknown
-JSON fields, changed identities, foreign authors and invalid chronology fail.
-This contract does not establish deployment health, script execution or
-independent acceptance. Its native preparation publisher is implemented internally; HTTP/worker
-dispatch still does not invoke it.
+Before starting the script the worker syncs a private per-attempt journal, then
+syncs actual result facts afterward. Only the selected environment digest is
+stored, not credential values. A reconstructed worker reuses completed result
+facts and re-observes production without running the script again. An incomplete
+start marker or changed preparation/environment prevents replay. A duplicate
+worker encountering an active process lock does not complete the active attempt.
 
-The authenticated publication observer now resolves a native attempt's expected
-release SHA from its canonical preparation record, preserving the developer SHA
-on the task. It checks frozen repository/branch/managed configuration, observes
-registered health/revision, then revalidates active attempt, source and identical
-preparation before saving the existing trusted deployment receipt for that target.
-Caller-supplied alternative targets are rejected. Ordinary execution retains its
-existing target rules. This is observer integration only: preparation publishing,
-worker result transport and delivered-source verifier wiring remain unfinished.
+After script success the worker requests registered production observation and
+sends structured `native_release_process` through the durable completion outbox.
+Backend completion requires valid preparation, exact target/branch, zero exit,
+unchanged source and sane times, plus trusted target health/revision observed
+AFTER process finish. Model report, PR or code-mutation fields cannot substitute.
+It atomically records `native_release_delivery`, preserving the dev SHA separately
+from release target, and keeps the task in Review for independent verification.
 
-The internal server coordinator `prepareNativeReleaseWorkspace` now authorizes
-the saved native launch against original Inbox approval, verifies active source
-lineage, serializes preparation with the frozen repository lease, and invokes
-project checkout preparation. It rechecks task, source and project afterward,
-then persists the canonical preparation record. Identical recovery reuses that
-record; a different target cannot replace it. Its target argument must come from
-the coordinator's reconciled merge receipt. No public caller may choose it.
-This method is not yet invoked by production dispatch and performs no push,
-merge, release-script execution, live observation or task acceptance itself.
-
-Late project revalidation also rejects archived projects and changes to repository,
-workspace path or default branch, not only changes to settings metadata. Neither
-an in-flight health response nor a completed private checkout permits recording
-new native preparation/publication evidence after those project changes.
-
-Native completion now accepts structured `native_release_process` facts only for
-an admitted active release with a valid canonical preparation and matching frozen
-project. Success requires exit0, unchanged source, exact target/branch and sane
-process times, plus a trusted production receipt observed after the process ended.
-Model report/PR/code-mutation fields cannot substitute for this stage. Completion
-atomically records `native_release_delivery` with separate implementation source,
-prepared target and process times, leaving the task in Review. It preserves the
-developer commit on the task. Independent delivered-source verification is still
-required. The worker can now send this payload when native preparation is supplied;
-production preparation transport is not yet connected.
-
-Native worker dispatch now accepts a typed prepared workspace and explicit
-execution environment, bypasses the AI adapter entirely, executes the native
-release, requests registered publication observation and delivers structured
-completion through the durable outbox. Preparation is not synthesized from the
-runner host. The backend claim path still does not supply this execution payload,
-and the poller still does not advertise native capability.
-
-Before execution the worker syncs a private per-attempt start journal. A completed
-result can be re-observed/delivered after worker restart without running the script
-again. An incomplete start marker or changed preparation/environment digest
-forbids automatic replay. Only the digest of selected environment is retained,
-not its credential values. A lock held by another worker leaves that attempt
-active; a duplicate dispatcher does not complete or rerun it. Process result
-journaling and completion outbox archival are separate from live deployment proof.
+The publication observer validates frozen repo/branch/settings and active source
+before and after observing health/revision. Late project archive or identity
+changes reject new evidence. Neither process exit, preparation nor delivery alone
+marks the original task Done.

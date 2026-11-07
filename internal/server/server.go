@@ -786,6 +786,7 @@ func (s *Server) routes() {
 			rr.Get("/runner/attempts/{id}/logs", s.handleRunnerGetStreamLogs)
 			rr.Get("/runner/attempts/{id}/report", s.handleRunnerReadAttemptReport)
 			rr.Post("/runner/attempts/{id}/publication/verify", s.handleRunnerVerifyPublication)
+			rr.Post("/runner/attempts/{id}/release/prepare", s.handleRunnerNativeReleasePreparation)
 			rr.Post("/runner/attempts/{id}/logs", s.handleRunnerStreamLogs)
 			rr.Post("/runner/attempts/{id}/steer", s.handleRunnerSteer)
 			rr.Post("/runner/attempts/{id}/complete", s.handleRunnerComplete)

@@ -20,7 +20,7 @@ import (
 )
 
 func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t *testing.T) {
-	for _, scenario := range []string{"verified", "unverified", "unknown process", "active process", "changed environment"} {
+	for _, scenario := range []string{"verified", "fetch preparation", "unverified", "unknown process", "active process", "changed environment"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			root := t.TempDir()
@@ -50,9 +50,22 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 			hash := sha256.Sum256([]byte(manifest))
 			now := time.Now().UTC()
 			claim := ClaimTaskResponse{Task: &task.Task{ID: "task", CreatedAt: now}, Attempt: &task.TaskAttempt{ID: "attempt", TaskID: "task", RunnerID: "native", CreatedAt: now, StartedAt: &now}, NativeRelease: &task.NativeReleaseIntent{SourceCommit: commit, TargetBranch: "production", ManifestHash: hex.EncodeToString(hash[:])}, NativeReleaseExecution: &NativeReleaseExecution{Workspace: &project.PreparedNativeReleaseWorkspace{Path: root, SourceCommit: commit, TargetCommit: commit, Branch: "production", ManifestHash: hex.EncodeToString(hash[:])}, Environment: []string{"MARKER=" + marker, "BOUND_VALUE=saved"}}}
-			observations, completions := 0, 0
+			observations, completions, preparations := 0, 0, 0
+			preparedExecution := claim.NativeReleaseExecution
+			if scenario == "fetch preparation" {
+				claim.NativeReleaseExecution = nil
+			}
 			var completed CompleteAttemptRequest
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/release/prepare") {
+					preparations++
+					var identity map[string]string
+					if json.NewDecoder(r.Body).Decode(&identity) != nil || len(identity) != 2 || identity["task_id"] != "task" || identity["runner_id"] != "native" {
+						t.Error("worker selected its own preparation target")
+					}
+					json.NewEncoder(w).Encode(preparedExecution)
+					return
+				}
 				if strings.HasSuffix(r.URL.Path, "/publication/verify") {
 					observations++
 					data, err := os.ReadFile(marker)
@@ -150,6 +163,13 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 				if observations != 2 || completions != 1 {
 					t.Fatal("saved result was not reconciled without duplicate completion")
 				}
+			}
+			expectedPreparations := 0
+			if scenario == "fetch preparation" {
+				expectedPreparations = 2
+			}
+			if preparations != expectedPreparations {
+				t.Fatal("preparation transport was not reused on restart")
 			}
 			data, _ := os.ReadFile(marker)
 			if string(data) != "saved/absent\n" {

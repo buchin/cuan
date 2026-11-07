@@ -241,6 +241,50 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		if _, err := s.prepareNativeReleaseWorkspace(ctx, item.ID, claim.Attempt.ID, claim.Attempt.RunnerID, p.SourceCommit); err == nil {
 			t.Fatal("existing preparation rebound to another target")
 		}
+		t.Setenv("NATIVE_TRANSPORT_AMBIENT", "must-not-transfer")
+		for _, invalid := range []string{"valid", "injected target", "wrong runner", "unauthenticated"} {
+			payload := map[string]string{"task_id": item.ID, "runner_id": claim.Attempt.RunnerID}
+			if invalid == "injected target" {
+				payload["target_commit"] = p.SourceCommit
+			}
+			if invalid == "wrong runner" {
+				payload["runner_id"] = "foreign"
+			}
+			body, _ := json.Marshal(payload)
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/runner/attempts/"+claim.Attempt.ID+"/release/prepare", bytes.NewReader(body))
+			if invalid != "unauthenticated" {
+				request.Header.Set("Authorization", "Bearer "+token)
+			}
+			response := httptest.NewRecorder()
+			s.Router().ServeHTTP(response, request)
+			expected := 200
+			switch invalid {
+			case "injected target":
+				expected = 400
+			case "wrong runner":
+				expected = 409
+			case "unauthenticated":
+				expected = 401
+			}
+			if response.Code != expected {
+				t.Fatalf("native transport %s got %d want %d", invalid, response.Code, expected)
+			}
+			if invalid == "valid" {
+				var execution runner.NativeReleaseExecution
+				must(json.Unmarshal(response.Body.Bytes(), &execution))
+				if execution.Workspace == nil || execution.Workspace.Path != prepared.Path || execution.Environment == nil || response.Header().Get("Cache-Control") != "no-store" {
+					t.Fatal("native preparation transport lost exact workspace")
+				}
+				selected := map[string]string{}
+				for _, entry := range execution.Environment {
+					parts := strings.SplitN(entry, "=", 2)
+					selected[parts[0]] = parts[1]
+				}
+				if selected["NATIVE_TRANSPORT_AMBIENT"] != "" || selected["HOME"] != filepath.Join(prepared.Path, ".git", "cuan-native-runtime", "home") || selected["CUAN_DEPLOY_EXCLUDE_TASK"] != item.ID || selected["CUAN_DEPLOY_EXCLUDE_ATTEMPT"] != claim.Attempt.ID {
+					t.Fatal("native runtime borrowed ambient identity or lost own-attempt binding")
+				}
+			}
+		}
 		source.CancelRequested = true
 		must(store.UpdateAttempt(ctx, source))
 		if _, err := s.prepareNativeReleaseWorkspace(ctx, item.ID, claim.Attempt.ID, claim.Attempt.RunnerID, preparedTarget); err == nil {
