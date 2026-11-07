@@ -50,8 +50,13 @@ func TestNativeReleasePublicationObservesPreparedTarget(t *testing.T) {
 func TestNativeReleasePreparationPublishesActualBoundCheckout(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "prepare")
 }
+func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
+	for _, scenario := range []string{"initial merge", "initial contained", "initial no access", "initial wrong source", "initial revoked"} {
+		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
+	}
+}
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})
@@ -94,7 +99,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	}
 	nativeSource, nativeManifest := strings.Repeat("a", 40), strings.Repeat("b", 64)
 	preparedTarget := ""
-	if scenario == "prepare" {
+	if scenario == "prepare" || strings.HasPrefix(scenario, "initial") {
 		nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s)
 	}
 	item := &task.Task{ID: "native-release-task", ProjectID: "default", SourceRoomID: q.RoomID, SourceMessageID: q.MessageID, AssignedAgent: q.AgentID, Title: "Implement approved feature", Instructions: "Cuan managed delegation v1.\nImplement and deploy the approved feature.", Status: task.TaskStatusReview, ExecutionCategory: task.ExecutionCategoryCode, CommitSHA: nativeSource, Summary: "Source handoff", CompleteNote: "Native checks passed; publication pending", CreatedAt: now, UpdatedAt: now}
@@ -203,6 +208,9 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	must(err)
 	if !claim.Claimed || claim.NativeRelease == nil || claim.NativeRelease.SourceCommit != p.SourceCommit || capacityCalls.Load() != 0 {
 		t.Fatal("native claim lost source or depended on AI capacity")
+	}
+	if strings.HasPrefix(scenario, "initial") {
+		verifyInitialNativePreparation(t, s, token, item, claim, p, preparedTarget, scenario)
 	}
 	if scenario == "prepare" {
 		type preparationResult struct {

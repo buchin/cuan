@@ -24,7 +24,7 @@ execution. A revoked source fails before any release process starts.
 
 The source handoff, native worker and preparation transport are implemented but
 staged. The current poller does not advertise native-release support, automatic
-source push/merge scheduling is not connected, and delivered-source independent
+native-stage scheduling is not connected, and delivered-source independent
 verification is unfinished. Do not enable this as an operational automatic
 production release workflow. `cuan task execution` identifies saved intent without
 exposing approval or credentials; parsing is not proof of release success.
@@ -130,8 +130,12 @@ Authenticated `POST /api/v1/runner/attempts/{id}/release/prepare` accepts only
 `task_id` and `runner_id`. It derives target from canonical preparation, validates
 authorization, recreates/rechecks the exact private checkout and returns typed
 workspace plus explicit frozen project environment. Response is `no-store`.
-The endpoint currently requires preparation to exist; it does not automatically
-push/merge or create an initial target.
+When preparation is absent, it derives the original developer checkout from
+server configuration and task identity, requires a separate exact clean source,
+locks that checkout, pushes the immutable approved SHA through saved access,
+reauthorizes original source, and applies the native merge helper to the frozen
+release branch. Only the reconciled merge result supplies the prepared target.
+An existing canonical preparation bypasses further push/merge writes.
 
 HOME, XDG directories, Go/npm caches and temporary files use private paths under
 that checkout's Git metadata. Selected project values are not replaced by ambient
@@ -171,5 +175,13 @@ developer task branch. `git.PushExecutionSource` checks exact clean source,
 repository origin and task branch, observes that remote branch first, then pushes
 the admitted SHA as a literal non-forced refspec. A later local HEAD cannot replace
 that SHA. An already matching remote branch needs no new push; unavailable remote
-observation prevents mutation. These source-push helpers are not yet invoked by
-the initial preparation endpoint; automatic initial push/merge remains staged.
+observation prevents mutation. The initial preparation endpoint invokes these helpers. Native-stage scheduling,
+runtime production readiness and delivered-source independent verification remain
+staged; the poller capability is still disabled.
+
+Concurrent initial preparation requests serialize on the original developer
+checkout, reread native source and approval after acquiring ownership, and reuse a
+preparation produced by the winning request. Source and project-cache checkouts
+must be distinct. Missing access, dirty/replaced source and revoked authorization
+stop before merge. A failed/unknown remote outcome is not called success; another
+active request must re-observe exact push/merge state before further mutations.

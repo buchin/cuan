@@ -33,14 +33,14 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 		respondJSONError(w, 409, "Native release authorization is no longer active")
 		return
 	}
-	saved, err := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &d.Task, attemptID)
-	if err != nil || saved == nil {
-		respondJSONError(w, 409, "Canonical native release preparation is not available")
+	prepared, err := s.ensureNativeReleasePreparation(r.Context(), d.ID, attemptID, input.RunnerID)
+	if err != nil {
+		respondJSONError(w, 409, "Native release source publication or preparation could not be verified")
 		return
 	}
-	prepared, err := s.prepareNativeReleaseWorkspace(r.Context(), d.ID, attemptID, input.RunnerID, saved.TargetCommit)
-	if err != nil {
-		respondJSONError(w, 409, "Native release workspace could not be verified")
+	saved, err := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &d.Task, attemptID)
+	if err != nil || saved == nil {
+		respondJSONError(w, 409, "Canonical native preparation unavailable")
 		return
 	}
 	p, err := s.projectSvc.TaskContext(r.Context(), d.ProjectID, d.Instructions)

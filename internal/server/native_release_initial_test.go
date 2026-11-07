@@ -1,0 +1,200 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/runner"
+	"github.com/buchin/cuan/internal/task"
+)
+
+func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item *task.Task, claim *runner.ClaimTaskResponse, intent task.NativeReleaseIntent, target, scenario string) {
+	t.Helper()
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := s.projectSvc.Get(ctx, item.ProjectID)
+	must(err)
+	realGit, err := exec.LookPath("git")
+	must(err)
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command(realGit, args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("fixture git: %s", out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	base := t.TempDir()
+	remote := filepath.Join(base, "remote.git")
+	run("clone", "--bare", p.LocalPath, remote)
+	s.cfg.WorkspacesDir = filepath.Join(base, "tasks")
+	must(os.Mkdir(s.cfg.WorkspacesDir, 0700))
+	sourceRoot := filepath.Join(s.cfg.WorkspacesDir, item.ID)
+	run("clone", p.LocalPath, sourceRoot)
+	run("-C", sourceRoot, "checkout", "-b", "task/source", intent.SourceCommit)
+	run("-C", sourceRoot, "remote", "set-url", "origin", "https://github.com/owner/repo.git")
+	currentTask, err := s.taskSvc.Store().GetTask(ctx, item.ID)
+	must(err)
+	currentTask.BranchName = "task/source"
+	must(s.taskSvc.Store().UpdateTask(ctx, currentTask))
+	item.BranchName = "task/source"
+	if scenario == "initial wrong source" {
+		must(os.WriteFile(filepath.Join(sourceRoot, "uncommitted"), []byte("preserve"), 0600))
+	}
+	if scenario == "initial revoked" {
+		source, err := s.taskSvc.Store().GetAttempt(ctx, intent.SourceAttemptID)
+		must(err)
+		source.CancelRequested = true
+		must(s.taskSvc.Store().UpdateAttempt(ctx, source))
+	}
+	gets, merges := 0, 0
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer saved-owner" {
+			t.Error("merge borrowed wrong owner")
+		}
+		switch {
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/commits/"):
+			gets++
+			sha := strings.Repeat("d", 40)
+			if scenario == "initial contained" {
+				sha = target
+			}
+			json.NewEncoder(w).Encode(map[string]string{"sha": sha})
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/compare/"):
+			gets++
+			status, ancestor := "diverged", strings.Repeat("e", 40)
+			if scenario == "initial contained" {
+				status, ancestor = "ahead", intent.SourceCommit
+			}
+			json.NewEncoder(w).Encode(map[string]any{"status": status, "merge_base_commit": map[string]string{"sha": ancestor}})
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/owner/repo/merges":
+			merges++
+			var payload map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Error(err)
+				w.WriteHeader(400)
+				return
+			}
+			if payload["head"] != intent.SourceCommit || payload["base"] != intent.TargetBranch {
+				t.Error("merge changed approved source/target")
+			}
+			w.WriteHeader(201)
+			json.NewEncoder(w).Encode(map[string]string{"sha": target})
+		default:
+			t.Errorf("unexpected native publication request %s", r.URL.Path)
+			w.WriteHeader(500)
+		}
+	}))
+	defer api.Close()
+	client := git.NewClient()
+	client.SetAPIBaseURL(api.URL)
+	projects := s.projectSvc.Store()
+	s.projectSvc = project.NewService(projects, client, "fixture", t.TempDir())
+	access := 0
+	s.projectSvc.SetSharedRepositoryAccess(func(context.Context) (string, error) {
+		access++
+		if scenario == "initial no access" {
+			return "", nil
+		}
+		return "saved-owner", nil
+	})
+	bin, calls := filepath.Join(base, "bin"), filepath.Join(base, "git-calls")
+	must(os.Mkdir(bin, 0700))
+	quote := func(value string) string { raw, _ := json.Marshal(value); return string(raw) }
+	script := "#!/usr/bin/python3\nimport sys,os,base64\na=sys.argv[1:]\nif 'push' in a or 'ls-remote' in a:\n assert not os.environ.get('GH_TOKEN') and not os.environ.get('GITHUB_TOKEN') and not os.environ.get('SSH_AUTH_SOCK')\n assert base64.b64decode(os.environ['GIT_CONFIG_VALUE_0'].split('Basic ')[1]).decode()=='x-access-token:saved-owner'\n with open(" + quote(calls) + ",'a') as f:f.write(('push' if 'push' in a else 'observe')+'\\n')\n a=[" + quote(remote) + " if x=='https://github.com/owner/repo.git' else x for x in a]\nos.execv(" + quote(realGit) + ",['git']+a)\n"
+	must(os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0700))
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	t.Setenv("GH_TOKEN", "wrong-host-token")
+	t.Setenv("SSH_AUTH_SOCK", "wrong-host-agent")
+	request := func() *httptest.ResponseRecorder {
+		body, _ := json.Marshal(map[string]string{"task_id": item.ID, "runner_id": claim.Attempt.RunnerID})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/runner/attempts/"+claim.Attempt.ID+"/release/prepare", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		s.Router().ServeHTTP(response, req)
+		return response
+	}
+	var response *httptest.ResponseRecorder
+	if scenario == "initial merge" {
+		responses := make(chan *httptest.ResponseRecorder, 2)
+		for i := 0; i < 2; i++ {
+			go func() { responses <- request() }()
+		}
+		response = <-responses
+		other := <-responses
+		if other.Code != 200 {
+			t.Fatalf("concurrent native preparation failed: %d", other.Code)
+		}
+	} else {
+		response = request()
+	}
+	success := scenario == "initial merge" || scenario == "initial contained"
+	if !success {
+		if response.Code != 409 || merges != 0 || gets != 0 {
+			t.Fatal("invalid initial source reached merge")
+		}
+		data, _ := os.ReadFile(calls)
+		if len(data) != 0 {
+			t.Fatal("invalid source reached remote push")
+		}
+		return
+	}
+	if response.Code != 200 {
+		t.Fatalf("initial native preparation failed: %d %s", response.Code, response.Body.String())
+	}
+	var execution runner.NativeReleaseExecution
+	must(json.Unmarshal(response.Body.Bytes(), &execution))
+	if execution.Workspace == nil || execution.Workspace.SourceCommit != intent.SourceCommit || execution.Workspace.TargetCommit != target {
+		t.Fatal("initial preparation lost approved lineage")
+	}
+	expectedMerges := 1
+	if scenario == "initial contained" {
+		expectedMerges = 0
+	}
+	if merges != expectedMerges || gets != 2 {
+		t.Fatal("remote reconciliation did not precede merge", merges, gets)
+	}
+	data, _ := os.ReadFile(calls)
+	if string(data) != "observe\npush\n" || run("--git-dir", remote, "rev-parse", "refs/heads/task/source") != intent.SourceCommit {
+		t.Fatal("initial push was not exact")
+	}
+	replay := request()
+	if replay.Code != 200 || merges != expectedMerges || gets != 2 {
+		t.Fatal("prepared recovery repeated merge")
+	}
+	data, _ = os.ReadFile(calls)
+	if string(data) != "observe\npush\n" {
+		t.Fatal("prepared recovery repeated push")
+	}
+	fresh, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if fresh.CommitSHA != intent.SourceCommit || fresh.Status == task.TaskStatusDone {
+		t.Fatal("preparation changed original source or accepted task")
+	}
+	for _, root := range []string{sourceRoot, p.LocalPath, execution.Workspace.Path} {
+		if _, err := os.Stat(filepath.Join(root, "executed")); !os.IsNotExist(err) {
+			t.Fatal("preparation ran deployment")
+		}
+	}
+	if run("-C", sourceRoot, "rev-parse", "HEAD") != intent.SourceCommit {
+		t.Fatal("source checkout changed")
+	}
+	if access != 2 {
+		t.Fatal("prepared recovery accessed connection again", access)
+	}
+}
