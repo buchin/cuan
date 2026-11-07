@@ -351,7 +351,13 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 				selected := map[string]string{}
 				for _, entry := range execution.Environment {
 					parts := strings.SplitN(entry, "=", 2)
+					if _, duplicate := selected[parts[0]]; duplicate {
+						t.Fatal("duplicate native environment key", parts[0])
+					}
 					selected[parts[0]] = parts[1]
+				}
+				if selected["CUAN_NATIVE_RELEASE_SYNC_SHA"] != preparedTarget || selected["CUAN_NATIVE_RELEASE_SYNC_BRANCH"] != prepared.Branch {
+					t.Fatal("native sync context retained project-supplied stale values")
 				}
 				if selected["NATIVE_TRANSPORT_AMBIENT"] != "" || selected["HOME"] != filepath.Join(prepared.Path, ".git", "cuan-native-runtime", "home") || selected["CUAN_DEPLOY_EXCLUDE_TASK"] != item.ID || selected["CUAN_DEPLOY_EXCLUDE_ATTEMPT"] != claim.Attempt.ID {
 					t.Fatal("native runtime borrowed ambient identity or lost own-attempt binding")
@@ -381,7 +387,7 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	}
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
 	signer, _ := ssh.NewSignerFromKey(key)
-	environment := "CUAN_MANAGED_RELEASE=1\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=project-user\nCUAN_PUBLICATION_SSH_PASSWORD=private-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
+	environment := "CUAN_MANAGED_RELEASE=1\nCUAN_NATIVE_RELEASE_SYNC_SHA=stale\nCUAN_NATIVE_RELEASE_SYNC_BRANCH=wrong\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=project-user\nCUAN_PUBLICATION_SSH_PASSWORD=private-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
 	metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
 	projects := project.NewMemoryStore()
 	must(projects.CreateProject(ctx, &project.Project{ID: item.ProjectID, Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", Metadata: metadata}))
@@ -518,7 +524,7 @@ func nativeReleaseProjectFixture(t *testing.T, s *Server, tools ...string) (stri
 	target := run("rev-parse", "HEAD")
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
 	signer, _ := ssh.NewSignerFromKey(key)
-	environment := "CUAN_MANAGED_RELEASE=1\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=fixture\nCUAN_PUBLICATION_SSH_PASSWORD=fixture-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
+	environment := "CUAN_MANAGED_RELEASE=1\nCUAN_NATIVE_RELEASE_SYNC_SHA=stale\nCUAN_NATIVE_RELEASE_SYNC_BRANCH=wrong\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=fixture\nCUAN_PUBLICATION_SSH_PASSWORD=fixture-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
 	metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
 	projects := project.NewMemoryStore()
 	must(projects.CreateProject(context.Background(), &project.Project{ID: "default", Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", LocalPath: root, Metadata: metadata}))

@@ -111,15 +111,6 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	environment["CUAN_DEPLOY_BRANCH"] = prepared.Branch
 	environment["CUAN_DEPLOY_EXCLUDE_TASK"] = d.ID
 	environment["CUAN_DEPLOY_EXCLUDE_ATTEMPT"] = attemptID
-	keys := make([]string, 0, len(environment))
-	for key := range environment {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	selected := make([]string, 0, len(keys))
-	for _, key := range keys {
-		selected = append(selected, key+"="+environment[key])
-	}
 	// Revalidate authorization after preparing runtime directories, before
 	// returning any owner execution environment to the authenticated runner.
 	fresh, _, err := s.authorizedNativeReleaseAttempt(r.Context(), d.ID, attemptID, input.RunnerID)
@@ -139,7 +130,18 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	}
 	// These are execution context from native remote observation, not task
 	// acceptance or an authorization grant conveyed by environment alone.
-	selected = append(selected, "CUAN_NATIVE_RELEASE_SYNC_SHA="+saved.TargetCommit, "CUAN_NATIVE_RELEASE_SYNC_BRANCH="+saved.TargetBranch)
+	environment["CUAN_NATIVE_RELEASE_SYNC_SHA"] = saved.TargetCommit
+	environment["CUAN_NATIVE_RELEASE_SYNC_BRANCH"] = saved.TargetBranch
+	keys := make([]string, 0, len(environment))
+	for key := range environment {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	selected := make([]string, 0, len(keys))
+	for _, key := range keys {
+		selected = append(selected, key+"="+environment[key])
+	}
+
 	w.Header().Set("Cache-Control", "no-store")
 	respondJSON(w, http.StatusOK, runner.NativeReleaseExecution{Workspace: prepared, Environment: selected})
 }
