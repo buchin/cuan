@@ -366,6 +366,10 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		}
 	}
 
+	if err := s.bindManagedReleaseClaim(ctx, req, resp); err != nil {
+		return nil, err
+	}
+
 	if verification != nil && verification.FinalizeAttemptID != "" {
 		resp.Task = &task.Task{ID: t.ID, ProjectID: t.ProjectID, Title: t.Title, SourceRoomID: t.SourceRoomID, ExecutionCategory: t.ExecutionCategory}
 		resp.Environment = ""

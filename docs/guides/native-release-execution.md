@@ -86,3 +86,19 @@ Only a trusted task/attempt/source-bound deployment observation can establish
 publication, and an independent review must still check the original criteria.
 A successful operator invocation does not write those receipts or mark Inbox work
 Done by itself. See [deployment evidence](task-deployment-evidence.md).
+
+### Staged managed-release claim binding
+
+The claim service can record native publication ownership only when the frozen
+project environment contains exactly `CUAN_MANAGED_RELEASE=1`, auto-deploy is on,
+and a native-release-capable runner claims ordinary code work from Inbox. The
+native poller does not advertise that capability yet. Do not enable the setting
+as a completed automatic release workflow.
+
+The server records the exact task, attempt, runner, instructions hash, repository
+and target branch as a `managed_release_claim` activity. No environment values are
+copied into that receipt. Read-only, verification, inspection, standalone-file,
+and publication-restricted work cannot acquire it. This claim binding alone does
+not change developer prompting, waive deployment compliance, emit a source
+handoff, run a release, or accept a task. Completion-side binding validation and
+native execution must be connected before the mode can be enabled.

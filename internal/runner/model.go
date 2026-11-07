@@ -95,6 +95,7 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
+	ManagedRelease    *ManagedReleaseClaim              `json:"managed_release,omitempty"`
 	NativeRelease     *task.NativeReleaseIntent         `json:"native_release,omitempty"`
 	PHPUnitTargets    string                            `json:"phpunit_targets,omitempty"`
 	VisualRecipe      *task.VisualRecipe                `json:"visual_recipe,omitempty"`
