@@ -433,6 +433,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 
 	var managedBinding *ManagedReleaseClaim
 	var managedHandoff *task.TaskActivity
+	var nativeDelivery *task.TaskActivity
 	status := req.Status
 	if IsInfraFault(status, req.ErrorMessage, req.ExitCode) {
 		status = task.AttemptStatusInterrupted
@@ -546,6 +547,14 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			att.ErrorMessage = "Managed release handoff could not be verified; source remains unpublished"
 		}
 	}
+	if status == task.AttemptStatusSucceeded {
+		var releaseErr error
+		nativeDelivery, releaseErr = s.prepareNativeReleaseCompletion(ctx, currentTask, att, req, now)
+		if releaseErr != nil {
+			status = task.AttemptStatusFailed
+			att.ErrorMessage = "Native release process and production observation could not be verified; completion was not accepted"
+		}
+	}
 	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
 			if p, err := s.projectFinder.TaskContext(ctx, t.ProjectID, t.Instructions); err == nil && p != nil {
@@ -568,7 +577,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				if policyErr != nil {
 					return nil, policyErr
 				}
-				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy && managedHandoff == nil {
+				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy && managedHandoff == nil && nativeDelivery == nil {
 					activities, receiptErr := s.taskStore.ListActivities(ctx, att.TaskID)
 					if receiptErr != nil {
 						return nil, receiptErr
@@ -841,6 +850,10 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if status == task.AttemptStatusSucceeded && managedHandoff != nil {
 			t.Status = task.TaskStatusReview
 			completionActivities = append(completionActivities, managedHandoff)
+		}
+		if status == task.AttemptStatusSucceeded && nativeDelivery != nil {
+			t.Status = task.TaskStatusReview
+			completionActivities = append(completionActivities, nativeDelivery)
 		}
 		// Enforce state machine transition guardrails via pkg/taskfsm
 		if srcState, errSrc := taskfsm.FromCuanTaskStatus(oldStatus); errSrc == nil {

@@ -4,6 +4,7 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"time"
 
+	"github.com/buchin/cuan/internal/release"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -141,6 +142,7 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
+	NativeReleaseProcess           *release.Result          `json:"native_release_process,omitempty"`
 	ManagedReleaseSource           *ManagedReleaseSource    `json:"managed_release_source,omitempty"`
 	VisualVerification             *task.VisualVerification `json:"visual_verification,omitempty"`
 	LiveInspectionCommit           string                   `json:"live_inspection_commit,omitempty"`

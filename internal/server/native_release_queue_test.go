@@ -9,8 +9,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publication"
+	"github.com/buchin/cuan/internal/release"
 	"golang.org/x/crypto/ssh"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +43,7 @@ func TestNativeReleaseQueueRejectsForeignApproval(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "foreign approval")
 }
 func TestNativeReleasePublicationObservesPreparedTarget(t *testing.T) {
-	for _, scenario := range []string{"publication", "publication wrong target", "publication revoked"} {
+	for _, scenario := range []string{"publication", "publication wrong target", "publication revoked", "publication missing process", "publication stale observation", "publication wrong process target", "publication mutated checkout", "publication no live proof"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
@@ -274,6 +276,9 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	calls := 0
 	s.publicationVerifier = func(_ context.Context, c publication.Config, expected string) error {
 		calls++
+		if scenario == "publication no live proof" {
+			return errors.New("fixture production observation unavailable")
+		}
 		if expected != target || c.Password != "private-password" {
 			t.Error("observer checked wrong release target or environment")
 		}
@@ -283,6 +288,7 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 		}
 		return nil
 	}
+	processFinished := time.Now().UTC()
 	expected := target
 	if scenario == "publication wrong target" {
 		expected = item.CommitSHA
@@ -294,8 +300,11 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	s.Router().ServeHTTP(response, request)
 	want := 200
 	wantCalls := 1
-	if scenario != "publication" {
+	if scenario == "publication wrong target" || scenario == "publication revoked" {
 		want = 409
+	}
+	if scenario == "publication no live proof" {
+		want = 422
 	}
 	if scenario == "publication wrong target" {
 		wantCalls = 0
@@ -306,8 +315,47 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
 	verified := task.VerifiedDeployment(detail.Activities, detail.LatestAttempt, target, time.Now())
-	if verified != (scenario == "publication") || detail.CommitSHA != intent.SourceCommit || detail.Status == task.TaskStatusDone {
+	if verified != (want == 200) || detail.CommitSHA != intent.SourceCommit || detail.Status == task.TaskStatusDone {
 		t.Fatal("release observation rewrote developer source or accepted unfinished work")
+	}
+	if want == 200 || scenario == "publication no live proof" {
+		s.runnerSvc.SetProjectFinder(s.projectSvc)
+		process := &release.Result{Commit: target, Branch: intent.TargetBranch, StartedAt: *claim.Attempt.StartedAt, FinishedAt: processFinished, ExitCode: 0, SourceUnchanged: true}
+		switch scenario {
+		case "publication missing process":
+			process = nil
+		case "publication stale observation":
+			process.FinishedAt = time.Now().UTC()
+		case "publication wrong process target":
+			process.Commit = intent.SourceCommit
+		case "publication mutated checkout":
+			process.SourceUnchanged = false
+		}
+		completed, err := s.runnerSvc.Complete(ctx, claim.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: claim.Attempt.RunnerID, Status: task.AttemptStatusSucceeded, ExitCode: 0, NativeReleaseProcess: process})
+		must(err)
+		current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		deliveries := 0
+		for _, event := range current.Activities {
+			if event.ActivityType == "native_release_delivery" {
+				deliveries++
+				var delivery task.NativeReleaseDelivery
+				must(json.Unmarshal([]byte(event.Message), &delivery))
+				if delivery.SourceCommit != intent.SourceCommit || delivery.TargetCommit != target || delivery.SourceAttemptID != source.ID {
+					t.Fatal("native delivery lost source lineage")
+				}
+			}
+		}
+		if scenario == "publication" {
+			if completed.Status != task.AttemptStatusSucceeded || current.Status != task.TaskStatusReview || deliveries != 1 {
+				t.Fatal("native delivery did not await independent verification")
+			}
+		} else if completed.Status == task.AttemptStatusSucceeded || deliveries != 0 {
+			t.Fatal("invalid native process accepted")
+		}
+		if current.CommitSHA != intent.SourceCommit || current.Status == task.TaskStatusDone {
+			t.Fatal("native completion rewrote source or accepted task")
+		}
 	}
 }
 

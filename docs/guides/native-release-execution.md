@@ -203,3 +203,13 @@ Late project revalidation also rejects archived projects and changes to reposito
 workspace path or default branch, not only changes to settings metadata. Neither
 an in-flight health response nor a completed private checkout permits recording
 new native preparation/publication evidence after those project changes.
+
+Native completion now accepts structured `native_release_process` facts only for
+an admitted active release with a valid canonical preparation and matching frozen
+project. Success requires exit0, unchanged source, exact target/branch and sane
+process times, plus a trusted production receipt observed after the process ended.
+Model report/PR/code-mutation fields cannot substitute for this stage. Completion
+atomically records `native_release_delivery` with separate implementation source,
+prepared target and process times, leaving the task in Review. It preserves the
+developer commit on the task. Independent delivered-source verification is still
+required. Worker dispatch does not yet send this payload in production.

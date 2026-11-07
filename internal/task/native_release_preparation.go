@@ -66,3 +66,20 @@ func NativeReleasePreparationForAttempt(ctx context.Context, store Store, t *Tas
 	}
 	return result, nil
 }
+
+// NativeReleaseDelivery records a successful native process whose exact target
+// was independently observed healthy. Independent task verification is pending.
+type NativeReleaseDelivery struct {
+	Version           int       `json:"version"`
+	TaskID            string    `json:"task_id"`
+	AttemptID         string    `json:"attempt_id"`
+	SourceAttemptID   string    `json:"source_attempt_id"`
+	SourceCommit      string    `json:"source_commit"`
+	TargetCommit      string    `json:"target_commit"`
+	InstructionsHash  string    `json:"instructions_hash"`
+	Repository        string    `json:"repository"`
+	TargetBranch      string    `json:"target_branch"`
+	ManifestHash      string    `json:"manifest_hash"`
+	ProcessStartedAt  time.Time `json:"process_started_at"`
+	ProcessFinishedAt time.Time `json:"process_finished_at"`
+}
