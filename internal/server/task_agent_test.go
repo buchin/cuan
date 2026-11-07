@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-const fixtureReviewReport = "\n\"$CUAN_TASK_EXECUTABLE\" task report --summary 'Fixture implementation complete' --complete-note 'Verified fixture output and behavior' --state review\n"
+const fixtureReviewReport = "\n\"$CUAN_TASK_EXECUTABLE\" task report --summary 'Fixture implementation complete' --dod-item 'Verify the result' --dod-evidence 'Fixture output and behavior observed' --complete-note 'Verified fixture output and behavior' --state review\n"
 
 func TestTaskAgentReportReturnsCompactReceipt(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
@@ -117,13 +117,15 @@ func TestRunnerPromptFinalReportCommandReachesReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	prompt := cuanPrompt.BuildRunnerPrompt("Fixture audit", "Verify the fixture", "")
+	prompt := cuanPrompt.BuildRunnerPromptWithDoD("Fixture audit", "Verify the fixture", "", []string{"Verify the result"})
 	for _, line := range strings.Split(prompt, "\n") {
 		command := strings.TrimSpace(line)
-		if !strings.HasPrefix(command, `"$CUAN_TASK_EXECUTABLE" task report `) {
+		if !strings.HasPrefix(command, `"$CUAN_TASK_EXECUTABLE" task report `) || !strings.Contains(command, "--dod-item") {
 			continue
 		}
-		command = strings.ReplaceAll(command, "<concise summary of work done>", "Fixture audit result")
+		command = strings.ReplaceAll(command, "<summary>", "Fixture audit result")
+		command = strings.ReplaceAll(command, "<original criterion>", "Verify the result")
+		command = strings.ReplaceAll(command, "<observed result>", "Fixture output matched its expected value")
 		command = strings.ReplaceAll(command, "<detailed DoD verification evidence>", "Fixture output matched its expected value")
 		cmd := exec.Command("sh", "-c", command)
 		cmd.Env = append(os.Environ(), env...)
@@ -220,7 +222,7 @@ func TestTaskAgentScopedReportAndReviewGate(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &checkpointResponse); err != nil || checkpointResponse.State != "progress" || !strings.Contains(checkpointResponse.Workflow, "Continue the approved task") {
 		t.Fatal("metadata checkpoint response implied completion", err)
 	}
-	w = invoke("POST", created.ID, `{"state":"review","summary":"Implemented fixture","complete_note":"Verified actual output","dod_checklist":[{"text":"Verify the result","completed":false}]}`, token)
+	w = invoke("POST", created.ID, `{"state":"review","summary":"Implemented fixture","complete_note":"Verified actual output","dod_checklist":[{"text":"Verify the result","completed":false,"evidence":"Fixture output still lacks expected behavior"}]}`, token)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -275,7 +277,7 @@ func TestTaskAgentFailureAndBlockerDoNotBecomeReview(t *testing.T) {
 			api := httptest.NewServer(s.Router())
 			defer api.Close()
 			s.taskAgentURL = api.URL
-			script := "#!/bin/sh\n\"$CUAN_TASK_EXECUTABLE\" task report --summary 'Actual fixture result' --complete-note 'Concrete fixture evidence' --state " + c.state + "\nexit " + fmt.Sprint(c.exit) + "\n"
+			script := "#!/bin/sh\n\"$CUAN_TASK_EXECUTABLE\" task report --summary 'Actual fixture result' --dod-item 'Verify the result' --dod-evidence 'Concrete fixture output observed' --complete-note 'Concrete fixture evidence' --state " + c.state + "\nexit " + fmt.Sprint(c.exit) + "\n"
 			if e := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); e != nil {
 				t.Fatal(e)
 			}
@@ -323,7 +325,7 @@ read -r followup
 "$CUAN_TASK_EXECUTABLE" task get >/dev/null || exit 24
 printf '%s' '{"state":"progress","dod_checklist":[{"text":"Verify the result","completed":true,"evidence":"Actual PTY input and task tool observed in fixture"}]}' > fixture-report.json
 "$CUAN_TASK_EXECUTABLE" task report --report-file fixture-report.json >/dev/null || exit 30
-"$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --result-kind ` + kind + ` --summary 'Two interactive turns completed' --complete-note 'Verified actual PTY input and task tool' || exit 25
+"$CUAN_TASK_EXECUTABLE" task report --state ` + state + ` --result-kind ` + kind + ` --summary 'Two interactive turns completed' --dod-item 'Verify the result' --dod-evidence 'Actual PTY input and scoped task tool observed' --complete-note 'Verified actual PTY input and task tool' || exit 25
 printf 'FINAL_OUTPUT_DRAINED\n'
 while :; do sleep 1; done
 `
@@ -386,10 +388,10 @@ func TestTaskAgentInteractiveFinalizationRespectsProgressAndCancel(t *testing.T)
 			defer api.Close()
 			s.taskAgentURL = api.URL
 			script := `#!/bin/sh
-"$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Initial result' --complete-note 'Initial evidence' >/dev/null || exit 31
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Initial result' --dod-item 'Verify the result' --dod-evidence 'Initial fixture result observed' --complete-note 'Initial evidence' >/dev/null || exit 31
 "$CUAN_TASK_EXECUTABLE" task report --state progress --progress 'Following new instructions' >/dev/null || exit 32
 read -r next
-"$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Final result' --complete-note 'Verified follow-up' >/dev/null || exit 33
+"$CUAN_TASK_EXECUTABLE" task report --state review --summary 'Final result' --dod-item 'Verify the result' --dod-evidence 'Follow-up fixture result observed' --complete-note 'Verified follow-up' >/dev/null || exit 33
 while :; do sleep 1; done
 `
 			if err := os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700); err != nil {
@@ -541,7 +543,7 @@ func TestTaskMCPReportingRetainsCoordinatorAcceptance(t *testing.T) {
 	invoke("get_current_task", map[string]any{}, false)
 	invoke("report_current_task", map[string]any{"state": "progress", "progress": "Checking actual result"}, false)
 	invoke("report_current_task", map[string]any{"state": "done"}, true)
-	invoke("report_current_task", map[string]any{"state": "review", "summary": "Fixture result", "complete_note": "Observed local output"}, false)
+	invoke("report_current_task", map[string]any{"state": "review", "summary": "Fixture result", "complete_note": "Observed local output", "dod_checklist": []map[string]any{{"text": "Verify the result", "completed": true, "evidence": "Fixture local output observed"}}}, false)
 	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -582,7 +584,7 @@ func TestTaskAgentCompletionOutlivesCanceledStartRequest(t *testing.T) {
 	s.taskAgentURL = api.URL
 	script := `#!/bin/sh
 read -r finish
-"$CUAN_TASK_EXECUTABLE" task report --state review --result-kind answer --summary 'Recorded after HTTP cancellation' --complete-note 'The original start request ended before the final report' >/dev/null || exit 21
+"$CUAN_TASK_EXECUTABLE" task report --state review --result-kind answer --summary 'Recorded after HTTP cancellation' --dod-item 'Verify the result' --dod-evidence 'Scoped report completed after original HTTP request ended' --complete-note 'The original start request ended before the final report' >/dev/null || exit 21
 printf 'FINAL_AFTER_HTTP_CANCEL\n'
 while :; do sleep 1; done
 `

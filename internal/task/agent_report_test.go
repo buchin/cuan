@@ -279,3 +279,99 @@ func TestAgentReportCannotCompleteOrReplaceUnverifiedCriteria(t *testing.T) {
 		t.Fatal("report bypassed execution completion or lost evidence")
 	}
 }
+
+func TestAgentReviewRequiresCurrentCriterionEvidenceBeforeHandoff(t *testing.T) {
+	for _, state := range []string{"review", "done"} {
+		t.Run(state, func(t *testing.T) {
+			ctx := context.Background()
+			svc := NewService(NewMemoryStore(), nil)
+			criteria := []DoDItem{{ID: "original", Text: "Deliver approved behavior", Completed: true, Evidence: "Historical attempt evidence"}}
+			created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Work", Instructions: "Deliver approved behavior", DoDChecklist: criteria})
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "fixture"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			doing := TaskStatusDoing
+			if _, err = svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = svc.UpdateAttemptStatus(ctx, a.ID, "fixture", UpdateAttemptRequest{Status: AttemptStatusRunning}); err != nil {
+				t.Fatal(err)
+			}
+			if err = svc.RequireAgentReport(ctx, created.ID, a.ID, "fixture"); err != nil {
+				t.Fatal(err)
+			}
+			summary, note := "Current result", "Observed current behavior"
+			report := AgentReport{State: state, Summary: &summary, CompleteNote: &note}
+			emptyEvidence := []DoDItem{{ID: "original", Text: criteria[0].Text, Completed: true}}
+			for _, checklist := range []*[]DoDItem{nil, &emptyEvidence} {
+				report.Checklist = checklist
+				if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", report); err == nil {
+					t.Fatal("final handoff accepted without current per-criterion evidence")
+				}
+				if _, err = svc.StageAgentReport(ctx, created.ID, a.ID, "fixture", report); err == nil {
+					t.Fatal("artifact staging accepted without current evidence")
+				}
+			}
+			if ready, err := svc.AgentReviewReady(ctx, created.ID, a.ID); err != nil || ready {
+				t.Fatalf("rejected handoff became ready: %v %v", ready, err)
+			}
+			saved, err := svc.GetTaskDetail(ctx, created.ID)
+			if err != nil || saved.DoDChecklist[0].Evidence != criteria[0].Evidence {
+				t.Fatal("rejected report changed saved evidence", err)
+			}
+			current := []DoDItem{{ID: "original", Text: criteria[0].Text, Completed: true, Evidence: "Current targeted check observed expected behavior"}}
+			report.Checklist = &current
+			if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", report); err != nil {
+				t.Fatal("same attempt could not correct report", err)
+			}
+			if ready, err := svc.AgentReviewReady(ctx, created.ID, a.ID); err != nil || !ready {
+				t.Fatalf("corrected report not ready: %v %v", ready, err)
+			}
+		})
+	}
+}
+
+func TestAgentReviewAllowsFactualUnmetCriteriaAndBlockers(t *testing.T) {
+	for _, state := range []string{"review", "blocked"} {
+		t.Run(state, func(t *testing.T) {
+			ctx := context.Background()
+			svc := NewService(NewMemoryStore(), nil)
+			criteria := []DoDItem{{ID: "original", Text: "Expected behavior"}}
+			created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{Title: "Work", Instructions: "Expected behavior", DoDChecklist: criteria})
+			if err != nil {
+				t.Fatal(err)
+			}
+			a, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal", AgentName: "fixture"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			doing := TaskStatusDoing
+			if _, err = svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{Status: &doing}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = svc.UpdateAttemptStatus(ctx, a.ID, "fixture", UpdateAttemptRequest{Status: AttemptStatusRunning}); err != nil {
+				t.Fatal(err)
+			}
+			summary, note := "Unmet requirement", "Targeted check returned actual value instead of expected value"
+			report := AgentReport{State: state, Summary: &summary, CompleteNote: &note}
+			if state == "review" {
+				criteria[0].Evidence = note
+				report.Checklist = &criteria
+			}
+			if _, err = svc.StageAgentReport(ctx, created.ID, a.ID, "fixture", report); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = svc.ReportAgent(ctx, created.ID, a.ID, "fixture", report); err != nil {
+				t.Fatal(err)
+			}
+			detail, err := svc.GetTaskDetail(ctx, created.ID)
+			if err != nil || detail.DoDChecklist[0].Completed || detail.Status != TaskStatusDoing {
+				t.Fatal("honest gap became acceptance", err)
+			}
+		})
+	}
+}

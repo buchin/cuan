@@ -234,6 +234,13 @@ no task/attempt ID, endpoint or credential is accepted as a tool argument.
 result_kind, metadata, dod_checklist with original criteria/evidence, and
 workspace-relative artifacts. It sends a worker report for normal verification
 and coordinator review; a successful tool response is not task acceptance.
+For tasks with a saved DoD checklist, both `review` and `done` require a complete
+current `dod_checklist`, preserving original IDs, text and order. Every item needs
+factual observed evidence; unmet items may remain `completed:false` with their
+actual gap in a review report. A blocker can use `blocked` without fabricating
+checks. Rejected handoffs leave the attempt active so the worker can correct
+the report. Historical checkbox evidence alone cannot complete a new report.
+
 Final results need an explicit `state`: `review`, `blocked` or `done`. A metadata
 or progress report leaves the session running. Completion evidence without a
 state is rejected; use explicit `progress` when saving intermediate evidence.

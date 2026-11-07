@@ -55,7 +55,7 @@ func TestTaskReportingGrantSurvivesServerMemoryLoss(t *testing.T) {
 	if w := invoke(created.ID, forged); w.Code != 401 {
 		t.Fatal("grant ciphertext transplanted", w.Code)
 	}
-	req := httptest.NewRequest("POST", "/api/v1/task-agent/"+created.ID, strings.NewReader(`{"state":"review","summary":"Recovered report","complete_note":"Verified saved output after server restart"}`))
+	req := httptest.NewRequest("POST", "/api/v1/task-agent/"+created.ID, strings.NewReader(`{"state":"review","summary":"Recovered report","complete_note":"Verified saved output after server restart","dod_checklist":[{"text":"Verify the result","completed":true,"evidence":"Saved fixture output observed after restart"}]}`))
 	req.Header.Set("Authorization", "Bearer "+token)
 	out := httptest.NewRecorder()
 	s.Router().ServeHTTP(out, req)

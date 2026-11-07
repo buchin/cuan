@@ -96,6 +96,19 @@ func (s *Service) reportAgent(ctx context.Context, taskID, attemptID, author str
 		}
 		t.CompleteNote = strings.TrimSpace(*r.CompleteNote)
 	}
+	// Final handoff must describe this attempt's observations, not silently
+	// inherit checked criteria from an earlier attempt. An unmet criterion may
+	// be reviewed honestly with Completed=false and a factual gap.
+	if (r.State == "review" || r.State == "done") && len(t.DoDChecklist) > 0 {
+		if r.Checklist == nil {
+			return bad("final review requires current evidence for every original criterion; read task get and submit dod_checklist preserving IDs, text and order")
+		}
+		for _, item := range *r.Checklist {
+			if strings.TrimSpace(item.Evidence) == "" || reportTemplatePlaceholder(item.Evidence) {
+				return bad("each original criterion needs current observed evidence or a factual unmet gap; use completed=false for unmet criteria, or state blocked for a blocker")
+			}
+		}
+	}
 	if r.Checklist != nil {
 		if e = validateChecklist(*r.Checklist); e != nil {
 			return nil, e

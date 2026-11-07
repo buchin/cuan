@@ -194,7 +194,9 @@ final report with --artifact "relative/path" (repeatable, up to eight files, 10 
 per file and 25 MB total). Paths must be relative to WORKSPACE_DIR; do not attach
 credentials, hidden files or private keys. Cuan copies the files into private
 Inbox attachments so the user can download them without server access. Merely
-printing a file:// link or server path does not deliver a file. Example:
+printing a file:// link or server path does not deliver a file. Examples below show
+transport flags; when the task has saved criteria, also supply --report-file with
+the complete current dod_checklist as described below. Example:
 "$CUAN_TASK_EXECUTABLE" task report --state done --summary "Files ready" --complete-note "Actual verification" --artifact "output.html" --artifact "README.md"
 For verification without modifying the repository, write screenshots or reports
 under "$CUAN_TASK_ARTIFACTS_DIR". This is a private output directory bound to this
@@ -207,9 +209,15 @@ For completed implementation, finish with:
 For a greeting/question with no file changes, use --state review --result-kind answer.
 Use --state review when implementation still needs review.
 For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
-Done requires actual completed work and verification evidence. For each original
-acceptance criterion, supply its unchanged text/id, completed:true and a concrete
-"evidence" string (observed result, command output, artifact or live check).
+Read task get before final reporting. Both review and done require current
+observations for EVERY saved acceptance criterion, preserving its text, ID and
+order. Previous attempts' checklist evidence cannot substitute for this report.
+Supply completed:true only for verified criteria, with a concrete "evidence"
+string (observed result, command output, artifact or live check). For unmet
+criteria, use completed:false and a factual gap in a review report; for a blocker
+use state blocked. Done requires actual completed work and verification evidence.
+If final reporting is rejected, correct and resubmit within this same active
+attempt; do not stop or start another task.
 Use task report --report-file with JSON containing dod_checklist to send these
 structured observations. Do not mark unchecked criteria complete implicitly,
 remove criteria, or add revision instructions to the approved checklist.
