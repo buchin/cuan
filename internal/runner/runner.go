@@ -948,6 +948,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		}
 	}
 	if claim.TaskAgent != nil {
+		// Git inspection inside a PTY must finish without waiting in less.
+		// An explicit interactive pager remains available as a separate command.
+		env["GIT_PAGER"] = "cat"
 		encoded, _ := json.Marshal(claim.TaskAgent)
 		env["CUAN_TASK_CAPABILITY_JSON"] = string(encoded)
 		if claim.TaskAgent.ArtifactsDir != "" {

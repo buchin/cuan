@@ -24,6 +24,9 @@ type canceledDiagnosticAdapter struct {
 func (a *canceledDiagnosticAdapter) Name() string             { return "diagnostic-fixture" }
 func (a *canceledDiagnosticAdapter) Version() (string, error) { return "1", nil }
 func (a *canceledDiagnosticAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+	if req.Env["GIT_PAGER"] != "cat" {
+		a.t.Error("bound native worker can wait in an interactive Git pager")
+	}
 	if a.evidenceDir != "" && req.Env["CUAN_TASK_ARTIFACTS_DIR"] != a.evidenceDir {
 		a.t.Error("runner lost the attempt-bound evidence directory")
 	}
