@@ -486,7 +486,10 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	stage, currentTask := "scope_audit", ""
 	candidates, examined := 0, 0
 	defer func() {
-		if elapsed := time.Since(started); elapsed >= 5*time.Second || ctx.Err() != nil {
+		now := time.Now().Unix()
+		next := s.inboxDeliveryDiagnosticNext.Load()
+		periodic := next <= now && s.inboxDeliveryDiagnosticNext.CompareAndSwap(next, now+60)
+		if elapsed := time.Since(started); periodic || elapsed >= 5*time.Second || ctx.Err() != nil {
 			// Fixed stage codes and IDs only: no prompts, credentials, reports,
 			// provider errors, or conversation content enter infrastructure logs.
 			log.Printf("inbox delivery scan stage=%s task=%s candidates=%d examined=%d duration_ms=%d interrupted=%t", stage, currentTask, candidates, examined, elapsed.Milliseconds(), ctx.Err() != nil)
@@ -506,6 +509,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	stage = "candidate_discovery"
 	items, err := s.taskSvc.InboxDeliveryTasks(ctx)
 	if err != nil {
+		stage = "candidate_discovery_unavailable"
 		return
 	}
 	candidates = len(items)

@@ -151,7 +151,8 @@ implementation, publication, acceptance, or recovery allowance.
 
 Slow or interrupted coordinator delivery scans emit one infrastructure diagnostic
 with a fixed stage code, current task ID, candidate/examined counts, elapsed time,
-and interruption flag. Scans under five seconds remain quiet. This distinguishes
+and interruption flag. A completed scan also emits this summary at most once per minute, including
+candidate discovery failures, so fast early exits are observable too. This distinguishes
 slow acceptance audits, candidate discovery, task reads, recovery, and coordinator
 review without logging conversation content or credentials. A ready inspection
 plan alone does not prove that the delivery scan reached or admitted that task.
