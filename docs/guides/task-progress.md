@@ -134,3 +134,21 @@ follow-up; implementation, push and deployment are not repeated. Native source
 and repository checks, final reporting and coordinator acceptance remain required.
 The quota failure remains failed in history, including any uncertain prior effects.
 `cuan task execution TASK_ID` reports the recovery cause and predecessor when present.
+
+Attention cards prefer the current coordinator's specific saved finding over a
+generic missing-result message. The read-only `review_finding` projection checks
+the latest attempt, instruction hash, and evidence digest using the same native
+assessment validation as recovery. Changed scope/evidence, canceled or running
+attempts, accepted work, and worker-authored claims do not supply a finding.
+Inbox/task lists read relevant current-attempt activities in one batch; storage
+errors are reported instead of substituting empty data. Unsupported custom stores
+retain the generic explanation without per-task fallback queries. Findings do not
+grant execution, create approval actions, or establish completion.
+
+The isolated real-component browser check is:
+`node web/scripts/verify-task-review-finding.mjs /absolute/new/private/evidence-dir`.
+It verifies mobile390 and desktop1440 rendering, active-review suppression, and
+removal of superseded findings. Optional `CUAN_BROWSER_MODULE` and
+`CUAN_CHROMIUM_EXECUTABLE` select an installed browser runtime; use
+`CUAN_BROWSER_NO_SANDBOX=1` only in an already isolated test environment. Its
+screenshots are UI fixture evidence, never evidence that a live task was done.

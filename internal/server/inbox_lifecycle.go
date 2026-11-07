@@ -895,6 +895,9 @@ func (s *Server) inboxLinkedTasks(ctx context.Context, room string, requestSets 
 			return nil, err
 		}
 	}
+	if err := s.projectTaskReviewFindings(ctx, items); err != nil {
+		return nil, err
+	}
 	if err := s.projectInboxTaskReviews(ctx, items, requests, time.Now().UTC()); err != nil {
 		return nil, err
 	}

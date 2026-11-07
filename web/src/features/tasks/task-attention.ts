@@ -3,6 +3,8 @@ import { workStatus } from './task-ui'
 
 export function taskAttention(task: Task) {
   if (task.review_state || workStatus(task) !== 'Needs attention') return null
+  const finding = task.review_finding?.trim()
+  if (finding) return { reason: finding }
   const error = task.latest_attempt?.error_message || ''
   if (/timed out|execution deadline exceeded|hard execution timeout/i.test(error)) {
     return { reason: 'Work stopped before verification finished.' }

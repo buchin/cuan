@@ -141,6 +141,10 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusInternalServerError, "Could not load task page")
 			return
 		}
+		if err := s.projectTaskReviewFindings(r.Context(), result.Tasks); err != nil {
+			respondJSONError(w, 503, "Could not read task review findings")
+			return
+		}
 		respondJSON(w, http.StatusOK, result)
 		return
 	}
@@ -179,6 +183,10 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		tasks = []*task.TaskItemResponse{}
 	}
 
+	if err := s.projectTaskReviewFindings(r.Context(), tasks); err != nil {
+		respondJSONError(w, 503, "Could not read task review findings")
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks": tasks,
 		"total": len(tasks),
@@ -257,6 +265,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.projectInboxLaunchDiagnostics(r.Context(), detail)
+	detail.ReviewFinding = currentTaskReviewFinding(detail)
 
 	if detail.SourceRoomID != "" && detail.LatestAttempt != nil && (detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {

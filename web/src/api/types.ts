@@ -106,6 +106,7 @@ export interface TaskDetail extends Task {
 }
 export interface Task {
   review_state?: 'queued' | 'running'
+  review_finding?: string
   repo_url?: string
   result_kind?: 'answer' | 'implementation'
   launch?: { state: 'queued' | 'claimed' | 'started' | 'stopped' | 'cancelled'; safe_error?: string; available_at: string }
