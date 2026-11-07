@@ -355,6 +355,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = requireOperationalOutcome(d, decision)
 	decision = s.requireVisualReview(ctx, d, decision)
 	decision = s.requirePublicationReview(ctx, d, decision)
+	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	if d.Status != task.TaskStatusDone {
 		decision, err = s.saveReviewAssessment(ctx, d, q, decision)
 		if err != nil {
@@ -366,6 +367,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	}
 	decision = s.requireVisualReview(ctx, d, decision)
 	decision = s.requirePublicationReview(ctx, d, decision)
+	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	if decision.Decision == "pass" {
 		if _, _, guidanceErr := project.TaskReviewGuidance(d.Instructions); guidanceErr != nil {
 			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}
@@ -484,6 +486,29 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		decision.Decision = "blocked"
 	}
 	if decision.Decision == "revise" {
+		if decision.RemainingWork == "verification" && s.independentCodeReviewMissing(ctx, d) {
+			var launchErr error
+			launchCtx := context.WithValue(ctx, inboxReviewLaunchErrorKey{}, &launchErr)
+			if outcome, scheduled := s.startVerificationFollowup(launchCtx, q, d, decision); scheduled {
+				return outcome
+			}
+			if retryableReviewLaunchError(launchErr) {
+				if retry, ok := ctx.Value(inboxHandoffPersistenceKey{}).(*bool); ok {
+					*retry = true
+				}
+				return "Hasil tersimpan, tetapi penjadwalan pemeriksaan belum terkonfirmasi.\n\n[View work](/tasks/" + d.ID + ")"
+			}
+			// Never replace a failed exact-source verifier admission with an
+			// ordinary developer execution or accept the worker's own report.
+			if d.Status != "cancelled" && d.Status != "canceled" && !d.LatestAttempt.CancelRequested && d.LatestAttempt.CanceledAt == nil {
+				blocked := task.TaskStatusBlocked
+				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
+				if s.queueManagerAssessment(ctx, q, d) {
+					return "Hasil kode tersimpan; sesi pemeriksaan terpisah belum dapat dimulai. Cuan menilai kendalanya sebelum melanjutkan.\n\n[View work](/tasks/" + d.ID + ")"
+				}
+			}
+			return "Hasil kode tersimpan; bukti untuk memulai sesi pemeriksaan terpisah belum lengkap.\n\n[View work](/tasks/" + d.ID + ")"
+		}
 		if s.startReviewedLiveInspection(ctx, q, d, decision) {
 			return "Cuan memeriksa hasil pekerjaan pada versi yang sudah berjalan.\n\n[View work](/tasks/" + d.ID + ")"
 		}
@@ -801,6 +826,9 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 // Evidence revisions, unlike task status or timestamps, justify one new review.
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
+	if d.ExecutionCategory == task.ExecutionCategoryCode {
+		parts = append(parts, inboxIndependentCodeReviewPolicy)
+	}
 	parts = append(parts, task.AttemptChangeEvidence(d))
 	if audit := scopeAcceptanceReviewData(d); audit != nil {
 		parts = append(parts, audit)

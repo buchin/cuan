@@ -54,6 +54,14 @@ func TestReviewStructuredTextMediaTypes(t *testing.T) {
 
 func TestAcceptedReviewReportsOutcomeWithoutFutureDeliveryPromise(t *testing.T) {
 	s, d, q := stalledReviewFixture(t, "completed")
+	row, err := s.taskSvc.Store().GetTask(context.Background(), d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row.ExecutionCategory = task.ExecutionCategoryReadOnly
+	if err := s.taskSvc.Store().UpdateTask(context.Background(), row); err != nil {
+		t.Fatal(err)
+	}
 	out := s.applyInboxReviewEvaluation(context.Background(), q, `{"decision":"pass","finding":"Laporan investigasi tersedia dan memenuhi kriteria yang diminta.","explanation":"Cuan akan menyampaikan laporan kepada pengguna.","remaining_work":"none","revision":""}`)
 	if !strings.Contains(out, "Laporan investigasi tersedia") || strings.Contains(out, "akan menyampaikan") {
 		t.Fatal("accepted result promised an unqueued future delivery", out)

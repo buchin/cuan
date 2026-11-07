@@ -165,6 +165,15 @@ func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDeta
 	if evidence == nil || evidence["source_attempt_id"] == att.ID || evidence["source_commit"] != d.CommitSHA || evidence["repository_unchanged"] != true {
 		t.Fatal("missing source context", evidence)
 	}
+	d.ExecutionCategory = task.ExecutionCategoryCode
+	if decision := s.requireIndependentCodeReview(ctx, d, inboxReviewEvaluation{Decision: "pass"}); decision.Decision != "pass" {
+		t.Fatal("valid independent execution remained blocked", decision)
+	}
+	changed := *d
+	changed.CommitSHA = strings.Repeat("c", 40)
+	if decision := s.requireIndependentCodeReview(ctx, &changed, inboxReviewEvaluation{Decision: "pass"}); decision.Decision != "revise" {
+		t.Fatal("old verifier accepted a changed source commit", decision)
+	}
 	if task.AttemptVerificationEvidence(d).Current == evidence["source_project_checks"] {
 		t.Fatal("historical source tests attributed to verifier")
 	}
@@ -204,5 +213,8 @@ func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDeta
 	}
 	if s.verificationReviewContext(ctx, d) != nil {
 		t.Fatal("agent could supply backend source receipt")
+	}
+	if decision := s.requireIndependentCodeReview(ctx, d, inboxReviewEvaluation{Decision: "pass"}); decision.Decision != "revise" {
+		t.Fatal("agent-authored receipt bypassed independent gate", decision)
 	}
 }

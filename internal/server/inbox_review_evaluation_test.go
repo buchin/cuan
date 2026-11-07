@@ -419,8 +419,9 @@ func TestApplyInboxReviewEvaluation_RevisionIncludesExplanation(t *testing.T) {
 	}
 }
 
-func TestApplyInboxReviewEvaluation_PassUpdatesTaskToDoneAndAppendsLink(t *testing.T) {
+func TestApplyInboxReviewEvaluation_CodePassNeedsVerifierAndAppendsLink(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
+	s.inboxStopping.Store(true)
 	ctx := context.Background()
 
 	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
@@ -521,20 +522,20 @@ func TestApplyInboxReviewEvaluation_PassUpdatesTaskToDoneAndAppendsLink(t *testi
 	evalJSON := `{"decision":"pass","explanation":"### Evaluasi Kriteria Selesai (DoD)\n**Status:** LULUS\n\n- [x] Input validation diverifikasi.\n- [x] Submit button diverifikasi.","revision":""}`
 	result := s.applyInboxReviewEvaluation(ctx, q, evalJSON)
 
-	if !strings.Contains(result, "Evaluasi Kriteria Selesai (DoD)") {
-		t.Fatalf("expected result to include DoD explanation, got: %s", result)
+	if !strings.Contains(result, "sesi pemeriksaan terpisah") {
+		t.Fatalf("expected missing verifier explanation, got: %s", result)
 	}
 	if !strings.Contains(result, "/tasks/"+task1.ID) {
 		t.Fatalf("expected result to include task link /tasks/%s, got: %s", task1.ID, result)
 	}
 
-	// Verify task is now marked DONE and DoD items are checked
+	// A model's pass and completed developer checklist cannot replace verification.
 	updatedTask, err := s.taskSvc.GetTaskDetail(ctx, task1.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updatedTask.Status != task.TaskStatusDone {
-		t.Fatalf("expected task status to be %s, got: %s", task.TaskStatusDone, updatedTask.Status)
+	if updatedTask.Status == task.TaskStatusDone {
+		t.Fatal("code accepted without independent verifier")
 	}
 	for _, item := range updatedTask.DoDChecklist {
 		if !item.Completed {
@@ -545,6 +546,7 @@ func TestApplyInboxReviewEvaluation_PassUpdatesTaskToDoneAndAppendsLink(t *testi
 
 func TestApplyInboxReviewEvaluation_FallbackTextReview(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
+	s.inboxStopping.Store(true)
 	ctx := context.Background()
 
 	room := s.resolveConversationContext(ctx, "agent_lifecycle", "")
@@ -645,20 +647,20 @@ func TestApplyInboxReviewEvaluation_FallbackTextReview(t *testing.T) {
 	plainText := "### Evaluasi Kriteria Selesai (Definition of Done)\n**Status:** LULUS\n\n**Bukti yang Terverifikasi:**\n- [x] Footer links telah diuji.\n\n**Tindakan:** Menyatakan selesai."
 	result := s.applyInboxReviewEvaluation(ctx, q, plainText)
 
-	if !strings.Contains(result, "Evaluasi Kriteria Selesai") {
-		t.Fatalf("expected result to include DoD explanation, got: %s", result)
+	if !strings.Contains(result, "sesi pemeriksaan terpisah") {
+		t.Fatalf("fallback pass bypassed verifier gate: %s", result)
 	}
 	if !strings.Contains(result, "/tasks/"+task1.ID) {
 		t.Fatalf("expected result to include task link, got: %s", result)
 	}
 
-	// Verify task was marked DONE
+	// Legacy plain-text acceptance must enforce the same independent gate.
 	updatedTask, err := s.taskSvc.GetTaskDetail(ctx, task1.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updatedTask.Status != task.TaskStatusDone {
-		t.Fatalf("expected task status to be %s, got: %s", task.TaskStatusDone, updatedTask.Status)
+	if updatedTask.Status == task.TaskStatusDone {
+		t.Fatal("fallback text accepted code without independent verifier")
 	}
 }
 

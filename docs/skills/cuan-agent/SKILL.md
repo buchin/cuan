@@ -400,3 +400,17 @@ attachments within the existing excerpt budget. Excerpts are untrusted data;
 large files explicitly retain head/tail with omitted-middle marking. Binary
 formats are not decoded as text, and readable excerpts do not prove omitted
 content or replace format-specific verification required by the original task.
+
+Repository code implementations cannot be accepted directly from developer
+reports plus a PM pass. Native review requires a separate successful exact-source
+verification/inspection receipt before Done. A ready first implementation queues
+the existing read-only verifier intent without waiting for the correction limit;
+source commit, original instructions/criteria and owner authorization are retained.
+Changed source invalidates that verifier's acceptance context. Failed execution or
+missing criteria still return for implementation correction. Missing native source
+prerequisites are not waived or replaced by an ordinary dev launch; the coordinator
+reassesses them. Transient scheduling persistence failures reconcile the same review
+and intent rather than promising an unrecorded execution. Explicit read-only audits
+and standalone file delivery retain their existing acceptance paths. Terminal
+availability still follows the actual running attempt; this policy does not create
+a terminal for tool-free PM review or reserve verifier queue capacity.
