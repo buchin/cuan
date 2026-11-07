@@ -75,6 +75,58 @@ printf 'gemini-current\tCurrent Gemini\nclaude-sonnet-current\tSonnet\nrandom-in
 	}
 }
 
+func TestProviderAccountModelsCapabilityFlags(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	// claude-sonnet-current: IsTextModel passes, IsModelVisionCapable("agy",...) true (contains "sonnet")
+	// gemini-current: IsTextModel passes, IsModelVisionCapable("agy",...) true (no exclusion)
+	// claude-text-only-fixture: IsTextModel passes, IsModelVisionCapable("agy",...) false (contains "text")
+	script := "#!/bin/sh\n[ \"$1\" = models ] || exit 1\nprintf 'claude-sonnet-current\\ngemini-current\\nclaude-text-only-fixture\\n'\n"
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	a, err := CreateProviderAccount("owner", "Cap fixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := ProviderAccountHome("owner", a.ID)
+	if err := os.MkdirAll(AntigravityConfigDirPath(home), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(AntigravityCredentialsFilePath(home), []byte(`{"access_token":"fixture-only"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	models, err := ProviderAccountModels(context.Background(), "owner", a.ID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	byID := map[string]ModelInfo{}
+	for _, m := range models {
+		byID[m.ID] = m
+	}
+	// Vision models: all three flags must be true
+	for _, visionID := range []string{"claude-sonnet-current", "gemini-current"} {
+		m, ok := byID[visionID]
+		if !ok {
+			t.Fatalf("missing vision model %s in catalog", visionID)
+		}
+		if !m.SupportsVision || !m.Capabilities.Vision || !m.Capabilities.SupportsVision {
+			t.Errorf("vision model %s: got SupportsVision=%v Capabilities.Vision=%v Capabilities.SupportsVision=%v; want all true",
+				visionID, m.SupportsVision, m.Capabilities.Vision, m.Capabilities.SupportsVision)
+		}
+	}
+	// Non-vision text fixture: all three flags must be false
+	m, ok := byID["claude-text-only-fixture"]
+	if !ok {
+		t.Fatal("missing non-vision model claude-text-only-fixture in catalog")
+	}
+	if m.SupportsVision || m.Capabilities.Vision || m.Capabilities.SupportsVision {
+		t.Errorf("non-vision model claude-text-only-fixture: got SupportsVision=%v Capabilities.Vision=%v Capabilities.SupportsVision=%v; want all false",
+			m.SupportsVision, m.Capabilities.Vision, m.Capabilities.SupportsVision)
+	}
+}
+
 func TestNativeCatalogRejectsFailureAndOverflow(t *testing.T) {
 	for _, body := range []string{"exit 3", "printf 'not-a-model\\n'", "head -c 70000 /dev/zero"} {
 		t.Run(body, func(t *testing.T) {
