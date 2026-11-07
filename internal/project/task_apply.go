@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/buchin/cuan/internal/git"
@@ -12,6 +11,9 @@ import (
 
 // ApplyTaskPullRequest merges the task PR into the project default branch.
 func (s *Service) ApplyTaskPullRequest(ctx context.Context, projectID string, prNumber int, title, message, sourceCommit string) (*git.MergePullRequestResult, error) {
+	if s.gitClient == nil {
+		return nil, errors.New("repository operations are unavailable")
+	}
 	if projectID == "" {
 		return nil, errors.New("project id is required")
 	}
@@ -58,7 +60,10 @@ func (s *Service) ApplyTaskPullRequest(ctx context.Context, projectID string, pr
 }
 
 // ApplyTaskBranch merges the task branch directly into the project's repository default branch.
-func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, title, message string) (*git.MergePullRequestResult, error) {
+func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, title, message, sourceCommit string) (*git.MergePullRequestResult, error) {
+	if s.gitClient == nil {
+		return nil, errors.New("repository operations are unavailable")
+	}
 	if projectID == "" {
 		return nil, errors.New("project id is required")
 	}
@@ -71,42 +76,34 @@ func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, ti
 		return nil, fmt.Errorf("project not found: %w", err)
 	}
 
-	repoPath := p.LocalPath
-	if repoPath == "" {
-		return nil, errors.New("project local repository path is not available")
-	}
-
 	defaultBranch := p.DefaultBranch
 	if defaultBranch == "" {
 		defaultBranch = "main"
 	}
 
-	// Checkout default branch and merge the task branch
-	_ = exec.CommandContext(ctx, "git", "-C", repoPath, "checkout", defaultBranch).Run()
 	mergeMsg := fmt.Sprintf("%s\n\n%s", title, message)
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "merge", "--no-ff", "-m", mergeMsg, branchName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// Try fetching branch if not found locally
-		_ = exec.CommandContext(ctx, "git", "-C", repoPath, "fetch", "origin", branchName).Run()
-		cmdRetry := exec.CommandContext(ctx, "git", "-C", repoPath, "merge", "--no-ff", "-m", mergeMsg, branchName)
-		outputRetry, errRetry := cmdRetry.CombinedOutput()
-		if errRetry != nil {
-			return nil, fmt.Errorf("git merge branch %s failed: %s (%w)", branchName, string(outputRetry), errRetry)
+	if p.RepoURL != "" || p.RepoOwner != "" || p.RepoName != "" {
+		owner, repo := p.RepoOwner, p.RepoName
+		if p.RepoURL != "" {
+			owner, repo, err = git.ParseGitHubURL(p.RepoURL)
+			if err != nil {
+				return nil, err
+			}
 		}
+		if owner == "" || repo == "" {
+			return nil, errors.New("registered repository identity is incomplete")
+		}
+		token, err := s.repositoryToken(ctx, p.EncryptedToken)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(token) == "" {
+			return nil, ErrGitHubConnectionRequired
+		}
+		return s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: defaultBranch, SourceCommit: sourceCommit, Message: mergeMsg, Token: token})
 	}
-	_ = output
-
-	revCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "HEAD")
-	revOut, err := revCmd.Output()
-	sha := ""
-	if err == nil {
-		sha = strings.TrimSpace(string(revOut))
+	if p.LocalPath == "" {
+		return nil, errors.New("project local repository path is not available")
 	}
-
-	return &git.MergePullRequestResult{
-		Merged:  true,
-		Message: "Task branch applied successfully",
-		SHA:     sha,
-	}, nil
+	return s.gitClient.MergeLocalBranch(ctx, p.LocalPath, defaultBranch, branchName, sourceCommit, mergeMsg)
 }

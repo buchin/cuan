@@ -46,6 +46,20 @@ An unavailable, malformed or unconfirmed response requires reconciliation of the
 current PR state before retrying; it never triggers another merge transport.
 The returned merge SHA remains separate from deployment and task acceptance.
 
+Applying a branch without a PR uses the registered GitHub repository and target
+branch through the official merge API, with the recorded immutable source as its
+head. It does not check out or edit the project's local cache. Missing saved
+access cannot fall back to a local merge. Redirects and ambiguous responses do
+not trigger another write; an already-contained response requires reading current
+repository state rather than inventing the base branch's SHA.
+
+Projects without a remote repository use a bounded local merge instead. The
+repository must be clean, the task branch must match the recorded source, and the
+target checkout must succeed before merging that exact commit. Pending files,
+unavailable/busy targets and changed source stop before merge. Conflicts remain
+available for reconciliation; no automatic fetch, retry, reset or cleanup hides
+them. A local merge does not establish remote publication or deployment.
+
 Review's `publication_context.connection_state` and a bound worker's
 `publication_configuration` describe saved production verification setup:
 `not_configured`, `unsupported`, `incomplete`, `configured`, or `current_process`.

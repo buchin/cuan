@@ -13,7 +13,7 @@ import (
 )
 
 func TestMergePullRequestDoesNotBorrowIdentityOrRepeatUncertainMutation(t *testing.T) {
-	for _, scenario := range []string{"missing token", "missing source", "invalid source", "conflict", "unavailable", "invalid response", "not merged", "missing receipt sha"} {
+	for _, scenario := range []string{"missing token", "missing source", "invalid source", "conflict", "unavailable", "invalid response", "not merged", "missing receipt sha", "redirect"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			marker := filepath.Join(root, "unexpected-gh")
@@ -31,6 +31,9 @@ func TestMergePullRequestDoesNotBorrowIdentityOrRepeatUncertainMutation(t *testi
 					t.Error("merge borrowed another identity")
 				}
 				switch scenario {
+				case "redirect":
+					w.Header().Set("Location", "/redirected")
+					w.WriteHeader(307)
 				case "conflict":
 					w.WriteHeader(409)
 				case "unavailable":

@@ -134,7 +134,7 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	if branchName != "" {
-		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage)
+		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	return nil, errors.New("neither pull request nor task branch is available")
 }

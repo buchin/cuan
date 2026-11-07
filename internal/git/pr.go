@@ -3,7 +3,6 @@ package git
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -340,11 +339,8 @@ func (c *Client) MergePullRequest(ctx context.Context, req MergePullRequestReque
 	if strings.TrimSpace(req.Token) == "" {
 		return nil, errors.New("saved repository access is required to merge pull request")
 	}
-	if len(req.ExpectedHeadSHA) != 40 && len(req.ExpectedHeadSHA) != 64 {
+	if !IsCommitHash(req.ExpectedHeadSHA) {
 		return nil, errors.New("exact reviewed source commit is required to merge pull request")
-	}
-	if _, err := hex.DecodeString(req.ExpectedHeadSHA); err != nil {
-		return nil, errors.New("exact reviewed source commit is invalid")
 	}
 	if req.MergeMethod == "" {
 		req.MergeMethod = "squash"
@@ -391,7 +387,9 @@ func (c *Client) mergePullRequestREST(ctx context.Context, req MergePullRequestR
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(req.Token))
 
-	resp, err := c.httpClient.Do(httpReq)
+	client := *c.httpClient
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
