@@ -51,7 +51,17 @@ func ProviderAccountModels(ctx context.Context, owner, id string) ([]ModelInfo, 
 	sort.Strings(ids)
 	models := make([]ModelInfo, 0, len(ids))
 	for _, model := range ids {
-		models = append(models, ModelInfo{ID: model, Name: model, Provider: account.Provider})
+		supportsVision := IsModelVisionCapable(account.Provider, model)
+		models = append(models, ModelInfo{
+			ID:             model,
+			Name:           model,
+			Provider:       account.Provider,
+			SupportsVision: supportsVision,
+			Capabilities: ModelCapabilities{
+				Vision:         supportsVision,
+				SupportsVision: supportsVision,
+			},
+		})
 	}
 	return models, nil
 }
