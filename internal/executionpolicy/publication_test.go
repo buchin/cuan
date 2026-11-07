@@ -10,6 +10,7 @@ func TestTaskPublicationPolicyRestrictsOnly(t *testing.T) {
 		{"Batasan tetap: hanya file panduan; jangan ubah kode/config, push, deploy, atau kirim pesan eksternal.", true, true},
 		{"Dilarang melakukan git push, live deploy, maupun mengirim pesan eksternal.", true, true},
 		{"Do not push or deploy. Preserve local work.", true, true},
+		{"Tidak mengubah berkas kode aplikasi, konfigurasi repositori, branch, git push, maupun PR. Tidak membuat project baru, tidak memicu build/deployment, dan tidak mengirim pesan keluar.", true, true},
 		{"No deployment. A git push is allowed.", false, true},
 		{"Never push this branch. Deployment is handled separately.", true, false},
 		{"Implement and deploy this feature", false, false},

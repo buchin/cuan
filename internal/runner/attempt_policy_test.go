@@ -235,3 +235,29 @@ func TestLegacyManagedFooterPreservesDeploymentReceiptGate(t *testing.T) {
 		})
 	}
 }
+
+func TestIndonesianStandaloneFileScopeRestrictsNativeClaim(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	tasks := task.NewService(store, nil)
+	scope := "Buat berkas angka.json di lingkungan kerja sesi mandiri. Zero repository mutation: Tidak mengubah berkas kode aplikasi, konfigurasi repositori, branch, git push, maupun PR. Tidak membuat project baru, tidak memicu build/deployment, dan tidak mengirim pesan keluar. Eksekusi mandiri berurutan."
+	created, err := tasks.CreateTask(ctx, "owner", task.CreateTaskRequest{Title: "Uji penerusan hasil file", ProjectID: "project", Instructions: scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.ExecutionCategory != task.ExecutionCategoryOps {
+		t.Fatal("file task entered repository code lane", created.ExecutionCategory)
+	}
+	if _, err = tasks.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "fixture", AgentName: "agent"}); err != nil {
+		t.Fatal(err)
+	}
+	finder := &mockProjectFinder{projects: map[string]*project.ProjectResponse{"project": {ID: "project", Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true}}`)}}}
+	svc := NewService(NewMemoryStore(store), store, finder)
+	claim, err := svc.Claim(ctx, ClaimTaskRequest{RunnerID: "fixture"}, time.Minute)
+	if err != nil || !claim.Claimed {
+		t.Fatal(claim, err)
+	}
+	if claim.AutoDeploy || !claim.PublicationLimits.DenyPush || !claim.PublicationLimits.DenyDeploy || claim.Task.ExecutionCategory != task.ExecutionCategoryOps {
+		t.Fatalf("native claim lost file scope limits: category=%s auto_deploy=%v limits=%+v", claim.Task.ExecutionCategory, claim.AutoDeploy, claim.PublicationLimits)
+	}
+}

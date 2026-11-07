@@ -519,3 +519,10 @@ observable outcome and its check. A generated next-phase task starts with that
 exact approved outcome unchecked and without inherited evidence. Native phase
 validation rejects a missing or replaced outcome; prior phase success is not
 proof of the next phase. All original plan context and execution limits remain.
+
+Task publication restrictions recognize Indonesian `tidak` clauses as well as
+`jangan`, `dilarang` and `tanpa`. Explicit standalone file scope also recognizes
+`sesi mandiri` / `eksekusi mandiri` with a no-repository-mutation boundary and no
+deployment. Such file work uses the operational lane and cannot inherit project
+auto-deploy permission. Scope classification and publication limits are separate
+native checks; a planner's prose alone is not proof that either is correct.
