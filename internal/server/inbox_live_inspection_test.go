@@ -384,6 +384,15 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			t.Fatal("diagnostic admitted or changed work")
 		}
 	}
+	if boundSource, _ := s.verifiedSupplementalSource(ctx, d); boundSource != nil && eligible {
+		// Exercise the coordinator's production entry, including all earlier
+		// review/finalization/recovery gates, before testing deduplication.
+		s.deliverInboxTaskUpdates(ctx)
+		plannedID := (&task.LiveInspectionIntent{Purpose: task.CurrentOutcomeInspection, SourceAttemptID: source.ID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions)}).RequestID(d.ID)
+		if admitted, e := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, plannedID)); e != nil || admitted == nil {
+			t.Fatal("coordinator did not admit planned supplemental inspection", e)
+		}
+	}
 	if got := s.recoverLiveResultInspection(ctx, d, origin); got != eligible {
 		t.Fatal("incorrect live inspection eligibility", got, scenario)
 	}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
@@ -481,24 +482,44 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 	if !s.executesInbox() || s.taskSvc == nil || s.projectStudioRepo == nil {
 		return
 	}
+	started := time.Now()
+	stage, currentTask := "scope_audit", ""
+	candidates, examined := 0, 0
+	defer func() {
+		if elapsed := time.Since(started); elapsed >= 5*time.Second || ctx.Err() != nil {
+			// Fixed stage codes and IDs only: no prompts, credentials, reports,
+			// provider errors, or conversation content enter infrastructure logs.
+			log.Printf("inbox delivery scan stage=%s task=%s candidates=%d examined=%d duration_ms=%d interrupted=%t", stage, currentTask, candidates, examined, elapsed.Milliseconds(), ctx.Err() != nil)
+		}
+	}()
 	s.reconcileLegacyScopeAcceptances(ctx)
+	stage = "phase_handoffs"
 	s.recoverPhaseHandoffs(ctx)
+	stage = "operational_audit"
 	s.reconcileOperationalAcceptances(ctx)
+	stage = "visual_audit"
 	s.reconcileVisualAcceptances(ctx)
+	stage = "publication_audit"
 	s.reconcileLegacyPublicationAcceptances(ctx)
+	stage = "customer_replies"
 	s.queueAcceptedCustomerReplies(ctx)
+	stage = "candidate_discovery"
 	items, err := s.taskSvc.InboxDeliveryTasks(ctx)
 	if err != nil {
 		return
 	}
+	candidates = len(items)
 	for _, item := range items {
+		stage, currentTask = "task_detail", item.ID
 		if ctx.Err() != nil {
 			return
 		}
 		if item.SourceRoomID == "" || !strings.HasPrefix(item.Instructions, "Cuan managed delegation v1.\n") {
 			continue
 		}
+		examined++
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		stage = "task_recovery"
 		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
 			continue
 		}
@@ -561,10 +582,12 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 			continue
 		}
 		if detail.LatestAttempt.Status != "running" && detail.LatestAttempt.Status != "queued" {
+			stage = "coordinator_review"
 			s.queueInboxTaskReview(ctx, detail)
 		}
 
 	}
+	stage, currentTask = "completed", ""
 }
 
 // Queue one coordinator review per terminal attempt, including failures with no

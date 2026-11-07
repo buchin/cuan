@@ -148,3 +148,10 @@ exact claimed launch. Both storage adapters atomically recheck the latest
 uncanceled predecessor, unchanged launch revision, lease, project, and instruction
 hash. Ordinary retries after success remain rejected. This does not grant another
 implementation, publication, acceptance, or recovery allowance.
+
+Slow or interrupted coordinator delivery scans emit one infrastructure diagnostic
+with a fixed stage code, current task ID, candidate/examined counts, elapsed time,
+and interruption flag. Scans under five seconds remain quiet. This distinguishes
+slow acceptance audits, candidate discovery, task reads, recovery, and coordinator
+review without logging conversation content or credentials. A ready inspection
+plan alone does not prove that the delivery scan reached or admitted that task.
