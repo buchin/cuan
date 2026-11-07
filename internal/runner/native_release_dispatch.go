@@ -41,7 +41,7 @@ func (r *Runner) runNativeReleaseAttempt(ctx context.Context, claim ClaimTaskRes
 			req.NativeReleaseProcess = &result
 			req.ExitCode = result.ExitCode
 			if result.ExitCode == 0 && result.Error == "" && result.SourceUnchanged {
-				if r.verifyRegisteredPublication(executeCtx, claim, result.Commit) {
+				if r.verifyRegisteredPublication(executeCtx, claim, result.Commit, result.FinishedAt) {
 					req.Status = task.AttemptStatusSucceeded
 					req.LiveDeploymentConfirmed = true
 					req.ErrorMessage = ""

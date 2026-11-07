@@ -67,3 +67,43 @@ func TestVerifiedDeploymentRequiresExactReceipt(t *testing.T) {
 		})
 	}
 }
+
+func TestPostProcessObservationDoesNotReuseActivationReceipt(t *testing.T) {
+	now := time.Now().UTC()
+	started := now.Add(-time.Minute)
+	finished := now.Add(-time.Second)
+	attempt := &TaskAttempt{ID: "attempt", TaskID: "task", StartedAt: &started, Status: AttemptStatusRunning}
+	commit := strings.Repeat("a", 40)
+	raw, _ := json.Marshal(DeploymentReceipt{Version: 1, TaskID: "task", AttemptID: "attempt", CommitSHA: commit, ReleaseSHA: commit, Environment: "production", Health: "healthy"})
+	activation := &TaskActivity{ID: DeploymentReceiptID("task", "attempt", commit), TaskID: "task", AttemptID: &attempt.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(raw), CreatedAt: finished.Add(-time.Second)}
+	for _, scenario := range []string{"missing", "valid", "early", "wrong-finish", "wrong-author", "wrong-commit", "future"} {
+		t.Run(scenario, func(t *testing.T) {
+			events := []*TaskActivity{activation}
+			observation := *activation
+			observation.ID = PostProcessDeploymentReceiptID("task", "attempt", commit, finished)
+			observation.ActivityType = "native_publication_observed"
+			observation.CreatedAt = now
+			switch scenario {
+			case "early":
+				observation.CreatedAt = finished.Add(-time.Second)
+			case "wrong-finish":
+				observation.ID = PostProcessDeploymentReceiptID("task", "attempt", commit, finished.Add(time.Second))
+			case "wrong-author":
+				observation.Author = "agent"
+			case "wrong-commit":
+				observation.Message = strings.ReplaceAll(string(raw), commit, strings.Repeat("b", 40))
+			case "future":
+				observation.CreatedAt = now.Add(time.Second)
+			}
+			if scenario != "missing" {
+				events = append(events, &observation)
+			}
+			if len(observation.ID) > 64 {
+				t.Fatal("observation ID exceeds SQL limit")
+			}
+			if VerifiedPostProcessDeployment(events, attempt, commit, finished, now) != (scenario == "valid") {
+				t.Fatal("wrong final observation acceptance", scenario)
+			}
+		})
+	}
+}

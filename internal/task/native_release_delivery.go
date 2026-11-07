@@ -73,10 +73,8 @@ func NativeReleaseDeliveryForAttempt(ctx context.Context, store Store, t *Task, 
 	if !VerifiedDeployment(activities, att, d.TargetCommit, now) {
 		return nil, ErrInvalidTaskInput
 	}
-	for _, event := range activities {
-		if event != nil && event.ID == DeploymentReceiptID(t.ID, attemptID, d.TargetCommit) && !event.CreatedAt.Before(d.ProcessFinishedAt) {
-			return d, nil
-		}
+	if VerifiedPostProcessDeployment(activities, att, d.TargetCommit, d.ProcessFinishedAt, now) {
+		return d, nil
 	}
 	return nil, ErrInvalidTaskInput
 }

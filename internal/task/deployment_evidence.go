@@ -64,3 +64,34 @@ func VerifiedDeployment(activities []*TaskActivity, attempt *TaskAttempt, expect
 	}
 	return false
 }
+
+// PostProcessDeploymentReceiptID separates an activation-time receipt from the
+// independent observation requested after a particular native process finishes.
+func PostProcessDeploymentReceiptID(taskID, attemptID, commit string, finished time.Time) string {
+	sum := sha256.Sum256([]byte(taskID + "\x00" + attemptID + "\x00" + commit + "\x00" + finished.UTC().Format(time.RFC3339Nano)))
+	return "act_observe_" + hex.EncodeToString(sum[:16])
+}
+
+func VerifiedPostProcessDeployment(activities []*TaskActivity, attempt *TaskAttempt, commit string, finished, now time.Time) bool {
+	if attempt == nil || finished.IsZero() || finished.After(now) {
+		return false
+	}
+	for _, event := range activities {
+		if event == nil || event.CreatedAt.Before(finished) {
+			continue
+		}
+		if event.ID == DeploymentReceiptID(attempt.TaskID, attempt.ID, commit) && VerifiedDeployment([]*TaskActivity{event}, attempt, commit, now) {
+			return true
+		}
+		if event.ID != PostProcessDeploymentReceiptID(attempt.TaskID, attempt.ID, commit, finished) || event.ActivityType != "native_publication_observed" {
+			continue
+		}
+		normalized := *event
+		normalized.ID = DeploymentReceiptID(attempt.TaskID, attempt.ID, commit)
+		normalized.ActivityType = "deployment_verified"
+		if VerifiedDeployment([]*TaskActivity{&normalized}, attempt, commit, now) {
+			return true
+		}
+	}
+	return false
+}

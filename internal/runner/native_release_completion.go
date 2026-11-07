@@ -63,15 +63,10 @@ func (s *RunnerService) prepareNativeReleaseCompletion(ctx context.Context, t *t
 	if !preparedBeforeProcess {
 		return nil, errors.New("native release process predates preparation")
 	}
-	observedAfterProcess := false
-	for _, event := range activities {
-		if event != nil && event.ID == task.DeploymentReceiptID(t.ID, att.ID, prep.TargetCommit) && !event.CreatedAt.Before(result.FinishedAt) {
-			observedAfterProcess = true
-		}
-	}
-	if !observedAfterProcess {
+	if !task.VerifiedPostProcessDeployment(activities, att, prep.TargetCommit, result.FinishedAt, now) {
 		return nil, errors.New("native deployment observation predates the release process")
 	}
+
 	delivery := task.NativeReleaseDelivery{Version: 1, TaskID: t.ID, AttemptID: att.ID, SourceAttemptID: intent.SourceAttemptID, SourceCommit: prep.SourceCommit, TargetCommit: prep.TargetCommit, InstructionsHash: prep.InstructionsHash, Repository: prep.Repository, TargetBranch: prep.TargetBranch, ManifestHash: prep.ManifestHash, ProcessStartedAt: result.StartedAt, ProcessFinishedAt: result.FinishedAt}
 	raw, _ := json.Marshal(delivery)
 	return &task.TaskActivity{ID: "native-release-delivery:" + att.ID, TaskID: t.ID, AttemptID: &att.ID, Author: att.RunnerID, ActivityType: "native_release_delivery", Message: string(raw), CreatedAt: now}, nil

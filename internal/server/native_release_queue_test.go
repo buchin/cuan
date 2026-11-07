@@ -44,7 +44,7 @@ func TestNativeReleaseQueueRejectsForeignApproval(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "foreign approval")
 }
 func TestNativeReleasePublicationObservesPreparedTarget(t *testing.T) {
-	for _, scenario := range []string{"publication", "publication wrong target", "publication revoked", "publication missing process", "publication stale observation", "publication wrong process target", "publication mutated checkout", "publication no live proof"} {
+	for _, scenario := range []string{"publication", "publication activation receipt", "publication wrong target", "publication revoked", "publication missing process", "publication stale observation", "publication wrong process target", "publication mutated checkout", "publication no live proof"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
@@ -62,7 +62,7 @@ func TestNativeReleaseHandoffSchedulesWithoutPMModel(t *testing.T) {
 	}
 }
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule", "publication activation receipt"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})
@@ -412,12 +412,21 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 		}
 		return nil
 	}
+	activationTime := time.Now().UTC().Truncate(time.Microsecond)
+	if scenario == "publication activation receipt" {
+		raw, _ := json.Marshal(task.DeploymentReceipt{Version: 1, TaskID: item.ID, AttemptID: claim.Attempt.ID, CommitSHA: target, ReleaseSHA: target, Environment: "production", Health: "healthy"})
+		must(store.CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(item.ID, claim.Attempt.ID, target), TaskID: item.ID, AttemptID: &claim.Attempt.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(raw), CreatedAt: activationTime}))
+	}
 	processFinished := time.Now().UTC()
 	expected := target
 	if scenario == "publication wrong target" {
 		expected = item.CommitSHA
 	}
-	payload, _ := json.Marshal(map[string]string{"task_id": item.ID, "runner_id": claim.Attempt.RunnerID, "commit_sha": expected})
+	fields := map[string]string{"task_id": item.ID, "runner_id": claim.Attempt.RunnerID, "commit_sha": expected}
+	if scenario == "publication activation receipt" {
+		fields["process_finished_at"] = processFinished.UTC().Format(time.RFC3339Nano)
+	}
+	payload, _ := json.Marshal(fields)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/runner/attempts/"+claim.Attempt.ID+"/publication/verify", bytes.NewReader(payload))
 	request.Header.Set("Authorization", "Bearer "+token)
 	response := httptest.NewRecorder()
@@ -438,6 +447,23 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	}
 	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
+	if scenario == "publication activation receipt" {
+		if !task.VerifiedPostProcessDeployment(detail.Activities, detail.LatestAttempt, target, processFinished, time.Now()) {
+			t.Fatal("activation receipt suppressed final observation")
+		}
+		for _, a := range detail.Activities {
+			if a.ID == task.DeploymentReceiptID(item.ID, claim.Attempt.ID, target) && !a.CreatedAt.Equal(activationTime) {
+				t.Fatal("activation receipt rewritten")
+			}
+		}
+		replay := httptest.NewRequest(http.MethodPost, "/api/v1/runner/attempts/"+claim.Attempt.ID+"/publication/verify", bytes.NewReader(payload))
+		replay.Header.Set("Authorization", "Bearer "+token)
+		result := httptest.NewRecorder()
+		s.Router().ServeHTTP(result, replay)
+		if result.Code != 200 || calls != 1 {
+			t.Fatal("final observation not idempotent", result.Code, calls)
+		}
+	}
 	verified := task.VerifiedDeployment(detail.Activities, detail.LatestAttempt, target, time.Now())
 	if verified != (want == 200) || detail.CommitSHA != intent.SourceCommit || detail.Status == task.TaskStatusDone {
 		t.Fatal("release observation rewrote developer source or accepted unfinished work")
@@ -470,7 +496,7 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 				}
 			}
 		}
-		if scenario == "publication" {
+		if scenario == "publication" || scenario == "publication activation receipt" {
 			delivery, err := task.NativeReleaseDeliveryForAttempt(ctx, store, &current.Task, claim.Attempt.ID)
 			must(err)
 			if delivery == nil || delivery.SourceCommit != intent.SourceCommit || delivery.TargetCommit != target {

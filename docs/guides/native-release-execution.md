@@ -342,3 +342,14 @@ CLI connections or inheriting another context's MCP authority. Provider settings
 and authentication remain available, including refresh; host MCP files are not
 edited. Missing snapshot evidence remains uncertainty. Worker task capabilities
 and Owner CLI connections are separate execution contexts.
+
+Activation-time and post-process publication observations are distinct. The
+maintained activation script may record its healthy receipt before the release
+script exits. A native worker requests an independent observation with its saved
+`process_finished_at` boundary after process completion. The backend validates the
+active prepared attempt and observes the registered target again; an earlier
+activation receipt cannot satisfy this request. The immutable activation receipt
+is retained, and a separately keyed `native_publication_observed` event binds the
+exact process finish. Completion and delivered-source verification require that
+post-process evidence. Duplicate requests reuse the matching final observation,
+without rerunning deployment or rewriting the activation timestamp.

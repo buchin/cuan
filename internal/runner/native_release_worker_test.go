@@ -80,6 +80,14 @@ func TestNativeReleaseWorkerExecutesOnceAndDeliversObservedResultWithoutModel(t 
 					return
 				}
 				if strings.HasSuffix(r.URL.Path, "/publication/verify") {
+					var fields map[string]string
+					if json.NewDecoder(r.Body).Decode(&fields) != nil {
+						t.Error("invalid observation request")
+					}
+					end, err := time.Parse(time.RFC3339Nano, fields["process_finished_at"])
+					if err != nil || end.IsZero() || end.After(time.Now()) {
+						t.Error("native observation lacks process finish boundary")
+					}
 					observations++
 					data, err := os.ReadFile(marker)
 					if err != nil || string(data) != "saved/absent\n" {

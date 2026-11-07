@@ -19,9 +19,10 @@ import (
 // Callers choose an expected revision, never a command, target, credential or fact.
 func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		TaskID   string `json:"task_id"`
-		RunnerID string `json:"runner_id"`
-		Commit   string `json:"commit_sha"`
+		TaskID            string     `json:"task_id"`
+		RunnerID          string     `json:"runner_id"`
+		Commit            string     `json:"commit_sha"`
+		ProcessFinishedAt *time.Time `json:"process_finished_at,omitempty"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
 	decoder.DisallowUnknownFields()
@@ -45,6 +46,10 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 	preparation, preparationErr := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if preparationErr != nil {
 		respondJSONError(w, 409, "Native release preparation could not be verified")
+		return
+	}
+	if input.ProcessFinishedAt != nil && (preparation == nil || d.LatestAttempt.StartedAt == nil || input.ProcessFinishedAt.Before(*d.LatestAttempt.StartedAt) || input.ProcessFinishedAt.After(time.Now())) {
+		respondJSONError(w, 409, "Invalid native process observation boundary")
 		return
 	}
 	expectedCommit := d.CommitSHA
@@ -84,7 +89,7 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 		return
 	}
 	receipt := task.DeploymentReceipt{Version: 1, TaskID: d.ID, AttemptID: d.LatestAttempt.ID, CommitSHA: input.Commit, ReleaseSHA: input.Commit, Environment: "production", Health: "healthy"}
-	if task.VerifiedDeployment(d.Activities, d.LatestAttempt, input.Commit, time.Now().UTC()) {
+	if (input.ProcessFinishedAt == nil && task.VerifiedDeployment(d.Activities, d.LatestAttempt, input.Commit, time.Now().UTC())) || (input.ProcessFinishedAt != nil && task.VerifiedPostProcessDeployment(d.Activities, d.LatestAttempt, input.Commit, *input.ProcessFinishedAt, time.Now().UTC())) {
 		respondJSON(w, 200, map[string]any{"verified": true, "receipt": receipt})
 		return
 	}
@@ -118,6 +123,20 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 	}
 	raw, _ := json.Marshal(receipt)
 	event := &task.TaskActivity{ID: task.DeploymentReceiptID(d.ID, d.LatestAttempt.ID, input.Commit), TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: "deployment_verified", Author: "cuan-deploy", Message: string(raw), CreatedAt: time.Now().UTC()}
+	if input.ProcessFinishedAt != nil {
+		event.ID = task.PostProcessDeploymentReceiptID(d.ID, d.LatestAttempt.ID, input.Commit, *input.ProcessFinishedAt)
+		event.ActivityType = "native_publication_observed"
+	}
+	// Keep the activation receipt immutable; post-process observation is distinct.
+	if input.ProcessFinishedAt != nil && !task.VerifiedDeployment(fresh.Activities, fresh.LatestAttempt, input.Commit, time.Now().UTC()) {
+		activation := *event
+		activation.ID = task.DeploymentReceiptID(d.ID, d.LatestAttempt.ID, input.Commit)
+		activation.ActivityType = "deployment_verified"
+		if s.taskSvc.Store().CreateActivity(r.Context(), &activation) != nil {
+			respondJSONError(w, 503, "Verified publication could not be recorded")
+			return
+		}
+	}
 	if s.taskSvc.Store().CreateActivity(r.Context(), event) != nil {
 		respondJSONError(w, 503, "Verified publication could not be recorded")
 		return
