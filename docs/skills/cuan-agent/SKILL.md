@@ -526,3 +526,11 @@ Task publication restrictions recognize Indonesian `tidak` clauses as well as
 deployment. Such file work uses the operational lane and cannot inherit project
 auto-deploy permission. Scope classification and publication limits are separate
 native checks; a planner's prose alone is not proof that either is correct.
+
+After a denied coordinator tool, recovery preserves the original request's intent
+instead of forcing a technical investigation. It may answer or generate a fresh,
+strictly validated approval proposal; that proposal remains unexecuted until a
+separate operator approval records its exact scope. Recovery cannot delegate,
+mutate tasks, write memory or rename the conversation, and never applies actions
+from the rejected reply. Lenient formatting salvage cannot return application
+action markers; it cannot manufacture an approval from plain recovery text.

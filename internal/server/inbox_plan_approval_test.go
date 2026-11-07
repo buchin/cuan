@@ -20,7 +20,10 @@ func TestInboxPlanApprovalStartsPersistedScopeOnceWithoutRewriting(t *testing.T)
 func TestInboxPlanDeferralNeverAuthorizesWorkAndCanBeApprovedLater(t *testing.T) {
 	runInboxPlanApproval(t, true)
 }
-func runInboxPlanApproval(t *testing.T, deferFirst bool) {
+func TestDeniedToolRecoveryProposalRequiresSeparatePersistedApproval(t *testing.T) {
+	runInboxPlanApproval(t, false, true)
+}
+func runInboxPlanApproval(t *testing.T, deferFirst bool, deniedFirst ...bool) {
 	if testing.Short() {
 		t.Skip("skipping slow plan approval test in short mode")
 	}
@@ -46,6 +49,14 @@ fi
 echo provider >> "$HOME/plan-provider-calls"
 printf '%s' '` + string(response) + `'
 `
+	if len(deniedFirst) > 0 && deniedFirst[0] {
+		script = strings.Replace(script, "echo provider >>", `if [ ! -f "$HOME/plan-denied-once" ]; then
+ touch "$HOME/plan-denied-once"
+ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"blocked-command"}]}}'
+ exit 0
+fi
+echo provider >>`, 1)
+	}
 	os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700)
 	post := func(payload map[string]string) db.InboxRequest {
 		t.Helper()

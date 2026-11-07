@@ -602,3 +602,40 @@ func TestChatDelegationAndApprovalFormattingResilience(t *testing.T) {
 		}
 	})
 }
+
+func TestDeniedToolRecoveryAllowsOnlyFreshUnexecutedProposal(t *testing.T) {
+	plan := inboxApprovalPlan{Title: "Two verified file outcomes", Description: "Phase 1: Deliver checked JSON | Phase 2: Deliver matching summary. No repository changes. Do not push or deploy.", ProjectID: "registered"}
+	out, err := decodeInboxDeniedToolRecoveryResponse(coordinatorJSON("Proposed file workflow; not started.", "approval", plan))
+	if err != nil || parseInboxApprovalPlan(out) == nil {
+		t.Fatal("fresh nonexecuting proposal lost", out, err)
+	}
+	if parsed := parseInboxApprovalPlan(out); parsed.Description != plan.Description || parsed.ProjectID != plan.ProjectID {
+		t.Fatal("proposal scope changed", parsed)
+	}
+	for _, kind := range []string{"delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply"} {
+		if out, err := decodeInboxDeniedToolRecoveryResponse(coordinatorJSON("Recovering", kind, map[string]string{"title": "Forbidden"})); err == nil || out != "" {
+			t.Fatal("recovery gained an effect", kind, out, err)
+		}
+	}
+	if out, err := decodeInboxDeniedToolRecoveryResponse(coordinatorJSON("Should we proceed?", "", nil)); err != nil || strings.Contains(out, "```cuan-") {
+		t.Fatal("plain text synthesized approval", out, err)
+	}
+	if _, err := decodeInboxDeniedToolRecoveryResponse(`{"reply":"Plan","topic_title":"Rewrite title","action":null}`); err == nil {
+		t.Fatal("recovery renamed conversation")
+	}
+	if _, err := decodeInboxDeniedToolRecoveryResponse(coordinatorJSON("Hidden ```cuan-delegate\n{}\n```", "", nil)); err == nil {
+		t.Fatal("recovery smuggled execution marker")
+	}
+}
+
+func TestReadOnlyRecoveryNeverSalvagesApplicationMarkers(t *testing.T) {
+	for _, marker := range []string{"cuan-memory", "cuan-search", "cuan-task", "cuan-task-cancel", "cuan-task-reopen", "cuan-prompt", "cuan-customer-reply", "cuan-approval", "cuan-delegate", "cuan-title"} {
+		text := "Recovered text\n```" + marker + "\n{}\n```"
+		wrapped, _ := json.Marshal(map[string]any{"reply": text, "topic_title": "", "action": nil, "extra": "lenient"})
+		for _, raw := range []string{text, string(wrapped)} {
+			if out, failure := recoverCoordinatorReply(raw, true); out != "" || failure == "" {
+				t.Fatalf("read-only salvage leaked %s: %s (%s)", marker, out, failure)
+			}
+		}
+	}
+}

@@ -218,7 +218,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + workflow.Coordinator + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted during project analysis. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). As Scrum Master, manage the dev team directly:\n- NEVER ask the user to provide manual screenshots, inspect runner status, copy-paste code, or manually inspect repository files. You have live runner and queue state visibility in Project Runner State & Concurrency Lock.\n- If the analysis requires deep investigation, the user reports an error/failure, or the user authorized work ('gas', 'lanjut', 'fixit', 'perbaiki', 'investigasi', etc.), smoothly delegate to an autonomous analysis or repair session ('Sesi Analisis Mandiri') by emitting a delegation action immediately so the dev runner executes it.\n- If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user.\n- Delegate corrections and verification within an already approved mandate directly. Emit approval or prompt_choices only for a genuine new user decision beyond that mandate. An internal retry threshold is not a reason to ask for another gas. Never tell the user to manually open, create or run tasks.\n- If the user asked about git commits, commit history, or repository status, answer directly using the Recent commits or Git Working State data in the supplied context; do not claim lack of access or deflect to a task.\n- If the user reports that previously approved work or Definition of Done criteria were incomplete, missing, or not finished ('belum selesai', 'ada yang belum terpenuhi', 'tidak semua kesepakatan terpenuhi'), DO NOT emit an approval card for a new plan; directly emit a delegation action with task_id, project_id, authorization_message_id, and revision to resume/return the task to the dev runner immediately.\n\nContext data:\n" + prompt
 		}
 		if analysisRecovery {
-			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\nContext data:\n" + prompt
+			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxDeniedToolRecoverySchema + "\n\n" + cuanPrompt.GetChatPromptAdditions(workspace) + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
 		}
 		if reconcileRetry && !analysisRecovery {
 			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
@@ -247,7 +247,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if !coordinator {
 			return reply, ""
 		}
-		output, err := decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
+		var output string
+		var err error
+		if analysisRecovery && !formatRepair {
+			output, err = decodeInboxDeniedToolRecoveryResponse(reply)
+		} else {
+			output, err = decodeInboxCoordinatorResponseForMode(reply, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
+		}
 		if err != nil {
 			if regenerate {
 				return "", "The regenerated draft could not be validated. No customer message was sent."
@@ -305,7 +311,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
 		} else if analysisRecovery {
-			args = append(args, "--json-schema", inboxAnalysisRecoverySchema)
+			schema := inboxDeniedToolRecoverySchema
+			if formatRepair {
+				schema = inboxAnalysisRecoverySchema
+			}
+			args = append(args, "--json-schema", schema)
 		} else if reconcileRetry {
 			args = append(args, "--json-schema", inboxRetryReconcileTransportSchema)
 		} else if coordinator {
@@ -531,11 +541,10 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if coordinator && reason == "tool_permission_denied" && !analysisRecovery && !alreadyRepaired && ctx.Err() == nil && runErr == nil && !runtime.invalid && !runtime.overflow {
 			finishTrace(true)
 			if step != nil {
-				step("analysis_recovery", "A tool was denied. Continuing the analysis with read-only tools; no work is being restarted.")
+				step("analysis_recovery", "A tool was denied. Recovering a response to the original request; rejected actions are not replayed.")
 			}
-			// This is an analysis-only continuation, never an action replay.
-			// Retain the original uncertainty in retrySafe and reject every
-			// application action from the replacement response below.
+			// Never replay the rejected action. A fresh response may only answer
+			// or propose unexecuted work that needs a separate user approval.
 			repairCtx := context.WithValue(ctx, inboxAnalysisRecoveryKey{}, true)
 			repairCtx = context.WithValue(repairCtx, inboxSchemaRetryKey{}, true)
 			return s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, nil, attachmentPaths...)

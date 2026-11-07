@@ -16,6 +16,8 @@ const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"
 
 const inboxAnalysisRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","maxLength":0},"action":{"type":"null"}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
+const inboxDeniedToolRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","maxLength":0},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["approval"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
+
 const inboxCoordinatorInstruction = cuanPrompt.ConversationStyle + "\n\n" + `You coordinate Cuan conversations as Scrum Master. All agents in Inbox (@sm, @dev, @support, and custom agents) act as Scrum Master / Technical Orchestrator with Full MCP access across all projects and platform modules. Return only one JSON object matching the response schema. Do not implement work with native tools, provider artifacts, temporary files or commands. Implementation and file delivery belong exclusively to application-managed task sessions. Technical diagnosis and project analysis are part of your role.
 
 REQUIREMENT DISCOVERY: When someone brings an unclear idea, help understand the problem before recommending a product shape or project. Use the conversation to establish who needs the outcome, how they handle it today, what friction matters, and what success would change. Ask the next consequential missing question in natural chat; do not turn those topics into a mandatory questionnaire or repeat known answers. Avoid a speculative catalogue of apps, features, projects or architectures before understanding the actual workflow, unless the user explicitly asks for a comparison. Recommend a simple next step once enough is understood. Resolve the registered project from evidence and context when possible; ask the user only if the destination materially remains ambiguous. Technical defaults belong to you. Discovery is not approval to create a project or execute work. Conversely, an already clear authorized task should proceed without ritual discovery, repeated approval or asking the user to orchestrate the team. Preserve the agreed outcome, scope, constraints and observable acceptance criteria in the task handoff.
@@ -143,7 +145,8 @@ Kinds and payload fields:
 
 Never expose internal Scrum terminology or make the user manage Tasks/terminals to get their work finished. Report substantive outcomes and limitations naturally. Success requires reported evidence against every acceptance criterion and user-accessible delivery; files written in provider profiles are not delivery.`
 
-const inboxAnalysisRecoveryInstruction = `The previous reply attempted a tool that the runtime denied. Its partial reply was not accepted and no application action from that reply was applied. This does not establish the outcome of other native activity. Continue only the technical analysis of the same target message, using the supplied facts and native read-only file/search tools listed above. Never call run_command, terminal, browser, write or execution tools, even for a search; terminal invocations are denied by the runtime sandbox. Do not repeat implementation or external effects. Do not inspect provider HOME or filesystem transcripts to reconstruct chat history: recorded request outcomes are supplied in the context. Explain the evidence, what remains uncertain and a concrete recommendation. Do not invent successful checks or claim that work started. Return action:null and topic_title:""; this continuation cannot create tasks, approvals, memory entries or other application changes. If the evidence is insufficient, state the exact missing evidence and the next useful step. Answer in the user's language.`
+const inboxAnalysisRecoveryInstruction = `The previous reply attempted a tool that the runtime denied. Its partial reply was not accepted and none of its application actions were applied. This does not establish the outcome of other native activity. Answer the SAME original target message, preserving its intent and all supplied constraints: a request for a plan remains planning, a clarification remains clarification, and an actual code question remains that question. Do not turn every recovery into technical investigation. Use supplied conversation and task evidence first. Do not read platform/orchestration source merely to compose a plan, ask a question or format JSON. Use native read-only file/search tools only when the original requested answer depends on specific missing current implementation facts. Never call run_command, terminal, browser, write or execution tools, even for a search. Do not repeat implementation or external effects, or inspect provider HOME/transcripts to reconstruct history. Preserve uncertainty; never claim denied activity succeeded or work started.
+Return topic_title:"". For ordinary discussion return action:null. If the original request needs a concrete plan for a new user approval, you may return a NEW approval proposal containing its complete visible scope, constraints, acceptance and project binding. It remains unexecuted until separately approved; never reuse an action or partial plan from the rejected reply. Delegation, execution, task mutation, memory writes and all other application actions remain forbidden in this recovery. Do not ask for fresh approval merely to retry already authorized work. If evidence is insufficient, state the specific missing evidence without inventing a plan or outcome. Answer naturally in the user's language with detail appropriate to the original request.`
 
 const inboxToolBudgetRecoveryInstruction = `Direct coordinator synthesis mode: The tool turn budget has been reached for this chat turn. Do not call any tools. Synthesize a complete and comprehensive answer directly from the supplied conversation context, recorded request outcomes, task evidence, and facts gathered so far. Provide a clear, actionable, and seamless technical summary in the user's language. Return action: null and topic_title: "".`
 
@@ -226,8 +229,22 @@ func decodeInboxCoordinatorResponse(raw string) (string, error) {
 	return decodeInboxCoordinatorResponseForMode(raw, false)
 }
 
+func decodeInboxDeniedToolRecoveryResponse(raw string) (string, error) {
+	return decodeInboxCoordinatorResponseWithLimits(raw, inboxResponseLimits{AnalysisOnly: true, AllowProposal: true})
+}
+
 func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool, reconciliation ...bool) (string, error) {
-	reconcile := len(reconciliation) > 0 && reconciliation[0]
+	return decodeInboxCoordinatorResponseWithLimits(raw, inboxResponseLimits{AnalysisOnly: analysisOnly, Reconcile: len(reconciliation) > 0 && reconciliation[0]})
+}
+
+type inboxResponseLimits struct {
+	AnalysisOnly  bool
+	Reconcile     bool
+	AllowProposal bool
+}
+
+func decodeInboxCoordinatorResponseWithLimits(raw string, limits inboxResponseLimits) (string, error) {
+	analysisOnly, reconcile := limits.AnalysisOnly, limits.Reconcile
 	bad := errors.New("invalid coordinator response")
 	if len(raw) > 40000 {
 		return "", bad
@@ -277,8 +294,13 @@ func decodeInboxCoordinatorResponseForMode(raw string, analysisOnly bool, reconc
 		return "", bad
 	}
 	output := value.Reply
-	if analysisOnly && (value.TopicTitle != "" || (value.Action != nil && (!reconcile || value.Action.Kind != "delegation"))) {
-		return "", bad
+	if analysisOnly {
+		if value.TopicTitle != "" {
+			return "", bad
+		}
+		if value.Action != nil && !(reconcile && value.Action.Kind == "delegation") && !(limits.AllowProposal && value.Action.Kind == "approval") {
+			return "", bad
+		}
 	}
 	if !analysisOnly && isExplicitChoicePrompt(value.Reply) && (value.Action == nil || value.Action.Kind != "prompt_choices") {
 		// Let the existing format-only repair supply the structured options.
@@ -512,6 +534,16 @@ func sanitizeReplyText(text string) string {
 }
 
 func recoverCoordinatorReply(raw string, analysisRecovery bool) (string, string) {
+	output, failure := recoverCoordinatorReplyContent(raw, analysisRecovery)
+	// Lenient extraction is never authority to recover an application action.
+	// A fresh recovery proposal must pass the strict proposal-only decoder.
+	if analysisRecovery && strings.Contains(strings.ToLower(output), "```cuan-") {
+		return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+	}
+	return output, failure
+}
+
+func recoverCoordinatorReplyContent(raw string, analysisRecovery bool) (string, string) {
 	clean := sanitizeReplyText(raw)
 	if clean == "" || clean == "invalid transport" || clean == "invalid non-json transport" {
 		return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."

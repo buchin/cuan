@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -371,5 +372,46 @@ func TestInboxProviderSignalIsRecordedWithoutInventingCompletion(t *testing.T) {
 	})
 	if out != "" || failure == "" || !strings.Contains(result, "signal 10") {
 		t.Fatalf("missing process signal: out=%q failure=%q result=%q", out, failure, result)
+	}
+}
+
+func TestDeniedToolRecoveryPreservesPlanningWithoutReplayingAction(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	plan := inboxApprovalPlan{Title: "Two verified files", Description: "Phase 1: Deliver validated JSON | Phase 2: Deliver matching summary. No repository changes. Do not push or deploy.", ProjectID: "registered"}
+	deniedReply := coordinatorJSON("REJECTED private candidate", "delegation", map[string]string{"title": "Rejected execution", "description": "Do not replay", "project_id": "registered", "authorization_message_id": "rejected"})
+	denied, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]any{"status": "SUCCESS", "response": deniedReply, "denied_actions": []map[string]string{{"action": "private-command"}}}})
+	fresh, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorJSON("Proposed only; not started.", "approval", plan)}})
+	// Fixed fixture JSON has no shell quoting characters or user interpolation.
+	script := `#!/bin/sh
+printf x >> "$HOME/invocations"
+if [ ! -f "$HOME/denied-once" ]; then
+ touch "$HOME/denied-once"
+ printf '%s\n' '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"run_command"}}' '` + string(denied) + `'
+else
+ case "$2" in *'Continue only the technical analysis'*) exit 40;; esac
+ case "$2" in *'SAME original target message'*) ;; *) exit 41;; esac
+ case "$2" in *'REJECTED private candidate'*) exit 42;; esac
+ case "$*" in *'"enum":["approval"]'*) ;; *) exit 43;; esac
+ printf '%s\n' '` + string(fresh) + `'
+fi
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	var trace []string
+	out, failure := s.executeInboxCLI(context.Background(), "fixture", "agy", "Target message: propose two file outcomes for approval. No repository changes. Do not deploy. Do not start work.", home, workspace, func(kind, text string) { trace = append(trace, kind+":"+text) })
+	parsed := parseInboxApprovalPlan(out)
+	if failure != "" || parsed == nil || parsed.Description != plan.Description || parsed.ProjectID != plan.ProjectID {
+		t.Fatal("fresh proposal lost", out, failure)
+	}
+	if strings.Contains(out, "cuan-delegate") || strings.Contains(out, "REJECTED") || strings.Contains(strings.Join(trace, "\n"), "private") {
+		t.Fatal("rejected action or private detail replayed", out, trace)
+	}
+	calls, err := os.ReadFile(filepath.Join(home, "invocations"))
+	if err != nil || string(calls) != "xx" {
+		t.Fatal("unbounded recovery", string(calls), err)
 	}
 }
