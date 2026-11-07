@@ -52,6 +52,9 @@ func TestSupplementalVerifierUsesPrivateExactCommitWorkspace(t *testing.T) {
 	called := false
 	adapter := &reportingBudgetAdapter{readOnlyAuditAdapter: &readOnlyAuditAdapter{t: t}, execute: func(_ context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
 		called = true
+		if !strings.Contains(req.Prompt, "Role: independent verifier.") || strings.Contains(req.Prompt, "Role: developer.") {
+			t.Fatal("native verifier received developer role")
+		}
 		if req.WorkingDir == source {
 			t.Fatal("verifier shares developer checkout")
 		}

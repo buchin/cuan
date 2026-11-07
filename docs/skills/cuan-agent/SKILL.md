@@ -431,3 +431,11 @@ read-only verifier for a successful, natively checked exact source commit even
 with those pending criteria. Admission never checks them off or accepts the task;
 Done still requires actual current evidence for every original criterion. Reviewer
 classification cannot grant implementation or publication authority.
+
+Native code workers receive an explicit developer role: complete implementation
+and local checks, then submit review without claiming another session's independent
+verification. They preserve pending verification criteria instead of trying to
+operate Owner tooling or searching orchestration code just to start a verifier.
+Native verification/inspection workers receive the independent verifier role and
+report their own observations and gaps; the coordinator owns subsequent execution
+and acceptance. Original scope and every saved criterion remain authoritative.
