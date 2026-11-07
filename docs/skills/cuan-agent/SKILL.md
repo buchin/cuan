@@ -467,3 +467,11 @@ workspace. Private capability guidance retains workflow, reporting, criteria and
 Technical Taste. An explicit target root without AGENTS.md never silently borrows
 the Cuan API server's repository rules. Saved goal/instructions and original scope
 remain authoritative; missing required guidance must be reported as a context gap.
+
+For repository implementations, the developer handoff includes an inspected local
+Git checkpoint and clean working tree when the approved scope permits commits.
+No push/PR/deploy does not itself forbid a local checkpoint. Explicit no-commit
+scope remains binding: preserve uncommitted work and report the source-binding
+gap; do not attribute those changes to HEAD or claim independent verification.
+The native runner still never auto-commits under no-push policy. The coordinator
+owns the separate exact-source verification and acceptance.
