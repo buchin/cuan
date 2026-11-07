@@ -20,6 +20,7 @@ type Capability struct {
 	TaskID       string `json:"task_id"`
 	AttemptID    string `json:"attempt_id"`
 	ArtifactsDir string `json:"artifacts_dir,omitempty"`
+	ReportFile   string `json:"report_file,omitempty"`
 }
 
 func Run(args []string, out, errOut io.Writer) int {

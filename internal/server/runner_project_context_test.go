@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +55,10 @@ func TestRunnerClaimHandlerDoesNotOverwriteSavedProjectContext(t *testing.T) {
 	}
 	if claim.TaskAgent == nil || claim.TaskAgent.Token == "" {
 		t.Fatal("saved context lost reporting capability")
+	}
+	prepared, err := os.ReadFile(claim.TaskAgent.ReportFile)
+	if err != nil || !strings.Contains(string(prepared), `"state": "review"`) || !strings.Contains(claim.AgentPrompt, "CUAN_TASK_REPORT_FILE") {
+		t.Fatal("native claim lost prepared report", err)
 	}
 }
 

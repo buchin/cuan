@@ -953,6 +953,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		if claim.TaskAgent.ArtifactsDir != "" {
 			env["CUAN_TASK_ARTIFACTS_DIR"] = claim.TaskAgent.ArtifactsDir
 		}
+		if claim.TaskAgent.ReportFile != "" {
+			env["CUAN_TASK_REPORT_FILE"] = claim.TaskAgent.ReportFile
+		}
 		if executable, e := os.Executable(); e == nil {
 			env["CUAN_TASK_EXECUTABLE"] = executable
 		}

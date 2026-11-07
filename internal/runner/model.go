@@ -126,6 +126,7 @@ type TaskAgentCapability struct {
 	TaskID       string `json:"task_id"`
 	AttemptID    string `json:"attempt_id"`
 	ArtifactsDir string `json:"artifacts_dir,omitempty"`
+	ReportFile   string `json:"report_file,omitempty"`
 }
 
 // StreamLogsRequest is used by runner to stream batches of output lines to the server.

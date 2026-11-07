@@ -27,6 +27,9 @@ func (a *canceledDiagnosticAdapter) Execute(ctx context.Context, req agent.Execu
 	if a.evidenceDir != "" && req.Env["CUAN_TASK_ARTIFACTS_DIR"] != a.evidenceDir {
 		a.t.Error("runner lost the attempt-bound evidence directory")
 	}
+	if a.evidenceDir != "" && req.Env["CUAN_TASK_REPORT_FILE"] != a.evidenceDir+"/../report.json" {
+		a.t.Error("native runner lost prepared report file")
+	}
 	if !strings.Contains(req.Prompt, "=== EXECUTION TIME BUDGET ===") || !strings.Contains(req.Prompt, `"$CUAN_TASK_EXECUTABLE" task report --state progress --progress`) {
 		a.t.Error("dispatched task without a checklist lost checkpoint/deadline instructions")
 	}
@@ -64,7 +67,7 @@ func TestRunnerFinalDiagnosticSurvivesExecutionCancellation(t *testing.T) {
 	runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL}, &canceledDiagnosticAdapter{cancel: cancel, t: t, evidenceDir: evidenceDir}, api.Client())
 	now := time.Now().UTC()
 	claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: t.TempDir(), Task: &task.Task{ID: "cancel-diagnostic", Title: "Inspect", ExecutionCategory: task.ExecutionCategoryReadOnly}, Attempt: &task.TaskAttempt{ID: "attempt", TaskID: "cancel-diagnostic", AttemptNumber: 1, CreatedAt: now}}
-	claim.TaskAgent = &TaskAgentCapability{API: api.URL + "/report", Token: "fixture", TaskID: claim.Task.ID, AttemptID: claim.Attempt.ID, ArtifactsDir: evidenceDir}
+	claim.TaskAgent = &TaskAgentCapability{API: api.URL + "/report", Token: "fixture", TaskID: claim.Task.ID, AttemptID: claim.Attempt.ID, ArtifactsDir: evidenceDir, ReportFile: evidenceDir + "/../report.json"}
 	runner.runAttempt(ctx, claim)
 	mu.Lock()
 	defer mu.Unlock()

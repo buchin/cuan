@@ -82,7 +82,7 @@ func (s *Server) issueTaskAgent(ctx context.Context, taskID, attemptID, agentID 
 		}
 		base = "http://127.0.0.1:" + port
 	}
-	c := taskcli.Capability{API: base + "/api/v1/task-agent/" + taskID, Token: token, TaskID: taskID, AttemptID: attemptID, ArtifactsDir: evidenceDir}
+	c := taskcli.Capability{API: base + "/api/v1/task-agent/" + taskID, Token: token, TaskID: taskID, AttemptID: attemptID, ArtifactsDir: evidenceDir, ReportFile: filepath.Join(dir, "report.json")}
 	data, _ := json.Marshal(c)
 	file := filepath.Join(dir, "capability.json")
 	if e = os.WriteFile(file, data, 0600); e != nil {
@@ -258,7 +258,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 		cleanup()
 		return nil, "", "", none, e
 	}
-	reportFile := filepath.Join(dir, "report.json")
+	reportFile := c.ReportFile
 	if e = os.WriteFile(reportFile, reportJSON, 0600); e != nil {
 		cleanup()
 		return nil, "", "", none, e
