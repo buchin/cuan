@@ -886,7 +886,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			output.onQuota = func() {
 				<-launchSettled
 				if selectedAccountID != "" {
-					_ = output.recordQuotaCooldown(ownerID, selectedAccountID)
+					_ = output.recordQuotaCooldown(ownerID, selectedAccountID, selectedModel)
 				}
 				_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
 				quotaHit.Store(true)

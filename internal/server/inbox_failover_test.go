@@ -537,6 +537,15 @@ func TestInboxRecoveryChecksOtherAccountBeforeMoreModels(t *testing.T) {
 }
 
 func TestInboxRegionRestrictionCanUseAllowedModelOnSameAccount(t *testing.T) {
+	inboxSameAccountModelRestrictionContract(t, "User location is not supported for the API use", false)
+}
+
+func TestInboxQuotaResetCanUseAllowedModelOnSameAccount(t *testing.T) {
+	inboxSameAccountModelRestrictionContract(t, "RESOURCE_EXHAUSTED Individual quota reached. Resets in 40h.", true)
+}
+
+func inboxSameAccountModelRestrictionContract(t *testing.T, providerFailure string, quota bool) {
+	t.Helper()
 	s, _, registered, p, _, home, _ := setupFailoverFixture(t)
 	if _, err := agent.SetProviderAccountModelFallback(p.OwnerID, p.ID, true); err != nil {
 		t.Fatal(err)
@@ -553,7 +562,7 @@ for arg in "$@"; do last="$arg"; done
 if [ "$last" = claude-sonnet-test ]; then
  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Recovered on allowed Sonnet\",\"topic_title\":\"\",\"action\":null}"}}'
 else
- printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"User location is not supported for the API use"}}'
+ printf '%s\n' '{"event":"result","result":{"status":"ERROR","message":"` + providerFailure + `"}}'
  exit 3
 fi
 `
@@ -571,6 +580,9 @@ fi
 	}
 	if profile.State == "quota_limited" {
 		t.Fatal("regional restriction marked as account quota")
+	}
+	if quota && time.Until(profile.ModelCooldowns["gemini-test"]) < 39*time.Hour {
+		t.Fatal("model-specific reset duration was discarded")
 	}
 	routes := s.providerRoutes(context.Background(), p.OwnerID, registered, home, false)
 	for _, route := range routes {

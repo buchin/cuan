@@ -224,21 +224,9 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		}
 		hadQuotaFailure = true
 		if route.accountID != "" {
-			dur, resetStr, hasReset := agent.ParseProviderQuotaResetDuration(failure)
-			isIndividualQuota := strings.Contains(strings.ToLower(failure), "individual quota") || hasReset || !agent.IsTextModel(route.model)
-			if isIndividualQuota {
-				if dur <= 0 {
-					dur = 5 * time.Minute
-				}
-				if err := agent.RecordProviderAccountQuotaWithDuration(owner, route.accountID, dur, resetStr); err != nil {
-					return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
-				}
-				// Remove all remaining routes belonging to this throttled account
-				routes = filterOutAccountRoutes(routes, route.accountID)
-			} else {
-				if err := agent.RecordProviderModelQuota(owner, route.accountID, route.model); err != nil {
-					return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
-				}
+			dur, _, _ := agent.ParseProviderQuotaResetDuration(failure)
+			if err := agent.RecordProviderModelQuotaWithDuration(owner, route.accountID, route.model, dur); err != nil {
+				return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
 			}
 		}
 		if !safe {

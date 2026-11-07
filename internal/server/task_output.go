@@ -126,10 +126,10 @@ func (r *taskOutputRecorder) failureNote() string {
 	return ""
 }
 
-func (r *taskOutputRecorder) recordQuotaCooldown(owner, accountID string) error {
+func (r *taskOutputRecorder) recordQuotaCooldown(owner, accountID, model string) error {
 	r.mu.Lock()
 	plain := strings.Join(strings.Fields(taskOutputANSI.ReplaceAllString(r.quotaTail, "")), " ")
 	r.mu.Unlock()
-	duration, reset, _ := agent.ParseProviderQuotaResetDuration(plain)
-	return agent.RecordProviderAccountQuotaWithDuration(owner, accountID, duration, reset)
+	duration, _, _ := agent.ParseProviderQuotaResetDuration(plain)
+	return agent.RecordProviderModelQuotaWithDuration(owner, accountID, model, duration)
 }

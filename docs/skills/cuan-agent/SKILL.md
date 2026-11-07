@@ -123,6 +123,14 @@ the label and separate fallback policy, returns typed metadata, and checks the
 saved result. It applies to future sessions; an already running process keeps
 its original model. Never infer runnable model names from quota labels alone.
 
+Runtime quota observations cool down the attempted model route on that account
+for the provider's reported reset duration. Auto has its own empty route key;
+an Auto failure does not establish that explicit Sonnet or Gemini routes are
+exhausted. Native worker admission checks the currently selected model's
+cooldown. A reset interval alone never proves an account-wide limit. Existing
+account-wide cooldown records are retained rather than silently reinterpreted;
+do not infer shared quota groups from similar model names or matching dates.
+
 `cuan integration github show` and MCP `get_github_connection` read the owner's
 saved Cuan GitHub connection without credentials. Check this before asking the
 owner to sign in: a worker's standalone `gh` session is a different identity.

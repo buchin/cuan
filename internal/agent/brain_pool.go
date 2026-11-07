@@ -48,7 +48,7 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 		if p.State == "quota_limited" && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
 			continue
 		}
-		if time.Now().Before(p.ModelCooldowns[""]) {
+		if time.Now().Before(p.ModelCooldowns[p.ModelID]) {
 			continue
 		}
 		release, err := lease(owner, p.ID)
@@ -56,7 +56,7 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 			continue
 		}
 		current, err := GetProviderAccount(owner, p.ID)
-		if err != nil || !current.CredentialsPresent || current.State == "quota_limited" || current.State == "unavailable" || current.State == "login_required" {
+		if err != nil || !current.CredentialsPresent || current.State == "quota_limited" || current.State == "unavailable" || current.State == "login_required" || time.Now().Before(current.ModelCooldowns[current.ModelID]) {
 			release()
 			continue
 		}

@@ -585,8 +585,17 @@ func SetProviderAccountModelFallback(owner, id string, enabled bool) (*ProviderA
 	return a, nil
 }
 func RecordProviderModelQuota(owner, id, model string) error {
-	if !IsTextModel(model) {
-		return RecordProviderAccountQuota(owner, id)
+	return RecordProviderModelQuotaWithDuration(owner, id, model, 5*time.Minute)
+}
+
+// A quota reset belongs to the attempted route, not every model on its account.
+// Empty model means only Auto/provider default; it cannot identify quota groups.
+func RecordProviderModelQuotaWithDuration(owner, id, model string, duration time.Duration) error {
+	if model != "" && !IsTextModel(model) {
+		return errors.New("a supported text model or Auto is required")
+	}
+	if duration <= 0 {
+		duration = 5 * time.Minute
 	}
 	accountProfileMu.Lock()
 	defer accountProfileMu.Unlock()
@@ -605,7 +614,7 @@ func RecordProviderModelQuota(owner, id, model string) error {
 			delete(a.ModelCooldowns, key)
 		}
 	}
-	a.ModelCooldowns[model] = time.Now().Add(5 * time.Minute)
+	a.ModelCooldowns[model] = time.Now().Add(duration)
 	return saveProviderAccount(a)
 }
 

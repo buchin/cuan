@@ -1418,8 +1418,8 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 		if runErr != nil || result == nil || result.Status != "QUOTA_LIMITED" || routed.Err() != nil {
 			return result, runErr
 		}
-		duration, reset, _ := agent.ParseProviderQuotaResetDuration(result.Error)
-		if err := agent.RecordProviderAccountQuotaWithDuration(claim.OwnerID, brain.ID, duration, reset); err != nil {
+		duration, _, _ := agent.ParseProviderQuotaResetDuration(result.Error)
+		if err := agent.RecordProviderModelQuotaWithDuration(claim.OwnerID, brain.ID, brain.ModelID, duration); err != nil {
 			return nil, fmt.Errorf("could not retain AI capacity cooldown")
 		}
 	}
