@@ -113,3 +113,29 @@ func (s *Server) bindRunnerVisualRecipe(ctx context.Context, claim *runner.Claim
 	}
 	return err
 }
+
+var originalVisualScope = regexp.MustCompile(`(?i)\b(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|\.(?:tsx|jsx|css)\b`)
+
+// runnerClaimRequiresVision classifies task evidence requirements separately
+// from the native inspection's generic transport instructions.
+func (s *Server) runnerClaimRequiresVision(ctx context.Context, claim *runner.ClaimTaskResponse, detail *task.TaskDetailResponse, revision string) bool {
+	// The native claim has already validated this inspection. Its revision
+	// contains conditional screenshot guidance for every kind of task; that
+	// boilerplate is not a visual acceptance requirement.
+	if claim.LiveInspection != nil {
+		revision = ""
+		// Keep visual work subject to the repository's visual quality gate
+		// even when the owner did not literally ask for a screenshot.
+		if detail != nil {
+			if originalVisualScope.MatchString(project.TaskScopeInstructions(detail.Instructions) + "\n" + detail.Title) {
+				return true
+			}
+			for _, criterion := range detail.DoDChecklist {
+				if originalVisualScope.MatchString(criterion.Text) {
+					return true
+				}
+			}
+		}
+	}
+	return s.taskRequiresVision(ctx, claim.OwnerID, detail, "", revision)
+}

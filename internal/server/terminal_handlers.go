@@ -1191,6 +1191,11 @@ func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail 
 	}
 
 	if detail != nil {
+		for _, criterion := range detail.DoDChecklist {
+			if checkText(criterion.Text) {
+				return true
+			}
+		}
 		if checkText(projectpkg.TaskScopeInstructions(detail.Instructions)) || checkText(detail.Title) {
 			return true
 		}
