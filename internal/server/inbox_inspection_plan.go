@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/buchin/cuan/internal/db"
@@ -86,6 +87,24 @@ func (s *Server) liveInspectionPlanDiagnostic(ctx context.Context, d *task.TaskD
 		diagnostic.Code = code
 		if proof != nil {
 			diagnostic.TargetCommit = proof.TargetCommit
+			admission, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, proof.RequestID(d.ID)))
+			if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
+				diagnostic.Code = "planned_admission_unavailable"
+				return diagnostic
+			}
+			diagnostic.ExistingAdmission = task.DiagnoseLaunch(&d.Task, admission)
+			if admission != nil && admission.State == "stopped" {
+				switch admission.SafeError {
+				case staleInspectionLaunchReason:
+					diagnostic.ExistingAdmissionStopCode = "stale_inspection"
+				case task.InspectionPublicationPreparationError:
+					diagnostic.ExistingAdmissionStopCode = "snapshot_preparation"
+				case task.InspectionScopePreparationError:
+					diagnostic.ExistingAdmissionStopCode = "inspection_scope"
+				default:
+					diagnostic.ExistingAdmissionStopCode = "other"
+				}
+			}
 		}
 		return diagnostic
 	}

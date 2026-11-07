@@ -28,10 +28,12 @@ type ExecutionInfo struct {
 }
 
 type InspectionPlanDiagnostic struct {
-	Code                       string `json:"code"`
-	SourceAttemptID            string `json:"source_attempt_id,omitempty"`
-	SupplementalSourceVerified bool   `json:"supplemental_source_verified"`
-	TargetCommit               string `json:"target_commit,omitempty"`
+	ExistingAdmission          *LaunchDiagnostic `json:"existing_admission,omitempty"`
+	ExistingAdmissionStopCode  string            `json:"existing_admission_stop_code,omitempty"`
+	Code                       string            `json:"code"`
+	SourceAttemptID            string            `json:"source_attempt_id,omitempty"`
+	SupplementalSourceVerified bool              `json:"supplemental_source_verified"`
+	TargetCommit               string            `json:"target_commit,omitempty"`
 }
 
 // Latest admission is separate from the attempt's binding: it may have stopped
@@ -42,6 +44,10 @@ type LaunchDiagnostic struct {
 	IntentKind     string `json:"intent_kind"`
 	ValidationCode string `json:"validation_code,omitempty"`
 }
+
+// DiagnoseLaunch reports only fixed classifications and identifiers, never the
+// revision, free-text error, or credentials retained by a saved admission.
+func DiagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic { return diagnoseLaunch(t, j) }
 
 func diagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic {
 	if j == nil {

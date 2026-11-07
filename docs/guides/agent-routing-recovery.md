@@ -159,3 +159,8 @@ plan alone does not prove that the delivery scan reached or admitted that task.
 The same periodic diagnostic scan records fixed review checkpoints and inspection
 eligibility/plan/admission codes per task. These observations neither retry work
 nor change authorization; they distinguish reaching a task from admitting it.
+`cuan task execution` also identifies an existing admission for the exact ordinary
+inspection plan, separately from the latest task launch. Its state and fixed stop
+code reveal an older stopped admission without exposing stored feedback or errors.
+A plan can be ready while its existing admission remains terminal; readiness does
+not grant a retry or a replacement authorization window.
