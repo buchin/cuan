@@ -16,6 +16,13 @@ func TestInspectionVisionUsesOriginalScopeInsteadOfGenericTransport(t *testing.T
 		inspection, want bool
 	}{
 		{"database inspection", "Migrate PostgreSQL data to SQLite and reconcile row counts", nil, true, false},
+		{"backend no UI", "Add quota regression tests. Tidak ada perubahan UI, konfigurasi, push, PR, atau deployment.", nil, true, false},
+		{"negative criterion list", "Add quota regression tests", []task.DoDItem{{Text: "Tidak ada push, PR, deploy, perubahan konfigurasi, perubahan UI, atau pesan keluar."}}, true, false},
+		{"english no UI", "Add quota tests without UI changes", nil, true, false},
+		{"read only visual audit", "Inspect UI without changing it", nil, true, true},
+		{"negative mutation then visual audit", "No UI changes; inspect the actual UI layout", nil, true, true},
+		{"negative mutation then screenshots", "Tidak ada perubahan UI. Capture mobile screenshots", nil, true, true},
+		{"negative mutation then positive exception", "No UI changes except fix the task card UI", nil, true, true},
 		{"visual task without screenshot keyword", "Fix the task card UI layout", nil, true, true},
 		{"original visual scope", "Verify actual mobile screenshots", nil, true, true},
 		{"original visual criterion", "Improve task detail", []task.DoDItem{{Text: "Inspect screenshots at 390px and desktop"}}, true, true},

@@ -116,6 +116,15 @@ func (s *Server) bindRunnerVisualRecipe(ctx context.Context, claim *runner.Claim
 
 var originalVisualScope = regexp.MustCompile(`(?i)\b(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|\.(?:tsx|jsx|css)\b`)
 
+// Remove only explicit mutation prohibitions, not visual inspection duties.
+// The bounded list vocabulary also covers "no push, deploy, or UI changes"
+// without swallowing a later request to inspect the UI.
+var visualMutationProhibition = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak ada|jangan|dilarang|do not|don't|never)\s+(?:(?:push|pr|deploy|deployment|perubahan konfigurasi|configuration changes?)(?:\s*,\s*|\s+(?:or|and|atau|dan)\s+))*(?:(?:perubahan|ubah|mengubah|change|changes? to|modify|edit)\s+(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\s+changes?\b)`)
+
+func hasOriginalVisualScope(text string) bool {
+	return originalVisualScope.MatchString(visualMutationProhibition.ReplaceAllString(text, ""))
+}
+
 // runnerClaimRequiresVision classifies task evidence requirements separately
 // from the native inspection's generic transport instructions.
 func (s *Server) runnerClaimRequiresVision(ctx context.Context, claim *runner.ClaimTaskResponse, detail *task.TaskDetailResponse, revision string) bool {
@@ -127,11 +136,11 @@ func (s *Server) runnerClaimRequiresVision(ctx context.Context, claim *runner.Cl
 		// Keep visual work subject to the repository's visual quality gate
 		// even when the owner did not literally ask for a screenshot.
 		if detail != nil {
-			if originalVisualScope.MatchString(project.TaskScopeInstructions(detail.Instructions) + "\n" + detail.Title) {
+			if hasOriginalVisualScope(project.TaskScopeInstructions(detail.Instructions) + "\n" + detail.Title) {
 				return true
 			}
 			for _, criterion := range detail.DoDChecklist {
-				if originalVisualScope.MatchString(criterion.Text) {
+				if hasOriginalVisualScope(criterion.Text) {
 					return true
 				}
 			}
