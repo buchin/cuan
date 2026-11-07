@@ -169,3 +169,12 @@ is rejected; no ambient environment is substituted. It returns real process
 facts only. No model, task completion, live observation or acceptance is performed
 by this primitive. Worker dispatch still rejects unprepared native stages;
 preparation/receipt transport and actual dispatch integration remain unfinished.
+
+The staged task contract `NativeReleasePreparation` records admitted source and
+prepared target as separate identities, alongside attempt, original instructions,
+repository, branch and descriptor. `NativeReleasePreparationForAttempt` accepts
+only the canonical native-coordinator activity for a currently running, uncanceled
+and unexpired exact native attempt whose source handoff remains valid. Unknown
+JSON fields, changed identities, foreign authors and invalid chronology fail.
+This contract has no production publisher or live-observer consumer yet and does
+not establish deployment health, script execution or independent acceptance.
