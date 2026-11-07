@@ -3,16 +3,13 @@ package git
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
-
-	"github.com/buchin/cuan/internal/agent"
 )
 
 // PullRequestRequest defines the inputs for creating or updating a GitHub Pull Request.
@@ -314,13 +311,14 @@ func (c *Client) updatePullRequest(ctx context.Context, owner, repo string, prNu
 
 // MergePullRequestRequest defines the inputs for merging a GitHub Pull Request.
 type MergePullRequestRequest struct {
-	Owner         string `json:"owner"`
-	Repo          string `json:"repo"`
-	PullNumber    int    `json:"pull_number"`
-	CommitTitle   string `json:"commit_title,omitempty"`
-	CommitMessage string `json:"commit_message,omitempty"`
-	MergeMethod   string `json:"merge_method,omitempty"` // "squash", "merge", "rebase" (default "squash")
-	Token         string `json:"token,omitempty"`
+	ExpectedHeadSHA string `json:"expected_head_sha"`
+	Owner           string `json:"owner"`
+	Repo            string `json:"repo"`
+	PullNumber      int    `json:"pull_number"`
+	CommitTitle     string `json:"commit_title,omitempty"`
+	CommitMessage   string `json:"commit_message,omitempty"`
+	MergeMethod     string `json:"merge_method,omitempty"` // "squash", "merge", "rebase" (default "squash")
+	Token           string `json:"token,omitempty"`
 }
 
 // MergePullRequestResult contains the details of the merge result.
@@ -331,7 +329,7 @@ type MergePullRequestResult struct {
 }
 
 // MergePullRequest merges an open GitHub Pull Request into the default base branch.
-// It prioritizes the official GitHub REST API with squash merge, falling back to gh CLI.
+// It uses the explicit saved identity and provider head precondition exactly once.
 func (c *Client) MergePullRequest(ctx context.Context, req MergePullRequestRequest) (*MergePullRequestResult, error) {
 	if req.Owner == "" || req.Repo == "" {
 		return nil, errors.New("owner and repo are required to merge pull request")
@@ -339,26 +337,29 @@ func (c *Client) MergePullRequest(ctx context.Context, req MergePullRequestReque
 	if req.PullNumber <= 0 {
 		return nil, errors.New("pull_number must be greater than 0")
 	}
+	if strings.TrimSpace(req.Token) == "" {
+		return nil, errors.New("saved repository access is required to merge pull request")
+	}
+	if len(req.ExpectedHeadSHA) != 40 && len(req.ExpectedHeadSHA) != 64 {
+		return nil, errors.New("exact reviewed source commit is required to merge pull request")
+	}
+	if _, err := hex.DecodeString(req.ExpectedHeadSHA); err != nil {
+		return nil, errors.New("exact reviewed source commit is invalid")
+	}
 	if req.MergeMethod == "" {
 		req.MergeMethod = "squash"
 	}
 
-	// Step 1: Try GitHub REST API
+	// A failed/lost response may follow a successful mutation. Do not repeat it
+	// through another transport or borrow a host CLI login to obtain success.
 	res, err := c.mergePullRequestREST(ctx, req)
-	if err == nil && res != nil && res.Merged {
-		return res, nil
-	}
-
-	// Step 2: Fallback to gh CLI
-	ghRes, ghErr := c.ghMergePR(ctx, req)
-	if ghErr == nil && ghRes != nil && ghRes.Merged {
-		return ghRes, nil
-	}
-
 	if err != nil {
-		return nil, fmt.Errorf("merge pull request failed: %w (gh fallback: %v)", err, ghErr)
+		return nil, fmt.Errorf("pull request merge was not confirmed; reconcile its current state before retrying: %w", err)
 	}
-	return nil, fmt.Errorf("gh pr merge failed: %w", ghErr)
+	if res == nil || !res.Merged || res.SHA == "" {
+		return nil, errors.New("pull request merge was not confirmed; reconcile its current state before retrying")
+	}
+	return res, nil
 }
 
 func (c *Client) mergePullRequestREST(ctx context.Context, req MergePullRequestRequest) (*MergePullRequestResult, error) {
@@ -366,6 +367,7 @@ func (c *Client) mergePullRequestREST(ctx context.Context, req MergePullRequestR
 
 	payload := map[string]string{
 		"merge_method": req.MergeMethod,
+		"sha":          req.ExpectedHeadSHA,
 	}
 	if req.CommitTitle != "" {
 		payload["commit_title"] = req.CommitTitle
@@ -387,16 +389,7 @@ func (c *Client) mergePullRequestREST(ctx context.Context, req MergePullRequestR
 	httpReq.Header.Set("User-Agent", "Cuan-Engine/1.0")
 	httpReq.Header.Set("Accept", "application/vnd.github.v3+json")
 	httpReq.Header.Set("Content-Type", "application/json")
-	token := strings.TrimSpace(req.Token)
-	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-		if token == "" {
-			token = os.Getenv("GITHUB_TOKEN")
-		}
-	}
-	if token != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+token)
-	}
+	httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(req.Token))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -426,33 +419,4 @@ func (c *Client) mergePullRequestREST(ctx context.Context, req MergePullRequestR
 		errMsg = fmt.Sprintf("status %d: %s", resp.StatusCode, msg)
 	}
 	return nil, fmt.Errorf("github api merge PR failed (%s)", errMsg)
-}
-
-func (c *Client) ghMergePR(ctx context.Context, req MergePullRequestRequest) (*MergePullRequestResult, error) {
-	repoFullName := fmt.Sprintf("%s/%s", req.Owner, req.Repo)
-	args := []string{"pr", "merge", fmt.Sprintf("%d", req.PullNumber), "--repo", repoFullName}
-	switch req.MergeMethod {
-	case "merge":
-		args = append(args, "--merge")
-	case "rebase":
-		args = append(args, "--rebase")
-	default:
-		args = append(args, "--squash")
-	}
-
-	cmd := exec.CommandContext(ctx, "gh", args...)
-	if token := strings.TrimSpace(req.Token); token != "" {
-		cmd.Env = append(os.Environ(), "GH_TOKEN="+token, "GITHUB_TOKEN="+token)
-	}
-
-	out, err := cmd.CombinedOutput()
-	cleanOut := agent.MaskSecrets(string(out), nil)
-	if err != nil {
-		return nil, fmt.Errorf("gh pr merge: %s", cleanOut)
-	}
-
-	return &MergePullRequestResult{
-		Merged:  true,
-		Message: strings.TrimSpace(cleanOut),
-	}, nil
 }

@@ -8,8 +8,70 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
+
+func TestMergePullRequestDoesNotBorrowIdentityOrRepeatUncertainMutation(t *testing.T) {
+	for _, scenario := range []string{"missing token", "missing source", "invalid source", "conflict", "unavailable", "invalid response", "not merged", "missing receipt sha"} {
+		t.Run(scenario, func(t *testing.T) {
+			root := t.TempDir()
+			marker := filepath.Join(root, "unexpected-gh")
+			if err := os.WriteFile(filepath.Join(root, "gh"), []byte("#!/bin/sh\nprintf invoked > \"$GH_FIXTURE_MARKER\"\n"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", root+":"+os.Getenv("PATH"))
+			t.Setenv("GH_FIXTURE_MARKER", marker)
+			t.Setenv("GH_TOKEN", "ambient-wrong-owner")
+			t.Setenv("GITHUB_TOKEN", "ambient-other-owner")
+			var calls atomic.Int32
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				if r.Header.Get("Authorization") != "Bearer saved-owner" {
+					t.Error("merge borrowed another identity")
+				}
+				switch scenario {
+				case "conflict":
+					w.WriteHeader(409)
+				case "unavailable":
+					w.WriteHeader(503)
+				case "invalid response":
+					w.Write([]byte("lost response"))
+				case "not merged":
+					w.Write([]byte(`{"merged":false,"sha":"not-accepted"}`))
+				default:
+					w.Write([]byte(`{"merged":true}`))
+				}
+			}))
+			defer api.Close()
+			client := NewClient()
+			client.SetAPIBaseURL(api.URL)
+			req := MergePullRequestRequest{Owner: "owner", Repo: "repo", PullNumber: 7, Token: "saved-owner", ExpectedHeadSHA: strings.Repeat("a", 40)}
+			switch scenario {
+			case "missing token":
+				req.Token = ""
+			case "missing source":
+				req.ExpectedHeadSHA = ""
+			case "invalid source":
+				req.ExpectedHeadSHA = strings.Repeat("z", 40)
+			}
+			result, err := client.MergePullRequest(context.Background(), req)
+			if err == nil || result != nil {
+				t.Fatal("unconfirmed merge accepted")
+			}
+			want := int32(1)
+			if scenario == "missing token" || scenario == "missing source" || scenario == "invalid source" {
+				want = 0
+			}
+			if calls.Load() != want {
+				t.Fatal("unexpected repeated or unauthorized provider mutation", calls.Load())
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatal("merge retried through ambient gh")
+			}
+		})
+	}
+}
 
 func TestPullRequestFailureDoesNotUseAmbientIdentityOrCreateAfterUncertainLookup(t *testing.T) {
 	for _, scenario := range []string{"lookup unavailable", "invalid lookup", "create unavailable"} {
@@ -246,6 +308,9 @@ func TestMergePullRequest(t *testing.T) {
 		if payload["merge_method"] != "squash" {
 			t.Errorf("expected merge_method 'squash', got %v", payload["merge_method"])
 		}
+		if payload["sha"] != strings.Repeat("a", 40) || r.Header.Get("Authorization") != "Bearer saved-owner" {
+			t.Error("merge lost source precondition or saved identity")
+		}
 
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -263,12 +328,14 @@ func TestMergePullRequest(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := client.MergePullRequest(ctx, MergePullRequestRequest{
-		Owner:         "buchin",
-		Repo:          "cuan",
-		PullNumber:    101,
-		CommitTitle:   "feat: squash merge task work",
-		CommitMessage: "Applied via Cuan one-click apply",
-		MergeMethod:   "squash",
+		Owner:           "buchin",
+		Repo:            "cuan",
+		PullNumber:      101,
+		CommitTitle:     "feat: squash merge task work",
+		CommitMessage:   "Applied via Cuan one-click apply",
+		MergeMethod:     "squash",
+		Token:           "saved-owner",
+		ExpectedHeadSHA: strings.Repeat("a", 40),
 	})
 	if err != nil {
 		t.Fatalf("MergePullRequest failed: %v", err)

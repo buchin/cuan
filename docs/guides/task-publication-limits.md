@@ -37,6 +37,15 @@ accessible artifacts in the task report.
 
 ## Registered verification prerequisites
 
+Pull-request application uses only the owner's saved repository connection and
+passes the task's recorded full source commit as GitHub's head-SHA precondition.
+A changed PR head must be checked again; it is not merged as the previous result.
+Missing or unreadable saved access never falls back to host `GH_TOKEN`,
+`GITHUB_TOKEN`, or an ambient `gh` login. Merge uses one official API request.
+An unavailable, malformed or unconfirmed response requires reconciliation of the
+current PR state before retrying; it never triggers another merge transport.
+The returned merge SHA remains separate from deployment and task acceptance.
+
 Review's `publication_context.connection_state` and a bound worker's
 `publication_configuration` describe saved production verification setup:
 `not_configured`, `unsupported`, `incomplete`, `configured`, or `current_process`.

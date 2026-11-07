@@ -131,7 +131,7 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 	commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply.\n\nTask: %s\nSummary: %s", taskID, summary)
 
 	if prNumber > 0 {
-		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage)
+		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	if branchName != "" {
 		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage)

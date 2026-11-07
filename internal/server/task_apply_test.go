@@ -47,6 +47,7 @@ func TestHandleApplyTask_Success(t *testing.T) {
 
 			memProject := project.NewMemoryStore()
 			projectSvc := project.NewService(memProject, gitClient, cfg.AuthSecret, t.TempDir())
+			projectSvc.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "saved-owner", nil })
 
 			ctx := context.Background()
 			proj := &project.Project{
@@ -79,12 +80,14 @@ func TestHandleApplyTask_Success(t *testing.T) {
 			prNum := 42
 			prURL := "https://github.com/buchin/cuan/pull/42"
 			branch := "cuan/task-checkout"
+			sourceCommit := strings.Repeat("a", 40)
 			reviewStatus := "review"
 			_, err = taskSvc.UpdateTask(ctx, createdTask.ID, "runner", task.UpdateTaskRequest{
 				PRNumber:   &prNum,
 				PRURL:      &prURL,
 				BranchName: &branch,
 				Status:     &reviewStatus,
+				CommitSHA:  &sourceCommit,
 			})
 			if err != nil {
 				t.Fatalf("failed to set task PR fields: %v", err)

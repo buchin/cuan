@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -12,7 +11,7 @@ import (
 )
 
 // ApplyTaskPullRequest merges the task PR into the project default branch.
-func (s *Service) ApplyTaskPullRequest(ctx context.Context, projectID string, prNumber int, title, message string) (*git.MergePullRequestResult, error) {
+func (s *Service) ApplyTaskPullRequest(ctx context.Context, projectID string, prNumber int, title, message, sourceCommit string) (*git.MergePullRequestResult, error) {
 	if projectID == "" {
 		return nil, errors.New("project id is required")
 	}
@@ -28,22 +27,23 @@ func (s *Service) ApplyTaskPullRequest(ctx context.Context, projectID string, pr
 		return nil, errors.New("project does not have a GitHub repository connected")
 	}
 
-	token, _ := s.repositoryToken(ctx, p.EncryptedToken)
+	token, err := s.repositoryToken(ctx, p.EncryptedToken)
+	if err != nil {
+		return nil, err
+	}
 	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-		if token == "" {
-			token = os.Getenv("GITHUB_TOKEN")
-		}
+		return nil, ErrGitHubConnectionRequired
 	}
 
 	result, err := s.gitClient.MergePullRequest(ctx, git.MergePullRequestRequest{
-		Owner:         p.RepoOwner,
-		Repo:          p.RepoName,
-		PullNumber:    prNumber,
-		CommitTitle:   title,
-		CommitMessage: message,
-		MergeMethod:   "squash",
-		Token:         token,
+		Owner:           p.RepoOwner,
+		Repo:            p.RepoName,
+		PullNumber:      prNumber,
+		CommitTitle:     title,
+		CommitMessage:   message,
+		MergeMethod:     "squash",
+		Token:           token,
+		ExpectedHeadSHA: sourceCommit,
 	})
 	if err != nil {
 		return nil, err
