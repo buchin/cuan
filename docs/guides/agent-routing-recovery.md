@@ -95,3 +95,15 @@ The replacement retains the original expiry and authorization, observes the
 current release, and passes normal source and lane checks. It only inspects an
 exact snapshot; it cannot implement, push, deploy or accept the task. This shares
 the existing preparation allowance rather than resetting task retry budgets.
+
+### Supplemental verification and the current release
+
+When a supplemental verifier finishes, it remains a read-only attempt. A fresh
+review may still find that the requested outcome needs inspection on the running
+release. Cuan resolves the original implementation through the verifier's native
+source and unchanged-repository receipts, then uses the existing single
+current-outcome inspection allowance for that source. It retains the current
+review and original owner approval; the verifier never becomes an implementation
+or deployment source. Missing receipts, changed source, cancellation and owner
+binding mismatches cannot authorize this handoff. The new inspection must still
+prove the actual feature and publication requirements independently.

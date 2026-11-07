@@ -46,8 +46,17 @@ func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
 	}
 }
 
+func TestSupplementalVerifierCurrentOutcomeHandoff(t *testing.T) {
+	for _, scenario := range []string{"valid", "missing receipt", "cancelled verifier", "wrong source"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, origin, d := phaseLineageSetup(t)
+			liveInspectionContract(t, s, origin, d, "current outcome unpublished valid supplemental "+scenario, nil)
+		})
+	}
+}
+
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome publication valid", "current outcome failed checks revalidation"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid supplemental valid", "current outcome publication valid", "current outcome failed checks revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -255,6 +264,28 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		}
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if strings.HasPrefix(scenario, "current outcome unpublished valid supplemental ") {
+		d = supplementalInspectionFixture(t, s, origin, d, database)
+		switch strings.TrimPrefix(scenario, "current outcome unpublished valid supplemental ") {
+		case "missing receipt":
+			for _, event := range d.Activities {
+				if event.AttemptID != nil && *event.AttemptID == d.LatestAttempt.ID && event.ActivityType == "verification_source_verified" {
+					event.Author = "agent"
+				}
+			}
+		case "cancelled verifier":
+			d.LatestAttempt.CancelRequested = true
+		case "wrong source":
+			d.CommitSHA = strings.Repeat("e", 40)
+		}
+		if !strings.HasSuffix(scenario, "supplemental valid") {
+			if s.recoverLiveResultInspection(ctx, d, origin) {
+				t.Fatal("untrusted supplemental evidence granted inspection", scenario)
+			}
+			return
+		}
+		scenario = "current outcome unpublished valid"
+	}
 	if strings.HasPrefix(scenario, "current outcome unpublished valid registered review") {
 		decision := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "revise", RemainingWork: "implementation", Finding: "Existing release needs inspection", Explanation: "Inspect current outcome", Revision: "Verify existing release"})
 		if decision.RemainingWork != "verification" {

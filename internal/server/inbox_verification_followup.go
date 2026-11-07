@@ -113,16 +113,31 @@ func verificationFollowupNotice(d *task.TaskDetailResponse, assessment inboxRevi
 // Only backend receipts for the current verifier can bind old implementation
 // checks to an unchanged source. Agent reports cannot create this context.
 func (s *Server) verificationReviewContext(ctx context.Context, d *task.TaskDetailResponse) map[string]any {
-	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+	original, proof := s.verifiedSupplementalSource(ctx, d)
+	if original == nil {
 		return nil
+	}
+	return map[string]any{"source_attempt_id": proof.SourceAttemptID, "source_commit": proof.SourceCommit, "source_project_checks": task.AttemptVerificationEvidence(original).Current, "repository_unchanged": true, "finalized_outputs_from_attempt_id": proof.FinalizeAttemptID, "artifact_manifest_hash": proof.ArtifactManifestHash}
+}
+
+// Resolve implementation identity only through a successful supplemental
+// verifier's native source/unchanged-state receipts. This is not acceptance or
+// permission to replay implementation; callers retain the current review grant.
+func (s *Server) verifiedSupplementalSource(ctx context.Context, d *task.TaskDetailResponse) (*task.TaskDetailResponse, *task.VerificationIntent) {
+	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+		return nil, nil
+	}
+	a := d.LatestAttempt
+	if a.CancelRequested || a.CanceledAt != nil || a.ExitCode == nil || *a.ExitCode != 0 || a.FinishedAt == nil || a.ErrorMessage != "" {
+		return nil, nil
 	}
 	proof, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil || proof == nil {
-		return nil
+		return nil, nil
 	}
 	_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
 	if err != nil || !unchanged {
-		return nil
+		return nil, nil
 	}
 	receipt := false
 	for _, a := range d.Activities {
@@ -132,13 +147,13 @@ func (s *Server) verificationReviewContext(ctx context.Context, d *task.TaskDeta
 		}
 	}
 	if !receipt {
-		return nil
+		return nil, nil
 	}
 	source, err := s.taskSvc.Store().GetAttempt(ctx, proof.SourceAttemptID)
 	if err != nil || source == nil {
-		return nil
+		return nil, nil
 	}
 	original := *d
 	original.LatestAttempt = source
-	return map[string]any{"source_attempt_id": proof.SourceAttemptID, "source_commit": proof.SourceCommit, "source_project_checks": task.AttemptVerificationEvidence(&original).Current, "repository_unchanged": true, "finalized_outputs_from_attempt_id": proof.FinalizeAttemptID, "artifact_manifest_hash": proof.ArtifactManifestHash}
+	return &original, proof
 }

@@ -19,9 +19,19 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
 	}
+	// A verifier is read-only and cannot become the implementation source.
+	// Keep the current review/approval, resolving only its native-bound original
+	// source for the existing single current-outcome inspection allowance.
+	source := d.LatestAttempt
+	if original, proof := s.verifiedSupplementalSource(ctx, d); original != nil {
+		if proof.OwnerID != origin.OwnerID || proof.RoomID != origin.RoomID || proof.SourceRequestID != origin.RequestID {
+			return false
+		}
+		source = original.LatestAttempt
+	}
 	if d.Status == task.TaskStatusReview {
 		assessment, found := reviewAssessment(d, "")
-		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || (!task.IsUnpublishedReviewedOutcome(&d.Task, d.LatestAttempt, d.Activities) && !task.IsPublicationReconciliationOutcome(&d.Task, d.LatestAttempt, d.Activities) && len(task.FailedCheckRevalidationPaths(d)) == 0) {
+		if !found || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || (!task.IsUnpublishedReviewedOutcome(&d.Task, source, d.Activities) && !task.IsPublicationReconciliationOutcome(&d.Task, source, d.Activities) && len(task.FailedCheckRevalidationPaths(d)) == 0) {
 			return false
 		}
 	}
@@ -35,7 +45,7 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if s.recoverChangedOutcomeInspection(ctx, d, origin) {
 		return true
 	}
-	a := d.LatestAttempt
+	a := source
 	unpublished := task.IsUnpublishedLegacyOutcome(&d.Task, a, d.Activities)
 	if !unpublished && (task.IsUnpublishedReviewedOutcome(&d.Task, a, d.Activities) || task.IsPublicationReconciliationOutcome(&d.Task, a, d.Activities)) {
 		// The task layer validates the saved record shape; the coordinator also
