@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
-	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -28,6 +27,9 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 			return false
 		}
 		source = original.LatestAttempt
+	}
+	if s.recoverUnstartedLiveInspection(ctx, d, origin, source.ID) {
+		return true
 	}
 	if d.Status == task.TaskStatusReview {
 		assessment, found := reviewAssessment(d, "")
@@ -84,24 +86,7 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 	if err != nil || limits.ReadOnlyRepository {
 		return false
 	}
-	checkScope := project.TaskScopeInstructions(d.Instructions)
-	if launches, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
-		launch, err := launches.LaunchForAttempt(ctx, sourceAttempt)
-		if err != nil {
-			return false
-		}
-		if launch != nil {
-			checkScope += "\n" + launch.Revision
-		}
-	}
-	continuation, err := s.ownerContinuationLaunch(ctx, d)
-	if err != nil {
-		return false
-	}
-	if continuation != nil {
-		checkScope += "\n" + continuation.Revision
-	}
-	if liveInspectionCheckProhibition.MatchString(checkScope) {
+	if !s.liveInspectionReadScopeAllowed(ctx, d, sourceAttempt) {
 		return false
 	}
 	observed := s.runningProjectRelease(ctx, d)

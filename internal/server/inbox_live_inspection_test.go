@@ -55,8 +55,17 @@ func TestSupplementalVerifierCurrentOutcomeHandoff(t *testing.T) {
 	}
 }
 
+func TestOriginalInspectionPreparationGrant(t *testing.T) {
+	for _, scenario := range []string{"valid", "cancelled source", "changed instructions", "foreign owner"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, origin, d := phaseLineageSetup(t)
+			liveInspectionContract(t, s, origin, d, "current outcome unpublished valid blocked preparation "+scenario, nil)
+		})
+	}
+}
+
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid supplemental valid", "current outcome publication valid", "current outcome failed checks revalidation"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid blocked preparation valid", "current outcome unpublished valid supplemental valid", "current outcome publication valid", "current outcome failed checks revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -211,6 +220,12 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			source.Status = task.AttemptStatusFailed
 		}
 	}
+	blockedPreparation := strings.HasPrefix(scenario, "current outcome unpublished valid blocked preparation ")
+	if blockedPreparation {
+		// No legacy footer shortcut: the original saved review grants the
+		// read-only inspection even if a later model opinion asks for approval.
+		d.Instructions = strings.ReplaceAll(d.Instructions, "; do not deploy unless authorized.", ".")
+	}
 	if strings.HasPrefix(scenario, "current outcome unpublished valid registered review") {
 		d.Instructions = strings.ReplaceAll(d.Instructions, "; do not deploy unless authorized.", ".")
 		if strings.HasSuffix(scenario, " handoff") {
@@ -264,6 +279,13 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		}
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if blockedPreparation {
+		assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Inspect existing release", Explanation: "Original outcome needs verification", Revision: "Read-only current-outcome inspection"}
+		if _, err := s.saveReviewAssessment(ctx, d, origin, assessment); err != nil {
+			t.Fatal(err)
+		}
+		d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	}
 	if strings.HasPrefix(scenario, "current outcome unpublished valid supplemental ") {
 		d = supplementalInspectionFixture(t, s, origin, d, database)
 		switch strings.TrimPrefix(scenario, "current outcome unpublished valid supplemental ") {
@@ -349,18 +371,48 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal("inspection did not deduplicate")
 	}
 	_ = store.DeleteTask(ctx, "phase-blocker")
-	if scenario == "current outcome unpublished valid preparation" || scenario == "current outcome unpublished valid scope preparation" {
+	if scenario == "current outcome unpublished valid preparation" || scenario == "current outcome unpublished valid scope preparation" || blockedPreparation {
 		parent := launch
 		owned, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "preparing", parent.ID)
 		if err != nil || owned == nil {
 			t.Fatal("could not reserve preparation", err)
 		}
 		reason := task.InspectionPublicationPreparationError
-		if strings.Contains(scenario, "scope preparation") {
+		if strings.Contains(scenario, "scope preparation") || blockedPreparation {
 			reason = task.InspectionScopePreparationError
 		}
 		if err := store.(task.LaunchStore).FinishLaunch(ctx, parent.ID, owned.LeaseToken, "stopped", time.Now(), reason); err != nil {
 			t.Fatal(err)
+		}
+		if blockedPreparation {
+			opinion := origin
+			opinion.RequestID = db.GenerateUUID()
+			assessment := inboxReviewEvaluation{Decision: "blocked", RemainingWork: "external", Finding: "Worker cannot deploy", Explanation: "Model asks for owner deployment approval", ManagerAction: "needs_owner", ManagerReason: "worker deny_deploy"}
+			if _, err := s.saveReviewAssessment(ctx, d, opinion, assessment); err != nil {
+				t.Fatal(err)
+			}
+			switch strings.TrimPrefix(scenario, "current outcome unpublished valid blocked preparation ") {
+			case "cancelled source":
+				source.CancelRequested = true
+				if err := store.UpdateAttempt(ctx, source); err != nil {
+					t.Fatal(err)
+				}
+			case "changed instructions":
+				row, _ := store.GetTask(ctx, d.ID)
+				row.Instructions += "\nChanged approved scope"
+				if err := store.UpdateTask(ctx, row); err != nil {
+					t.Fatal(err)
+				}
+			case "foreign owner":
+				origin.OwnerID = "another-owner"
+			}
+			d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+			if !strings.HasSuffix(scenario, "preparation valid") {
+				if s.recoverLiveResultInspection(ctx, d, origin) {
+					t.Fatal("original admission bypassed changed authority", scenario)
+				}
+				return
+			}
 		}
 		if err := store.CreateTask(ctx, &task.Task{ID: "phase-blocker", ProjectID: d.ProjectID, Title: "Other work", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
 			t.Fatal(err)
@@ -394,8 +446,15 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		if retained.State != "stopped" || retained.Revision != parent.Revision {
 			t.Fatal("historical preparation was overwritten")
 		}
-		if !s.recoverLiveResultInspection(ctx, d, origin) {
+		if !s.recoverLiveResultInspection(ctx, d, origin) && !blockedPreparation {
 			t.Fatal("replacement did not deduplicate")
+		}
+		if blockedPreparation {
+			latest, _ := s.taskSvc.LatestLaunch(ctx, d.ID)
+			attempts, _ := store.ListAttempts(ctx, d.ID)
+			if latest == nil || latest.ID != launch.ID || latest.State != "queued" || len(attempts) != len(d.Attempts) {
+				t.Fatal("original grant repair duplicated admission or execution")
+			}
 		}
 		_ = store.DeleteTask(ctx, "phase-blocker")
 		scenario = "current outcome unpublished valid"

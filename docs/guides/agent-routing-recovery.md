@@ -95,6 +95,12 @@ The replacement retains the original expiry and authorization, observes the
 current release, and passes normal source and lane checks. It only inspects an
 exact snapshot; it cannot implement, push, deploy or accept the task. This shares
 the existing preparation allowance rather than resetting task retry budgets.
+The same preparation repair can finish an already saved, still-valid admission
+even if a later model opinion asks the owner to deploy. That opinion is not new
+owner scope: original approval, native source validity, inspection prohibitions
+and cancellation are rechecked. This permits only the originally admitted
+read-only inspection; it neither overrides an owner restriction nor establishes
+deployment, successful verification or task acceptance.
 
 ### Supplemental verification and the current release
 
