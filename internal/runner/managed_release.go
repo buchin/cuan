@@ -23,6 +23,8 @@ const managedReleaseClaimActivity = "managed_release_claim"
 type ManagedReleaseClaim struct {
 	Version          int    `json:"version"`
 	TaskID           string `json:"task_id"`
+	ProjectID        string `json:"project_id"`
+	RoomID           string `json:"room_id"`
 	AttemptID        string `json:"attempt_id"`
 	RunnerID         string `json:"runner_id"`
 	InstructionsHash string `json:"instructions_hash"`
@@ -42,7 +44,7 @@ func (s *RunnerService) bindManagedReleaseClaim(ctx context.Context, req ClaimTa
 	if att.TaskID != t.ID || att.RunnerID != req.RunnerID || att.Status != task.AttemptStatusRunning || att.StartedAt == nil || att.CancelRequested || att.CanceledAt != nil || claim.RepoOwner == "" || claim.RepoName == "" || strings.TrimSpace(claim.DeployBranch) == "" {
 		return errors.New("managed release admission identity is unavailable")
 	}
-	binding := &ManagedReleaseClaim{Version: 1, TaskID: t.ID, AttemptID: att.ID, RunnerID: att.RunnerID, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), Repository: claim.RepoOwner + "/" + claim.RepoName, TargetBranch: claim.DeployBranch}
+	binding := &ManagedReleaseClaim{Version: 1, TaskID: t.ID, ProjectID: t.ProjectID, RoomID: t.SourceRoomID, AttemptID: att.ID, RunnerID: att.RunnerID, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), Repository: claim.RepoOwner + "/" + claim.RepoName, TargetBranch: claim.DeployBranch}
 	raw, err := json.Marshal(binding)
 	if err != nil {
 		return err
@@ -77,7 +79,7 @@ func (s *RunnerService) managedReleaseClaimForCompletion(ctx context.Context, t 
 	var binding ManagedReleaseClaim
 	decoder := json.NewDecoder(strings.NewReader(receipt.Message))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&binding) != nil || decoder.Decode(&struct{}{}) != io.EOF || binding.Version != 1 || binding.TaskID != t.ID || binding.AttemptID != att.ID || binding.RunnerID != att.RunnerID || binding.InstructionsHash != task.LaunchInstructionsHash(t.Instructions) || receipt.TaskID != t.ID || receipt.AttemptID == nil || *receipt.AttemptID != att.ID || receipt.Author != att.RunnerID || receipt.ActivityType != managedReleaseClaimActivity || att.StartedAt == nil || receipt.CreatedAt.Before(*att.StartedAt) || receipt.CreatedAt.After(time.Now().UTC()) || att.CancelRequested || att.CanceledAt != nil || t.ProjectID == "" || t.SourceRoomID == "" || t.ExecutionCategory != task.ExecutionCategoryCode || s.projectFinder == nil {
+	if decoder.Decode(&binding) != nil || decoder.Decode(&struct{}{}) != io.EOF || binding.Version != 1 || binding.TaskID != t.ID || binding.ProjectID != t.ProjectID || binding.RoomID != t.SourceRoomID || binding.AttemptID != att.ID || binding.RunnerID != att.RunnerID || binding.InstructionsHash != task.LaunchInstructionsHash(t.Instructions) || receipt.TaskID != t.ID || receipt.AttemptID == nil || *receipt.AttemptID != att.ID || receipt.Author != att.RunnerID || receipt.ActivityType != managedReleaseClaimActivity || att.StartedAt == nil || receipt.CreatedAt.Before(*att.StartedAt) || receipt.CreatedAt.After(time.Now().UTC()) || att.CancelRequested || att.CanceledAt != nil || t.ProjectID == "" || t.SourceRoomID == "" || t.ExecutionCategory != task.ExecutionCategoryCode || s.projectFinder == nil {
 		return nil, errors.New("managed release admission no longer matches execution")
 	}
 	limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
@@ -134,4 +136,27 @@ func validateManagedReleaseSource(binding *ManagedReleaseClaim, req CompleteAtte
 		return errors.New("managed release manifest identity unavailable")
 	}
 	return nil
+}
+
+func (s *RunnerService) prepareManagedReleaseHandoff(ctx context.Context, binding *ManagedReleaseClaim, t *task.Task, att *task.TaskAttempt, req CompleteAttemptRequest, now time.Time) (*task.TaskActivity, error) {
+	if binding == nil {
+		return nil, nil
+	}
+	if req.ManagedReleaseSource == nil || validateManagedReleaseSource(binding, req) != nil || !req.AgentReportRequired || !req.AgentReportConfirmed || req.ExitCode != 0 || req.LiveDeploymentConfirmed || strings.TrimSpace(req.DiffSummary) == "" || req.PRURL != "" || req.PRNumber != 0 {
+		return nil, errors.New("managed release source handoff evidence is incomplete")
+	}
+	activities, err := s.taskStore.ListActivities(ctx, t.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !task.ImplementationFinalReport(activities, t.ID, att.ID) {
+		return nil, errors.New("managed release requires a saved implementation handoff")
+	}
+	source := req.ManagedReleaseSource
+	receipt := task.NativeReleaseHandoff{Version: 1, TaskID: t.ID, AttemptID: att.ID, SourceCommit: source.Commit, InstructionsHash: binding.InstructionsHash, VerificationHash: source.VerificationHash, Repository: binding.Repository, TargetBranch: binding.TargetBranch, ManifestHash: source.ManifestHash}
+	raw, err := json.Marshal(receipt)
+	if err != nil {
+		return nil, err
+	}
+	return &task.TaskActivity{ID: "native-release-handoff:" + att.ID, TaskID: t.ID, AttemptID: &att.ID, ActivityType: task.ActivityNativeReleaseHandoff, Author: att.RunnerID, Message: string(raw), CreatedAt: now}, nil
 }

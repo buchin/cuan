@@ -272,6 +272,15 @@ func (r *Runner) streamLogLine(ctx context.Context, attemptID, stream, line stri
 
 func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace, t *task.Task, att *task.TaskAttempt, claim ClaimTaskResponse, compReq *CompleteAttemptRequest, lane string) {
 	policy := executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits)
+	if claim.ManagedRelease != nil {
+		// The clean source was observed before this point. Publication belongs
+		// to the native release stage, never the model or this generic PR flow.
+		if compReq.Status == task.AttemptStatusSucceeded && (compReq.ManagedReleaseSource == nil || validateManagedReleaseSource(claim.ManagedRelease, *compReq) != nil) {
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ErrorMessage = "Managed release checkpoint evidence is unavailable"
+		}
+		return
+	}
 	if policy.DenyPush {
 		// Preserve a developer-created local checkpoint as native source
 		// identity. Observing a clean HEAD creates no commit or publication;

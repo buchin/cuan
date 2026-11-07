@@ -409,3 +409,9 @@ func liveImplementationFinalReport(activities []*TaskActivity, taskID, attemptID
 	}
 	return latest != nil && (latest.NewStatus == TaskStatusReview || latest.NewStatus == TaskStatusDone) && kind != nil && kind.NewStatus == "implementation"
 }
+
+// ImplementationFinalReport checks the latest saved report and result kind for
+// this exact attempt. It is evidence of a handoff, not independent acceptance.
+func ImplementationFinalReport(activities []*TaskActivity, taskID, attemptID string) bool {
+	return liveImplementationFinalReport(activities, taskID, attemptID)
+}

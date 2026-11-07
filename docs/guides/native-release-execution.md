@@ -95,23 +95,32 @@ and a native-release-capable runner claims ordinary code work from Inbox. The
 native poller does not advertise that capability yet. Do not enable the setting
 as a completed automatic release workflow.
 
-The server records the exact task, attempt, runner, instructions hash, repository
-and target branch as a `managed_release_claim` activity. No environment values are
-copied into that receipt. Read-only, verification, inspection, standalone-file,
-and publication-restricted work cannot acquire it. This claim binding alone does
-not change developer prompting, waive deployment compliance, emit a source
-handoff, run a release, or accept a task. Completion revalidates the canonical admission against its runner, original
-instructions and frozen project configuration. Malformed or changed admissions
-fail completion; absent admissions never become retroactive grants. This still
-does not exempt a successful attempt from the existing deployment receipt gate.
-Source-handoff emission and native execution must be connected before the mode
-can be enabled.
+The server records the exact task, project, Inbox room, attempt, runner,
+instructions hash, repository and target branch as a `managed_release_claim`
+activity. No environment values are copied into that receipt. Read-only,
+verification, inspection, standalone-file and publication-restricted work cannot
+acquire it. Completion revalidates canonical admission against its original
+identity and frozen project context. Absent admissions never become retroactive
+grants.
 
-A managed developer worker can now observe the exact clean local checkpoint,
-actual task branch, tracked release descriptor hash, and passing native check
-summary hash. Observation calls the release plan loader only: it never executes
-the script. Completion rejects supplied source metadata without prior admission
-or with inconsistent commit, branch, check hash or malformed descriptor hash.
-This metadata is not yet emitted as the canonical `native_release_handoff`.
-Existing production-deployment compliance remains unchanged, so it cannot yet
-break the pending-publication cycle. Native execution remains disabled.
+Managed developer sessions own implementation, local checks and a clean task
+checkpoint. Their prompt leaves push, PR, merge and deployment to native
+coordination, and the generic post-execution publication flow is skipped. The
+runner observes the exact clean checkpoint, actual task branch, tracked release
+descriptor hash and passing native check hash through the release plan loader;
+it never executes the release script during observation.
+
+A successful managed source completion additionally requires a saved final
+implementation report, native check/source consistency, meaningful branch diff,
+zero exit, no PR claim and no claimed live deployment. It atomically persists
+`native_release_handoff` with completion and verification records, and keeps the
+task in Review with original acceptance criteria untouched. This validated
+pending-publication handoff can finish developer execution without a deployment
+receipt; it does not establish deployment or permit Done. Ordinary executions
+retain the strict exact-deployment receipt requirement.
+
+The source handoff producer is connected, but the native poller still does not
+advertise support. Native release workspace preparation, execution, trusted live
+observation and subsequent independent delivered-source verification remain
+unfinished. Do not enable the project setting or call this an operational
+end-to-end release workflow yet.

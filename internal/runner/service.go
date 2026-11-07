@@ -431,6 +431,8 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 	att.PeakRSSBytes = req.PeakRSSBytes
 	att.ExitCode = &req.ExitCode
 
+	var managedBinding *ManagedReleaseClaim
+	var managedHandoff *task.TaskActivity
 	status := req.Status
 	if IsInfraFault(status, req.ErrorMessage, req.ExitCode) {
 		status = task.AttemptStatusInterrupted
@@ -442,6 +444,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if bindingErr == nil {
 			bindingErr = validateManagedReleaseSource(binding, req)
 		}
+		managedBinding = binding
 		if bindingErr != nil {
 			status = task.AttemptStatusFailed
 			att.ErrorMessage = "Managed release admission or source could not be verified; completion was not accepted"
@@ -535,6 +538,14 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			}
 		}
 	}
+	if status == task.AttemptStatusSucceeded && managedBinding != nil {
+		var handoffErr error
+		managedHandoff, handoffErr = s.prepareManagedReleaseHandoff(ctx, managedBinding, currentTask, att, req, now)
+		if handoffErr != nil {
+			status = task.AttemptStatusFailed
+			att.ErrorMessage = "Managed release handoff could not be verified; source remains unpublished"
+		}
+	}
 	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
 			if p, err := s.projectFinder.TaskContext(ctx, t.ProjectID, t.Instructions); err == nil && p != nil {
@@ -557,7 +568,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				if policyErr != nil {
 					return nil, policyErr
 				}
-				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy {
+				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy && managedHandoff == nil {
 					activities, receiptErr := s.taskStore.ListActivities(ctx, att.TaskID)
 					if receiptErr != nil {
 						return nil, receiptErr
@@ -827,6 +838,10 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			}
 		}
 
+		if status == task.AttemptStatusSucceeded && managedHandoff != nil {
+			t.Status = task.TaskStatusReview
+			completionActivities = append(completionActivities, managedHandoff)
+		}
 		// Enforce state machine transition guardrails via pkg/taskfsm
 		if srcState, errSrc := taskfsm.FromCuanTaskStatus(oldStatus); errSrc == nil {
 			if dstState, errDst := taskfsm.FromCuanTaskStatus(t.Status); errDst == nil {

@@ -94,7 +94,7 @@ func TestManagedReleaseAdmissionRequiresExplicitFrozenScope(t *testing.T) {
 }
 
 func TestManagedReleaseCompletionRejectsChangedBinding(t *testing.T) {
-	for _, scenario := range []string{"valid", "absent", "scope", "runner", "author", "receipt attempt", "type", "unknown field", "trailing data", "future", "before start", "cancelled", "repo", "branch", "disabled", "missing context"} {
+	for _, scenario := range []string{"valid", "absent", "scope", "project", "room", "runner", "author", "receipt attempt", "type", "unknown field", "trailing data", "future", "before start", "cancelled", "repo", "branch", "disabled", "missing context"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			store := task.NewMemoryStore()
@@ -104,10 +104,14 @@ func TestManagedReleaseCompletionRejectsChangedBinding(t *testing.T) {
 			p := &project.ProjectResponse{ID: "project", RepoOwner: "owner", RepoName: "repo", DefaultBranch: "dev", Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true,"environment":"CUAN_MANAGED_RELEASE=1"}}`)}
 			finder := &mockProjectFinder{projects: map[string]*project.ProjectResponse{"project": p}}
 			svc := NewService(nil, store, finder)
-			binding := ManagedReleaseClaim{Version: 1, TaskID: item.ID, AttemptID: att.ID, RunnerID: att.RunnerID, InstructionsHash: task.LaunchInstructionsHash(item.Instructions), Repository: "owner/repo", TargetBranch: "dev"}
+			binding := ManagedReleaseClaim{Version: 1, TaskID: item.ID, ProjectID: item.ProjectID, RoomID: item.SourceRoomID, AttemptID: att.ID, RunnerID: att.RunnerID, InstructionsHash: task.LaunchInstructionsHash(item.Instructions), Repository: "owner/repo", TargetBranch: "dev"}
 			raw, _ := json.Marshal(binding)
 			event := &task.TaskActivity{ID: "managed-release-claim:" + att.ID, TaskID: item.ID, AttemptID: &att.ID, Author: att.RunnerID, ActivityType: managedReleaseClaimActivity, Message: string(raw), CreatedAt: now.Add(time.Millisecond)}
 			switch scenario {
+			case "project":
+				item.ProjectID = "changed"
+			case "room":
+				item.SourceRoomID = "other"
 			case "scope":
 				item.Instructions += " changed"
 			case "runner":
