@@ -499,3 +499,10 @@ Conceptual discovery from supplied context needs no repository/host inspection o
 terminal commands. A request for the simplest first step gets a recommendation
 with its relevant reason, without an unsolicited alternatives catalogue or a
 second choice request. Discussion alone still does not authorize execution.
+
+Studio can preselect a registered project from its name, ID, repository name or
+exact repository URL (including owner/path), or use the sole active project.
+Conflicting identities remain unbound. Generic UI/business keywords and private
+product/domain aliases do not pin a conversation. Inbox can then infer the target
+from registered context or ask the next material question. Explicit project
+selection and the existing project/authorization checks remain authoritative.

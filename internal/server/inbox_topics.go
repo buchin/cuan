@@ -69,14 +69,22 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 				}
 			} else {
 				// If no project specified, check if "default" is active.
-				// If "default" is archived or missing, fallback to the first active project.
+				// If unavailable, use only a sole active project. Ambiguous
+				// conversations remain unbound for Inbox discovery.
 				if p, err := s.projectSvc.Get(r.Context(), "default"); err != nil || p == nil || p.IsArchived {
 					if projects, err := s.projectSvc.List(r.Context()); err == nil {
+						candidate := ""
 						for _, p := range projects {
-							if !p.IsArchived && p.ID != "default" {
-								projectID = p.ID
-								break
+							if !p.IsArchived && !strings.EqualFold(p.ID, "default") {
+								if candidate != "" {
+									candidate = ""
+									break
+								}
+								candidate = p.ID
 							}
+						}
+						if candidate != "" {
+							projectID = candidate
 						}
 					}
 				}

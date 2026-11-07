@@ -263,19 +263,19 @@ func TestResolveContextualProject_AutoDetection(t *testing.T) {
 		t.Fatalf("expected auto resolve to only active project proj_cuan, got %s", p)
 	}
 
-	// Case 3: Multiple active projects -> keyword scoring detects Cuan automatically from UI words
+	// Multiple active projects: generic domain words cannot pin a conversation.
 	_ = store.CreateProject(ctx, &project.Project{ID: "proj_dojo", Name: "dojo", RepoName: "dojo"})
 
 	// Prompt from screenshot: "Apa ini bisa better? Coba analisis dl menu ini sekalian menu yang di settings siapa tau bisa better"
 	detected := s.resolveContextualProject(ctx, "Apa ini bisa better? Coba analisis dl menu ini sekalian menu yang di settings siapa tau bisa better")
-	if detected != "proj_cuan" {
-		t.Fatalf("expected auto resolution to identify proj_cuan from menu & settings keywords, got: %s", detected)
+	if detected != "" {
+		t.Fatalf("generic menu/settings words selected a project: %s", detected)
 	}
 
-	// Prompt about Shuriken licensing -> identifies dojo
+	// Product-specific guesses require registered identity/context, not a baked-in alias.
 	dojoDetected := s.resolveContextualProject(ctx, "Tolong cek lisensi shuriken untuk multi-domain")
-	if dojoDetected != "proj_dojo" {
-		t.Fatalf("expected auto resolution to identify proj_dojo from shuriken & lisensi keywords, got: %s", dojoDetected)
+	if dojoDetected != "" {
+		t.Fatalf("unregistered product alias selected a project: %s", dojoDetected)
 	}
 
 	// Explicit name matching works as expected
@@ -319,5 +319,41 @@ func TestInboxProjectContextGracefulGitTimeout(t *testing.T) {
 	}
 	if snapshot == "" {
 		t.Fatal("expected non-empty snapshot")
+	}
+}
+
+func TestContextualProjectUsesRegisteredIdentityWithoutGuessing(t *testing.T) {
+	ctx := context.Background()
+	s, _ := setupTestChatServer(t)
+	store := project.NewMemoryStore()
+	for _, p := range []*project.Project{
+		{ID: "proj_cuan_123", Name: "Cuan", RepoName: "cuan", RepoURL: "https://github.com/acme/cuan.git"},
+		{ID: "proj_dojo_456", Name: "Dojo", RepoName: "dojo", RepoURL: "https://github.com/acme/dojo.git"},
+		{ID: "proj_notes_789", Name: "Team / Notes", RepoName: "shared", RepoURL: "https://git.example.org/team/shared.git"},
+		{ID: "archived", Name: "Old", RepoURL: "https://git.example.org/team/old.git", IsArchived: true},
+	} {
+		if err := store.CreateProject(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+	for _, tc := range []struct{ name, text, want string }{
+		{"registered id", "Audit proj_dojo_456", "proj_dojo_456"},
+		{"normalized name", "Rapikan Team / Notes", "proj_notes_789"},
+		{"ambiguous projects", "Bandingkan Cuan dan Dojo, khusus menu settings React", ""},
+		{"generic ui words", "Perbaiki menu settings React dan inbox", ""},
+		{"unregistered lookalike host", "Cek https://cuan.dojo.cc.example.org/inbox", ""},
+		{"registered repo", "Audit https://git.example.org/team/shared.git", "proj_notes_789"},
+		{"repo markdown punctuation", "Audit [repo](https://github.com/acme/dojo).", "proj_dojo_456"},
+		{"different owner", "Audit https://github.com/other/cuan.git", ""},
+		{"multiple repo targets", "Bandingkan https://github.com/acme/dojo.git dan https://github.com/acme/cuan.git", ""},
+		{"conflicting prose and repo", "Cuan dibanding https://github.com/acme/dojo.git", ""},
+		{"archived repo", "Audit https://git.example.org/team/old.git", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := s.resolveContextualProject(ctx, tc.text); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,7 +27,7 @@ func (s *Server) resolveContextualProject(ctx context.Context, text string) stri
 		return ""
 	}
 	projects, err := s.projectSvc.List(ctx)
-	if err != nil || len(projects) == 0 {
+	if err != nil {
 		return ""
 	}
 	var active []*project.ProjectResponse
@@ -38,127 +39,58 @@ func (s *Server) resolveContextualProject(ctx context.Context, text string) stri
 	if len(active) == 1 {
 		return active[0].ID
 	}
-	if len(active) == 0 {
-		return ""
+
+	// Names inside arbitrary URLs are not prose project references. Compare
+	// registered repository identities separately, including their owner/path.
+	words := " " + projectIdentityWords(cuanURLRegex.ReplaceAllString(text, " ")) + " "
+	repositories := map[string]bool{}
+	for _, raw := range cuanURLRegex.FindAllString(text, -1) {
+		raw = strings.TrimRight(raw, ".,;!?)]}>\"'`")
+		if key := projectRepositoryIdentity(raw); key != "" {
+			repositories[key] = true
+		}
 	}
-
-	proseText := cuanURLRegex.ReplaceAllString(text, " ")
-	normalizedProse := strings.Map(func(r rune) rune {
-		if r == '-' || r == '_' {
-			return ' '
-		}
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
-			return ' '
-		}
-		return unicode.ToLower(r)
-	}, proseText)
-	words := " " + strings.Join(strings.Fields(normalizedProse), " ") + " "
-
-	// 1. Exact name, ID, or repoName matching
-	var matches []*project.ProjectResponse
+	matched := ""
 	for _, p := range active {
-		name := strings.ToLower(strings.TrimSpace(p.Name))
-		normName := strings.ReplaceAll(strings.ReplaceAll(name, "-", " "), "_", " ")
-		id := strings.ToLower(strings.TrimSpace(p.ID))
-		repoName := strings.ToLower(strings.TrimSpace(p.RepoName))
-		normRepoName := strings.ReplaceAll(strings.ReplaceAll(repoName, "-", " "), "_", " ")
-
-		isMatch := false
-		if normName != "" && strings.Contains(words, " "+normName+" ") {
-			isMatch = true
-		} else if id != "" && strings.Contains(words, " "+id+" ") {
-			isMatch = true
-		} else if normRepoName != "" && strings.Contains(words, " "+normRepoName+" ") {
-			isMatch = true
-		}
-		if isMatch {
-			matches = append(matches, p)
-		}
-	}
-	if len(matches) == 1 {
-		return matches[0].ID
-	}
-
-	// 2. High-confidence Domain / URL matching
-	lowerRaw := strings.ToLower(text)
-	for _, p := range active {
-		pLower := strings.ToLower(p.Name)
-		if strings.Contains(pLower, "cuan") && (strings.Contains(lowerRaw, "cuan.dojo.cc") || strings.Contains(lowerRaw, "app.dojo.cc")) {
-			return p.ID
-		}
-		if strings.Contains(pLower, "dojo") && (strings.Contains(lowerRaw, "dojo.cc") || strings.Contains(lowerRaw, "shuriken.dojo.cc")) && !strings.Contains(lowerRaw, "cuan.dojo.cc") {
-			return p.ID
-		}
-	}
-
-	// 3. Semantic keyword scoring for active projects
-	projectKeywords := map[string][]string{
-		"cuan": {
-			"cuan", "studio", "inbox", "task", "tasks", "account", "settings",
-			"agent", "agents", "contact", "contacts", "menu", "popover", "drawer",
-			"auth", "navigation", "navigasi", "frontend", "vite", "react", "tailwindcss",
-			"whisper", "runner", "chat",
-		},
-		"dojo": {
-			"dojo", "shuriken", "license", "licensing", "lisensi", "checkout",
-			"affiliate", "order", "orders", "member", "membership", "support",
-			"laravel", "php", "wordpress", "plugin", "billing", "payment",
-		},
-	}
-
-	scores := make(map[string]int)
-	for _, p := range active {
-		pNameLower := strings.ToLower(p.Name)
-		var kws []string
-		for key, list := range projectKeywords {
-			if strings.Contains(pNameLower, key) {
-				kws = append(kws, list...)
+		found := false
+		for _, identity := range []string{p.Name, p.ID, p.RepoName} {
+			name := projectIdentityWords(identity)
+			if name != "" && strings.Contains(words, " "+name+" ") {
+				found = true
 			}
 		}
-		settings := project.SettingsFromMetadata(p.Metadata)
-		for _, f := range strings.Fields(strings.ToLower(settings.Goal + " " + settings.Instructions)) {
-			clean := strings.TrimFunc(f, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
-			if len(clean) >= 4 {
-				kws = append(kws, clean)
-			}
+		if key := projectRepositoryIdentity(p.RepoURL); key != "" && repositories[key] {
+			found = true
 		}
-
-		score := 0
-		seen := make(map[string]bool)
-		for _, kw := range kws {
-			if seen[kw] {
-				continue
+		if found {
+			if matched != "" {
+				return ""
 			}
-			seen[kw] = true
-			if strings.Contains(words, " "+kw+" ") {
-				score++
-			}
-		}
-		scores[p.ID] = score
-	}
-
-	bestID := ""
-	bestScore := 0
-	secondScore := 0
-	for id, score := range scores {
-		if score > bestScore {
-			secondScore = bestScore
-			bestScore = score
-			bestID = id
-		} else if score > secondScore {
-			secondScore = score
+			matched = p.ID
 		}
 	}
-	if bestScore >= 2 && bestScore > secondScore {
-		return bestID
-	}
-	if bestScore >= 1 && secondScore == 0 {
-		return bestID
-	}
-
-	return ""
+	// Vague keywords and unregistered domains remain unbound. The Inbox PM can
+	// reason from project context without a heuristic pinning the conversation.
+	return matched
 }
 
+func projectIdentityWords(text string) string {
+	return strings.Join(strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}), " ")
+}
+
+func projectRepositoryIdentity(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil {
+		return ""
+	}
+	path := strings.TrimSuffix(strings.TrimRight(u.Path, "/"), ".git")
+	if path == "" {
+		return ""
+	}
+	return strings.ToLower(u.Host) + path
+}
 func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (string, string) {
 	if s.projectSvc == nil {
 		return "", "Project data is unavailable. Explain this limitation when relevant; analysis does not require a task."
@@ -288,7 +220,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 					break
 				}
 			}
-			if selected == nil && len(active) > 0 {
+			if selected == nil && len(active) == 1 {
 				selected = active[0]
 			}
 		}

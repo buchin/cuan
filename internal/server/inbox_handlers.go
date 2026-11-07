@@ -251,10 +251,7 @@ func (s *Server) handleCreateInboxThread(w http.ResponseWriter, r *http.Request)
 
 	projectID := strings.TrimSpace(req.ProjectID)
 	if projectID == "" && s.projectSvc != nil {
-		// Default to first active project
-		if projects, err := s.projectSvc.List(r.Context()); err == nil && len(projects) > 0 {
-			projectID = projects[0].ID
-		}
+		projectID = s.resolveContextualProject(r.Context(), messageText)
 	}
 	if projectID == "" {
 		projectID = "default"
