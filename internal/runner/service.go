@@ -254,6 +254,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection && req.SupportsNativeVisualVerification)
 	claimCtx = context.WithValue(claimCtx, liveInspectionRecoveryClaimKey{}, req.SupportsLiveInspectionRecovery)
 	claimCtx = context.WithValue(claimCtx, currentOutcomeClaimKey{}, req.SupportsCurrentOutcomeInspection)
+	claimCtx = context.WithValue(claimCtx, evidenceRevalidationClaimKey{}, req.SupportsEvidenceRevalidation)
 	att, t, err := s.store.ClaimNextQueuedAttempt(claimCtx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
 	if err != nil {
 		return nil, fmt.Errorf("claim attempt: %w", err)
@@ -297,6 +298,9 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 	if inspection != nil && inspection.Purpose == task.CurrentOutcomeInspection && !req.SupportsCurrentOutcomeInspection {
 		return nil, fmt.Errorf("runner does not support current outcome inspection")
+	}
+	if inspection != nil && inspection.RevalidationKind == task.EvidenceRevalidation && !req.SupportsEvidenceRevalidation {
+		return nil, fmt.Errorf("runner does not support evidence revalidation")
 	}
 	if runtime := s.BrowserRuntime(ctx, req.RunnerID); runtime != nil {
 		raw, _ := json.Marshal(runtime)

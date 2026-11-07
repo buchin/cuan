@@ -13,8 +13,10 @@ import (
 const LiveInspectionMarker = "Cuan live-result inspection v1: "
 const ActivityLiveInspection = "live_result_verified"
 const CurrentOutcomeInspection = "current_outcome"
+const EvidenceRevalidation = "evidence"
 
 type LiveInspectionIntent struct {
+	RevalidationKind          string    `json:"revalidation_kind,omitempty"`
 	VerifierRecoveryAttemptID string    `json:"verifier_recovery_attempt_id,omitempty"`
 	PreparationLaunchID       string    `json:"preparation_launch_id,omitempty"`
 	ReviewRequestID           string    `json:"review_request_id,omitempty"`
@@ -192,6 +194,9 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if json.Unmarshal([]byte(line), &proof) != nil {
 		return invalid("malformed_intent")
 	}
+	if proof.RevalidationKind != "" && (proof.RevalidationKind != EvidenceRevalidation || proof.Purpose != CurrentOutcomeInspection || proof.PreviousAttemptID == "" || proof.ReviewRequestID == "" || len(proof.ReviewPaths) != 0) {
+		return invalid("revalidation_kind")
+	}
 	if proof.VerifierRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
 		return invalid("recovery_shape")
 	}
@@ -203,7 +208,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
 	if proof.Purpose == CurrentOutcomeInspection {
-		validSource = (proof.SourceCommit == "" || fullObjectID(proof.SourceCommit)) && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16))
+		validSource = (proof.SourceCommit == "" || fullObjectID(proof.SourceCommit)) && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && ((len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16) || proof.RevalidationKind == EvidenceRevalidation)))
 	}
 	if t == nil {
 		return invalid("missing_task")
@@ -232,7 +237,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if launch.RequestID != proof.RequestID(t.ID) {
 		return invalid("request_binding")
 	}
-	if (proof.PreviousAttemptID == "" && proof.PreviousCommit != "") || (proof.PreviousAttemptID != "" && (!fullObjectID(proof.PreviousCommit) || proof.PreviousCommit == proof.TargetCommit)) {
+	if (proof.PreviousAttemptID == "" && proof.PreviousCommit != "") || (proof.PreviousAttemptID != "" && (!fullObjectID(proof.PreviousCommit) || (proof.PreviousCommit == proof.TargetCommit && proof.RevalidationKind != EvidenceRevalidation))) {
 		return invalid("previous_revision")
 	}
 	return &proof, nil

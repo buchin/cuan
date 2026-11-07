@@ -468,6 +468,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	claimReq := ClaimTaskRequest{
 		SupportsNativeVisualVerification: true,
 		SupportsCurrentOutcomeInspection: true,
+		SupportsEvidenceRevalidation:     true,
 		SupportsLiveInspectionRecovery:   true,
 		SupportsLiveInspection:           true,
 		SupportsVerificationFinalization: true,
@@ -773,7 +774,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit)
 			}
 		}
-		if err == nil && claim.LiveInspection.ReviewRequestID != "" {
+		if err == nil && claim.LiveInspection.ReviewRequestID != "" && claim.LiveInspection.RevalidationKind != task.EvidenceRevalidation {
 			var changed bool
 			changed, err = r.gitClient.VerificationPathsChanged(ctx, workingDir, claim.LiveInspection.PreviousCommit, claim.LiveInspection.TargetCommit, claim.LiveInspection.ReviewPaths)
 			if err == nil && !changed {

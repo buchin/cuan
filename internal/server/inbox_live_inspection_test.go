@@ -64,8 +64,13 @@ func TestOriginalInspectionPreparationGrant(t *testing.T) {
 	}
 }
 
+func TestCurrentOutcomeEvidenceRevalidation(t *testing.T) {
+	s, origin, d := phaseLineageSetup(t)
+	liveInspectionContract(t, s, origin, d, "current outcome unpublished valid evidence", nil)
+}
+
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid blocked preparation valid", "current outcome unpublished valid supplemental valid", "current outcome publication valid", "current outcome failed checks revalidation"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid evidence", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid blocked preparation valid", "current outcome unpublished valid supplemental valid", "current outcome publication valid", "current outcome failed checks revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -77,6 +82,10 @@ func TestLiveResultInspectionPostgres(t *testing.T) {
 
 func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *task.TaskDetailResponse, scenario string, database *sql.DB) {
 	t.Helper()
+	evidenceFollowup := scenario == "current outcome unpublished valid evidence"
+	if evidenceFollowup {
+		scenario = "current outcome unpublished valid"
+	}
 	s.inboxStopping.Store(true)
 	ctx := context.Background()
 	store := s.taskSvc.Store()
@@ -592,6 +601,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		t.Fatal("invalid live evidence was accepted", completed, err)
 	}
 	after, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if evidenceFollowup {
+		testEvidenceOutcomeRevalidation(t, s, origin, after, service)
+		return
+	}
 	if scenario == "current outcome unpublished valid verifier repair" {
 		_ = store.(task.LaunchStore).FinishLaunch(ctx, launch.ID, claimed.LeaseToken, "stopped", time.Now(), "Execution finished")
 		status := task.TaskStatusBlocked

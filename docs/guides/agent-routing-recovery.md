@@ -113,3 +113,27 @@ review and original owner approval; the verifier never becomes an implementation
 or deployment source. Missing receipts, changed source, cancellation and owner
 binding mismatches cannot authorize this handoff. The new inspection must still
 prove the actual feature and publication requirements independently.
+
+### Completing a specific evidence gap
+
+A current-outcome inspection that passed native source checks can still be
+rejected because its screenshots or checks do not cover an original criterion.
+A saved coordinator `continue`/`replan` verification decision may use the existing
+single revalidation allowance with `revalidation_kind=evidence`. This shares the
+same deterministic request ID as changed-source revalidation; deployment does not
+renew it and the result cannot start another revalidation chain. It can inspect
+the same or the newly observed running revision without pretending source paths
+changed. The native previous inspection receipt, passing checks, unchanged-source
+baseline and original owner/source/review bindings remain required. No code,
+configuration, push, deploy or task acceptance is authorized. The worker receives
+the concrete missing evidence, and must report actual targeted captures; unrelated
+generic application screenshots cannot establish the requested feature.
+
+Older runners without `supports_evidence_revalidation` cannot reserve this mode.
+Typed inspections/verifiers never fall back to ordinary execution of a historical
+implementation checkout. Separately, a completed current manager review with no
+saved launch can finish its original read-only admission using the saved exact
+decision. Cuan does not resend the owner/model message, retry an existing stopped
+launch, accept stale evidence or reset attempt history. The mandatory native
+verification envelope is compared to its saved raw feedback exactly; adding the
+server's read-only limits does not invalidate that original manager decision.

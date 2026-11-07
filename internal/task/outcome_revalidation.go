@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 )
 
 var reviewSourcePath = regexp.MustCompile(`\b(?:internal|pkg|web/src|scripts|docs)/[A-Za-z0-9_./-]+\.(?:go|tsx?|jsx?|mjs|cjs|py|sh|md)\b`)
@@ -15,11 +16,41 @@ var reviewSourcePath = regexp.MustCompile(`\b(?:internal|pkg|web/src|scripts|doc
 type outcomeRevalidationReviewRecord struct {
 	RequestID        string `json:"request_id"`
 	InstructionsHash string `json:"instructions_hash"`
+	EvidenceDigest   string `json:"evidence_digest"`
 	Assessment       struct {
 		Decision      string `json:"decision"`
 		RemainingWork string `json:"remaining_work"`
 		Revision      string `json:"revision"`
+		ManagerAction string `json:"manager_action"`
+		ManagerReason string `json:"manager_reason"`
 	} `json:"assessment"`
+}
+
+// The existing single revalidation allowance can complete missing evidence,
+// without pretending that source files changed or granting an implementation.
+func OutcomeEvidenceReview(t *Task, previous *TaskAttempt, events []*TaskActivity, requestID string) (string, string) {
+	if t == nil || previous == nil || previous.Status != AttemptStatusSucceeded || previous.ExitCode == nil || *previous.ExitCode != 0 || previous.ErrorMessage != "" || previous.FinishedAt == nil || previous.CancelRequested || previous.CanceledAt != nil {
+		return "", ""
+	}
+	var latest *TaskActivity
+	var selected outcomeRevalidationReviewRecord
+	for _, event := range events {
+		if event == nil || event.TaskID != t.ID || event.AttemptID == nil || *event.AttemptID != previous.ID || event.Author != "coordinator" || event.ActivityType != "coordinator_review_assessment" || event.CreatedAt.Before(*previous.FinishedAt) || event.CreatedAt.After(time.Now().UTC()) {
+			continue
+		}
+		var record outcomeRevalidationReviewRecord
+		if json.Unmarshal([]byte(event.Message), &record) != nil || record.InstructionsHash != LaunchInstructionsHash(t.Instructions) || record.RequestID == "" {
+			continue
+		}
+		if latest == nil || event.CreatedAt.After(latest.CreatedAt) || (event.CreatedAt.Equal(latest.CreatedAt) && event.ID > latest.ID) {
+			latest, selected = event, record
+		}
+	}
+	a := selected.Assessment
+	if latest == nil || (requestID != "" && requestID != selected.RequestID) || len(selected.EvidenceDigest) != 64 || a.Decision != "revise" || a.RemainingWork != "verification" || (a.ManagerAction != "continue" && a.ManagerAction != "replan") || strings.TrimSpace(a.ManagerReason) == "" || strings.TrimSpace(a.Revision) == "" || len(a.Revision) > 16000 {
+		return "", ""
+	}
+	return selected.RequestID, a.Revision
 }
 
 // OutcomeRevalidationReview returns the exact rejected inspection's latest
@@ -80,6 +111,9 @@ func OutcomeRevalidationReview(t *Task, previous *TaskAttempt, events []*TaskAct
 }
 
 func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
+	if proof.RevalidationKind != "" && proof.RevalidationKind != EvidenceRevalidation {
+		return ErrInvalidTaskInput
+	}
 	previous, err := store.GetAttempt(ctx, proof.PreviousAttemptID)
 	if err != nil {
 		return err
@@ -101,9 +135,16 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 	if err != nil {
 		return err
 	}
-	request, paths := OutcomeRevalidationReview(t, previous, events, proof.ReviewRequestID)
-	if request == "" || request != proof.ReviewRequestID || !slices.Equal(paths, proof.ReviewPaths) {
-		return ErrInvalidTaskInput
+	if proof.RevalidationKind == EvidenceRevalidation {
+		request, _ := OutcomeEvidenceReview(t, previous, events, proof.ReviewRequestID)
+		if request == "" || request != proof.ReviewRequestID || len(proof.ReviewPaths) != 0 {
+			return ErrInvalidTaskInput
+		}
+	} else {
+		request, paths := OutcomeRevalidationReview(t, previous, events, proof.ReviewRequestID)
+		if request == "" || request != proof.ReviewRequestID || !slices.Equal(paths, proof.ReviewPaths) {
+			return ErrInvalidTaskInput
+		}
 	}
 	detail := &TaskDetailResponse{Task: *t, LatestAttempt: previous, Attempts: []*TaskAttempt{previous}, Activities: events}
 	if len(FailedCheckRevalidationPaths(detail)) > 0 {

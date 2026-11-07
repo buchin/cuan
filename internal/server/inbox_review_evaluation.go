@@ -484,6 +484,21 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		if s.startReviewedLiveInspection(ctx, q, d, decision) {
 			return "Cuan memeriksa hasil pekerjaan pada versi yang sudah berjalan.\n\n[View work](/tasks/" + d.ID + ")"
 		}
+		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		verification, verificationErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		if inspectionErr != nil || verificationErr != nil || inspection != nil || verification != nil {
+			// Typed verification must keep its native source/target identity;
+			// ordinary execution would reopen the historical implementation root.
+			if outcome, scheduled := s.startVerificationFinalization(ctx, q, d, decision); scheduled {
+				return outcome
+			}
+			if outcome, scheduled := s.startVerificationFollowup(ctx, q, d, decision); scheduled {
+				return outcome
+			}
+			blocked := task.TaskStatusBlocked
+			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
+			return strings.TrimSpace(decision.Finding) + "\n\n[View work](/tasks/" + d.ID + ")"
+		}
 		// Infrastructure interruptions and canceled runs do not spend the business
 		// correction budget. A process ordinal is not a count of failed reviews.
 		if taskRevisionAttemptCount(s.reviewBudgetDetail(ctx, d)) >= 3 && !s.managerContinuationAllowed(ctx, q, d, decision.Revision) {

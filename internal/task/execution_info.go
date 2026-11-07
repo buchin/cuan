@@ -21,6 +21,7 @@ type ExecutionInfo struct {
 	TargetCommit       string                            `json:"target_commit,omitempty"`
 	RecoveryAttemptID  string                            `json:"recovery_attempt_id,omitempty"`
 	RecoveryCause      string                            `json:"recovery_cause,omitempty"`
+	RevalidationKind   string                            `json:"revalidation_kind,omitempty"`
 	Scope              executionpolicy.PublicationPolicy `json:"scope"`
 	LatestLaunch       *LaunchDiagnostic                 `json:"latest_launch,omitempty"`
 	LiveInspectionPlan *InspectionPlanDiagnostic         `json:"live_inspection_plan,omitempty"`
@@ -126,6 +127,7 @@ func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionI
 	info.IntentParsed = true
 	switch {
 	case inspection != nil:
+		info.RevalidationKind = inspection.RevalidationKind
 		info.IntentKind = "live_result_inspection"
 		if inspection.Purpose == CurrentOutcomeInspection {
 			info.IntentKind = "current_outcome_inspection"

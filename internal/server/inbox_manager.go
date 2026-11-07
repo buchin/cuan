@@ -49,7 +49,11 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 		return false
 	}
 	intent, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || (intent != nil && intent.SourceCommit != d.CommitSHA) {
+	if err != nil || intent != nil {
+		return false
+	}
+	verification, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if err != nil || verification != nil {
 		return false
 	}
 	saved, found := reviewAssessment(d, q.RequestID)

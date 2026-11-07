@@ -662,6 +662,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return
 	}
+	if s.recoverManagerVerificationHandoff(ctx, detail, *origin, requests) {
+		return
+	}
 	if s.recoverSavedEvidence(ctx, detail, *origin) {
 		return
 	}

@@ -21,11 +21,16 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 		return false
 	}
 	assessment, found := reviewAssessment(d, "")
-	if !found || assessment.Decision != "revise" || (assessment.RemainingWork != "implementation" && !(len(task.FailedCheckRevalidationPaths(d)) > 0 && assessment.RemainingWork == "verification")) {
+	if !found || assessment.Decision != "revise" {
 		return false
 	}
+	evidenceRequest, _ := task.OutcomeEvidenceReview(&d.Task, d.LatestAttempt, d.Activities, "")
+	evidence := evidenceRequest != "" && assessment.RemainingWork == "verification"
 	request, paths := task.OutcomeRevalidationReview(&d.Task, d.LatestAttempt, d.Activities, "")
-	if request == "" || len(paths) == 0 {
+	if evidence {
+		request, paths = evidenceRequest, nil
+	}
+	if request == "" || (!evidence && len(paths) == 0) {
 		return false
 	}
 	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, previous.SourceAttemptID)
@@ -42,7 +47,7 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 		return false
 	}
 	observed := s.runningProjectRelease(ctx, d)
-	if observed == nil || observed.Repository != previous.Repository || observed.Commit == previous.TargetCommit {
+	if observed == nil || observed.Repository != previous.Repository || (!evidence && observed.Commit == previous.TargetCommit) {
 		return false
 	}
 	_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
@@ -50,6 +55,9 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 		return false
 	}
 	proof := *previous
+	if evidence {
+		proof.RevalidationKind = task.EvidenceRevalidation
+	}
 	proof.PreviousAttemptID = d.LatestAttempt.ID
 	proof.PreviousCommit = previous.TargetCommit
 	proof.TargetCommit = observed.Commit
@@ -67,9 +75,11 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 	if saved != nil {
 		return saved.State == "queued" || saved.State == "claimed" || saved.State == "started"
 	}
-	changed, err := s.projectSvc.VerificationPathsChanged(ctx, d.ProjectID, d.ID, proof.PreviousCommit, proof.TargetCommit, paths)
-	if err != nil || !changed {
-		return false
+	if !evidence {
+		changed, err := s.projectSvc.VerificationPathsChanged(ctx, d.ProjectID, d.ID, proof.PreviousCommit, proof.TargetCommit, paths)
+		if err != nil || !changed {
+			return false
+		}
 	}
 	return s.startLiveResultInspection(ctx, d, origin, &proof, true)
 }
