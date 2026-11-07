@@ -36,6 +36,67 @@ func (c *CuanClient) GetProviderAccountUsage(ctx context.Context, id string) (ag
 	return data, err
 }
 
+func (c *CuanClient) ListProviderAccountModels(ctx context.Context, id string) ([]agent.ModelInfo, error) {
+	var data struct {
+		Models []agent.ModelInfo `json:"models"`
+	}
+	if strings.TrimSpace(id) == "" || strings.ContainsAny(id, "/\\?#") {
+		return nil, fmt.Errorf("a valid account ID is required")
+	}
+	err := c.readAccountJSON(ctx, "/api/v1/provider-accounts/"+url.PathEscape(id)+"/models", &data)
+	return data.Models, err
+}
+
+// SetProviderAccountModel changes only the saved model selection, preserving
+// the account label and its separate readiness/fallback policies.
+func (c *CuanClient) SetProviderAccountModel(ctx context.Context, id, model string) (*agent.ProviderAccount, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	accounts, err := c.ListProviderAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var current *agent.ProviderAccount
+	for _, account := range accounts {
+		if account.ID == id {
+			current = account
+			break
+		}
+	}
+	if current == nil || !current.CredentialsPresent || current.Legacy {
+		return nil, fmt.Errorf("choose an owned connected account")
+	}
+	if model != "" {
+		models, err := c.ListProviderAccountModels(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for _, candidate := range models {
+			found = found || candidate.ID == model
+		}
+		if !found {
+			return nil, fmt.Errorf("choose a model from this account's native catalog")
+		}
+	}
+	resp, err := c.doRequest(ctx, http.MethodPatch, "/api/v1/provider-accounts/"+url.PathEscape(id), map[string]string{"label": current.Label, "model_id": model})
+	if err != nil {
+		return nil, fmt.Errorf("could not update account model")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("account model update failed (HTTP %d)", resp.StatusCode)
+	}
+	var data struct {
+		Account *agent.ProviderAccount `json:"account"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&data) != nil || data.Account == nil || data.Account.ID != id || data.Account.ModelID != model || data.Account.Label != current.Label {
+		return nil, fmt.Errorf("account model update could not be confirmed; read account settings before retrying")
+	}
+	return data.Account, nil
+}
+
 // Verify probes the existing sign-in and updates readiness, never accepting terms or changing policy.
 func (c *CuanClient) VerifyProviderAccount(ctx context.Context, id string) (*agent.ProviderAccount, error) {
 	if strings.TrimSpace(id) == "" || strings.ContainsAny(id, "/\\?#") {
@@ -72,6 +133,8 @@ func RunAccountCLI(args []string, out, errOut io.Writer) int {
 Usage:
   cuan account list
   cuan account usage ACCOUNT_ID
+  cuan account models ACCOUNT_ID
+  cuan account model ACCOUNT_ID MODEL_ID|auto
   cuan account verify ACCOUNT_ID
 Output is JSON metadata only. Credentials and native profile paths are never returned.
 Verify probes an existing sign-in and updates readiness without accepting terms.
@@ -91,6 +154,14 @@ Usage reads the provider's availability evidence; it does not change model/fallb
 		result = map[string]any{"accounts": accounts}
 	case args[0] == "usage" && len(args) == 2:
 		result, err = GetCuanClient().GetProviderAccountUsage(ctx, args[1])
+	case args[0] == "models" && len(args) == 2:
+		result, err = GetCuanClient().ListProviderAccountModels(ctx, args[1])
+	case args[0] == "model" && len(args) == 3:
+		model := args[2]
+		if model == "auto" {
+			model = ""
+		}
+		result, err = GetCuanClient().SetProviderAccountModel(ctx, args[1], model)
 	case args[0] == "verify" && len(args) == 2:
 		result, err = GetCuanClient().VerifyProviderAccount(ctx, args[1])
 	default:

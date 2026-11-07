@@ -116,6 +116,13 @@ See [project environment guide](../../guides/project-environment-cli.md).
 
 ## Account readiness diagnostics
 
+Use `cuan account models ACCOUNT_ID` to read that connected account's installed
+native model catalog. `cuan account model ACCOUNT_ID MODEL_ID` selects a catalog
+entry; `auto` clears the selection. This authenticated Owner operation preserves
+the label and separate fallback policy, returns typed metadata, and checks the
+saved result. It applies to future sessions; an already running process keeps
+its original model. Never infer runnable model names from quota labels alone.
+
 `cuan integration github show` and MCP `get_github_connection` read the owner's
 saved Cuan GitHub connection without credentials. Check this before asking the
 owner to sign in: a worker's standalone `gh` session is a different identity.

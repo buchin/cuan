@@ -68,3 +68,44 @@ func TestAccountDiagnosticsNeverEchoFailureBody(t *testing.T) {
 		t.Fatal("error leaked response body", err)
 	}
 }
+
+func TestAccountModelSelectionUsesNativeCatalogAndPreservesSettings(t *testing.T) {
+	patches := 0
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.Header.Get("Authorization") != "Bearer fixture-token" {
+			t.Error("missing owner authentication")
+		}
+		switch {
+		case r.URL.Path == "/api/v1/provider-accounts":
+			w.Write([]byte(`{"accounts":[{"id":"acct_fixture","label":"Existing label","credentials_present":true,"allow_failover":true}]}`))
+		case r.URL.Path == "/api/v1/provider-accounts/acct_fixture/models":
+			w.Write([]byte(`{"models":[{"id":"claude-sonnet-fixture"}]}`))
+		case r.URL.Path == "/api/v1/provider-accounts/acct_fixture" && r.Method == http.MethodPatch:
+			patches++
+			var body map[string]string
+			if json.NewDecoder(r.Body).Decode(&body) != nil || len(body) != 2 || body["label"] != "Existing label" || body["model_id"] != "claude-sonnet-fixture" {
+				t.Error("model selection expanded mutation", body)
+			}
+			w.Write([]byte(`{"account":{"id":"acct_fixture","label":"Existing label","model_id":"claude-sonnet-fixture","credentials_present":true,"allow_failover":true}}`))
+		default:
+			t.Error("unexpected model operation", r.Method, r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer server.Close()
+	client := &CuanClient{BaseURL: server.URL, AuthToken: "fixture-token", HTTPClient: server.Client()}
+	account, err := client.SetProviderAccountModel(context.Background(), "acct_fixture", "claude-sonnet-fixture")
+	if err != nil || account.ModelID != "claude-sonnet-fixture" || !account.AllowFailover || patches != 1 {
+		t.Fatal("model change not confirmed", account, err, patches)
+	}
+	if _, err := client.SetProviderAccountModel(context.Background(), "acct_fixture", "invented-model"); err == nil || patches != 1 {
+		t.Fatal("invented model was applied")
+	}
+	before := requests
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", `{"task_id":"worker"}`)
+	if _, err := client.SetProviderAccountModel(context.Background(), "acct_fixture", "claude-sonnet-fixture"); err == nil || requests != before {
+		t.Fatal("bound worker used Owner account settings")
+	}
+}
