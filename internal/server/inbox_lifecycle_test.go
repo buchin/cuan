@@ -38,7 +38,22 @@ func inboxFixture(t *testing.T) (*Server, string, func(string, string, string) *
 		s.terminalManager.CloseAll()
 	}
 	s.SetTerminalManager(terminal.NewManager(terminal.ManagerConfig{WorkspacesDir: t.TempDir()}))
-	t.Cleanup(func() { s.terminalManager.CloseAll() })
+	t.Cleanup(func() {
+		// Stop background fixture writers before TempDir removes their HOME.
+		s.inboxStopping.Store(true)
+		s.inboxCancels.Range(func(_, value any) bool {
+			if cancel, ok := value.(context.CancelFunc); ok {
+				cancel()
+			}
+			return true
+		})
+		s.terminalManager.CloseAll()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.DrainInboxWorker(ctx); err != nil {
+			t.Errorf("fixture Inbox workers did not stop: %v", err)
+		}
+	})
 	call := func(method, path, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
 		r.Header.Set("Authorization", "Bearer "+token)

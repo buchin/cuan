@@ -902,6 +902,9 @@ DoD:
 func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "ui-project", Name: "UI"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
 	now := time.Now().UTC()
 	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: resolved.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "approval", CreatedAt: now, Deadline: now.Add(time.Hour)}
@@ -960,6 +963,9 @@ func TestInboxDelegation_PopulatesDoDChecklist(t *testing.T) {
 func TestInboxDelegation_PreservesAIProseExplanation(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "terminal-project", Name: "Terminal"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
 	now := time.Now().UTC()
 	q := db.InboxRequest{
@@ -1263,5 +1269,68 @@ func TestDelegationDoDAbbreviationExcludesAccessDetails(t *testing.T) {
 		if strings.Contains(item.Text, "fixture-only-value") || item.Completed {
 			t.Fatal("invalid initial criterion")
 		}
+	}
+}
+
+func TestDefaultDelegationNeverChoosesArbitraryProject(t *testing.T) {
+	for _, name := range []string{"ambiguous", "conversation target", "no active project"} {
+		pinned := name == "conversation target"
+		t.Run(name, func(t *testing.T) {
+			s, _, _, _ := inboxFixture(t)
+			ctx := context.Background()
+			projects := project.NewMemoryStore()
+			for _, p := range []*project.Project{{ID: "default", Name: "Default", IsArchived: true}, {ID: "alpha", Name: "Alpha"}, {ID: "beta", Name: "Beta"}} {
+				if name == "no active project" {
+					p.IsArchived = true
+				}
+				if err := projects.CreateProject(ctx, p); err != nil {
+					t.Fatal(err)
+				}
+			}
+			s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+			resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+			if pinned {
+				room, err := s.projectStudioRepo.GetRoomByID(ctx, resolved.RoomID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				room.ProjectID = "beta"
+				if err := s.projectStudioRepo.UpdateRoom(ctx, room); err != nil {
+					t.Fatal(err)
+				}
+			}
+			now := time.Now().UTC()
+			q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: resolved.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "queued", PayloadHash: "approval", CreatedAt: now, Deadline: now.Add(time.Hour)}
+			plan := inboxApprovalPlan{Title: "Read-only audit", Description: "Inspect existing work without changes or deployment", ProjectName: "Default"}
+			payload, _ := json.Marshal(attachmentMessage{Text: "Approved: Read-only audit", Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: plan}})
+			message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", Content: attachmentEnvelope + string(payload), CreatedAt: now}
+			if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+				t.Fatal(err)
+			}
+			raw, _ := json.Marshal(inboxDelegation{Action: "run", Title: plan.Title, Description: plan.Description, ProjectName: plan.ProjectName, AuthorizationID: q.MessageID})
+			out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+			items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pinned {
+				assertTaskLaunchPreview(t, s, out)
+				if len(items) != 1 || items[0].ProjectID != "beta" {
+					t.Fatalf("lost conversation project: %+v", items)
+				}
+			} else {
+				want := "project is ambiguous"
+				if name == "no active project" {
+					want = "no active project"
+				}
+				if len(items) != 0 || !strings.Contains(out, want) {
+					t.Fatalf("unresolved Default launched work: tasks=%d output=%s", len(items), out)
+				}
+			}
+			all, err := s.projectSvc.List(ctx)
+			if err != nil || len(all) != 3 {
+				t.Fatalf("delegation created a replacement project: %d %v", len(all), err)
+			}
+		})
 	}
 }

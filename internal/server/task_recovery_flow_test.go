@@ -97,8 +97,15 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reco
 	if structured {
 		first = response("```cuan-approval\n{\"title\":\"Verify saved artifact\",\"description\":\"Create an artifact once and verify it. Do not deploy.\",\"project_id\":\"recovery-project\"}\n```")
 	}
+	scope := "Create an artifact once and verify it. Do not deploy."
+	if !repository {
+		// Explicit artifact scope selects the operational path without asking
+		// a nondeveloper to specify an internal execution category.
+		scope = "Create a standalone artifact file once and verify it. No repository changes. Do not deploy."
+		first = strings.ReplaceAll(first, "Create an artifact once and verify it. Do not deploy.", scope)
+	}
 	revision := response("```cuan-delegate\n{\"project_id\":\"recovery-project\",\"authorization_message_id\":\"AUTH\",\"task_id\":\"msg_AUTH\",\"revision\":\"Verify the saved artifact and checkpoint; preserve completed work. Report verified result without deployment.\"}\n```")
-	finalRaw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"decision":"pass","explanation":"Verified the original artifact after recovery. No duplicate work or deployment.","revision":""}`}})
+	finalRaw, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": `{"requested_outcome":"completed","decision":"pass","explanation":"Verified the original artifact after recovery. No duplicate work or deployment.","revision":""}`}})
 	final := string(finalRaw)
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
@@ -118,8 +125,10 @@ if [ "$1" = "--dangerously-skip-permissions" ]; then
   "$CUAN_TASK_EXECUTABLE" task report --progress 'ARTIFACT_SAVED_ONCE; verification pending' >/dev/null || exit 20
   kill -KILL $$
  fi
- grep -q ARTIFACT_SAVED_ONCE "$guide" || exit 21
- grep -q 'Do not deploy' "$guide" || exit 22
+ # Compact artifact guidance keeps original scope and progress available on demand.
+ "$CUAN_TASK_EXECUTABLE" task get > "$HOME/recovery-current-task" || exit 21
+ grep -q ARTIFACT_SAVED_ONCE "$guide" "$HOME/recovery-current-task" || exit 21
+ grep -q 'Do not deploy' "$guide" "$HOME/recovery-current-task" || exit 22
  grep -q ORIGINAL_ARTIFACT "$HOME/recovery-artifact" || exit 23
  if [ -f "$HOME/recovery-workspace" ]; then
   [ "$PWD" = "$(cat "$HOME/recovery-workspace")" ] || exit 41
@@ -156,7 +165,7 @@ esac
 		t.Fatal(err)
 	}
 	requestID := db.GenerateUUID()
-	body, _ := json.Marshal(map[string]string{"request_id": requestID, "message": "Create an artifact once and verify it. Run this now. Do not deploy."})
+	body, _ := json.Marshal(map[string]string{"request_id": requestID, "message": scope + " Run this now."})
 	w := call("POST", "/api/v1/chat/conversations/agent_lifecycle/messages", string(body))
 	if w.Code != 200 && w.Code != 202 {
 		t.Fatal(w.Code, w.Body.String())
@@ -228,8 +237,15 @@ esac
 	s.deliverInboxTaskUpdates(ctx)
 	waitInboxState(t, s, accepted.Request.RoomID, delegationMessageID("task-review:"+result.LatestAttempt.ID), "completed")
 	result, _ = s.taskSvc.GetTaskDetail(ctx, result.ID)
-	if result.Status != "done" || len(result.Attempts) != 2 {
-		t.Fatal(result.Status, len(result.Attempts))
+	wantStatus := "done"
+	if repository {
+		// Preserved dirty work has no exact committed source for the separate
+		// verifier. Recovery success must not turn that into acceptance.
+		wantStatus = "blocked"
+	}
+	if result.Status != wantStatus || len(result.Attempts) != 2 {
+		diagnostic, _ := json.MarshalIndent(result, "", "  ")
+		t.Fatalf("recovery did not reach acceptance: %s", diagnostic)
 	}
 	if repository && !missing {
 		workspaceBytes, err := os.ReadFile(filepath.Join(home, "recovery-workspace"))
@@ -281,7 +297,11 @@ esac
 			outcomes++
 		}
 	}
-	if outcomes != 1 {
+	wantOutcomes := 1
+	if repository {
+		wantOutcomes = 0
+	}
+	if outcomes != wantOutcomes {
 		t.Fatal("missing or duplicate verified coordinator outcome", outcomes)
 	}
 	if !strings.Contains(result.Instructions, "Do not deploy") || !strings.Contains(result.Instructions, "Approval message: "+accepted.Request.MessageID) {

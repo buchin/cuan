@@ -292,8 +292,8 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		return fail("the plan belongs to another project")
 	}
 	if d.ProjectID == "" {
-		// If project_name is "Default" (case-insensitive) and default project is archived or unavailable,
-		// resolve to an active project from the room or workspace so execution is not blocked.
+		// A generic Default label may use the active conversation project or
+		// the sole active registered project, never an arbitrary list entry.
 		if strings.EqualFold(d.ProjectName, "default") {
 			if room.ProjectID != "" && room.ProjectID != "default" {
 				if p, err := s.projectSvc.Get(ctx, room.ProjectID); err == nil && p != nil && !p.IsArchived {
@@ -301,14 +301,21 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 				}
 			}
 			if d.ProjectID == "" {
-				if projects, err := s.projectSvc.List(ctx); err == nil {
-					for _, p := range projects {
-						if !p.IsArchived && p.ID != "default" {
-							d.ProjectID = p.ID
-							break
+				projects, err := s.projectSvc.List(ctx)
+				if err != nil {
+					return fail("the registered projects could not be read; retry project selection before starting work")
+				}
+				for _, p := range projects {
+					if !p.IsArchived && !strings.EqualFold(p.ID, "default") {
+						if d.ProjectID != "" {
+							return fail("the project is ambiguous; select the matching registered project from the approved context before starting work")
 						}
+						d.ProjectID = p.ID
 					}
 				}
+			}
+			if d.ProjectID == "" {
+				return fail("no active project matches Default; propose a named project before starting work")
 			}
 		}
 		if d.ProjectID == "" {

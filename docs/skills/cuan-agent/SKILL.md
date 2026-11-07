@@ -481,3 +481,10 @@ while the coordinator evaluates evidence and schedules any required verifier.
 Pending criteria are preserved; review is not acceptance. Failed, interrupted or
 cancelled execution still records its actual stopped/blocked state. Board tasks
 without an Inbox coordinator retain their existing incomplete-evidence handling.
+
+A generic Default project label can resolve to the active conversation project
+or the sole active registered project. It never selects the first of several
+projects or creates a replacement Default workspace. With several candidates,
+select the registered target from the approved context; clarify only when the
+actual destination remains ambiguous. A failed project-list read is not an empty
+workspace and must not trigger project creation.

@@ -42,7 +42,8 @@ func waitWorkspaceTask(t *testing.T, s *Server, id, state string) *task.TaskDeta
 			return detail
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("expected terminal state %s; got %+v %v", state, detail, err)
+			diagnostic, _ := json.MarshalIndent(detail, "", "  ")
+			t.Fatalf("expected terminal state %s; got %s %v", state, diagnostic, err)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
