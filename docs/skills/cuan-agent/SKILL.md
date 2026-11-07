@@ -563,6 +563,11 @@ tool-free coordinator turn when no new attachment needs inspection. The PM uses
 the conversation to distinguish approval from questions, objections and changed
 requirements; this mode itself grants no execution permission. Repository rules
 and workspace inspection are for execution, not deciding a saved proposal.
+When approving that proposal through the coordinator, delegation supplies only
+`proposal_message_id` and the current `authorization_message_id`. Native code
+loads the exact saved scope; the model need not reproduce its text. References
+must match the current authenticated owner's preceding proposal and cannot be
+mixed with replacement scope or execution settings.
 
 Standalone file classification recognizes `mandiri` in natural Indonesian
 sentences alongside an explicit artifact outcome, no repository changes and no

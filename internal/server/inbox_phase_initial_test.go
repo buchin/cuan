@@ -26,6 +26,10 @@ func TestApprovedInitialPhasePostgres(t *testing.T) {
 	withPhasePostgres(t, func(database *sql.DB) { initialPhaseScopeContract(t, database) })
 }
 
+func TestApprovedInitialPhaseReferencePostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) { initialPhaseScopeContractMode(t, true, database) })
+}
+
 func initialPhaseScopeContract(t *testing.T, databases ...*sql.DB) {
 	initialPhaseScopeContractMode(t, false, databases...)
 }
@@ -86,6 +90,28 @@ func initialPhaseScopeContractMode(t *testing.T, conversational bool, databases 
 	}
 	delegation, _ := json.Marshal(inboxDelegation{Action: "run", Title: plan.Title, Description: plan.Description, ProjectID: plan.ProjectID, AuthorizationID: q.MessageID})
 	if conversational {
+		stored, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		canonical, err := s.delegationPlan(ctx, stored, q.OwnerID, q.AgentID)
+		if err != nil || canonical == nil {
+			t.Fatal("missing saved proposal", err)
+		}
+		// The agent names the saved proposal; native code supplies its exact scope.
+		delegation, _ = json.Marshal(inboxDelegation{ProposalID: canonical.MessageID, AuthorizationID: q.MessageID})
+		transport := coordinatorJSON("Starting the approved proposal.", "delegation", inboxDelegation{ProposalID: canonical.MessageID, AuthorizationID: q.MessageID})
+		if _, err := decodeInboxCoordinatorResponse(transport); err != nil {
+			t.Fatal("native response transport rejected proposal reference", err)
+		}
+		forged, _ := json.Marshal(inboxDelegation{ProposalID: db.GenerateUUID(), AuthorizationID: q.MessageID})
+		if out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(forged)+"\n```"); !strings.Contains(out, "proposal reference does not match") {
+			t.Fatal("different proposal reference admitted", out)
+		}
+		mixed, _ := json.Marshal(inboxDelegation{ProposalID: canonical.MessageID, AuthorizationID: q.MessageID, Description: "new scope"})
+		if _, _, err := parseInboxDelegation("```cuan-delegate\n" + string(mixed) + "\n```"); err == nil {
+			t.Fatal("proposal reference mixed with rewritten scope")
+		}
 		changed, _ := json.Marshal(inboxDelegation{Action: "run", Title: plan.Title, Description: plan.Description + "\nInvented extra work", ProjectID: plan.ProjectID, AuthorizationID: q.MessageID})
 		out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(changed)+"\n```")
 		if !strings.Contains(out, "differs from the approved plan") {

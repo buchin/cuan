@@ -36,6 +36,7 @@ The authorization must identify an actual user message in this conversation. Tas
 A task result review must never add scope or retry blindly. After three attempts, report a concrete blocker instead.`
 
 type inboxDelegation struct {
+	ProposalID        string `json:"proposal_message_id,omitempty"`
 	Reconcile         bool   `json:"reconcile,omitempty"`
 	ExecutionCategory string `json:"execution_category,omitempty"`
 	Action            string `json:"action,omitempty"`
@@ -74,6 +75,13 @@ func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
 	}
 	if decoder.Decode(new(any)) != io.EOF {
 		return "", nil, bad
+	}
+	if d.ProposalID != "" {
+		if !db.IsValidUUID(d.ProposalID) || d.AuthorizationID == "" || d.TaskID != "" || d.Title != "" || d.Description != "" || d.ProjectID != "" || d.ProjectName != "" || d.Revision != "" || d.AgentID != "" || d.ExecutionCategory != "" || d.Reconcile || (d.Action != "" && d.Action != "run") {
+			return "", nil, bad
+		}
+		prose := strings.TrimSpace(normalized[:start] + "\n" + strings.TrimSpace(tail[endFence+3:]))
+		return prose, &d, nil
 	}
 	if d.TaskID != "" && d.ProjectName != "" {
 		return "", nil, bad
@@ -257,6 +265,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	approvedPlan, planErr := s.delegationPlan(ctx, authorization, q.OwnerID, q.AgentID)
 	if planErr != nil {
 		return fail("the saved proposal could not be verified")
+	}
+	if d.ProposalID != "" {
+		if !authenticatedCurrentTurn || d.AuthorizationID != q.MessageID || approvedPlan == nil || approvedPlan.MessageID != d.ProposalID || approvedPlan.Plan.Continuation != nil {
+			return fail("the proposal reference does not match this owner's current saved plan")
+		}
+		*d = inboxDelegation{Title: approvedPlan.Plan.Title, Description: approvedPlan.Plan.Description, ProjectID: approvedPlan.Plan.ProjectID, ProjectName: approvedPlan.Plan.ProjectName, AuthorizationID: q.MessageID}
 	}
 	if plan := approvedPlan; plan != nil && plan.Plan.Continuation != nil {
 		c := plan.Plan.Continuation
