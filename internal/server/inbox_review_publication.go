@@ -14,11 +14,13 @@ import (
 const inboxPublicationReviewPolicy = "Production publication review policy: v2"
 
 type reviewPublication struct {
-	Required        bool   `json:"required"`
-	Verified        bool   `json:"verified"`
-	Commit          string `json:"result_commit"`
-	Provenance      string `json:"provenance,omitempty"`
-	ConnectionState string `json:"connection_state,omitempty"`
+	Required              bool   `json:"required"`
+	Verified              bool   `json:"verified"`
+	Commit                string `json:"result_commit"`
+	Provenance            string `json:"provenance,omitempty"`
+	ConnectionState       string `json:"connection_state,omitempty"`
+	ObservedRelease       string `json:"observed_release,omitempty"`
+	ResultCommitContained *bool  `json:"result_commit_contained,omitempty"`
 }
 
 // The reviewer cannot waive the same project publication gate enforced by the
@@ -53,10 +55,18 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	}
 	if !result.Verified {
 		if running := s.runningProjectRelease(ctx, d); running != nil {
-			if contained, err := s.projectSvc.PublishedCommitContained(ctx, d.ProjectID, d.CommitSHA, running.Commit); err == nil && contained {
-				result.Verified, result.Provenance = true, running.Provenance+"_contains_result_commit"
-			} else if inspected := s.liveInspectionReviewContext(ctx, d); inspected != nil && inspected["verified_result_commit"] == running.Commit {
-				result.Verified, result.Provenance, result.Commit = true, "verified_current_project_snapshot", running.Commit
+			contained, err := s.projectSvc.PublishedCommitContained(ctx, d.ProjectID, d.CommitSHA, running.Commit)
+			if err == nil {
+				result.ObservedRelease = running.Commit
+				result.ResultCommitContained = &contained
+				if contained {
+					result.Verified, result.Provenance = true, running.Provenance+"_contains_result_commit"
+				}
+			}
+			if !result.Verified {
+				if inspected := s.liveInspectionReviewContext(ctx, d); inspected != nil && inspected["verified_result_commit"] == running.Commit {
+					result.Verified, result.Provenance, result.Commit = true, "verified_current_project_snapshot", running.Commit
+				}
 			}
 		}
 	}
@@ -94,6 +104,25 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 			Explanation:   "Hasil pekerjaan tersimpan. Koneksi untuk memverifikasi website belum tersedia; pekerjaan ini belum bisa dinyatakan selesai.",
 			ManagerAction: "wait", ManagerReason: missingPublicationConnectionGuidance,
 			VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft,
+		}
+	}
+	// Unknown publication must be reconciled first. Successful native ancestry
+	// inspection is different: when it has established that the result commit
+	// is absent, do not convert a concrete implementation handoff back into
+	// another read-only audit. This classifies work, never grants execution.
+	if decision.Decision == "revise" && decision.RemainingWork == "implementation" &&
+		observation.ResultCommitContained != nil && !*observation.ResultCommitContained &&
+		releaseObjectID.MatchString(observation.ObservedRelease) {
+		approved, _ := s.inboxApprovedTaskScope(ctx, d)
+		if approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy {
+			const prefix = "Native publication reconciliation: "
+			if !strings.HasPrefix(decision.Revision, prefix) {
+				decision.Revision = prefix + "the observed registered release " + observation.ObservedRelease +
+					" does not contain result commit " + observation.Commit +
+					". This establishes commit non-inclusion, not feature absence or permission to repeat effects. Reconcile equivalent or overlapping changes and saved publication effects before modifying anything. Continue only the concrete remaining original work through a separately authorized execution; preserve original owner restrictions, existing files and independent acceptance gates. Reviewer correction: " + decision.Revision
+			}
+			decision.RequestedOutcome = "unfinished"
+			return decision
 		}
 	}
 	// Reapplying the guard preserves the exact saved continuation identity.
