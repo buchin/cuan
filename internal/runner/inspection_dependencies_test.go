@@ -46,7 +46,7 @@ func TestInspectionDependenciesUsePrivateLockedSetup(t *testing.T) {
 			}
 			script := "#!/bin/sh\n[ -z \"$CUAN_AUTH_TOKEN$NPM_TOKEN$CUAN_TASK_CAPABILITY_JSON\" ] || exit 9\n[ \"$HOME\" != \"$ORIGINAL_HOME\" ] || exit 10\nprintf '%s\\n' \"$@\" > setup-arguments\nprintf '%s' \"$HOME\" > setup-home\n"
 			if scenario == "failed installer" {
-				script += "exit 7\n"
+				script += "printf 'npm ERR code ENOSPC\\nsecret=private-installer-secret\\n' >&2\nexit 7\n"
 			}
 			write(filepath.Join(bin, "npm"), script)
 			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -57,6 +57,9 @@ func TestInspectionDependenciesUsePrivateLockedSetup(t *testing.T) {
 			err := prepareInspectionDependencies(context.Background(), root)
 			if (err == nil) != (scenario == "valid") {
 				t.Fatalf("unexpected setup acceptance: %v", err)
+			}
+			if scenario == "failed installer" && (!strings.Contains(err.Error(), "ENOSPC") || strings.Contains(err.Error(), "private-installer-secret")) {
+				t.Fatal("missing useful or leaked installer diagnostic", err)
 			}
 			args, readErr := os.ReadFile(filepath.Join(root, "setup-arguments"))
 			if scenario == "valid" {

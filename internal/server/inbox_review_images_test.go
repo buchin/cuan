@@ -55,12 +55,16 @@ func TestVisualReviewReadsExactDeliveredImageDimensionsAndRejectsTextOnlyPass(t 
 			t.Fatal(err)
 		}
 	}
+	visualDecision := s.requireVisualReview(ctx, d, inboxReviewEvaluation{Decision: "pass"})
+	if visualDecision.Decision != "revise" || !strings.Contains(visualDecision.Explanation, "belum diperiksa secara visual") {
+		t.Fatal("visual gate accepted uninspected images", visualDecision)
+	}
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"pass","finding":"Report says screenshots passed.","remaining_work":"none","explanation":"Accepted.","revision":""}`)
 	after, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Status == task.TaskStatusDone || !strings.Contains(output, "belum diperiksa secara visual") {
+	if after.Status == task.TaskStatusDone || strings.TrimSpace(output) == "" {
 		t.Fatal("text-only acceptance bypassed visual review", output)
 	}
 	saved, ok := reviewAssessment(after, q.RequestID)
@@ -97,5 +101,17 @@ func publishReviewFixtureImage(t *testing.T, s *Server, d *task.TaskDetailRespon
 	}
 	if err = s.publishTaskArtifacts(context.Background(), d, "owner", files); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestVisualReviewPreservesPreCaptureDependencyFailure(t *testing.T) {
+	s, d, _ := stalledReviewFixture(t, "completed")
+	d.LatestAttempt.Status = task.AttemptStatusFailed
+	d.LatestAttempt.ErrorMessage = "locked frontend dependency preparation failed; saved source is preserved: npm ERR code EAI_AGAIN"
+	for _, initial := range []string{"pass", "revise"} {
+		decision := s.requireVisualReview(context.Background(), d, inboxReviewEvaluation{Decision: initial, Revision: "Inspect generated screenshots"})
+		if decision.Decision != "revise" || decision.RemainingWork != "verification" || !strings.Contains(decision.Revision, "EAI_AGAIN") || !strings.Contains(decision.Revision, "before visual capture") {
+			t.Fatal("setup failure became a missing-image task", decision)
+		}
 	}
 }

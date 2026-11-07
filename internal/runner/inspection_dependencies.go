@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 )
+
+const InspectionDependencyFailurePrefix = "locked frontend dependency preparation failed; saved source is preserved"
 
 // Prepare only known frontend roots in the owned verification snapshot. npm
 // receives no task capability, provider credentials, user npm config or scripts.
@@ -70,13 +71,14 @@ func prepareInspectionDependencies(parent context.Context, root string) error {
 		cmd := exec.CommandContext(ctx, "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--userconfig", filepath.Join(privateHome, "user.npmrc"), "--globalconfig", filepath.Join(privateHome, "global.npmrc"))
 		cmd.Dir = directory
 		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + privateHome, "CI=true", "NPM_CONFIG_CACHE=" + filepath.Join(privateHome, "cache")}
-		cmd.Stdout = io.Discard
-		cmd.Stderr = io.Discard
+		var output verifierOutputTail
+		cmd.Stdout = &output
+		cmd.Stderr = &output
 		err = cmd.Run()
 		cancel()
 		_ = os.RemoveAll(privateHome)
 		if err != nil {
-			return fmt.Errorf("locked frontend dependency preparation failed; saved source is preserved")
+			return fmt.Errorf("%s: %s", InspectionDependencyFailurePrefix, nativeReleaseDiagnostic(output.String(), nil))
 		}
 	}
 	return nil

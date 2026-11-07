@@ -361,3 +361,11 @@ instructions explicitly distinguish this from SHA equality; an original request
 for an exact revision remains binding. Source inclusion proves publication only:
 feature behavior, independent checks and every other original criterion remain
 required. A read-only verifier is not expected to deploy again.
+
+Inspection dependency preparation retains a bounded, redacted npm output tail
+when setup fails. The private installer environment still excludes task/provider
+credentials, user npm configuration and lifecycle scripts. Review treats that
+recorded prerequisite failure as occurring before capture or feature checks;
+missing images from an unstarted capture are not a separate implementation defect.
+A setup failure never establishes feature correctness or permits editing a
+read-only snapshot. Resolve the actual diagnostic before obtaining fresh evidence.

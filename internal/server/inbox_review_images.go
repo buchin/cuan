@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -98,6 +99,10 @@ func (s *Server) inboxReviewImagePaths(ctx context.Context, q db.InboxRequest) [
 }
 
 func (s *Server) requireVisualReview(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
+	if (decision.Decision == "pass" || decision.Decision == "revise") && d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusFailed && strings.HasPrefix(d.LatestAttempt.ErrorMessage, runner.InspectionDependencyFailurePrefix) {
+		return inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", Finding: "Persiapan pengujian belum berhasil.", Explanation: "Pemeriksaan belum berjalan karena persiapan dependency gagal; hasil belum bisa diterima.", Revision: "Inspection setup failed before visual capture or feature verification. Diagnose the native dependency preparation error first, preserving the approved source, read-only snapshot and existing scope. No captures were produced at this stage; do not inspect nonexistent images, fabricate screenshots or repeat deployment. After the prerequisite is resolved, obtain fresh verification through the authorized native path. Recorded setup diagnostic: " + d.LatestAttempt.ErrorMessage}
+	}
+
 	if decision.Decision == "pass" && d != nil && d.LatestAttempt != nil {
 		expected, err := task.BoundVisualRecipe(d.Activities, d.ID, d.LatestAttempt.ID)
 		if err != nil || expected != nil {
