@@ -370,6 +370,14 @@ exact process finish. Completion and delivered-source verification require that
 post-process evidence. Duplicate requests reuse the matching final observation,
 without rerunning deployment or rewriting the activation timestamp.
 
+For Cuan's own production project, the authenticated native observation endpoint
+can identify its responding production build when both registered repository and
+expected release SHA match. It does not require an additional SSH connection to
+observe that same process. Development builds, other repositories and different
+revisions cannot use this path. Active-attempt, preparation, process-finish and
+project-revalidation checks still apply; observation never accepts the task or
+replaces independent feature verification.
+
 Task source identity and production release identity can differ after merge.
 Native `result_commit_contained=true` plus verified publication establishes that
 the source is included in the observed release. PM and independent verifier

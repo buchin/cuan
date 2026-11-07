@@ -83,8 +83,12 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 			return
 		}
 	}
+	// Cuan can observe its own production build through this authenticated
+	// request. Match the registered repository and exact expected revision;
+	// another project or an older process still needs its registered verifier.
+	currentProcess := s.publicationConnectionState(p) == "current_process" && s.cfg.CommitSHA == input.Commit
 	c, err := publication.FromEnvironment(project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment))
-	if err != nil {
+	if err != nil && !currentProcess {
 		respondJSONError(w, 503, "Registered publication verifier is unavailable")
 		return
 	}
@@ -99,7 +103,7 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
-	if verify(ctx, c, input.Commit) != nil {
+	if !currentProcess && verify(ctx, c, input.Commit) != nil {
 		respondJSONError(w, 422, "Production revision and health could not be independently verified")
 		return
 	}

@@ -18,7 +18,7 @@ import (
 )
 
 func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T) {
-	for _, scenario := range []string{"verified", "unverified", "cancelled-during-check", "connection-revoked", "archived-during-check", "repository-changed", "branch-changed", "wrong-runner", "wrong-commit", "no-connection", "unauthenticated", "model-receipt"} {
+	for _, scenario := range []string{"verified", "unverified", "cancelled-during-check", "connection-revoked", "archived-during-check", "repository-changed", "branch-changed", "wrong-runner", "wrong-commit", "no-connection", "unauthenticated", "model-receipt", "process-verified", "process-wrong-repository", "process-wrong-revision", "process-development"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, token := setupTestChatServer(t)
 			ctx := context.Background()
@@ -26,7 +26,7 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 			_, key, _ := ed25519.GenerateKey(rand.Reader)
 			signer, _ := ssh.NewSignerFromKey(key)
 			environment := "CUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=project-user\nCUAN_PUBLICATION_SSH_PASSWORD=private-project-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
-			if scenario == "no-connection" {
+			if scenario == "no-connection" || strings.HasPrefix(scenario, "process-") {
 				environment = ""
 			}
 			metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{Environment: environment}})
@@ -36,6 +36,21 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 			}
 			s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 			commit := strings.Repeat("a", 40)
+			if strings.HasPrefix(scenario, "process-") {
+				p.RepoURL = "https://github.com/owner/repo.git"
+				if err := projects.UpdateProject(ctx, p); err != nil {
+					t.Fatal(err)
+				}
+				s.cfg.Environment, s.cfg.SourceRepository, s.cfg.CommitSHA = "production", "owner/repo", commit
+				switch scenario {
+				case "process-wrong-repository":
+					s.cfg.SourceRepository = "foreign/repo"
+				case "process-wrong-revision":
+					s.cfg.CommitSHA = strings.Repeat("b", 40)
+				case "process-development":
+					s.cfg.Environment = "development"
+				}
+			}
 			item := &task.Task{ID: "publication-task", ProjectID: p.ID, Title: "Approved result", Status: task.TaskStatusDoing, CommitSHA: commit}
 			if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
 				t.Fatal(err)
@@ -109,7 +124,7 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 				want = 422
 			case "cancelled-during-check", "connection-revoked", "archived-during-check", "repository-changed", "branch-changed", "wrong-runner", "wrong-commit":
 				want = 409
-			case "no-connection":
+			case "no-connection", "process-wrong-repository", "process-wrong-revision", "process-development":
 				want = 503
 			case "unauthenticated":
 				want = 401
@@ -126,11 +141,14 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if task.VerifiedDeployment(d.Activities, d.LatestAttempt, commit, time.Now().UTC()) != (scenario == "verified") {
+			if task.VerifiedDeployment(d.Activities, d.LatestAttempt, commit, time.Now().UTC()) != (scenario == "verified" || scenario == "process-verified") {
 				t.Fatal("publication fact recorded without independent active observation")
 			}
 			if scenario == "verified" && calls != 1 {
 				t.Fatal("missing native observation")
+			}
+			if strings.HasPrefix(scenario, "process-") && calls != 0 {
+				t.Fatal("current process borrowed an SSH connection")
 			}
 			if scenario == "verified" {
 				repeated := httptest.NewRequest("POST", "/api/v1/runner/attempts/"+attempt.ID+"/publication/verify", strings.NewReader(string(raw)))
