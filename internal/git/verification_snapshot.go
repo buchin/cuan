@@ -172,15 +172,16 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 		return "", errors.New("verification history could not be bounded")
 	}
 	distance, err := strconv.Atoi(strings.TrimSpace(string(distanceRaw)))
-	if err != nil || distance < 0 || distance == int(^uint(0)>>1) {
+	if err != nil || distance < 0 || distance > int(^uint(0)>>1)-2 {
 		return "", errors.New("verification history could not be bounded")
 	}
 	if _, err := c.snapshotGit(ctx, "", "init", "--quiet", temporary); err != nil {
 		return "", errors.New("verification snapshot could not be created")
 	}
-	// Transfer only the target history needed to reach the source, rather than
-	// copying all cache branches, dangling objects and obsolete build artifacts.
-	for _, args := range [][]string{{"config", "core.hooksPath", "/dev/null"}, {"fetch", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", "--recurse-submodules=no", "--depth=" + strconv.Itoa(distance+1), "--", source, targetCommit}, {"checkout", "--detach", targetCommit}} {
+	// Keep the source's immediate parent as the comparison baseline as well.
+	// A depth-one exact-source snapshot cannot independently inspect its diff.
+	// Unrelated branches, dangling objects and build artifacts remain excluded.
+	for _, args := range [][]string{{"config", "core.hooksPath", "/dev/null"}, {"fetch", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", "--recurse-submodules=no", "--depth=" + strconv.Itoa(distance+2), "--", source, targetCommit}, {"checkout", "--detach", targetCommit}} {
 		if _, err := c.snapshotGit(ctx, temporary, args...); err != nil {
 			return "", errors.New("verification snapshot could not be prepared")
 		}

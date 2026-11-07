@@ -204,6 +204,22 @@ func TestVerificationSnapshotWaitRespectsCancellationWithoutCreatingFiles(t *tes
 	}
 }
 
+func TestVerificationSnapshotRetainsExactSourceComparisonBaseline(t *testing.T) {
+	source, _, baseline, implemented, run := snapshotFixture(t)
+	// An exact-source verification uses the implementation itself as both the
+	// source and target, but still needs its parent to inspect the actual diff.
+	path, err := NewClient().PrepareVerificationSnapshot(context.Background(), source, filepath.Join(t.TempDir(), "audit"), implemented, implemented)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := run(path, "diff", "--name-only", baseline, implemented); got != "feature.txt" {
+		t.Fatalf("source comparison unavailable or wrong: %q", got)
+	}
+	if run(path, "rev-parse", "HEAD") != implemented || run(path, "remote") != "" {
+		t.Fatal("comparison changed source identity or retained remotes")
+	}
+}
+
 func TestVerificationSnapshotExcludesUnrelatedCacheObjects(t *testing.T) {
 	source, _, original, live, run := snapshotFixture(t)
 	noise := filepath.Join(t.TempDir(), "old-build.bin")

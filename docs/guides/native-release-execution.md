@@ -378,6 +378,13 @@ revisions cannot use this path. Active-attempt, preparation, process-finish and
 project-revalidation checks still apply; observation never accepts the task or
 replaces independent feature verification.
 
+New independent verification snapshots retain the source commit's immediate
+parent in their bounded history, including when source and target are identical.
+This lets a verifier inspect the actual implementation diff without fetching a
+remote or borrowing the mutable developer checkout. Unrelated cache branches,
+dangling objects and old build artifacts remain excluded. Existing snapshots are
+preserved rather than rewritten while an inspection is active.
+
 Task source identity and production release identity can differ after merge.
 Native `result_commit_contained=true` plus verified publication establishes that
 the source is included in the observed release. PM and independent verifier
