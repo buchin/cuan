@@ -121,8 +121,23 @@ var originalVisualScope = regexp.MustCompile(`(?i)\b(?:ui|ux|frontend|front-end|
 // without swallowing a later request to inspect the UI.
 var visualMutationProhibition = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak ada|jangan|dilarang|do not|don't|never)\s+(?:(?:push|pr|deploy|deployment|perubahan konfigurasi|configuration changes?)(?:\s*,\s*|\s+(?:or|and|atau|dan)\s+))*(?:(?:perubahan|ubah|mengubah|change|changes? to|modify|edit)\s+(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\s+changes?\b)`)
 
+var commandOutputScope = regexp.MustCompile(`(?i)--help\b|\b(?:cli|command-line|terminal|stdout|stderr)\b`)
+var webOutputScope = regexp.MustCompile(`(?i)\b(?:halaman|page|browser|web|component|komponen|panel)\b`)
+var ambiguousDisplayScope = regexp.MustCompile(`(?i)\btampilan\b`)
+
 func hasOriginalVisualScope(text string) bool {
-	return originalVisualScope.MatchString(visualMutationProhibition.ReplaceAllString(text, ""))
+	text = visualMutationProhibition.ReplaceAllString(text, "")
+	for _, line := range strings.Split(text, "\n") {
+		// "Tampilan output --help" describes terminal text, not a request for
+		// browser screenshots. Keep explicit UI/layout and web requirements.
+		if commandOutputScope.MatchString(line) && !webOutputScope.MatchString(line) {
+			line = ambiguousDisplayScope.ReplaceAllString(line, "")
+		}
+		if originalVisualScope.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 // runnerClaimRequiresVision classifies task evidence requirements separately

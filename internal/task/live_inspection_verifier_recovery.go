@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// One narrowly identified retry repairs Cuan's known PHPUnit/Pest invocation
-// mismatch. Actual failing assertions, changed source, interruption and cancelled
-// executions never gain this allowance. The failed attempt remains historical.
+// One bounded retry repairs recorded verifier infrastructure or invocation
+// failures. Actual failing assertions, interruption and cancelled executions do
+// not gain this allowance. The failed attempt remains historical.
 func ValidateInspectionVerifierRecovery(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
 	if t == nil || proof == nil || proof.VerifierRecoveryAttemptID == "" || proof.Purpose != CurrentOutcomeInspection || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 {
 		return ErrInvalidTaskInput
@@ -17,26 +17,40 @@ func ValidateInspectionVerifierRecovery(ctx context.Context, store Store, t *Tas
 	if err != nil {
 		return err
 	}
-	if a == nil || a.TaskID != t.ID || a.Status != AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != "Live result inspection project checks did not pass" || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || proof.ObservedAt.Before(*a.FinishedAt) {
+	if a == nil || a.TaskID != t.ID || a.Status != AttemptStatusFailed || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || proof.ObservedAt.Before(*a.FinishedAt) {
 		return ErrInvalidTaskInput
 	}
 	previous, err := LiveInspectionForAttempt(ctx, store, t, a.ID)
 	if err != nil || previous == nil || previous.VerifierRecoveryAttemptID != "" {
 		return ErrInvalidTaskInput
 	}
-	// The whole intent must match; only a new observation time and the bounded
-	// recovery identity differ. No target or accepted source can be substituted.
+	events, err := store.ListActivities(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	infrastructure := InspectionInfrastructureFailure(a, events)
+	// Preserve the full original source/scope/authority. Infrastructure failures
+	// may use a freshly observed running target; they produced no accepted result.
+	// A project-check invocation repair remains bound to its original target.
 	expected := *proof
 	expected.VerifierRecoveryAttemptID = ""
 	expected.ObservedAt = previous.ObservedAt
+	if infrastructure {
+		if !fullObjectID(proof.TargetCommit) {
+			return ErrInvalidTaskInput
+		}
+		expected.TargetCommit = previous.TargetCommit
+	}
 	left, _ := json.Marshal(expected)
 	right, _ := json.Marshal(previous)
 	if string(left) != string(right) {
 		return ErrInvalidTaskInput
 	}
-	events, err := store.ListActivities(ctx, t.ID)
-	if err != nil {
-		return err
+	if infrastructure {
+		return nil
+	}
+	if a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != "Live result inspection project checks did not pass" {
+		return ErrInvalidTaskInput
 	}
 	if !liveImplementationFinalReport(events, t.ID, a.ID) {
 		return ErrInvalidTaskInput

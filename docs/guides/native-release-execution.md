@@ -378,6 +378,21 @@ missing images from an unstarted capture are not a separate implementation defec
 A setup failure never establishes feature correctness or permits editing a
 read-only snapshot. Resolve the actual diagnostic before obtaining fresh evidence.
 
+Verifier recovery uses one durable retry per original source/scope. Saved launch
+state failure transitions or native dependency-setup failures with empty check
+records and no final report can receive a new read-only inspection. The running
+target is observed again; source, repository, original authorization and failed
+history remain bound. A prepared published source also requires fresh registered
+containment when the target changes. Unknown errors, actual failing checks,
+repository changes, cancellation and final blocked reports do not qualify for
+this setup recovery. Another deployment cannot renew its retry allowance.
+
+Terminal help text is not a browser visual requirement. Inspection classification
+keeps command-output descriptions separate from explicit UI, layout, web-page,
+image and screenshot requirements. A CLI-only inspection therefore does not bind
+a frontend visual recipe or prepare npm dependencies solely because its request
+mentions the display of `--help`. Real UI work retains the visual quality gate.
+
 Review context also includes validated `native_preparation_history` from terminal
 native stages, even when later execution/completion failed. It preserves the
 actual attempt status and explicitly identifies preparation-only facts. The

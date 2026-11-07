@@ -33,6 +33,26 @@ func TestLocalOnlyFailureDoesNotInspectUnrelatedRelease(t *testing.T) {
 	liveInspectionContract(t, s, origin, d, "current outcome local only", nil)
 }
 
+func TestInspectionInfrastructureRecovery(t *testing.T) {
+	for _, mode := range []string{"launch", "setup"} {
+		t.Run(mode, func(t *testing.T) {
+			s, origin, d := phaseLineageSetup(t)
+			liveInspectionContract(t, s, origin, d, "current outcome unpublished valid infrastructure "+mode, nil)
+		})
+	}
+}
+
+func TestInspectionInfrastructureRecoveryPostgres(t *testing.T) {
+	for _, mode := range []string{"launch", "setup"} {
+		t.Run(mode, func(t *testing.T) {
+			withPhasePostgres(t, func(database *sql.DB) {
+				s, origin, d := phaseLineageSetup(t, database)
+				liveInspectionContract(t, s, origin, d, "current outcome unpublished valid infrastructure "+mode, database)
+			})
+		})
+	}
+}
+
 func TestUnrecordedLocalCurrentOutcomeLifecycle(t *testing.T) {
 	for _, scenario := range []string{"local", "local missing report", "local failed checks", "local missing identity", "local changed repository", "local release changed", "foreign runner", "missing start", "zero start", "future start", "future creation", "cancelled", "cancelled at", "running", "foreign owner", "different repository", "checks forbidden"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -623,6 +643,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	info, infoErr := s.taskSvc.ExecutionInfo(ctx, d.ID)
 	if infoErr != nil || !info.IntentParsed || info.AttemptID != claim.Attempt.ID || info.SourceAttemptID != claim.LiveInspection.SourceAttemptID || info.TargetCommit != claim.LiveInspection.TargetCommit || !info.Scope.ReadOnlyRepository {
 		t.Fatal("execution inspection lost exact saved intent", infoErr)
+	}
+	if strings.HasPrefix(scenario, "current outcome unpublished valid infrastructure ") {
+		testInspectionInfrastructureRecovery(t, s, origin, d, claim, service, strings.TrimPrefix(scenario, "current outcome unpublished valid infrastructure "))
+		return
 	}
 	if scenario == "current outcome unpublished valid registered review" && claim.PHPUnitTargets != `["tests/Feature/ExampleTest.php"]` {
 		t.Fatal("registered nonsecret test targets lost", claim.PHPUnitTargets)

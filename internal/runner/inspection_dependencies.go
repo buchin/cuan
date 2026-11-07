@@ -9,9 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/buchin/cuan/internal/task"
 )
 
-const InspectionDependencyFailurePrefix = "locked frontend dependency preparation failed; saved source is preserved"
+const InspectionDependencyFailurePrefix = task.InspectionDependencyFailurePrefix
 
 // Prepare only known frontend roots in the owned verification snapshot. npm
 // receives no task capability, provider credentials, user npm config or scripts.
