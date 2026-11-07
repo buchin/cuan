@@ -5,13 +5,18 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publication"
 	"golang.org/x/crypto/ssh"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -40,8 +45,11 @@ func TestNativeReleasePublicationObservesPreparedTarget(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
+func TestNativeReleasePreparationPublishesActualBoundCheckout(t *testing.T) {
+	nativeReleaseQueueContract(t, nil, "prepare")
+}
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})
@@ -82,7 +90,12 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	if err := repo.FinishInboxRequest(ctx, q, nil); err != nil {
 		t.Fatal(err)
 	}
-	item := &task.Task{ID: "native-release-task", ProjectID: "default", SourceRoomID: q.RoomID, SourceMessageID: q.MessageID, AssignedAgent: q.AgentID, Title: "Implement approved feature", Instructions: "Cuan managed delegation v1.\nImplement and deploy the approved feature.", Status: task.TaskStatusReview, ExecutionCategory: task.ExecutionCategoryCode, CommitSHA: strings.Repeat("a", 40), Summary: "Source handoff", CompleteNote: "Native checks passed; publication pending", CreatedAt: now, UpdatedAt: now}
+	nativeSource, nativeManifest := strings.Repeat("a", 40), strings.Repeat("b", 64)
+	preparedTarget := ""
+	if scenario == "prepare" {
+		nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s)
+	}
+	item := &task.Task{ID: "native-release-task", ProjectID: "default", SourceRoomID: q.RoomID, SourceMessageID: q.MessageID, AssignedAgent: q.AgentID, Title: "Implement approved feature", Instructions: "Cuan managed delegation v1.\nImplement and deploy the approved feature.", Status: task.TaskStatusReview, ExecutionCategory: task.ExecutionCategoryCode, CommitSHA: nativeSource, Summary: "Source handoff", CompleteNote: "Native checks passed; publication pending", CreatedAt: now, UpdatedAt: now}
 	start, finish := now.Add(-time.Minute), now.Add(-time.Second)
 	exit := 0
 	source := &task.TaskAttempt{ID: "native-source", TaskID: item.ID, RunnerID: "source-runner", AgentName: "agy", Status: task.AttemptStatusSucceeded, ExitCode: &exit, CreatedAt: start.Add(-time.Second), StartedAt: &start, FinishedAt: &finish}
@@ -95,7 +108,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	must(store.CreateTask(ctx, item))
 	must(store.CreateAttempt(ctx, source))
 	summary := "Project verification: test.sh --fast (exit 0)"
-	p := task.NativeReleaseIntent{SourceAttemptID: source.ID, SourceCommit: item.CommitSHA, SourceVerificationHash: task.VerificationSummaryHash(summary), InstructionsHash: task.LaunchInstructionsHash(item.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: q.RequestID, Repository: "owner/repo", TargetBranch: "dev", ManifestHash: strings.Repeat("b", 64)}
+	p := task.NativeReleaseIntent{SourceAttemptID: source.ID, SourceCommit: item.CommitSHA, SourceVerificationHash: task.VerificationSummaryHash(summary), InstructionsHash: task.LaunchInstructionsHash(item.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: q.RequestID, Repository: "owner/repo", TargetBranch: "dev", ManifestHash: nativeManifest}
 	checks, _ := json.Marshal(task.RunnerVerificationRecord{Summary: summary, Changes: task.NewRunnerChangeRecord(item.CommitSHA, "source.go | 1 +")})
 	handoff, _ := json.Marshal(task.NativeReleaseHandoff{Version: 1, TaskID: item.ID, AttemptID: source.ID, SourceCommit: p.SourceCommit, InstructionsHash: p.InstructionsHash, VerificationHash: p.SourceVerificationHash, Repository: p.Repository, TargetBranch: p.TargetBranch, ManifestHash: p.ManifestHash})
 	for _, a := range []*task.TaskActivity{{ID: "report", TaskID: item.ID, AttemptID: &source.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Actual source report", CreatedAt: start}, {ID: "kind", TaskID: item.ID, AttemptID: &source.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", CreatedAt: start}, {ID: "verification:" + source.ID, TaskID: item.ID, AttemptID: &source.ID, Author: source.RunnerID, ActivityType: task.ActivityTypeRunnerVerification, Message: string(checks), CreatedAt: finish}, {ID: "native-release-handoff:" + source.ID, TaskID: item.ID, AttemptID: &source.ID, Author: source.RunnerID, ActivityType: task.ActivityNativeReleaseHandoff, Message: string(handoff), CreatedAt: finish}} {
@@ -189,6 +202,49 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	if !claim.Claimed || claim.NativeRelease == nil || claim.NativeRelease.SourceCommit != p.SourceCommit || capacityCalls.Load() != 0 {
 		t.Fatal("native claim lost source or depended on AI capacity")
 	}
+	if scenario == "prepare" {
+		type preparationResult struct {
+			workspace *project.PreparedNativeReleaseWorkspace
+			err       error
+		}
+		results := make(chan preparationResult, 2)
+		for i := 0; i < 2; i++ {
+			go func() {
+				workspace, err := s.prepareNativeReleaseWorkspace(ctx, item.ID, claim.Attempt.ID, claim.Attempt.RunnerID, preparedTarget)
+				results <- preparationResult{workspace, err}
+			}()
+		}
+		first, second := <-results, <-results
+		must(first.err)
+		must(second.err)
+		prepared := first.workspace
+		if prepared == nil || second.workspace == nil || second.workspace.Path != prepared.Path {
+			t.Fatal("concurrent native preparation diverged")
+		}
+		if prepared == nil || prepared.SourceCommit != p.SourceCommit || prepared.TargetCommit != preparedTarget || prepared.ManifestHash != p.ManifestHash {
+			t.Fatal("native preparation lost source chain")
+		}
+		again, err := s.prepareNativeReleaseWorkspace(ctx, item.ID, claim.Attempt.ID, claim.Attempt.RunnerID, preparedTarget)
+		must(err)
+		if again.Path != prepared.Path {
+			t.Fatal("preparation was not reused")
+		}
+		fresh, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		record, err := task.NativeReleasePreparationForAttempt(ctx, store, &fresh.Task, claim.Attempt.ID)
+		must(err)
+		if record.TargetCommit != preparedTarget || fresh.CommitSHA != p.SourceCommit || fresh.Status == task.TaskStatusDone {
+			t.Fatal("preparation rewrote source or accepted task")
+		}
+		if _, err := s.prepareNativeReleaseWorkspace(ctx, item.ID, claim.Attempt.ID, claim.Attempt.RunnerID, p.SourceCommit); err == nil {
+			t.Fatal("existing preparation rebound to another target")
+		}
+		source.CancelRequested = true
+		must(store.UpdateAttempt(ctx, source))
+		if _, err := s.prepareNativeReleaseWorkspace(ctx, item.ID, claim.Attempt.ID, claim.Attempt.RunnerID, preparedTarget); err == nil {
+			t.Fatal("revoked source reused preparation")
+		}
+	}
 	if strings.HasPrefix(scenario, "publication") {
 		verifyNativePreparedPublication(t, s, token, item, source, claim, p, scenario)
 	}
@@ -253,4 +309,41 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 	if verified != (scenario == "publication") || detail.CommitSHA != intent.SourceCommit || detail.Status == task.TaskStatusDone {
 		t.Fatal("release observation rewrote developer source or accepted unfinished work")
 	}
+}
+
+func nativeReleaseProjectFixture(t *testing.T, s *Server) (string, string, string) {
+	t.Helper()
+	root := t.TempDir()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.Mkdir(filepath.Join(root, ".cuan"), 0700))
+	manifest := `{"version":1,"command":["release.sh"],"timeout_seconds":5}`
+	for name, body := range map[string]string{".cuan/release.json": manifest, "release.sh": "#!/bin/sh\ntouch executed\n", "work.txt": "source"} {
+		must(os.WriteFile(filepath.Join(root, name), []byte(body), 0700))
+	}
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("fixture git: %s", out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("init", "--initial-branch=dev")
+	run("add", ".")
+	run("-c", "user.name=Fixture Human", "-c", "user.email=human@example.invalid", "commit", "-m", "Source")
+	source := run("rev-parse", "HEAD")
+	must(os.WriteFile(filepath.Join(root, "work.txt"), []byte("target"), 0700))
+	run("add", ".")
+	run("-c", "user.name=Fixture Human", "-c", "user.email=human@example.invalid", "commit", "-m", "Target")
+	target := run("rev-parse", "HEAD")
+	projects := project.NewMemoryStore()
+	must(projects.CreateProject(context.Background(), &project.Project{ID: "default", Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", LocalPath: root, Metadata: json.RawMessage(`{"cuan_settings":{"workspace_revision":"initial","auto_deploy":true,"environment":"CUAN_MANAGED_RELEASE=1"}}`)}))
+	s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
+	digest := sha256.Sum256([]byte(manifest))
+	return source, target, hex.EncodeToString(digest[:])
 }

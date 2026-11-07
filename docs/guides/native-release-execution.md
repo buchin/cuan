@@ -177,7 +177,8 @@ only the canonical native-coordinator activity for a currently running, uncancel
 and unexpired exact native attempt whose source handoff remains valid. Unknown
 JSON fields, changed identities, foreign authors and invalid chronology fail.
 This contract does not establish deployment health, script execution or
-independent acceptance. Its native preparation publisher is not connected yet.
+independent acceptance. Its native preparation publisher is implemented internally; HTTP/worker
+dispatch still does not invoke it.
 
 The authenticated publication observer now resolves a native attempt's expected
 release SHA from its canonical preparation record, preserving the developer SHA
@@ -187,3 +188,13 @@ preparation before saving the existing trusted deployment receipt for that targe
 Caller-supplied alternative targets are rejected. Ordinary execution retains its
 existing target rules. This is observer integration only: preparation publishing,
 worker result transport and delivered-source verifier wiring remain unfinished.
+
+The internal server coordinator `prepareNativeReleaseWorkspace` now authorizes
+the saved native launch against original Inbox approval, verifies active source
+lineage, serializes preparation with the frozen repository lease, and invokes
+project checkout preparation. It rechecks task, source and project afterward,
+then persists the canonical preparation record. Identical recovery reuses that
+record; a different target cannot replace it. Its target argument must come from
+the coordinator's reconciled merge receipt. No public caller may choose it.
+This method is not yet invoked by production dispatch and performs no push,
+merge, release-script execution, live observation or task acceptance itself.
