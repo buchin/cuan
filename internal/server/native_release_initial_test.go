@@ -67,6 +67,7 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		must(s.taskSvc.Store().UpdateAttempt(ctx, source))
 	}
 	gets, merges := 0, 0
+	merged := false
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer saved-owner" {
 			t.Error("merge borrowed wrong owner")
@@ -75,7 +76,7 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/commits/"):
 			gets++
 			sha := strings.Repeat("d", 40)
-			if scenario == "initial contained" {
+			if scenario == "initial contained" || merged {
 				sha = target
 			}
 			json.NewEncoder(w).Encode(map[string]string{"sha": sha})
@@ -88,6 +89,7 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 			json.NewEncoder(w).Encode(map[string]any{"status": status, "merge_base_commit": map[string]string{"sha": ancestor}})
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/owner/repo/merges":
 			merges++
+			merged = true
 			var payload map[string]string
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Error(err)
@@ -180,7 +182,11 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 	if scenario == "initial contained" {
 		expectedMerges = 0
 	}
-	if merges != expectedMerges || gets != 2 {
+	expectedRequests := 1
+	if scenario == "initial merge" {
+		expectedRequests = 2
+	}
+	if merges != expectedMerges || gets != 2+expectedRequests {
 		t.Fatal("remote reconciliation did not precede merge", merges, gets)
 	}
 	data, _ := os.ReadFile(calls)
@@ -188,7 +194,7 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		t.Fatal("initial push was not exact")
 	}
 	replay := request()
-	if replay.Code != 200 || merges != expectedMerges || gets != 2 {
+	if replay.Code != 200 || merges != expectedMerges || gets != 3+expectedRequests {
 		t.Fatal("prepared recovery repeated merge")
 	}
 	data, _ = os.ReadFile(calls)
@@ -208,8 +214,8 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 	if run("-C", sourceRoot, "rev-parse", "HEAD") != intent.SourceCommit {
 		t.Fatal("source checkout changed")
 	}
-	if access != 2 {
-		t.Fatal("prepared recovery accessed connection again", access)
+	if access != 3+expectedRequests {
+		t.Fatal("prepared recovery did not reobserve saved branch access", access)
 	}
 	if strings.HasPrefix(scenario, "initial verify") {
 		verifyNativeDeliveryStartsIndependentInspection(t, s, item, claim, intent, target, scenario)

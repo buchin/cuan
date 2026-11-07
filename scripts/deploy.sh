@@ -75,14 +75,22 @@ fi
 
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 
-echo "==> Verifying branch sync with origin/$approved_branch..."
-git fetch origin "$approved_branch" --quiet
 local_sha="$(git rev-parse HEAD)"
-remote_sha="$(git rev-parse "origin/$approved_branch")"
-if [[ "$local_sha" != "$remote_sha" ]]; then
-  echo "ERROR: Local HEAD ($local_sha) is not synchronized with origin/$approved_branch ($remote_sha)." >&2
-  echo "Pull and push latest changes before releasing to avoid regressing production." >&2
-  exit 1
+if [[ -n "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" ]]; then
+  if [[ ! "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" =~ ^[a-f0-9]{40}$ || "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" != "$local_sha" || "${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" != "$approved_branch" ]]; then
+    echo "ERROR: Native prepared source does not match its observed release branch." >&2
+    exit 1
+  fi
+  echo "==> Using native saved-connection branch observation for $local_sha..."
+else
+  echo "==> Verifying branch sync with origin/$approved_branch..."
+  git fetch origin "$approved_branch" --quiet
+  remote_sha="$(git rev-parse "origin/$approved_branch")"
+  if [[ "$local_sha" != "$remote_sha" ]]; then
+    echo "ERROR: Local HEAD ($local_sha) is not synchronized with origin/$approved_branch ($remote_sha)." >&2
+    echo "Pull and push latest changes before releasing to avoid regressing production." >&2
+    exit 1
+  fi
 fi
 
 if [ ! -d "web/dist" ] && [ -d "/opt/cuan/current/web/dist" ]; then

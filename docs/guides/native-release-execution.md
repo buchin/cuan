@@ -267,8 +267,18 @@ and Git global/system config are isolated from host credentials. A clean private
 npm installation has been tested locally; it does not prove production build or
 deployment compatibility.
 
-Known remaining blocker: the maintained script still fetches `origin` to check
-branch synchronization, while a private release checkout intentionally has no
-credential-bearing remote. This must be bridged through saved-owner native remote
-observation before enabling execution; do not substitute an ambient Git login or
-claim the release path is ready yet.
+Private release checkouts record a credential-free canonical GitHub `origin` for
+build metadata. Existing changed origins are rejected rather than rewritten.
+Every successful preparation response, including replay, observes the frozen
+release branch through the project's saved repository connection. A remote target
+that differs from the canonical preparation blocks execution; it never rebinds
+the target or repeats publication. Stable `CUAN_NATIVE_RELEASE_SYNC_SHA` and
+`CUAN_NATIVE_RELEASE_SYNC_BRANCH` execution context lets the maintained script
+check its actual HEAD and branch without fetching with ambient credentials.
+Ordinary maintainer execution still fetches and compares origin. These markers
+are not authorization, publication evidence or task acceptance.
+
+Production readiness still requires saved publication-verifier configuration,
+pinned SSH trust, actual worker tool availability and a real autonomous code plus
+deployment benchmark through independent verification. Local protocol tests do
+not establish those outcomes.

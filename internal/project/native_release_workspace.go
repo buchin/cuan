@@ -83,6 +83,9 @@ func (s *Service) NativeReleaseWorkspace(ctx context.Context, req NativeReleaseW
 	if err != nil {
 		return nil, err
 	}
+	if err := s.gitClient.BindReleaseOrigin(ctx, path, p.RepoURL); err != nil {
+		return nil, err
+	}
 	plan, err := release.Load(ctx, path, req.TargetCommit, branch)
 	if err != nil {
 		return nil, err

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/release"
@@ -521,7 +522,19 @@ func nativeReleaseProjectFixture(t *testing.T, s *Server, tools ...string) (stri
 	metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
 	projects := project.NewMemoryStore()
 	must(projects.CreateProject(context.Background(), &project.Project{ID: "default", Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", LocalPath: root, Metadata: metadata}))
-	s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.Contains(r.URL.Path, "/commits/") || r.Header.Get("Authorization") != "Bearer saved-owner" {
+			t.Error("unexpected saved branch observation")
+			w.WriteHeader(400)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"sha": target})
+	}))
+	t.Cleanup(api.Close)
+	client := git.NewClient()
+	client.SetAPIBaseURL(api.URL)
+	s.projectSvc = project.NewService(projects, client, "fixture", t.TempDir())
+	s.projectSvc.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "saved-owner", nil })
 	digest := sha256.Sum256([]byte(manifest))
 	return source, target, hex.EncodeToString(digest[:])
 }

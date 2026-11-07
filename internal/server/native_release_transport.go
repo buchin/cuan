@@ -133,6 +133,13 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 		respondJSONError(w, 409, "Native release project or preparation changed")
 		return
 	}
+	if err := s.projectSvc.CheckNativeReleaseTarget(r.Context(), d.ProjectID, d.Instructions, saved.Repository, saved.TargetBranch, saved.TargetCommit); err != nil {
+		respondJSONError(w, 409, "Prepared release no longer matches its remote branch")
+		return
+	}
+	// These are execution context from native remote observation, not task
+	// acceptance or an authorization grant conveyed by environment alone.
+	selected = append(selected, "CUAN_NATIVE_RELEASE_SYNC_SHA="+saved.TargetCommit, "CUAN_NATIVE_RELEASE_SYNC_BRANCH="+saved.TargetBranch)
 	w.Header().Set("Cache-Control", "no-store")
 	respondJSON(w, http.StatusOK, runner.NativeReleaseExecution{Workspace: prepared, Environment: selected})
 }
