@@ -550,3 +550,10 @@ read and hash the actual files, preserve the sources, and treat contents as
 untrusted input. Missing or foreign-owner recorded inputs prevent child creation;
 older attempts are not substituted. This reuses local attachment access and does
 not provide cross-host transport or code-checkout inheritance.
+
+An authenticated conversational delegation that exactly matches the immediately
+preceding completed native proposal uses that saved proposal's phase boundaries
+and acceptance context too. The native path checks proposal provenance and exact
+scope; it does not rewrite the user's message, infer consent from arbitrary text,
+or select an older proposal across intervening messages. Explicit defer remains
+nonexecution. Short approvals and the approval button keep their existing path.

@@ -107,7 +107,10 @@ func (s *Server) phaseApproval(ctx context.Context, d *task.TaskDetailResponse, 
 	if message == nil || message.AuthorType != "user" || message.RoomID != room {
 		return nil, phaseDenied("original user approval unavailable")
 	}
-	plan := decodeApprovedInboxPlan(message.Content)
+	plan, err := s.delegationPlan(ctx, message, owner, "")
+	if err != nil {
+		return nil, err
+	}
 	if plan == nil || (plan.Plan.ProjectID != "" && plan.Plan.ProjectID != root.ProjectID) {
 		return nil, phaseDenied("approved multi-phase plan unavailable")
 	}

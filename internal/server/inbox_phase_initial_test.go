@@ -18,11 +18,19 @@ func TestApprovedInitialPhaseScopesOnlyItsOwnOutcome(t *testing.T) {
 	initialPhaseScopeContract(t)
 }
 
+func TestConversationalDelegationScopesSavedInitialPhase(t *testing.T) {
+	initialPhaseScopeContractMode(t, true)
+}
+
 func TestApprovedInitialPhasePostgres(t *testing.T) {
 	withPhasePostgres(t, func(database *sql.DB) { initialPhaseScopeContract(t, database) })
 }
 
 func initialPhaseScopeContract(t *testing.T, databases ...*sql.DB) {
+	initialPhaseScopeContractMode(t, false, databases...)
+}
+
+func initialPhaseScopeContractMode(t *testing.T, conversational bool, databases ...*sql.DB) {
 	t.Helper()
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()
@@ -48,10 +56,33 @@ func initialPhaseScopeContract(t *testing.T, databases ...*sql.DB) {
 	now := time.Now().UTC()
 	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now, Deadline: now.Add(time.Hour)}
 	raw, _ := json.Marshal(attachmentMessage{Text: "Approved: Two connected files", Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: plan}})
-	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: room, AuthorID: "owner", AuthorType: "user", Content: attachmentEnvelope + string(raw), CreatedAt: now}); err != nil {
+	content := attachmentEnvelope + string(raw)
+	if conversational {
+		proposal := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now.Add(-time.Minute), Deadline: now.Add(time.Hour)}
+		if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, proposal, &db.ProjectMessage{ID: proposal.MessageID, RoomID: room, AuthorID: "owner", AuthorType: "user", Content: "Propose two tasks", CreatedAt: proposal.CreatedAt}); err != nil {
+			t.Fatal(err)
+		}
+		planJSON, _ := json.Marshal(plan)
+		if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{ID: proposal.ReplyID, RoomID: room, AuthorID: q.AgentID, AuthorType: "agent", Content: "```cuan-approval\n" + string(planJSON) + "\n```", CreatedAt: now.Add(-time.Second)}); err != nil {
+			t.Fatal(err)
+		}
+		content = "Gas, approve the saved two-phase proposal and run both tasks separately."
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: room, AuthorID: "owner", AuthorType: "user", Content: content, CreatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
 	delegation, _ := json.Marshal(inboxDelegation{Action: "run", Title: plan.Title, Description: plan.Description, ProjectID: plan.ProjectID, AuthorizationID: q.MessageID})
+	if conversational {
+		changed, _ := json.Marshal(inboxDelegation{Action: "run", Title: plan.Title, Description: plan.Description + "\nInvented extra work", ProjectID: plan.ProjectID, AuthorizationID: q.MessageID})
+		out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(changed)+"\n```")
+		if !strings.Contains(out, "differs from the approved plan") {
+			t.Fatal("rewritten conversational scope admitted", out)
+		}
+		items, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: room})
+		if err != nil || len(items) != 0 {
+			t.Fatal("task created from rewritten proposal", items, err)
+		}
+	}
 	for i := 0; i < 2; i++ {
 		out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(delegation)+"\n```")
 		d, err := s.taskSvc.GetTaskDetail(ctx, "msg_"+q.MessageID)
