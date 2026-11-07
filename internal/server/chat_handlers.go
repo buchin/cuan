@@ -704,17 +704,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						}
 					}
 					if roomID == "" {
-						roomID = db.GenerateUUID()
-						if s.projectStudioRepo != nil {
-							_ = s.projectStudioRepo.CreateRoom(r.Context(), &db.ProjectRoom{
-								ID:        roomID,
-								ProjectID: "default",
-								Title:     a.Name,
-								Topic:     "agent:" + a.ID,
-								CreatedAt: a.CreatedAt,
-								UpdatedAt: a.UpdatedAt,
-							})
-						}
+						// Inbox lists existing conversations. Starting a chat belongs
+						// to New Work; reading the list must not recreate deleted rooms.
+						continue
 					}
 					tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
 					c := ChatContact{

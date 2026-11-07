@@ -484,16 +484,15 @@ func ListInboxConversations(ctx context.Context, projectID string, limit int) (a
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		convs, err := client.ListConversations(ctx, projectID, limit)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"conversations": convs, "total": len(convs)}, nil
+	}
 	db := getPlatformDB()
 	if db == nil {
-		if client := GetCuanClient(); client != nil && client.IsConfigured() {
-			if convs, err := client.ListConversations(ctx, projectID, limit); err == nil {
-				return map[string]any{
-					"conversations": convs,
-					"total":         len(convs),
-				}, nil
-			}
-		}
 		return map[string]any{
 			"conversations": []InboxConversation{},
 			"total":         0,

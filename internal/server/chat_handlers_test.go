@@ -1099,6 +1099,9 @@ func TestChat_SingleAgentCuanMentionAndContacts(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Explicitly start a conversation; listing must not create one.
+	srv.resolveConversationContext(context.Background(), cuanDB.AgentIDCuan, "")
+
 	// 1. GET /api/v1/chat/contacts?type=agents -> verify ONLY @cuan is returned (internal legacy bots are hidden)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
 	req.Header.Set("Authorization", "Bearer "+token)

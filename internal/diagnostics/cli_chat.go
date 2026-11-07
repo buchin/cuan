@@ -24,6 +24,8 @@ func RunChatCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
+	case "delete", "cancel":
+		return runChatManage(ctx, subcommand, extraArgs, out, errOut)
 	case "trace":
 		return runChatTrace(ctx, extraArgs, out, errOut)
 	case "retry":
@@ -55,6 +57,8 @@ Usage:
   cuan chat trace <room-id> <request-id> [--after-seq 0] [--limit 100]
   cuan chat retry <room-id> <request-id>
   cuan chat download <attachment-id> --output PATH
+  cuan chat cancel <room-id> <request-id>
+  cuan chat delete <room-id>
 
 Subcommands:
   new       Create a new agent conversation room in Inbox
