@@ -353,3 +353,11 @@ is retained, and a separately keyed `native_publication_observed` event binds th
 exact process finish. Completion and delivered-source verification require that
 post-process evidence. Duplicate requests reuse the matching final observation,
 without rerunning deployment or rewriting the activation timestamp.
+
+Task source identity and production release identity can differ after merge.
+Native `result_commit_contained=true` plus verified publication establishes that
+the source is included in the observed release. PM and independent verifier
+instructions explicitly distinguish this from SHA equality; an original request
+for an exact revision remains binding. Source inclusion proves publication only:
+feature behavior, independent checks and every other original criterion remain
+required. A read-only verifier is not expected to deploy again.
