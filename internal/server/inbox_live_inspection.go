@@ -44,6 +44,9 @@ func (s *Server) recoverLiveResultInspection(ctx context.Context, d *task.TaskDe
 		s.publishInbox(d.SourceRoomID)
 		return true
 	}
+	if s.recoverCapacityInspection(ctx, d, origin) {
+		return true
+	}
 	if s.recoverInspectionVerifier(ctx, d, origin) {
 		return true
 	}
@@ -209,6 +212,9 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 		} else {
 			revision += "\nThe historical task retained a committed branch, but publication of that branch was not established. Preserve its recorded execution state, including any failure. Its result commit is retained as history, not an ancestor requirement or proof of deployment. Inspect only the already-running target revision and original outcome. Do not merge the old PR, claim that its branch was deployed, or change any historical execution/commit metadata."
 		}
+	}
+	if proof.CapacityRecoveryAttemptID != "" {
+		revision += "\nCapacity continuation: the previous inspection stopped because no allowed AI route was available. Its failure and any uncertain partial work remain historical. Inspect retained reports and effects before repeating checks. Complete only the original read-only inspection; do not rerun implementation, publication or external writes, assume that the old provider did no work, or waive any original requirement."
 	}
 	revision += "\nFor visual evidence, prefer the repository's existing real-component/browser verification scripts before writing a new harness or guessing exports from minified release bundles. Never substitute manually authored HTML/DOM, recreated component markup or direct library-only rendering for screenshots of the actual application components. Report any failed capture honestly and leave the corresponding criteria incomplete. Reserve time within the same execution deadline for the runner's independent project checks."
 	revision += "\nVerification ownership: inspect behavior and original acceptance criteria; the native runner owns the registered project check suite after your final report. Do not duplicate that suite or repeatedly poll unrelated processes. Run an additional targeted check only when it supplies acceptance evidence the registered suite does not cover, and explain that gap. Report runner-owned checks as pending, never as passed before their receipt exists. If your own check stalls, stop only the exact process group you started and preserve its failure evidence. Never use killall, broad pkill patterns, or stop shared services/processes to free resources. Report a resource blocker instead. These instructions do not provide operating-system isolation."

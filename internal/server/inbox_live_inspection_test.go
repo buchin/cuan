@@ -648,6 +648,10 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		testInspectionInfrastructureRecovery(t, s, origin, d, claim, service, strings.TrimPrefix(scenario, "current outcome unpublished valid infrastructure "))
 		return
 	}
+	if scenario == "current outcome unpublished valid capacity" {
+		testInspectionCapacityContinuation(t, s, origin, d, claim, service)
+		return
+	}
 	if scenario == "current outcome unpublished valid registered review" && claim.PHPUnitTargets != `["tests/Feature/ExampleTest.php"]` {
 		t.Fatal("registered nonsecret test targets lost", claim.PHPUnitTargets)
 	}

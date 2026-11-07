@@ -20,9 +20,18 @@ func phaseLineageSetup(t *testing.T, databases ...*sql.DB) (*Server, db.InboxReq
 }
 
 func phaseLineageSetupWithPlan(t *testing.T, plan inboxApprovalPlan, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse) {
+	return phaseLineageSetupForAgent(t, plan, "agent_lifecycle", databases...)
+}
+
+func phaseLineageSetupForAgent(t *testing.T, plan inboxApprovalPlan, agentID string, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse) {
 	t.Helper()
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()
+	if agentID == db.AgentIDCuan {
+		if err := s.agentRepo.CreateAgent(ctx, &db.Agent{ID: agentID, Name: "@cuan", Provider: "agy", Harness: "agy", Enabled: true, Status: db.AgentStatusActive}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if len(databases) > 0 {
 		database := databases[0]
 		if _, err := database.ExecContext(ctx, `INSERT INTO projects(id,name,repo_url) VALUES('default','Fixture','') ON CONFLICT DO NOTHING`); err != nil {
@@ -31,9 +40,9 @@ func phaseLineageSetupWithPlan(t *testing.T, plan inboxApprovalPlan, databases .
 		s.projectStudioRepo = db.NewSQLProjectStudioRepository(database)
 		s.taskSvc = task.NewService(task.NewDBStore(database), s.projectSvc)
 	}
-	room := s.resolveConversationContext(ctx, "agent_lifecycle", "").RoomID
+	room := s.resolveConversationContext(ctx, agentID, "").RoomID
 	now := time.Now().UTC()
-	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now, Deadline: now.Add(time.Hour)}
+	q := db.InboxRequest{OwnerID: "owner", AgentID: agentID, RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now, Deadline: now.Add(time.Hour)}
 	raw, _ := json.Marshal(attachmentMessage{Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: plan}})
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: room, AuthorType: "user", AuthorID: "owner", Content: attachmentEnvelope + string(raw), CreatedAt: now, UpdatedAt: now}
 	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {

@@ -18,7 +18,7 @@ func testInspectionInfrastructureRecovery(t *testing.T, s *Server, origin db.Inb
 	oldID := claim.Attempt.ID
 	previous := *claim.LiveInspection
 	failure := "Could not save task status before starting."
-	if mode == "launch" {
+	if strings.HasPrefix(mode, "launch") {
 		if _, err := s.taskSvc.UpdateAttemptStatus(ctx, oldID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: failure}); err != nil {
 			t.Fatal(err)
 		}
@@ -99,6 +99,10 @@ func testInspectionInfrastructureRecovery(t *testing.T, s *Server, origin db.Inb
 	next, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "recovery-worker", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || !next.Claimed || next.Attempt.ID != attempt.ID || next.LiveInspection.TargetCommit != s.cfg.CommitSHA || !next.PublicationLimits.ReadOnlyRepository || !next.PublicationLimits.DenyPush || !next.PublicationLimits.DenyDeploy || next.Environment != "" || next.AutoDeploy {
 		t.Fatalf("recovery invalid at claim: %+v %v", next, err)
+	}
+	if strings.HasSuffix(mode, " capacity") {
+		testInspectionCapacityContinuation(t, s, origin, d, next, service)
+		return
 	}
 	// A second infrastructure failure cannot renew the allowance, even after
 	// another release. The failed original remains failed, with no manual Done.

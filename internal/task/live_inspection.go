@@ -21,6 +21,7 @@ type LiveInspectionIntent struct {
 	SourceVerifierAttemptID      string    `json:"source_verifier_attempt_id,omitempty"`
 	RevalidationKind             string    `json:"revalidation_kind,omitempty"`
 	VerifierRecoveryAttemptID    string    `json:"verifier_recovery_attempt_id,omitempty"`
+	CapacityRecoveryAttemptID    string    `json:"capacity_recovery_attempt_id,omitempty"`
 	PreparationLaunchID          string    `json:"preparation_launch_id,omitempty"`
 	ReviewRequestID              string    `json:"review_request_id,omitempty"`
 	ReviewPaths                  []string  `json:"review_paths,omitempty"`
@@ -52,6 +53,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.CapacityRecoveryAttemptID != "" {
+		return verificationRequestID("current-outcome-capacity:v1:"+p.InstructionsHash+":", taskID, p.CapacityRecoveryAttemptID)
+	}
 	if p.Purpose == NativeReleaseInspection {
 		return verificationRequestID("native-release-inspection:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
 	}
@@ -164,6 +168,9 @@ func unpublishedOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity, rev
 }
 
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
+	if p.CapacityRecoveryAttemptID != "" {
+		return p.CapacityRecoveryAttemptID
+	}
 	if p.VerifierRecoveryAttemptID != "" {
 		return p.VerifierRecoveryAttemptID
 	}
@@ -208,6 +215,9 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	}
 	if proof.VerifierRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
 		return invalid("recovery_shape")
+	}
+	if proof.CapacityRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.CapacityRecoveryAttemptID == proof.SourceAttemptID) {
+		return invalid("capacity_recovery_shape")
 	}
 	if proof.Purpose != CurrentOutcomeInspection && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
 		return invalid("purpose_shape")
@@ -289,6 +299,16 @@ func ValidateLiveInspection(ctx context.Context, store Store, t *Task, attemptID
 func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
 	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection && proof.Purpose != NativeReleaseInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
+	}
+	if proof.CapacityRecoveryAttemptID != "" {
+		if err := ValidateInspectionCapacityRecovery(ctx, store, t, proof); err != nil {
+			return err
+		}
+		// Resource continuation preserves and revalidates the entire underlying
+		// inspection stage. It does not renew its semantic repair allowances.
+		original := *proof
+		original.CapacityRecoveryAttemptID = ""
+		return ValidateLiveInspectionSource(ctx, store, t, &original)
 	}
 	if proof.PreparedPublicationAttemptID != "" {
 		if err := ValidatePreparedPublicationInspection(ctx, store, t, proof); err != nil {

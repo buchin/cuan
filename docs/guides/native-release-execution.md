@@ -393,6 +393,22 @@ image and screenshot requirements. A CLI-only inspection therefore does not bind
 a frontend visual recipe or prepare npm dependencies solely because its request
 mentions the display of `--help`. Real UI work retains the visual quality gate.
 
+Public-assistant task admission leases the same selected-model/task-slot pool used
+by native execution, then releases that observation before queue publication.
+Chat routing and legacy chat fallback defaults cannot admit an unavailable task
+route. Known cooldowns and occupied task slots keep its saved launch queued,
+without provider inference or another failed attempt. The worker leases again at
+execution time; admission is not a guarantee of future provider availability.
+
+A capacity-stopped current-outcome inspection can save one capacity continuation
+for its exact original stage, even while no route is available. The intent binds
+`capacity_recovery_attempt_id`, preserving the original source, authorization and
+any prior infrastructure repair. A fresh running target is observed; published
+prepared sources retain current registered containment checks. Existing launch
+scheduling waits for permitted capacity and revalidates source/scope at admission,
+claim and completion. It neither changes model/fallback policy nor accepts the
+failed parent, and cannot chain another capacity allowance from its own failure.
+
 Review context also includes validated `native_preparation_history` from terminal
 native stages, even when later execution/completion failed. It preserves the
 actual attempt status and explicitly identifies preparation-only facts. The

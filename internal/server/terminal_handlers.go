@@ -20,6 +20,7 @@ import (
 	cuangit "github.com/buchin/cuan/internal/git"
 	projectpkg "github.com/buchin/cuan/internal/project"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskprocess"
 	"github.com/buchin/cuan/internal/terminal"
@@ -470,6 +471,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		}
 	}()
 	needsVision := s.taskRequiresVision(r.Context(), ownerID, tDetail, payload.Prompt, payload.Revision)
+	if tDetail != nil && payload.RequestID != "" && s.taskSvc != nil {
+		if launch, err := s.taskSvc.GetLaunch(r.Context(), task.LaunchID(taskID, payload.RequestID)); err == nil && launch != nil {
+			if inspection, err := task.LiveInspectionForLaunch(&tDetail.Task, launch); err == nil && inspection != nil {
+				needsVision = s.runnerClaimRequiresVision(r.Context(), &runner.ClaimTaskResponse{OwnerID: ownerID, LiveInspection: inspection}, tDetail, payload.Revision)
+			}
+		}
+	}
 	if !needsVision && tDetail != nil && tDetail.SourceRoomID != "" && tDetail.SourceMessageID != "" && s.projectStudioRepo != nil {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 			if requests, e := store.ListInboxRequests(r.Context(), tDetail.SourceRoomID); e == nil {
@@ -487,7 +495,19 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 	}
-	if expectedBinary == "agy" {
+	nativePublicTask := expectedBinary == "agy" && registeredAgent.ID == db.AgentIDCuan && (payload.RunnerID == "" || payload.RunnerID == "cuan-runner")
+	if nativePublicTask {
+		// Admission must use the worker's selected-model and task-slot policy,
+		// not the separate chat router's legacy model fallbacks. Release this
+		// observation before publishing work so it cannot block the real worker.
+		home, _, release, err := agent.LeaseHealthyBrainForTask(ownerID, nil, needsVision)
+		if err != nil {
+			respondJSON(w, 409, map[string]string{"error": agent.ErrBrainCapacity.Error(), "code": "provider_capacity"})
+			return
+		}
+		release()
+		profileHome = home
+	} else if expectedBinary == "agy" {
 		primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
 		limited := primary != nil && primary.State == "quota_limited"
 		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
