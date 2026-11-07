@@ -137,3 +137,14 @@ decision. Cuan does not resend the owner/model message, retry an existing stoppe
 launch, accept stale evidence or reset attempt history. The mandatory native
 verification envelope is compared to its saved raw feedback exactly; adding the
 server's read-only limits does not invalidate that original manager decision.
+
+Native inspection admission keeps implementation provenance separate from the
+immediate execution predecessor. After a successful supplemental verifier,
+`source_verifier_attempt_id` binds that verifier while `source_attempt_id` still
+identifies the original implementation. The server revalidates its original
+checks, unchanged repository receipt, source receipt, and owner/request binding.
+A successful predecessor permits only this validated inspection through its
+exact claimed launch. Both storage adapters atomically recheck the latest
+uncanceled predecessor, unchanged launch revision, lease, project, and instruction
+hash. Ordinary retries after success remain rejected. This does not grant another
+implementation, publication, acceptance, or recovery allowance.

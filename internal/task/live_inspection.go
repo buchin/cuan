@@ -16,6 +16,7 @@ const CurrentOutcomeInspection = "current_outcome"
 const EvidenceRevalidation = "evidence"
 
 type LiveInspectionIntent struct {
+	SourceVerifierAttemptID   string    `json:"source_verifier_attempt_id,omitempty"`
 	RevalidationKind          string    `json:"revalidation_kind,omitempty"`
 	VerifierRecoveryAttemptID string    `json:"verifier_recovery_attempt_id,omitempty"`
 	PreparationLaunchID       string    `json:"preparation_launch_id,omitempty"`
@@ -164,6 +165,9 @@ func (p *LiveInspectionIntent) PredecessorAttemptID() string {
 	if p.PreviousAttemptID != "" {
 		return p.PreviousAttemptID
 	}
+	if p.SourceVerifierAttemptID != "" {
+		return p.SourceVerifierAttemptID
+	}
 	return p.SourceAttemptID
 }
 
@@ -275,6 +279,11 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
 	}
+	if proof.SourceVerifierAttemptID != "" {
+		if err := validateInspectionSourceVerifier(ctx, store, t, proof); err != nil {
+			return err
+		}
+	}
 	if proof.VerifierRecoveryAttemptID != "" {
 		if err := ValidateInspectionVerifierRecovery(ctx, store, t, proof); err != nil {
 			return err
@@ -352,7 +361,7 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 			return ErrInvalidTaskInput
 		}
 		binding, err := LiveInspectionForAttempt(ctx, store, t, previous.ID)
-		if err != nil || binding == nil || binding.PreviousAttemptID != "" || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
+		if err != nil || binding == nil || binding.PreviousAttemptID != "" || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
 			return ErrInvalidTaskInput
 		}
 		var report, checks bool

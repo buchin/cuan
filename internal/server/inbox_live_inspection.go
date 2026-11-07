@@ -111,6 +111,9 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 	}
 	proof := &task.LiveInspectionIntent{SourceAttemptID: sourceAttempt, SourceCommit: d.CommitSHA, TargetCommit: observed.Commit, Repository: observed.Repository, OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), ObservedAt: observed.ObservedAt}
 	if currentOutcome {
+		if d.LatestAttempt != nil && d.LatestAttempt.ID != sourceAttempt && previous == nil {
+			proof.SourceVerifierAttemptID = d.LatestAttempt.ID
+		}
 		proof.Purpose = task.CurrentOutcomeInspection
 	}
 	if previous != nil {

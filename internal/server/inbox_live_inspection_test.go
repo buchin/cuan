@@ -494,7 +494,36 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	if err != nil || claimed == nil {
 		t.Fatal("could not claim the existing launch", err)
 	}
-	inspectionAttempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: id})
+	bound, err := task.LiveInspectionForLaunch(&d.Task, launch)
+	if err != nil || bound == nil {
+		t.Fatal("inspection admission binding", err)
+	}
+	if bound.SourceVerifierAttemptID != "" {
+		if bound.SourceAttemptID == bound.SourceVerifierAttemptID || bound.PredecessorAttemptID() != d.LatestAttempt.ID {
+			t.Fatal("verifier replaced implementation identity or lost predecessor")
+		}
+		for _, mutate := range []func(*task.LiveInspectionIntent){
+			func(p *task.LiveInspectionIntent) { p.SourceVerifierAttemptID = p.SourceAttemptID },
+			func(p *task.LiveInspectionIntent) { p.SourceVerifierAttemptID = "missing-verifier" },
+			func(p *task.LiveInspectionIntent) { p.OwnerID = "foreign-owner" },
+			func(p *task.LiveInspectionIntent) { p.SourceCommit = strings.Repeat("e", 40) },
+		} {
+			bad := *bound
+			mutate(&bad)
+			if task.ValidateLiveInspectionSource(ctx, store, &d.Task, &bad) == nil {
+				t.Fatal("forged source verifier accepted")
+			}
+		}
+	}
+	if d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		guarded := store.(interface {
+			CreateAttemptAfter(context.Context, *task.TaskAttempt, string) error
+		})
+		if err := guarded.CreateAttemptAfter(ctx, &task.TaskAttempt{ID: "untrusted-success-retry", TaskID: d.ID, RunnerID: "cuan-runner", AgentName: d.AssignedAgent, Status: task.AttemptStatusQueued, CreatedAt: time.Now()}, d.LatestAttempt.ID); err == nil {
+			t.Fatal("successful predecessor allowed an ordinary retry")
+		}
+	}
+	inspectionAttempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: id, ExpectedPredecessorID: bound.PredecessorAttemptID()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -722,7 +751,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		if err != nil {
 			t.Fatal(err)
 		}
-		second, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: recoveryID})
+		second, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: recoveryID, ExpectedPredecessorID: binding.PredecessorAttemptID()})
 		if err != nil {
 			t.Fatal(err)
 		}

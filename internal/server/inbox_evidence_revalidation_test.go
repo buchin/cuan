@@ -60,7 +60,7 @@ func testEvidenceOutcomeRevalidation(t *testing.T, s *Server, origin db.InboxReq
 	if _, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "evidence-launch", launch.ID); err != nil {
 		t.Fatal(err)
 	}
-	a, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID})
+	a, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID, ExpectedPredecessorID: proof.PredecessorAttemptID()})
 	if err != nil {
 		t.Fatal(err)
 	}

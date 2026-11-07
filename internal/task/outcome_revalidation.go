@@ -125,7 +125,7 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 	if err != nil {
 		return err
 	}
-	if binding == nil || binding.Purpose != CurrentOutcomeInspection || binding.PreviousAttemptID != "" || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
+	if binding == nil || binding.Purpose != CurrentOutcomeInspection || binding.PreviousAttemptID != "" || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
 		return ErrInvalidTaskInput
 	}
 	if err := ValidateLiveInspectionSource(ctx, store, t, binding); err != nil {

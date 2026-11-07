@@ -709,6 +709,26 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 	}
 	var createErr error
 	if req.ExpectedPredecessorID != "" {
+		// Successful predecessors are only valid for an authenticated native
+		// inspection, never as a generic implementation retry.
+		if reader, ok := s.store.(LaunchStore); ok && req.RequestID != "" {
+			launch, launchErr := reader.GetLaunch(ctx, LaunchID(t.ID, req.RequestID))
+			if launchErr == nil && launch != nil {
+				proof, proofErr := LiveInspectionForLaunch(t, launch)
+				if proofErr != nil {
+					return nil, proofErr
+				}
+				if proof != nil {
+					if proof.PredecessorAttemptID() != req.ExpectedPredecessorID {
+						return nil, ErrRequestConflict
+					}
+					if err := ValidateLiveInspectionSource(ctx, s.store, t, proof); err != nil {
+						return nil, err
+					}
+					ctx = context.WithValue(ctx, inspectionAdmissionKey{}, inspectionAdmission{LaunchID: launch.ID, Revision: launch.Revision, Predecessor: req.ExpectedPredecessorID})
+				}
+			}
+		}
 		if guarded, ok := s.store.(interface {
 			CreateAttemptAfter(context.Context, *TaskAttempt, string) error
 		}); ok {

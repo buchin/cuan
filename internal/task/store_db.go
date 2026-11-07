@@ -429,7 +429,14 @@ func (s *DBStore) createAttempt(ctx context.Context, a *TaskAttempt, predecessor
 			if err != nil {
 				return err
 			}
-			if id != predecessor || cancelled || canceledAt.Valid || (status != AttemptStatusFailed && status != AttemptStatusInterrupted) {
+			inspectionAllowed := false
+			if grant, ok := ctx.Value(inspectionAdmissionKey{}).(inspectionAdmission); ok && grant.Predecessor == predecessor {
+				err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM task_launches j JOIN tasks t ON t.id=j.task_id WHERE j.id=$1 AND j.revision=$2 AND j.task_id=$3 AND j.attempt_id=$4 AND j.state='claimed' AND j.lease_until>NOW() AND j.project_id=COALESCE(t.project_id,'') AND j.instructions_hash=encode(digest(t.instructions,'sha256'),'hex'))`, grant.LaunchID, grant.Revision, a.TaskID, a.ID).Scan(&inspectionAllowed)
+				if err != nil {
+					return err
+				}
+			}
+			if id != predecessor || cancelled || canceledAt.Valid || (status != AttemptStatusFailed && status != AttemptStatusInterrupted && !(status == AttemptStatusSucceeded && inspectionAllowed)) {
 				return ErrRequestConflict
 			}
 		}

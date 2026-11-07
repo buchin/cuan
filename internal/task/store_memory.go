@@ -250,7 +250,13 @@ func (m *MemoryStore) createAttempt(ctx context.Context, a *TaskAttempt, predece
 				latest = old
 			}
 		}
-		if latest == nil || latest.ID != predecessor || latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusFailed && latest.Status != AttemptStatusInterrupted) {
+		inspectionAllowed := false
+		if grant, ok := ctx.Value(inspectionAdmissionKey{}).(inspectionAdmission); ok && grant.Predecessor == predecessor {
+			j := m.launches[grant.LaunchID]
+			t := m.tasks[a.TaskID]
+			inspectionAllowed = j != nil && t != nil && j.Revision == grant.Revision && attemptRequestID(j.TaskID, j.RequestID) == a.ID && j.State == "claimed" && j.LeaseUntil != nil && j.LeaseUntil.After(time.Now()) && j.TaskID == t.ID && j.ProjectID == t.ProjectID && j.InstructionsHash == LaunchInstructionsHash(t.Instructions)
+		}
+		if latest == nil || latest.ID != predecessor || latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusFailed && latest.Status != AttemptStatusInterrupted && !(latest.Status == AttemptStatusSucceeded && inspectionAllowed)) {
 			return ErrRequestConflict
 		}
 	}

@@ -108,7 +108,7 @@ func testChangedOutcomeRevalidation(t *testing.T, s *Server, origin db.InboxRequ
 	if err != nil {
 		t.Fatal("claim revalidation", err)
 	}
-	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID})
+	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID, ExpectedPredecessorID: bound.PredecessorAttemptID()})
 	if err != nil {
 		t.Fatal("create revalidation attempt", err)
 	}
