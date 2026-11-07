@@ -141,6 +141,7 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
+	ManagedReleaseSource           *ManagedReleaseSource    `json:"managed_release_source,omitempty"`
 	VisualVerification             *task.VisualVerification `json:"visual_verification,omitempty"`
 	LiveInspectionCommit           string                   `json:"live_inspection_commit,omitempty"`
 	SourceAncestryVerified         bool                     `json:"source_ancestry_verified,omitempty"`

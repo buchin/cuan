@@ -438,9 +438,13 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		status = task.AttemptStatusFailed
 	}
 	if status == task.AttemptStatusSucceeded {
-		if _, bindingErr := s.managedReleaseClaimForCompletion(ctx, currentTask, att); bindingErr != nil {
+		binding, bindingErr := s.managedReleaseClaimForCompletion(ctx, currentTask, att)
+		if bindingErr == nil {
+			bindingErr = validateManagedReleaseSource(binding, req)
+		}
+		if bindingErr != nil {
 			status = task.AttemptStatusFailed
-			att.ErrorMessage = "Managed release admission could not be verified; completion was not accepted"
+			att.ErrorMessage = "Managed release admission or source could not be verified; completion was not accepted"
 		}
 	}
 	if status == task.AttemptStatusSucceeded && req.AgentReportRequired && !req.AgentReportConfirmed {

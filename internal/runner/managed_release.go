@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,7 +10,9 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/release"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -97,4 +100,38 @@ func (s *RunnerService) managedReleaseClaimForCompletion(ctx context.Context, t 
 		return nil, errors.New("managed release context differs from admission")
 	}
 	return &binding, nil
+}
+
+// ManagedReleaseSource is native source observation, not publication evidence.
+type ManagedReleaseSource struct {
+	Commit           string `json:"commit"`
+	Branch           string `json:"branch"`
+	ManifestHash     string `json:"manifest_hash"`
+	VerificationHash string `json:"verification_hash"`
+}
+
+func observeManagedReleaseSource(ctx context.Context, root, commit, branch, summary string) (*ManagedReleaseSource, error) {
+	if !task.PassingProjectCheckSummary(summary) {
+		return nil, errors.New("passing native project checks required for release handoff")
+	}
+	plan, err := release.Load(ctx, root, commit, branch)
+	if err != nil {
+		return nil, err
+	}
+	description := plan.Description()
+	return &ManagedReleaseSource{Commit: description.Commit, Branch: description.Branch, ManifestHash: description.ManifestHash, VerificationHash: task.VerificationSummaryHash(summary)}, nil
+}
+
+func validateManagedReleaseSource(binding *ManagedReleaseClaim, req CompleteAttemptRequest) error {
+	source := req.ManagedReleaseSource
+	if source == nil {
+		return nil
+	}
+	if binding == nil || source.Commit != req.CommitSHA || !git.IsCommitHash(source.Commit) || source.Branch == "" || source.Branch != req.BranchName || source.VerificationHash != task.VerificationSummaryHash(req.TestSummary) || !task.PassingProjectCheckSummary(req.TestSummary) || len(source.ManifestHash) != 64 {
+		return errors.New("managed release source does not match native completion")
+	}
+	if _, err := hex.DecodeString(source.ManifestHash); err != nil {
+		return errors.New("managed release manifest identity unavailable")
+	}
+	return nil
 }

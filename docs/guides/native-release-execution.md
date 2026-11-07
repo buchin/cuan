@@ -106,3 +106,12 @@ fail completion; absent admissions never become retroactive grants. This still
 does not exempt a successful attempt from the existing deployment receipt gate.
 Source-handoff emission and native execution must be connected before the mode
 can be enabled.
+
+A managed developer worker can now observe the exact clean local checkpoint,
+actual task branch, tracked release descriptor hash, and passing native check
+summary hash. Observation calls the release plan loader only: it never executes
+the script. Completion rejects supplied source metadata without prior admission
+or with inconsistent commit, branch, check hash or malformed descriptor hash.
+This metadata is not yet emitted as the canonical `native_release_handoff`.
+Existing production-deployment compliance remains unchanged, so it cannot yet
+break the pending-publication cycle. Native execution remains disabled.

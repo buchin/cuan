@@ -1229,7 +1229,18 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 							// publication fails. A commit is not a deployment receipt;
 							// reconciliation needs both facts kept separately.
 							compReq.CommitSHA = commit
-							deployed, errNote = r.confirmAutoDeployCompliance(ctx, claim, true, commit)
+							if claim.ManagedRelease != nil && ws != nil {
+								source, sourceErr := observeManagedReleaseSource(ctx, workingDir, commit, ws.BranchName, compReq.TestSummary)
+								if sourceErr != nil {
+									errNote = "Managed release source could not be verified; local work is preserved"
+								} else {
+									compReq.ManagedReleaseSource = source
+									compReq.BranchName = source.Branch
+									deployed, errNote = r.confirmAutoDeployCompliance(ctx, claim, true, commit)
+								}
+							} else {
+								deployed, errNote = r.confirmAutoDeployCompliance(ctx, claim, true, commit)
+							}
 						}
 						if !deployed {
 							compReq.Status = task.AttemptStatusFailed

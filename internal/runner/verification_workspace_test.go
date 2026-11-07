@@ -68,7 +68,7 @@ func TestSupplementalVerifierUsesPrivateExactCommitWorkspace(t *testing.T) {
 		}
 		return &agent.ExecutionResult{Status: "SUCCEEDED", ExitCode: 0}, nil
 	}}
-	worker := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: filepath.Dir(source)}, adapter, api.Client())
+	worker := NewRunner(&config.Config{RunnerID: "fixture", RunnerWorkerRegistryDir: t.TempDir(), RunnerServerURL: api.URL, WorkspacesDir: filepath.Dir(source)}, adapter, api.Client())
 	claim := ClaimTaskResponse{Task: &task.Task{ID: filepath.Base(source), Instructions: "Verify original code", SourceRoomID: "room", ExecutionCategory: task.ExecutionCategoryCode}, Attempt: &task.TaskAttempt{ID: "verifier", TaskID: filepath.Base(source), CreatedAt: time.Now()}, Verification: &task.VerificationIntent{IsolatedWorkspace: true, SourceCommit: commit}, PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyPush: true, DenyDeploy: true}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}}
 	worker.runAttempt(ctx, claim)
 	if !called || completion.Status != task.AttemptStatusSucceeded || completion.VerifiedSourceCommit != commit || !completion.RepositoryVerification.Unchanged() {
