@@ -771,7 +771,10 @@ func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxReque
 		inherited = strings.ReplaceAll(inherited, approval.Plan.Plan.Description, "[See the approved plan above.]")
 	}
 	nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\n%s\n\nApproved phase: %s\n\nOriginal approved plan:\n%s\n\nHistorical root context (reference only; the active approved phase above controls):\n%s\n\nApproval message: %s\nConversation: %s\nExecute only the active phase and report actual verification evidence.", target.NextPhase, limits, nextTitle, approval.Plan.Plan.Description, inherited, approval.Root.SourceMessageID, q.RoomID)
-	created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: nextTitle, Instructions: nextInstructions, AssignedAgent: q.AgentID, ExecutionCategory: d.ExecutionCategory})
+	// Each new phase must prove its own approved outcome. Never inherit a
+	// predecessor's completed checklist or leave the next worker without DoD.
+	criteria := []task.DoDItem{{Text: target.NextTitle}}
+	created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: nextTitle, Instructions: nextInstructions, AssignedAgent: q.AgentID, ExecutionCategory: d.ExecutionCategory, DoDChecklist: criteria})
 	if err != nil || created == nil {
 		return fail("The next phase task could not be saved.", err)
 	}

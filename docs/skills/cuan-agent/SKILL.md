@@ -511,3 +511,11 @@ Legacy Inbox thread creation now adapts to the same durable coordinator flow as
 Studio, with factual asynchronous receipts rather than placeholder Scrum plans.
 See [legacy API compatibility](../../guides/inbox-legacy-api.md) for request IDs,
 replay behavior and follow-ups. Normal agent operations continue through CLI/MCP.
+
+Keep a cohesive change in one task when its parts share a workspace and one
+end-to-end verification. Multiple technical layers alone do not require phases.
+For a genuinely sequential approved plan, each phase label must describe an
+observable outcome and its check. A generated next-phase task starts with that
+exact approved outcome unchecked and without inherited evidence. Native phase
+validation rejects a missing or replaced outcome; prior phase success is not
+proof of the next phase. All original plan context and execution limits remain.

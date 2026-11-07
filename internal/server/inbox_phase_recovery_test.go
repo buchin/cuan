@@ -142,6 +142,9 @@ func TestApprovedPhaseRecoveryCompletesPersistedReviewAfterAcceptanceOutage(t *t
 	underlying := s.taskSvc.Store()
 	row, _ := underlying.GetTask(ctx, parent.ID)
 	row.Status = task.TaskStatusReview
+	// This fixture tests acceptance storage recovery, not code implementation
+	// acceptance without a separate exact-source verifier.
+	row.ExecutionCategory = task.ExecutionCategoryReadOnly
 	row.Summary = "Phase checks passed"
 	row.CompleteNote = "Verified original criteria"
 	if err := underlying.UpdateTask(ctx, row); err != nil {

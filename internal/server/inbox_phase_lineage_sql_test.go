@@ -61,10 +61,31 @@ func TestApprovedPhasePostgres(t *testing.T) {
 	withPhasePostgres(t, func(database *sql.DB) {
 		ctx := context.Background()
 		s, q, parent, child, launch := phaseLineageFixture(t, database)
+		if len(child.DoDChecklist) != 1 || child.DoDChecklist[0].Text != "API" || child.DoDChecklist[0].Completed || child.DoDChecklist[0].Evidence != "" {
+			t.Fatal("persisted next phase lost fresh acceptance", child.DoDChecklist)
+		}
 		restarted := &Server{taskSvc: s.taskSvc, projectStudioRepo: s.projectStudioRepo, projectSvc: s.projectSvc}
 		_, authorized, err := restarted.authorizeSavedTaskLaunch(ctx, *launch, child)
 		if err != nil || !authorized {
 			t.Fatal("Postgres phase approval failed", err)
+		}
+		original := append([]task.DoDItem(nil), child.DoDChecklist...)
+		for _, criteria := range [][]task.DoDItem{nil, {{Text: "Unapproved outcome"}}} {
+			child.DoDChecklist = criteria
+			if err := s.taskSvc.Store().UpdateTask(ctx, &child.Task); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := s.taskSvc.GetTaskDetail(ctx, child.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, allowed, err := restarted.authorizeSavedTaskLaunch(ctx, *launch, saved); err != nil || allowed {
+				t.Fatal("changed persisted phase acceptance authorized", allowed, err)
+			}
+		}
+		child.DoDChecklist = original
+		if err := s.taskSvc.Store().UpdateTask(ctx, &child.Task); err != nil {
+			t.Fatal(err)
 		}
 		_ = s.enqueueInboxAutoDelegation(ctx, q, parent, "Phase accepted")
 		var count int

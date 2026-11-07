@@ -156,7 +156,7 @@ func TestApprovedPhaseThreeKeepsOriginalApprovalAndParentOrder(t *testing.T) {
 }
 
 func TestApprovedPhaseRejectsChangedAuthorization(t *testing.T) {
-	for _, scenario := range []string{"owner", "project", "source request", "child scope", "execution lane", "parent cancelled", "receipt author", "receipt step", "plan changed"} {
+	for _, scenario := range []string{"owner", "project", "source request", "child scope", "child outcome removed", "child outcome replaced", "execution lane", "parent cancelled", "receipt author", "receipt step", "plan changed"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, q, parent, child, launch := phaseLineageFixture(t)
 			ctx := context.Background()
@@ -169,6 +169,10 @@ func TestApprovedPhaseRejectsChangedAuthorization(t *testing.T) {
 				launch.SourceRequestID = "other"
 			case "child scope":
 				child.Instructions += "\nExpand the project"
+			case "child outcome removed":
+				child.DoDChecklist = nil
+			case "child outcome replaced":
+				child.DoDChecklist[0].Text = "Unapproved different outcome"
 			case "execution lane":
 				child.ExecutionCategory = task.ExecutionCategoryReadOnly
 			case "parent cancelled":
@@ -236,5 +240,38 @@ func TestApprovedPhaseHandoffReturnsTypedFailure(t *testing.T) {
 	text, err := s.attemptInboxAutoDelegation(context.Background(), q, parent, "Phase accepted")
 	if err != nil || !strings.Contains(text, "Phase 2: API") {
 		t.Fatalf("valid replay failed: %v %s", err, text)
+	}
+}
+
+func TestAutoPhaseRequiresFreshEvidenceForApprovedOutcome(t *testing.T) {
+	s, q, parent := phaseLineageSetup(t)
+	ctx := context.Background()
+	row, err := s.taskSvc.Store().GetTask(ctx, parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row.DoDChecklist = []task.DoDItem{{Text: "Prior phase data outcome", Completed: true, Evidence: "Old phase proof"}}
+	if err = s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	parent, err = s.taskSvc.GetTaskDetail(ctx, parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err = s.attemptInboxAutoDelegation(ctx, q, parent, "Phase accepted"); err != nil {
+			t.Fatal(err)
+		}
+		input := delegationMessageID("auto-phase:" + parent.ID + ":2:input")
+		child, err := s.taskSvc.GetTaskDetail(ctx, "msg_"+input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(child.DoDChecklist) != 1 || child.DoDChecklist[0].Text != "API" || child.DoDChecklist[0].Completed || child.DoDChecklist[0].Evidence != "" {
+			t.Fatalf("next approved outcome lost or inherited claims: %+v", child.DoDChecklist)
+		}
+		if len(task.AcceptanceGaps(&child.Task)) == 0 {
+			t.Fatal("new phase accepted without current evidence")
+		}
 	}
 }

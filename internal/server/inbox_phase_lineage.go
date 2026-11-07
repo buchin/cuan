@@ -158,6 +158,14 @@ func (s *Server) phaseApproval(ctx context.Context, d *task.TaskDetailResponse, 
 				return nil, phaseDenied("phase order could not be verified")
 			}
 			phase = lineage.Phase
+			approved := *root
+			approved.Title = fmt.Sprintf("Phase %d: predecessor", phase-1)
+			approved.Instructions = plan.Plan.Description
+			approved.SourceMessageID = ""
+			target, exists := s.detectNextMultiPhase(ctx, &approved)
+			if !exists || len(d.DoDChecklist) != 1 || d.DoDChecklist[0].Text != target.NextTitle {
+				return nil, phaseDenied("approved phase acceptance outcome changed")
+			}
 		}
 		return &phaseApproval{Root: root, Request: q, Plan: plan, Phase: phase}, nil
 	}
