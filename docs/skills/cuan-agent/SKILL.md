@@ -488,3 +488,10 @@ projects or creates a replacement Default workspace. With several candidates,
 select the registered target from the approved context; clarify only when the
 actual destination remains ambiguous. A failed project-list read is not an empty
 workspace and must not trigger project creation.
+
+For an unclear idea, the PM first understands the actual problem and workflow,
+using existing context and the next consequential missing question. Discovery
+never authorizes project creation or execution. Once the outcome and destination
+are clear, recommend the simplest useful step; avoid an unsolicited catalogue of
+products or projects. An already clear authorized request proceeds directly with
+its original scope and observable acceptance criteria, without ritual questions.
