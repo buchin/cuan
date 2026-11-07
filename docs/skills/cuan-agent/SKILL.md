@@ -495,3 +495,7 @@ never authorizes project creation or execution. Once the outcome and destination
 are clear, recommend the simplest useful step; avoid an unsolicited catalogue of
 products or projects. An already clear authorized request proceeds directly with
 its original scope and observable acceptance criteria, without ritual questions.
+Conceptual discovery from supplied context needs no repository/host inspection or
+terminal commands. A request for the simplest first step gets a recommendation
+with its relevant reason, without an unsolicited alternatives catalogue or a
+second choice request. Discussion alone still does not authorize execution.
