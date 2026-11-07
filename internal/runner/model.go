@@ -81,6 +81,7 @@ type SteerAttemptResponse struct {
 
 // ClaimTaskRequest is sent by a runner to acquire the next queued task attempt for available lanes.
 type ClaimTaskRequest struct {
+	SupportsNativeRelease            bool     `json:"supports_native_release,omitempty"`
 	SupportsEvidenceRevalidation     bool     `json:"supports_evidence_revalidation,omitempty"`
 	SupportsNativeVisualVerification bool     `json:"supports_native_visual_verification,omitempty"`
 	SupportsCurrentOutcomeInspection bool     `json:"supports_current_outcome_inspection,omitempty"`
@@ -94,6 +95,7 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
+	NativeRelease     *task.NativeReleaseIntent         `json:"native_release,omitempty"`
 	PHPUnitTargets    string                            `json:"phpunit_targets,omitempty"`
 	VisualRecipe      *task.VisualRecipe                `json:"visual_recipe,omitempty"`
 	LiveInspection    *task.LiveInspectionIntent        `json:"live_inspection,omitempty"`

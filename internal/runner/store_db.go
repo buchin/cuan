@@ -240,6 +240,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
  AND ($6 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"previous_attempt_id":%'))
  AND ($7 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"purpose":"current_outcome"%'))
  AND ($8 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"revalidation_kind":"evidence"%'))
+ AND ($9 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan native-release intent%'))
 		  AND (
 		      ($1 = true AND COALESCE(t.execution_category, 'code') = 'code')
 		      OR ($2 = true AND COALESCE(t.execution_category, 'code') = 'ops')
@@ -344,7 +345,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 
 	var att task.TaskAttempt
 	var t task.Task
-	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true).Scan(
+	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true).Scan(
 		&att.ID,
 		&att.TaskID,
 		&att.RunnerID,
@@ -395,10 +396,10 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		if !locked {
 			return nil, nil, nil
 		}
-		check := strings.Replace(query, "ORDER BY a.created_at ASC", "AND a.id=$9 ORDER BY a.created_at ASC", 1)
+		check := strings.Replace(query, "ORDER BY a.created_at ASC", "AND a.id=$10 ORDER BY a.created_at ASC", 1)
 		check = "SELECT EXISTS(SELECT 1 FROM (" + check + ") eligible)"
 		var eligible bool
-		if err := tx.QueryRowContext(ctx, check, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, att.ID).Scan(&eligible); err != nil {
+		if err := tx.QueryRowContext(ctx, check, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true, att.ID).Scan(&eligible); err != nil {
 			return nil, nil, fmt.Errorf("recheck project claim: %w", err)
 		}
 		if !eligible {

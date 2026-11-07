@@ -675,6 +675,21 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 		} else if existing != nil {
 			return existing, nil
 		}
+		if reader, ok := s.store.(LaunchStore); ok {
+			launch, err := reader.GetLaunch(ctx, LaunchID(t.ID, req.RequestID))
+			if err != nil && !errors.Is(err, ErrTaskNotFound) {
+				return nil, err
+			}
+			if launch != nil {
+				release, err := NativeReleaseIntentForLaunch(t, launch)
+				if err != nil {
+					return nil, err
+				}
+				if release != nil && req.ExpectedPredecessorID != release.SourceAttemptID {
+					return nil, ErrRequestConflict
+				}
+			}
+		}
 	}
 	if t.Status == TaskStatusDone {
 		return nil, fmt.Errorf("%w: reopen the completed task before starting a new session", ErrInvalidTaskInput)
@@ -709,8 +724,8 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 	}
 	var createErr error
 	if req.ExpectedPredecessorID != "" {
-		// Successful predecessors are only valid for an authenticated native
-		// inspection, never as a generic implementation retry.
+		// Successful predecessors require an authenticated typed native
+		// continuation, never a generic implementation retry.
 		if reader, ok := s.store.(LaunchStore); ok && req.RequestID != "" {
 			launch, launchErr := reader.GetLaunch(ctx, LaunchID(t.ID, req.RequestID))
 			if launchErr == nil && launch != nil {
@@ -723,6 +738,19 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 						return nil, ErrRequestConflict
 					}
 					if err := ValidateLiveInspectionSource(ctx, s.store, t, proof); err != nil {
+						return nil, err
+					}
+					ctx = context.WithValue(ctx, inspectionAdmissionKey{}, inspectionAdmission{LaunchID: launch.ID, Revision: launch.Revision, Predecessor: req.ExpectedPredecessorID})
+				}
+				release, releaseErr := NativeReleaseIntentForLaunch(t, launch)
+				if releaseErr != nil {
+					return nil, releaseErr
+				}
+				if release != nil {
+					if release.SourceAttemptID != req.ExpectedPredecessorID {
+						return nil, ErrRequestConflict
+					}
+					if err := ValidateNativeReleaseSource(ctx, s.store, t, release); err != nil {
 						return nil, err
 					}
 					ctx = context.WithValue(ctx, inspectionAdmissionKey{}, inspectionAdmission{LaunchID: launch.ID, Revision: launch.Revision, Predecessor: req.ExpectedPredecessorID})

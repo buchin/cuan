@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -39,10 +40,11 @@ type Description struct {
 	Branch         string   `json:"branch"`
 	Command        []string `json:"command"`
 	TimeoutSeconds int      `json:"timeout_seconds"`
+	ManifestHash   string   `json:"manifest_sha256"`
 }
 
 func (p *Plan) Description() Description {
-	return Description{p.commit, p.branch, append([]string(nil), p.spec.Command...), p.spec.TimeoutSeconds}
+	return Description{Commit: p.commit, Branch: p.branch, Command: append([]string(nil), p.spec.Command...), TimeoutSeconds: p.spec.TimeoutSeconds, ManifestHash: hex.EncodeToString(p.manifestHash[:])}
 }
 
 func source(ctx context.Context, root, commit, branch string) error {

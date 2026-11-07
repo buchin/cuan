@@ -73,7 +73,21 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if t != nil && t.AssignedAgent != "" {
 		launchAgent = t.AssignedAgent
 	}
-	job, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: launchAgent, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: expires})
+	candidate := task.TaskLaunch{TaskID: t.ID, ProjectID: t.ProjectID, RequestID: launchID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: sourceRequestID, AgentID: launchAgent, Revision: revision, InstructionsHash: task.LaunchInstructionsHash(t.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: expires}
+	nativeRelease, nativeErr := task.NativeReleaseIntentForLaunch(&t.Task, &candidate)
+	if nativeErr != nil {
+		return "The native release scope could not be validated. No execution was started."
+	}
+	if nativeRelease != nil {
+		if err := task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &t.Task, nativeRelease); err != nil {
+			return "The native release source could not be verified. No execution was started."
+		}
+		trigger, authorized, err := s.authorizeSavedTaskLaunch(ctx, candidate, t)
+		if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, trigger, t) {
+			return "The original release authorization could not be verified. No execution was started."
+		}
+	}
+	job, e := s.taskSvc.SaveLaunch(ctx, candidate)
 	link := "\n\n[View work](/tasks/" + t.ID + ")"
 	if e != nil {
 		recordInboxReviewLaunchError(ctx, e)
@@ -166,6 +180,10 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	if inspectionErr != nil {
 		return finish("stopped", task.InspectionScopePreparationError)
 	}
+	nativeRelease, nativeErr := task.NativeReleaseIntentForLaunch(&detail.Task, &job)
+	if nativeErr != nil {
+		return finish("stopped", "The native release scope could not be validated.")
+	}
 	recoverySource := automaticRecoverySource(detail, job.RequestID)
 	trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
 	if authErr != nil {
@@ -181,7 +199,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	// that attempt exists, it is no longer supposed to match its predecessor.
 	// Reconcile ownership rather than declaring the active inspection stale or
 	// replaying it; completion/acceptance still belongs to the ordinary pipeline.
-	if (liveInspection != nil || recoverySource != nil) && detail.LatestAttempt != nil {
+	if (liveInspection != nil || recoverySource != nil || nativeRelease != nil) && detail.LatestAttempt != nil {
 		recorded, err := s.launchOwnsLatestAttempt(ctx, &job, detail)
 		if err != nil {
 			return finish("queued", "Saved execution identity is temporarily unavailable.")
@@ -209,6 +227,19 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	}
 	if liveInspection != nil && (detail.LatestAttempt == nil || detail.LatestAttempt.ID != liveInspection.PredecessorAttemptID() || !s.liveInspectionMatchesRelease(ctx, detail, liveInspection)) {
 		return finish("stopped", staleInspectionLaunchReason)
+	}
+	if nativeRelease != nil {
+		if detail.LatestAttempt == nil || detail.LatestAttempt.ID != nativeRelease.SourceAttemptID || task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &detail.Task, nativeRelease) != nil {
+			return finish("stopped", "The native release source changed or is unavailable.")
+		}
+		_, err := s.taskSvc.CreateAttempt(ctx, detail.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: nativeRelease.SourceAttemptID})
+		if err != nil {
+			if errors.Is(err, task.ErrRequestConflict) || errors.Is(err, task.ErrInvalidTaskInput) {
+				return finish("stopped", "The native release source is no longer current.")
+			}
+			return finish("queued", "Native release is waiting for the active project task.")
+		}
+		return finish("started", "")
 	}
 	response := &delegationResponse{header: make(http.Header)}
 	request, _ := http.NewRequestWithContext(ctx, "POST", "http://localhost/internal-queued-launch", nil)

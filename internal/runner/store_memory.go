@@ -258,6 +258,23 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 		}
 		for _, a := range attempts {
 			if a.Status == task.AttemptStatusQueued {
+				isNativeRelease := false
+				if reader, ok := m.taskStore.(task.AttemptLaunchStore); ok {
+					launch, err := reader.LaunchForAttempt(ctx, a.ID)
+					if err != nil {
+						return nil, nil, err
+					}
+					if launch != nil && strings.Contains(launch.Revision, "Cuan native-release intent") {
+						if ctx.Value(nativeReleaseClaimKey{}) != true {
+							continue
+						}
+						proof, err := task.NativeReleaseIntentForLaunch(t, launch)
+						if err != nil {
+							return nil, nil, err
+						}
+						isNativeRelease = proof != nil
+					}
+				}
 				if ctx.Value(verificationFinalizationClaimKey{}) != true {
 					proof, err := task.VerificationIntentForAttempt(ctx, m.taskStore, t, a.ID)
 					if err != nil {
@@ -285,7 +302,7 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 						targetAgent = "agy"
 					}
 				}
-				if len(supportedAgents) > 0 {
+				if len(supportedAgents) > 0 && !isNativeRelease {
 					supported := false
 					for _, sa := range supportedAgents {
 						if strings.EqualFold(sa, targetAgent) {

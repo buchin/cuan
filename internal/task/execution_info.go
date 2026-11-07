@@ -67,7 +67,14 @@ func diagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic {
 		d.IntentKind, d.ValidationCode = "invalid", "invalid_verification"
 		return d
 	}
+	nativeRelease, err := NativeReleaseIntentForLaunch(t, j)
+	if err != nil {
+		d.IntentKind, d.ValidationCode = "invalid", "invalid_native_release"
+		return d
+	}
 	switch {
+	case nativeRelease != nil:
+		d.IntentKind = "native_release"
 	case inspection != nil:
 		d.IntentKind = "live_result_inspection"
 		if inspection.Purpose == CurrentOutcomeInspection {
@@ -130,8 +137,16 @@ func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionI
 		info.IntentKind = "invalid"
 		return info, nil
 	}
+	nativeRelease, err := NativeReleaseIntentForLaunch(t, j)
+	if err != nil {
+		info.IntentKind = "invalid"
+		return info, nil
+	}
 	info.IntentParsed = true
 	switch {
+	case nativeRelease != nil:
+		info.IntentKind = "native_release"
+		info.SourceAttemptID, info.SourceCommit = nativeRelease.SourceAttemptID, nativeRelease.SourceCommit
 	case inspection != nil:
 		info.RevalidationKind = inspection.RevalidationKind
 		info.IntentKind = "live_result_inspection"

@@ -6,6 +6,29 @@ merge source, accept tasks or infer production health from a zero exit code.
 Inbox delivery admission and durable stage orchestration remain separate work;
 this command is currently an explicit maintainer operation.
 
+## Durable stage contract
+
+The task layer now recognizes a typed native-release launch backed by an exact
+runner-authored source handoff. A model report or copied launch marker cannot
+supply that evidence. The handoff binds commit, instructions, current passing
+project checks, repository, target branch and release-descriptor hash. It leaves
+publication unfinished. Failed/canceled/superseded sources, changed evidence and
+publication prohibitions are rejected.
+
+Admission reuses the existing durable task launch and predecessor reservation.
+Original owner approval is checked before changing task state, and checked again
+when the launch executes. Reconstructed dispatchers reuse the recorded attempt.
+This reservation bypasses AI account selection. Memory and PostgreSQL stores keep
+native stages out of older runners; a capable claimant revalidates source before
+execution. A revoked source fails before any release process starts.
+
+This contract is staged: the current poller does not advertise native-release
+support, and ordinary source completion does not emit managed-release handoffs
+yet. Automatic production delivery therefore remains disabled until the native
+worker and handoff producer are connected. Existing deployment acceptance gates
+remain unchanged. `cuan task execution` identifies the saved native intent without
+exposing its approval or credentials; parsing it is not proof of release success.
+
 ## Repository contract
 
 Track `.cuan/release.json` alongside its executable entry point:

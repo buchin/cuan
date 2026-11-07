@@ -251,6 +251,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 
 	claimCtx := context.WithValue(ctx, verificationFinalizationClaimKey{}, req.SupportsVerificationFinalization)
+	claimCtx = context.WithValue(claimCtx, nativeReleaseClaimKey{}, req.SupportsNativeRelease)
 	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection && req.SupportsNativeVisualVerification)
 	claimCtx = context.WithValue(claimCtx, liveInspectionRecoveryClaimKey{}, req.SupportsLiveInspectionRecovery)
 	claimCtx = context.WithValue(claimCtx, currentOutcomeClaimKey{}, req.SupportsCurrentOutcomeInspection)
@@ -283,6 +284,26 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	if err != nil {
 		return nil, err
 	}
+	nativeRelease, err := task.NativeReleaseIntentForAttempt(ctx, s.taskStore, t, att.ID)
+	if err != nil {
+		_, finishErr := s.Complete(ctx, att.ID, CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Native release intent could not be verified; no release execution was started"})
+		if finishErr != nil {
+			return nil, finishErr
+		}
+		return nil, err
+	}
+	if nativeRelease != nil {
+		if !req.SupportsNativeRelease {
+			return nil, errors.New("runner does not support native release")
+		}
+		if err := task.ValidateNativeReleaseSource(ctx, s.taskStore, t, nativeRelease); err != nil {
+			_, finishErr := s.Complete(ctx, att.ID, CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Native release source could not be verified; no release execution was started"})
+			if finishErr != nil {
+				return nil, finishErr
+			}
+			return nil, err
+		}
+	}
 	if verification != nil && verification.FinalizeAttemptID != "" && !req.SupportsVerificationFinalization {
 		return nil, fmt.Errorf("runner does not support verification finalization")
 	}
@@ -309,6 +330,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		}
 	}
 	resp := &ClaimTaskResponse{
+		NativeRelease:     nativeRelease,
 		LiveInspection:    inspection,
 		Verification:      verification,
 		Claimed:           true,
