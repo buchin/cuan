@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"github.com/buchin/cuan/internal/git"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
@@ -40,14 +42,41 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 		respondJSONError(w, 409, "Attempt is no longer active for this runner")
 		return
 	}
-	if s.projectSvc == nil || d.ProjectID == "" || (d.CommitSHA != "" && d.CommitSHA != input.Commit) {
+	preparation, preparationErr := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if preparationErr != nil {
+		respondJSONError(w, 409, "Native release preparation could not be verified")
+		return
+	}
+	expectedCommit := d.CommitSHA
+	if preparation != nil {
+		expectedCommit = preparation.TargetCommit
+	}
+	if s.projectSvc == nil || d.ProjectID == "" || (expectedCommit != "" && expectedCommit != input.Commit) {
 		respondJSONError(w, 409, "Publication does not match the task project result")
 		return
 	}
-	p, err := s.projectSvc.Get(r.Context(), d.ProjectID)
+	projectContext := func() (*project.ProjectResponse, error) {
+		if preparation != nil {
+			return s.projectSvc.TaskContext(r.Context(), d.ProjectID, d.Instructions)
+		}
+		return s.projectSvc.Get(r.Context(), d.ProjectID)
+	}
+	p, err := projectContext()
 	if err != nil || p == nil {
 		respondJSONError(w, 503, "Registered publication verifier is unavailable")
 		return
+	}
+	if preparation != nil {
+		owner, repo, repoErr := git.ParseGitHubURL(p.RepoURL)
+		settings := project.SettingsFromMetadata(p.Metadata)
+		branch := strings.TrimSpace(settings.DeployBranch)
+		if branch == "" {
+			branch = p.DefaultBranch
+		}
+		if repoErr != nil || p.IsArchived || preparation.Repository != owner+"/"+repo || preparation.TargetBranch != branch || !settings.IsAutoDeployEnabled() || project.ParseEnvironment(settings.Environment)["CUAN_MANAGED_RELEASE"] != "1" {
+			respondJSONError(w, 409, "Native release project differs from saved preparation")
+			return
+		}
 	}
 	c, err := publication.FromEnvironment(project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment))
 	if err != nil {
@@ -74,8 +103,15 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 		respondJSONError(w, 409, "Attempt or result changed during verification")
 		return
 	}
+	if preparation != nil {
+		currentPreparation, err := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &fresh.Task, fresh.LatestAttempt.ID)
+		if err != nil || currentPreparation == nil || *currentPreparation != *preparation {
+			respondJSONError(w, 409, "Native release preparation changed during verification")
+			return
+		}
+	}
 	// Re-read settings so a revoked/replaced connection cannot publish late proof.
-	current, err := s.projectSvc.Get(r.Context(), d.ProjectID)
+	current, err := projectContext()
 	if err != nil || current == nil || string(current.Metadata) != string(p.Metadata) {
 		respondJSONError(w, 409, "Project changed during verification")
 		return

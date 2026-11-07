@@ -3,8 +3,13 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/publication"
+	"golang.org/x/crypto/ssh"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,6 +34,11 @@ func TestNativeReleaseQueueRejectsRevokedSourceBeforeExecution(t *testing.T) {
 }
 func TestNativeReleaseQueueRejectsForeignApproval(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "foreign approval")
+}
+func TestNativeReleasePublicationObservesPreparedTarget(t *testing.T) {
+	for _, scenario := range []string{"publication", "publication wrong target", "publication revoked"} {
+		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
+	}
 }
 func TestNativeReleaseQueuePostgres(t *testing.T) {
 	for _, scenario := range []string{"ready", "revoked", "foreign approval"} {
@@ -178,5 +188,69 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	must(err)
 	if !claim.Claimed || claim.NativeRelease == nil || claim.NativeRelease.SourceCommit != p.SourceCommit || capacityCalls.Load() != 0 {
 		t.Fatal("native claim lost source or depended on AI capacity")
+	}
+	if strings.HasPrefix(scenario, "publication") {
+		verifyNativePreparedPublication(t, s, token, item, source, claim, p, scenario)
+	}
+}
+
+func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item *task.Task, source *task.TaskAttempt, claim *runner.ClaimTaskResponse, intent task.NativeReleaseIntent, scenario string) {
+	t.Helper()
+	ctx := context.Background()
+	store := s.taskSvc.Store()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, key, _ := ed25519.GenerateKey(rand.Reader)
+	signer, _ := ssh.NewSignerFromKey(key)
+	environment := "CUAN_MANAGED_RELEASE=1\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=project-user\nCUAN_PUBLICATION_SSH_PASSWORD=private-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
+	metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
+	projects := project.NewMemoryStore()
+	must(projects.CreateProject(ctx, &project.Project{ID: item.ProjectID, Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", Metadata: metadata}))
+	s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
+	target := strings.Repeat("c", 40)
+	receipt := task.NativeReleasePreparation{Version: 1, TaskID: item.ID, AttemptID: claim.Attempt.ID, SourceCommit: intent.SourceCommit, TargetCommit: target, InstructionsHash: intent.InstructionsHash, Repository: intent.Repository, TargetBranch: intent.TargetBranch, ManifestHash: intent.ManifestHash}
+	raw, _ := json.Marshal(receipt)
+	must(store.CreateActivity(ctx, &task.TaskActivity{ID: "native-release-preparation:" + claim.Attempt.ID, TaskID: item.ID, AttemptID: &claim.Attempt.ID, Author: "cuan-native-release", ActivityType: task.ActivityNativeReleasePreparation, Message: string(raw), CreatedAt: time.Now().UTC()}))
+	calls := 0
+	s.publicationVerifier = func(_ context.Context, c publication.Config, expected string) error {
+		calls++
+		if expected != target || c.Password != "private-password" {
+			t.Error("observer checked wrong release target or environment")
+		}
+		if scenario == "publication revoked" {
+			source.CancelRequested = true
+			must(store.UpdateAttempt(ctx, source))
+		}
+		return nil
+	}
+	expected := target
+	if scenario == "publication wrong target" {
+		expected = item.CommitSHA
+	}
+	payload, _ := json.Marshal(map[string]string{"task_id": item.ID, "runner_id": claim.Attempt.RunnerID, "commit_sha": expected})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/runner/attempts/"+claim.Attempt.ID+"/publication/verify", bytes.NewReader(payload))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	s.Router().ServeHTTP(response, request)
+	want := 200
+	wantCalls := 1
+	if scenario != "publication" {
+		want = 409
+	}
+	if scenario == "publication wrong target" {
+		wantCalls = 0
+	}
+	if response.Code != want || calls != wantCalls {
+		t.Fatalf("native publication observation got %d calls=%d; want %d/%d", response.Code, calls, want, wantCalls)
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	verified := task.VerifiedDeployment(detail.Activities, detail.LatestAttempt, target, time.Now())
+	if verified != (scenario == "publication") || detail.CommitSHA != intent.SourceCommit || detail.Status == task.TaskStatusDone {
+		t.Fatal("release observation rewrote developer source or accepted unfinished work")
 	}
 }

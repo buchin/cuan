@@ -176,5 +176,14 @@ repository, branch and descriptor. `NativeReleasePreparationForAttempt` accepts
 only the canonical native-coordinator activity for a currently running, uncanceled
 and unexpired exact native attempt whose source handoff remains valid. Unknown
 JSON fields, changed identities, foreign authors and invalid chronology fail.
-This contract has no production publisher or live-observer consumer yet and does
-not establish deployment health, script execution or independent acceptance.
+This contract does not establish deployment health, script execution or
+independent acceptance. Its native preparation publisher is not connected yet.
+
+The authenticated publication observer now resolves a native attempt's expected
+release SHA from its canonical preparation record, preserving the developer SHA
+on the task. It checks frozen repository/branch/managed configuration, observes
+registered health/revision, then revalidates active attempt, source and identical
+preparation before saving the existing trusted deployment receipt for that target.
+Caller-supplied alternative targets are rejected. Ordinary execution retains its
+existing target rules. This is observer integration only: preparation publishing,
+worker result transport and delivered-source verifier wiring remain unfinished.
