@@ -218,11 +218,11 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		t.Fatal("prepared recovery did not reobserve saved branch access", access)
 	}
 	if strings.HasPrefix(scenario, "initial verify") {
-		verifyNativeDeliveryStartsIndependentInspection(t, s, item, claim, intent, target, scenario)
+		verifyNativeDeliveryStartsIndependentInspection(t, s, token, item, claim, intent, target, scenario)
 	}
 }
 
-func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, item *task.Task, claim *runner.ClaimTaskResponse, intent task.NativeReleaseIntent, target, scenario string) {
+func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, token string, item *task.Task, claim *runner.ClaimTaskResponse, intent task.NativeReleaseIntent, target, scenario string) {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -238,6 +238,22 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, it
 	receipt := task.DeploymentReceipt{Version: 1, TaskID: item.ID, AttemptID: claim.Attempt.ID, CommitSHA: target, ReleaseSHA: target, Environment: "production", Health: "healthy"}
 	raw, _ := json.Marshal(receipt)
 	must(s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: task.DeploymentReceiptID(item.ID, claim.Attempt.ID, target), TaskID: item.ID, AttemptID: &claim.Attempt.ID, Author: "cuan-deploy", ActivityType: "deployment_verified", Message: string(raw), CreatedAt: time.Now().UTC()}))
+	// Exercise the real post-process observation endpoint: an activation receipt
+	// alone must not complete native delivery or schedule its independent audit.
+	s.cfg.Environment, s.cfg.SourceRepository, s.cfg.CommitSHA = "production", intent.Repository, target
+	observation, _ := json.Marshal(map[string]any{"task_id": item.ID, "runner_id": claim.Attempt.RunnerID, "commit_sha": target, "process_finished_at": finished})
+	request := httptest.NewRequest("POST", "/api/v1/runner/attempts/"+claim.Attempt.ID+"/publication/verify", bytes.NewReader(observation))
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	s.Router().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("post-process current-build observation failed: %d %s", response.Code, response.Body.String())
+	}
+	observed, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if !task.VerifiedPostProcessDeployment(observed.Activities, observed.LatestAttempt, target, finished, time.Now().UTC()) {
+		t.Fatal("post-process observation was not recorded independently of activation")
+	}
 	s.runnerSvc.SetProjectFinder(s.projectSvc)
 	completed, err := s.runnerSvc.Complete(ctx, claim.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: claim.Attempt.RunnerID, Status: task.AttemptStatusSucceeded, ExitCode: 0, NativeReleaseProcess: &release.Result{Commit: target, Branch: intent.TargetBranch, StartedAt: started, FinishedAt: finished, ExitCode: 0, SourceUnchanged: true}})
 	must(err)
