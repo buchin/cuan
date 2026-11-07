@@ -117,6 +117,31 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 		}
 		args = append(args, "--ro-bind", path, path)
 	}
+	// Chat consumes owner-scoped backend snapshots and emits validated coordinator
+	// actions. Never inherit an account/workspace MCP connection (or advertise an
+	// unconfigured Owner CLI) into this provider process. Keep provider auth and
+	// settings mounted, overlay only MCP discovery files inside this namespace.
+	mcpFile, err := prepareInboxMCPBoundary(home)
+	if err != nil {
+		return nil, err
+	}
+	mcpTargets := []string{
+		filepath.Join(home, ".gemini", "config", "mcp_config.json"),
+		filepath.Join(home, ".gemini", "antigravity-cli", "mcp_config.json"),
+		filepath.Join(home, ".config", "antigravity", "mcp_config.json"),
+	}
+	if workspace != "" {
+		for _, target := range []string{filepath.Join(workspace, ".gemini", "config", "mcp_config.json"), filepath.Join(workspace, ".agents", "mcp_config.json")} {
+			if _, e := os.Lstat(target); e == nil {
+				mcpTargets = append(mcpTargets, target)
+			} else if !os.IsNotExist(e) {
+				return nil, e
+			}
+		}
+	}
+	for _, target := range mcpTargets {
+		args = append(args, "--ro-bind", mcpFile, target)
+	}
 	// A standalone AGY binary can live under the service's otherwise hidden HOME.
 	args = append(args, "--ro-bind", binary, binary, "--chdir", cwd)
 	return args, nil
@@ -143,4 +168,25 @@ func sandboxInboxCommand(binary string, args, env []string, home, workspace stri
 	}
 	mounts = append(mounts, "--setenv", "TMPDIR", "/tmp", "--", binary)
 	return wrapper, append(mounts, args...), nil
+}
+
+func prepareInboxMCPBoundary(home string) (string, error) {
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	const directory = ".cuan-chat-sandbox"
+	if err := root.Mkdir(directory, 0700); err != nil && !os.IsExist(err) {
+		return "", err
+	}
+	info, err := root.Lstat(directory)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
+		return "", fmt.Errorf("chat MCP boundary directory must be private")
+	}
+	path := filepath.Join(directory, "mcp_config.json")
+	if err := writeNativeRuntimeFile(root, path, []byte("{\"mcpServers\":{}}\n"), 0600); err != nil {
+		return "", err
+	}
+	return filepath.Join(home, path), nil
 }

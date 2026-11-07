@@ -334,3 +334,11 @@ raw output is never added to the public process-result JSON. Saved diagnostics
 can be re-emitted when observing a completed journal without replaying release.
 This is an end-of-process tail, not live line-by-line streaming. Older journals
 without diagnostics cannot recover discarded process output.
+
+Inbox PM processes use backend-supplied task/project/room snapshots and validated
+coordinator actions. Their sandbox masks account/workspace MCP discovery files
+with an empty private configuration. This avoids advertising unconfigured Owner
+CLI connections or inheriting another context's MCP authority. Provider settings
+and authentication remain available, including refresh; host MCP files are not
+edited. Missing snapshot evidence remains uncertainty. Worker task capabilities
+and Owner CLI connections are separate execution contexts.

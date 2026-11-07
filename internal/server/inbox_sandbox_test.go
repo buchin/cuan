@@ -40,7 +40,7 @@ func TestInboxExternalSandboxBoundary(t *testing.T) {
 	if err := os.WriteFile(attachment, []byte("attached"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	for path, body := range map[string]string{filepath.Join(workspace, "README"): "project", hostSecret: "private", filepath.Join(profile, "auth"): "fixture-token"} {
+	for path, body := range map[string]string{filepath.Join(workspace, "README"): "project", hostSecret: "private", filepath.Join(profile, "auth"): "fixture-token", filepath.Join(profile, "mcp_config.json"): `{"mcpServers":{"ambient-owner":{"command":"private"}}}`} {
 		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -66,11 +66,13 @@ test ! -e /opt/cuan/.env
 test "$(cat "$3")" = attached
 if (echo bad > README) 2>/dev/null; then exit 40; fi
 if (touch new-file) 2>/dev/null; then exit 41; fi
+test "$(cat "$5")" = '{"mcpServers":{}}'
+test "$(cat "$6")" = '{"mcpServers":{}}'
 echo temporary > /tmp/scratch
 echo refreshed > "$2"
 echo BOUNDARY_OK
 `
-	args = append(args, "--", shell, "-c", script, "sandbox", hostSecret, filepath.Join(profile, "auth"), attachment, fmt.Sprint(os.Getpid()))
+	args = append(args, "--", shell, "-c", script, "sandbox", hostSecret, filepath.Join(profile, "auth"), attachment, fmt.Sprint(os.Getpid()), filepath.Join(home, ".gemini", "config", "mcp_config.json"), filepath.Join(profile, "mcp_config.json"))
 	out, err := exec.Command(bwrap, args...).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(out), "Can't mount proc") {
@@ -86,6 +88,10 @@ echo BOUNDARY_OK
 		t.Fatal("workspace modified")
 	}
 	body, _ = os.ReadFile(filepath.Join(profile, "auth"))
+	mcpBody, _ := os.ReadFile(filepath.Join(profile, "mcp_config.json"))
+	if !strings.Contains(string(mcpBody), "ambient-owner") {
+		t.Fatal("host MCP config changed")
+	}
 	if strings.TrimSpace(string(body)) != "refreshed" {
 		t.Fatal("token refresh state not retained")
 	}
@@ -166,5 +172,67 @@ func TestInboxExternalSandboxBlockedBeforeProvider(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, "provider-started")); !os.IsNotExist(err) {
 		t.Fatal("provider launched before sandbox check")
+	}
+}
+
+func TestInboxSandboxMasksMCPConnectionsWithoutChangingProfile(t *testing.T) {
+	home, workspace := t.TempDir(), t.TempDir()
+	targets := []string{filepath.Join(home, ".gemini", "config", "mcp_config.json"), filepath.Join(home, ".gemini", "antigravity-cli", "mcp_config.json"), filepath.Join(workspace, ".agents", "mcp_config.json")}
+	const original = `{"mcpServers":{"cuan-inspect":{"command":"cuan","args":["mcp"]},"other-owner":{"command":"private"}}}`
+	for _, target := range targets {
+		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(target, []byte(original), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	args, err := inboxSandboxArgs("/bin/sh", home, workspace, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range targets {
+		masked := false
+		for i := 0; i+2 < len(args); i++ {
+			if args[i] == "--ro-bind" && args[i+2] == target && args[i+1] != target {
+				raw, err := os.ReadFile(args[i+1])
+				if err != nil || string(raw) != "{\"mcpServers\":{}}\n" {
+					t.Fatal("invalid empty MCP boundary")
+				}
+				masked = true
+			}
+		}
+		if !masked {
+			t.Fatal("account/workspace MCP inherited", target)
+		}
+		raw, _ := os.ReadFile(target)
+		if string(raw) != original {
+			t.Fatal("host profile changed")
+		}
+	}
+}
+
+func TestInboxMCPBoundaryRejectsChangedOrSymlinkedConfig(t *testing.T) {
+	for _, scenario := range []string{"changed", "symlink"} {
+		t.Run(scenario, func(t *testing.T) {
+			home := t.TempDir()
+			file, err := prepareInboxMCPBoundary(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "changed" {
+				err = os.WriteFile(file, []byte(`{"mcpServers":{"unexpected":{}}}`), 0600)
+			} else {
+				if err = os.Remove(file); err == nil {
+					err = os.Symlink(filepath.Join(t.TempDir(), "missing"), file)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prepareInboxMCPBoundary(home); err == nil {
+				t.Fatal("changed MCP boundary accepted")
+			}
+		})
 	}
 }
