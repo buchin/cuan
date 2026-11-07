@@ -3,9 +3,23 @@ package server
 import (
 	"fmt"
 	"io"
+	"mime"
 	"os"
+	"strings"
 	"unicode/utf8"
 )
+
+// Structured text uses application/* MIME types too. Do not guess binary
+// contents from filenames; decoding still requires valid UTF-8 below.
+func reviewableTextMediaType(value string) bool {
+	kind, _, err := mime.ParseMediaType(value)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(kind, "text/") || kind == "application/json" ||
+		kind == "application/xml" || (strings.HasPrefix(kind, "application/") &&
+		(strings.HasSuffix(kind, "+json") || strings.HasSuffix(kind, "+xml")))
+}
 
 // Reports commonly put checks and limitations after their introduction. Preserve
 // both ends inside the existing context budget and mark the omitted middle.

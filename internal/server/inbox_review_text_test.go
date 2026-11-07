@@ -39,6 +39,19 @@ func TestReviewTextIncludesFinalChecksWithinExistingBudget(t *testing.T) {
 	}
 }
 
+func TestReviewStructuredTextMediaTypes(t *testing.T) {
+	for _, kind := range []string{"text/plain; charset=utf-8", "application/json", "application/ld+json", "application/xml", "application/vnd.example+xml"} {
+		if !reviewableTextMediaType(kind) {
+			t.Fatalf("text excluded: %s", kind)
+		}
+	}
+	for _, kind := range []string{"application/pdf", "application/zip", "application/octet-stream", "image/png", "invalid", "application/json; broken"} {
+		if reviewableTextMediaType(kind) {
+			t.Fatalf("nontext included: %s", kind)
+		}
+	}
+}
+
 func TestAcceptedReviewReportsOutcomeWithoutFutureDeliveryPromise(t *testing.T) {
 	s, d, q := stalledReviewFixture(t, "completed")
 	out := s.applyInboxReviewEvaluation(context.Background(), q, `{"decision":"pass","finding":"Laporan investigasi tersedia dan memenuhi kriteria yang diminta.","explanation":"Cuan akan menyampaikan laporan kepada pengguna.","remaining_work":"none","revision":""}`)

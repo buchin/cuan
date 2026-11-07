@@ -394,3 +394,9 @@ copy into both roots is needed. Within one report, identical filename/content
 copies are delivered once. Different names or contents remain distinct, all
 source paths and limits are still validated, and uncertain delivery still requires
 reconciliation on the same attempt.
+
+Independent Inbox review reads delivered UTF-8 text and structured JSON/XML
+attachments within the existing excerpt budget. Excerpts are untrusted data;
+large files explicitly retain head/tail with omitted-middle marking. Binary
+formats are not decoded as text, and readable excerpts do not prove omitted
+content or replace format-specific verification required by the original task.

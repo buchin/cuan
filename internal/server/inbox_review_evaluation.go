@@ -112,7 +112,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 			for _, id := range ids {
 				if a, path, err := loadAttachment(owner, id); err == nil {
 					files = append(files, a)
-					if strings.HasPrefix(a.Type, "text/") && textBudget > 0 {
+					if reviewableTextMediaType(a.Type) && textBudget > 0 {
 						if excerpt, scope, err := reviewTextExcerpt(path, min(6000, textBudget)); err == nil && excerpt != "" {
 							deliveredText = append(deliveredText, map[string]string{"attachment_id": a.ID, "name": a.Name, "untrusted_excerpt": excerpt, "excerpt_scope": scope})
 							textBudget -= len(excerpt)

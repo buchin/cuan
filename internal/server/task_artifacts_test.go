@@ -119,6 +119,14 @@ func TestTaskArtifactsCoalesceIdenticalNamedCopiesAcrossRoots(t *testing.T) {
 	}
 }
 func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
+	taskArtifactDeliveryFormatContract(t, session, "html", native...)
+}
+
+func TestTaskArtifactJSONContentReachesIndependentReview(t *testing.T) {
+	taskArtifactDeliveryFormatContract(t, false, "json")
+}
+
+func taskArtifactDeliveryFormatContract(t *testing.T, session bool, format string, native ...bool) {
 	s, token, call, _ := inboxFixture(t)
 	ctx := context.Background()
 	owner, err := s.authSvc.ValidateToken(ctx, token)
@@ -149,13 +157,21 @@ func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 	s.taskSvc.UpdateAttemptStatus(ctx, a.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 	workspace := t.TempDir()
 	original := "<!doctype html><title>Offline output</title><p>Works offline</p>" + strings.Repeat("<!-- long report body -->", 400) + "<p>FINAL_VERIFICATION_RESULT</p>"
-	os.WriteFile(filepath.Join(workspace, "output.html"), []byte(original), 0600)
+	filename := "output." + format
+	if format == "json" {
+		raw, err := json.Marshal(map[string]string{"a_title": "Offline output", "data": strings.Repeat("structured content ", 500), "z_result": "FINAL_VERIFICATION_RESULT"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		original = string(raw)
+	}
+	os.WriteFile(filepath.Join(workspace, filename), []byte(original), 0600)
 	env, _, capability, cleanup, err := s.issueTaskAgent(context.WithValue(ctx, taskAgentWorkspaceKey{}, workspace), saved.ID, a.ID, q.AgentID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	sourceFile := filepath.Join(workspace, "output.html")
+	sourceFile := filepath.Join(workspace, filename)
 	if len(native) > 0 && native[0] {
 		s.cfg.WorkspacesDir = t.TempDir()
 		projects := project.NewMemoryStore()
@@ -174,10 +190,10 @@ func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 		// Both directories contain the same filename, with different content.
 		// The delivered attachment must come from the actual worker checkout.
 		os.WriteFile(sourceFile, []byte("STALE PROJECT CLONE OUTPUT"), 0600)
-		sourceFile = filepath.Join(worker, "output.html")
+		sourceFile = filepath.Join(worker, filename)
 		os.WriteFile(sourceFile, []byte(original), 0600)
 	}
-	paths := `["output.html"]`
+	paths := `["` + filename + `"]`
 	duplicate := len(native) > 1 && native[1]
 	if session || duplicate {
 		var directory string
@@ -191,14 +207,14 @@ func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 		}
 		if session {
 			os.Remove(sourceFile)
-			sourceFile = filepath.Join(directory, "output.html")
+			sourceFile = filepath.Join(directory, filename)
 		}
-		if err := os.WriteFile(filepath.Join(directory, "output.html"), []byte(original), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(directory, filename), []byte(original), 0600); err != nil {
 			t.Fatal(err)
 		}
-		paths = `["session:output.html"]`
+		paths = `["session:` + filename + `"]`
 		if duplicate {
-			paths = `["output.html","session:output.html"]`
+			paths = `["` + filename + `","session:` + filename + `"]`
 		}
 		// Reopen both roots from the durable encrypted grant, as after restart.
 		s.forgetTaskGrant(sha256.Sum256([]byte(capability)))
@@ -298,7 +314,7 @@ func taskArtifactDeliveryContract(t *testing.T, session bool, native ...bool) {
 			}
 		}
 	}
-	if attachment.Name != "output.html" {
+	if attachment.Name != filename {
 		raw, _ := json.Marshal(messages)
 		t.Fatal("download not surfaced in Inbox", string(raw))
 	}
