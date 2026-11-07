@@ -48,6 +48,7 @@ type Config struct {
 	RunnerLeaseDuration       time.Duration
 	RunnerMaxLogLines         int
 	RunnerDetachedWorkers     bool
+	RunnerNativeRelease       bool
 	RunnerWorkerRegistryDir   string
 	RunnerBinPath             string
 	AuthSecret                string
@@ -190,6 +191,7 @@ func Load() *Config {
 		RunnerLeaseDuration:       time.Duration(leaseSec) * time.Second,
 		RunnerMaxLogLines:         maxLogLines,
 		RunnerDetachedWorkers:     runnerDetachedWorkers,
+		RunnerNativeRelease:       getEnv("CUAN_RUNNER_NATIVE_RELEASE", "false") == "true",
 		RunnerWorkerRegistryDir:   runnerWorkerRegistryDir,
 		RunnerBinPath:             runnerBinPath,
 		AuthSecret:                authSecret,

@@ -22,11 +22,20 @@ This reservation bypasses AI account selection. Memory and PostgreSQL stores kee
 native stages out of older runners; a capable claimant revalidates source before
 execution. A revoked source fails before any release process starts.
 
-The source handoff, native worker and preparation transport are implemented but
-staged. The current poller does not advertise native-release support, native-stage scheduling is implemented, while delivered-source independent
-verification and production runtime readiness are unfinished. Do not enable this as an operational automatic
-production release workflow. `cuan task execution` identifies saved intent without
-exposing approval or credentials; parsing is not proof of release success.
+The source handoff, native worker, preparation transport and delivered-source
+independent verification are implemented but staged. The poller advertises native
+release capability only when its operator explicitly sets
+`CUAN_RUNNER_NATIVE_RELEASE=true` in the **worker service environment**; the default
+is off. This switch does not grant a project publication permission. Project
+`CUAN_MANAGED_RELEASE=1`, saved auto-deploy approval, original task authorization,
+exact source/target checks and saved verifier/SSH trust remain required.
+
+Before opting in a worker, validate its actual explicit runtime tool path and
+private execution, saved project publication verifier and pinned host trust, then
+run the real autonomous code plus deployment benchmark through independent Done.
+These production readiness checks are still unproven; do not treat opt-in or
+protocol fixtures as operational readiness. `cuan task execution` identifies saved
+intent without exposing approval or credentials; parsing is not release proof.
 
 ## Repository contract
 

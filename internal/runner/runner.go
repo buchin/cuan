@@ -466,6 +466,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	claimReq := ClaimTaskRequest{
+		SupportsNativeRelease:            r.cfg.RunnerNativeRelease,
 		SupportsNativeVisualVerification: true,
 		SupportsCurrentOutcomeInspection: true,
 		SupportsEvidenceRevalidation:     true,
