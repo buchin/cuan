@@ -61,6 +61,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "repo" {
 		os.Exit(diagnostics.RunRepoCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "release" {
+		os.Exit(diagnostics.RunReleaseCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && (os.Args[1] == "diag" || os.Args[1] == "health" || os.Args[1] == "diagnostics") {
 		os.Exit(diagnostics.RunDiagCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
@@ -413,6 +416,7 @@ Usage:
   cuan config <subcommand> [flags]
   cuan project env <list|set|unset> PROJECT_ID [flags]
   cuan repo <subcommand> [flags]
+  cuan release <inspect|run> --commit SHA --branch BRANCH [--path REPO]
   cuan diag <subcommand> [flags]
   cuan mcp
 
@@ -424,6 +428,7 @@ Subcommands:
   project           Project environments (list, set, unset; values redacted by default)
   integration       Inspect GitHub connection or manage Resend settings
   repo              Read-only git repository inspection (status, log, diff-summary, branches)
+  release           Inspect or execute the maintained release entry point on exact source
   diag              Host system health & static diagnostics (health, df, free, tsc, deps)
   mcp               Model Context Protocol (MCP) stdio server for Agent function calling
 

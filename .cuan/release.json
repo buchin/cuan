@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "command": ["scripts/deploy.sh"],
+  "timeout_seconds": 1200
+}
