@@ -30,6 +30,7 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 		AgentID   string `json:"agent_id"`
 		RequestID string `json:"request_id"`
 		ProjectID string `json:"project_id,omitempty"`
+		Title     string `json:"title,omitempty"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil || !db.IsValidUUID(req.RequestID) {
 		respondJSONError(w, 400, "A valid conversation request ID is required")
@@ -61,6 +62,14 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 		}
 	} else {
 		now := time.Now().UTC()
+		title := strings.TrimSpace(req.Title)
+		if len([]rune(title)) > 200 {
+			respondJSONError(w, 400, "Use a conversation title up to 200 characters")
+			return
+		}
+		if title == "" {
+			title = "New conversation"
+		}
 		projectID := "default"
 		if s.projectSvc != nil {
 			if req.ProjectID != "" {
@@ -90,7 +99,7 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 				}
 			}
 		}
-		room = &db.ProjectRoom{ID: req.RequestID, ProjectID: projectID, Title: "New conversation", Topic: "agent-topic:" + a.ID, CreatedAt: now, UpdatedAt: now}
+		room = &db.ProjectRoom{ID: req.RequestID, ProjectID: projectID, Title: title, Topic: "agent-topic:" + a.ID, CreatedAt: now, UpdatedAt: now}
 		if err = s.projectStudioRepo.CreateRoom(r.Context(), room); err != nil {
 			respondJSONError(w, 503, "Could not save the conversation. Retry using the same request ID.")
 			return

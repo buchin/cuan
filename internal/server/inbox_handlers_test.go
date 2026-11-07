@@ -24,7 +24,8 @@ func setupTestInboxServer(t *testing.T) (*Server, db.ProjectStudioRepository) {
 }
 
 func TestInboxHandlers_CompleteFlow(t *testing.T) {
-	s, _ := setupTestInboxServer(t)
+	s, _, _, _ := inboxFixture(t)
+	s.inboxStopping.Store(true)
 	s.projectSvc.Store().CreateProject(context.Background(), &project.Project{ID: "fixture-project", Name: "Fixture"})
 
 	// Admin Login to get JWT auth token
@@ -91,15 +92,11 @@ func TestInboxHandlers_CompleteFlow(t *testing.T) {
 	if threadID == "" {
 		t.Fatalf("expected non-empty thread id")
 	}
-	if len(createResp.Messages) != 2 {
-		t.Fatalf("expected 2 messages (user + SM triage), got %d", len(createResp.Messages))
+	if len(createResp.Messages) != 1 {
+		t.Fatalf("expected saved user message while PM is queued, got %d", len(createResp.Messages))
 	}
 	if createResp.Messages[0].AuthorType != "user" {
 		t.Errorf("expected first message to be user, got %s", createResp.Messages[0].AuthorType)
-	}
-	if createResp.Messages[1].AuthorType != "agent" || createResp.Messages[1].AuthorName != "Scrum Master" {
-		t.Errorf("expected second message to be agent Scrum Master, got %s / %s",
-			createResp.Messages[1].AuthorType, createResp.Messages[1].AuthorName)
 	}
 
 	// 3. Get thread detail via GET /api/v1/inbox/{id}
@@ -123,8 +120,8 @@ func TestInboxHandlers_CompleteFlow(t *testing.T) {
 	if detailResp.Thread.Status != "unread" {
 		t.Errorf("expected initial status unread, got %s", detailResp.Thread.Status)
 	}
-	if len(detailResp.Messages) != 2 {
-		t.Errorf("expected 2 messages in detail, got %d", len(detailResp.Messages))
+	if len(detailResp.Messages) != 1 {
+		t.Errorf("expected queued request without fabricated reply, got %d", len(detailResp.Messages))
 	}
 
 	// 4. Post reply message via POST /api/v1/inbox/{id}/messages

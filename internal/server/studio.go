@@ -23,6 +23,7 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AttachmentIDs []string `json:"attachment_ids"`
 		Goal          string   `json:"goal"`
+		Title         string   `json:"title,omitempty"`
 		RequestID     string   `json:"request_id"`
 		AgentID       string   `json:"agent_id,omitempty"`
 		ProjectID     string   `json:"project_id,omitempty"`
@@ -108,6 +109,7 @@ func (s *Server) handleStudioGoal(w http.ResponseWriter, r *http.Request) {
 		"agent_id":   selected.ID,
 		"request_id": topicID,
 		"project_id": targetProjectID,
+		"title":      req.Title,
 	}))
 	if topicResponse.code != 200 {
 		w.WriteHeader(topicResponse.code)

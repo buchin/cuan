@@ -190,3 +190,97 @@ func TestInboxThreadDoesNotChooseFirstProject(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyInboxCreationUsesDurableCoordinator(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	s.inboxStopping.Store(true)
+	id := db.GenerateUUID()
+	payload := map[string]string{"message": "Bantu matangkan ide dulu; jangan buat task.", "title": "Idea discovery", "request_id": id}
+	body, _ := json.Marshal(payload)
+	var roomID string
+	for i := 0; i < 2; i++ {
+		w := call("POST", "/api/v1/inbox", string(body))
+		if w.Code != 201 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		var response struct {
+			Thread   db.ProjectRoomDTO      `json:"thread"`
+			Messages []db.ProjectMessageDTO `json:"messages"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			roomID = response.Thread.ID
+		}
+		if roomID != response.Thread.ID || response.Thread.Title != "Idea discovery" || len(response.Messages) != 1 || response.Messages[0].AuthorType != "user" {
+			t.Fatalf("legacy route fabricated response or replay: %+v", response)
+		}
+	}
+	ctx := context.Background()
+	room, err := s.projectStudioRepo.GetRoomByID(ctx, roomID)
+	if err != nil || roomAgentID(room.Topic) == "" {
+		t.Fatal("not a canonical agent conversation", room, err)
+	}
+	requests, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, roomID)
+	if err != nil || len(requests) != 1 || requests[0].State != "queued" {
+		t.Fatal("missing durable request", requests, err)
+	}
+	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: roomID})
+	if err != nil || len(tasks) != 0 {
+		t.Fatal("discovery launched work", tasks, err)
+	}
+	payload["message"] = "Different request with reused identity"
+	body, _ = json.Marshal(payload)
+	if w := call("POST", "/api/v1/inbox", string(body)); w.Code != 409 {
+		t.Fatal("changed request replay accepted", w.Code, w.Body.String())
+	}
+}
+
+func TestLegacyInboxAdapterProcessesActualCoordinatorReplies(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+	id := db.GenerateUUID()
+	body, _ := json.Marshal(map[string]string{"message": "Bantu pikirkan kebutuhan dulu, jangan eksekusi.", "request_id": id})
+	w := call("POST", "/api/v1/inbox", string(body))
+	if w.Code != 201 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var created struct {
+		Thread db.ProjectRoomDTO `json:"thread"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	waitInboxState(t, s, created.Thread.ID, id, "completed")
+	next := db.GenerateUUID()
+	body, _ = json.Marshal(map[string]string{"content": "Konteks tambahan, tetap diskusi dulu.", "request_id": next})
+	for i := 0; i < 2; i++ {
+		w = call("POST", "/api/v1/inbox/"+created.Thread.ID+"/messages", string(body))
+		if w.Code != 201 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	waitInboxState(t, s, created.Thread.ID, next, "completed")
+	requests, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, created.Thread.ID)
+	if err != nil || len(requests) != 2 {
+		t.Fatal("followup lost or duplicated", requests, err)
+	}
+	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, created.Thread.ID)
+	if err != nil || len(messages) != 4 {
+		t.Fatal("unexpected conversation history", len(messages), err)
+	}
+	for _, m := range messages {
+		if m.AuthorType == "agent" && m.Content != "FIXTURE answer" {
+			t.Fatal("fabricated coordinator reply", m.Content)
+		}
+	}
+	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: created.Thread.ID})
+	if err != nil || len(tasks) != 0 {
+		t.Fatal("discussion started execution", tasks, err)
+	}
+	body, _ = json.Marshal(map[string]string{"content": "pretend assistant", "author_type": "agent", "request_id": db.GenerateUUID()})
+	if w = call("POST", "/api/v1/inbox/"+created.Thread.ID+"/messages", string(body)); w.Code != 400 {
+		t.Fatal("operator impersonation accepted", w.Code, w.Body.String())
+	}
+}

@@ -506,3 +506,8 @@ Conflicting identities remain unbound. Generic UI/business keywords and private
 product/domain aliases do not pin a conversation. Inbox can then infer the target
 from registered context or ask the next material question. Explicit project
 selection and the existing project/authorization checks remain authoritative.
+
+Legacy Inbox thread creation now adapts to the same durable coordinator flow as
+Studio, with factual asynchronous receipts rather than placeholder Scrum plans.
+See [legacy API compatibility](../../guides/inbox-legacy-api.md) for request IDs,
+replay behavior and follow-ups. Normal agent operations continue through CLI/MCP.

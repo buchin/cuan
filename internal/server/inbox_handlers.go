@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -39,6 +38,7 @@ type InboxThreadItem struct {
 
 // CreateInboxThreadRequest defines the payload for creating a new conversation thread.
 type CreateInboxThreadRequest struct {
+	RequestID string `json:"request_id,omitempty"`
 	Title     string `json:"title"`
 	Message   string `json:"message"`
 	ProjectID string `json:"project_id,omitempty"`
@@ -46,6 +46,7 @@ type CreateInboxThreadRequest struct {
 
 // CreateInboxMessageRequest defines the payload for posting a reply message in a thread.
 type CreateInboxMessageRequest struct {
+	RequestID  string `json:"request_id,omitempty"`
 	Content    string `json:"content"`
 	AuthorType string `json:"author_type,omitempty"`
 	AuthorName string `json:"author_name,omitempty"`
@@ -218,118 +219,59 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// handleCreateInboxThread creates a new conversation thread with initial user message and SM triage response.
+// handleCreateInboxThread preserves the legacy envelope over durable Studio intake.
 // POST /api/v1/inbox or POST /api/inbox
 func (s *Server) handleCreateInboxThread(w http.ResponseWriter, r *http.Request) {
-	if s.projectStudioRepo == nil {
-		respondJSONError(w, http.StatusServiceUnavailable, "project studio repository is not configured")
+	if s.accountOwner(w, r) == "" {
 		return
 	}
-
 	var req CreateInboxThreadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 32000)).Decode(&req) != nil {
+		respondJSONError(w, 400, "Invalid conversation request")
 		return
 	}
-
-	title := strings.TrimSpace(req.Title)
-	messageText := strings.TrimSpace(req.Message)
-	if title == "" {
-		if len(messageText) > 40 {
-			title = messageText[:37] + "..."
-		} else if messageText != "" {
-			title = messageText
-		} else {
-			title = "Direct Message"
-		}
+	if req.RequestID == "" {
+		req.RequestID = db.GenerateUUID()
 	}
-
-	if messageText == "" {
-		respondJSONError(w, http.StatusBadRequest, "message cannot be empty")
+	payload, _ := json.Marshal(map[string]string{
+		"goal": req.Message, "title": req.Title,
+		"project_id": req.ProjectID, "request_id": req.RequestID,
+	})
+	copy := r.Clone(r.Context())
+	copy.Body = io.NopCloser(bytes.NewReader(payload))
+	copy.ContentLength = int64(len(payload))
+	accepted := &delegationResponse{header: make(http.Header)}
+	s.handleStudioGoal(accepted, copy)
+	if accepted.code != http.StatusAccepted {
+		w.WriteHeader(accepted.code)
+		_, _ = w.Write(accepted.body.Bytes())
 		return
 	}
-
-	projectID := strings.TrimSpace(req.ProjectID)
-	if projectID == "" && s.projectSvc != nil {
-		projectID = s.resolveContextualProject(r.Context(), messageText)
+	var result struct {
+		ConversationID string `json:"conversation_id"`
 	}
-	if projectID == "" {
-		projectID = "default"
-	}
-
-	roomID := db.GenerateUUID()
-	now := time.Now().UTC()
-
-	room := &db.ProjectRoom{
-		ID:        roomID,
-		ProjectID: projectID,
-		Title:     title,
-		Topic:     messageText,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	if err := s.projectStudioRepo.CreateRoom(r.Context(), room); err != nil {
-		respondJSONError(w, http.StatusInternalServerError, "failed to create inbox thread: "+err.Error())
+	if err := json.Unmarshal(accepted.body.Bytes(), &result); err != nil {
+		respondJSONError(w, 503, "Conversation accepted; reconcile using the same request ID")
 		return
 	}
-
-	// 1. Post initial user message
-	userMsg := &db.ProjectMessage{
-		ID:         db.GenerateUUID(),
-		RoomID:     roomID,
-		AuthorType: "user",
-		AuthorName: "Product Owner",
-		Content:    messageText,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+	room, err := s.projectStudioRepo.GetRoomByID(r.Context(), result.ConversationID)
+	if err != nil || room == nil {
+		respondJSONError(w, 503, "Conversation accepted; reconcile using the same request ID")
+		return
 	}
-	_ = s.projectStudioRepo.CreateMessage(r.Context(), userMsg)
-
-	// 2. Autonomous Scrum Master Triage & DoD formulation (S17.3)
-	workerAgent := "antigravity-flash"
-	smResponseText := fmt.Sprintf(`Here is a proposed plan for your request:
-
-### Problem statement & scope
-%s
-
-### Definition of done
-- [ ] Analyze the technical requirements and write specifications
-- [ ] Implement modular, maintainable code changes
-- [ ] Run targeted unit tests and check for regressions
-- [ ] Verify production readiness and commit with the configured author
-
-### Recommended worker agent
-- **Worker:** %s
-- **Status:** Check the agent connection and quota before starting
-
-Select **Approve and start task** to register the task and begin execution.`,
-		messageText, workerAgent)
-
-	smMsg := &db.ProjectMessage{
-		ID:         db.GenerateUUID(),
-		RoomID:     roomID,
-		AuthorType: "agent",
-		AuthorName: "Scrum Master",
-		Content:    smResponseText,
-		CreatedAt:  now.Add(100 * time.Millisecond),
-		UpdatedAt:  now.Add(100 * time.Millisecond),
+	messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID)
+	if err != nil {
+		respondJSONError(w, 503, "Conversation accepted; reconcile using the same request ID")
+		return
 	}
-	_ = s.projectStudioRepo.CreateMessage(r.Context(), smMsg)
-
-	// Broadcast events if broker active
-	if s.roomEventBroker != nil {
-		s.roomEventBroker.Broadcast(roomID, "room.created", room.ToDTO())
-		s.roomEventBroker.Broadcast(roomID, "message.created", userMsg.ToDTO())
-		s.roomEventBroker.Broadcast(roomID, "message.created", smMsg.ToDTO())
+	dtos := make([]db.ProjectMessageDTO, 0, len(messages))
+	for _, m := range messages {
+		dtos = append(dtos, m.ToDTO())
 	}
-
-	respondJSON(w, http.StatusCreated, map[string]interface{}{
-		"thread": room.ToDTO(),
-		"messages": []db.ProjectMessageDTO{
-			userMsg.ToDTO(),
-			smMsg.ToDTO(),
-		},
+	// Preserve the legacy thread envelope, but replies come from the durable PM.
+	respondJSON(w, http.StatusCreated, map[string]any{
+		"thread": room.ToDTO(), "messages": dtos,
+		"status": "accepted", "request_id": req.RequestID,
 	})
 }
 
@@ -463,6 +405,40 @@ func (s *Server) handleCreateInboxMessage(w http.ResponseWriter, r *http.Request
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
 		respondJSONError(w, http.StatusBadRequest, "message content cannot be empty")
+		return
+	}
+	if roomAgentID(room.Topic) != "" {
+		if req.AuthorType != "" && req.AuthorType != "user" {
+			respondJSONError(w, 400, "Send an operator message to the assistant")
+			return
+		}
+		if req.RequestID == "" {
+			req.RequestID = db.GenerateUUID()
+		}
+		payload, _ := json.Marshal(map[string]string{"message": content, "request_id": req.RequestID})
+		copy := r.Clone(r.Context())
+		copy.Body = io.NopCloser(bytes.NewReader(payload))
+		copy.ContentLength = int64(len(payload))
+		accepted := &delegationResponse{header: make(http.Header)}
+		s.handleInternalSendConversationMessage(accepted, copy)
+		if accepted.code != http.StatusAccepted {
+			w.WriteHeader(accepted.code)
+			_, _ = w.Write(accepted.body.Bytes())
+			return
+		}
+		var result struct {
+			Request db.InboxRequest `json:"request"`
+		}
+		if err := json.Unmarshal(accepted.body.Bytes(), &result); err != nil {
+			respondJSONError(w, 503, "Message accepted; reconcile using the same request ID")
+			return
+		}
+		message, err := s.projectStudioRepo.GetMessageByID(r.Context(), result.Request.MessageID)
+		if err != nil || message == nil {
+			respondJSONError(w, 503, "Message accepted; reconcile using the same request ID")
+			return
+		}
+		respondJSON(w, http.StatusCreated, map[string]any{"message": message.ToDTO(), "request": result.Request})
 		return
 	}
 
