@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +14,7 @@ import (
 )
 
 func TestNativeTaskAdmissionUsesSelectedModelPool(t *testing.T) {
-	for _, mode := range []string{"cooldown", "slots full", "ready"} {
+	for _, mode := range []string{"cooldown", "slots full", "ready", "fallback"} {
 		t.Run(mode, func(t *testing.T) {
 			s, token, _, primary, backup, _, _ := setupFailoverFixture(t)
 			t.Setenv("CUAN_ACCOUNT_MAX_SESSIONS", "2")
@@ -30,8 +32,13 @@ func TestNativeTaskAdmissionUsesSelectedModelPool(t *testing.T) {
 				if _, err := agent.UpdateProviderAccountSettings(primary.OwnerID, profile.ID, profile.Label, "claude-sonnet-test"); err != nil {
 					t.Fatal(err)
 				}
-				if mode == "cooldown" {
+				if mode == "cooldown" || mode == "fallback" {
 					if err := agent.RecordProviderModelQuotaWithDuration(primary.OwnerID, profile.ID, "claude-sonnet-test", time.Hour); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if mode == "fallback" {
+					if _, err := agent.SetProviderAccountFallbackModel(primary.OwnerID, profile.ID, "gemini-test"); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -41,6 +48,12 @@ func TestNativeTaskAdmissionUsesSelectedModelPool(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer release()
+				}
+			}
+			if mode == "fallback" {
+				bin := strings.Split(os.Getenv("PATH"), ":")[0]
+				if err := os.WriteFile(filepath.Join(bin, "agy"), []byte("#!/bin/sh\n[ \"$1\" = models ] || exit 22\nprintf 'claude-sonnet-test\\ngemini-test\\n'\n"), 0700); err != nil {
+					t.Fatal(err)
 				}
 			}
 			// Native tasks must use the same selected-model/task-slot pool as the
@@ -61,7 +74,7 @@ func TestNativeTaskAdmissionUsesSelectedModelPool(t *testing.T) {
 			}
 			item := workspaceTask(t, call)
 			response := call("POST", "/api/v1/tasks/"+item.ID+"/run-agent", `{"agent_id":"agent_cuan","runner_id":"cuan-runner"}`)
-			if mode == "ready" {
+			if mode == "ready" || mode == "fallback" {
 				if response.Code != 200 {
 					t.Fatal("ready task did not queue", response.Code, response.Body.String())
 				}
@@ -72,6 +85,9 @@ func TestNativeTaskAdmissionUsesSelectedModelPool(t *testing.T) {
 				release()
 				if selected.ModelID != "claude-sonnet-test" {
 					t.Fatal("admission changed selected model")
+				}
+				if mode == "fallback" && selected.ExecutionModelID() != "gemini-test" {
+					t.Fatal("task did not lease the permitted fallback")
 				}
 			} else {
 				if response.Code != 409 || !strings.Contains(response.Body.String(), `"code":"provider_capacity"`) {

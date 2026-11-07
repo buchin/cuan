@@ -1405,12 +1405,13 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 	}
 	r.mu.Unlock()
 	tried := map[string]bool{}
-	for len(tried) < 8 && routed.Err() == nil {
+	for len(tried) < 16 && routed.Err() == nil {
 		home, brain, release, err := agent.LeaseHealthyBrainForTask(claim.OwnerID, tried, claim.RequiresVision)
 		if err != nil {
 			return &agent.ExecutionResult{Status: "QUOTA_LIMITED", ExitCode: 75, Error: agent.ErrBrainCapacity.Error()}, nil
 		}
-		tried[brain.ID] = true
+		activeModel := brain.ExecutionModelID()
+		tried[agent.BrainRouteKey(brain.ID, activeModel)] = true
 		_ = agent.PrepareAntigravitySettings(home, workingDir)
 		_ = agent.EnsureAntigravityOnboarding(home)
 		childEnv := map[string]string{}
@@ -1422,7 +1423,7 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 				childEnv[key] = value
 			}
 		}
-		childEnv["CUAN_BRAIN_MODEL"] = brain.ModelID
+		childEnv["CUAN_BRAIN_MODEL"] = activeModel
 		nextPrompt := prompt
 		if len(tried) > 1 {
 			nextPrompt = "Continue the SAME approved task after an AI capacity interruption. Inspect existing files, git state, saved task reports and external effects FIRST. Preserve completed work. Reconcile uncertain operations before repeating them; do not repeat deployments, messages or other external writes without verification. Perform only unfinished original scope.\n\n" + prompt
@@ -1436,7 +1437,7 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 			return result, runErr
 		}
 		duration, _, _ := agent.ParseProviderQuotaResetDuration(result.Error)
-		if err := agent.RecordProviderModelQuotaWithDuration(claim.OwnerID, brain.ID, brain.ModelID, duration); err != nil {
+		if err := agent.RecordProviderModelQuotaWithDuration(claim.OwnerID, brain.ID, activeModel, duration); err != nil {
 			return nil, fmt.Errorf("could not retain AI capacity cooldown")
 		}
 	}

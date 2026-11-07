@@ -182,3 +182,25 @@ than copying all flags from an earlier stage. Chat instructions likewise separat
 proposed, implemented, tested, and deployed capability: dependencies, approval,
 and worker reports alone never establish compatibility or data safety. Missing
 prerequisites remain work to verify, not guarantees to present to the owner.
+
+An explicit model fallback preserves the saved preferred model. Configure it with
+`cuan account fallback ACCOUNT_ID MODEL_ID` using an ID from that account's native
+catalog; `off` clears and disables it. For Sonnet-first routing, keep Sonnet selected
+and choose a supported Gemini entry as fallback. Neither quota display names nor
+similar names establish runnable IDs or shared reset groups.
+
+Both Inbox and native task admission prefer selected-model routes across all
+allowed connected accounts before explicit fallback routes. Native execution
+leases from that same pool, excludes failed account/model pairs separately, and
+can continue retained work on another permitted model of the same account after
+quota failure. It preserves original scope and reconciles uncertain effects;
+changing models never grants replay of external writes. The actual attempted model
+receives its own cooldown. Account-wide legacy limits remain binding.
+
+The runtime model is transient lease metadata; saved primary selection and
+credentials do not change. New work prefers the primary again when it becomes
+available. Running sessions are not interrupted to switch back. Disabling fallback
+is rechecked under the lease. Explicit fallback configuration also prevents old
+public-agent fallback defaults or unrelated higher-quota models from overriding
+the account's selected pair. Catalog checks establish support, not successful
+inference or available quota.

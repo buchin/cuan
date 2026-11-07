@@ -116,3 +116,75 @@ fi
 		t.Fatal("failed brain was not cooled down")
 	}
 }
+
+func TestRunnerQuotaFallsBackToGeminiOnSameAccount(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	p, err := agent.CreateProviderAccount("owner", "Single brain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := agent.ProviderAccountHome("owner", p.ID)
+	if err := os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte("fixture-only-credentials"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	metaPath := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", p.ID, "account.json")
+	raw, _ := os.ReadFile(metaPath)
+	var meta map[string]any
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		t.Fatal(err)
+	}
+	meta["state"], meta["model_id"] = "unknown", "claude-sonnet-test"
+	raw, _ = json.Marshal(meta)
+	if err := os.WriteFile(metaPath, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agent.SetProviderAccountFallbackModel("owner", p.ID, "gemini-test"); err != nil {
+		t.Fatal(err)
+	}
+	bin := t.TempDir()
+	script := `#!/bin/sh
+if [ "$1" = models ]; then printf 'claude-sonnet-test\ngemini-test\n'; exit 0; fi
+printf '%s\n' "$CUAN_BRAIN_MODEL" >> "$WORKSPACE_DIR/models-used"
+if [ "$CUAN_BRAIN_MODEL" = claude-sonnet-test ]; then
+ echo kept > "$WORKSPACE_DIR/progress"
+ echo 'Individual quota reached. Resets in 2h0m0s.'
+ sleep 2
+elif [ "$CUAN_BRAIN_MODEL" = gemini-test ]; then
+ [ "$(cat "$WORKSPACE_DIR/progress")" = kept ] || exit 22
+ case "$*" in *'Continue the SAME approved task'*) echo resumed >> "$WORKSPACE_DIR/progress";; *) exit 23;; esac
+ sleep 0.1
+ exit 0
+else exit 24
+fi
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{}`)) }))
+	defer api.Close()
+	adapter, err := agent.NewAGYAdapter(filepath.Join(bin, "agy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := NewRunner(&config.Config{RunnerID: "fallback-fixture", RunnerServerURL: api.URL}, adapter, api.Client())
+	work := t.TempDir()
+	claim := ClaimTaskResponse{OwnerID: "owner", Task: &task.Task{ID: "same-account-fallback-task"}, Attempt: &task.TaskAttempt{ID: "same-account-fallback-attempt"}}
+	var count int64
+	result, err := r.executeWithBrains(context.Background(), claim, claim.Task, claim.Attempt, "Original approved scope", work, map[string]string{}, 8*time.Second, &count)
+	if err != nil || result == nil || result.Status != "SUCCESS" {
+		t.Fatal("same-account model fallback failed", result, err)
+	}
+	used, _ := os.ReadFile(filepath.Join(work, "models-used"))
+	progress, _ := os.ReadFile(filepath.Join(work, "progress"))
+	if string(used) != "claude-sonnet-test\ngemini-test\n" || string(progress) != "kept\nresumed\n" {
+		t.Fatal("model order or retained work changed", string(used), string(progress))
+	}
+	saved, err := agent.GetProviderAccount("owner", p.ID)
+	if err != nil || saved.ModelID != "claude-sonnet-test" || !time.Now().Before(saved.ModelCooldowns["claude-sonnet-test"]) || time.Now().Before(saved.ModelCooldowns["gemini-test"]) {
+		t.Fatal("quota or primary preference crossed models", saved, err)
+	}
+}

@@ -97,6 +97,57 @@ func (c *CuanClient) SetProviderAccountModel(ctx context.Context, id, model stri
 	return data.Account, nil
 }
 
+func (c *CuanClient) SetProviderAccountFallbackModel(ctx context.Context, id, model string) (*agent.ProviderAccount, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	accounts, err := c.ListProviderAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var current *agent.ProviderAccount
+	for _, a := range accounts {
+		if a.ID == id {
+			current = a
+			break
+		}
+	}
+	if current == nil || current.Legacy || !current.CredentialsPresent {
+		return nil, fmt.Errorf("choose an owned connected account")
+	}
+	if model != "" {
+		if model == current.ModelID {
+			return nil, fmt.Errorf("fallback must differ from the primary model")
+		}
+		models, err := c.ListProviderAccountModels(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for _, candidate := range models {
+			found = found || candidate.ID == model
+		}
+		if !found {
+			return nil, fmt.Errorf("choose a fallback from this account's native catalog")
+		}
+	}
+	resp, err := c.doRequest(ctx, http.MethodPatch, "/api/v1/provider-accounts/"+url.PathEscape(id)+"/model-fallback", map[string]any{"enabled": model != "", "model_id": model})
+	if err != nil {
+		return nil, fmt.Errorf("could not update fallback; read account settings before retrying")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("account fallback update failed (HTTP %d)", resp.StatusCode)
+	}
+	var data struct {
+		Account *agent.ProviderAccount `json:"account"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&data) != nil || data.Account == nil || data.Account.ID != id || data.Account.FallbackModelID != model || data.Account.AllowModelFallback != (model != "") || data.Account.ModelID != current.ModelID || data.Account.Label != current.Label {
+		return nil, fmt.Errorf("fallback update could not be confirmed; read account settings before retrying")
+	}
+	return data.Account, nil
+}
+
 // Verify probes the existing sign-in and updates readiness, never accepting terms or changing policy.
 func (c *CuanClient) VerifyProviderAccount(ctx context.Context, id string) (*agent.ProviderAccount, error) {
 	if strings.TrimSpace(id) == "" || strings.ContainsAny(id, "/\\?#") {
@@ -135,6 +186,7 @@ Usage:
   cuan account usage ACCOUNT_ID
   cuan account models ACCOUNT_ID
   cuan account model ACCOUNT_ID MODEL_ID|auto
+  cuan account fallback ACCOUNT_ID MODEL_ID|off
   cuan account verify ACCOUNT_ID
 Output is JSON metadata only. Credentials and native profile paths are never returned.
 Verify probes an existing sign-in and updates readiness without accepting terms.
@@ -164,6 +216,12 @@ Usage reads the provider's availability evidence; it does not change model/fallb
 		result, err = GetCuanClient().SetProviderAccountModel(ctx, args[1], model)
 	case args[0] == "verify" && len(args) == 2:
 		result, err = GetCuanClient().VerifyProviderAccount(ctx, args[1])
+	case args[0] == "fallback" && len(args) == 3:
+		model := args[2]
+		if model == "off" {
+			model = ""
+		}
+		result, err = GetCuanClient().SetProviderAccountFallbackModel(ctx, args[1], model)
 	default:
 		fmt.Fprintln(errOut, help)
 		return 2

@@ -409,7 +409,7 @@ Usage:
   cuan-server [flags]
   cuan chat <subcommand> [flags]
   cuan task <subcommand> [flags]
-  cuan account <list|usage ACCOUNT_ID|verify ACCOUNT_ID>
+  cuan account <list|usage|models|model|fallback|verify> [arguments]
   cuan taste <show|config|add>
   cuan integration github show
   cuan integration resend <show|set|validate>

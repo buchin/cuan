@@ -150,7 +150,8 @@ func (s *Server) handleProviderAccountFailover(w http.ResponseWriter, r *http.Re
 		return
 	}
 	var req struct {
-		Enabled *bool `json:"enabled"`
+		Enabled *bool   `json:"enabled"`
+		ModelID *string `json:"model_id,omitempty"`
 	}
 	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req) != nil || req.Enabled == nil {
 		respondJSONError(w, 400, "Choose whether this account can be used as a backup")
@@ -164,6 +165,31 @@ func (s *Server) handleProviderAccountFailover(w http.ResponseWriter, r *http.Re
 	profile, err := agent.GetProviderAccount(owner, id)
 	if err != nil {
 		respondJSONError(w, 404, "Account not found")
+		return
+	}
+	if strings.HasSuffix(r.URL.Path, "/model-fallback") && req.ModelID != nil {
+		model := strings.TrimSpace(*req.ModelID)
+		if (*req.Enabled && model == "") || (!*req.Enabled && model != "") {
+			respondJSONError(w, 400, "Choose a fallback model or disable fallback")
+			return
+		}
+		if *req.Enabled {
+			models, err := agent.ProviderAccountModels(r.Context(), owner, id)
+			found := false
+			for _, entry := range models {
+				found = found || entry.ID == model
+			}
+			if err != nil || !found {
+				respondJSONError(w, 409, "Choose a fallback from this account's native model catalog")
+				return
+			}
+		}
+		updated, err := agent.SetProviderAccountFallbackModel(owner, id, model)
+		if err != nil {
+			respondJSONError(w, 409, err.Error())
+			return
+		}
+		respondJSON(w, 200, map[string]any{"account": updated})
 		return
 	}
 	if !*req.Enabled {

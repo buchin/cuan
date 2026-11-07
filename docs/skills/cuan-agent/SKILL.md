@@ -137,6 +137,16 @@ model-specific cooldown is never cleared by this reconciliation. Unavailable,
 stale or ambiguous usage leaves the old account state intact. Do not infer
 shared quota groups from similar model names or matching dates.
 
+`cuan account fallback ACCOUNT_ID MODEL_ID` explicitly enables one native-catalog
+fallback while retaining the selected primary model; `off` disables and clears it.
+For Sonnet-first/Gemini-second routing, keep Sonnet selected and choose an actual
+Gemini ID returned by `account models`, not a quota group's display name. Both
+native tasks and Inbox try preferred routes across accounts before explicit
+fallback routes. A fallback lease never rewrites the saved primary, and exhausted
+model cooldowns remain separate. Once preferred capacity returns, new work prefers
+it again; running sessions keep their model. Bound task sessions cannot change
+Owner routing policy. Read account settings after an uncertain update before retrying.
+
 `cuan integration github show` and MCP `get_github_connection` read the owner's
 saved Cuan GitHub connection without credentials. Check this before asking the
 owner to sign in: a worker's standalone `gh` session is a different identity.

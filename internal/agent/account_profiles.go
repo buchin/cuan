@@ -21,6 +21,8 @@ import (
 // Credentials stay CLI-owned; no token or filesystem path is part of the DTO.
 type ProviderAccount struct {
 	ModelID            string               `json:"model_id,omitempty"`
+	FallbackModelID    string               `json:"fallback_model_id,omitempty"`
+	RuntimeModelID     string               `json:"-"`
 	AllowModelFallback bool                 `json:"allow_model_fallback"`
 	ModelCooldowns     map[string]time.Time `json:"model_cooldowns,omitempty"`
 	AllowFailover      bool                 `json:"allow_failover"`
@@ -583,6 +585,35 @@ func SetProviderAccountModelFallback(owner, id string, enabled bool) (*ProviderA
 		return nil, err
 	}
 	return a, nil
+}
+
+// SetProviderAccountFallbackModel retains the primary model and its cooldown.
+// Catalog membership is checked by the authenticated settings boundary.
+func SetProviderAccountFallbackModel(owner, id, model string) (*ProviderAccount, error) {
+	if len(model) > 200 || (model != "" && !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`).MatchString(model)) {
+		return nil, errors.New("Choose a valid fallback model")
+	}
+	accountProfileMu.Lock()
+	defer accountProfileMu.Unlock()
+	a, err := GetProviderAccount(owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if a.Legacy || !a.CredentialsPresent || (model != "" && model == a.ModelID) {
+		return nil, errors.New("Choose a connected account and a fallback different from its primary model")
+	}
+	a.FallbackModelID, a.AllowModelFallback = model, model != ""
+	if err := saveProviderAccount(a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+func (a *ProviderAccount) ExecutionModelID() string {
+	if a.RuntimeModelID != "" {
+		return a.RuntimeModelID
+	}
+	return a.ModelID
 }
 func RecordProviderModelQuota(owner, id, model string) error {
 	return RecordProviderModelQuotaWithDuration(owner, id, model, 5*time.Minute)

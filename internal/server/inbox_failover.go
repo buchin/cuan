@@ -24,6 +24,7 @@ type inboxAccountRoute struct {
 	accountID, home, model string
 	remaining              float64
 	primary                bool
+	fallback               bool
 }
 
 // Only read-only Inbox turns can fail over. Execution tasks are never replayed.
@@ -372,7 +373,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			model = profile.ModelID
 		}
 		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)))
-		addModel := func(id string, remaining float64) {
+		addModel := func(id string, remaining float64, fallback ...bool) {
 			if profile != nil && time.Now().Before(profile.ModelCooldowns[id]) {
 				return
 			}
@@ -380,7 +381,35 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 			if profile != nil {
 				accountID = profile.ID
 			}
-			routes = append(routes, inboxAccountRoute{accountID, profileHome, id, remaining, isPrimary})
+			routes = append(routes, inboxAccountRoute{accountID, profileHome, id, remaining, isPrimary, len(fallback) > 0 && fallback[0]})
+		}
+		if profile != nil && profile.FallbackModelID != "" {
+			if blocked {
+				return
+			}
+			addExact := func(id string, fallback bool) {
+				remaining := -1.0 // Catalog membership does not establish quota.
+				found := false
+				for _, item := range usage.Models {
+					if item.Model == id {
+						found = true
+						remaining = item.Remaining
+						break
+					}
+				}
+				if usage.Available && !found {
+					return
+				}
+				if remaining == 0 {
+					return
+				}
+				addModel(id, remaining, fallback)
+			}
+			addExact(profile.ModelID, false)
+			if profile.AllowModelFallback && profile.FallbackModelID != profile.ModelID {
+				addExact(profile.FallbackModelID, true)
+			}
+			return
 		}
 		// Auto delegates initial model choice to the CLI/provider: omit --model.
 		// Explicit fallback remains a separate account permission.
@@ -460,6 +489,9 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 	// Rank actual model quota evidence ahead of unknown availability. Ties retain
 	// the primary account, then stable model/account order. Unknown is never 100%.
 	sort.SliceStable(routes, func(i, j int) bool {
+		if routes[i].fallback != routes[j].fallback {
+			return !routes[i].fallback
+		}
 		if routes[i].remaining != routes[j].remaining {
 			return routes[i].remaining > routes[j].remaining
 		}
@@ -484,6 +516,12 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 	profile, err := agent.GetProviderAccount(owner, route.accountID)
 	isCuanFacade := registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan"
 	allowed := err == nil && profile.CredentialsPresent && ((route.primary && ((profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || isCuanFacade)) || (!route.primary && (profile.AllowFailover || isCuanFacade)))
+	if allowed && isCuanFacade && route.model != profile.ModelID {
+		allowed = profile.AllowModelFallback && (profile.FallbackModelID == "" || route.model == profile.FallbackModelID)
+	}
+	if allowed && route.fallback && (!profile.AllowModelFallback || profile.FallbackModelID != route.model) {
+		allowed = false
+	}
 	if allowed && !isCuanFacade && route.model != "" && route.model != registered.ModelID && route.model != registered.FallbackModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
 		allowed = false
 	}

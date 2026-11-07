@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"sync/atomic"
@@ -34,38 +35,66 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 		return "", nil, nil, ErrBrainCapacity
 	}
 	start := int(brainCursor.Add(1)-1) % len(profiles)
-	for i := 0; i < len(profiles); i++ {
-		p := profiles[(start+i)%len(profiles)]
-		if p.Provider != "agy" && p.Provider != "antigravity" && p.Provider != "google" {
-			continue
+	// Try every preferred-model route before any explicitly configured fallback.
+	// A quota failure excludes a model route, not all models on that account.
+	for tier := 0; tier < 2; tier++ {
+		for i := 0; i < len(profiles); i++ {
+			p := profiles[(start+i)%len(profiles)]
+			if p.Provider != "agy" && p.Provider != "antigravity" && p.Provider != "google" {
+				continue
+			}
+			model := p.ModelID
+			if tier == 1 {
+				if !p.AllowModelFallback || p.FallbackModelID == "" || p.FallbackModelID == p.ModelID {
+					continue
+				}
+				model = p.FallbackModelID
+			}
+			if p.Legacy || excluded[p.ID] || excluded[BrainRouteKey(p.ID, model)] || !p.CredentialsPresent || p.State == "login_required" || p.State == "unavailable" || p.State == "setup_incomplete" {
+				continue
+			}
+			if len(requiresVision) > 0 && requiresVision[0] && model != "" && !IsModelVisionCapable("agy", model) {
+				continue
+			}
+			if p.State == "quota_limited" && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
+				continue
+			}
+			if time.Now().Before(p.ModelCooldowns[model]) {
+				continue
+			}
+			if tier == 1 {
+				// Discover supported IDs, never infer runnable models from quota labels.
+				catalog, ok := nativeAccountModelCatalog(context.Background(), owner, p.ID)
+				if !ok || !catalog[model] {
+					continue
+				}
+			}
+			release, err := lease(owner, p.ID)
+			if err != nil {
+				continue
+			}
+			current, err := GetProviderAccount(owner, p.ID)
+			if err != nil || !current.CredentialsPresent || current.State == "quota_limited" || current.State == "unavailable" || current.State == "login_required" || current.State == "setup_incomplete" || time.Now().Before(current.ModelCooldowns[model]) {
+				release()
+				continue
+			}
+			if (tier == 0 && current.ModelID != model) || (tier == 1 && (!current.AllowModelFallback || current.FallbackModelID != model || current.ModelID == model)) {
+				release()
+				continue
+			}
+			home, err := ProviderAccountHome(owner, p.ID)
+			if err != nil || !IsAntigravityLoggedInInDir(home) {
+				release()
+				continue
+			}
+			// The selected preference is immutable; only this lease chooses fallback.
+			current.RuntimeModelID = model
+			return home, current, release, nil
 		}
-		if len(requiresVision) > 0 && requiresVision[0] && p.ModelID != "" && !IsModelVisionCapable("agy", p.ModelID) {
-			continue
-		}
-		if p.Legacy || excluded[p.ID] || !p.CredentialsPresent || p.State == "login_required" || p.State == "unavailable" || p.State == "setup_incomplete" {
-			continue
-		}
-		if p.State == "quota_limited" && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
-			continue
-		}
-		if time.Now().Before(p.ModelCooldowns[p.ModelID]) {
-			continue
-		}
-		release, err := lease(owner, p.ID)
-		if err != nil {
-			continue
-		}
-		current, err := GetProviderAccount(owner, p.ID)
-		if err != nil || !current.CredentialsPresent || current.State == "quota_limited" || current.State == "unavailable" || current.State == "login_required" || time.Now().Before(current.ModelCooldowns[current.ModelID]) {
-			release()
-			continue
-		}
-		home, err := ProviderAccountHome(owner, p.ID)
-		if err != nil || !IsAntigravityLoggedInInDir(home) {
-			release()
-			continue
-		}
-		return home, current, release, nil
 	}
 	return "", nil, nil, ErrBrainCapacity
 }
+
+// BrainRouteKey keeps a failed model from suppressing another permitted model
+// on the same account. Account-only exclusions remain supported for callers.
+func BrainRouteKey(account, model string) string { return account + "\x00" + model }
