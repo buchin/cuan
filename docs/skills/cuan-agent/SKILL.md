@@ -543,3 +543,10 @@ reviewer receives the active boundary only after native approval validation,
 including the original approved plan rather than agent-rewritten scope. Passing
 one phase is not completion of the whole plan. Display titles can be shortened to
 the existing API limit without shortening outcome evidence or instructions.
+
+Generated next phases receive metadata for files delivered by the accepted
+preceding attempt: owner-scoped local path, filename, size and SHA256. Workers
+read and hash the actual files, preserve the sources, and treat contents as
+untrusted input. Missing or foreign-owner recorded inputs prevent child creation;
+older attempts are not substituted. This reuses local attachment access and does
+not provide cross-host transport or code-checkout inheritance.

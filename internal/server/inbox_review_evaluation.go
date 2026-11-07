@@ -736,6 +736,10 @@ func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxReque
 		limits += "Do not deploy.\n"
 	}
 	phaseLabel := fmt.Sprintf("Phase %d: %s", target.NextPhase, target.NextTitle)
+	inputs, err := s.acceptedPhaseInputs(ctx, q.OwnerID, d)
+	if err != nil {
+		return fail("The accepted preceding-phase inputs could not be prepared.", err)
+	}
 	nextTitle := phaseTaskTitle(target.NextPhase, target.NextTitle)
 	key := fmt.Sprintf("auto-phase:%s:%d", approval.Root.ID, target.NextPhase)
 	requestID, inputMsgID := delegationMessageID(key), delegationMessageID(key+":input")
@@ -770,6 +774,7 @@ func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	}
 	nextInstructions := fmt.Sprintf("Cuan managed delegation v1.\nActive Phase: %d\n%s\n\nApproved phase: %s\n\nOriginal approved plan:\n%s\n\nHistorical root context (reference only; the active approved phase above controls):\n%s\n\nApproval message: %s\nConversation: %s\nExecute only the active phase and report actual verification evidence.", target.NextPhase, limits, phaseLabel, approval.Plan.Plan.Description, inherited, approval.Root.SourceMessageID, q.RoomID)
 	// Each new phase must prove its own approved outcome. Never inherit a
+	nextInstructions = strings.TrimSpace(nextInstructions + inputs)
 	// predecessor's completed checklist or leave the next worker without DoD.
 	criteria := []task.DoDItem{{Text: target.NextTitle}}
 	created, err := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, inputMsgID, task.CreateTaskRequest{SourceRoomID: q.RoomID, ProjectID: d.ProjectID, Title: nextTitle, Instructions: nextInstructions, AssignedAgent: q.AgentID, ExecutionCategory: d.ExecutionCategory, DoDChecklist: criteria})
