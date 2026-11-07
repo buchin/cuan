@@ -369,3 +369,11 @@ recorded prerequisite failure as occurring before capture or feature checks;
 missing images from an unstarted capture are not a separate implementation defect.
 A setup failure never establishes feature correctness or permits editing a
 read-only snapshot. Resolve the actual diagnostic before obtaining fresh evidence.
+
+Review context also includes validated `native_preparation_history` from terminal
+native stages, even when later execution/completion failed. It preserves the
+actual attempt status and explicitly identifies preparation-only facts. The
+history reader revalidates original scope, source lineage, native event ownership
+and attempt timestamps; changed/cancelled context is rejected. This read grants
+no execution authority and does not establish deployment, feature correctness or
+acceptance. Current publication and independent verification remain separate.

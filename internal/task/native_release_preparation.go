@@ -26,11 +26,21 @@ type NativeReleasePreparation struct {
 }
 
 func NativeReleasePreparationForAttempt(ctx context.Context, store Store, t *Task, attemptID string) (*NativeReleasePreparation, error) {
+	return nativeReleasePreparationForAttempt(ctx, store, t, attemptID, true)
+}
+
+// HistoricalNativeReleasePreparationForAttempt reads terminal stage facts only.
+// It never authorizes publication or treats preparation as successful delivery.
+func HistoricalNativeReleasePreparationForAttempt(ctx context.Context, store Store, t *Task, attemptID string) (*NativeReleasePreparation, error) {
+	return nativeReleasePreparationForAttempt(ctx, store, t, attemptID, false)
+}
+
+func nativeReleasePreparationForAttempt(ctx context.Context, store Store, t *Task, attemptID string, active bool) (*NativeReleasePreparation, error) {
 	intent, err := NativeReleaseIntentForAttempt(ctx, store, t, attemptID)
 	if err != nil || intent == nil {
 		return nil, err
 	}
-	if err := ValidateNativeReleaseSource(ctx, store, t, intent); err != nil {
+	if err := validateNativeReleaseSource(ctx, store, t, intent, active); err != nil {
 		return nil, err
 	}
 	att, err := store.GetAttempt(ctx, attemptID)
@@ -38,7 +48,14 @@ func NativeReleasePreparationForAttempt(ctx context.Context, store Store, t *Tas
 		return nil, err
 	}
 	now := time.Now().UTC()
-	if att == nil || att.TaskID != t.ID || att.Status != AttemptStatusRunning || att.RunnerID == "" || att.StartedAt == nil || att.CreatedAt.IsZero() || att.StartedAt.Before(att.CreatedAt) || att.StartedAt.After(now) || att.CancelRequested || att.CanceledAt != nil || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(now)) {
+	if att == nil || att.TaskID != t.ID || att.RunnerID == "" || att.StartedAt == nil || att.CreatedAt.IsZero() || att.StartedAt.Before(att.CreatedAt) || att.StartedAt.After(now) || att.CancelRequested || att.CanceledAt != nil {
+		return nil, ErrRequestConflict
+	}
+	if active {
+		if att.Status != AttemptStatusRunning || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(now)) {
+			return nil, ErrRequestConflict
+		}
+	} else if (att.Status != AttemptStatusSucceeded && att.Status != AttemptStatusFailed) || att.ExitCode == nil || att.FinishedAt == nil || att.FinishedAt.Before(*att.StartedAt) || att.FinishedAt.After(now) {
 		return nil, ErrRequestConflict
 	}
 	activities, err := store.ListActivities(ctx, t.ID)
@@ -50,7 +67,7 @@ func NativeReleasePreparationForAttempt(ctx context.Context, store Store, t *Tas
 		if event == nil || event.ID != "native-release-preparation:"+attemptID {
 			continue
 		}
-		if result != nil || event.TaskID != t.ID || event.AttemptID == nil || *event.AttemptID != attemptID || event.Author != "cuan-native-release" || event.ActivityType != ActivityNativeReleasePreparation || event.CreatedAt.Before(*att.StartedAt) || event.CreatedAt.After(now) {
+		if result != nil || event.TaskID != t.ID || event.AttemptID == nil || *event.AttemptID != attemptID || event.Author != "cuan-native-release" || event.ActivityType != ActivityNativeReleasePreparation || event.CreatedAt.Before(*att.StartedAt) || event.CreatedAt.After(now) || (!active && event.CreatedAt.After(*att.FinishedAt)) {
 			return nil, ErrInvalidTaskInput
 		}
 		var receipt NativeReleasePreparation

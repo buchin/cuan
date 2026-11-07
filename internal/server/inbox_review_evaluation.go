@@ -35,6 +35,8 @@ native_visual_verification, when present, identifies the exact pinned repository
 
 verification_context, when present, binds previously completed implementation checks to the exact unchanged source commit verified by the current supplemental attempt. Those checks ran in source_attempt_id, not the current verifier. Apply the original acceptance and publication requirements without waiving any; read-only verification does not prove original deployment requirements. Missing current evidence still requires revision.
 
+native_preparation_history contains validated terminal native-stage preparation facts, with the actual terminal outcome preserved. Preparation is not successful deployment or acceptance. A later failed release/completion does not erase its earlier source/target preparation. Reconcile these facts with current publication/containment evidence before asking a restricted verifier to push or merge again. Per-session inability to publish is not proof that an earlier authorized stage never published.
+
 Source and release identity: a task source commit and the production merge commit normally differ. When publication_context.verified=true and result_commit_contained=true, native repository reconciliation has proved that result_commit is contained in observed_release. This establishes that the task code is published in that release; do not treat unequal SHA strings as an unmet deployment requirement or demand healthz report the original task SHA. Unless original_request explicitly requires an exact release identity, retain the verified publication fact and evaluate the remaining feature/independent-check evidence. A read-only verifier is not expected to perform deployment itself. Never mark missing feature criteria complete merely because ancestry is proven.
 
 running_project_release identifies the currently running production revision. Provenance current_process_build requires the process build-time source repository to match the task project; registered_ssh_release instead identifies a pinned SSH observation of the registered project's immutable release plus HTTPS health. It is not an ancestry check, a task deployment receipt, a feature test or proof that this task's result is present. Do not accept a failed execution or fill missing verification from build identity alone.
@@ -171,6 +173,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"saved_execution_intent":         s.managerExecutionIntent(ctx, d),
 		"running_project_release":        s.runningProjectRelease(ctx, d),
 		"publication_context":            s.inboxReviewPublication(ctx, d),
+		"native_preparation_history":     s.inboxNativePreparationHistory(ctx, d),
 		"live_result_context":            s.liveInspectionReviewContext(ctx, d),
 		"delivered_text":                 deliveredText,
 		"staged_outputs_recovered":       recoveredVerificationOutputs(d),

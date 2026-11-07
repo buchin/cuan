@@ -485,6 +485,24 @@ func verifyNativePreparedPublication(t *testing.T, s *Server, token string, item
 		must(err)
 		current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		must(err)
+		historical, historyErr := task.HistoricalNativeReleasePreparationForAttempt(ctx, store, &current.Task, claim.Attempt.ID)
+		must(historyErr)
+		if historical == nil || historical.SourceCommit != intent.SourceCommit || historical.TargetCommit != target {
+			t.Fatal("terminal preparation history lost source/target")
+		}
+		if _, activeErr := task.NativeReleasePreparationForAttempt(ctx, store, &current.Task, claim.Attempt.ID); activeErr == nil {
+			t.Fatal("historical read reopened native preparation authority")
+		}
+		projection := s.inboxNativePreparationHistory(ctx, current)
+		encoded, _ := json.Marshal(projection)
+		if projection == nil || !strings.Contains(string(encoded), "\"attempt_status\":\""+completed.Status+"\"") || !strings.Contains(string(encoded), "\"preparation_only\":true") {
+			t.Fatal("history projection lost actual terminal result", string(encoded))
+		}
+		changed := current.Task
+		changed.Instructions += " changed scope"
+		if _, changedErr := task.HistoricalNativeReleasePreparationForAttempt(ctx, store, &changed, claim.Attempt.ID); changedErr == nil {
+			t.Fatal("history accepted changed original scope")
+		}
 		deliveries := 0
 		for _, event := range current.Activities {
 			if event.ActivityType == "native_release_delivery" {
