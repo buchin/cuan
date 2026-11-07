@@ -150,3 +150,13 @@ must retain clean exact source, branch and binding; changed work is preserved an
 rejected rather than reset. This primitive is compatible with `release.Load`,
 but project-level remote reconciliation/fetch and native worker preparation are
 not yet connected to it.
+
+`project.NativeReleaseWorkspace` now resolves frozen task repository/branch and
+managed publication settings, prepares a separately hashed project/task/source/
+target/branch/descriptor checkout, and checks its descriptor through the native
+release loader. Cached exact commits need no connection read. Missing objects
+use explicit saved access to fetch exact SHAs into the frozen repository cache,
+without checkout or ref changes. The returned structure contains identities and
+workspace path only, no environment/credentials. It does not merge, deploy,
+issue a task receipt or establish health. Native HTTP dispatch is not yet wired
+to this project helper.
