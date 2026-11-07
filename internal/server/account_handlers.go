@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+var fetchSettingsModelUsage = agent.FetchAccountModelUsage
+
 func (s *Server) accountOwner(w http.ResponseWriter, r *http.Request) string {
 	if s.authSvc == nil {
 		respondJSONError(w, 503, "Owner authentication is unavailable")
@@ -269,6 +271,14 @@ func (s *Server) handleUpdateProviderAccountSettings(w http.ResponseWriter, r *h
 	if err != nil {
 		respondJSONError(w, 400, err.Error())
 		return
+	}
+	if updated.State == "quota_limited" && updated.ModelID != "" {
+		usage := fetchSettingsModelUsage(r.Context(), owner, id)
+		updated, err = agent.ReconcileSelectedModelQuota(owner, id, usage)
+		if err != nil {
+			respondJSONError(w, http.StatusServiceUnavailable, "Model settings saved, but quota status could not be confirmed")
+			return
+		}
 	}
 	respondJSON(w, 200, map[string]any{"account": updated})
 }

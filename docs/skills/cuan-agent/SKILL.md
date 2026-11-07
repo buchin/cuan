@@ -128,8 +128,14 @@ for the provider's reported reset duration. Auto has its own empty route key;
 an Auto failure does not establish that explicit Sonnet or Gemini routes are
 exhausted. Native worker admission checks the currently selected model's
 cooldown. A reset interval alone never proves an account-wide limit. Existing
-account-wide cooldown records are retained rather than silently reinterpreted;
-do not infer shared quota groups from similar model names or matching dates.
+account-wide cooldown records are retained rather than silently reinterpreted.
+An explicit model selection can reconcile an old unscoped cooldown only when
+fresh provider usage confirms positive quota for that exact model. The account
+returns to `unknown`, requiring normal runtime readiness checks; this does not
+certify its sign-in. The old reset deadline remains on Auto, and an active
+model-specific cooldown is never cleared by this reconciliation. Unavailable,
+stale or ambiguous usage leaves the old account state intact. Do not infer
+shared quota groups from similar model names or matching dates.
 
 `cuan integration github show` and MCP `get_github_connection` read the owner's
 saved Cuan GitHub connection without credentials. Check this before asking the

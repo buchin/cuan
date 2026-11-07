@@ -18,6 +18,53 @@ import (
 	"github.com/buchin/cuan/internal/terminal"
 )
 
+func TestAccountModelSelectionReconcilesOnlyFreshObservedCapacity(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	member, err := s.authSvc.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := agent.CreateProviderAccount(member.ID, "Existing label")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := agent.ProviderAccountHome(member.ID, p.ID)
+	if err = os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte(`{"access_token":"fixture-private-credential"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = agent.RecordProviderAccountQuotaWithDuration(member.ID, p.ID, time.Hour, ""); err != nil {
+		t.Fatal(err)
+	}
+	oldFetch := fetchSettingsModelUsage
+	t.Cleanup(func() { fetchSettingsModelUsage = oldFetch })
+	probes := 0
+	fetchSettingsModelUsage = func(ctx context.Context, owner, id string) agent.AccountModelUsage {
+		probes++
+		if owner != member.ID || id != p.ID {
+			t.Error("wrong owner account probed")
+		}
+		return agent.AccountModelUsage{Available: true, CheckedAt: time.Now().UTC(), Models: []agent.ModelUsage{{Model: "claude-sonnet-test", Remaining: 100}}}
+	}
+	r := httptest.NewRequest("PATCH", "/api/v1/provider-accounts/"+p.ID, strings.NewReader(`{"label":"Existing label","model_id":"claude-sonnet-test"}`))
+	r.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, r)
+	if w.Code != 200 || probes != 1 {
+		t.Fatal("model selection did not reconcile", w.Code, w.Body.String(), probes)
+	}
+	actual, err := agent.GetProviderAccount(member.ID, p.ID)
+	if err != nil || actual.State != "unknown" || actual.ModelID != "claude-sonnet-test" || actual.VerifiedAt != nil || !time.Now().Before(actual.ModelCooldowns[""]) {
+		t.Fatal("reconciliation did not preserve uncertainty/history", actual, err)
+	}
+	if strings.Contains(w.Body.String(), "fixture-private-credential") || strings.Contains(w.Body.String(), home) {
+		t.Fatal("account response leaked private data")
+	}
+}
+
 func TestS26AccountAPIAuthOwnerAndQuotaIsolation(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	s, token := setupTestChatServer(t)
