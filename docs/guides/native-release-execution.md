@@ -140,3 +140,13 @@ read-first ancestry reconciliation; it never falls back to ambient CLI login or
 touches the project cache. This helper is not yet called by native dispatch.
 Its caller must first validate the canonical source handoff and original owner
 authorization. A merge receipt is not deployment or independent acceptance.
+
+`git.PrepareReleaseWorkspace` now creates a separate private checkout from exact
+locally available source and target commits, verifies ancestry, then checks out
+the frozen release branch in that clone. Its metadata pins source repository,
+source commit, target commit and branch. It transfers no remote credentials and
+never fetches from a network or executes the release script. Existing checkouts
+must retain clean exact source, branch and binding; changed work is preserved and
+rejected rather than reset. This primitive is compatible with `release.Load`,
+but project-level remote reconciliation/fetch and native worker preparation are
+not yet connected to it.

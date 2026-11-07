@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/buchin/cuan/internal/git"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -223,5 +224,27 @@ func TestReleaseRetainsBoundedDiagnosticTail(t *testing.T) {
 	result := Run(context.Background(), plan, []string{"PATH=" + os.Getenv("PATH")})
 	if result.Error != "" || len(result.Diagnostic(func(s string) string { return s })) != outputLimit {
 		t.Fatal("diagnostic budget failed", result.Error)
+	}
+}
+
+func TestPreparedReleaseWorkspaceLoadsWithoutExecutingOrChangingDeveloper(t *testing.T) {
+	source, commit := fixture(t, "touch executed\n", goodManifest)
+	destination := filepath.Join(t.TempDir(), "release")
+	workspace, err := git.NewClient().PrepareReleaseWorkspace(context.Background(), source, destination, commit, commit, "production")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := Load(context.Background(), workspace, commit, "production")
+	if err != nil || plan.Description().Commit != commit || plan.Description().Branch != "production" || len(plan.Description().ManifestHash) != 64 {
+		t.Fatal("prepared workspace incompatible with native release", err)
+	}
+	for _, root := range []string{source, workspace} {
+		if _, err := os.Stat(filepath.Join(root, "executed")); !os.IsNotExist(err) {
+			t.Fatal("workspace preparation executed release")
+		}
+	}
+	out, err := exec.Command("git", "-C", source, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil || strings.TrimSpace(string(out)) != "dev" {
+		t.Fatal("release checkout changed developer branch")
 	}
 }
