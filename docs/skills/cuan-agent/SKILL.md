@@ -455,6 +455,13 @@ Native verification/inspection workers receive the independent verifier role and
 report their own observations and gaps; the coordinator owns subsequent execution
 and acceptance. Original scope and every saved criterion remain authoritative.
 
+A passing PM assessment of a successful code handoff schedules the separate
+exact-source verifier even when original acceptance evidence is still pending.
+Pending criteria are preserved, never checked off by admission. Native source
+validation still applies; the verifier must establish each original requirement
+or report a concrete gap. Missing independent evidence must not send a developer
+back merely to claim that another session verified their work.
+
 ### Prepare a factual worker report without rebuilding its schema
 
 In a bound worker session:

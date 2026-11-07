@@ -7,7 +7,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxIndependentCodeReviewPolicy = "Independent code execution review: v2"
+const inboxIndependentCodeReviewPolicy = "Independent code execution review: v3"
 
 func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskDetailResponse) bool {
 	return d != nil && d.Status != task.TaskStatusDone && d.ExecutionCategory == task.ExecutionCategoryCode &&
@@ -16,7 +16,10 @@ func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskD
 }
 
 func (s *Server) requireIndependentCodeReview(ctx context.Context, d *task.TaskDetailResponse, assessment inboxReviewEvaluation) inboxReviewEvaluation {
-	if assessment.Decision != "pass" || !inboxReviewExecutionSucceeded(d) || len(task.AcceptanceGaps(&d.Task)) > 0 || !s.independentCodeReviewMissing(ctx, d) {
+	// Pending acceptance evidence must not send an implemented result back to
+	// its author just to claim independent verification. Exact-source native
+	// admission still checks the result; only the verifier can establish gaps.
+	if assessment.Decision != "pass" || !inboxReviewExecutionSucceeded(d) || !s.independentCodeReviewMissing(ctx, d) {
 		return assessment
 	}
 	return inboxReviewEvaluation{

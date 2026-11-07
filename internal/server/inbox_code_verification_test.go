@@ -12,7 +12,7 @@ import (
 )
 
 func TestCodePassRequiresSeparateVerifier(t *testing.T) {
-	for _, scenario := range []string{"missing source checks", "first successful implementation", "independent criterion pending"} {
+	for _, scenario := range []string{"missing source checks", "first successful implementation", "independent criterion pending", "pass with independent criterion pending"} {
 		ready := scenario != "missing source checks"
 		t.Run(scenario, func(t *testing.T) {
 			s, d, q := stalledReviewFixture(t, "completed")
@@ -25,7 +25,7 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			row.ExecutionCategory = task.ExecutionCategoryCode
 			row.Instructions += "\nDo not push. Do not deploy."
 			row.CommitSHA = strings.Repeat("a", 40)
-			if scenario == "independent criterion pending" {
+			if strings.Contains(scenario, "criterion pending") {
 				row.DoDChecklist = []task.DoDItem{{ID: "independent-check", Text: "Independently verify the exact implemented result", Completed: false, Evidence: "Awaiting separate verification"}}
 			}
 			if err := store.UpdateTask(ctx, row); err != nil {
@@ -80,7 +80,7 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			if len(after.Attempts) != 1 {
 				t.Fatal("changed attempts before native claim")
 			}
-			if scenario == "independent criterion pending" && (len(after.DoDChecklist) != 1 || after.DoDChecklist[0].Completed || after.DoDChecklist[0].ID != "independent-check") {
+			if strings.Contains(scenario, "criterion pending") && (len(after.DoDChecklist) != 1 || after.DoDChecklist[0].Completed || after.DoDChecklist[0].ID != "independent-check") {
 				t.Fatal("verification admission waived or replaced original criterion")
 			}
 		})
