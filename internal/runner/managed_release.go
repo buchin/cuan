@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -48,4 +49,52 @@ func (s *RunnerService) bindManagedReleaseClaim(ctx context.Context, req ClaimTa
 	}
 	claim.ManagedRelease = binding
 	return nil
+}
+
+// managedReleaseClaimForCompletion reads only the canonical backend admission.
+// A newly enabled project setting cannot create ownership retroactively.
+func (s *RunnerService) managedReleaseClaimForCompletion(ctx context.Context, t *task.Task, att *task.TaskAttempt) (*ManagedReleaseClaim, error) {
+	activities, err := s.taskStore.ListActivities(ctx, t.ID)
+	if err != nil {
+		return nil, err
+	}
+	var receipt *task.TaskActivity
+	for _, a := range activities {
+		if a == nil || a.ID != "managed-release-claim:"+att.ID {
+			continue
+		}
+		if receipt != nil {
+			return nil, errors.New("duplicate managed release admission")
+		}
+		receipt = a
+	}
+	if receipt == nil {
+		return nil, nil
+	}
+	var binding ManagedReleaseClaim
+	decoder := json.NewDecoder(strings.NewReader(receipt.Message))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&binding) != nil || decoder.Decode(&struct{}{}) != io.EOF || binding.Version != 1 || binding.TaskID != t.ID || binding.AttemptID != att.ID || binding.RunnerID != att.RunnerID || binding.InstructionsHash != task.LaunchInstructionsHash(t.Instructions) || receipt.TaskID != t.ID || receipt.AttemptID == nil || *receipt.AttemptID != att.ID || receipt.Author != att.RunnerID || receipt.ActivityType != managedReleaseClaimActivity || att.StartedAt == nil || receipt.CreatedAt.Before(*att.StartedAt) || receipt.CreatedAt.After(time.Now().UTC()) || att.CancelRequested || att.CanceledAt != nil || t.ProjectID == "" || t.SourceRoomID == "" || t.ExecutionCategory != task.ExecutionCategoryCode || s.projectFinder == nil {
+		return nil, errors.New("managed release admission no longer matches execution")
+	}
+	limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
+	if err != nil {
+		return nil, err
+	}
+	if limits.DenyPush || limits.DenyDeploy || limits.ReadOnlyRepository || executionpolicy.StandaloneArtifactWork(t.Instructions) {
+		return nil, errors.New("managed release publication is not authorized")
+	}
+	p, err := s.projectFinder.TaskContext(ctx, t.ProjectID, t.Instructions)
+	if err != nil || p == nil {
+		return nil, errors.New("saved managed release context unavailable")
+	}
+	settings := project.SettingsFromMetadata(p.Metadata)
+	branch := strings.TrimSpace(settings.DeployBranch)
+	if branch == "" {
+		branch = p.DefaultBranch
+	}
+	if !settings.IsAutoDeployEnabled() || project.ParseEnvironment(settings.Environment)["CUAN_MANAGED_RELEASE"] != "1" || binding.Repository != p.RepoOwner+"/"+p.RepoName || binding.TargetBranch != branch || branch == "" {
+		return nil, errors.New("managed release context differs from admission")
+	}
+	return &binding, nil
 }

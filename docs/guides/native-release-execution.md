@@ -100,5 +100,9 @@ and target branch as a `managed_release_claim` activity. No environment values a
 copied into that receipt. Read-only, verification, inspection, standalone-file,
 and publication-restricted work cannot acquire it. This claim binding alone does
 not change developer prompting, waive deployment compliance, emit a source
-handoff, run a release, or accept a task. Completion-side binding validation and
-native execution must be connected before the mode can be enabled.
+handoff, run a release, or accept a task. Completion revalidates the canonical admission against its runner, original
+instructions and frozen project configuration. Malformed or changed admissions
+fail completion; absent admissions never become retroactive grants. This still
+does not exempt a successful attempt from the existing deployment receipt gate.
+Source-handoff emission and native execution must be connected before the mode
+can be enabled.

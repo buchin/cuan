@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -87,6 +88,76 @@ func TestManagedReleaseAdmissionRequiresExplicitFrozenScope(t *testing.T) {
 			item.Instructions = "changed"
 			if saved.TargetBranch != "dev" || saved.InstructionsHash == task.LaunchInstructionsHash(item.Instructions) {
 				t.Fatal("binding followed mutable configuration")
+			}
+		})
+	}
+}
+
+func TestManagedReleaseCompletionRejectsChangedBinding(t *testing.T) {
+	for _, scenario := range []string{"valid", "absent", "scope", "runner", "author", "receipt attempt", "type", "unknown field", "trailing data", "future", "before start", "cancelled", "repo", "branch", "disabled", "missing context"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			store := task.NewMemoryStore()
+			now := time.Now().Add(-time.Second).UTC()
+			item := &task.Task{ID: "task", ProjectID: "project", SourceRoomID: "room", ExecutionCategory: task.ExecutionCategoryCode, Instructions: "Implement and deploy"}
+			att := &task.TaskAttempt{ID: "attempt", TaskID: item.ID, RunnerID: "runner", Status: task.AttemptStatusRunning, StartedAt: &now}
+			p := &project.ProjectResponse{ID: "project", RepoOwner: "owner", RepoName: "repo", DefaultBranch: "dev", Metadata: json.RawMessage(`{"cuan_settings":{"auto_deploy":true,"environment":"CUAN_MANAGED_RELEASE=1"}}`)}
+			finder := &mockProjectFinder{projects: map[string]*project.ProjectResponse{"project": p}}
+			svc := NewService(nil, store, finder)
+			binding := ManagedReleaseClaim{Version: 1, TaskID: item.ID, AttemptID: att.ID, RunnerID: att.RunnerID, InstructionsHash: task.LaunchInstructionsHash(item.Instructions), Repository: "owner/repo", TargetBranch: "dev"}
+			raw, _ := json.Marshal(binding)
+			event := &task.TaskActivity{ID: "managed-release-claim:" + att.ID, TaskID: item.ID, AttemptID: &att.ID, Author: att.RunnerID, ActivityType: managedReleaseClaimActivity, Message: string(raw), CreatedAt: now.Add(time.Millisecond)}
+			switch scenario {
+			case "scope":
+				item.Instructions += " changed"
+			case "runner":
+				att.RunnerID = "other"
+			case "author":
+				event.Author = "model"
+			case "receipt attempt":
+				wrong := "other"
+				event.AttemptID = &wrong
+			case "type":
+				event.ActivityType = "comment"
+			case "unknown field":
+				event.Message = strings.TrimSuffix(event.Message, "}") + `,"extra":true}`
+			case "trailing data":
+				event.Message += " {}"
+			case "future":
+				event.CreatedAt = time.Now().Add(time.Hour)
+			case "before start":
+				event.CreatedAt = now.Add(-time.Second)
+			case "cancelled":
+				att.CancelRequested = true
+			case "repo":
+				p.RepoName = "foreign"
+			case "branch":
+				p.DefaultBranch = "main"
+			case "disabled":
+				p.Metadata = json.RawMessage(`{"cuan_settings":{"auto_deploy":false}}`)
+			case "missing context":
+				delete(finder.projects, "project")
+			}
+			if scenario != "absent" {
+				if err := store.CreateActivity(ctx, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result, err := svc.managedReleaseClaimForCompletion(ctx, item, att)
+			if scenario == "absent" {
+				if err != nil || result != nil {
+					t.Fatal("setting retroactively created ownership")
+				}
+				return
+			}
+			if scenario == "valid" {
+				if err != nil || result == nil || *result != binding {
+					t.Fatalf("valid claim rejected: %v", err)
+				}
+				return
+			}
+			if err == nil || result != nil {
+				t.Fatal("invalid admission accepted")
 			}
 		})
 	}
