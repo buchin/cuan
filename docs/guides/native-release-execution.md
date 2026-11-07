@@ -131,3 +131,12 @@ working directory, project environment or model grant. The worker dispatches a
 native intent before accessing any AI adapter; an unprepared stage reports a
 terminal preparation failure through the durable completion outbox. It never
 falls back to a model. The poller still does not advertise native capability.
+
+The staged project publication helper `ApplyNativeReleaseSource` resolves the
+saved task context and requires an exact matching repository, frozen deployment
+branch, explicit managed-release setting and allowed publication scope. It uses
+the registered saved connection and the existing GitHub merge API client with
+read-first ancestry reconciliation; it never falls back to ambient CLI login or
+touches the project cache. This helper is not yet called by native dispatch.
+Its caller must first validate the canonical source handoff and original owner
+authorization. A merge receipt is not deployment or independent acceptance.

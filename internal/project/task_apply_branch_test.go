@@ -27,6 +27,17 @@ func TestRemoteTaskBranchApplyUsesSavedConnectionAndPreservesCache(t *testing.T)
 			source, resultSHA := strings.Repeat("a", 40), strings.Repeat("b", 40)
 			var calls atomic.Int32
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer saved-owner" {
+					t.Error("observation used wrong owner")
+				}
+				if r.Method == http.MethodGet {
+					if strings.Contains(r.URL.Path, "/commits/") {
+						json.NewEncoder(w).Encode(map[string]string{"sha": resultSHA})
+						return
+					}
+					json.NewEncoder(w).Encode(map[string]any{"status": "diverged", "merge_base_commit": map[string]string{"sha": strings.Repeat("c", 40)}})
+					return
+				}
 				calls.Add(1)
 				var payload map[string]string
 				if r.URL.Path != "/repos/owner/repo/merges" || r.Header.Get("Authorization") != "Bearer saved-owner" || json.NewDecoder(r.Body).Decode(&payload) != nil || payload["base"] != "dev" || payload["head"] != source {
