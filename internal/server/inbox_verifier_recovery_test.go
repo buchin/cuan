@@ -68,11 +68,12 @@ func testNativeVerifierRepair(t *testing.T, s *Server, origin db.InboxRequest, d
 	if err != nil || reserved == nil {
 		t.Fatal("repair launch unavailable", err)
 	}
-	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID})
+	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID, ExpectedPredecessorID: bound.PredecessorAttemptID()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	service := runner.NewService(runner.NewMemoryStore(s.taskSvc.Store()), s.taskSvc.Store(), s.projectSvc)
+	service.SetEventBus(runner.NewEventBus())
 	claimed, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "live-runner", SupportsNativeVisualVerification: true, SupportsLiveInspection: true, SupportsLiveInspectionRecovery: true, SupportsCurrentOutcomeInspection: true}, time.Minute)
 	if err != nil || !claimed.Claimed {
 		t.Fatal("repair not claimable", err)
@@ -115,4 +116,5 @@ func testNativeVerifierRepair(t *testing.T, s *Server, origin db.InboxRequest, d
 	if source.Status != task.AttemptStatusFailed || source.ErrorMessage != "Live result inspection project checks did not pass" {
 		t.Fatal("repair rewrote failed history")
 	}
+	testEvidenceOutcomeRevalidation(t, s, origin, after, service)
 }

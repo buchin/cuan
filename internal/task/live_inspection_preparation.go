@@ -8,13 +8,14 @@ import (
 )
 
 const InspectionPublicationPreparationError = "verification snapshot could not be published; existing files were preserved"
+const InspectionPredecessorPreparationError = "The saved inspection is no longer current. Existing results and work were preserved."
 const InspectionScopePreparationError = "The live result inspection scope could not be validated."
 
 // Only known failures before attempt reservation may use this single repair.
 // Eligibility alone is not authorization: the original intent must parse now,
 // source/owner/scope must still validate, and no attempt may exist for its request.
 func IsInspectionPreparationFailure(parent *TaskLaunch) bool {
-	return parent != nil && parent.State == "stopped" && (parent.SafeError == InspectionPublicationPreparationError || parent.SafeError == InspectionScopePreparationError)
+	return parent != nil && parent.State == "stopped" && (parent.SafeError == InspectionPublicationPreparationError || parent.SafeError == InspectionScopePreparationError || parent.SafeError == InspectionPredecessorPreparationError)
 }
 
 // A failed preparation has no execution to retry. Preserve that durable intent
@@ -36,6 +37,17 @@ func ValidateInspectionPreparationRecovery(ctx context.Context, store Store, t *
 		return ErrInvalidTaskInput
 	}
 	expected := *proof
+	if parent.SafeError == InspectionPredecessorPreparationError {
+		// Repair only the legacy missing supplemental predecessor. The original
+		// grant never reached a worker and retains its single preparation budget.
+		if old.Purpose != CurrentOutcomeInspection || old.SourceVerifierAttemptID != "" || proof.SourceVerifierAttemptID == "" {
+			return ErrInvalidTaskInput
+		}
+		if err := validateInspectionSourceVerifier(ctx, store, t, proof); err != nil {
+			return err
+		}
+		expected.SourceVerifierAttemptID = ""
+	}
 	expected.PreparationLaunchID = ""
 	expected.TargetCommit = old.TargetCommit
 	expected.ObservedAt = old.ObservedAt

@@ -55,6 +55,10 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 		return false
 	}
 	proof := *previous
+	// The previous attempt already binds its preparation/verifier repair.
+	// This stage uses the single revalidation key, not the old repair key.
+	proof.PreparationLaunchID = ""
+	proof.VerifierRecoveryAttemptID = ""
 	if evidence {
 		proof.RevalidationKind = task.EvidenceRevalidation
 	}

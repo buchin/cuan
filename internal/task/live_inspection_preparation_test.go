@@ -9,7 +9,7 @@ import (
 )
 
 func TestInspectionPreparationRecoveryRequiresUnstartedApprovedParent(t *testing.T) {
-	for _, scenario := range []string{"valid", "valid scope repair", "malformed scope parent", "reserved failed attempt", "active attempt", "wrong error", "cancelled parent", "expired parent", "foreign owner", "changed scope", "changed source", "changed repository", "changed purpose", "foreign parent", "chained recovery", "earlier observation", "parent revalidation"} {
+	for _, scenario := range []string{"valid", "valid scope repair", "malformed scope parent", "reserved failed attempt", "active attempt", "wrong error", "stale without verifier", "cancelled parent", "expired parent", "foreign owner", "changed scope", "changed source", "changed repository", "changed purpose", "foreign parent", "chained recovery", "earlier observation", "parent revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			store := NewMemoryStore()
@@ -53,6 +53,8 @@ func TestInspectionPreparationRecoveryRequiresUnstartedApprovedParent(t *testing
 					status = AttemptStatusRunning
 				}
 				store.attempts[attemptRequestID(item.ID, parent.RequestID)] = &TaskAttempt{ID: attemptRequestID(item.ID, parent.RequestID), TaskID: item.ID, Status: status}
+			case "stale without verifier":
+				saved.SafeError = InspectionPredecessorPreparationError
 			case "wrong error":
 				saved.SafeError = "unknown preparation error"
 			case "cancelled parent":

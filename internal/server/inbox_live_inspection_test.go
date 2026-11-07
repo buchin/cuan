@@ -47,7 +47,7 @@ func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestSupplementalVerifierCurrentOutcomeHandoff(t *testing.T) {
-	for _, scenario := range []string{"valid", "missing receipt", "cancelled verifier", "wrong source"} {
+	for _, scenario := range []string{"valid", "stale preparation", "missing receipt", "cancelled verifier", "wrong source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished valid supplemental "+scenario, nil)
@@ -65,12 +65,16 @@ func TestOriginalInspectionPreparationGrant(t *testing.T) {
 }
 
 func TestCurrentOutcomeEvidenceRevalidation(t *testing.T) {
-	s, origin, d := phaseLineageSetup(t)
-	liveInspectionContract(t, s, origin, d, "current outcome unpublished valid evidence", nil)
+	for _, scenario := range []string{"current outcome unpublished valid evidence", "current outcome unpublished valid preparation evidence"} {
+		t.Run(scenario, func(t *testing.T) {
+			s, origin, d := phaseLineageSetup(t)
+			liveInspectionContract(t, s, origin, d, scenario, nil)
+		})
+	}
 }
 
 func TestLiveResultInspectionPostgres(t *testing.T) {
-	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid evidence", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid blocked preparation valid", "current outcome unpublished valid supplemental valid", "current outcome publication valid", "current outcome failed checks revalidation"} {
+	for _, scenario := range []string{"valid", "recover checks", "current outcome", "current outcome reported checks", "current outcome opaque local", "current outcome unpublished valid", "current outcome unpublished valid evidence", "current outcome unpublished valid preparation evidence", "current outcome unpublished valid preparation", "current outcome unpublished valid scope preparation", "current outcome unpublished valid blocked preparation valid", "current outcome unpublished valid supplemental valid", "current outcome unpublished valid supplemental stale preparation", "current outcome publication valid", "current outcome failed checks revalidation"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, origin, d := phaseLineageSetup(t, database)
@@ -82,9 +86,10 @@ func TestLiveResultInspectionPostgres(t *testing.T) {
 
 func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *task.TaskDetailResponse, scenario string, database *sql.DB) {
 	t.Helper()
-	evidenceFollowup := scenario == "current outcome unpublished valid evidence"
+	staleSupplemental := scenario == "current outcome unpublished valid supplemental stale preparation"
+	evidenceFollowup := strings.HasSuffix(scenario, " evidence")
 	if evidenceFollowup {
-		scenario = "current outcome unpublished valid"
+		scenario = strings.TrimSuffix(scenario, " evidence")
 	}
 	s.inboxStopping.Store(true)
 	ctx := context.Background()
@@ -309,7 +314,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		case "wrong source":
 			d.CommitSHA = strings.Repeat("e", 40)
 		}
-		if !strings.HasSuffix(scenario, "supplemental valid") {
+		if !strings.HasSuffix(scenario, "supplemental valid") && !staleSupplemental {
 			if s.recoverLiveResultInspection(ctx, d, origin) {
 				t.Fatal("untrusted supplemental evidence granted inspection", scenario)
 			}
@@ -384,6 +389,29 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			t.Fatal("diagnostic admitted or changed work")
 		}
 	}
+	if staleSupplemental {
+		proof, code := s.planLiveResultInspection(ctx, d, origin, source)
+		if code != "ready" || proof.SourceVerifierAttemptID == "" {
+			t.Fatal("missing valid supplemental plan", code)
+		}
+		legacy := *proof
+		legacy.SourceVerifierAttemptID = ""
+		raw, _ := json.Marshal(legacy)
+		parent, e := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: legacy.RequestID(d.ID), OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, AgentID: d.AssignedAgent, Revision: task.LiveInspectionMarker + string(raw), InstructionsHash: legacy.InstructionsHash, CreatedAt: time.Now(), AvailableAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)})
+		if e != nil {
+			t.Fatal(e)
+		}
+		_ = store.DeleteTask(ctx, "phase-blocker")
+		if claimed, e := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "legacy-preparation", parent.ID); e != nil || claimed == nil {
+			t.Fatal(e)
+		}
+		if e = s.taskSvc.FinishLaunch(ctx, parent.ID, "legacy-preparation", "stopped", time.Now(), staleInspectionLaunchReason); e != nil {
+			t.Fatal(e)
+		}
+		if e := store.CreateTask(ctx, &task.Task{ID: "phase-blocker", ProjectID: d.ProjectID, Title: "Other work", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); e != nil {
+			t.Fatal(e)
+		}
+	}
 	if boundSource, _ := s.verifiedSupplementalSource(ctx, d); boundSource != nil && eligible {
 		// Exercise the coordinator's production entry, including all earlier
 		// review/finalization/recovery gates, before testing deduplication.
@@ -402,6 +430,21 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 	id := task.LiveInspectionRequestID(d.ID, d.CommitSHA, task.LaunchInstructionsHash(d.Instructions))
 	if currentOutcome {
 		id = (&task.LiveInspectionIntent{Purpose: task.CurrentOutcomeInspection, SourceAttemptID: source.ID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions)}).RequestID(d.ID)
+	}
+	if staleSupplemental {
+		latest, e := s.taskSvc.LatestLaunch(ctx, d.ID)
+		if e != nil || latest == nil {
+			t.Fatal("missing repaired admission", e)
+		}
+		id = latest.RequestID
+		binding, e := task.LiveInspectionForLaunch(&d.Task, latest)
+		if e != nil || binding == nil || binding.PreparationLaunchID == "" || binding.SourceVerifierAttemptID != d.LatestAttempt.ID {
+			t.Fatal("lost legacy preparation/verifier binding", e)
+		}
+		parent, e := s.taskSvc.GetLaunch(ctx, binding.PreparationLaunchID)
+		if e != nil || parent.State != "stopped" || !latest.ExpiresAt.Equal(parent.ExpiresAt) {
+			t.Fatal("repair renewed or overwrote original grant", e)
+		}
 	}
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil || launch.State != "queued" || launch.SourceRequestID != origin.RequestID {

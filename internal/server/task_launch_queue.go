@@ -121,7 +121,7 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 
 const supersededRecoveryLaunchReason = "A newer execution replaced this recovery request. Existing work was preserved."
 
-const staleInspectionLaunchReason = "The saved inspection is no longer current. Existing results and work were preserved."
+const staleInspectionLaunchReason = task.InspectionPredecessorPreparationError
 
 func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch, background bool) string {
 	link := "\n\n[View work](/tasks/" + job.TaskID + ")"

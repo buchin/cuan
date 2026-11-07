@@ -164,3 +164,15 @@ inspection plan, separately from the latest task launch. Its state and fixed sto
 code reveal an older stopped admission without exposing stored feedback or errors.
 A plan can be ready while its existing admission remains terminal; readiness does
 not grant a retry or a replacement authorization window.
+
+An unstarted legacy inspection stopped by the missing supplemental predecessor
+can use the existing one-time preparation repair. It requires the same original
+implementation and authorization, a successful native-bound supplemental
+verifier, no reserved attempt, and the original unexpired deadline. The saved
+stopped launch stays unchanged. Other stale inspections gain no retry.
+
+After an inspection succeeds, evidence revalidation identifies that completed
+attempt as its parent. Preparation and verifier-repair markers belong to the
+parent's history and are not copied into the new stage or its request key. The
+parent's native provenance is still validated recursively. This keeps one
+revalidation allowance across deployment revisions and prior repair paths.
