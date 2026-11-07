@@ -66,8 +66,8 @@ Pending work is never reset, cleaned or committed to make a release pass.
 ## Maintainer CLI
 
 ```sh
-cuan release inspect --path . --commit FULL_SHA --branch dev
-cuan release run --path . --commit FULL_SHA --branch dev --logs
+cuan release inspect --path . --commit FULL_SHA --branch dev [--runtime-path PATH]
+cuan release run --path . --commit FULL_SHA --branch dev [--logs]
 ```
 
 `inspect` does not run the script. `run` explicitly uses the maintainer process
@@ -77,6 +77,29 @@ cannot run this maintainer command. The native Go executor instead requires an
 explicit environment slice; nil is rejected and never inherits host credentials.
 A future Inbox delivery stage must resolve the saved owner/project environment
 and original authorization before invoking it.
+
+### `--runtime-path` option (inspect only)
+
+The `--runtime-path <PATH>` flag verifies that every tool listed in
+`required_tools` exists and is executable within that exact PATH string—without
+running any tool or inheriting the maintainer's environment.
+
+| Invocation | Behavior |
+|---|---|
+| `--runtime-path /usr/local/bin:/usr/bin` | Checks `required_tools` against the given PATH only. Exit 0 if all present; exit 1 with tool name if any are missing. |
+| `--runtime-path ""` | Fails (exit 1) if any `required_tools` are listed. Never falls back to the host PATH. |
+| _(flag omitted)_ | Skips runtime check entirely—backward-compatible behavior. |
+
+```sh
+# Verify tools exist in a custom runtime before releasing
+cuan release inspect --path . --commit SHA --branch dev --runtime-path /opt/deploy/bin:/usr/bin
+
+# Explicitly test that an empty PATH fails (proves no host fallback)
+cuan release inspect --path . --commit SHA --branch dev --runtime-path ""
+```
+
+The check uses `release.CheckRuntime` with the explicit PATH; it never executes
+the tools, runs the release script, or touches the host environment.
 
 Results report source, start/end time, real exit code and unchanged-source status.
 Process startup failure uses an unknown exit code, not zero. Raw child output is
