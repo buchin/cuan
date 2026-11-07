@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,21 @@ type TaskLaunch struct {
 }
 
 var ErrLaunchLease = errors.New("launch lease is no longer owned")
+
+const MaxTaskFeedbackRunes = 6000
+const MaxTaskExecutionRevisionRunes = 16000
+
+// Internal execution envelopes also carry immutable protocol metadata and
+// inherited owner constraints. A marker only changes storage bounds; intent
+// parsing, original authorization and source validation still govern execution.
+func ExecutionRevisionStorageLimit(revision string) int {
+	for _, marker := range []string{LiveInspectionMarker, VerificationIntentMarker, NativeReleaseIntentMarker} {
+		if strings.Contains(revision, marker) {
+			return MaxTaskExecutionRevisionRunes
+		}
+	}
+	return MaxTaskFeedbackRunes
+}
 
 type LaunchStore interface {
 	SaveLaunch(context.Context, TaskLaunch) (*TaskLaunch, error)
@@ -40,7 +56,7 @@ func sameLaunch(a, b TaskLaunch) bool {
 	return a.ID == b.ID && a.TaskID == b.TaskID && a.ProjectID == b.ProjectID && a.RequestID == b.RequestID && a.OwnerID == b.OwnerID && a.RoomID == b.RoomID && a.SourceRequestID == b.SourceRequestID && a.AgentID == b.AgentID && a.Revision == b.Revision && a.InstructionsHash == b.InstructionsHash
 }
 func normalizeLaunch(j TaskLaunch) (TaskLaunch, error) {
-	if j.CreatedAt.IsZero() || j.AvailableAt.Before(j.CreatedAt) || !j.ExpiresAt.After(j.AvailableAt) || j.ProjectID == "" || j.TaskID == "" || j.RequestID == "" || j.OwnerID == "" || j.RoomID == "" || j.SourceRequestID == "" || j.AgentID == "" || j.InstructionsHash == "" || len([]rune(j.Revision)) > 6000 || !j.ExpiresAt.After(j.CreatedAt) {
+	if j.CreatedAt.IsZero() || j.AvailableAt.Before(j.CreatedAt) || !j.ExpiresAt.After(j.AvailableAt) || j.ProjectID == "" || j.TaskID == "" || j.RequestID == "" || j.OwnerID == "" || j.RoomID == "" || j.SourceRequestID == "" || j.AgentID == "" || j.InstructionsHash == "" || len([]rune(j.Revision)) > ExecutionRevisionStorageLimit(j.Revision) || !j.ExpiresAt.After(j.CreatedAt) {
 		return j, ErrInvalidTaskInput
 	}
 	j.ID = LaunchID(j.TaskID, j.RequestID)

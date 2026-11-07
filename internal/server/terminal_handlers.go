@@ -311,7 +311,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	payload.Prompt = strings.TrimSpace(payload.Prompt)
 	payload.Revision = strings.TrimSpace(payload.Revision)
-	if len([]rune(payload.Revision)) > 6000 {
+	if len([]rune(payload.Revision)) > task.MaxTaskFeedbackRunes && !s.allowsSavedExecutionRevision(r.Context(), taskID, ownerID, payload.RequestID, payload.Revision) {
 		respondJSONError(w, 400, "Revision feedback may contain up to 6000 characters")
 		return
 	}

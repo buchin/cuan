@@ -39,6 +39,7 @@ type InspectionPlanDiagnostic struct {
 // Latest admission is separate from the attempt's binding: it may have stopped
 // before any worker existed. Never expose its revision or stored free-text error.
 type LaunchDiagnostic struct {
+	RevisionRunes  int    `json:"revision_runes,omitempty"`
 	ID             string `json:"id"`
 	State          string `json:"state"`
 	IntentKind     string `json:"intent_kind"`
@@ -53,7 +54,7 @@ func diagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic {
 	if j == nil {
 		return nil
 	}
-	d := &LaunchDiagnostic{ID: j.ID, State: j.State, IntentKind: "execution"}
+	d := &LaunchDiagnostic{ID: j.ID, State: j.State, IntentKind: "execution", RevisionRunes: len([]rune(j.Revision))}
 	inspection, err := LiveInspectionForLaunch(t, j)
 	if err != nil {
 		d.IntentKind, d.ValidationCode = "invalid", "invalid_live_inspection"

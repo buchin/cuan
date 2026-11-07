@@ -648,8 +648,8 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		testInspectionInfrastructureRecovery(t, s, origin, d, claim, service, strings.TrimPrefix(scenario, "current outcome unpublished valid infrastructure "))
 		return
 	}
-	if scenario == "current outcome unpublished valid capacity" {
-		testInspectionCapacityContinuation(t, s, origin, d, claim, service)
+	if strings.HasPrefix(scenario, "current outcome unpublished valid capacity") {
+		testInspectionCapacityContinuation(t, s, origin, d, claim, service, strings.HasSuffix(scenario, "long context"))
 		return
 	}
 	if scenario == "current outcome unpublished valid registered review" && claim.PHPUnitTargets != `["tests/Feature/ExampleTest.php"]` {

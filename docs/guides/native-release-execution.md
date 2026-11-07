@@ -409,6 +409,15 @@ scheduling waits for permitted capacity and revalidates source/scope at admissio
 claim and completion. It neither changes model/fallback policy nor accepts the
 failed parent, and cannot chain another capacity allowance from its own failure.
 
+Human revision feedback remains limited to 6,000 runes. Saved internal execution
+envelopes have a separate 16,000-rune storage bound because they also retain typed
+protocol metadata and binding owner constraints. The launch handler accepts the
+larger envelope only when it exactly matches a currently claimed, leased,
+owner-bound saved launch with a valid typed intent. A marker in user feedback is
+insufficient. Size validation grants no source, execution or acceptance authority;
+all ordinary checks remain required. Owner execution diagnostics expose the saved
+revision length without returning private instruction prose.
+
 Review context also includes validated `native_preparation_history` from terminal
 native stages, even when later execution/completion failed. It preserves the
 actual attempt status and explicitly identifies preparation-only facts. The

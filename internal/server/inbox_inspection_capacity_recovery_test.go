@@ -24,7 +24,7 @@ func TestInspectionCapacityContinuation(t *testing.T) {
 }
 
 func TestInspectionCapacityContinuationPostgres(t *testing.T) {
-	for _, mode := range []string{"capacity", "infrastructure launch capacity"} {
+	for _, mode := range []string{"capacity", "capacity long context", "infrastructure launch capacity"} {
 		t.Run(mode, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { inspectionCapacityContinuationContract(t, database, mode) })
 		})
@@ -33,7 +33,7 @@ func TestInspectionCapacityContinuationPostgres(t *testing.T) {
 
 func inspectionCapacityContinuationContract(t *testing.T, database *sql.DB, modes ...string) {
 	if len(modes) == 0 {
-		modes = []string{"capacity", "infrastructure launch capacity"}
+		modes = []string{"capacity", "capacity long context", "infrastructure launch capacity"}
 	}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
@@ -48,7 +48,7 @@ func inspectionCapacityContinuationContract(t *testing.T, database *sql.DB, mode
 	}
 }
 
-func testInspectionCapacityContinuation(t *testing.T, s *Server, origin db.InboxRequest, d *task.TaskDetailResponse, claim *runner.ClaimTaskResponse, service *runner.RunnerService) {
+func testInspectionCapacityContinuation(t *testing.T, s *Server, origin db.InboxRequest, d *task.TaskDetailResponse, claim *runner.ClaimTaskResponse, service *runner.RunnerService, longContext ...bool) {
 	t.Helper()
 	ctx := context.Background()
 	store := s.taskSvc.Store()
@@ -89,6 +89,36 @@ func testInspectionCapacityContinuation(t *testing.T, s *Server, origin db.Inbox
 	}
 	s.projectSvc = project.NewService(projects, git.NewClient(), "fixture", t.TempDir())
 	s.taskSvc = task.NewService(store, s.projectSvc)
+	if len(longContext) > 0 && longContext[0] {
+		now := d.LatestAttempt.CreatedAt.Add(-time.Millisecond)
+		feedback := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: origin.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now, Deadline: now.Add(time.Hour), PayloadHash: "long-approved-context"}
+		if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, feedback, &db.ProjectMessage{ID: feedback.MessageID, RoomID: feedback.RoomID, AuthorType: "user", AuthorID: origin.OwnerID, Content: "Preserve every original requirement and continue the same verification.", CreatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		review := task.TaskStatusReview
+		if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "fixture", task.UpdateTaskRequest{Status: &review}); err != nil {
+			t.Fatal(err)
+		}
+		owner, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: feedback.RequestID, OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, AgentID: origin.AgentID, Revision: strings.Repeat("Preserve all original acceptance criteria. ", 120), InstructionsHash: task.LaunchInstructionsHash(d.Instructions), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(24 * time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lease, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "owner-context", owner.ID)
+		if err != nil || lease == nil {
+			t.Fatal("cannot retain approved owner context", err)
+		}
+		if err := s.taskSvc.FinishLaunch(ctx, owner.ID, lease.LeaseToken, "stopped", now, "Original owner context retained"); err != nil {
+			t.Fatal(err)
+		}
+		blocked := task.TaskStatusBlocked
+		if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "fixture", task.UpdateTaskRequest{Status: &blocked}); err != nil {
+			t.Fatal(err)
+		}
+		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	proof := previous
 	proof.CapacityRecoveryAttemptID, proof.TargetCommit, proof.ObservedAt = parentID, s.cfg.CommitSHA, time.Now().UTC()
 	if err := task.ValidateLiveInspectionSource(ctx, store, &d.Task, &proof); err != nil {
@@ -132,6 +162,9 @@ func testInspectionCapacityContinuation(t *testing.T, s *Server, origin db.Inbox
 	queued, err := s.taskSvc.GetLaunch(ctx, id)
 	if err != nil || queued == nil || queued.State != "queued" {
 		t.Fatal("missing durable capacity wait", err)
+	}
+	if len(longContext) > 0 && longContext[0] && len([]rune(queued.Revision)) <= task.MaxTaskFeedbackRunes {
+		t.Fatal("long-context regression did not exercise the internal execution envelope")
 	}
 	bound, err := task.LiveInspectionForLaunch(&d.Task, queued)
 	if err != nil || bound.CapacityRecoveryAttemptID != parentID || bound.VerifierRecoveryAttemptID != previous.VerifierRecoveryAttemptID || bound.SourceAttemptID != previous.SourceAttemptID || bound.PredecessorAttemptID() != parentID {
