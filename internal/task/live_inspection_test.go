@@ -3,10 +3,36 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestCurrentOutcomeSourceRejectsLocalOnlyPublicationScope(t *testing.T) {
+	for _, local := range []bool{false, true} {
+		t.Run(fmt.Sprint(local), func(t *testing.T) {
+			ctx := context.Background()
+			store := NewMemoryStore()
+			now, exit := time.Now().UTC(), 124
+			item := &Task{ID: "task", Instructions: "Implement approved work", Status: TaskStatusBlocked}
+			if local {
+				item.Instructions += "\nDo not push. Do not deploy."
+			}
+			if err := store.CreateTask(ctx, item); err != nil {
+				t.Fatal(err)
+			}
+			a := &TaskAttempt{ID: "source", TaskID: item.ID, Status: AttemptStatusFailed, ExitCode: &exit, ErrorMessage: "Execution timed out after adaptive timeout (10m0s)", CreatedAt: now.Add(-time.Minute), FinishedAt: &now}
+			if err := store.CreateAttempt(ctx, a); err != nil {
+				t.Fatal(err)
+			}
+			proof := &LiveInspectionIntent{Purpose: CurrentOutcomeInspection, SourceAttemptID: a.ID, InstructionsHash: LaunchInstructionsHash(item.Instructions), ObservedAt: now.Add(time.Second)}
+			if err := ValidateLiveInspectionSource(ctx, store, item, proof); (err != nil) != local {
+				t.Fatalf("local=%v source validation=%v", local, err)
+			}
+		})
+	}
+}
 
 func TestUnrecordedLocalFailureNeverInventsTermination(t *testing.T) {
 	start := time.Now().Add(-time.Hour)

@@ -299,6 +299,15 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		return err
 	}
 	if proof.Purpose == CurrentOutcomeInspection {
+		// All admission/revalidation routes share this source check. A local
+		// implementation cannot be verified by inspecting a deployed release.
+		limits, err := AttemptPublicationPolicy(ctx, store, t, proof.SourceAttemptID)
+		if err != nil {
+			return err
+		}
+		if limits.DenyPush && limits.DenyDeploy {
+			return ErrInvalidTaskInput
+		}
 		if source == nil || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil {
 			return ErrInvalidTaskInput
 		}
