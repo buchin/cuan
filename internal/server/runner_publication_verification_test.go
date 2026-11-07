@@ -18,7 +18,7 @@ import (
 )
 
 func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T) {
-	for _, scenario := range []string{"verified", "unverified", "cancelled-during-check", "connection-revoked", "wrong-runner", "wrong-commit", "no-connection", "unauthenticated", "model-receipt"} {
+	for _, scenario := range []string{"verified", "unverified", "cancelled-during-check", "connection-revoked", "archived-during-check", "repository-changed", "branch-changed", "wrong-runner", "wrong-commit", "no-connection", "unauthenticated", "model-receipt"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, token := setupTestChatServer(t)
 			ctx := context.Background()
@@ -60,6 +60,22 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 						t.Fatal(err)
 					}
 				}
+				if scenario == "repository-changed" || scenario == "branch-changed" {
+					if scenario == "repository-changed" {
+						p.RepoURL = "https://github.com/foreign/repo.git"
+					} else {
+						p.DefaultBranch = "other"
+					}
+					if err := projects.UpdateProject(ctx, p); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if scenario == "archived-during-check" {
+					p.IsArchived = true
+					if err := projects.UpdateProject(ctx, p); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if scenario == "connection-revoked" {
 					p.Metadata = json.RawMessage(`{}`)
 					if err := projects.UpdateProject(ctx, p); err != nil {
@@ -91,7 +107,7 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 			switch scenario {
 			case "unverified":
 				want = 422
-			case "cancelled-during-check", "connection-revoked", "wrong-runner", "wrong-commit":
+			case "cancelled-during-check", "connection-revoked", "archived-during-check", "repository-changed", "branch-changed", "wrong-runner", "wrong-commit":
 				want = 409
 			case "no-connection":
 				want = 503

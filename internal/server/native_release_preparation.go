@@ -84,7 +84,7 @@ func (s *Server) prepareNativeReleaseWorkspace(ctx context.Context, taskID, atte
 		return nil, errors.New("native release context changed during preparation")
 	}
 	currentProject, projectErr := s.projectSvc.TaskContext(ctx, fresh.ProjectID, fresh.Instructions)
-	if projectErr != nil || currentProject == nil || currentProject.LocalPath != projectContext.LocalPath || currentProject.RepoURL != projectContext.RepoURL || currentProject.DefaultBranch != projectContext.DefaultBranch || string(currentProject.Metadata) != string(projectContext.Metadata) {
+	if projectErr != nil || currentProject == nil || currentProject.IsArchived || currentProject.LocalPath != projectContext.LocalPath || currentProject.RepoURL != projectContext.RepoURL || currentProject.DefaultBranch != projectContext.DefaultBranch || string(currentProject.Metadata) != string(projectContext.Metadata) {
 		return nil, errors.New("native release project changed during preparation")
 	}
 	receipt := task.NativeReleasePreparation{Version: 1, TaskID: taskID, AttemptID: attemptID, SourceCommit: prepared.SourceCommit, TargetCommit: prepared.TargetCommit, InstructionsHash: intent.InstructionsHash, Repository: intent.Repository, TargetBranch: prepared.Branch, ManifestHash: prepared.ManifestHash}

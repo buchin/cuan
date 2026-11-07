@@ -198,3 +198,8 @@ record; a different target cannot replace it. Its target argument must come from
 the coordinator's reconciled merge receipt. No public caller may choose it.
 This method is not yet invoked by production dispatch and performs no push,
 merge, release-script execution, live observation or task acceptance itself.
+
+Late project revalidation also rejects archived projects and changes to repository,
+workspace path or default branch, not only changes to settings metadata. Neither
+an in-flight health response nor a completed private checkout permits recording
+new native preparation/publication evidence after those project changes.

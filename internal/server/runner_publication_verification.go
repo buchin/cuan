@@ -62,7 +62,7 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 		return s.projectSvc.Get(r.Context(), d.ProjectID)
 	}
 	p, err := projectContext()
-	if err != nil || p == nil {
+	if err != nil || p == nil || p.IsArchived {
 		respondJSONError(w, 503, "Registered publication verifier is unavailable")
 		return
 	}
@@ -112,7 +112,7 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 	}
 	// Re-read settings so a revoked/replaced connection cannot publish late proof.
 	current, err := projectContext()
-	if err != nil || current == nil || string(current.Metadata) != string(p.Metadata) {
+	if err != nil || current == nil || current.IsArchived || current.RepoURL != p.RepoURL || current.LocalPath != p.LocalPath || current.DefaultBranch != p.DefaultBranch || string(current.Metadata) != string(p.Metadata) {
 		respondJSONError(w, 409, "Project changed during verification")
 		return
 	}
