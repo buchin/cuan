@@ -51,7 +51,7 @@ func TestNativeReleasePreparationPublishesActualBoundCheckout(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "prepare")
 }
 func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
-	for _, scenario := range []string{"initial merge", "initial verify", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial wrong source", "initial revoked"} {
+	for _, scenario := range []string{"initial merge", "initial verify", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial missing verifier", "initial wrong source", "initial revoked"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
@@ -507,8 +507,12 @@ func nativeReleaseProjectFixture(t *testing.T, s *Server) (string, string, strin
 	run("add", ".")
 	run("-c", "user.name=Fixture Human", "-c", "user.email=human@example.invalid", "commit", "-m", "Target")
 	target := run("rev-parse", "HEAD")
+	_, key, _ := ed25519.GenerateKey(rand.Reader)
+	signer, _ := ssh.NewSignerFromKey(key)
+	environment := "CUAN_MANAGED_RELEASE=1\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=fixture\nCUAN_PUBLICATION_SSH_PASSWORD=fixture-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
+	metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
 	projects := project.NewMemoryStore()
-	must(projects.CreateProject(context.Background(), &project.Project{ID: "default", Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", LocalPath: root, Metadata: json.RawMessage(`{"cuan_settings":{"workspace_revision":"initial","auto_deploy":true,"environment":"CUAN_MANAGED_RELEASE=1"}}`)}))
+	must(projects.CreateProject(context.Background(), &project.Project{ID: "default", Name: "Project", RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", LocalPath: root, Metadata: metadata}))
 	s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
 	digest := sha256.Sum256([]byte(manifest))
 	return source, target, hex.EncodeToString(digest[:])

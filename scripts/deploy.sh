@@ -149,7 +149,7 @@ if [[ "$frontend_only" == 1 ]]; then
   echo "==> Verifying production health..."
   if [[ "$is_local" == 0 ]]; then
     export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
-    sshpass -e ssh -o StrictHostKeyChecking=no "$release_host" "curl -s http://127.0.0.1:8080/healthz" >/dev/null
+    sshpass -e ssh "$release_host" "curl -s http://127.0.0.1:8080/healthz" >/dev/null
     unset SSHPASS
   else
     curl -sSf http://127.0.0.1:8080/healthz >/dev/null 2>&1 || curl -sSf https://cuan.dojo.cc/healthz >/dev/null
@@ -239,7 +239,7 @@ verified_sha=""
 for attempt in {1..20}; do
   if [[ "$is_local" == 0 ]]; then
     export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
-    health_json="$(sshpass -e ssh -o StrictHostKeyChecking=no "$release_host" "curl -s http://127.0.0.1:8080/healthz" 2>/dev/null || true)"
+    health_json="$(sshpass -e ssh "$release_host" "curl -s http://127.0.0.1:8080/healthz" 2>/dev/null || true)"
     unset SSHPASS
   else
     health_json="$(curl -sSf http://127.0.0.1:8080/healthz 2>/dev/null || curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"

@@ -109,6 +109,12 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 	client.SetAPIBaseURL(api.URL)
 	projects := s.projectSvc.Store()
 	s.projectSvc = project.NewService(projects, client, "fixture", t.TempDir())
+	if scenario == "initial missing verifier" {
+		current, err := projects.GetProject(ctx, item.ProjectID)
+		must(err)
+		current.Metadata = json.RawMessage(`{"cuan_settings":{"workspace_revision":"initial","auto_deploy":true,"environment":"CUAN_MANAGED_RELEASE=1"}}`)
+		must(projects.UpdateProject(ctx, current))
+	}
 	access := 0
 	s.projectSvc.SetSharedRepositoryAccess(func(context.Context) (string, error) {
 		access++
@@ -149,7 +155,11 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 	}
 	success := scenario == "initial merge" || strings.HasPrefix(scenario, "initial verify") || scenario == "initial contained"
 	if !success {
-		if response.Code != 409 || merges != 0 || gets != 0 {
+		expectedCode := 409
+		if scenario == "initial missing verifier" {
+			expectedCode = 503
+		}
+		if response.Code != expectedCode || merges != 0 || gets != 0 {
 			t.Fatal("invalid initial source reached merge")
 		}
 		data, _ := os.ReadFile(calls)

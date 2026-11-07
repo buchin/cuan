@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/go-chi/chi/v5"
@@ -33,6 +34,21 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 		respondJSONError(w, 409, "Native release authorization is no longer active")
 		return
 	}
+	if s.projectSvc == nil {
+		respondJSONError(w, 503, "Saved release project unavailable")
+		return
+	}
+	p, err := s.projectSvc.TaskContext(r.Context(), d.ProjectID, d.Instructions)
+	if err != nil || p == nil || p.IsArchived {
+		respondJSONError(w, 409, "Saved native project context unavailable")
+		return
+	}
+	selectedEnvironment := project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment)
+	sshConfig, configErr := publication.FromEnvironment(selectedEnvironment)
+	if configErr != nil {
+		respondJSONError(w, 503, "Saved release verification and SSH host trust must be configured before native publication")
+		return
+	}
 	prepared, err := s.ensureNativeReleasePreparation(r.Context(), d.ID, attemptID, input.RunnerID)
 	if err != nil {
 		respondJSONError(w, 409, "Native release source publication or preparation could not be verified")
@@ -43,15 +59,7 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 		respondJSONError(w, 409, "Canonical native preparation unavailable")
 		return
 	}
-	p, err := s.projectSvc.TaskContext(r.Context(), d.ProjectID, d.Instructions)
-	if err != nil || p == nil || p.IsArchived {
-		respondJSONError(w, 409, "Saved native project context unavailable")
-		return
-	}
-	environment := project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment)
-	if environment == nil {
-		environment = map[string]string{}
-	}
+	environment := selectedEnvironment
 	// Runtime home/cache locations are private to this exact release checkout,
 	// regardless of ambient host HOME or an old project execution path.
 	root, err := os.OpenRoot(prepared.Path)
@@ -84,6 +92,12 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	if environment["PATH"] == "" {
 		environment["PATH"] = "/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
 	}
+	sshBin, sshErr := prepareNativeReleaseSSH(r.Context(), root, prepared.Path, sshConfig)
+	if sshErr != nil {
+		respondJSONError(w, 503, "Private SSH runtime and saved host trust could not be prepared")
+		return
+	}
+	environment["PATH"] = sshBin + string(os.PathListSeparator) + environment["PATH"]
 	environment["CUAN_DEPLOY_BRANCH"] = prepared.Branch
 	environment["CUAN_DEPLOY_EXCLUDE_TASK"] = d.ID
 	environment["CUAN_DEPLOY_EXCLUDE_ATTEMPT"] = attemptID

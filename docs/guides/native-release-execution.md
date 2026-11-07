@@ -141,8 +141,14 @@ that checkout's Git metadata. Selected project values are not replaced by ambien
 host credentials. The worker runs no model, MCP or account/profile setup. It
 revalidates intent/source/target/branch/descriptor and invokes the native executor
 with explicit environment. Nil environment never inherits the host environment.
-Owner SSH trust, dependency preparation and actual production compatibility must
-still be established before activation; local fixtures do not prove them.
+Before initial publication the endpoint requires the saved SSH-release observer
+configuration and host public key. It creates private known_hosts/config and
+ssh/scp wrappers using explicit -F, so OpenSSH does not read the host user's
+passwd-home profile, global trust or SSH agent. Repeated identical setup reuses
+immutable files; changed/symlink trust is rejected, and concurrent setup is
+serialized. Maintained deployment health checks no longer bypass host-key checks.
+Dependency preparation and actual owner production connectivity/compatibility
+still need proof before activation; local fixtures do not prove them.
 
 ## Process journal and completion
 
@@ -237,3 +243,9 @@ report completes that fixture's pending criterion. These tests use synthetic
 model/process/health facts and do not establish autonomous production execution.
 The native capability remains disabled pending private runtime readiness and a
 real production end-to-end run without owner intervention.
+
+The saved project public key must have legitimate owner-approved provenance.
+Cuan does not copy ambient developer known_hosts, discover-and-silently-trust a
+new key, or write password values into SSH runtime files. A missing observer/key
+stops preparation before source push/merge. Runtime setup includes public trust
+only; authentication remains the explicit saved project environment.
