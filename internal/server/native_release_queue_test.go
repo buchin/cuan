@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -17,6 +20,9 @@ import (
 
 func TestNativeReleaseQueueDoesNotUseAICapacity(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "ready")
+}
+func TestNativeReleaseHTTPClaimDoesNotGrantModelExecution(t *testing.T) {
+	nativeReleaseQueueContract(t, nil, "http")
 }
 func TestNativeReleaseQueueRejectsRevokedSourceBeforeExecution(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "revoked")
@@ -141,7 +147,23 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		source.CancelRequested = true
 		must(store.UpdateAttempt(ctx, source))
 	}
-	claim, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "native-runner", SupportedAgents: []string{"other-provider"}, SupportsNativeRelease: true}, time.Minute)
+	var claim *runner.ClaimTaskResponse
+	if scenario == "http" {
+		payload, _ := json.Marshal(runner.ClaimTaskRequest{RunnerID: "native-runner", SupportedAgents: []string{"other-provider"}, SupportsNativeRelease: true})
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/runner/claim", bytes.NewReader(payload))
+		response := httptest.NewRecorder()
+		s.handleRunnerClaim(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("native HTTP claim failed: %d", response.Code)
+		}
+		claim = &runner.ClaimTaskResponse{}
+		must(json.Unmarshal(response.Body.Bytes(), claim))
+		if claim.TaskAgent != nil || claim.AgentPrompt != "" || claim.Environment != "" || claim.WorkingDir != "" || claim.RequiresVision || claim.AutoDeploy || claim.OwnerID != q.OwnerID {
+			t.Fatal("native stage received generic model preparation")
+		}
+	} else {
+		claim, err = s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "native-runner", SupportedAgents: []string{"other-provider"}, SupportsNativeRelease: true}, time.Minute)
+	}
 	if scenario == "revoked" {
 		if err == nil || claim != nil {
 			t.Fatal("revoked source was claimed")

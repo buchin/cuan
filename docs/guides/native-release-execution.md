@@ -124,3 +124,10 @@ advertise support. Native release workspace preparation, execution, trusted live
 observation and subsequent independent delivered-source verification remain
 unfinished. Do not enable the project setting or call this an operational
 end-to-end release workflow yet.
+
+Native HTTP claims bypass generic model-capability, vision and workspace setup.
+Until the native release workspace/executor path is connected, they carry no
+working directory, project environment or model grant. The worker dispatches a
+native intent before accessing any AI adapter; an unprepared stage reports a
+terminal preparation failure through the durable completion outbox. It never
+falls back to a model. The poller still does not advertise native capability.

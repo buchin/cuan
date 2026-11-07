@@ -544,6 +544,16 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if resp.Claimed && resp.NativeRelease != nil {
+		// No model capability, visual recipe or generic project workspace may
+		// be issued to a native stage. The native execution path prepares its
+		// own exact source; it remains disabled until that path is wired.
+		resp.WorkingDir, resp.Environment, resp.AgentPrompt = "", "", ""
+		resp.AutoDeploy = false
+		resp.OwnerID = resp.NativeRelease.OwnerID
+		respondJSON(w, http.StatusOK, resp)
+		return
+	}
 	if resp.Claimed && resp.Verification != nil && resp.Verification.FinalizeAttemptID != "" {
 		respondJSON(w, http.StatusOK, resp)
 		return

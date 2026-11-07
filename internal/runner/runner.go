@@ -728,6 +728,19 @@ func (r *Runner) RunDetachedAttempt(ctx context.Context, claim ClaimTaskResponse
 }
 
 func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
+	if claim.NativeRelease != nil {
+		// Native intents must never fall through to model/profile/MCP setup.
+		// Preparation and executor dispatch are staged; fail closed until wired.
+		completionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancel()
+		if claim.Attempt != nil && claim.Task != nil {
+			err := r.deliverCompletion(completionCtx, claim.Attempt.ID, claim.Task.ID, CompleteAttemptRequest{RunnerID: r.cfg.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Native release workspace preparation is unavailable; no model or release execution was started"})
+			if err != nil {
+				log.Printf("Native release preparation failure retained for completion delivery: %v", err)
+			}
+		}
+		return
+	}
 	att := claim.Attempt
 	t := claim.Task
 	startTime := time.Now()
