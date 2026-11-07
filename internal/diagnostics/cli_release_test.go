@@ -180,6 +180,26 @@ func TestInspectRuntimePathEmptyFailsWithRequiredTools(t *testing.T) {
 	}
 }
 
+// TestInspectHelpHasNoSentinel verifies that --help output contains no \x00 or other internal sentinel characters.
+func TestInspectHelpHasNoSentinel(t *testing.T) {
+	var out, errs bytes.Buffer
+	code := RunReleaseCLI([]string{"inspect", "--help"}, &out, &errs)
+	// --help returns 0 (flag.ContinueOnError, then we return 0 on ErrHelp)
+	if code != 0 {
+		t.Fatalf("expected exit 0 for --help, got %d: %s", code, errs.String())
+	}
+	combined := out.String() + errs.String()
+	if strings.Contains(combined, "\x00") {
+		t.Fatalf("--help output contains sentinel \\x00: %q", combined)
+	}
+	// Guard against any other C0 control chars that would indicate leaked internal state.
+	for _, r := range combined {
+		if r < 0x20 && r != '\n' && r != '\t' && r != '\r' {
+			t.Fatalf("--help output contains unexpected control character U+%04X: %q", r, combined)
+		}
+	}
+}
+
 // TestInspectWithoutRuntimePathSkipsCheck: no --runtime-path flag → inspect succeeds without runtime check (backward-compatible).
 func TestInspectWithoutRuntimePathSkipsCheck(t *testing.T) {
 	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")

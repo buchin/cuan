@@ -37,7 +37,7 @@ func RunReleaseCLI(args []string, out, errOut io.Writer) int {
 	commit := fs.String("commit", "", "Exact clean source commit")
 	branch := fs.String("branch", "", "Expected release branch")
 	logs := fs.Bool("logs", false, "Print bounded redacted process diagnostics to stderr")
-	runtimePath := fs.String("runtime-path", "\x00", "Verify required_tools exist in this explicit PATH. Empty string fails if any tools are required. Omit flag to skip runtime check (backward-compatible).")
+	runtimePath := fs.String("runtime-path", "", "Verify required_tools exist in this explicit PATH. Empty string fails if any tools are required. Omit flag to skip runtime check (backward-compatible).")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -56,9 +56,16 @@ func RunReleaseCLI(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	if args[0] == "inspect" {
-		// --runtime-path flag: sentinel \x00 means flag was not supplied → skip check (backward-compatible).
-		// Any other value (including "") uses that PATH explicitly via CheckRuntime.
-		if *runtimePath != "\x00" {
+		// --runtime-path flag presence is detected via fs.Visit; if the flag was not
+		// provided at all, the runtime check is skipped (backward-compatible).
+		// When supplied (even as ""), *runtimePath is used as PATH explicitly via CheckRuntime.
+		runtimePathProvided := false
+		fs.Visit(func(f *flag.Flag) {
+			if f.Name == "runtime-path" {
+				runtimePathProvided = true
+			}
+		})
+		if runtimePathProvided {
 			if err := release.CheckRuntime(plan, []string{"PATH=" + *runtimePath}); err != nil {
 				fmt.Fprintln(errOut, err)
 				return 1
