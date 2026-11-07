@@ -95,6 +95,56 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 				if ValidateNativeReleaseSource(ctx, store, item, &intent) == nil {
 					t.Fatal("historical delivery reader reopened a finished release stage")
 				}
+				if scenario == "valid" {
+					proof := LiveInspectionIntent{Purpose: NativeReleaseInspection, SourceAttemptID: att.ID, SourceCommit: intent.SourceCommit, TargetCommit: target, Repository: intent.Repository, OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, InstructionsHash: intent.InstructionsHash, ObservedAt: now}
+					must(ValidateLiveInspectionSource(ctx, store, item, &proof))
+					for _, change := range []string{"target", "owner", "request", "source attempt", "recovery", "old observation"} {
+						forged := proof
+						switch change {
+						case "target":
+							forged.TargetCommit = intent.SourceCommit
+						case "owner":
+							forged.OwnerID = "other"
+						case "request":
+							forged.SourceRequestID = "other"
+						case "source attempt":
+							forged.SourceAttemptID = source.ID
+						case "recovery":
+							forged.PreviousAttemptID = "other"
+						case "old observation":
+							forged.ObservedAt = started
+						}
+						if ValidateLiveInspectionSource(ctx, store, item, &forged) == nil {
+							t.Fatalf("native verifier accepted changed %s", change)
+						}
+					}
+					raw, _ := json.Marshal(proof)
+					j := TaskLaunch{TaskID: item.ID, ProjectID: item.ProjectID, RequestID: proof.RequestID(item.ID), OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, AgentID: item.AssignedAgent, InstructionsHash: intent.InstructionsHash, Revision: "Scope: read-only repository. Do not push. Do not deploy.\n" + LiveInspectionMarker + string(raw), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
+					parsed, err := LiveInspectionForLaunch(item, &j)
+					must(err)
+					if parsed == nil || parsed.SourceAttemptID != proof.SourceAttemptID || parsed.TargetCommit != proof.TargetCommit || parsed.Purpose != proof.Purpose {
+						t.Fatal("delivered-source inspection launch lost binding")
+					}
+					saved, err := svc.SaveLaunch(ctx, j)
+					must(err)
+					_, err = svc.ClaimLaunch(ctx, time.Now(), "dispatcher", saved.ID)
+					must(err)
+					if _, err := svc.CreateAttempt(ctx, item.ID, intent.OwnerID, CreateAttemptRequest{RunnerID: "verifier", AgentName: item.AssignedAgent, RequestID: j.RequestID, ExpectedPredecessorID: source.ID}); err == nil {
+						t.Fatal("verifier bypassed native delivery predecessor")
+					}
+					verifier, err := svc.CreateAttempt(ctx, item.ID, intent.OwnerID, CreateAttemptRequest{RunnerID: "verifier", AgentName: item.AssignedAgent, RequestID: j.RequestID, ExpectedPredecessorID: att.ID})
+					must(err)
+					bound, err := ValidateLiveInspection(ctx, store, item, verifier.ID)
+					must(err)
+					if bound == nil || bound.TargetCommit != target || bound.SourceCommit != intent.SourceCommit {
+						t.Fatal("verifier source/target changed")
+					}
+					limits, err := AttemptPublicationPolicy(ctx, store, item, verifier.ID)
+					must(err)
+					if !limits.ReadOnlyRepository || !limits.DenyPush || !limits.DenyDeploy {
+						t.Fatal("native verifier gained implementation permission")
+					}
+				}
 			} else if err == nil || result != nil {
 				t.Fatal("invalid delivery lineage accepted")
 			}

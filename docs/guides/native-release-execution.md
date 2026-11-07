@@ -206,3 +206,12 @@ reopen completed release admission or assert that production has not changed
 since that observation. The native completion gate also requires preparation to
 precede process startup. Delivered-source verifier intent/admission and final
 acceptance still need to be connected to this validated lineage.
+
+Delivered native verification reuses `LiveInspectionIntent` with
+`purpose: native_release`. Its predecessor/source-attempt identity is the completed
+native release stage; implementation source and delivered target remain separate
+commit fields. Validation requires the completed canonical delivery and original
+owner/request binding, rejects unrelated targets and mixed recovery modes, and
+admits only the existing read-only inspection lane through a claimed launch and
+exact native-stage predecessor. It grants no implementation/publication authority.
+Automatic native-delivery→inspection scheduling is not connected yet.

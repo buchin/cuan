@@ -13,6 +13,7 @@ import (
 const LiveInspectionMarker = "Cuan live-result inspection v1: "
 const ActivityLiveInspection = "live_result_verified"
 const CurrentOutcomeInspection = "current_outcome"
+const NativeReleaseInspection = "native_release"
 const EvidenceRevalidation = "evidence"
 
 type LiveInspectionIntent struct {
@@ -50,6 +51,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.Purpose == NativeReleaseInspection {
+		return verificationRequestID("native-release-inspection:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
+	}
 	if p.VerifierRecoveryAttemptID != "" {
 		return verificationRequestID("current-outcome-verifier-repair:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
 	}
@@ -210,7 +214,13 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
 		return invalid("preparation_shape")
 	}
+	if proof.Purpose == NativeReleaseInspection && (proof.SourceVerifierAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "") {
+		return invalid("native_release_shape")
+	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
+	if proof.Purpose == NativeReleaseInspection {
+		validSource = fullObjectID(proof.SourceCommit)
+	}
 	if proof.Purpose == CurrentOutcomeInspection {
 		validSource = (proof.SourceCommit == "" || fullObjectID(proof.SourceCommit)) && ((proof.PreviousAttemptID == "" && proof.PreviousCommit == "" && proof.ReviewRequestID == "" && len(proof.ReviewPaths) == 0) || (proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && ((len(proof.ReviewPaths) > 0 && len(proof.ReviewPaths) <= 16) || proof.RevalidationKind == EvidenceRevalidation)))
 	}
@@ -276,8 +286,11 @@ func ValidateLiveInspection(ctx context.Context, store Store, t *Task, attemptID
 }
 
 func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
-	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
+	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection && proof.Purpose != NativeReleaseInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
+	}
+	if proof.Purpose == NativeReleaseInspection {
+		return validateNativeReleaseInspectionSource(ctx, store, t, proof)
 	}
 	if proof.SourceVerifierAttemptID != "" {
 		if err := validateInspectionSourceVerifier(ctx, store, t, proof); err != nil {
