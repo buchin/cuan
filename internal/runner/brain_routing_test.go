@@ -103,7 +103,13 @@ fi
 	limited := 0
 	for _, p := range profiles {
 		if p.State == "quota_limited" {
+			t.Fatal("one route's quota disabled every model on its account")
+		}
+		if time.Now().Before(p.ModelCooldowns[""]) {
 			limited++
+			if time.Until(p.ModelCooldowns[""]) < 119*time.Minute {
+				t.Fatal("provider reset deadline was not preserved")
+			}
 		}
 	}
 	if limited != 1 {

@@ -36,7 +36,9 @@ echo "==> Running Cuan verification tests..."
 if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
   echo "==> Testing Go packages (config, auth, db, runner)..."
   if [[ "$FAST_MODE" == "true" ]]; then
-    go -C "$ROOT_DIR" test -short -timeout 10s ./internal/config ./internal/auth ./internal/db ./internal/runner ./pkg/extensions
+    # -short selects the fast cases. The timeout bounds the whole package,
+    # including its many native process fixtures on constrained workers.
+    go -C "$ROOT_DIR" test -short -timeout 120s ./internal/config ./internal/auth ./internal/db ./internal/runner ./pkg/extensions
   else
     go -C "$ROOT_DIR" test -v -timeout 120s ./internal/... ./pkg/...
   fi
