@@ -8,9 +8,22 @@ import unittest
 import hashlib
 import shutil
 import subprocess
+import fcntl
 spec=importlib.util.spec_from_file_location('prune',Path(__file__).with_name('prune-release-artifacts.py'))
 prune=importlib.util.module_from_spec(spec);spec.loader.exec_module(prune)
 class ReleaseRetention(unittest.TestCase):
+ def test_busy_activation_lock_skips_optional_cleanup_without_unlocking_owner(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   base=Path(tmp);payload=base/'retained-payload';payload.write_text('preserve')
+   command=['python3',str(Path(__file__).with_name('prune-release-artifacts.py')),'--base',str(base),'--apply']
+   with (base/'.release.lock').open('a') as owner:
+    fcntl.flock(owner,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    result=subprocess.run(command,capture_output=True,text=True,check=True)
+    data=json.loads(result.stdout)
+    self.assertEqual(data['skipped'],'release_busy');self.assertFalse(data['applied'])
+    self.assertEqual(data['eligible'],[]);self.assertEqual(payload.read_text(),'preserve')
+    with (base/'.release.lock').open('a') as contender:
+     with self.assertRaises(BlockingIOError):fcntl.flock(contender,fcntl.LOCK_EX|fcntl.LOCK_NB)
  def test_protects_references_recent_payloads_and_unknown_directories(self):
   with tempfile.TemporaryDirectory() as tmp:
    base=Path(tmp);releases=base/'releases';releases.mkdir();now=time.time()

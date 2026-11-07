@@ -119,7 +119,15 @@ def main():
     # Serialize with atomic activation/rollback so their targets cannot become
     # eligible between the reference checks and deletion.
     with (args.base / '.release.lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # Cleanup is optional. Activation/rollback or another cleanup owns
+            # this lock; delete nothing and let that operation finish normally.
+            print(json.dumps({'applied': False, 'skipped': 'release_busy',
+                              'eligible': [], 'stagingEligible': [], 'keep': args.keep,
+                              'applicationDataTouched': False, 'backupsTouched': False}))
+            return
         paths = candidates(args.base, args.keep, args.min_age_hours)
         if args.staging:
             # A process using an upload still needs its installed counterpart
