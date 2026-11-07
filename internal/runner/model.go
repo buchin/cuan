@@ -96,30 +96,31 @@ type ClaimTaskRequest struct {
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.
 type ClaimTaskResponse struct {
-	ManagedRelease    *ManagedReleaseClaim              `json:"managed_release,omitempty"`
-	NativeRelease     *task.NativeReleaseIntent         `json:"native_release,omitempty"`
-	PHPUnitTargets    string                            `json:"phpunit_targets,omitempty"`
-	VisualRecipe      *task.VisualRecipe                `json:"visual_recipe,omitempty"`
-	LiveInspection    *task.LiveInspectionIntent        `json:"live_inspection,omitempty"`
-	Verification      *task.VerificationIntent          `json:"verification,omitempty"`
-	PublicationLimits executionpolicy.PublicationPolicy `json:"publication_limits"`
-	OwnerID           string                            `json:"owner_id,omitempty"`
-	RequiresVision    bool                              `json:"requires_vision,omitempty"`
-	Claimed           bool                              `json:"claimed"`
-	Attempt           *task.TaskAttempt                 `json:"attempt,omitempty"`
-	Task              *task.Task                        `json:"task,omitempty"`
-	ProjectRepo       string                            `json:"project_repo,omitempty"`
-	RepoOwner         string                            `json:"repo_owner,omitempty"`
-	RepoName          string                            `json:"repo_name,omitempty"`
-	RepoURL           string                            `json:"repo_url,omitempty"`
-	DefaultBranch     string                            `json:"default_branch,omitempty"`
-	DeployBranch      string                            `json:"deploy_branch,omitempty"`
-	WorkingDir        string                            `json:"working_dir,omitempty"`
-	AutoDeploy        bool                              `json:"auto_deploy,omitempty"`
-	Environment       string                            `json:"environment,omitempty"`
-	LeaseExpires      time.Time                         `json:"lease_expires"`
-	TaskAgent         *TaskAgentCapability              `json:"task_agent,omitempty"`
-	AgentPrompt       string                            `json:"agent_prompt,omitempty"`
+	NativeReleaseExecution *NativeReleaseExecution           `json:"native_release_execution,omitempty"`
+	ManagedRelease         *ManagedReleaseClaim              `json:"managed_release,omitempty"`
+	NativeRelease          *task.NativeReleaseIntent         `json:"native_release,omitempty"`
+	PHPUnitTargets         string                            `json:"phpunit_targets,omitempty"`
+	VisualRecipe           *task.VisualRecipe                `json:"visual_recipe,omitempty"`
+	LiveInspection         *task.LiveInspectionIntent        `json:"live_inspection,omitempty"`
+	Verification           *task.VerificationIntent          `json:"verification,omitempty"`
+	PublicationLimits      executionpolicy.PublicationPolicy `json:"publication_limits"`
+	OwnerID                string                            `json:"owner_id,omitempty"`
+	RequiresVision         bool                              `json:"requires_vision,omitempty"`
+	Claimed                bool                              `json:"claimed"`
+	Attempt                *task.TaskAttempt                 `json:"attempt,omitempty"`
+	Task                   *task.Task                        `json:"task,omitempty"`
+	ProjectRepo            string                            `json:"project_repo,omitempty"`
+	RepoOwner              string                            `json:"repo_owner,omitempty"`
+	RepoName               string                            `json:"repo_name,omitempty"`
+	RepoURL                string                            `json:"repo_url,omitempty"`
+	DefaultBranch          string                            `json:"default_branch,omitempty"`
+	DeployBranch           string                            `json:"deploy_branch,omitempty"`
+	WorkingDir             string                            `json:"working_dir,omitempty"`
+	AutoDeploy             bool                              `json:"auto_deploy,omitempty"`
+	Environment            string                            `json:"environment,omitempty"`
+	LeaseExpires           time.Time                         `json:"lease_expires"`
+	TaskAgent              *TaskAgentCapability              `json:"task_agent,omitempty"`
+	AgentPrompt            string                            `json:"agent_prompt,omitempty"`
 }
 
 // TaskAgentCapability is scoped to one task attempt and is used by the

@@ -212,4 +212,20 @@ Model report/PR/code-mutation fields cannot substitute for this stage. Completio
 atomically records `native_release_delivery` with separate implementation source,
 prepared target and process times, leaving the task in Review. It preserves the
 developer commit on the task. Independent delivered-source verification is still
-required. Worker dispatch does not yet send this payload in production.
+required. The worker can now send this payload when native preparation is supplied;
+production preparation transport is not yet connected.
+
+Native worker dispatch now accepts a typed prepared workspace and explicit
+execution environment, bypasses the AI adapter entirely, executes the native
+release, requests registered publication observation and delivers structured
+completion through the durable outbox. Preparation is not synthesized from the
+runner host. The backend claim path still does not supply this execution payload,
+and the poller still does not advertise native capability.
+
+Before execution the worker syncs a private per-attempt start journal. A completed
+result can be re-observed/delivered after worker restart without running the script
+again. An incomplete start marker or changed preparation/environment digest
+forbids automatic replay. Only the digest of selected environment is retained,
+not its credential values. A lock held by another worker leaves that attempt
+active; a duplicate dispatcher does not complete or rerun it. Process result
+journaling and completion outbox archival are separate from live deployment proof.
