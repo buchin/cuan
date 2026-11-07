@@ -23,9 +23,8 @@ native stages out of older runners; a capable claimant revalidates source before
 execution. A revoked source fails before any release process starts.
 
 The source handoff, native worker and preparation transport are implemented but
-staged. The current poller does not advertise native-release support, automatic
-native-stage scheduling is not connected, and delivered-source independent
-verification is unfinished. Do not enable this as an operational automatic
+staged. The current poller does not advertise native-release support, native-stage scheduling is implemented, while delivered-source independent
+verification and production runtime readiness are unfinished. Do not enable this as an operational automatic
 production release workflow. `cuan task execution` identifies saved intent without
 exposing approval or credentials; parsing is not proof of release success.
 
@@ -175,9 +174,8 @@ developer task branch. `git.PushExecutionSource` checks exact clean source,
 repository origin and task branch, observes that remote branch first, then pushes
 the admitted SHA as a literal non-forced refspec. A later local HEAD cannot replace
 that SHA. An already matching remote branch needs no new push; unavailable remote
-observation prevents mutation. The initial preparation endpoint invokes these helpers. Native-stage scheduling,
-runtime production readiness and delivered-source independent verification remain
-staged; the poller capability is still disabled.
+observation prevents mutation. The initial preparation endpoint invokes these helpers. Native-stage scheduling is implemented; runtime production readiness and
+delivered-source independent verification remain unfinished; the poller capability is still disabled.
 
 Concurrent initial preparation requests serialize on the original developer
 checkout, reread native source and approval after acquiring ownership, and reuse a
@@ -185,3 +183,14 @@ preparation produced by the winning request. Source and project-cache checkouts
 must be distinct. Missing access, dirty/replaced source and revoked authorization
 stop before merge. A failed/unknown remote outcome is not called success; another
 active request must re-observe exact push/merge state before further mutations.
+
+## Native scheduling from Inbox
+
+Before ordinary model review, Inbox checks for a canonical successful developer
+handoff. Frozen managed project configuration, exact current native source and
+original saved Inbox approval must all match. It then reserves the existing
+deterministic native launch through normal durable admission, without another PM
+model request or AI-capacity query. Reconstructed scans reuse the recorded launch.
+This scheduling does not check off criteria, claim deployment or mark Done.
+The poller capability remains off until delivered-source verification and owner
+runtime readiness are completed and exercised in production.

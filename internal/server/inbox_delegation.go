@@ -721,6 +721,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			RoomID:  targetRoomID,
 		}
 	}
+	gate = "native_release"
+	if s.recoverNativeReleaseHandoff(ctx, detail, requests) {
+		return
+	}
 	s.observeInboxPublicationConfiguration(ctx, detail, *origin)
 	s.diagnoseInboxStorageFailure(ctx, detail, *origin)
 	s.observeInboxGitHubConnection(ctx, detail, *origin)

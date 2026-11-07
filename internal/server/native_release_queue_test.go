@@ -55,8 +55,13 @@ func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
+func TestNativeReleaseHandoffSchedulesWithoutPMModel(t *testing.T) {
+	for _, scenario := range []string{"schedule", "schedule disabled", "schedule foreign", "schedule revoked"} {
+		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
+	}
+}
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "schedule"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})
@@ -136,7 +141,59 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	}
 	raw, _ := json.Marshal(p)
 	requestID := task.NativeReleaseRequestID(item.ID, p.SourceCommit)
-	output := s.startAuthorizedLaunch(ctx, q, detail, requestID, q.RequestID, task.NativeReleaseIntentMarker+string(raw))
+	output := ""
+	if strings.HasPrefix(scenario, "schedule") {
+		projects := project.NewMemoryStore()
+		environment := "CUAN_MANAGED_RELEASE=1"
+		if scenario == "schedule disabled" {
+			environment = ""
+		}
+		metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
+		must(projects.CreateProject(ctx, &project.Project{ID: item.ProjectID, RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", Metadata: metadata}))
+		s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
+		if scenario == "schedule foreign" {
+			q.OwnerID = "foreign-owner"
+		}
+		if scenario == "schedule revoked" {
+			source.CancelRequested = true
+			must(store.UpdateAttempt(ctx, source))
+		}
+		scheduled := false
+		if scenario == "schedule" {
+			before, err := repo.ListInboxRequests(ctx, q.RoomID)
+			must(err)
+			s.queueInboxTaskReview(ctx, detail)
+			admitted, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID))
+			must(err)
+			scheduled = admitted != nil
+			after, err := repo.ListInboxRequests(ctx, q.RoomID)
+			must(err)
+			if len(after) != len(before) {
+				t.Fatal("native scheduling created a PM model request")
+			}
+		} else {
+			scheduled = s.recoverNativeReleaseHandoff(ctx, detail, []db.InboxRequest{q})
+		}
+		if scenario != "schedule" {
+			if scheduled {
+				t.Fatal("unapproved source scheduled native work")
+			}
+			current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+			must(err)
+			if len(current.Attempts) != 1 || current.Status != task.TaskStatusReview || capacityCalls.Load() != 0 {
+				t.Fatal("invalid scheduling changed task or used AI")
+			}
+			return
+		}
+		if !scheduled {
+			t.Fatal("canonical source did not schedule native release")
+		}
+		// A reconstructed scan with stale source evidence cannot duplicate it.
+		restarted := *s
+		restarted.queueInboxTaskReview(ctx, detail)
+	} else {
+		output = s.startAuthorizedLaunch(ctx, q, detail, requestID, q.RequestID, task.NativeReleaseIntentMarker+string(raw))
+	}
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID))
 	if scenario == "foreign approval" {
 		if launch != nil {
