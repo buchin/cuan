@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -29,6 +30,29 @@ func (s *Server) taskExecutionRoot(ctx context.Context, grant taskAgentGrant, de
 	registered, err := s.runnerSvc.GetRunner(ctx, attempt.RunnerID)
 	if err != nil || registered == nil {
 		return grant.ArtifactRoot, keep, nil
+	}
+	proof, proofErr := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &detail.Task, attempt.ID)
+	if proofErr != nil {
+		return nil, keep, errors.New("The verification source could not be validated")
+	}
+	if proof != nil && proof.IsolatedWorkspace {
+		base, err := filepath.EvalSymlinks(s.cfg.WorkspacesDir)
+		if err != nil {
+			return nil, keep, errors.New("The bound verification workspace is unavailable")
+		}
+		path := git.VerificationWorkspacePath(base, detail.ID, proof.SourceCommit)
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil || resolved != path {
+			return nil, keep, errors.New("The bound verification snapshot path is invalid")
+		}
+		if err := git.NewClient().VerifySnapshotCommit(ctx, path, proof.SourceCommit, proof.SourceCommit); err != nil {
+			return nil, keep, errors.New("The bound verification snapshot is unavailable or changed")
+		}
+		root, err := os.OpenRoot(path)
+		if err != nil {
+			return nil, keep, errors.New("The bound verification snapshot could not be opened")
+		}
+		return root, func() { _ = root.Close() }, nil
 	}
 	project, err := s.projectSvc.TaskWorkspace(ctx, detail.ProjectID, detail.Instructions)
 	if err != nil || project == nil {

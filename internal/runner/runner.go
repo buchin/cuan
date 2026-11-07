@@ -787,7 +787,23 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			base = filepath.Join("data", "workspaces")
 		}
 		workingDir = filepath.Join(base, t.ID)
-		err = verifySourceRepository(ctx, workingDir, claim.Verification.SourceCommit)
+		if claim.Verification.IsolatedWorkspace {
+			if r.gitClient == nil {
+				err = fmt.Errorf("verification snapshot client is unavailable")
+			} else {
+				workingDir, err = r.gitClient.PrepareVerificationSnapshot(ctx, workingDir, git.VerificationWorkspacePath(base, t.ID, claim.Verification.SourceCommit), claim.Verification.SourceCommit, claim.Verification.SourceCommit)
+			}
+			if err == nil {
+				lease, leaseErr := git.AcquireVerificationLease(ctx, workingDir)
+				if leaseErr != nil {
+					err = fmt.Errorf("verification snapshot lease unavailable: %w", leaseErr)
+				} else {
+					defer lease.Close()
+				}
+			}
+		} else {
+			err = verifySourceRepository(ctx, workingDir, claim.Verification.SourceCommit)
+		}
 	} else if r.gitClient != nil && lane == task.ExecutionCategoryCode {
 		branchName := t.BranchName
 		if branchName == "" {

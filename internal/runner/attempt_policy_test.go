@@ -79,6 +79,17 @@ func TestRevisionNoPushPreventsAutomaticCommit(t *testing.T) {
 	if run("rev-parse", "HEAD") != head || run("status", "--porcelain") == "" {
 		t.Fatal("revision prohibition lost local changes through automatic commit")
 	}
+	if outcome.CommitSHA != "" {
+		t.Fatal("dirty local changes attributed to clean HEAD")
+	}
+	run("add", "guide.md")
+	run("commit", "-m", "Developer local checkpoint")
+	checkpoint := run("rev-parse", "HEAD")
+	outcome = CompleteAttemptRequest{Status: task.AttemptStatusSucceeded}
+	runner.postExecutionGitFlow(context.Background(), &cuangit.TaskWorkspace{Path: root, BranchName: "main"}, &task.Task{ID: "task", Title: "Keep local work"}, &task.TaskAttempt{ID: "attempt"}, ClaimTaskResponse{PublicationLimits: executionpolicy.PublicationPolicy{DenyPush: true}}, &outcome, task.ExecutionCategoryCode)
+	if outcome.CommitSHA != checkpoint || run("rev-parse", "HEAD") != checkpoint || run("status", "--porcelain") != "" {
+		t.Fatal("native local source observation changed or lost developer checkpoint")
+	}
 }
 
 func TestReadOnlyContinuationCompletionRequiresRunnerRepositoryEvidence(t *testing.T) {

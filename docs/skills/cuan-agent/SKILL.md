@@ -414,3 +414,13 @@ and intent rather than promising an unrecorded execution. Explicit read-only aud
 and standalone file delivery retain their existing acceptance paths. Terminal
 availability still follows the actual running attempt; this policy does not create
 a terminal for tool-free PM review or reserve verifier queue capacity.
+
+New supplemental verifier intents use a private snapshot for their exact source
+commit, separate from the developer checkout. Native runner preparation and
+artifact reporting resolve the same task/source snapshot; changed/missing snapshots
+never fall back to developer output. Snapshot leases serialize bounded recovery
+and finalization; saved legacy intents retain their original workspace semantics.
+A clean commit already made by a developer can be recorded by the runner even
+when push is forbidden. This observation performs no commit, push or PR. Dirty
+local changes cannot be attributed to that HEAD; verifying uncommitted changes
+still requires an independently bound immutable source, not a waiver of the gate.

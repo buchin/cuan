@@ -24,7 +24,7 @@ func TestVerificationFollowupPostgres(t *testing.T) {
 		verificationFollowupQueueContract(t, s, d, q)
 	})
 }
-func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest) {
+func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest, commits ...string) {
 	t.Helper()
 	ctx := context.Background()
 	store := s.taskSvc.Store()
@@ -42,6 +42,9 @@ func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDeta
 	row.Summary = "Implementation ready"
 	row.CompleteNote = "Actual checks passed; screenshot evidence pending"
 	row.CommitSHA = strings.Repeat("a", 40)
+	if len(commits) > 0 {
+		row.CommitSHA = commits[0]
+	}
 	if err = store.UpdateTask(ctx, row); err != nil {
 		t.Fatal(err)
 	}

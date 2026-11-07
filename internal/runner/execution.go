@@ -272,6 +272,17 @@ func (r *Runner) streamLogLine(ctx context.Context, attemptID, stream, line stri
 
 func (r *Runner) postExecutionGitFlow(ctx context.Context, ws *git.TaskWorkspace, t *task.Task, att *task.TaskAttempt, claim ClaimTaskResponse, compReq *CompleteAttemptRequest, lane string) {
 	if executionpolicy.FromInstructions(t.Instructions).Restrict(claim.PublicationLimits).DenyPush {
+		// Preserve a developer-created local checkpoint as native source
+		// identity. Observing a clean HEAD creates no commit or publication;
+		// dirty/uncommitted work must never be attributed to that HEAD.
+		if lane == task.ExecutionCategoryCode && compReq.Status == task.AttemptStatusSucceeded && ws != nil {
+			head, headErr := fingerprintGit(ctx, ws.Path, "rev-parse", "--verify", "HEAD")
+			status, statusErr := fingerprintGit(ctx, ws.Path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+			if headErr == nil && statusErr == nil && len(status) == 0 {
+				compReq.CommitSHA = strings.TrimSpace(string(head))
+				compReq.BranchName = ws.BranchName
+			}
+		}
 		r.streamLogLine(ctx, att.ID, "system", "Task scope forbids publication; local files retained without automatic commit, push or PR.")
 		return
 	}

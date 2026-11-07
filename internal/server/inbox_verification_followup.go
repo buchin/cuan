@@ -66,7 +66,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	if origin == nil {
 		return "", false
 	}
-	proof := task.VerificationIntent{SourceAttemptID: d.LatestAttempt.ID, SourceCommit: d.CommitSHA, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: origin.RequestID, AssessmentRequestID: q.RequestID, SourceVerificationHash: task.VerificationSummaryHash(task.AttemptVerificationEvidence(d).Current)}
+	proof := task.VerificationIntent{IsolatedWorkspace: true, SourceAttemptID: d.LatestAttempt.ID, SourceCommit: d.CommitSHA, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: origin.RequestID, AssessmentRequestID: q.RequestID, SourceVerificationHash: task.VerificationSummaryHash(task.AttemptVerificationEvidence(d).Current)}
 	if recovery != nil {
 		proof = *recovery
 	}

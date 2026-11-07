@@ -14,6 +14,7 @@ const VerificationIntentMarker = "Cuan verification-only intent v1: "
 // VerificationIntent permits one immutable-source evidence run, not another
 // implementation cycle or publication permission. It lives in its exact launch.
 type VerificationIntent struct {
+	IsolatedWorkspace      bool   `json:"isolated_workspace,omitempty"`
 	FinalizeAttemptID      string `json:"finalize_attempt_id,omitempty"`
 	ArtifactManifestHash   string `json:"artifact_manifest_hash,omitempty"`
 	RepositoryBaseline     string `json:"repository_baseline,omitempty"`
