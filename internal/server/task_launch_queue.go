@@ -149,6 +149,9 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		text := "The work is saved, but could not start. " + reason + link
 		if state == "queued" {
 			text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
+			if strings.Contains(job.Revision, "Cuan native-release intent") {
+				text = "The release is saved and will continue when its execution requirements are available." + link
+			}
 			if strings.Contains(reason, "project") || strings.Contains(reason, "task") || strings.Contains(reason, "active") {
 				text = "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
 			}
@@ -237,7 +240,10 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			if errors.Is(err, task.ErrRequestConflict) || errors.Is(err, task.ErrInvalidTaskInput) {
 				return finish("stopped", "The native release source is no longer current.")
 			}
-			return finish("queued", "Native release is waiting for the active project task.")
+			if errors.Is(err, task.ErrTaskActive) {
+				return finish("queued", "Native release is waiting for the active project task.")
+			}
+			return finish("queued", "Native release admission is temporarily unavailable.")
 		}
 		return finish("started", "")
 	}
