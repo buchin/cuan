@@ -416,10 +416,18 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			}
 		}
 		dodChecklist := extractDoDFromDescription(d.Description)
+		taskTitle := d.Title
+		if plan := decodeApprovedInboxPlan(authorization.Content); plan != nil {
+			if phase, outcome, ok := approvedPhaseStart(plan.Plan); ok {
+				taskTitle = phaseTaskTitle(phase, outcome)
+				dodChecklist = []task.DoDItem{{Text: outcome}}
+				instructions += fmt.Sprintf("\n\nActive Phase: %d\nApproved active outcome: %s\nExecute and verify ONLY this active phase. The complete approved plan above preserves context and limits; later phases are not this task's deliverables. The coordinator starts the next phase after this result is accepted.", phase, outcome)
+			}
+		}
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
 			SourceRoomID:      q.RoomID,
 			ProjectID:         d.ProjectID,
-			Title:             d.Title,
+			Title:             taskTitle,
 			Instructions:      instructions,
 			AssignedAgent:     targetAgent,
 			ExecutionCategory: d.ExecutionCategory,

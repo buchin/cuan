@@ -224,7 +224,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
 		}
 		if snapshotReview {
-			system = inboxReviewEvaluationInstruction + "\n\n" + inboxReviewChangesInstruction + "\n\n" + cuanPrompt.GetReviewPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
+			system = inboxReviewEvaluationInstruction + "\n\n" + inboxPhaseReviewInstruction + "\n\n" + inboxReviewChangesInstruction + "\n\n" + cuanPrompt.GetReviewPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
 			if ctx.Value(inboxCustomerReplyKey{}) == true {
 				system = customerReplyDeliveryInstruction + "\n\nResponse schema:\n" + inboxReviewEvaluationSchema + "\n\nAccepted result data:\n" + prompt
 			}

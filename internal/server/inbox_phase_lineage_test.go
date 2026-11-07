@@ -16,6 +16,11 @@ import (
 
 func phaseLineageSetup(t *testing.T, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse) {
 	t.Helper()
+	return phaseLineageSetupWithPlan(t, inboxApprovalPlan{Title: "Phase 1: Data", Description: "Phase 1: Data | Phase 2: API | Phase 3: UI", ProjectID: "default"}, databases...)
+}
+
+func phaseLineageSetupWithPlan(t *testing.T, plan inboxApprovalPlan, databases ...*sql.DB) (*Server, db.InboxRequest, *task.TaskDetailResponse) {
+	t.Helper()
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()
 	if len(databases) > 0 {
@@ -29,7 +34,7 @@ func phaseLineageSetup(t *testing.T, databases ...*sql.DB) (*Server, db.InboxReq
 	room := s.resolveConversationContext(ctx, "agent_lifecycle", "").RoomID
 	now := time.Now().UTC()
 	q := db.InboxRequest{OwnerID: "owner", AgentID: "agent_lifecycle", RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: now, Deadline: now.Add(time.Hour)}
-	raw, _ := json.Marshal(attachmentMessage{Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: inboxApprovalPlan{Title: "Phase 1: Data", Description: "Phase 1: Data | Phase 2: API | Phase 3: UI", ProjectID: "default"}}})
+	raw, _ := json.Marshal(attachmentMessage{Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: plan}})
 	message := &db.ProjectMessage{ID: q.MessageID, RoomID: room, AuthorType: "user", AuthorID: "owner", Content: attachmentEnvelope + string(raw), CreatedAt: now, UpdatedAt: now}
 	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
 		t.Fatal(err)

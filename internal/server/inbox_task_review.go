@@ -31,7 +31,11 @@ func (s *Server) inboxTaskReviewPrompt(ctx context.Context, q db.InboxRequest) (
 		}
 		return customerReplyDeliveryInstruction + "\n\nAccepted result data:\n" + s.inboxReviewData(ctx, d), true
 	}
-	return s.inboxReviewData(ctx, d), true
+	phase, err := s.phaseApproval(ctx, d, q.OwnerID, q.RoomID)
+	if err != nil {
+		phase = nil
+	}
+	return s.inboxReviewData(ctx, d, phase), true
 }
 
 // Explain a stale automatic update using current saved state, without running AI

@@ -136,6 +136,14 @@ func (s *Server) phaseApproval(ctx context.Context, d *task.TaskDetailResponse, 
 		if lineage != nil && (lineage.RootRequestID != q.RequestID || lineage.PlanHash != phasePlanHash(plan)) {
 			return nil, phaseDenied("original approval changed")
 		}
+		if lineage == nil && strings.Contains(root.Instructions, "\nApproved scope digest:") {
+			if _, outcome, phased := approvedPhaseStart(plan.Plan); phased {
+				expected := delegationScopeDigest(inboxDelegation{Action: "run", Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: root.ProjectID})
+				if !strings.Contains(root.Instructions, "\n"+expected+"\n") || len(d.DoDChecklist) != 1 || d.DoDChecklist[0].Text != outcome {
+					return nil, phaseDenied("approved initial phase scope changed")
+				}
+			}
+		}
 		phase := 1
 		if match := multiPhaseRegex.FindStringSubmatch(plan.Plan.Title); len(match) > 1 {
 			fmt.Sscanf(match[1], "%d", &phase)

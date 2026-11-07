@@ -534,3 +534,12 @@ separate operator approval records its exact scope. Recovery cannot delegate,
 mutate tasks, write memory or rename the conversation, and never applies actions
 from the rejected reply. Lenient formatting salvage cannot return application
 action markers; it cannot manufacture an approval from plain recovery text.
+
+For an approved multi-phase plan, initial task admission now binds the first
+active outcome as its unchecked acceptance criterion and marks the active phase.
+The full original plan and execution restrictions remain in the task context;
+future phase outputs are not required for the first phase's acceptance. The
+reviewer receives the active boundary only after native approval validation,
+including the original approved plan rather than agent-rewritten scope. Passing
+one phase is not completion of the whole plan. Display titles can be shortened to
+the existing API limit without shortening outcome evidence or instructions.
