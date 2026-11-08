@@ -841,3 +841,12 @@ assessment and worker history; it neither directly accepts work nor replays the
 old inspection. An optional missing requested_outcome field does not discard an
 explicit revise/continue or revise/replan decision when the required native
 source/failure/scope evidence is present; needs_input remains excluded.
+
+A PM implementation/replan decision does not need to reproduce native policy
+wording. Matching independently verified source, unchanged historical failed
+release checks and original write/deploy permission classify the integration
+gap; native code normalizes the correction once before saving it. Reapplication
+preserves that exact revision. Correction policy v6 permits one fresh bounded
+assessment of affected older reviews through the existing deterministic review
+queue, retaining prior failures and all acceptance gates. Missing owner input,
+changed releases, known containment and forbidden scope remain excluded.

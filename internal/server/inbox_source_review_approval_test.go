@@ -117,6 +117,19 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		s.cfg.Environment = "production"
 		s.cfg.SourceRepository = "unrelated/config"
 		s.publicationObserver = func(context.Context, publication.Config) (string, error) { return strings.Repeat("f", 40), nil }
+		// A PM may correctly classify the work without reproducing native prose.
+		// Exact source/failure/scope evidence must determine routing, not wording.
+		rawCorrection := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "implementation", Revision: "Reconcile the concrete remaining original work", ManagerAction: "replan", ManagerReason: "Independent checks identify a source integration gap"}
+		normalized := s.requirePublicationReview(ctx, d, rawCorrection)
+		if normalized.RemainingWork != "implementation" || !strings.HasPrefix(normalized.Revision, "Native publication reconciliation: native source integration finding:") {
+			t.Fatalf("PM implementation decision fell back to repeated verification: %+v", normalized)
+		}
+		if twice := s.requirePublicationReview(ctx, d, normalized); twice != normalized {
+			t.Fatal("native normalization changed the saved correction on reapplication")
+		}
+		// Publication observation may persist new native connection evidence.
+		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(err)
 		key := "task-review:" + d.LatestAttempt.ID
 		review := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: d.SourceRoomID, RequestID: delegationMessageID(key), MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour), State: "queued", PayloadHash: delegationMessageID(key)}
 		_, _, e = s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, review, &db.ProjectMessage{ID: review.MessageID, RoomID: review.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: inboxOwnershipPolicy + "\nReview [/tasks/" + d.ID + "].", CreatedAt: review.CreatedAt})

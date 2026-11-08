@@ -37,6 +37,24 @@ func TestVerifiedSourceIntegrationRequiresUnchangedNativeFailure(t *testing.T) {
 	if !verifiedSourceIntegrationRequired(continued, &unknown, &scope, target) {
 		t.Fatal("reapplying the native guard lost the saved integration decision")
 	}
+	for _, action := range []string{"continue", "replan"} {
+		raw := continued
+		raw.Revision, raw.ManagerAction = "Reconcile the remaining original correction", action
+		if !verifiedSourceIntegrationRequired(raw, &unknown, &scope, target) {
+			t.Fatal("native facts depended on PM reproducing internal wording", action)
+		}
+		raw.RequestedOutcome = "needs_input"
+		if verifiedSourceIntegrationRequired(raw, &unknown, &scope, target) {
+			t.Fatal("indispensable owner input converted to implementation")
+		}
+	}
+	for _, action := range []string{"", "wait"} {
+		raw := continued
+		raw.Revision, raw.ManagerAction = "Unclassified remaining work", action
+		if verifiedSourceIntegrationRequired(raw, &unknown, &scope, target) {
+			t.Fatal("missing continuation decision classified as implementation", action)
+		}
+	}
 	for _, mode := range []string{"changed release", "missing failure", "already contained", "already published", "publication not required", "readonly owner", "deploy forbidden", "missing scope", "generic verification", "pass"} {
 		d, p, s := decision, publication, scope
 		approved := &s

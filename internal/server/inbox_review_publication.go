@@ -115,7 +115,7 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 			integrationObservation.ObservedRelease = current.Commit
 		}
 		if verifiedSourceIntegrationRequired(decision, &integrationObservation, approved, failedTarget) {
-			if decision.RemainingWork == "implementation" {
+			if decision.RemainingWork == "implementation" && strings.HasPrefix(decision.Revision, "Native publication reconciliation: native source integration finding:") {
 				return decision
 			}
 			decision.Decision, decision.RequestedOutcome, decision.RemainingWork = "revise", "unfinished", "implementation"
@@ -279,6 +279,6 @@ func (s *Server) hasNativeSourcePublicationHandoff(ctx context.Context, d *task.
 // This classification grants no scope and does not waive independent checks.
 func verifiedSourceIntegrationRequired(decision inboxReviewEvaluation, publication *reviewPublication, approved *executionpolicy.PublicationPolicy, failedTarget string) bool {
 	knownVerification := decision.RemainingWork == "verification" && (decision.ManagerAction == "continue" || decision.ManagerAction == "replan")
-	knownIntegration := decision.RemainingWork == "implementation" && strings.HasPrefix(decision.Revision, "Native publication reconciliation: native source integration finding:")
+	knownIntegration := decision.RemainingWork == "implementation" && (strings.HasPrefix(decision.Revision, "Native publication reconciliation: native source integration finding:") || decision.ManagerAction == "continue" || decision.ManagerAction == "replan")
 	return decision.Decision == "revise" && decision.RequestedOutcome != "needs_input" && (decision.RemainingWork == "publication" || knownVerification || knownIntegration) && publication != nil && publication.Required && !publication.Verified && (publication.ResultCommitContained == nil || !*publication.ResultCommitContained) && releaseObjectID.MatchString(failedTarget) && publication.ObservedRelease == failedTarget && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy
 }
