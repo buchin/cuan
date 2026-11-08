@@ -12,7 +12,7 @@ func isReconciliationOperation(d *task.TaskDetailResponse) bool {
 	return d != nil && d.ExecutionCategory == task.ExecutionCategoryOps && strings.Contains(d.Instructions, task.ReconciliationExecutionMarker)
 }
 func requireOperationalOutcome(d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
-	if d == nil || (d.ExecutionCategory != task.ExecutionCategoryOps && !task.IsAccountOutcome(&d.Task)) {
+	if d == nil || (d.ExecutionCategory != task.ExecutionCategoryOps && !task.SupportsAccountOutcomeInspection(&d.Task)) {
 		return decision
 	}
 	if decision.RequestedOutcome == "unfinished" && decision.Decision == "pass" {

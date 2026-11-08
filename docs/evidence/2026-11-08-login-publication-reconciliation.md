@@ -126,6 +126,25 @@ tests reject retroactive restriction/exemption of existing code work and explici
 controller repair. These tests do not establish production completion of the
 historical login task or resolve its generated-manifest evidence concern.
 
+Legacy support tasks can now use the same bounded saved-evidence observation
+after a native publication-only failure with passing source checks and a complete
+worker report. Scope eligibility is separate from execution permission: existing
+code workers keep their original lane and permissions. The recovery itself is
+read-only and cannot publish or repeat account effects. Native dedicated account
+observation, unchanged repository proof and original authorization are required
+before review treats the account outcome separately from retained source. A generic
+source verifier or manager label cannot substitute for that dedicated legacy
+observation. Original account criteria and explicit requested-outcome review remain
+mandatory; source-specific requests are excluded. Failed history and retained
+commits are preserved, not accepted as deployed implementation. This recovery is
+prioritized ahead of another source/live cycle for affected terminal workers.
+
+The extended native recovery test exercises legacy login support through actual
+claim/completion, confirms worker claims do not bypass independent evidence,
+checks original code permissions remain unchanged while the observer is restricted,
+and verifies observation deduplication. Native source-review and original account
+operation tests remain passing. Production completion remains unproven.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

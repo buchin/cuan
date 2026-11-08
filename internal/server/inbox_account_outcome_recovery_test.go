@@ -13,13 +13,16 @@ import (
 )
 
 func TestAccountOperationRecoversExistingOutcomeWithoutRepeatingEffect(t *testing.T) {
-	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis"} {
+	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis", "legacy login publication failure"} {
 		t.Run(mode, func(t *testing.T) { accountOutcomeRecoveryContract(t, mode) })
 	}
 }
 func accountOutcomeRecoveryContract(t *testing.T, mode string) {
-	loginDiagnosis := mode == "operational login diagnosis"
-	if loginDiagnosis {
+	legacyLogin := mode == "legacy login publication failure"
+	loginDiagnosis := mode == "operational login diagnosis" || legacyLogin
+	if legacyLogin {
+		mode = "legacy publication failure"
+	} else if loginDiagnosis {
 		mode = "completed operation"
 	}
 	s, d := prerequisiteReviewFixture(t)
@@ -32,7 +35,9 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if loginDiagnosis {
 		d.Title = "Investigasi dan perbaiki kendala login akun pelanggan"
 		d.Instructions = "Cuan managed delegation v1.\nPeriksa status akun dan riwayat autentikasi customer@example.invalid. Verifikasi hasil akun melalui layanan yang sudah ada."
-		d.ExecutionCategory = task.ExecutionCategoryOps
+		if !legacyLogin {
+			d.ExecutionCategory = task.ExecutionCategoryOps
+		}
 	}
 	d.CommitSHA = ""
 	d.DiffSummary = ""
@@ -82,7 +87,10 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 		}
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	if loginDiagnosis && !task.IsAccountOutcome(&d.Task) {
+	if legacyLogin && (s.accountOutcomeIndependentlyVerified(ctx, d) || !s.independentCodeReviewMissing(ctx, d)) {
+		t.Fatal("worker claims or historical source waived independent outcome evidence")
+	}
+	if loginDiagnosis && !task.SupportsAccountOutcomeInspection(&d.Task) {
 		t.Fatal("operational login diagnosis did not require account outcome evidence")
 	}
 	if !loginDiagnosis && !operationalSourceCheckMismatch(d) && !legacyAccountPublicationMismatch(d) {
@@ -210,7 +218,15 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 			t.Fatal("retained source was waived, released or demanded as original scope")
 		}
 		approved, _ := s.inboxApprovedTaskScope(ctx, current)
-		if approved == nil || !approved.ReadOnlyRepository || !approved.DenyDeploy {
+		if legacyLogin {
+			if approved == nil || approved.ReadOnlyRepository || approved.DenyDeploy {
+				t.Fatal("legacy inspection rewrote the original worker permissions")
+			}
+			observed, err := s.taskSvc.AttemptPublicationPolicy(ctx, current.ID, current.LatestAttempt.ID)
+			if err != nil || !observed.ReadOnlyRepository || !observed.DenyDeploy || !observed.DenyPush {
+				t.Fatal("legacy observation lost its own read-only boundary", err)
+			}
+		} else if approved == nil || !approved.ReadOnlyRepository || !approved.DenyDeploy {
 			t.Fatal("review lost original operational scope")
 		}
 	}

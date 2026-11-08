@@ -30,7 +30,7 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	if d == nil || d.LatestAttempt == nil || s.projectSvc == nil || d.ProjectID == "" || !releaseObjectID.MatchString(d.CommitSHA) || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
 		return nil
 	}
-	if task.IsAccountOutcome(&d.Task) {
+	if task.IsAccountOutcome(&d.Task) || (task.SupportsAccountOutcomeInspection(&d.Task) && s.accountOutcomeIndependentlyVerified(ctx, d)) {
 		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "original_account_scope_no_source_publication"}
 	}
 	if required := task.AttemptPublicationRequired(d); required != nil && !*required {

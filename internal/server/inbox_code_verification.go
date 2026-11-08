@@ -11,7 +11,7 @@ const inboxIndependentCodeReviewPolicy = "Independent code execution review: v3"
 
 func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskDetailResponse) bool {
 	return d != nil && d.Status != task.TaskStatusDone && d.ExecutionCategory == task.ExecutionCategoryCode &&
-		!executionpolicy.FromInstructions(d.Instructions).ReadOnlyRepository && !task.IsAccountOutcome(&d.Task) &&
+		!executionpolicy.FromInstructions(d.Instructions).ReadOnlyRepository && !task.IsAccountOutcome(&d.Task) && !s.accountOutcomeIndependentlyVerified(ctx, d) &&
 		s.verificationReviewContext(ctx, d) == nil && s.liveInspectionReviewContext(ctx, d) == nil
 }
 

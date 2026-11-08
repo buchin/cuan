@@ -184,6 +184,19 @@ func IsAccountOutcome(t *Task) bool {
 	if t.ExecutionCategory != ExecutionCategoryOps {
 		return false
 	}
+	return SupportsAccountOutcomeInspection(t)
+}
+
+// Inspection eligibility does not change a saved execution lane or its write
+// permissions. Legacy account-support work may observe the actual outcome
+// without accepting or publishing incidental retained source.
+func SupportsAccountOutcomeInspection(t *Task) bool {
+	if t == nil {
+		return false
+	}
+	if IsAccountOperation(t.Title, t.Instructions) {
+		return true
+	}
 	scope := operationProhibition.ReplaceAllString(t.Title+"\n"+project.TaskScopeInstructions(t.Instructions), " ")
 	return accountSupportIdentity.MatchString(scope) && accountSupportAuthentication.MatchString(scope) && !sourceChangeForOperation.MatchString(scope) && !IsSchemaMigrationPrompt(t.Title, scope)
 }
