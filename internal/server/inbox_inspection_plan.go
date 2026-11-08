@@ -102,6 +102,11 @@ func (s *Server) liveInspectionPlanDiagnostic(ctx context.Context, d *task.TaskD
 			}
 			diagnostic.ExistingAdmission = task.DiagnoseLaunch(&d.Task, admission)
 			if admission != nil && admission.State == "stopped" {
+				if previous := s.verifierCorrectionContext(ctx, d); previous != nil && previous["historical_live_commit"] == proof.TargetCommit {
+					diagnostic.Code = "verified_source_integration_required"
+					diagnostic.ExistingAdmissionStopCode = "native_project_checks_failed"
+					return diagnostic
+				}
 				switch admission.SafeError {
 				case staleInspectionLaunchReason:
 					diagnostic.ExistingAdmissionStopCode = "stale_inspection"

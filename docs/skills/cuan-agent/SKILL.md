@@ -803,3 +803,14 @@ the same manager handoff recovery, without replaying the conversation or asking
 for renewed approval. Matching historical current-outcome check failures are
 shown to the reviewer as history, not evidence that today's release failed or
 permission to waive tests, publish unrelated work or repeat an unchanged check.
+
+When a matching historical native check failed on the exact still-running
+revision and a later independent source verifier passed, a source/publication
+assessment can become a separate developer integration correction. Unknown Git
+ancestry remains unknown; it cannot block read/compare/reconciliation of that
+native check gap, and it is never treated as proof of non-inclusion or deployment.
+Repeated application preserves the same saved correction revision. The execution
+diagnostic identifies this as `verified_source_integration_required` with
+`native_project_checks_failed`, rather than suggesting the stopped inspection is
+ready to run again. Changed releases, unbound failures, known containment,
+read-only owner scope and deployment prohibitions retain their existing gates.

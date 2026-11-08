@@ -109,7 +109,15 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	if previous := s.verifierCorrectionContext(ctx, d); previous != nil {
 		approved, _ := s.inboxApprovedTaskScope(ctx, d)
 		failedTarget, _ := previous["historical_live_commit"].(string)
-		if verifiedSourceIntegrationRequired(decision, observation, approved, failedTarget) {
+		current := s.runningProjectRelease(ctx, d)
+		integrationObservation := *observation
+		if current != nil {
+			integrationObservation.ObservedRelease = current.Commit
+		}
+		if verifiedSourceIntegrationRequired(decision, &integrationObservation, approved, failedTarget) {
+			if decision.RemainingWork == "implementation" {
+				return decision
+			}
 			decision.Decision, decision.RequestedOutcome, decision.RemainingWork = "revise", "unfinished", "implementation"
 			decision.SourceReview = "not_checked"
 			decision.ManagerAction, decision.ManagerReason = "replan", "Native project checks failed on the unchanged running revision, while the independently checked retained source passed. Reconcile the concrete source integration gap instead of repeating that failed inspection."
@@ -270,5 +278,6 @@ func (s *Server) hasNativeSourcePublicationHandoff(ctx context.Context, d *task.
 // Native source/outcome evidence supplies failedTarget; reviewer prose cannot.
 // This classification grants no scope and does not waive independent checks.
 func verifiedSourceIntegrationRequired(decision inboxReviewEvaluation, publication *reviewPublication, approved *executionpolicy.PublicationPolicy, failedTarget string) bool {
-	return decision.Decision == "revise" && decision.RemainingWork == "publication" && publication != nil && publication.Required && !publication.Verified && publication.ResultCommitContained != nil && !*publication.ResultCommitContained && releaseObjectID.MatchString(failedTarget) && publication.ObservedRelease == failedTarget && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy
+	knownIntegration := decision.RemainingWork == "implementation" && strings.HasPrefix(decision.Revision, "Native publication reconciliation: native source integration finding:")
+	return decision.Decision == "revise" && (decision.RemainingWork == "publication" || knownIntegration) && publication != nil && publication.Required && !publication.Verified && (publication.ResultCommitContained == nil || !*publication.ResultCommitContained) && releaseObjectID.MatchString(failedTarget) && publication.ObservedRelease == failedTarget && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy
 }

@@ -15,7 +15,18 @@ func TestVerifiedSourceIntegrationRequiresUnchangedNativeFailure(t *testing.T) {
 	if !verifiedSourceIntegrationRequired(decision, &publication, &scope, target) {
 		t.Fatal("native known integration gap returned to repeated verification")
 	}
-	for _, mode := range []string{"changed release", "missing failure", "unknown containment", "already contained", "already published", "publication not required", "readonly owner", "deploy forbidden", "missing scope", "generic verification", "pass"} {
+	unknown := publication
+	unknown.ResultCommitContained = nil
+	if !verifiedSourceIntegrationRequired(decision, &unknown, &scope, target) {
+		t.Fatal("unknown ancestry prevented reconciliation of a native check failure")
+	}
+	continued := decision
+	continued.RemainingWork = "implementation"
+	continued.Revision = "Native publication reconciliation: native source integration finding: reconcile exact saved findings"
+	if !verifiedSourceIntegrationRequired(continued, &unknown, &scope, target) {
+		t.Fatal("reapplying the native guard lost the saved integration decision")
+	}
+	for _, mode := range []string{"changed release", "missing failure", "already contained", "already published", "publication not required", "readonly owner", "deploy forbidden", "missing scope", "generic verification", "pass"} {
 		d, p, s := decision, publication, scope
 		approved := &s
 		failed := target
@@ -24,8 +35,6 @@ func TestVerifiedSourceIntegrationRequiresUnchangedNativeFailure(t *testing.T) {
 			p.ObservedRelease = strings.Repeat("b", 40)
 		case "missing failure":
 			failed = ""
-		case "unknown containment":
-			p.ResultCommitContained = nil
 		case "already contained":
 			yes := true
 			p.ResultCommitContained = &yes
