@@ -460,6 +460,9 @@ func TestRunner_AutoDeployCompliance_NonCodeInvestigation_SucceedsWithoutDeploy(
 		RequiresDeploy:       &noDeploy,
 		DiffSummary:          "",
 		CommitSHA:            "",
+		// This fixture models a completed read-only investigation. Deployment
+		// exemption does not exempt it from the runner's unchanged-source receipt.
+		RepositoryVerification: &RepositoryVerification{Baseline: strings.Repeat("b", 64), Final: strings.Repeat("b", 64)},
 	}
 
 	completedAtt, err := svc.Complete(ctx, att.ID, req)

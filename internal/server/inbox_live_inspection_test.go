@@ -29,7 +29,7 @@ func TestLiveResultInspectionLifecycle(t *testing.T) {
 }
 
 func TestLocalOnlyFailureDoesNotInspectUnrelatedRelease(t *testing.T) {
-	for _, scenario := range []string{"current outcome local only", "current outcome local branch only"} {
+	for _, scenario := range []string{"current outcome local only", "current outcome local branch only", "committed local branch only"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, scenario, nil)
@@ -196,6 +196,9 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		source.ErrorMessage, exit = "Project verification failed", 0
 	}
 	if scenario == "current outcome local branch only" {
+		d.Instructions += "\nPush the task branch for independent source review. Do not merge or deploy."
+	}
+	if scenario == "committed local branch only" {
 		d.Instructions += "\nPush the task branch for independent source review. Do not merge or deploy."
 	}
 	if strings.HasPrefix(scenario, "current outcome opaque") {
@@ -411,7 +414,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		}
 	}
 	eligible := scenario != "current outcome opaque foreign" && scenario != "current outcome opaque unfinished" && scenario != "current outcome opaque cancelled" && scenario != "current outcome checks missing report" && scenario != "cancelled" && scenario != "foreign owner" && scenario != "different repository" && scenario != "checks forbidden"
-	if scenario == "current outcome local only" || scenario == "current outcome local branch only" {
+	if scenario == "current outcome local only" || scenario == "current outcome local branch only" || scenario == "committed local branch only" {
 		eligible = false
 	}
 	if strings.HasPrefix(scenario, "current outcome unrecorded ") && !strings.HasPrefix(scenario, "current outcome unrecorded local") {

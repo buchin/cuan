@@ -204,3 +204,23 @@ through a parent symlink. The documented-output test passes. These findings now
 apply to an actual committed handoff, rather than an unfinished working copy.
 Native final checks and independent task verification remain pending; no task
 acceptance, source patch, manual retry, merge or feature deployment was performed.
+
+## Native check failure and committed-local routing gap
+
+Attempt three finished failed at `2026-11-09T03:48:58.049023+08:00`, with
+agent exit zero but native `test.sh --fast` exit one. The sole reported failure
+was `TestRunner_AutoDeployCompliance_NonCodeInvestigation_SucceedsWithoutDeploy`:
+its read-only fixture omitted the now-required unchanged-repository receipt.
+The same test fails on the unchanged root branch, independently of artifact code.
+The fixture now supplies that receipt; production completion guards are unchanged.
+Targeted auto-deploy and real read-only fingerprint tests pass.
+
+Native recovery nevertheless tried an unrelated running release, with its launch
+stopped because source/target was absent from the project cache. The existing
+no-deploy guard covered current-outcome inspections only, so a retained commit
+bypassed it. A committed-local lifecycle regression fails before repair; the
+guard now applies to both inspection purposes, retaining the native-proven
+publication exception. Targeted local-only, ordinary live-result, unpublished
+and supplemental-verifier lifecycle tests pass. These repairs do not change the
+failed attempt or make its artifact security failures acceptable. Production
+recovery and a corrected final handoff remain unproven.
