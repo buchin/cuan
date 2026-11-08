@@ -145,6 +145,7 @@ type LogRecord struct {
 type TaskItemResponse struct {
 	ExecutionReviewState string      `json:"-"`
 	ReviewFinding        string      `json:"review_finding,omitempty"`
+	ReviewAction         string      `json:"review_action,omitempty"`
 	ReviewState          string      `json:"review_state,omitempty"`
 	Launch               *LaunchInfo `json:"launch,omitempty"`
 	ResultKind           string      `json:"result_kind,omitempty"`
@@ -159,6 +160,7 @@ type TaskItemResponse struct {
 type TaskDetailResponse struct {
 	ExecutionReviewState string      `json:"-"`
 	ReviewFinding        string      `json:"review_finding,omitempty"`
+	ReviewAction         string      `json:"review_action,omitempty"`
 	ReviewState          string      `json:"review_state,omitempty"`
 	ResultKind           string      `json:"result_kind,omitempty"`
 	Launch               *LaunchInfo `json:"launch,omitempty"`

@@ -44,7 +44,7 @@ func reviewFindingProjectionContract(t *testing.T, database *sql.DB) {
 		t.Fatal(err)
 	}
 	finding := "Navigasi dari kartu percakapan ke obrolan yang tepat belum terverifikasi pada ponsel dan desktop."
-	if _, err := s.saveReviewAssessment(ctx, d, q, inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: finding, Explanation: finding, Revision: "Verify real navigation"}); err != nil {
+	if _, err := s.saveReviewAssessment(ctx, d, q, inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: finding, Explanation: finding, Revision: "Verify real navigation", ManagerAction: "continue", ManagerReason: "Existing approved verification remains incomplete"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := currentTaskReviewFinding(d); got != finding {
@@ -55,7 +55,7 @@ func reviewFindingProjectionContract(t *testing.T, database *sql.DB) {
 	s.taskSvc = task.NewService(counted, s.projectSvc)
 	for _, scenario := range []string{"current", "changed instructions", "changed evidence", "new attempt", "cancel requested", "cancelled", "running", "done", "unavailable"} {
 		t.Run(scenario, func(t *testing.T) {
-			item := &task.TaskItemResponse{Task: d.Task, LatestAttempt: d.LatestAttempt, ReviewFinding: "stale"}
+			item := &task.TaskItemResponse{Task: d.Task, LatestAttempt: d.LatestAttempt, ReviewFinding: "stale", ReviewAction: "needs_owner"}
 			a := *d.LatestAttempt
 			item.LatestAttempt = &a
 			switch scenario {
@@ -87,6 +87,13 @@ func reviewFindingProjectionContract(t *testing.T, database *sql.DB) {
 			want := ""
 			if scenario == "current" {
 				want = finding
+			}
+			wantAction := ""
+			if scenario == "current" {
+				wantAction = "continue"
+			}
+			if item.ReviewAction != wantAction || other.ReviewAction != "" {
+				t.Fatalf("incorrect action ownership: %q / %q", item.ReviewAction, other.ReviewAction)
 			}
 			if item.ReviewFinding != want || other.ReviewFinding != "" {
 				t.Fatalf("stale or cross-task finding: %q / %q", item.ReviewFinding, other.ReviewFinding)

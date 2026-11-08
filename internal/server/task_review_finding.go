@@ -18,11 +18,25 @@ func currentTaskReviewFinding(d *task.TaskDetailResponse) string {
 	return assessment.Finding
 }
 
+// Review action is coordinator-authored current evidence, not a guess from a
+// blocked board label. It describes ownership, never proof of a running job.
+func currentTaskReviewAction(d *task.TaskDetailResponse) string {
+	if currentTaskReviewFinding(d) == "" {
+		return ""
+	}
+	assessment, ok := reviewAssessment(d, "")
+	if !ok {
+		return ""
+	}
+	return assessment.ManagerAction
+}
+
 func (s *Server) projectTaskReviewFindings(ctx context.Context, items []*task.TaskItemResponse) error {
 	ids := []string{}
 	for _, item := range items {
 		if item != nil {
 			item.ReviewFinding = ""
+			item.ReviewAction = ""
 			if item.LatestAttempt != nil && (item.Status == task.TaskStatusBlocked || item.Status == task.TaskStatusReview) {
 				ids = append(ids, item.ID)
 			}
@@ -41,7 +55,9 @@ func (s *Server) projectTaskReviewFindings(ctx context.Context, items []*task.Ta
 	}
 	for _, item := range items {
 		if item != nil {
-			item.ReviewFinding = currentTaskReviewFinding(&task.TaskDetailResponse{Task: item.Task, LatestAttempt: item.LatestAttempt, Activities: rows[item.ID]})
+			detail := &task.TaskDetailResponse{Task: item.Task, LatestAttempt: item.LatestAttempt, Activities: rows[item.ID]}
+			item.ReviewFinding = currentTaskReviewFinding(detail)
+			item.ReviewAction = currentTaskReviewAction(detail)
 		}
 	}
 	return nil

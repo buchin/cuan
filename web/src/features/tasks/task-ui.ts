@@ -97,6 +97,11 @@ export function workDisplayStatus(task: Task) {
   if (status === 'Completed' || status === 'Cancelled') return status
   if (task.review_state === 'running') return 'Checking result'
   if (task.review_state === 'queued') return 'Waiting for checks'
+  if (status === 'Needs attention') {
+    if (task.review_action === 'needs_owner') return 'Needs your input'
+    if (task.review_action === 'wait') return 'Waiting'
+    return 'Work paused'
+  }
   return status
 }
 

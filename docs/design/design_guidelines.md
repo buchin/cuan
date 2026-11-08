@@ -586,3 +586,16 @@ completed task displays the same calm green checked circle as a fully completed
 conversation with multiple tasks. Partial completion uses the pie indicator.
 Canceled work is excluded from completion and remains explicit in the breakdown;
 a conversation containing only canceled tasks must not display a done check.
+
+### Clear ownership of stopped work
+
+A blocked status does not by itself mean the user owes an action. Task display
+uses the current coordinator's saved `review_action`: `needs_owner` shows
+“Needs your input”, `wait` shows “Waiting”, and other stopped work shows
+“Work paused”. Keep the saved plain-language finding beside the status. Inbox
+aggregate counts say work paused, since aggregate failures alone cannot establish
+who must act. Never animate paused work merely because a manager intends to
+continue: pulse requires a durable queued/running next step. Terminal task state,
+cancellation, changed instructions/evidence and a newer attempt invalidate old
+ownership. User-facing copy should make the situation and required action clear,
+without naming internal policy, workflow roles, or technical prerequisites.

@@ -41,3 +41,13 @@ test('Pulse follows durable Cuan-owned next steps while preserving phase labels'
   assert.equal(workDisplayStatus({status:'review',review_state:'queued'}),'Waiting for checks')
   assert.equal(workStatus({status:'queued',latest_attempt:{status:'succeeded'},launch:{state:'queued'}}),'Queued')
 })
+
+test('stopped work does not imply the user owes an action',()=>{
+ const paused={status:'blocked',latest_attempt:{status:'succeeded'}}
+ assert.equal(workDisplayStatus(paused),'Work paused')
+ assert.equal(workDisplayStatus({...paused,review_action:'continue'}),'Work paused')
+ assert.equal(workDisplayStatus({...paused,review_action:'needs_owner'}),'Needs your input')
+ assert.equal(workDisplayStatus({...paused,review_action:'wait'}),'Waiting')
+ assert.equal(workDisplayStatus({...paused,review_action:'needs_owner',review_state:'running'}),'Checking result')
+ assert.equal(taskAgentPending({...paused,review_action:'continue'}),false)
+})

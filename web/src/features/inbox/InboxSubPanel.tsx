@@ -240,7 +240,7 @@ export function ConversationItem({
               {failedTasks > 0 && (
                 <span data-testid="task-badge-attention" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
                   <AlertCircle aria-hidden="true" className="h-3 w-3 text-[color:var(--status-warning)]" />
-                  <span>{t(failedTasks === 1 ? '{{count}} needs attention' : '{{count}} need attention').replace('{{count}}', String(failedTasks))}</span>
+                  <span>{t('{{count}} work paused').replace('{{count}}', String(failedTasks))}</span>
                 </span>
               )}
               {hasActiveWork && (

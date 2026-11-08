@@ -1,4 +1,7 @@
 {
+  "Needs your input": "Needs your input",
+  "Work paused": "Work paused",
+  "{{count}} work paused": "{{count}} work paused",
   "Waiting for checks": "Waiting for checks",
   "Conversation tasks": "Conversation tasks",
   "Live terminal": "Live terminal",

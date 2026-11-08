@@ -267,6 +267,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	s.projectInboxLaunchDiagnostics(r.Context(), detail)
 	detail.ReviewFinding = currentTaskReviewFinding(detail)
+	detail.ReviewAction = currentTaskReviewAction(detail)
 
 	if detail.SourceRoomID != "" && detail.LatestAttempt != nil && (detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {

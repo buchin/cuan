@@ -114,7 +114,7 @@ export function InboxTaskAction({
       : rawUpdate
     const project = existing.project_name || existing.project_names?.join(', ')
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
-    const StateIcon = state === 'Completed' ? CheckCircle2 : (state === 'Queued' || state === 'Waiting for checks') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
+    const StateIcon = state === 'Completed' ? CheckCircle2 : (state === 'Queued' || state === 'Waiting for checks') ? Clock3 : state === 'Cancelled' ? X : workStatus(existing) === 'Needs attention' ? AlertCircle : Circle
 
     return <section data-card="task-card" data-task-id={existing.id} aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <SurfaceHeader variant="card" className="-mx-4 -mt-3 rounded-t-xl bg-muted/50"

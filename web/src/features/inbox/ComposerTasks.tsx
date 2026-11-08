@@ -55,7 +55,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
           : taskLiveActivityText(task, '') || taskSummaryText(task)
         return {id: task.id,
-          indicator: status === 'Completed' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} /> : <StatusDot status={taskAgentPending(task) ? 'working' : status === 'Needs attention' ? 'warning' : 'neutral'} size="xs" label={t(status)} />,
+          indicator: status === 'Completed' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} /> : <StatusDot status={taskAgentPending(task) ? 'working' : work === 'Needs attention' ? 'warning' : 'neutral'} size="xs" label={t(status)} />,
           title: <span className="min-w-0 sm:flex sm:items-center sm:gap-3">
               <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
               <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>

@@ -126,6 +126,8 @@ export function TaskItemCard({
             if (
               prev.latest_progress !== updated.latest_progress ||
               prev.review_state !== updated.review_state ||
+              prev.review_action !== updated.review_action ||
+              prev.review_finding !== updated.review_finding ||
               prev.launch?.state !== updated.launch?.state ||
               prev.latest_attempt?.cancel_requested !== updated.latest_attempt?.cancel_requested ||
               prev.status !== updated.status ||

@@ -1,4 +1,7 @@
 {
+  "Needs your input": "Butuh masukan Anda",
+  "Work paused": "Pekerjaan terhenti",
+  "{{count}} work paused": "{{count}} pekerjaan terhenti",
   "Waiting for checks": "Menunggu pemeriksaan",
   "Conversation tasks": "Task obrolan",
   "Live terminal": "Terminal langsung",
