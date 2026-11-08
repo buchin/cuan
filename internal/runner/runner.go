@@ -1215,6 +1215,12 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					compReq.ErrorMessage = verification.Error
 				}
 			}
+			if compReq.Status == task.AttemptStatusSucceeded && !claim.AutoDeploy && lane == task.ExecutionCategoryCode && !policy.ReadOnlyRepository && claim.Verification == nil && claim.LiveInspection == nil {
+				if err := r.observeLocalImplementationSource(ctx, ws, claim.DefaultBranch, &compReq); err != nil {
+					compReq.Status = task.AttemptStatusFailed
+					compReq.ErrorMessage = "Local source identity could not be verified; saved work is preserved."
+				}
+			}
 			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {
 				hasCodeChanges, diffSummary, comparisonErr := r.detectRepoCodeChanges(ctx, ws, claim.DefaultBranch)
 				if comparisonErr != nil {

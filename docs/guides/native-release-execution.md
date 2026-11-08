@@ -46,6 +46,14 @@ retroactively acquire one from a model report or passing verifier. Recovery must
 preserve their exact source and original authorization through a native stage;
 it must not forge runner evidence or weaken read-only/publication restrictions.
 
+Source observation does not depend on automatic deployment. After passing native
+checks, code sessions with publication disabled still record the clean local
+checkpoint and diff against their pinned execution baseline. Pending tracked or
+untracked files are preserved and are never attributed to HEAD. This supplies
+native source evidence for independent verification; it creates no release
+handoff, managed publication ownership, push permission or deployment receipt.
+Verifier/read-only sessions do not enter this developer observation path.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.
