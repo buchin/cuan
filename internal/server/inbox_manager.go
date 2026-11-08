@@ -53,7 +53,7 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 		return false
 	}
 	verification, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || verification != nil {
+	if err != nil || (verification != nil && !s.verifiedImplementationCorrectionAllowed(ctx, q, d, revision)) {
 		return false
 	}
 	saved, found := reviewAssessment(d, q.RequestID)

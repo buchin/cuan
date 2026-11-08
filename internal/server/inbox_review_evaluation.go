@@ -108,7 +108,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 		if isCustomerReplyDelivery(q, d) {
 			return d
 		}
-		for _, suffix := range []string{":source-assessment:" + inboxReviewEvidenceDigest(d), ":source-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":provider-assessment:" + inboxReviewEvidenceDigest(d), ":provider-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":manager:" + inboxReviewEvidenceDigest(d) + ":retry", ":ownership-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":manager:" + inboxReviewEvidenceDigest(d), ":ownership-assessment:" + inboxReviewEvidenceDigest(d), "", ":snapshot", ":snapshot:evaluation", ":evidence:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d) + ":retry", ":report-provenance:" + inboxReviewEvidenceDigest(d), ":report-provenance:" + inboxReviewEvidenceDigest(d) + ":retry", ":assessment:" + inboxReviewEvidenceDigest(d), ":assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":verification-assessment:" + inboxReviewEvidenceDigest(d), ":verification-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":visual-assessment:" + inboxReviewEvidenceDigest(d), ":visual-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":publication-assessment:" + inboxReviewEvidenceDigest(d), ":publication-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":operational-assessment:" + inboxReviewEvidenceDigest(d), ":operational-assessment:" + inboxReviewEvidenceDigest(d) + ":retry"} {
+		for _, suffix := range []string{":verifier-correction-v1:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v1:" + inboxReviewEvidenceDigest(d) + ":retry", ":source-assessment:" + inboxReviewEvidenceDigest(d), ":source-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":provider-assessment:" + inboxReviewEvidenceDigest(d), ":provider-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":manager:" + inboxReviewEvidenceDigest(d) + ":retry", ":ownership-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":manager:" + inboxReviewEvidenceDigest(d), ":ownership-assessment:" + inboxReviewEvidenceDigest(d), "", ":snapshot", ":snapshot:evaluation", ":evidence:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d) + ":retry", ":report-provenance:" + inboxReviewEvidenceDigest(d), ":report-provenance:" + inboxReviewEvidenceDigest(d) + ":retry", ":assessment:" + inboxReviewEvidenceDigest(d), ":assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":verification-assessment:" + inboxReviewEvidenceDigest(d), ":verification-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":visual-assessment:" + inboxReviewEvidenceDigest(d), ":visual-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":publication-assessment:" + inboxReviewEvidenceDigest(d), ":publication-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":operational-assessment:" + inboxReviewEvidenceDigest(d), ":operational-assessment:" + inboxReviewEvidenceDigest(d) + ":retry"} {
 			key := "task-review:" + d.LatestAttempt.ID + suffix
 			if q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input") {
 				return d
@@ -192,6 +192,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 		"delivered_images":               s.inboxReviewImages(ctx, d),
 		"native_visual_verification":     nativeVisualReviewData(d),
 		"verification_context":           s.verificationReviewContext(ctx, d),
+		"verifier_correction_context":    s.verifierCorrectionContext(ctx, d),
 		"execution_scope":                scope,
 		"repository_scope_verified":      scope.ReadOnlyRepository && scopeVerified,
 		"failed_repository_observation":  failedRepositoryObservation(d, scope.ReadOnlyRepository),
@@ -563,7 +564,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		}
 		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 		verification, verificationErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-		if inspectionErr != nil || verificationErr != nil || inspection != nil || verification != nil {
+		if inspectionErr != nil || verificationErr != nil || inspection != nil || (verification != nil && !s.verifiedImplementationCorrectionAllowed(ctx, q, d, decision.Revision)) {
 			// Typed verification must keep its native source/target identity;
 			// ordinary execution would reopen the historical implementation root.
 			if outcome, scheduled := s.startVerificationFinalization(ctx, q, d, decision); scheduled {

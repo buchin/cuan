@@ -791,3 +791,15 @@ inspection when publication is unproven. Original source, history and publicatio
 requirements remain intact. Review must distinguish task-relevant behavior fixes
 from incidental test/setup repairs and inherited branch changes. A login page
 returning HTTP 200 does not alone prove the affected user can authenticate.
+
+A successful native source verifier can hand a concrete implementation gap back
+to a separate developer execution through a saved PM assessment. The exact
+revision, original write scope, owner, current source proof and cancellation
+boundary must match; the verifier's own snapshot remains read-only. Native
+source identity and verifier provenance accompany the developer continuation.
+Existing manager repetition limits and launch deduplication remain in effect.
+A persisted implementation decision can recover its missing admission through
+the same manager handoff recovery, without replaying the conversation or asking
+for renewed approval. Matching historical current-outcome check failures are
+shown to the reviewer as history, not evidence that today's release failed or
+permission to waive tests, publish unrelated work or repeat an unchanged check.

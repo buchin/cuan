@@ -28,11 +28,20 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 			return false
 		}
 	}
-	if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
+	proof, proofErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if proofErr != nil {
 		return false
 	}
+	sourceCorrection := false
+	if proof != nil {
+		source, verified := s.verifiedSupplementalSource(ctx, d)
+		sourceCorrection = source != nil && verified != nil && verified.OwnerID == origin.OwnerID
+		if !sourceCorrection {
+			return false
+		}
+	}
 	decision, found := reviewAssessment(d, "")
-	if !found || decision.Decision != "revise" || decision.RemainingWork != "verification" {
+	if !found || decision.Decision != "revise" || (decision.RemainingWork != "verification" && !(sourceCorrection && decision.RemainingWork == "implementation")) {
 		return false
 	}
 	for _, q := range requests {

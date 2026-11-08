@@ -78,9 +78,13 @@ func TestManagerContinuesApprovedWorkWithoutAnotherOwnerApproval(t *testing.T) {
 		t.Run(action, func(t *testing.T) {
 			s, d := managerFixture(t)
 			ctx := context.Background()
+			d.ExecutionCategory = task.ExecutionCategoryOps
+			if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+				t.Fatal(err)
+			}
 			requests := reviewRequests(t, s, d.SourceRoomID)
 			q := requests[0]
-			if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+			if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryOps}); err != nil {
 				t.Fatal(err)
 			}
 			raw, _ := json.Marshal(inboxReviewEvaluation{Decision: "revise", Finding: "Satu hasil masih perlu diperiksa.", Explanation: "Pemeriksaan berikutnya memakai akses yang sudah tersedia.", RemainingWork: "verification", Revision: "Compare retained source evidence with the original criteria using the registered read-only inspector. Do not modify or deploy.", ManagerAction: action, ManagerReason: "Original scope is approved; the missing check uses existing access."})
@@ -115,12 +119,13 @@ func TestManagerVerificationEnvelopeRetainsOriginalApproval(t *testing.T) {
 	}
 	// Exercise both manager checks, including the original-approval check in
 	// delegation. Fixtures without this binding used to miss the second gate.
+	row.ExecutionCategory = task.ExecutionCategoryOps
 	row.Instructions += "\nApproval message: " + d.SourceMessageID
 	if err := s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
 		t.Fatal(err)
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryOps}); err != nil {
 		t.Fatal(err)
 	}
 	decision := inboxReviewEvaluation{Decision: "revise", Finding: "Capture the actual requested component", Explanation: "Complete the missing visual evidence", RemainingWork: "verification", Revision: "Capture the existing RoomCard at390px and desktop without changing source.", ManagerAction: "replan", ManagerReason: "The previous screenshot showed another component; use a targeted fixture."}
