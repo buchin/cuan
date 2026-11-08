@@ -110,10 +110,10 @@ test('4. InboxView Integration: clean chat layout (no redundant TaskProgressBann
     'InboxView must import isTaskActive from task-progress'
   )
 
-  // Verify TaskCompletionCard import
+  // Existing tasks belong in the composer panel for every conversation type.
   assert.ok(
-    inboxViewSource.includes("import { TaskCompletionCard } from './TaskCompletionCard'"),
-    'InboxView must import TaskCompletionCard'
+    !inboxViewSource.includes("import { TaskCompletionCard } from './TaskCompletionCard'"),
+    'InboxView must not render a duplicate completion preview'
   )
 
   // Verify activeConversationTasks selector memoization
@@ -130,8 +130,8 @@ test('4. InboxView Integration: clean chat layout (no redundant TaskProgressBann
 
   // Verify standalone completed tasks in stream
   assert.ok(
-    inboxViewSource.includes('unattachedCompletedTasks.map'),
-    'InboxView must render unattachedCompletedTasks in the message stream'
+    inboxViewSource.includes('tasks={linkedTasks}') && !inboxViewSource.includes('unattachedCompletedTasks.map'),
+    'All linked tasks must remain reachable from the composer without stream duplicates'
   )
 })
 

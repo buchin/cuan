@@ -99,10 +99,10 @@ test('5. S61-T3: Chat Stream Task Reference Click Wiring (Drawer Peek vs Whole C
     'Assigned to task click must open drawer without canvas replacement'
   )
 
-  // Unattached completed tasks onViewDetails
+  // The composer panel owns task detail navigation.
   assert.ok(
-    inboxView.includes('onViewDetails={() => handleOpenTaskDrawer(completedTask)}'),
-    'TaskCompletionCard onViewDetails must invoke handleOpenTaskDrawer'
+    inboxView.includes('onDetails={task => handleOpenTaskDrawer(task)}'),
+    'Composer task details must invoke handleOpenTaskDrawer'
   )
 
   // Message container link click interception for /tasks/
