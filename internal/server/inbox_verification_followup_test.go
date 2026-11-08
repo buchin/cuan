@@ -195,6 +195,7 @@ func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDeta
 		t.Fatal(err)
 	}
 	service := runner.NewService(runner.NewMemoryStore(store), store, nil)
+	service.SetEventBus(runner.NewEventBus())
 	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "verifier"}, time.Minute)
 	if err != nil || !claim.Claimed {
 		t.Fatal("claim failed", err)

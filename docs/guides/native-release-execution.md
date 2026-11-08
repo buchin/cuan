@@ -72,6 +72,14 @@ take this path. The observation remains history, never source approval, release
 permission or a reason to repeat development. Verifier-backed and prepared-release
 inspection branches retain their own protocols and do not enter this recovery.
 
+New coordinator reviews must include an explicit `source_review` verdict. The
+leading response instructions and provider JSON schema both include that field
+and the `publication` remaining-work stage. Legacy assessments with a missing
+source verdict and native independent-source evidence can receive one bounded
+assessment-only refresh under `Source review policy: v1`. The refresh uses current
+evidence and cannot approve source from the old report, rerun execution or reset
+correction budgets. Explicit newer verdicts are not treated as missing fields.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.
