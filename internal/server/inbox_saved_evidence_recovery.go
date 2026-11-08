@@ -46,6 +46,11 @@ func savedEvidenceRecoveryRequestID(d *task.TaskDetailResponse) string {
 }
 
 func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
+	// A recognized verifier goes straight to review; do not start a second
+	// observation merely because its completed outcome is recovery-eligible.
+	if s.accountOutcomeIndependentlyVerified(ctx, d) {
+		return false
+	}
 	if !savedEvidenceRecoveryCandidate(d) || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
 	}

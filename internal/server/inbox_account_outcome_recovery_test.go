@@ -202,6 +202,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if s.independentCodeReviewMissing(ctx, current) {
 		t.Fatal("account outcome treated as unverified source implementation")
 	}
+	s.queueInboxTaskReview(ctx, current)
 	if s.recoverSavedEvidence(ctx, current, origin) {
 		t.Fatal("evidence recovery chained")
 	}
