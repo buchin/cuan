@@ -176,3 +176,17 @@ tampilan halaman inbox”; actual read-only visual duties must not disappear.
 The full inspection-scope table, capture-restriction and original screenshot
 requirement tests pass. This changes evidence classification, not task acceptance,
 source checks, original authorization or the running developer's current claim.
+
+Release `9b7721a7a72e7b54602e124da30c714c5d1e3d68` passed exact-SHA
+production health with 37 migrations. The same developer attempt remained running
+across release; no manual retry was issued. At 03:45–03:46 +08 the official logs
+and an actual Go compiler process showed active targeted test execution.
+
+A fresh read-only copy of the unfinished worker CLI changed artifact.go SHA256 to
+`8fdb25d6f4fdec3b54713febb32ab4d0e83fb543b81e4712a025372a5b8f20d0`;
+cli.go retained its earlier hash. Running the independent fixture through a local
+Go overlay now passes the documented `--output` and existing-file-preservation
+case. Partial HTTP response and parent-symlink containment cases still fail,
+including an actual out-of-root write in the isolated test directory. This is
+measured partial implementation progress, not final source acceptance. No final
+commit or independent verifier handoff was present at this observation.
