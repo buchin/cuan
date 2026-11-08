@@ -14,7 +14,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-func failedInspectionSourceFixture(t *testing.T) (*Server, *task.TaskDetailResponse, db.InboxRequest, []db.InboxRequest, *task.LiveInspectionIntent) {
+func failedInspectionSourceFixture(t *testing.T, local ...bool) (*Server, *task.TaskDetailResponse, db.InboxRequest, []db.InboxRequest, *task.LiveInspectionIntent) {
 	t.Helper()
 	s, d, oldReview, decision := unpublishedSourceVerificationFixture(t)
 	ctx := context.Background()
@@ -30,6 +30,26 @@ func failedInspectionSourceFixture(t *testing.T) (*Server, *task.TaskDetailRespo
 		if q.MessageID == d.SourceMessageID {
 			origin = q
 		}
+	}
+	unfinishedLocal := len(local) > 0 && local[0]
+	if unfinishedLocal {
+		d.Instructions += "\nPush the task branch. Do not merge or deploy."
+		d.CommitSHA, d.TestSummary, d.Summary, d.CompleteNote = "", "", "", ""
+		d.Status = task.TaskStatusBlocked
+		if err := store.UpdateTask(ctx, &d.Task); err != nil {
+			t.Fatal(err)
+		}
+		source, err := store.GetAttempt(ctx, d.LatestAttempt.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		started, finished := time.Now().UTC().Add(-2*time.Second), time.Now().UTC().Add(-time.Second)
+		exit := 124
+		source.CreatedAt, source.StartedAt, source.FinishedAt, source.Status, source.ExitCode, source.ErrorMessage = started, &started, &finished, task.AttemptStatusFailed, &exit, "Execution timed out after adaptive timeout (25m0s)"
+		if err := store.UpdateAttempt(ctx, source); err != nil {
+			t.Fatal(err)
+		}
+		d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
 	}
 	at := time.Now().UTC()
 	binding := &task.LiveInspectionIntent{Purpose: task.CurrentOutcomeInspection, SourceAttemptID: d.LatestAttempt.ID, SourceCommit: d.CommitSHA, TargetCommit: strings.Repeat("b", 40), Repository: "fixture/repo", OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), ObservedAt: at}
@@ -64,6 +84,10 @@ func failedInspectionSourceFixture(t *testing.T) (*Server, *task.TaskDetailRespo
 	q := reviews[len(reviews)-1]
 	decision.Finding = "Verify the retained tested source before publishing it"
 	decision.Revision = "Verify the exact implementation source already bound by this failed production inspection"
+	if unfinishedLocal {
+		decision.RemainingWork, decision.RequestedOutcome, decision.ManagerAction, decision.ManagerReason = "implementation", "unfinished", "replan", "The unrelated live inspection did not inspect the retained unfinished developer workspace."
+		decision.Revision = "Inspect the retained developer workspace, finish the original local feature and targeted checks, commit and push only the task branch. Preserve all existing files; do not merge or deploy."
+	}
 	if _, err := s.saveReviewAssessment(ctx, d, q, decision); err != nil {
 		t.Fatal("save inspection assessment", err)
 	}
@@ -165,5 +189,83 @@ func TestFailedInspectionSourceRecoveryRejectsChangedOrCanceledEvidence(t *testi
 				t.Fatal("invalid inspection evidence started verifier")
 			}
 		})
+	}
+}
+
+func TestFailedLocalInspectionResumesSeparateDeveloperFromSavedDecision(t *testing.T) {
+	s, d, origin, requests, binding := failedInspectionSourceFixture(t, true)
+	ctx := context.Background()
+	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	var review db.InboxRequest
+	for _, q := range requests {
+		if q.State == "completed" {
+			if saved, ok := reviewAssessment(d, q.RequestID); ok && saved.RemainingWork == "implementation" {
+				review = q
+			}
+		}
+	}
+	decision, ok := reviewAssessment(d, review.RequestID)
+	if !ok || !s.localSourceCorrectionAllowed(ctx, review, d, decision.Revision) {
+		t.Fatal("saved local correction not eligible")
+	}
+	for _, scenario := range []string{"foreign owner", "changed revision", "cancelled inspection", "source already handed off", "changed scope"} {
+		altered := *d
+		latest := *d.LatestAttempt
+		altered.LatestAttempt = &latest
+		q := review
+		revision := decision.Revision
+		switch scenario {
+		case "foreign owner":
+			q.OwnerID = "other"
+		case "changed revision":
+			revision += " expand scope"
+		case "cancelled inspection":
+			latest.CancelRequested = true
+		case "source already handed off":
+			altered.CommitSHA = strings.Repeat("a", 40)
+		case "changed scope":
+			altered.Instructions += " changed"
+		}
+		if s.localSourceCorrectionAllowed(ctx, q, &altered, revision) {
+			t.Fatal("invalid correction accepted", scenario)
+		}
+	}
+	if !s.recoverManagerVerificationHandoff(ctx, d, origin, requests) {
+		t.Fatal("saved local developer correction not admitted")
+	}
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, review.RequestID))
+	if err != nil || launch == nil || launch.State != "queued" || !strings.Contains(launch.Revision, decision.Revision) {
+		t.Fatal("missing separate developer launch", err)
+	}
+	if proof, err := task.LiveInspectionForLaunch(&d.Task, launch); err != nil || proof != nil {
+		t.Fatal("developer correction reused inspection", err)
+	}
+	if proof, err := task.VerificationIntentForLaunch(&d.Task, launch); err != nil || proof != nil {
+		t.Fatal("developer correction reused verifier", err)
+	}
+	if launch.SourceRequestID != origin.RequestID || launch.OwnerID != origin.OwnerID {
+		t.Fatal("lost original authorization")
+	}
+	before := len(d.Attempts)
+	s.recoverManagerVerificationHandoff(ctx, d, origin, requests)
+	after, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	source, _ := s.taskSvc.Store().GetAttempt(ctx, binding.SourceAttemptID)
+	if len(after.Attempts) != before || after.Status == task.TaskStatusDone || !task.IsExecutionTimeout(source) {
+		t.Fatal("recovery changed history or accepted work")
+	}
+	// Claiming the new attempt must use implementation scope, not the finished
+	// inspection's read-only restrictions. Production writes remain forbidden.
+	_ = s.taskSvc.Store().DeleteTask(ctx, "busy")
+	if claimed, err := s.taskSvc.ClaimLaunch(ctx, time.Now().UTC(), "developer-admission", launch.ID); err != nil || claimed == nil {
+		t.Fatal("developer launch not claimable", err)
+	}
+	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "developer", AgentName: d.AssignedAgent, RequestID: review.RequestID, ExpectedPredecessorID: d.LatestAttempt.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := runner.NewService(runner.NewMemoryStore(s.taskSvc.Store()), s.taskSvc.Store())
+	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "developer"}, time.Minute)
+	if err != nil || !claim.Claimed || claim.Attempt.ID != attempt.ID || claim.PublicationLimits.ReadOnlyRepository || claim.PublicationLimits.DenyPush || !claim.PublicationLimits.DenyDeploy || claim.Verification != nil || claim.LiveInspection != nil {
+		t.Fatal("developer claim lost saved scope", err)
 	}
 }

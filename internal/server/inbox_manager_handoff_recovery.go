@@ -22,10 +22,21 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 		return false
 	}
 	inspectedSource := false
+	localCorrection := false
 	if live != nil {
 		inspectedSource = live.OwnerID == origin.OwnerID && s.testedSourceAfterFailedInspection(ctx, d, live) != nil
 		if !inspectedSource {
-			return false
+			for _, reviewed := range requests {
+				if reviewed.State == "completed" && reviewed.OwnerID == origin.OwnerID {
+					if decision, found := reviewAssessment(d, reviewed.RequestID); found && s.localSourceCorrectionAllowed(ctx, reviewed, d, decision.Revision) {
+						localCorrection = true
+						break
+					}
+				}
+			}
+			if !localCorrection {
+				return false
+			}
 		}
 	}
 	proof, proofErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
@@ -41,7 +52,7 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 		}
 	}
 	decision, found := reviewAssessment(d, "")
-	if !found || decision.Decision != "revise" || (decision.RemainingWork != "verification" && !(sourceCorrection && decision.RemainingWork == "implementation")) {
+	if !found || decision.Decision != "revise" || (decision.RemainingWork != "verification" && !((sourceCorrection || localCorrection) && decision.RemainingWork == "implementation")) {
 		return false
 	}
 	for _, q := range requests {

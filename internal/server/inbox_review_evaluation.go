@@ -564,7 +564,8 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		}
 		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 		verification, verificationErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-		if inspectionErr != nil || verificationErr != nil || inspection != nil || (verification != nil && !s.verifiedImplementationCorrectionAllowed(ctx, q, d, decision.Revision)) {
+		localCorrection := s.localSourceCorrectionAllowed(ctx, q, d, decision.Revision)
+		if inspectionErr != nil || verificationErr != nil || (inspection != nil && !localCorrection) || (verification != nil && !s.verifiedImplementationCorrectionAllowed(ctx, q, d, decision.Revision)) {
 			// Typed verification must keep its native source/target identity;
 			// ordinary execution would reopen the historical implementation root.
 			if outcome, scheduled := s.startVerificationFinalization(ctx, q, d, decision); scheduled {

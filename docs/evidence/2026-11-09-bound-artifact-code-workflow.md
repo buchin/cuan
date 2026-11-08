@@ -115,3 +115,29 @@ The PM's subsequent saved assessment requests implementation rather than more
 passive inspection. Its claim of no saved code must not be read as absence of
 working files: the actual uncommitted workspace was independently observed.
 No historical failure was changed and no task acceptance/retry was forced.
+
+## Saved PM correction stranded after typed inspection
+
+Release `455444a767feea81f94672f28a3cab533db363aa` passed exact-SHA health
+with 37 migrations, but the existing task remained blocked. The saved PM decision
+was revise/implementation/replan. Native guards correctly prevented mutating the
+read-only inspection, but also rejected a separate developer continuation because
+there was no tested source commit to hand off.
+
+A local correction now admits only a new developer attempt when the exact saved
+PM decision belongs to this task/owner, the finished current-outcome inspection
+is natively bound to its original timed-out code worker, no source handoff exists,
+and original owner scope allows source work but forbids deployment. It reuses the
+ordinary approval, cancellation, repetition, durable launch and workspace rules;
+the inspector's snapshot is never granted write scope and failed history is not
+rewritten. The queued successor's native claim is tested as implementation with
+push allowed, deploy denied and no inspection/verifier intent.
+
+The lifecycle regression fails against the old manager admission and passes with
+the correction. It rejects changed scope, revision, owner, cancelled inspection
+and an already established source handoff, and checks launch dedupe/history.
+Targeted manager/source-inspection tests pass. One older repeated-review fixture
+also failed on unchanged HEAD: it requested operational verification without a
+source commit while labelled code. The fixture now explicitly uses the ops lane
+and holds that same lane; the existing no-owner-deflection assertions stay intact.
+This correction is not yet deployed and production resumption is unproven.

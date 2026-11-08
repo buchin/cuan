@@ -191,6 +191,12 @@ func TestPublicationGuardIsIdempotentForSavedManagerDecision(t *testing.T) {
 func TestRepeatedIdenticalRevisionReturnsToManagerNotOwner(t *testing.T) {
 	s, d := managerFixture(t)
 	ctx := context.Background()
+	// This scenario changes an operational evidence-gathering strategy; it has
+	// no source checkpoint. Code work instead requires exact-source review.
+	d.ExecutionCategory = task.ExecutionCategoryOps
+	if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+		t.Fatal(err)
+	}
 	q := reviewRequests(t, s, d.SourceRoomID)[0]
 	revision := "Repeat the same unsuccessful check"
 	for i, id := range []string{"earlier-one", "earlier-two"} {
@@ -219,7 +225,7 @@ func TestRepeatedIdenticalRevisionReturnsToManagerNotOwner(t *testing.T) {
 	if manager == nil || manager.State != "queued" {
 		t.Fatal("internal replan not queued")
 	}
-	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "manager-busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+	if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "manager-busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryOps}); err != nil {
 		t.Fatal(err)
 	}
 	changed, _ := json.Marshal(inboxReviewEvaluation{Decision: "revise", Finding: "Original check is inconclusive", Explanation: "Use independent current-result evidence", RemainingWork: "verification", Revision: "Use the registered independent inspector instead of repeating the earlier self-reported check.", ManagerAction: "replan", ManagerReason: "The previous identical check failed repeatedly; independent evidence uses existing access."})
