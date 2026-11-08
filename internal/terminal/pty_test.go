@@ -65,6 +65,31 @@ func TestSanitizeEnvironment(t *testing.T) {
 	}
 }
 
+func TestSpawnPTYDelegatesOnlyExplicitProjectCredentials(t *testing.T) {
+	t.Setenv("DOJO_VPS_PASSWORD", "ambient-must-not-pass")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "other-owner-must-not-pass")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, delegated := range []bool{false, true} {
+		cfg := PTYConfig{WorkDir: t.TempDir(), Shell: "/bin/sh", Env: []string{"DOJO_VPS_PASSWORD=untrusted-custom"}}
+		if delegated {
+			cfg.DelegatedEnv = map[string]string{"DOJO_VPS_PASSWORD": "project-scoped", "DOJO_DEPLOY_HOST": "project-host"}
+			cfg.Args = []string{"-c", `test "$DOJO_VPS_PASSWORD" = project-scoped && test "$DOJO_DEPLOY_HOST" = project-host && test -z "$AWS_SECRET_ACCESS_KEY"`}
+		} else {
+			cfg.Args = []string{"-c", `test -z "$DOJO_VPS_PASSWORD" && test -z "$AWS_SECRET_ACCESS_KEY"`}
+		}
+		process, err := SpawnPTY(ctx, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = process.Wait()
+		process.Close()
+		if err != nil {
+			t.Fatalf("delegated=%t environment isolation failed: %v", delegated, err)
+		}
+	}
+}
+
 func TestSpawnPTY_BasicAndIO(t *testing.T) {
 	tempDir := t.TempDir()
 

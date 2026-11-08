@@ -60,6 +60,7 @@ type TaskAgentRunConfig struct {
 	ExecutionCategory string
 	WorkDir           string
 	Env               []string
+	DelegatedEnv      map[string]string
 	Cols              uint16
 	Rows              uint16
 	Mode              Mode
@@ -646,13 +647,14 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	sessionID := generateSessionID()
 
 	ptyCfg := PTYConfig{
-		TaskID:      taskID,
-		WorkDir:     workDir,
-		Shell:       supervisor,
-		Args:        supervisedArgs,
-		Env:         ensureResourceGuardrailEnv(cfg.Env),
-		InitialCols: cols,
-		InitialRows: rows,
+		TaskID:       taskID,
+		WorkDir:      workDir,
+		Shell:        supervisor,
+		Args:         supervisedArgs,
+		Env:          ensureResourceGuardrailEnv(cfg.Env),
+		DelegatedEnv: cfg.DelegatedEnv,
+		InitialCols:  cols,
+		InitialRows:  rows,
 	}
 
 	// A task outlives the HTTP request that starts it, with a bounded lifetime.

@@ -1035,6 +1035,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			if p, pErr := s.projectSvc.Get(r.Context(), projID); pErr == nil && p != nil {
 				settings := projectpkg.SettingsFromMetadata(p.Metadata)
 				if settings.Environment != "" {
+					runCfg.DelegatedEnv = projectpkg.ParseEnvironment(settings.Environment)
 					for k, v := range projectpkg.ParseEnvironment(settings.Environment) {
 						runCfg.Env = append(runCfg.Env, fmt.Sprintf("%s=%s", k, v))
 					}

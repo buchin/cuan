@@ -325,6 +325,30 @@ Launch persistence failures now log fixed safe codes and rune counts/limit,
 without reporting revision prose or credentials. Targeted lifecycle/checkpoint
 tests pass. Production acceptance is still unproven.
 
+Release `a95ec5ecefe22ce975b3e6347cb213adfbd480e4` passed exact-SHA health.
+The dispatcher automatically admitted observer attempt four,
+`att_3b69bc88b664f2b96c5eca671f6ff823`, with a 2,503-rune revision and all
+three read-only/no-push/no-deploy limits. It timed out at
+`2026-11-09T02:03:29.745887+08:00`, without a final report.
+
+Its output exposes a concrete access-preparation failure: the Dojo wrapper
+fails, the agent searches for Deployer, then tries project environment tools.
+The native path proves why saved credentials were unavailable: runner merges
+the owner-saved project environment, but `SpawnPTY` sanitizes every `DOJO_*`,
+password/key variable back out. The saved project guidance directs workers to
+`.env`/`ops/bin/dojo-artisan`, whose wrapper additionally requires local Deployer.
+No project credentials need to be copied into repo files or borrowed from host.
+
+The local fix gives PTY configuration a separate explicitly delegated project
+environment map; runner passes only the claim's saved project environment and
+local terminal passes the registered project values. Ordinary custom/ambient
+environment still uses the original sensitive-key filter. A real subprocess
+test confirms delegated project credentials arrive, untrusted custom credentials
+and ambient host/other-owner secrets do not, and ordinary sessions get none.
+Targeted terminal, runner repository/read-only and server account/delegation/
+mutation-rejection tests pass. This fix is not yet deployed; observer four's
+historical failure and single-observer recovery bound remain unchanged.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

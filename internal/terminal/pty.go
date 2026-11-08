@@ -23,13 +23,15 @@ var (
 
 // PTYConfig defines parameters for spawning an isolated pseudo-terminal process.
 type PTYConfig struct {
-	TaskID      string
-	WorkDir     string
-	Shell       string   // preferred shell, e.g. /bin/bash or /bin/sh
-	Args        []string // optional arguments passed to shell
-	Env         []string // optional environment variables (will be sanitized)
-	InitialCols uint16   // default 80
-	InitialRows uint16   // default 24
+	TaskID  string
+	WorkDir string
+	Shell   string   // preferred shell, e.g. /bin/bash or /bin/sh
+	Args    []string // optional arguments passed to shell
+	Env     []string // optional environment variables (will be sanitized)
+	// DelegatedEnv contains only explicitly authorized project values, never host environment.
+	DelegatedEnv map[string]string
+	InitialCols  uint16 // default 80
+	InitialRows  uint16 // default 24
 }
 
 // PTYProcess wraps an active operating-system PTY slave and master descriptor.
@@ -191,6 +193,19 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 	}
 
 	env := SanitizeEnvironment(cfg.Env, cfg.TaskID, canonicalDir)
+	for key, value := range cfg.DelegatedEnv {
+		if key == "" || strings.ContainsAny(key, "=\x00") || strings.ContainsRune(value, 0) {
+			return nil, fmt.Errorf("invalid delegated environment key")
+		}
+		prefix := key + "="
+		filtered := env[:0]
+		for _, item := range env {
+			if !strings.HasPrefix(item, prefix) {
+				filtered = append(filtered, item)
+			}
+		}
+		env = append(filtered, prefix+value)
+	}
 
 	cmd := exec.CommandContext(ctx, shellPath, cfg.Args...)
 	cmd.Dir = canonicalDir

@@ -1567,13 +1567,14 @@ func (r *Runner) executeWithPTY(
 	}
 
 	proc, err := terminal.SpawnPTY(execCtx, terminal.PTYConfig{
-		TaskID:      t.ID,
-		WorkDir:     workingDir,
-		Shell:       agyBin,
-		Args:        ptyArgs,
-		Env:         ptyEnv,
-		InitialCols: 80,
-		InitialRows: 24,
+		TaskID:       t.ID,
+		WorkDir:      workingDir,
+		Shell:        agyBin,
+		Args:         ptyArgs,
+		Env:          ptyEnv,
+		DelegatedEnv: project.ParseEnvironment(claim.Environment),
+		InitialCols:  80,
+		InitialRows:  24,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("spawn pty: %w", err)
