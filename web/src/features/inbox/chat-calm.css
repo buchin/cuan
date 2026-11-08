@@ -458,6 +458,21 @@
   margin-top: 4px;
 }
 
+/* Prompt Choices: Pure transparent surface blending into chat canvas (Bear Notes & Things 3) */
+.prompt-choice-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.wa-message-bubble:has(> .prompt-choice-container:only-child),
+.wa-message-bubble:has([data-testid="prompt-choice-chips"]):not(:has(.chat-markdown, .wa-plain-text:not(:empty), .approval-card, .receipt-preview-card)) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
 /* Conversation list surfaces */
 .inbox-list { background: oklch(var(--background)); }
 .inbox-search { background: oklch(var(--muted) / 0.5); }
