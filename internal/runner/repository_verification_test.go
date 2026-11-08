@@ -147,7 +147,9 @@ func TestReadOnlyRunnerExecutionToCompletion(t *testing.T) {
 				w.Write([]byte(`{}`))
 			}))
 			defer api.Close()
-			cfg := &config.Config{RunnerID: "fixture", RunnerServerURL: api.URL}
+			// Completion delivery is durable. Keep each scenario's outbox private
+			// so a reused test-server port cannot select another run's report.
+			cfg := &config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: filepath.Join(t.TempDir(), "workspaces")}
 			executionCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			r := NewRunner(cfg, &readOnlyAuditAdapter{mutate: mutate, timedout: scenario.timedout, cancelAfterExecution: cancel, t: t}, api.Client())
