@@ -45,7 +45,7 @@ func validateStaleNativeInspectionRecovery(ctx context.Context, store Store, t *
 		return ErrInvalidTaskInput
 	}
 	previous, err := LiveInspectionForAttempt(ctx, store, t, a.ID)
-	if err != nil || previous == nil || previous.Purpose != NativeReleaseInspection || previous.VerifierRecoveryAttemptID != "" || previous.TargetCommit == proof.TargetCommit {
+	if err != nil || previous == nil || previous.Purpose != NativeReleaseInspection || previous.VerifierRecoveryAttemptID != "" || previous.ReportingRecoveryAttemptID != "" || previous.TargetCommit == proof.TargetCommit {
 		return ErrInvalidTaskInput
 	}
 	expected := *proof

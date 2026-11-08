@@ -410,6 +410,9 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 	s.cfg.CommitSHA = run("rev-parse", "HEAD")
 	failed, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
+	// Hold dispatch in its real project lane until this test explicitly claims.
+	blocker := &task.Task{ID: "reporting-recovery-lane-blocker", ProjectID: item.ProjectID, AssignedAgent: item.AssignedAgent, Title: "Fixture lane blocker", Instructions: "Fixture", Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	must(s.taskSvc.Store().CreateTask(ctx, blocker))
 	s.queueInboxTaskReview(ctx, failed)
 	recovery := *proof
 	recovery.VerifierRecoveryAttemptID = claimed.Attempt.ID
@@ -436,5 +439,79 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 	}
 	if _, err := s.projectSvc.VerificationSnapshot(ctx, item.ProjectID, item.ID, parsed.SourceCommit, parsed.TargetCommit); err != nil {
 		t.Fatal("recovered snapshot lacks original implementation", err)
+	}
+	// The stale-target repair may itself exhaust reporting. That distinct,
+	// bounded recovery preserves both failures and the original delivery.
+	must(s.taskSvc.Store().DeleteTask(ctx, blocker.ID))
+	current, err = s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if current.LatestAttempt.ID == claimed.Attempt.ID {
+		reserved, reserveErr := s.taskSvc.ClaimLaunch(ctx, time.Now(), "reporting-dispatcher", job.ID)
+		err = reserveErr
+		must(err)
+		if reserved == nil {
+			t.Fatalf("fixture recovery not reservable: %+v", job)
+		}
+		_, err = s.taskSvc.CreateAttempt(ctx, item.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: claimed.Attempt.ID, InitializeQueuedTask: true, PreserveQueuedReport: true})
+		if err != nil {
+			t.Fatalf("reporting fixture admission state=%s: %v", job.State, err)
+		}
+	}
+	reporting, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "stale-verifier", SupportedAgents: []string{job.AgentID}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true}, time.Minute)
+	if err != nil {
+		t.Fatalf("reporting fixture claim: %v", err)
+	}
+	if !reporting.Claimed {
+		t.Fatal("reporting fixture not claimed")
+	}
+	hash := strings.Repeat("a", 64)
+	_, err = s.runnerSvc.Complete(ctx, reporting.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 124, ErrorMessage: task.InspectionReportingTimeout, RepositoryVerification: &runner.RepositoryVerification{Baseline: hash, Final: hash}})
+	must(err)
+	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
+	stopped, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	must(s.taskSvc.Store().CreateTask(ctx, blocker))
+	s.queueInboxTaskReview(ctx, stopped)
+	continuation := *parsed
+	continuation.ReportingRecoveryAttemptID = reporting.Attempt.ID
+	next, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, continuation.RequestID(item.ID)))
+	must(err)
+	if next == nil {
+		t.Fatal("native reporting timeout stranded original task")
+	}
+	bound, err := task.LiveInspectionForLaunch(&stopped.Task, next)
+	must(err)
+	if bound == nil || bound.PredecessorAttemptID() != reporting.Attempt.ID || bound.VerifierRecoveryAttemptID != claimed.Attempt.ID || bound.SourceAttemptID != proof.SourceAttemptID || bound.TargetCommit != s.cfg.CommitSHA {
+		t.Fatal("reporting recovery lost native lineage")
+	}
+	beforeRetry, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	s.queueInboxTaskReview(ctx, stopped)
+	afterRetry, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if len(beforeRetry.Attempts) != len(afterRetry.Attempts) || afterRetry.Status == task.TaskStatusDone {
+		t.Fatal("reporting recovery duplicated or accepted execution")
+	}
+	must(s.taskSvc.Store().DeleteTask(ctx, blocker.ID))
+	reservation, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "reporting-recovery-dispatcher", next.ID)
+	must(err)
+	if reservation == nil {
+		t.Fatal("reporting recovery not claimable")
+	}
+	_, err = s.taskSvc.CreateAttempt(ctx, item.ID, next.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: next.AgentID, RequestID: next.RequestID, ExpectedPredecessorID: reporting.Attempt.ID, InitializeQueuedTask: true, PreserveQueuedReport: true})
+	must(err)
+	final, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "stale-verifier", SupportedAgents: []string{next.AgentID}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true}, time.Minute)
+	must(err)
+	if !final.Claimed || final.LiveInspection == nil || !final.PublicationLimits.ReadOnlyRepository || !final.PublicationLimits.DenyPush || !final.PublicationLimits.DenyDeploy || final.AutoDeploy {
+		t.Fatal("reporting recovery lost read-only execution")
+	}
+	_, err = s.runnerSvc.Complete(ctx, final.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 124, ErrorMessage: task.InspectionReportingTimeout, RepositoryVerification: &runner.RepositoryVerification{Baseline: hash, Final: hash}})
+	must(err)
+	terminal, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	origins, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, item.SourceRoomID)
+	must(err)
+	if s.recoverNativeReleaseVerification(ctx, terminal, origins) {
+		t.Fatal("second reporting timeout renewed retry allowance")
 	}
 }

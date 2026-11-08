@@ -16,8 +16,10 @@ const CurrentOutcomeInspection = "current_outcome"
 const NativeReleaseInspection = "native_release"
 const StaleInspectionReleaseMessage = "The running release changed before inspection; no model execution was started"
 const EvidenceRevalidation = "evidence"
+const InspectionReportingTimeout = "Inspection reporting phase reached its deadline; saved work is preserved and independent verification remains incomplete."
 
 type LiveInspectionIntent struct {
+	ReportingRecoveryAttemptID   string    `json:"reporting_recovery_attempt_id,omitempty"`
 	PreparedPublicationAttemptID string    `json:"prepared_publication_attempt_id,omitempty"`
 	SourceVerifierAttemptID      string    `json:"source_verifier_attempt_id,omitempty"`
 	RevalidationKind             string    `json:"revalidation_kind,omitempty"`
@@ -54,6 +56,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.ReportingRecoveryAttemptID != "" {
+		return verificationRequestID("native-inspection-reporting-recovery:v1:"+p.InstructionsHash+":", taskID, p.ReportingRecoveryAttemptID)
+	}
 	if p.CapacityRecoveryAttemptID != "" {
 		return verificationRequestID("current-outcome-capacity:v1:"+p.InstructionsHash+":", taskID, p.CapacityRecoveryAttemptID)
 	}
@@ -172,6 +177,9 @@ func unpublishedOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity, rev
 }
 
 func (p *LiveInspectionIntent) PredecessorAttemptID() string {
+	if p.ReportingRecoveryAttemptID != "" {
+		return p.ReportingRecoveryAttemptID
+	}
 	if p.CapacityRecoveryAttemptID != "" {
 		return p.CapacityRecoveryAttemptID
 	}
@@ -213,6 +221,9 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	line := strings.SplitN(launch.Revision[at+len(LiveInspectionMarker):], "\n", 2)[0]
 	if json.Unmarshal([]byte(line), &proof) != nil {
 		return invalid("malformed_intent")
+	}
+	if proof.ReportingRecoveryAttemptID != "" && (proof.Purpose != NativeReleaseInspection || proof.ReportingRecoveryAttemptID == proof.SourceAttemptID || proof.CapacityRecoveryAttemptID != "") {
+		return invalid("reporting_recovery_shape")
 	}
 	if proof.RevalidationKind != "" && (proof.RevalidationKind != EvidenceRevalidation || proof.Purpose != CurrentOutcomeInspection || proof.PreviousAttemptID == "" || proof.ReviewRequestID == "" || len(proof.ReviewPaths) != 0) {
 		return invalid("revalidation_kind")
@@ -303,6 +314,9 @@ func ValidateLiveInspection(ctx context.Context, store Store, t *Task, attemptID
 func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
 	if t == nil || proof == nil || (proof.Purpose != "" && proof.Purpose != CurrentOutcomeInspection && proof.Purpose != NativeReleaseInspection) || t.CommitSHA != proof.SourceCommit || proof.InstructionsHash != LaunchInstructionsHash(t.Instructions) {
 		return ErrInvalidTaskInput
+	}
+	if proof.ReportingRecoveryAttemptID != "" {
+		return validateNativeInspectionReportingRecovery(ctx, store, t, proof)
 	}
 	if proof.CapacityRecoveryAttemptID != "" {
 		if err := ValidateInspectionCapacityRecovery(ctx, store, t, proof); err != nil {

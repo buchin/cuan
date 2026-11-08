@@ -20,7 +20,7 @@ func inspectionReportingDeadline(overall, now time.Time, reserveLimit time.Durat
 	return overall.Add(-reserve)
 }
 
-const inspectionReportingTimeout = "Inspection reporting phase reached its deadline; saved work is preserved and independent verification remains incomplete."
+const inspectionReportingTimeout = task.InspectionReportingTimeout
 
 // Persist the same upper bound used by native verification execution. Recognizing
 // a marker only shortens a deadline; launch validation still grants capabilities.

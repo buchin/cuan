@@ -208,11 +208,91 @@ func testStaleNativeInspectionRecovery(t *testing.T, store *MemoryStore, item *T
 	if parsed, err := LiveInspectionForLaunch(item, &launch); err != nil || parsed == nil || !reflect.DeepEqual(*parsed, proof) {
 		t.Fatal("native recovery launch lost exact identity", err)
 	}
+	testNativeInspectionReportingRecovery(t, store, item, proof, launch)
 	// A completed model report can never be reclassified as a pre-model stop.
 	if err := store.CreateActivity(ctx, &TaskActivity{ID: "unexpected-report", TaskID: item.ID, AttemptID: &verifier.ID, ActivityType: "agent_report", Message: "Provider result exists", CreatedAt: finish}); err != nil {
 		t.Fatal(err)
 	}
 	if ValidateLiveInspectionSource(ctx, store, item, &proof) == nil {
 		t.Fatal("stale-target recovery discarded an existing model result")
+	}
+}
+
+func testNativeInspectionReportingRecovery(t *testing.T, store *MemoryStore, item *Task, previous LiveInspectionIntent, launch TaskLaunch) {
+	t.Helper()
+	ctx := context.Background()
+	start, finish, exit := time.Now().Add(-time.Minute).UTC(), time.Now().UTC(), 124
+	a := &TaskAttempt{ID: attemptRequestID(item.ID, launch.RequestID), TaskID: item.ID, RunnerID: "reporting-worker", Status: AttemptStatusFailed, ExitCode: &exit, StartedAt: &start, FinishedAt: &finish, ErrorMessage: InspectionReportingTimeout}
+	launch.ID = LaunchID(item.ID, launch.RequestID)
+	store.launches[launch.ID], store.attempts[a.ID] = &launch, a
+	proof := previous
+	proof.ReportingRecoveryAttemptID, proof.ObservedAt, proof.TargetCommit = a.ID, finish, strings.Repeat("e", 40)
+	baseEvents := []*TaskActivity{
+		{ID: "repository-observation:" + a.ID, TaskID: item.ID, AttemptID: &a.ID, Author: a.RunnerID, ActivityType: "repository_scope_observed", NewStatus: AttemptStatusFailed, Message: `{"baseline":"` + strings.Repeat("a", 64) + `","final":"` + strings.Repeat("a", 64) + `"}`},
+		{ID: "verification:" + a.ID, TaskID: item.ID, AttemptID: &a.ID, Author: a.RunnerID, ActivityType: ActivityTypeRunnerVerification, Message: `{"summary":""}`},
+		{ID: "timeout-transition", TaskID: item.ID, AttemptID: &a.ID, Author: a.RunnerID, ActivityType: ActivityTypeAttempt, OldStatus: TaskStatusDoing, NewStatus: TaskStatusBlocked, CreatedAt: finish, Message: "Attempt selesai dengan status 'failed' (exit code: 124, peak RSS: 0 bytes)."},
+	}
+	for _, scenario := range []string{"valid", "missing observation", "changed source", "foreign observation", "checks ran", "final report", "cancelled", "generic timeout", "wrong source", "old observation", "missing transition", "wrong purpose", "chained recovery"} {
+		t.Run("reporting "+scenario, func(t *testing.T) {
+			variant := NewMemoryStore()
+			variant.tasks, variant.launches = store.tasks, store.launches
+			for id, event := range store.activities {
+				variant.activities[id] = event
+			}
+			for id, att := range store.attempts {
+				variant.attempts[id] = att
+			}
+			stopped, candidate := *a, proof
+			for i, original := range baseEvents {
+				e := *original
+				if scenario == "missing observation" && i == 0 || scenario == "missing transition" && i == 2 {
+					continue
+				}
+				if scenario == "changed source" && i == 0 {
+					e.Message = `{"baseline":"` + strings.Repeat("a", 64) + `","final":"` + strings.Repeat("b", 64) + `"}`
+				}
+				if scenario == "foreign observation" && i == 0 {
+					e.Author = "foreign"
+				}
+				if scenario == "checks ran" && i == 1 {
+					e.Message = `{"summary":"assertion failed"}`
+				}
+				if err := variant.CreateActivity(ctx, &e); err != nil {
+					t.Fatal(err)
+				}
+			}
+			switch scenario {
+			case "final report":
+				_ = variant.CreateActivity(ctx, &TaskActivity{ID: "final-report", TaskID: item.ID, AttemptID: &a.ID, ActivityType: "agent_report", NewStatus: TaskStatusReview})
+			case "cancelled":
+				stopped.CancelRequested = true
+			case "generic timeout":
+				stopped.ErrorMessage = "timeout"
+			case "wrong source":
+				candidate.SourceCommit = strings.Repeat("f", 40)
+			case "old observation":
+				candidate.ObservedAt = start
+			case "wrong purpose":
+				candidate.Purpose = CurrentOutcomeInspection
+			case "chained recovery":
+				parent := previous
+				parent.ReportingRecoveryAttemptID = "earlier"
+				raw, _ := json.Marshal(parent)
+				changed := launch
+				changed.Revision = "Scope: read-only repository. Do not push. Do not deploy.\n" + LiveInspectionMarker + string(raw)
+				variant.launches = map[string]*TaskLaunch{}
+				for id, j := range store.launches {
+					variant.launches[id] = j
+				}
+				variant.launches[launch.ID] = &changed
+			}
+			variant.attempts[a.ID] = &stopped
+			if err := ValidateLiveInspectionSource(ctx, variant, item, &candidate); (err == nil) != (scenario == "valid") {
+				t.Fatalf("%s: %v", scenario, err)
+			}
+			if scenario == "valid" && (candidate.PredecessorAttemptID() != a.ID || candidate.RequestID(item.ID) == previous.RequestID(item.ID)) {
+				t.Fatal("recovery did not retain exclusive parent/new identity")
+			}
+		})
 	}
 }

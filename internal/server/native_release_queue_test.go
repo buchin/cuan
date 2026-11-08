@@ -71,7 +71,7 @@ func TestReviewedSourceHandoffDoesNotRepeatVerifiedPublication(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "schedule reviewed delivered")
 }
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule", "schedule observed", "schedule reviewed", "schedule reviewed delivered", "publication activation receipt"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "initial verify stale", "schedule", "schedule observed", "schedule reviewed", "schedule reviewed delivered", "publication activation receipt"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})

@@ -66,6 +66,15 @@ cuan task get <task-id>
 ```
 
 ### 3. Update Task Status & Evidence
+
+After native publication, an independent inspection that reaches its reporting
+deadline can receive one read-only reporting recovery. Native runner receipts
+must prove unchanged source, an exact reporting timeout, no final agent report
+and no native check result. The failed attempt stays failed. The new attempt
+retains source, approval and delivery lineage; a newer running target must contain
+the previous target. It cannot publish, implement, accept work, renew the retry
+allowance or replace actual test failures. The verifier checks missing acceptance
+evidence and reports promptly; the runner owns the registered regression suite.
 ```bash
 cuan task update <task-id> --status review --summary "Reset styling completed" --complete-note "6/6 DoD items verified"
 ```
