@@ -1210,7 +1210,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			if compReq.Status == task.AttemptStatusSucceeded {
 				verificationStarted := time.Now()
 				r.streamLogLine(ctx, att.ID, "system", "Project verification started; the runner is checking the reported result.")
-				verification, evidence := verifyTaskRepository(ctx, workingDir, workspaceComparisonBase(ws, claim.DefaultBranch), policy, readOnlyBaseline)
+				verification, evidence := verifyTaskRepository(ctx, workingDir, workspaceComparisonBase(ws, claim.DefaultBranch), policy, readOnlyBaseline, claim.PHPUnitTargets)
 				compReq.RepositoryVerification = evidence
 				compReq.TestSummary = verification.Summary
 				if verification.Passed && claim.LiveInspection != nil {

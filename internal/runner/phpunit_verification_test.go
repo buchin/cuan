@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -49,7 +50,9 @@ exit(` + map[bool]string{true: "7", false: "0"}[scenario == "fail"] + `);`
 			case "invalid targets":
 				env = `["--configuration=outside"]`
 			}
-			got := runRegisteredProjectVerification(context.Background(), root, env)
+			// Ordinary developer completion must honor the same saved target policy,
+			// including failures, missing dependencies and path escapes.
+			got, _ := verifyTaskRepository(context.Background(), root, "dev", executionpolicy.PublicationPolicy{}, "", env)
 			if got.Passed != (scenario == "pass" || scenario == "pest") {
 				t.Fatal("incorrect native check", got)
 			}

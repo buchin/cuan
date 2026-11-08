@@ -667,3 +667,11 @@ This also applies to `cuan mcp --public-web`; it grants no internal-service acce
 The Go-only `Options.Client` injection is trusted application code responsible
 for its own routing policy, and is not an agent/MCP argument. A future renderer
 must enforce equivalent restrictions for redirects and every subresource too.
+
+Ordinary repository worker completion honors the project's saved
+`CUAN_VERIFICATION_PHPUNIT_TARGETS`, using the same private-workspace PHPUnit/Pest
+runner as later independent inspections. Missing/invalid targets or runtime and
+failing checks remain failures; agent prose cannot replace them. Without saved
+PHP targets, existing fixed project verifier selection remains. Read-only audits
+retain their repository fingerprint boundary without running implementation tests.
+Passing these local checks does not prove publication or independent acceptance.

@@ -118,12 +118,17 @@ func repositoryFingerprint(parent context.Context, root string) (string, error) 
 	}
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
-func verifyTaskRepository(ctx context.Context, root, branch string, policy executionpolicy.PublicationPolicy, baseline string) (verificationResult, *RepositoryVerification) {
+func verifyTaskRepository(ctx context.Context, root, branch string, policy executionpolicy.PublicationPolicy, baseline string, configuredTargets ...string) (verificationResult, *RepositoryVerification) {
 	if err := git.ValidatePrivateBuildOutput(root); err != nil {
 		return verificationResult{Error: "Repository build output is shared or unavailable; existing files were preserved."}, nil
 	}
 	if !policy.ReadOnlyRepository {
-		result := runProjectVerification(ctx, root, branch)
+		var result verificationResult
+		if len(configuredTargets) > 0 && strings.TrimSpace(configuredTargets[0]) != "" {
+			result = runRegisteredProjectVerification(ctx, root, configuredTargets[0])
+		} else {
+			result = runProjectVerification(ctx, root, branch)
+		}
 		if result.Passed && git.ValidatePrivateBuildOutput(root) != nil {
 			return verificationResult{Error: "Project verification left a shared build output; existing files were preserved."}, nil
 		}
