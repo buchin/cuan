@@ -108,6 +108,22 @@ func ValidateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	return validateNativeReleaseSource(ctx, store, t, p, true)
 }
 
+// ValidateNativeDeveloperHandoff admits only read-only source verification. It
+// cannot authorize publication and requires the developer to remain current.
+func ValidateNativeDeveloperHandoff(ctx context.Context, store Store, t *Task, p *NativeReleaseIntent) error {
+	if t == nil || p == nil || t.Status != TaskStatusReview || p.SourceReviewAttemptID != "" {
+		return ErrInvalidTaskInput
+	}
+	latest, err := store.GetLatestAttempt(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	if latest == nil || latest.ID != p.SourceAttemptID {
+		return ErrRequestConflict
+	}
+	return validateNativeReleaseSource(ctx, store, t, p, false)
+}
+
 // Historical delivery validation checks the same source evidence without
 // pretending its completed native stage is still queued/running. This grants
 // no new execution admission; current-stage validation retains the latest gate.

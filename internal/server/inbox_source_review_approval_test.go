@@ -48,7 +48,7 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 	must(err)
 	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
 	must(err)
-	assessment := inboxReviewEvaluation{Decision: "revise", SourceReview: "pass", RemainingWork: "implementation", Explanation: "Source checked independently; publication pending.", Revision: "Publish the reviewed source only."}
+	assessment := inboxReviewEvaluation{Decision: "revise", SourceReview: "pass", RemainingWork: "publication", Explanation: "Source checked independently; publication pending.", Revision: "Publish the reviewed source only."}
 	if s.saveNativeSourceReview(ctx, d, q.RequestID, assessment) == nil {
 		t.Fatal("unsaved model verdict approved source")
 	}

@@ -3,9 +3,9 @@ package server
 import "testing"
 
 func TestSourceReviewDoesNotAcceptUnpublishedTask(t *testing.T) {
-	raw := `{"decision":"revise","source_review":"pass","remaining_work":"implementation","explanation":"Source verified; publication remains pending.","revision":"Publish only the independently reviewed source through the authorized release path."}`
+	raw := `{"decision":"revise","source_review":"pass","remaining_work":"publication","explanation":"Source verified; publication remains pending.","revision":"Publish only the independently reviewed source through the authorized release path."}`
 	got, err := parseInboxReviewEvaluation(raw)
-	if err != nil || got.SourceReview != "pass" || got.Decision != "revise" || got.RemainingWork != "implementation" || got.Revision == "" {
+	if err != nil || got.SourceReview != "pass" || got.Decision != "revise" || got.RemainingWork != "publication" || got.Revision == "" {
 		t.Fatalf("source review replaced pending acceptance: %#v %v", got, err)
 	}
 }

@@ -61,7 +61,7 @@ func (s *Server) saveReviewAssessment(ctx context.Context, d *task.TaskDetailRes
 	if assessment.SourceReview == "pass" {
 		source, proof := s.verifiedSupplementalSource(ctx, d)
 		visual := s.requireVisualReview(ctx, d, inboxReviewEvaluation{Decision: "pass", VisualInspection: assessment.VisualInspection})
-		if source == nil || proof == nil || task.SourceReviewReportHash(d.Activities, d.ID, d.LatestAttempt.ID) == "" || visual.Decision != "pass" {
+		if source == nil || proof == nil || task.SourceReviewReportHash(d.Activities, d.ID, d.LatestAttempt.ID) == "" || visual.Decision != "pass" || (assessment.Decision != "pass" && assessment.RemainingWork != "publication") {
 			assessment.SourceReview = "not_checked"
 		}
 	}

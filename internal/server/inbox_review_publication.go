@@ -77,6 +77,11 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	if decision.Decision != "pass" && decision.Decision != "revise" {
 		return decision
 	}
+	// Source-stage approval keeps the task unfinished. Native publication
+	// admission still checks original authority, exact source and review receipt.
+	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.SourceReview == "pass" && s.verificationReviewContext(ctx, d) != nil {
+		return decision
+	}
 	if paths := task.FailedCheckRevalidationPaths(d); len(paths) > 0 && d.LatestAttempt != nil {
 		intent, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 		if err == nil && intent != nil && intent.Purpose == task.CurrentOutcomeInspection {

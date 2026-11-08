@@ -105,7 +105,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	}
 	nativeSource, nativeManifest := strings.Repeat("a", 40), strings.Repeat("b", 64)
 	preparedTarget := ""
-	if scenario == "prepare" || strings.HasPrefix(scenario, "initial") {
+	if scenario == "prepare" || strings.HasPrefix(scenario, "initial") || scenario == "schedule" {
 		if scenario == "initial missing tool" {
 			nativeSource, preparedTarget, nativeManifest = nativeReleaseProjectFixture(t, s, "cuan-fixture-unavailable-tool")
 		} else {
@@ -151,14 +151,16 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	requestID := task.NativeReleaseRequestID(item.ID, p.SourceCommit)
 	output := ""
 	if strings.HasPrefix(scenario, "schedule") {
-		projects := project.NewMemoryStore()
-		environment := "CUAN_MANAGED_RELEASE=1"
-		if scenario == "schedule disabled" {
-			environment = ""
+		if scenario != "schedule" {
+			projects := project.NewMemoryStore()
+			environment := "CUAN_MANAGED_RELEASE=1"
+			if scenario == "schedule disabled" {
+				environment = ""
+			}
+			metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
+			must(projects.CreateProject(ctx, &project.Project{ID: item.ProjectID, RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", Metadata: metadata}))
+			s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
 		}
-		metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{WorkspaceRevision: "initial", Environment: environment}})
-		must(projects.CreateProject(ctx, &project.Project{ID: item.ProjectID, RepoURL: "https://github.com/owner/repo.git", DefaultBranch: "dev", Metadata: metadata}))
-		s.projectSvc = project.NewService(projects, nil, "fixture", t.TempDir())
 		if scenario == "schedule foreign" {
 			q.OwnerID = "foreign-owner"
 		}
@@ -171,7 +173,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 			before, err := repo.ListInboxRequests(ctx, q.RoomID)
 			must(err)
 			s.queueInboxTaskReview(ctx, detail)
-			admitted, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID))
+			admitted, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.VerificationRequestID(item.ID, item.CommitSHA)))
 			must(err)
 			scheduled = admitted != nil
 			after, err := repo.ListInboxRequests(ctx, q.RoomID)
@@ -194,11 +196,20 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 			return
 		}
 		if !scheduled {
-			t.Fatal("canonical source did not schedule native release")
+			t.Fatal("canonical source did not schedule independent source verification")
 		}
 		// A reconstructed scan with stale source evidence cannot duplicate it.
 		restarted := *s
 		restarted.queueInboxTaskReview(ctx, detail)
+		if release, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID)); release != nil || (err != nil && !errors.Is(err, task.ErrTaskNotFound)) {
+			t.Fatal("unreviewed source reached publication", release, err)
+		}
+		verification, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.VerificationRequestID(item.ID, item.CommitSHA)))
+		must(err)
+		if verification == nil {
+			t.Fatal("source verification was not durable")
+		}
+		return
 	} else {
 		output = s.startAuthorizedLaunch(ctx, q, detail, requestID, q.RequestID, task.NativeReleaseIntentMarker+string(raw))
 	}

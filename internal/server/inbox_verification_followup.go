@@ -27,36 +27,36 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	// read-only evidence run, not acceptance: the original checklist stays
 	// incomplete until the verifier supplies current observed evidence.
 	if d == nil || d.LatestAttempt == nil || q.RoomID != d.SourceRoomID || d.Status == "cancelled" || d.Status == "canceled" || d.Status == task.TaskStatusDone || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || d.ResultKind != "implementation" {
-		return "", false
+		return "Source verification is not eligible for this attempt.", false
 	}
 	// Require the exact saved assessment, never text inferred from a chat promise.
 	saved, ok := reviewAssessment(d, q.RequestID)
 	if !ok || saved != assessment || d.CommitSHA == "" {
-		return "", false
+		return "The current source verification assessment is unavailable.", false
 	}
 	if live, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || live != nil {
-		return "", false
+		return "This attempt already belongs to a live-result inspection.", false
 	}
 	previousIntent, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil {
-		return "", false
+		return "The source verification intent could not be validated.", false
 	}
 	var recovery *task.VerificationIntent
 	if previousIntent != nil {
 		recovery = s.verificationRuntimeRecoveryProof(ctx, q, d, previousIntent, assessment)
 		if recovery == nil {
-			return "", false
+			return "A separate verifier recovery is not authorized.", false
 		}
 	} else if !task.ProjectChecksPassed(d) {
-		return "", false
+		return "Required project checks have not passed for this source.", false
 	}
 	repository, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
-		return "", false
+		return "Source verification request storage is unavailable.", false
 	}
 	requests, err := repository.ListInboxRequests(ctx, d.SourceRoomID)
 	if err != nil {
-		return "", false
+		return "The source verification authorization could not be read.", false
 	}
 	var origin *db.InboxRequest
 	for i := range requests {
@@ -67,7 +67,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 		}
 	}
 	if origin == nil {
-		return "", false
+		return "The original source verification authorization is unavailable.", false
 	}
 	proof := task.VerificationIntent{IsolatedWorkspace: true, SourceAttemptID: d.LatestAttempt.ID, SourceCommit: d.CommitSHA, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: origin.RequestID, AssessmentRequestID: q.RequestID, SourceVerificationHash: task.VerificationSummaryHash(task.AttemptVerificationEvidence(d).Current)}
 	if recovery != nil {
@@ -86,23 +86,23 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	}
 	candidate := &task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: requestID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: origin.RequestID, InstructionsHash: proof.InstructionsHash, Revision: revision}
 	if _, err := task.VerificationIntentForLaunch(&d.Task, candidate); err != nil {
-		return "", false
+		return "The source verification scope could not be validated.", false
 	}
 	// A source commit has one immutable intent, even if evidence/reviews change.
 	previous, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID))
 	if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
-		return "", false
+		return "The saved source verification launch could not be read.", false
 	}
 	if previous != nil {
 		if parsed, validationErr := task.VerificationIntentForLaunch(&d.Task, previous); validationErr == nil && parsed != nil && (previous.State == "queued" || previous.State == "claimed" || previous.State == "started") {
 			return verificationFollowupNotice(d, assessment), true
 		}
-		return "", false
+		return "The saved source verification launch is no longer active.", false
 	}
-	s.startAuthorizedLaunch(ctx, q, d, requestID, origin.RequestID, revision)
+	launchNotice := s.startAuthorizedLaunch(ctx, q, d, requestID, origin.RequestID, revision)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID))
 	if err != nil || launch == nil || (launch.State != "queued" && launch.State != "claimed" && launch.State != "started") {
-		return "", false
+		return launchNotice, false
 	}
 	// The launch text is operational copy; a short factual notice follows only a
 	// durable intent, never the model's unsupported continuation promise.

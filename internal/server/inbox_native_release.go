@@ -12,13 +12,21 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-// A canonical developer handoff determines the native next stage. It is not a
-// semantic PM decision and must not spend another model turn to choose deploy.
+// Developer handoffs enter independent verification first. Only a source-stage
+// approval can admit native publication; neither stage accepts the whole task.
 func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
 	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || d.Status != task.TaskStatusReview || s.projectSvc == nil {
 		return false
 	}
 	source := d.LatestAttempt
+	reviewID := ""
+	if approved, err := task.NativeSourceReviewForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && approved != nil {
+		original, proof := s.verifiedSupplementalSource(ctx, d)
+		if original == nil || proof == nil || proof.SourceAttemptID != approved.SourceAttemptID {
+			return false
+		}
+		source, reviewID = original.LatestAttempt, d.LatestAttempt.ID
+	}
 	var handoff *task.NativeReleaseHandoff
 	for _, event := range d.Activities {
 		if event == nil || event.ID != "native-release-handoff:"+source.ID || event.ActivityType != task.ActivityNativeReleaseHandoff || event.Author != source.RunnerID || event.AttemptID == nil || *event.AttemptID != source.ID {
@@ -52,7 +60,21 @@ func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDe
 		if origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || origin.OwnerID == "" || origin.RequestID == "" {
 			continue
 		}
-		proof := task.NativeReleaseIntent{SourceAttemptID: source.ID, SourceCommit: handoff.SourceCommit, SourceVerificationHash: handoff.VerificationHash, InstructionsHash: handoff.InstructionsHash, OwnerID: origin.OwnerID, RoomID: d.SourceRoomID, SourceRequestID: origin.RequestID, Repository: handoff.Repository, TargetBranch: handoff.TargetBranch, ManifestHash: handoff.ManifestHash}
+		proof := task.NativeReleaseIntent{SourceReviewAttemptID: reviewID, SourceAttemptID: source.ID, SourceCommit: handoff.SourceCommit, SourceVerificationHash: handoff.VerificationHash, InstructionsHash: handoff.InstructionsHash, OwnerID: origin.OwnerID, RoomID: d.SourceRoomID, SourceRequestID: origin.RequestID, Repository: handoff.Repository, TargetBranch: handoff.TargetBranch, ManifestHash: handoff.ManifestHash}
+		if reviewID == "" {
+			if task.ValidateNativeDeveloperHandoff(ctx, s.taskSvc.Store(), &d.Task, &proof) != nil {
+				return false
+			}
+			assessmentRequest := origin
+			assessmentRequest.RequestID = delegationMessageID("native-source-verification:" + source.ID + ":" + proof.InstructionsHash)
+			assessment := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", Explanation: "Source implementation is ready for independent review; publication remains pending.", Revision: "Independently inspect the exact source against every original source requirement and scope restriction, run relevant checks, and report concrete defects or observed passing evidence. Preserve code, configuration, refs, commits and production. Do not waive pending publication or live checks."}
+			saved, err := s.saveReviewAssessment(ctx, d, assessmentRequest, assessment)
+			if err != nil {
+				return false
+			}
+			_, started := s.startVerificationFollowup(ctx, assessmentRequest, d, saved)
+			return started
+		}
 		if task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &d.Task, &proof) != nil {
 			return false
 		}
