@@ -29,6 +29,12 @@ cuan config set auth_token <TOKEN>
 ```
 
 ## Agent Chat & Inbox Rooms
+
+Conversation creation keeps the assistant name returned by the creating server.
+If older servers omit that name, the CLI queries metadata through the same
+authenticated client. It never switches to another configured server or an
+ambient database. Missing public-assistant metadata uses the neutral label
+`Assistant`; it does not guess the user's configured nickname.
 Interact directly with the Cuan public assistant without writing custom scripts:
 
 ### 1. Create a New Conversation Room

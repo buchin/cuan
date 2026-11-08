@@ -150,15 +150,9 @@ func ResolveActiveAgentName(ctx context.Context, agentID string) string {
 		normalized = "agent_cuan"
 	}
 
-	// 1. Try querying via CuanClient if configured
+	// API and direct-database modes are separate connection scopes.
 	if client := GetCuanClient(); client != nil && client.IsConfigured() {
-		if agentData, err := client.GetAgent(ctx, normalized); err == nil {
-			if ag, ok := agentData["agent"].(map[string]any); ok {
-				if name, ok := ag["name"].(string); ok && strings.TrimSpace(name) != "" {
-					return strings.TrimSpace(name)
-				}
-			}
-		}
+		return client.resolveAgentName(ctx, agentID)
 	}
 
 	// 2. Try querying via database if connected
@@ -168,19 +162,28 @@ func ResolveActiveAgentName(ctx context.Context, agentID string) string {
 		if strings.TrimSpace(name) != "" {
 			return strings.TrimSpace(name)
 		}
-		if normalized == "agent_cuan" {
-			_ = dbConn.QueryRowContext(ctx, "SELECT name FROM agents WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1").Scan(&name)
-			if strings.TrimSpace(name) != "" {
+	}
+	return unavailableAgentName(agentID)
+}
+
+// A successful conversation creation must not query a different server's
+// metadata or fall through to ambient database credentials for its identity.
+func (c *CuanClient) resolveAgentName(ctx context.Context, agentID string) string {
+	if agentData, err := c.GetAgent(ctx, NormalizeAgentAlias(agentID)); err == nil {
+		if ag, ok := agentData["agent"].(map[string]any); ok {
+			if name, ok := ag["name"].(string); ok && strings.TrimSpace(name) != "" {
 				return strings.TrimSpace(name)
 			}
 		}
 	}
+	return unavailableAgentName(agentID)
+}
 
-	// 3. Fallback: if specific non-cuan handle was given, retain it; otherwise use default handle constant
-	if agentID != "" && normalized != "agent_cuan" {
-		return agentID
+func unavailableAgentName(agentID string) string {
+	if strings.TrimSpace(agentID) != "" && NormalizeAgentAlias(agentID) != "agent_cuan" {
+		return strings.TrimSpace(agentID)
 	}
-	return db.DefaultAgentHandle
+	return "Assistant"
 }
 
 // IsConfigured returns true if BaseURL and AuthToken are populated.
@@ -262,7 +265,7 @@ func (c *CuanClient) CreateConversation(ctx context.Context, agentID, projectID,
 		res["title"] = title
 	}
 	if agName, _ := res["agent_name"].(string); strings.TrimSpace(agName) == "" {
-		res["agent_name"] = ResolveActiveAgentName(ctx, agentID)
+		res["agent_name"] = c.resolveAgentName(ctx, agentID)
 	}
 
 	return res, nil
