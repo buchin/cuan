@@ -14,6 +14,26 @@ const customerReplyDeliveryInstruction = `This is delivery of an already accepte
 
 type inboxCustomerReplyKey struct{}
 
+func validCustomerReplyDraft(draft string) bool {
+	return draft != "" && len(draft) <= 6000 && !strings.Contains(draft, "```") && !strings.Contains(draft, "/tasks/") && !strings.Contains(draft, "/inbox/")
+}
+
+// Delivery does not need another inference when the same accepted review
+// already supplied a usable draft. Normal persistence and owner review still
+// apply; this neither sends the reply nor accepts additional work.
+func (s *Server) acceptedCustomerReplyResult(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse) (string, bool) {
+	if !s.acceptedCustomerReplyEligible(ctx, d) || !isCustomerReplyDelivery(q, d) || !s.customerReplyAuthorized(ctx, q, d) {
+		return "", false
+	}
+	assessment, found := reviewAssessment(d, "")
+	draft := strings.TrimSpace(assessment.CustomerReplyDraft)
+	if !found || !validCustomerReplyDraft(draft) {
+		return "", false
+	}
+	raw, err := json.Marshal(inboxReviewEvaluation{Decision: "pass", RemainingWork: "none", Explanation: "Draf dari hasil review yang sudah diterima siap digunakan.", CustomerReplyDraft: draft})
+	return string(raw), err == nil
+}
+
 func customerReplyKey(d *task.TaskDetailResponse) string {
 	return "task-review:" + d.LatestAttempt.ID + ":customer-reply:" + inboxReviewEvidenceDigest(d)
 }
@@ -163,7 +183,7 @@ func (s *Server) applyAcceptedCustomerReply(ctx context.Context, q db.InboxReque
 			break
 		}
 	}
-	if result.Decision != "pass" || draft == "" || len(draft) > 6000 || strings.Contains(draft, "```") || strings.Contains(draft, "/tasks/") || strings.Contains(draft, "/inbox/") {
+	if result.Decision != "pass" || !validCustomerReplyDraft(draft) {
 		return "Draf balasan belum berhasil disiapkan. Hasil investigasi tetap tersimpan."
 	}
 	// Store the prepared text for retry after uncertain final Inbox persistence.

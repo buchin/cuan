@@ -187,6 +187,32 @@ remain, and changed scope/source, cancellation, active verification and missing
 receipts reject the handoff. Account recovery, manager grant, source-review and
 delegation protocol targeted tests passed. Production completion is still pending.
 
+## Production account outcome acceptance
+
+Account observer `att_76f9c8d4689ec7187e31284d4c4b6c95` completed successfully
+without source publication. Review `a7f988a1-417c-474f-a468-3cb94b9473dc`
+saved `pass / completed / none`; the coordinator marked the original task Done
+at `2026-11-09T01:03:19.154276+08:00`. No maintainer retry, manual acceptance or
+Dojo deployment was used. This proves native task acceptance and bounded outcome
+handoff, not general release readiness or an acceptable twenty-session cost.
+
+The report distinguishes retained test repairs from the original login incident.
+Its WIB labels disagree with its UTC/+08 timestamps, and public login screenshots
+do not demonstrate an authenticated account session. Historical account success
+claims must not be conflated with a new login performed during this audit. The
+original visitor timestamp was independently read through the official Cuan CLI.
+
+The accepted PM review already contained a customer draft, but delivery invoked
+another model turn. The first delivery failed; its bounded retry eventually
+persisted a separate internal `reply_draft` in the owner's conversational style.
+The CLI room projection confirms it is internal and usable; no message was sent
+to the customer. Delivery now reuses a valid draft from the same accepted review
+before provider setup/inference, retaining authorization, draft validation,
+prepared-text persistence, user review and existing fallback generation. A native
+Inbox lifecycle test with no provider profile confirms completion, exact saved
+text, no provider stage, no extra task attempts, and foreign-owner rejection.
+Ordinary customer draft delivery and managed delegation tests also pass.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

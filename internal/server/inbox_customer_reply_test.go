@@ -16,7 +16,11 @@ func TestAcceptedCustomerReplyDeliveryPostgres(t *testing.T) {
 	withPhasePostgres(t, func(database *sql.DB) { customerReplyDeliveryContract(t, database) })
 }
 
-func customerReplyDeliveryContract(t *testing.T, database *sql.DB) {
+func TestAcceptedCustomerReplyReusesSavedDraft(t *testing.T) {
+	customerReplyDeliveryContract(t, nil, true)
+}
+
+func customerReplyDeliveryContract(t *testing.T, database *sql.DB, reuse ...bool) {
 	t.Helper()
 	ctx := context.Background()
 	var s *Server
@@ -42,7 +46,11 @@ func customerReplyDeliveryContract(t *testing.T, database *sql.DB) {
 	if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.saveReviewAssessment(ctx, d, origin, inboxReviewEvaluation{Decision: "pass", Finding: "Investigation verified", Explanation: "Investigation verified", RemainingWork: "none"}); err != nil {
+	assessment := inboxReviewEvaluation{Decision: "pass", Finding: "Investigation verified", Explanation: "Investigation verified", RemainingWork: "none"}
+	if len(reuse) > 0 && reuse[0] {
+		assessment.CustomerReplyDraft = "Halo, kendala yang dilaporkan terkait versi runtime. Gunakan versi PHP yang didukung paket. Investigasi sudah selesai; perbaikan paket belum dirilis."
+	}
+	if _, err := s.saveReviewAssessment(ctx, d, origin, assessment); err != nil {
 		t.Fatal(err)
 	}
 	before := len(d.Attempts)
@@ -65,8 +73,57 @@ func customerReplyDeliveryContract(t *testing.T, database *sql.DB) {
 		t.Fatal("delivery lost accepted findings or tool-free boundary")
 	}
 	raw := `{"decision":"pass","finding":"Investigation verified","explanation":"Draft ready","remaining_work":"none","revision":"","customer_reply_draft":"Halo, kendala yang dilaporkan terkait versi runtime. Gunakan versi PHP yang didukung paket. Investigasi sudah selesai; perbaikan paket belum dirilis."}`
+
+	if saved, ok := s.acceptedCustomerReplyResult(ctx, *queued, d); len(reuse) > 0 && reuse[0] {
+		if !ok {
+			t.Fatal("accepted draft required another provider turn")
+		}
+		result, err := parseInboxReviewEvaluation(saved)
+		if err != nil || result.CustomerReplyDraft != assessment.CustomerReplyDraft {
+			t.Fatal("saved accepted draft changed", err)
+		}
+		raw = saved
+	} else if ok {
+		t.Fatal("absent accepted draft bypassed generation")
+	}
 	foreign := *queued
 	foreign.OwnerID = "other-owner"
+	if _, ok := s.acceptedCustomerReplyResult(ctx, foreign, d); ok {
+		t.Fatal("saved draft exposed to foreign owner")
+	}
+	if len(reuse) > 0 && reuse[0] {
+		// No provider profile is configured by this fixture. Delivery must use
+		// the accepted result before provider setup or inference is attempted.
+		s.cfg.InboxExecutionRole = "worker"
+		repo := s.projectStudioRepo.(db.InboxLifecycleRepository)
+		claimed, ok, err := repo.ClaimInboxRequest(ctx, queued.RoomID, queued.RequestID)
+		if err != nil || !ok {
+			t.Fatal("draft delivery not claimable", err)
+		}
+		s.runInboxRequest(repo, claimed)
+		rows, err := repo.ListInboxRequests(ctx, queued.RoomID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range rows {
+			if row.RequestID != queued.RequestID {
+				continue
+			}
+			if row.State != "completed" || row.SafeError != "" {
+				t.Fatal("saved draft waited for an unavailable provider", row.State, row.SafeError)
+			}
+			for _, step := range row.Steps {
+				if step.Kind == "provider" || step.Kind == "provider_result" {
+					t.Fatal("accepted draft invoked another provider")
+				}
+			}
+		}
+		message, err := s.projectStudioRepo.GetMessageByID(ctx, queued.ReplyID)
+		if err != nil || message == nil || extractCustomerReplyDraft(message.Content) != assessment.CustomerReplyDraft {
+			t.Fatal("accepted draft not persisted through Inbox lifecycle", err)
+		}
+	}
+
 	if _, draft := splitCustomerReplyDraft(s.applyInboxReviewEvaluation(ctx, foreign, raw)); draft != "" {
 		t.Fatal("foreign owner received a customer draft")
 	}

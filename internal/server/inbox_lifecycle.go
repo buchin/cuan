@@ -263,7 +263,18 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	q.SafeError = ""
 	var topicTitle string
 	var reply *db.ProjectMessage
-	if q.AgentID != "" {
+	if saved, ok := s.acceptedCustomerReplyResult(ctx, q, s.inboxReviewedTask(ctx, q)); ok {
+		step("accepted_draft", "Using the customer reply from the accepted review.")
+		name := db.DefaultAgentHandle
+		if s.agentRepo != nil {
+			if registered, err := s.runtimeAgent(ctx, q.AgentID); err == nil && registered != nil {
+				name = registered.Name
+			}
+		}
+		now := time.Now().UTC()
+		reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: q.AgentID, AuthorName: name, Content: s.applyInboxReviewEvaluation(ctx, q, saved), ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
+		s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
+	} else if q.AgentID != "" {
 		if q.OwnerID == "" {
 			q.SafeError = "Owner identity is unavailable. The message was not rerun."
 		} else if s.agentRepo == nil {
