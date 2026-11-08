@@ -15,6 +15,13 @@ func TestVerifiedSourceIntegrationRequiresUnchangedNativeFailure(t *testing.T) {
 	if !verifiedSourceIntegrationRequired(decision, &publication, &scope, target) {
 		t.Fatal("native known integration gap returned to repeated verification")
 	}
+	verification := decision
+	verification.RemainingWork = "verification"
+	verification.RequestedOutcome = "unfinished"
+	verification.ManagerAction = "replan"
+	if !verifiedSourceIntegrationRequired(verification, &publication, &scope, target) {
+		t.Fatal("known failed native check was routed back to the same inspection")
+	}
 	unknown := publication
 	unknown.ResultCommitContained = nil
 	if !verifiedSourceIntegrationRequired(decision, &unknown, &scope, target) {
