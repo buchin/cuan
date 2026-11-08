@@ -213,6 +213,16 @@ Inbox lifecycle test with no provider profile confirms completion, exact saved
 text, no provider stage, no extra task attempts, and foreign-owner rejection.
 Ordinary customer draft delivery and managed delegation tests also pass.
 
+Release `3f8851ebe108d8ef1e3244c879801e455b8f0ca0` passed exact-SHA production
+health verification. A fresh read-only production benchmark was initiated in room
+`e3e42d8b-6486-41d7-ab1e-308d84d8c1a3`, request
+`c906633b-ef85-4d39-8a94-fe273a0e9660`. The natural account-diagnosis request
+forbids data/access changes, email/OTP, resets, source/tests and deployment, asks
+for independently inspectable facts and a customer reply, and does not prescribe
+an internal execution category. The initial CLI send observation timed out;
+reading the same room confirmed one running request, so it was not resent.
+The benchmark has not yet established latency, session count or completion.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
