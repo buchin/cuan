@@ -243,3 +243,29 @@ unchanged suite and requires actual original failure/security acceptance checks;
 an explicitly requested pre-handoff suite still runs on final source, with no
 waiver of native checks or independent verification. The scoped reporting/review
 integration test passes. This guidance cannot change an already issued session.
+
+## Independent verifier falsely passed; autonomous quality benchmark failed
+
+Native verifier `att_ae036b0e9fd06c9f15febae630f5163a` started at
+04:04:18 +08 on exact source `bd6238d437c341ecd8932949edf958b14b8a7e85`,
+read-only with push/deploy denied. It succeeded at 04:12:37, reporting all DoD and
+security boundaries verified 100% based on existing tests. This is false:
+independent executable tests on the same source prove accepted partial responses
+and actual symlink-parent escape. Correct role/commit/unchanged-state receipts
+prove execution provenance, not substantive correctness or test coverage.
+
+Root supplied those concrete reproductions through official `cuan chat send` in
+the same room (accepted owner message 72d575af-5eae-4888-813b-352a622fb136 at
+04:13:14 +08). The send command observation timed out; history confirmed receipt,
+so it was not resent. The existing review nonetheless accepted Done at 04:13:42
+using the verifier's claims. Review data currently omits later owner discussion;
+this acceptance cannot be considered valid feature completion.
+
+The ordinary coordinator subsequently acknowledged the contradiction and resumed
+the same task as developer attempt `att_36e023cba48df5fbc2eb6285f60c2696`,
+with writes/push allowed and deployment denied. No manual task status or retry
+operation was used, but this *was an external evidence intervention*, not an
+autonomous verifier success. Preserve both the false review and correction.
+The feature remains unmerged/undeployed and its correct final implementation,
+independent acceptance quality, and communication during conflicting review are
+still unresolved requirements of the larger goal.
