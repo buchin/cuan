@@ -170,6 +170,23 @@ scope prose, account data, credentials or model output. This is diagnostic work;
 the production admission blocker is not yet established. Existing recovery
 lifecycle tests still pass.
 
+The deployed gate trace identifies current source verifier 19 as ineligible at
+`candidate`. A successful source verifier was not a saved-account recovery
+candidate, and the generic source-intent guard rejected it. A native handoff now
+resolves only its validated exact developer source and requires that source's
+publication-only failure, passing native checks, original support scope and
+complete report. Original owner/room/request, cancellation and unchanged-source
+proof remain mandatory. This uses the same task/scope-keyed account-observation
+launch, with no renewed allowance or implementation replay. Source proof alone
+is still not independent evidence of the account outcome or final acceptance.
+
+The lifecycle fixture now performs real native source claim/completion followed
+by separate bounded account observation. It verifies the source verifier is not
+accepted as account proof, observation deduplicates, native read-only boundaries
+remain, and changed scope/source, cancellation, active verification and missing
+receipts reject the handoff. Account recovery, manager grant, source-review and
+delegation protocol targeted tests passed. Production completion is still pending.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

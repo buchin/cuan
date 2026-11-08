@@ -725,7 +725,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	gate = "account_outcome_inspection"
-	if (task.IsAccountOutcome(&detail.Task) || legacyAccountPublicationMismatch(detail)) && !s.accountOutcomeIndependentlyVerified(ctx, detail) && s.recoverSavedEvidence(ctx, detail, *origin) {
+	if (task.IsAccountOutcome(&detail.Task) || legacyAccountPublicationMismatch(detail) || s.accountOutcomeSourceVerification(ctx, detail) != nil) && !s.accountOutcomeIndependentlyVerified(ctx, detail) && s.recoverSavedEvidence(ctx, detail, *origin) {
 		return
 	}
 	gate = "native_release_verification"

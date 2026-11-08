@@ -13,12 +13,13 @@ import (
 )
 
 func TestAccountOperationRecoversExistingOutcomeWithoutRepeatingEffect(t *testing.T) {
-	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis", "legacy login publication failure"} {
+	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis", "legacy login publication failure", "legacy login source verifier"} {
 		t.Run(mode, func(t *testing.T) { accountOutcomeRecoveryContract(t, mode) })
 	}
 }
 func accountOutcomeRecoveryContract(t *testing.T, mode string) {
-	legacyLogin := mode == "legacy login publication failure"
+	sourceVerified := mode == "legacy login source verifier"
+	legacyLogin := mode == "legacy login publication failure" || sourceVerified
 	loginDiagnosis := mode == "operational login diagnosis" || legacyLogin
 	if legacyLogin {
 		mode = "legacy publication failure"
@@ -140,6 +141,84 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 			t.Fatal("worker claim bypassed independent outcome verification")
 		}
 	}
+
+	if sourceVerified {
+		d.ResultKind = "implementation"
+		if err := store.UpdateTask(ctx, &d.Task); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "legacy-source-result-kind", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: "agent_result_kind", Author: d.AssignedAgent, NewStatus: "implementation", CreatedAt: *d.LatestAttempt.FinishedAt}); err != nil {
+			t.Fatal(err)
+		}
+		d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", ManagerAction: "replan", ManagerReason: "Check exact retained source", Explanation: "Source still requires independent review", Revision: "Verify the saved source"}
+		if _, err := s.saveReviewAssessment(ctx, d, origin, assessment); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.CreateTask(ctx, &task.Task{ID: "source-busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+			t.Fatal(err)
+		}
+		if text, scheduled := s.startVerificationFollowup(ctx, origin, d, assessment); !scheduled {
+			t.Fatal("source verifier not scheduled", text)
+		}
+		id := task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID))
+		job, err := s.taskSvc.GetLaunch(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.DeleteTask(ctx, "source-busy"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.(task.LaunchStore).ClaimLaunch(ctx, job.AvailableAt.Add(time.Second), "source-observation", job.ID); err != nil {
+			t.Fatal(err)
+		}
+		a, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "source-checker", AgentName: d.AssignedAgent, RequestID: job.RequestID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := runner.NewService(runner.NewMemoryStore(store), store)
+		claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "source-checker"}, time.Minute)
+		if err != nil || !claim.Claimed {
+			t.Fatal("source claim", err)
+		}
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "source-verifier-final", TaskID: d.ID, AttemptID: &a.ID, Author: d.AssignedAgent, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Exact source checked; account outcome remains unverified", CreatedAt: time.Now().UTC()}); err != nil {
+			t.Fatal(err)
+		}
+		baseline := strings.Repeat("d", 64)
+		if _, err := service.Complete(ctx, a.ID, runner.CompleteAttemptRequest{RunnerID: "source-checker", Status: task.AttemptStatusSucceeded, ExitCode: 0, VerifiedSourceCommit: d.CommitSHA, AgentReportRequired: true, AgentReportConfirmed: true, RepositoryVerification: &runner.RepositoryVerification{Baseline: baseline, Final: baseline}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.taskSvc.FinishLaunch(ctx, job.ID, "source-observation", "stopped", time.Now(), ""); err != nil {
+			t.Fatal(err)
+		}
+		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if savedEvidenceRecoveryCandidate(d) || s.accountOutcomeSourceVerification(ctx, d) == nil || s.accountOutcomeIndependentlyVerified(ctx, d) {
+			t.Fatal("source proof lost its typed handoff or replaced account evidence")
+		}
+		for _, scenario := range []string{"changed scope", "cancelled verifier", "missing receipts", "changed source", "active verifier"} {
+			altered := *d
+			attempt := *d.LatestAttempt
+			altered.LatestAttempt = &attempt
+			switch scenario {
+			case "changed scope":
+				altered.Instructions += " changed"
+			case "cancelled verifier":
+				attempt.CancelRequested = true
+			case "missing receipts":
+				altered.Activities = nil
+			case "changed source":
+				altered.CommitSHA = strings.Repeat("e", 40)
+			case "active verifier":
+				attempt.Status = task.AttemptStatusRunning
+			}
+			if s.accountOutcomeSourceVerification(ctx, &altered) != nil {
+				t.Fatal("invalid source handoff accepted", scenario)
+			}
+		}
+	}
 	if err := store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: d.ExecutionCategory}); err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +278,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
 	old, _ := store.GetAttempt(ctx, parent)
 	expected := task.AttemptStatusFailed
-	if mode == "completed operation" {
+	if mode == "completed operation" || sourceVerified {
 		expected = task.AttemptStatusSucceeded
 	}
 	if old.Status != expected || current.Status != task.TaskStatusReview || current.LatestAttempt.ID != attempt.ID {

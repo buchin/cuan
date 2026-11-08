@@ -46,6 +46,26 @@ func savedEvidenceRecoveryRequestID(d *task.TaskDetailResponse) string {
 	return delegationMessageID(kind + d.ID + ":" + task.LaunchInstructionsHash(d.Instructions))
 }
 
+// A source verifier proves its bound developer checkpoint, not the customer's
+// account outcome. Resolve only that native source; never borrow an unrelated
+// historical success or turn the verifier into a new implementation worker.
+func (s *Server) accountOutcomeSourceVerification(ctx context.Context, d *task.TaskDetailResponse) *task.VerificationIntent {
+	if d == nil || !task.SupportsAccountOutcomeInspection(&d.Task) || (d.Status != task.TaskStatusReview && d.Status != task.TaskStatusBlocked) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+		return nil
+	}
+	source, proof := s.verifiedSupplementalSource(ctx, d)
+	if source == nil || proof == nil {
+		return nil
+	}
+	// This is an eligibility view of the immutable failed source, not a task
+	// status update. Actual observation still needs current owner authority.
+	source.Status = task.TaskStatusBlocked
+	if !legacyAccountPublicationMismatch(source) {
+		return nil
+	}
+	return proof
+}
+
 func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
 	gate := "already_verified"
 	defer func() {
@@ -59,7 +79,8 @@ func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailRes
 		return false
 	}
 	gate = "candidate"
-	if !savedEvidenceRecoveryCandidate(d) {
+	verifiedSource := s.accountOutcomeSourceVerification(ctx, d)
+	if !savedEvidenceRecoveryCandidate(d) && verifiedSource == nil {
 		return false
 	}
 	gate = "origin_binding"
@@ -78,7 +99,7 @@ func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailRes
 		return false
 	}
 	gate = "source_intent"
-	if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
+	if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || (proof != nil && verifiedSource == nil) || (verifiedSource != nil && (verifiedSource.OwnerID != origin.OwnerID || verifiedSource.RoomID != origin.RoomID || verifiedSource.SourceRequestID != origin.RequestID)) {
 		return false
 	}
 	id := savedEvidenceRecoveryRequestID(d)
