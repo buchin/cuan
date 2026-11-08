@@ -58,3 +58,34 @@ must come from the active issued capability and original delivered-file binding,
 not an attachment UUID, worker-supplied owner/task IDs or an Owner login.
 
 No code result or verification result is established at this checkpoint.
+
+## Interim source review, not final handoff
+
+Developer attempt one remains live and has modified backend, CLI, MCP and test
+files, but has not saved a source commit or final report. Its latest checkpoint
+describes baseline compilation and implementation preparation; subsequent output
+shows test-fixture attempt/runner identity failures under investigation.
+
+A read-only snapshot of the uncommitted worker CLI was independently exercised
+outside the live workspace with a Go overlay and the fixture in
+`fixtures/bound_artifact_independent_test.go.txt`. Both checks fail:
+
+- A real HTTP `206 Partial Content` response with matching partial-body length
+  is accepted as a complete download.
+- An output parent symlink inside the attempt artifact directory permits a real
+  write outside that directory. The test supplies flags before the positional
+  ID so it exercises destination handling rather than argument parsing.
+
+Snapshot SHA-256 values:
+
+- `internal/taskcli/artifact.go`:
+  `9204d5f739e3b9ff0e83f6b5de3bee8157d2f9b33ce5c89fe67c9da8a4c99899`
+- `internal/taskcli/cli.go`:
+  `cd1022073ae6f62f5ad15bd7410e733986b90af3348e092445079436798c7e19`
+
+These findings apply to that interim snapshot, not a future final commit.
+The fixture creates only disposable local files and an HTTP test server; it
+does not operate on production user data. No live task source, task status,
+approval, retry or acceptance was changed. Deployment/merge remain forbidden.
+The final native verifier and source review must reject these behaviors if they
+remain in the actual handed-off commit.
