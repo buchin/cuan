@@ -32,6 +32,7 @@ test('1. S63-T2: NDJSON Log Formatter & Visual Step Parser (Things 3 Standard)',
   assert.equal(mapToolMetadata('write_file').displayName, 'Write File')
   assert.equal(mapToolMetadata('read_file').displayName, 'Read File')
   assert.equal(mapToolMetadata('search_web').displayName, 'Search Web')
+  assert.equal(mapToolMetadata('web_fetch').displayName, 'Fetch Web Page')
   assert.equal(mapToolMetadata('thought').displayName, 'Agent Thought')
 
   // Duration formatting

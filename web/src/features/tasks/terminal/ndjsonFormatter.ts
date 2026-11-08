@@ -182,6 +182,9 @@ export function getActionTitle(
   if (lower === 'search_web' || lower === 'web_search') {
     return 'Search Web'
   }
+  if (lower === 'web_fetch' || lower === 'fetch_web') {
+    return 'Fetch Web Page'
+  }
   if (lower === 'thought' || lower === 'thinking') {
     return 'Agent Thought'
   }
@@ -264,6 +267,9 @@ export function mapToolMetadata(
 
   if (lower === 'search_web' || lower === 'web_search') {
     return { displayName: 'Search Web', icon: 'search' }
+  }
+  if (lower === 'web_fetch' || lower === 'fetch_web') {
+    return { displayName: 'Fetch Web Page', icon: 'search' }
   }
   if (lower === 'thought' || lower === 'thinking') {
     return { displayName: 'Agent Thought', icon: 'thought' }

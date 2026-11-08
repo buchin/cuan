@@ -214,6 +214,7 @@ func TestInspectionToolsRuntimeStream(t *testing.T) {
 		"inspect_system_health",
 		"inspect_typecheck",
 		"search_web",
+		"web_fetch",
 		"list_projects",
 		"get_project",
 		"get_github_connection",

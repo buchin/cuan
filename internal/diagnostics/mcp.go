@@ -490,6 +490,20 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "web_fetch",
+		Description: "Fetch and extract clean readable text content and title from a public web page URL (cleans ads, navigation, headers, scripts).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"url": map[string]any{
+					"type":        "string",
+					"description": "Public HTTP or HTTPS URL of the web page or article to fetch",
+				},
+			},
+			"required": []string{"url"},
+		},
+	},
+	{
 		Name:        "inspect_deployment_status",
 		Description: "Inspect live deployment status, release directory metadata, systemd service status, and compare live running commit SHA against local repository HEAD to identify pending unmerged commits.",
 		InputSchema: map[string]any{
@@ -769,6 +783,9 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				timeout = int(rawTimeout)
 			}
 			toolResult, toolErr = ProbeEndpointHealth(ctx, rawURL, timeout)
+		case "web_fetch":
+			rawURL, _ := callParams.Arguments["url"].(string)
+			toolResult, toolErr = WebFetch(ctx, rawURL)
 		case "inspect_deployment_status":
 			project, _ := callParams.Arguments["project"].(string)
 			healthURL, _ := callParams.Arguments["health_url"].(string)

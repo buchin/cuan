@@ -259,7 +259,7 @@ func TestCLISettingsPrepareReadOnlyPermissions(t *testing.T) {
 	for _, expected := range []string{
 		"read_file(*)", "view_file(*)", "list_dir(*)", "grep_search(*)", "find_by_name(*)",
 		"inspect_git_status(*)", "inspect_git_log(*)", "inspect_system_health(*)", "inspect_typecheck(*)",
-		"search_web(*)", "call_mcp_tool(*)",
+		"search_web(*)", "web_fetch(*)", "call_mcp_tool(*)",
 		"mcp(*)", "mcp(cuan-inspect/*)", "mcp(cuan-inspect:*)", "mcp(cuan-platform-mcp/*)",
 		"mcp(cuan-inspect/inspect_git_log)", "mcp(cuan-inspect/inspect_git_status)",
 		"inspect_database_query(*)", "inspect_database_schema(*)", "inspect_app_logs(*)",
