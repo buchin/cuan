@@ -9,13 +9,20 @@ import (
 )
 
 func (s *Server) handleTaskExecutionInfo(w http.ResponseWriter, r *http.Request) {
-	info, err := s.taskSvc.ExecutionInfo(r.Context(), chi.URLParam(r, "id"))
+	selected := r.URL.Query().Get("attempt_id")
+	info, err := s.taskSvc.ExecutionInfo(r.Context(), chi.URLParam(r, "id"), selected)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
 			respondJSONError(w, 404, "Task not found")
 			return
 		}
 		respondJSONError(w, 503, "Saved execution context could not be read")
+		return
+	}
+	// Historical inspection describes that saved attempt only. A live recovery
+	// plan belongs to the current attempt and must not be attached to old work.
+	if selected != "" {
+		respondJSON(w, 200, info)
 		return
 	}
 	detail, err := s.taskSvc.GetTaskDetail(r.Context(), info.TaskID)

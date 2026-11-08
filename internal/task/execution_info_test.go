@@ -56,6 +56,30 @@ func TestExecutionInfoUsesExactAttemptWithoutMutatingPendingLaunch(t *testing.T)
 	if latest.RequestID != next.RequestID || latest.State != "queued" || len(attempts) != 1 || !saved.UpdatedAt.Equal(before.UpdatedAt) {
 		t.Fatal("inspection changed authoritative state")
 	}
+	newer := &TaskAttempt{ID: attemptRequestID(created.ID, next.RequestID), TaskID: created.ID, AgentName: "agent", Status: AttemptStatusSucceeded, CreatedAt: next.CreatedAt}
+	if _, err := store.ClaimLaunch(ctx, next.CreatedAt.Add(time.Millisecond), "next-worker", LaunchID(created.ID, next.RequestID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateAttempt(ctx, newer); err != nil {
+		t.Fatal(err)
+	}
+	current, err := svc.ExecutionInfo(ctx, created.ID)
+	if err != nil || current.AttemptID != newer.ID || current.Scope.DenyDeploy {
+		t.Fatal("latest execution was not independently selected", current, err)
+	}
+	historical, err := svc.ExecutionInfo(ctx, created.ID, a.ID)
+	if err != nil || historical.AttemptID != a.ID || !historical.Scope.ReadOnlyRepository || historical.LatestLaunch.ID != current.LatestLaunch.ID {
+		t.Fatal("historical scope replaced by newer attempt", historical, err)
+	}
+	if _, err := svc.ExecutionInfo(ctx, created.ID, "missing-attempt"); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatal("missing attempt fell back to latest", err)
+	}
+	if err := store.CreateAttempt(ctx, &TaskAttempt{ID: "foreign-attempt", TaskID: "foreign-task", AgentName: "agent", Status: AttemptStatusSucceeded, CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ExecutionInfo(ctx, created.ID, "foreign-attempt"); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatal("foreign attempt was disclosed", err)
+	}
 }
 
 func TestExecutionInfoDiagnosesRejectedAdmissionWithoutAttempt(t *testing.T) {
