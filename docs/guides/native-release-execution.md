@@ -1,5 +1,114 @@
 # Native release execution
 
+## Independent source review before publication
+
+The production build-gate benchmark exposed a gap in the current order:
+developer checks can trigger native merge/release before independent source
+review. Candidate `441ca645` added release-check bypasses outside its approved
+scope. Project tests passed, and the release had to be cancelled before activation.
+Passing those tests did not establish scope compliance. The same task was resumed
+for correction; it must not be accepted as an autonomous successful benchmark.
+
+The source-review admission path preserves these invariants:
+
+- Review the exact developer source independently against the saved original
+  scope before native merge or release. Test fixtures must not authorize new
+  production bypasses. Reviewer execution stays read-only.
+- Bind release admission to both the developer handoff and the successful
+  source-review attempt. A changed SHA, changed authorization, failed review,
+  cancellation or revoked project connection invalidates admission.
+- A passing source review is a stage result, not task acceptance. Preserve
+  incomplete publication and live-behavior criteria. Never infer review success
+  merely from process exit zero or a partial checklist.
+- Publish only the reviewed source through the registered native path, then
+  record fresh post-process revision/health evidence. Perform additional live
+  checks when required by the original task; retain the existing visual gate.
+- Return source defects to the same task's developer. Reconcile publication
+  failures without repeating implementation or replaying uncertain effects.
+- Keep immutable stage identities and evidence separate from retry counts;
+  successful publication/verification stages are not failed developer retries.
+
+Regression coverage checks rejection before publication for unreviewed,
+changed, cancelled and explicitly rejected source, successful handoff of the
+reviewed source, and preservation of every original acceptance requirement.
+These gates are implemented in the task admission and Inbox coordinator, with
+memory and PostgreSQL queue coverage. Production rollout and the end-to-end
+benchmark remain pending; passing regression tests is not proof of deployment.
+
+Reviewed launches use the `native-release:v2:` request namespace. Historical v1
+launches remain readable without acquiring source approval or fresh execution
+authority. An already verified publication is not repeated merely because its
+request namespace changed. Active older executors must finish or be reconciled
+before replacing them; a new namespace is never permission to replay effects.
+
+Legacy developer attempts without a backend-managed source handoff cannot
+retroactively acquire one from a model report or passing verifier. Recovery must
+preserve their exact source and original authorization through a native stage;
+it must not forge runner evidence or weaken read-only/publication restrictions.
+
+Source observation does not depend on automatic deployment. After passing native
+checks, code sessions with publication disabled still record the clean local
+checkpoint and diff against their pinned execution baseline. Pending tracked or
+untracked files are preserved and are never attributed to HEAD. This supplies
+native source evidence for independent verification; it creates no release
+handoff, managed publication ownership, push permission or deployment receipt.
+Verifier/read-only sessions do not enter this developer observation path.
+
+Initial source-verification launches use `verification-only:v2:` identities bound
+to task, exact commit and developer attempt. Repeated scans of that same handoff
+reuse its launch. A new developer handoff at the same commit cannot reuse an old
+verifier bound to another attempt, or fall through to production inspection just
+because the older verifier stopped. Legacy v1 launches remain readable and are
+not rewritten. Runtime-recovery and finalization identities retain their existing
+bounded contracts; this change grants no additional recovery or release authority.
+
+An older dispatcher may already have started a current-production inspection
+after an initial verifier collision. Once that exact observation is terminal,
+the coordinator can recover its retained managed developer handoff into source
+verification. The typed observation must bind the same source attempt and SHA;
+native source checks, original publication policy and handoff receipts are
+revalidated. Active/cancelled observations and unrelated source bindings cannot
+take this path. The observation remains history, never source approval, release
+permission or a reason to repeat development. Verifier-backed and prepared-release
+inspection branches retain their own protocols and do not enter this recovery.
+
+New coordinator reviews must include an explicit `source_review` verdict. The
+leading response instructions and provider JSON schema both include that field
+and the `publication` remaining-work stage. Legacy assessments with a missing
+source verdict and native independent-source evidence can receive one bounded
+assessment-only refresh under `Source review policy: v1`. The refresh uses current
+evidence and cannot approve source from the old report, rerun execution or reset
+correction budgets. Explicit newer verdicts are not treated as missing fields.
+
+GitHub merge HTTP 409 is a confirmed source conflict, separate from transport
+failure or an uncertain merge outcome. Preparation saves the fixed
+`source_merge_conflict` diagnostic against the native attempt and returns that
+typed code to the runner. The runner retains a concrete reconciliation gap in
+its final failure report; raw provider messages are not forwarded. This does not
+retry a merge, rewrite the source approval or execute the release script. A
+developer must reconcile only the approved source with the current branch and
+obtain fresh checks and independent review for the resulting checkpoint.
+
+Ordinary repository developer claims refresh the registered project branch ref
+through the saved repository connection before returning execution context. The
+private task branch still resumes in place and pins that imported baseline;
+refreshing does not check out source files, reset commits or resolve conflicts.
+Read-only verification, inspection, operational and native release stages keep
+their exact-source protocols and do not refresh a developer baseline. A failed
+refresh stops the claim before provider execution and retains saved work.
+
+Managed-release developers own local reconciliation with that baseline, including
+local task-branch merge/rebase and conflict resolution when original scope allows
+commits. They cannot change the shared branch, push, open PRs or deploy. Remote
+merge and publication remain native stages after independent source review.
+Before running project checks for a managed developer handoff, the runner verifies
+that the resulting commit contains the pinned baseline supplied for that session.
+An unchanged older branch or unverifiable ancestry fails with a concrete local
+reconciliation gap, before another source-verifier cycle. This read ignores Git
+replacement/graft ancestry and does not modify the task branch. Remote changes
+after session admission still go through native merge and target verification;
+the pinned baseline is not a claim that the release branch can never advance.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.

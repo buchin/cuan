@@ -6,6 +6,29 @@ import (
 	"testing"
 )
 
+func TestVerificationIdentityBindsSourceAttemptAndRetainsLegacyHistory(t *testing.T) {
+	commit := strings.Repeat("a", 40)
+	item := &Task{ID: "task", ProjectID: "project", SourceRoomID: "room", Instructions: "approved scope"}
+	proof := VerificationIntent{SourceAttemptID: "new-source", SourceCommit: commit, InstructionsHash: LaunchInstructionsHash(item.Instructions), OwnerID: "owner", RoomID: "room", SourceRequestID: "approval", AssessmentRequestID: "assessment", SourceVerificationHash: strings.Repeat("b", 64)}
+	bound := VerificationRequestID(item.ID, commit, proof.SourceAttemptID)
+	if bound == VerificationRequestID(item.ID, commit) || bound == VerificationRequestID(item.ID, commit, "old-source") || bound != VerificationRequestID(item.ID, commit, proof.SourceAttemptID) {
+		t.Fatal("verification identity collided or lost retry stability")
+	}
+	for _, source := range []string{"new-source", "old-source"} {
+		proof.SourceAttemptID = source
+		raw, _ := json.Marshal(proof)
+		launch := &TaskLaunch{TaskID: item.ID, ProjectID: item.ProjectID, OwnerID: proof.OwnerID, RoomID: proof.RoomID, SourceRequestID: proof.SourceRequestID, InstructionsHash: proof.InstructionsHash, RequestID: bound, Revision: VerificationIntentMarker + string(raw)}
+		_, err := VerificationIntentForLaunch(item, launch)
+		if (err == nil) != (source == "new-source") {
+			t.Fatal("source attempt was not bound to its execution identity", source, err)
+		}
+		launch.RequestID = VerificationRequestID(item.ID, commit)
+		if _, err := VerificationIntentForLaunch(item, launch); err != nil {
+			t.Fatal("legacy history became unreadable", err)
+		}
+	}
+}
+
 func TestVerificationIntentRequiresExactAuthorization(t *testing.T) {
 	source := strings.Repeat("a", 40)
 	task := &Task{ID: "task", SourceRoomID: "room", ProjectID: "project", Instructions: "approved scope"}

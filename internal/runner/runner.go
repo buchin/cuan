@@ -872,7 +872,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		prompt = "Role: developer. Complete the approved implementation, run relevant checks, and submit a factual handoff with task report --state review. Before handing off repository changes, inspect the diff, keep only approved task changes in a local Git checkpoint, and confirm the working tree is clean so the independent verifier can inspect that exact commit. This is an execution default only when the original scope permits local commits; a no-push/no-PR/no-deploy instruction does not itself forbid a local checkpoint. Never override an explicit no-commit instruction, commit unrelated work or secrets, discard pending work to make the tree clean, or attribute uncommitted changes to HEAD. If a checkpoint cannot be created within scope, report the actual source-binding gap rather than claiming independent verification. The coordinator starts the separate verifier; this session must not investigate orchestration internals merely to launch it or use Owner tools to create another execution. If an original criterion requires independent verification, truthfully leave it incomplete in the review report with the actual pending check; do not claim it happened or block on orchestrating it yourself. Preserve every original criterion and report observed evidence for the work you completed.\n\n" + prompt
 	}
 	if claim.ManagedRelease != nil {
-		prompt = "Native managed-release ownership: this developer session owns implementation, local checks and a clean task-branch checkpoint only. Do not push, create a PR, merge or deploy; the native coordinator owns publication after your source handoff. Original publication and independent verification criteria remain pending: preserve them unchanged with factual incomplete evidence in your review report. This ownership overrides generic auto-deploy execution wording, not the original acceptance requirements.\n\n" + prompt
+		prompt = "Native managed-release ownership: this developer session owns implementation, local checks and a clean task-branch checkpoint. Reconcile retained task changes with the supplied current project baseline before handoff. When the original scope permits local commits, local merges or rebases and conflict resolution on your private task branch belong to this developer session; preserve unrelated work and existing release gates. Do not push, create a PR, modify the shared/default branch or deploy; the native coordinator owns remote merge and publication after independent source review. An unchanged checkpoint is not a fix for a reported merge conflict. Original publication and independent verification criteria remain pending: preserve them unchanged with factual incomplete evidence in your review report. This ownership overrides generic auto-deploy execution wording, not original scope restrictions or acceptance requirements.\n\n" + prompt
 	}
 	prompt += cuanPrompt.ExecutionBudget(deadline, time.Now())
 	if claim.LiveInspection != nil {
@@ -1193,6 +1193,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				compReq.Status = task.AttemptStatusFailed
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
+			if compReq.Status == task.AttemptStatusSucceeded && claim.ManagedRelease != nil {
+				if err := r.verifyManagedDeveloperBaseline(ctx, ws); err != nil {
+					compReq.Status, compReq.ExitCode, compReq.ErrorMessage = task.AttemptStatusFailed, 1, err.Error()
+				}
+			}
 			if compReq.Status == task.AttemptStatusSucceeded {
 				verificationStarted := time.Now()
 				r.streamLogLine(ctx, att.ID, "system", "Project verification started; the runner is checking the reported result.")
@@ -1213,6 +1218,12 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed
 					compReq.ErrorMessage = verification.Error
+				}
+			}
+			if compReq.Status == task.AttemptStatusSucceeded && !claim.AutoDeploy && lane == task.ExecutionCategoryCode && !policy.ReadOnlyRepository && claim.Verification == nil && claim.LiveInspection == nil {
+				if err := r.observeLocalImplementationSource(ctx, ws, claim.DefaultBranch, &compReq); err != nil {
+					compReq.Status = task.AttemptStatusFailed
+					compReq.ErrorMessage = "Local source identity could not be verified; saved work is preserved."
 				}
 			}
 			if compReq.Status == task.AttemptStatusSucceeded && claim.AutoDeploy {

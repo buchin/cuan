@@ -184,7 +184,6 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" 
 pid_migrate=$!
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-runner" ./cmd/runner &
 pid_runner=$!
-
 status_server=0
 status_migrate=0
 status_runner=0
@@ -212,7 +211,6 @@ if [[ "$status_server" -ne 0 || "$status_migrate" -ne 0 || "$status_runner" -ne 
     exit "$status_runner"
   fi
 fi
-
 echo "✓ Backend binaries compiled successfully."
 if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
   npm run build --prefix web

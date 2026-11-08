@@ -24,7 +24,7 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 			must(err)
 			_, err = svc.ClaimLaunch(ctx, time.Now(), "dispatcher", saved.ID)
 			must(err)
-			att, err := svc.CreateAttempt(ctx, item.ID, "owner", CreateAttemptRequest{RunnerID: "native", AgentName: launch.AgentID, RequestID: launch.RequestID, ExpectedPredecessorID: source.ID})
+			att, err := svc.CreateAttempt(ctx, item.ID, "owner", CreateAttemptRequest{RunnerID: "native", AgentName: launch.AgentID, RequestID: launch.RequestID, ExpectedPredecessorID: intent.SourceReviewAttemptID})
 			must(err)
 			time.Sleep(time.Millisecond)
 			now := time.Now().UTC()
@@ -129,7 +129,7 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 					must(err)
 					_, err = svc.ClaimLaunch(ctx, time.Now(), "dispatcher", saved.ID)
 					must(err)
-					if _, err := svc.CreateAttempt(ctx, item.ID, intent.OwnerID, CreateAttemptRequest{RunnerID: "verifier", AgentName: item.AssignedAgent, RequestID: j.RequestID, ExpectedPredecessorID: source.ID}); err == nil {
+					if _, err := svc.CreateAttempt(ctx, item.ID, intent.OwnerID, CreateAttemptRequest{RunnerID: "verifier", AgentName: item.AssignedAgent, RequestID: j.RequestID, ExpectedPredecessorID: intent.SourceReviewAttemptID}); err == nil {
 						t.Fatal("verifier bypassed native delivery predecessor")
 					}
 					verifier, err := svc.CreateAttempt(ctx, item.ID, intent.OwnerID, CreateAttemptRequest{RunnerID: "verifier", AgentName: item.AssignedAgent, RequestID: j.RequestID, ExpectedPredecessorID: att.ID})

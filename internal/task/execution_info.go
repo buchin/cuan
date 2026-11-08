@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
 )
@@ -89,12 +90,21 @@ func diagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic {
 	return d
 }
 
-func (s *Service) ExecutionInfo(ctx context.Context, taskID string) (*ExecutionInfo, error) {
+func (s *Service) ExecutionInfo(ctx context.Context, taskID string, selectedAttempt ...string) (*ExecutionInfo, error) {
 	t, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 	a, err := s.store.GetLatestAttempt(ctx, taskID)
+	if len(selectedAttempt) > 0 && selectedAttempt[0] != "" {
+		a, err = s.store.GetAttempt(ctx, selectedAttempt[0])
+		if errors.Is(err, ErrAttemptNotFound) {
+			return nil, ErrTaskNotFound
+		}
+		if err == nil && (a == nil || a.TaskID != taskID) {
+			return nil, ErrTaskNotFound
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -685,7 +685,7 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 				if err != nil {
 					return nil, err
 				}
-				if release != nil && req.ExpectedPredecessorID != release.SourceAttemptID {
+				if release != nil && req.ExpectedPredecessorID != release.SourceReviewAttemptID {
 					return nil, ErrRequestConflict
 				}
 			}
@@ -750,7 +750,7 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 					return nil, releaseErr
 				}
 				if release != nil {
-					if release.SourceAttemptID != req.ExpectedPredecessorID {
+					if release.SourceReviewAttemptID != req.ExpectedPredecessorID {
 						return nil, ErrRequestConflict
 					}
 					if err := ValidateNativeReleaseSource(ctx, s.store, t, release); err != nil {

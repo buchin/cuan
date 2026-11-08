@@ -232,10 +232,10 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		return finish("stopped", staleInspectionLaunchReason)
 	}
 	if nativeRelease != nil {
-		if detail.LatestAttempt == nil || detail.LatestAttempt.ID != nativeRelease.SourceAttemptID || task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &detail.Task, nativeRelease) != nil {
+		if detail.LatestAttempt == nil || detail.LatestAttempt.ID != nativeRelease.SourceReviewAttemptID || task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &detail.Task, nativeRelease) != nil {
 			return finish("stopped", "The native release source changed or is unavailable.")
 		}
-		_, err := s.taskSvc.CreateAttempt(ctx, detail.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: nativeRelease.SourceAttemptID})
+		_, err := s.taskSvc.CreateAttempt(ctx, detail.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: nativeRelease.SourceReviewAttemptID})
 		if err != nil {
 			if errors.Is(err, task.ErrRequestConflict) || errors.Is(err, task.ErrInvalidTaskInput) {
 				return finish("stopped", "The native release source is no longer current.")

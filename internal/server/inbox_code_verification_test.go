@@ -64,7 +64,7 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			if err != nil || after.Status == task.TaskStatusDone {
 				t.Fatalf("code accepted without independent execution: %v %s", err, out)
 			}
-			launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, row.CommitSHA)))
+			launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, row.CommitSHA, d.LatestAttempt.ID)))
 			if ready {
 				if err != nil || launch == nil || launch.State != "queued" {
 					t.Fatalf("first attempt did not schedule verifier: %v %+v %s", err, launch, out)

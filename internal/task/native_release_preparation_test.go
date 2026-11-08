@@ -24,7 +24,7 @@ func TestNativeReleasePreparationPreservesSourceTargetAndRejectsForgedRecords(t 
 			must(err)
 			_, err = svc.ClaimLaunch(ctx, time.Now(), "dispatcher", saved.ID)
 			must(err)
-			att, err := svc.CreateAttempt(ctx, item.ID, "owner", CreateAttemptRequest{RunnerID: "native", AgentName: launch.AgentID, RequestID: launch.RequestID, ExpectedPredecessorID: source.ID})
+			att, err := svc.CreateAttempt(ctx, item.ID, "owner", CreateAttemptRequest{RunnerID: "native", AgentName: launch.AgentID, RequestID: launch.RequestID, ExpectedPredecessorID: intent.SourceReviewAttemptID})
 			must(err)
 			started := time.Now().UTC()
 			att.Status = AttemptStatusRunning

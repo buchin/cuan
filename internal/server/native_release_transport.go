@@ -2,12 +2,15 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/runner"
@@ -51,6 +54,15 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	}
 	prepared, err := s.ensureNativeReleasePreparation(r.Context(), d.ID, attemptID, input.RunnerID)
 	if err != nil {
+		if errors.Is(err, git.ErrMergeConflict) {
+			event := &task.TaskActivity{ID: "native-release-merge-conflict:" + attemptID, TaskID: d.ID, AttemptID: &attemptID, ActivityType: "native_release_preparation_failed", Author: "cuan-native-release", Message: "source_merge_conflict", CreatedAt: time.Now().UTC()}
+			if err := s.taskSvc.Store().CreateActivity(r.Context(), event); err != nil {
+				respondJSONError(w, 503, "Native preparation diagnosis could not be saved")
+				return
+			}
+			respondJSON(w, 409, map[string]string{"error": "Reviewed source conflicts with the release branch; reconcile source before requesting a new release", "code": "source_merge_conflict"})
+			return
+		}
 		respondJSONError(w, 409, "Native release source publication or preparation could not be verified")
 		return
 	}

@@ -18,6 +18,8 @@ type MergeBranchRequest struct {
 	Owner, Repo, BaseBranch, SourceCommit, Message, Token string
 }
 
+var ErrMergeConflict = errors.New("reviewed source conflicts with the current target branch")
+
 func (c *Client) MergeBranch(ctx context.Context, req MergeBranchRequest) (*MergePullRequestResult, error) {
 	if req.Owner == "" || req.Repo == "" || req.BaseBranch == "" || !IsCommitHash(req.SourceCommit) || strings.TrimSpace(req.Token) == "" {
 		return nil, errors.New("registered repository, target branch, exact source and saved access are required")
@@ -48,6 +50,9 @@ func (c *Client) MergeBranch(ctx context.Context, req MergeBranchRequest) (*Merg
 		return nil, errors.New("branch merge was not confirmed; reconcile current repository state before retrying")
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusConflict {
+		return nil, ErrMergeConflict
+	}
 	if response.StatusCode == http.StatusNoContent {
 		if sha, contained, observeErr := c.observeMergedSource(ctx, req); observeErr == nil && contained {
 			return &MergePullRequestResult{Merged: true, SHA: sha, Message: "Exact source observed in registered branch"}, nil

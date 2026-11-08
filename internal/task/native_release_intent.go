@@ -13,6 +13,7 @@ import (
 
 const NativeReleaseIntentMarker = "Cuan native-release intent v1: "
 const ActivityNativeReleaseHandoff = "native_release_handoff"
+const NativeReleaseMergeConflictMessage = "Native release source has confirmed merge conflicts with the current release branch. Reconcile the approved source against the latest branch in a developer session, preserve unrelated work and release gates, rerun required checks and independent source review, then publish only the new reviewed source. The release script was not started."
 
 // NativeReleaseHandoff is produced by completion validation, never by agent
 // reports. It records unfinished publication, not a successful deployment.
@@ -31,6 +32,7 @@ type NativeReleaseHandoff struct {
 // NativeReleaseIntent binds one durable release stage to a verified source
 // handoff. Parsing this value grants neither original authorization nor access.
 type NativeReleaseIntent struct {
+	SourceReviewAttemptID  string `json:"source_review_attempt_id,omitempty"`
 	SourceAttemptID        string `json:"source_attempt_id"`
 	SourceCommit           string `json:"source_commit"`
 	SourceVerificationHash string `json:"source_verification_hash"`
@@ -44,7 +46,7 @@ type NativeReleaseIntent struct {
 }
 
 func NativeReleaseRequestID(taskID, source string) string {
-	return verificationRequestID("native-release:v1:", taskID, source)
+	return verificationRequestID("native-release:v2:", taskID, source)
 }
 
 func NativeReleaseIntentForLaunch(t *Task, j *TaskLaunch) (*NativeReleaseIntent, error) {
@@ -68,7 +70,11 @@ func NativeReleaseIntentForLaunch(t *Task, j *TaskLaunch) (*NativeReleaseIntent,
 	var p NativeReleaseIntent
 	decoder := json.NewDecoder(strings.NewReader(line))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&p) != nil || decoder.Decode(&struct{}{}) != io.EOF || !nativeReleaseShape(t, &p) || j.InstructionsHash != p.InstructionsHash || j.TaskID != t.ID || j.ProjectID != t.ProjectID || j.OwnerID != p.OwnerID || j.RoomID != p.RoomID || j.SourceRequestID != p.SourceRequestID || j.RequestID != NativeReleaseRequestID(t.ID, p.SourceCommit) {
+	if decoder.Decode(&p) != nil || decoder.Decode(&struct{}{}) != io.EOF || !nativeReleaseShape(t, &p) || j.InstructionsHash != p.InstructionsHash || j.TaskID != t.ID || j.ProjectID != t.ProjectID || j.OwnerID != p.OwnerID || j.RoomID != p.RoomID || j.SourceRequestID != p.SourceRequestID {
+		return nil, ErrInvalidTaskInput
+	}
+	legacyRequest := verificationRequestID("native-release:v1:", t.ID, p.SourceCommit)
+	if j.RequestID != NativeReleaseRequestID(t.ID, p.SourceCommit) && !(p.SourceReviewAttemptID == "" && j.RequestID == legacyRequest) {
 		return nil, ErrInvalidTaskInput
 	}
 	return &p, nil
@@ -107,12 +113,58 @@ func ValidateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	return validateNativeReleaseSource(ctx, store, t, p, true)
 }
 
+// ValidateNativeDeveloperHandoff admits only read-only source verification. It
+// cannot authorize publication. A terminal observation can retain the exact
+// developer source for read-only verification without replaying development.
+func ValidateNativeDeveloperHandoff(ctx context.Context, store Store, t *Task, p *NativeReleaseIntent) error {
+	if t == nil || p == nil || (t.Status != TaskStatusReview && t.Status != TaskStatusBlocked) || p.SourceReviewAttemptID != "" {
+		return ErrInvalidTaskInput
+	}
+	latest, err := store.GetLatestAttempt(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	if latest == nil {
+		return ErrRequestConflict
+	}
+	if latest.ID != p.SourceAttemptID {
+		// An older dispatcher may have inspected the current release instead of
+		// this handoff after a verifier-ID collision. Its terminal observation is
+		// not implementation work or source approval. Recover only its exact
+		// retained developer source into a fresh read-only source verification.
+		if latest.CancelRequested || latest.CanceledAt != nil || latest.FinishedAt == nil || (latest.Status != AttemptStatusSucceeded && latest.Status != AttemptStatusFailed) {
+			return ErrRequestConflict
+		}
+		inspection, err := LiveInspectionForAttempt(ctx, store, t, latest.ID)
+		if err != nil || inspection == nil || inspection.Purpose != CurrentOutcomeInspection || inspection.SourceAttemptID != p.SourceAttemptID || inspection.SourceCommit != p.SourceCommit || inspection.OwnerID != p.OwnerID || inspection.RoomID != p.RoomID || inspection.SourceRequestID != p.SourceRequestID || inspection.Repository != p.Repository || inspection.SourceVerifierAttemptID != "" || inspection.PreparedPublicationAttemptID != "" || ValidateLiveInspectionSource(ctx, store, t, inspection) != nil {
+			return ErrRequestConflict
+		}
+	} else if t.Status != TaskStatusReview {
+		return ErrInvalidTaskInput
+	}
+	return validateNativeReleaseSource(ctx, store, t, p, false)
+}
+
 // Historical delivery validation checks the same source evidence without
 // pretending its completed native stage is still queued/running. This grants
 // no new execution admission; current-stage validation retains the latest gate.
 func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *NativeReleaseIntent, requireLatest bool) error {
 	if !nativeReleaseShape(t, p) || t.CommitSHA != p.SourceCommit || (requireLatest && t.Status == TaskStatusDone) || t.Status == "cancelled" || t.Status == "canceled" || t.ExecutionCategory != ExecutionCategoryCode {
 		return ErrInvalidTaskInput
+	}
+	// Legacy records remain readable as history, never as fresh release grants.
+	if requireLatest && p.SourceReviewAttemptID == "" {
+		return ErrInvalidTaskInput
+	}
+	if p.SourceReviewAttemptID != "" {
+		review, err := NativeSourceReviewForAttempt(ctx, store, t, p.SourceReviewAttemptID)
+		if err != nil || review == nil || review.SourceAttemptID != p.SourceAttemptID || review.SourceCommit != p.SourceCommit || review.InstructionsHash != p.InstructionsHash {
+			return ErrInvalidTaskInput
+		}
+		origin, err := VerificationIntentForAttempt(ctx, store, t, p.SourceReviewAttemptID)
+		if err != nil || origin == nil || origin.OwnerID != p.OwnerID || origin.RoomID != p.RoomID || origin.SourceRequestID != p.SourceRequestID {
+			return ErrInvalidTaskInput
+		}
 	}
 	source, err := store.GetAttempt(ctx, p.SourceAttemptID)
 	if err != nil {
@@ -125,7 +177,7 @@ func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	if latest == nil {
 		return ErrInvalidTaskInput
 	}
-	if requireLatest && latest.ID != p.SourceAttemptID {
+	if requireLatest && latest.ID != p.SourceReviewAttemptID {
 		if latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusQueued && latest.Status != AttemptStatusRunning) {
 			return ErrRequestConflict
 		}

@@ -100,6 +100,9 @@ func (s *Server) ensureNativeReleasePreparation(ctx context.Context, taskID, att
 		return nil, errors.New("native source authorization changed after push")
 	}
 	merged, err := s.projectSvc.ApplyNativeReleaseSource(ctx, d.ProjectID, d.Instructions, intent.Repository, intent.TargetBranch, intent.SourceCommit)
+	if errors.Is(err, git.ErrMergeConflict) {
+		return nil, err
+	}
 	if err != nil || merged == nil || !merged.Merged || !git.IsCommitHash(merged.SHA) {
 		return nil, errors.New("native merge outcome not confirmed; reconcile remote branch before retrying")
 	}

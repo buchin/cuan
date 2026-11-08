@@ -351,6 +351,22 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 			}
 			return nil, errors.New("Saved task project context is unavailable")
 		}
+		if nativeRelease == nil && verification == nil && inspection == nil && t.ExecutionCategory == task.ExecutionCategoryCode && !limits.ReadOnlyRepository && p.RepoURL != "" {
+			if refresher, ok := s.projectFinder.(interface {
+				RefreshExecutionBase(context.Context, *project.ProjectResponse) error
+			}); ok {
+				// Refresh only the registered remote-tracking ref. The runner pins
+				// it when resuming its private branch; retained files and commits
+				// remain untouched, including unresolved conflict state.
+				if err := refresher.RefreshExecutionBase(ctx, p); err != nil {
+					_, finishErr := s.Complete(ctx, att.ID, CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "The registered project baseline could not be refreshed; saved work is preserved and no provider execution was started"})
+					if finishErr != nil {
+						return nil, finishErr
+					}
+					return nil, errors.New("Registered project baseline is unavailable")
+				}
+			}
+		}
 		resp.ProjectRepo = fmt.Sprintf("%s/%s", p.RepoOwner, p.RepoName)
 		resp.RepoOwner = p.RepoOwner
 		resp.RepoName = p.RepoName

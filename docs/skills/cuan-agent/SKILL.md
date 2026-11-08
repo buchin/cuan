@@ -230,6 +230,14 @@ execution, deployment or acceptance. The command never starts or retries work.
 Legacy attempts without a saved launch are reported as legacy, not reconstructed
 from report prose. Bound workers continue to use their scoped task reads.
 
+Use `cuan task execution TASK_ID --attempt ATTEMPT_ID` to inspect an earlier dev,
+verifier or release session after another stage has become current. The server
+requires that attempt to belong to the selected task; missing/foreign attempts
+never fall back to the latest. The CLI rejects an unrelated returned attempt,
+including older servers that ignore the selector. Historical results omit the
+current live-inspection plan. `latest_launch` still describes current admission,
+separately from the selected attempt. This read does not revive or authorize work.
+
 `latest_launch` separately describes the newest admission request, which can stop
 before an attempt exists. Its fixed `validation_code` identifies failed intent
 checks without exposing scope prose, member identity or credentials. It does not

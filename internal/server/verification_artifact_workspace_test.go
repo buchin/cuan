@@ -39,7 +39,7 @@ func TestVerifierArtifactRootUsesExactSnapshotWithoutDeveloperFallback(t *testin
 	verificationFollowupQueueContract(t, s, d, q, commit)
 	store := s.taskSvc.Store()
 	store.DeleteTask(ctx, "busy")
-	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, commit)))
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, commit, d.LatestAttempt.ID)))
 	if err != nil {
 		t.Fatal(err)
 	}
