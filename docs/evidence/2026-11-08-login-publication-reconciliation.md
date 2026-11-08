@@ -1,5 +1,34 @@
 # Login task publication reconciliation
 
+## Follow-up: native integration routing
+
+Production release `05ddfda771eccd5679c55e00278947ccdd08873e` passed the
+official exact-SHA health check. Task acceptance remains unproven.
+
+A regression fixture reproduced an actual routing defect: with bound independent
+source proof, a native failed check on the unchanged running release, unknown
+Git ancestry and original write/deploy permission, a PM `revise / implementation /
+replan` assessment was converted to `verification`. The classifier previously
+recognized implementation only when its revision began with native internal
+wording. Native facts now classify the PM continuation and normalize its revision;
+reapplying the guard preserves the exact normalized revision. Owner input,
+forbidden scope, changed running releases and known containment remain excluded.
+
+Targeted source-review, integration, manager, native-release and execution
+inspection tests passed. The source-review fixture first failed with the old
+behavior, then passed with the correction. The existing bounded correction-review
+queue uses policy v6 to reassess affected saved reviews without rewriting history
+or replaying an original worker. Production automatically started request
+`a3613650-e53f-4f99-a173-d39dcb934bf7` after release; its result still needs
+inspection. No manual task retry or acceptance was used.
+
+Review contract logs now retain sanitized decision enums before guards run.
+Unexpected values become `unknown`; private review prose is not logged. This
+allows a subsequent routing contradiction to be traced without guessing the raw
+PM category from the already-normalized saved assessment.
+
+## Earlier observations
+
 Production code: `c58ee4eeaaf9b8fa26aaf17750d9a0d3f19393c4`, healthy with 37
 migrations after the official release command. This task remains incomplete.
 
