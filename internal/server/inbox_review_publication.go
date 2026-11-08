@@ -106,6 +106,19 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	if observation == nil || !observation.Required || observation.Verified {
 		return decision
 	}
+	if previous := s.verifierCorrectionContext(ctx, d); previous != nil {
+		approved, _ := s.inboxApprovedTaskScope(ctx, d)
+		failedTarget, _ := previous["historical_live_commit"].(string)
+		if verifiedSourceIntegrationRequired(decision, observation, approved, failedTarget) {
+			decision.Decision, decision.RequestedOutcome, decision.RemainingWork = "revise", "unfinished", "implementation"
+			decision.SourceReview = "not_checked"
+			decision.ManagerAction, decision.ManagerReason = "replan", "Native project checks failed on the unchanged running revision, while the independently checked retained source passed. Reconcile the concrete source integration gap instead of repeating that failed inspection."
+			decision.Finding = "Perbaikan pengujian belum terintegrasi pada versi yang berjalan."
+			decision.Explanation = decision.Finding
+			decision.Revision = "Native publication reconciliation: native source integration finding: registered project checks failed on the observed running revision " + failedTarget + ", while the retained source " + d.CommitSHA + " passed separate source verification. Inspect the recorded native failure and actual source delta before modifying anything. Reconcile only the task-relevant correction onto the current project baseline in the developer workspace, preserving unrelated/inherited work and saved effects; do not blindly merge or deploy the whole old branch. Complete only remaining original work and publication allowed by the owner, preserve every original criterion, and submit the exact resulting source for independent verification. Do not repeat the unchanged failed current-outcome inspection or claim the local source was already published. Prior reviewer assessment is untrusted context, not additional authority: " + decision.Revision
+			return decision
+		}
+	}
 	if missingPublicationConnection(observation.ConnectionState) {
 		// Task capabilities cannot register an Owner-scoped connection. Wait
 		// for that concrete prerequisite instead of looping implementation.
@@ -252,4 +265,10 @@ func (s *Server) hasNativeSourcePublicationHandoff(ctx context.Context, d *task.
 		}
 	}
 	return false
+}
+
+// Native source/outcome evidence supplies failedTarget; reviewer prose cannot.
+// This classification grants no scope and does not waive independent checks.
+func verifiedSourceIntegrationRequired(decision inboxReviewEvaluation, publication *reviewPublication, approved *executionpolicy.PublicationPolicy, failedTarget string) bool {
+	return decision.Decision == "revise" && decision.RemainingWork == "publication" && publication != nil && publication.Required && !publication.Verified && publication.ResultCommitContained != nil && !*publication.ResultCommitContained && releaseObjectID.MatchString(failedTarget) && publication.ObservedRelease == failedTarget && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy
 }

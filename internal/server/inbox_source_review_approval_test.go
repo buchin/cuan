@@ -70,7 +70,7 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		must(s.taskSvc.FinishLaunch(ctx, job.ID, "source-review-launch", "stopped", time.Now(), "Execution finished"))
 		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
 		must(err)
-		key := "task-review:" + d.LatestAttempt.ID + ":verifier-correction-v1:" + inboxReviewEvidenceDigest(d)
+		key := "task-review:" + d.LatestAttempt.ID + ":verifier-correction-v2:" + inboxReviewEvidenceDigest(d)
 		review := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: d.SourceRoomID, RequestID: delegationMessageID(key), MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour), State: "queued", PayloadHash: delegationMessageID(key)}
 		_, _, e := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, review, &db.ProjectMessage{ID: review.MessageID, RoomID: review.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: inboxOwnershipPolicy + "\nReview [/tasks/" + d.ID + "].", CreatedAt: review.CreatedAt})
 		must(e)

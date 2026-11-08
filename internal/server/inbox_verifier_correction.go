@@ -8,7 +8,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxVerifierCorrectionPolicy = "Verified implementation correction: v1"
+const inboxVerifierCorrectionPolicy = "Verified implementation correction: v2"
 
 // A verifier never gains write permission. A saved PM assessment may instead
 // admit a separate developer continuation within the original owner's scope.
