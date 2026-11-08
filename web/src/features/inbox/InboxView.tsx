@@ -1580,7 +1580,8 @@ export function InboxView({
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
                 if (!msg.regenerate_reply_id && !backgroundWork) previousBubbleMessage = msg
                 const hasSpeech = !backgroundWork && withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
-                const showMessageSurface = !backgroundWork && !msg.regenerate_reply_id && (hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage)) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.prompt_choices))
+                const hasBubbleContent = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage) && msgContent.trim().length > 0) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product)
+                const showMessageSurface = !backgroundWork && !msg.regenerate_reply_id && (hasBubbleContent || !!msg.prompt_choices)
                 const onlyImages = msg.attachments?.length
                   ? msg.attachments.every(isImageAttachment)
                   : !!msg.attachment_url && isImageAttachment({ name: msg.attachment_name || '', type: msg.attachment_type })
@@ -1648,6 +1649,7 @@ export function InboxView({
                         run: () => setEscalatingMessage(msg),
                       }] : []),
                     ]}>
+                    {hasBubbleContent && (
                     <div
                       data-bubble-tail={groupStart && hasSpeech ? (isOutgoing ? 'outgoing' : 'incoming') : undefined}
                       className={cn(
@@ -1725,17 +1727,6 @@ export function InboxView({
                             textareaRef.current?.focus()
                           }}
                           onDefer={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}
-                        />
-                      )}
-
-                      {(isAgentMessage || (msg.author_type === 'agent' && msg.is_internal === true)) && msg.prompt_choices && (
-                        <PromptChoiceChips
-                          prompt={msg.prompt_choices}
-                          onOther={() => {
-                            if (activeContact.type === 'customer') setWhisperMode(true)
-                          }}
-                          disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
-                          onSelect={(option) => handleSendMessage(undefined, undefined, undefined, activeContact.type === 'customer' ? '@cuan ' + option.label : option.label)}
                         />
                       )}
 
@@ -1824,6 +1815,18 @@ export function InboxView({
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
                     </div>
+                    )}
+                    {(isAgentMessage || (msg.author_type === 'agent' && msg.is_internal === true)) && msg.prompt_choices && (
+                      <PromptChoiceChips
+                        prompt={msg.prompt_choices}
+                        onOther={() => {
+                          if (activeContact.type === 'customer') setWhisperMode(true)
+                        }}
+                        disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
+                        onSelect={(option) => handleSendMessage(undefined, undefined, undefined, activeContact.type === 'customer' ? '@cuan ' + option.label : option.label)}
+                        className={hasBubbleContent ? 'mt-2.5' : 'mt-0.5'}
+                      />
+                    )}
                     </ItemActions>}
                       {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (linkedTasksForMsg.length ? linkedTasksForMsg : [undefined]).filter(task => activeContact.type !== 'agent' || !task).map(linkedTask => (
                         <InboxTaskAction
