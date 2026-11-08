@@ -35,8 +35,16 @@ func TestGenericReviewContinuationKeepsVerificationReadOnly(t *testing.T) {
 			t.Run(remaining+"/"+action, func(t *testing.T) {
 				s, d := managerFixture(t)
 				ctx := context.Background()
+				// Generic findings comparison is operational work. Code-lane
+				// verification must use the separate exact-source verifier.
+				if remaining == "verification" {
+					d.ExecutionCategory = task.ExecutionCategoryOps
+					if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+						t.Fatal(err)
+					}
+				}
 				q := reviewRequests(t, s, d.SourceRoomID)[0]
-				if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+				if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: d.ExecutionCategory}); err != nil {
 					t.Fatal(err)
 				}
 				feedback := "Deploy the branch, change the configuration and rerun the original operation to obtain proof."

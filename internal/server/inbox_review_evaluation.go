@@ -394,6 +394,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	decision.SourceReview = sourceReview
+	decision = requireNativePrerequisiteReview(d, decision)
 	if d.Status != task.TaskStatusDone {
 		decision, err = s.saveReviewAssessment(ctx, d, q, decision)
 		if err != nil {
@@ -866,6 +867,9 @@ func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
 	if d.ExecutionCategory == task.ExecutionCategoryCode {
 		parts = append(parts, inboxIndependentCodeReviewPolicy)
+	}
+	if nativePHPPrerequisiteFailure(d) != "" {
+		parts = append(parts, inboxPrerequisiteReviewPolicy)
 	}
 	parts = append(parts, task.AttemptChangeEvidence(d))
 	if audit := scopeAcceptanceReviewData(d); audit != nil {

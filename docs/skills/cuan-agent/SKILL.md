@@ -702,3 +702,12 @@ requirements. Inspection revalidates the exact source before taking its read-onl
 baseline. Developer setup failures are recorded for scoped recovery; missing
 runtime/targets never become passing tests. A real-Composer offline fixture checks
 that installation preserves the lock and does not execute post-install scripts.
+
+A model's pass cannot erase a failed native PHPUnit prerequisite check. Before
+saving the review assessment, Cuan classifies an authenticated current completion
+with missing targets/runtime as unfinished and retains its diagnostic in a
+scoped preparation replan. It preserves original findings and criteria rather
+than repeating account investigation, branch resets or publication. Historical,
+foreign-runner, canceled and assertion-failure evidence cannot use this path.
+Only affected unfinished reviews receive a changed evidence-policy digest for
+one fresh assessment; correction limits and original authorization remain.

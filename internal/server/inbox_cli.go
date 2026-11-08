@@ -246,6 +246,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if coordinator {
 		system += "\nCuan platform state is supplied by the backend in this request context. Account/workspace MCP servers are unavailable in chat. Use the supplied task/room/project evidence and validated coordinator actions; never ask for an Owner API token or attempt to configure a global Cuan connection. Missing snapshot evidence is uncertainty, not proof of absence.\n"
 	}
+	if toolFreeReview {
+		system += "\nThis is a tool-free evaluation of the supplied snapshot. All necessary saved guidance and evidence are already included as data. Do not read AGENTS.md, files, repositories, account sessions, MCP tools or search sources to initialize this stage. Return only the evaluation JSON; the native finish/format-response operation is the only allowed provider tool. Missing facts must be reported as gaps for the coordinator, not investigated in this review turn.\n"
+	}
 	input := inboxResponseInput{PromptBytes: len(system), ContextBytes: len(prompt)}
 	if formatRepair {
 		input.ContextBytes = 0
