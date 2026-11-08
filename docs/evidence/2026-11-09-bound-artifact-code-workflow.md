@@ -141,3 +141,16 @@ also failed on unchanged HEAD: it requested operational verification without a
 source commit while labelled code. The fixture now explicitly uses the ops lane
 and holds that same lane; the existing no-owner-deflection assertions stay intact.
 This correction is not yet deployed and production resumption is unproven.
+
+## Production admission after recovery repair
+
+Release `04a1ddf1036a5676b820a6b79f57153b7f32a76c` completed successfully
+with exact-SHA production health and 37 migrations. Native recovery admitted
+attempt `att_24272c99da0e24d3c15763685c3355b8`, claimed at
+`2026-11-09T03:35:30.231776+08:00`, without a manual task retry or acceptance.
+The official execution diagnostic reports implementation intent, repository writes
+and branch push allowed, deployment denied. The task remains doing, not Done.
+This proves separate developer admission only; retained-work reuse, final source
+quality and independent verification remain unproven. Early terminal activity
+still inspects prior native visual-check machinery, so routing admission alone
+must not be reported as successful end-to-end recovery or efficient execution.
