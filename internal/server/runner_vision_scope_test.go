@@ -19,6 +19,8 @@ func TestInspectionVisionUsesOriginalScopeInsteadOfGenericTransport(t *testing.T
 		{"backend no UI", "Add quota regression tests. Tidak ada perubahan UI, konfigurasi, push, PR, atau deployment.", nil, true, false},
 		{"negative criterion list", "Add quota regression tests", []task.DoDItem{{Text: "Tidak ada push, PR, deploy, perubahan konfigurasi, perubahan UI, atau pesan keluar."}}, true, false},
 		{"english no UI", "Add quota tests without UI changes", nil, true, false},
+		{"artifact backend restriction", "Backend/CLI/MCP saja tanpa modifikasi UI, tanpa mengubah/menghapus data pengguna.", nil, true, false},
+		{"modification restriction with visual audit", "Tanpa modifikasi UI; periksa tampilan halaman inbox", nil, true, true},
 		{"command help display", "Flag sentinel bocor ke output --help, mengotori tampilan.\nTidak ada perubahan UI, dependency baru, atau modul lain.", nil, true, false},
 		{"terminal text criterion", "Fix CLI help output", []task.DoDItem{{Text: "Tampilan bantuan CLI bersih tanpa karakter kontrol"}}, true, false},
 		{"command then actual UI", "Clean terminal output.\nPerbaiki tampilan halaman settings", nil, true, true},

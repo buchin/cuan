@@ -119,7 +119,7 @@ var originalVisualScope = regexp.MustCompile(`(?i)\b(?:ui|ux|frontend|front-end|
 // Remove only explicit mutation prohibitions, not visual inspection duties.
 // The bounded list vocabulary also covers "no push, deploy, or UI changes"
 // without swallowing a later request to inspect the UI.
-var visualMutationProhibition = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak ada|jangan|dilarang|do not|don't|never)\s+(?:(?:push|pr|deploy|deployment|perubahan konfigurasi|configuration changes?)(?:\s*,\s*|\s+(?:or|and|atau|dan)\s+))*(?:(?:perubahan|ubah|mengubah|change|changes? to|modify|edit)\s+(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\s+changes?\b)`)
+var visualMutationProhibition = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak ada|jangan|dilarang|do not|don't|never)\s+(?:(?:push|pr|deploy|deployment|perubahan konfigurasi|configuration changes?)(?:\s*,\s*|\s+(?:or|and|atau|dan)\s+))*(?:(?:perubahan|modifikasi|ubah|mengubah|change|changes? to|modify|edit)\s+(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\s+changes?\b)`)
 
 var commandOutputScope = regexp.MustCompile(`(?i)--help\b|\b(?:cli|command-line|terminal|stdout|stderr)\b`)
 var webOutputScope = regexp.MustCompile(`(?i)\b(?:halaman|page|browser|web|component|komponen|panel)\b`)

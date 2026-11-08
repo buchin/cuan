@@ -163,3 +163,16 @@ attachment ID; the earlier partial-response and symlink-write cases still fail.
 These are interim-source findings, not findings against a final developer commit.
 Run all `^TestIndependentArtifact` tests against the exact handoff before drawing
 any acceptance conclusion. No task data, worker source or task acceptance changed.
+
+## Backend scope falsely classified as visual work
+
+The original task includes “Backend/CLI/MCP saja tanpa modifikasi UI”. Native
+inspection classification stripped “tanpa perubahan UI” but did not recognize
+“tanpa modifikasi UI”, leaving the UI keyword as a positive visual requirement.
+A regression using that actual scope fails before correction (`vision=true`).
+The existing bounded mutation-prohibition matcher now recognizes `modifikasi`.
+A paired case still requires visual evidence for “Tanpa modifikasi UI; periksa
+tampilan halaman inbox”; actual read-only visual duties must not disappear.
+The full inspection-scope table, capture-restriction and original screenshot
+requirement tests pass. This changes evidence classification, not task acceptance,
+source checks, original authorization or the running developer's current claim.
