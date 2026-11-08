@@ -124,6 +124,28 @@ func observeManagedReleaseSource(ctx context.Context, root, commit, branch, summ
 	return &ManagedReleaseSource{Commit: description.Commit, Branch: description.Branch, ManifestHash: description.ManifestHash, VerificationHash: task.VerificationSummaryHash(summary)}, nil
 }
 
+// A resumed developer must reconcile the baseline supplied for this execution,
+// rather than repeatedly submitting an old checkpoint for the same merge failure.
+// Publication may still merge newer remote changes after independent review.
+func (r *Runner) verifyManagedDeveloperBaseline(ctx context.Context, workspace *git.TaskWorkspace) error {
+	const gap = "Native developer source does not include the pinned current project baseline. Reconcile the approved changes with that baseline on the private task branch, resolve local conflicts while preserving unrelated work and release gates, then report a clean updated checkpoint for independent review. Do not repeat an unchanged source handoff."
+	if workspace == nil || workspace.BaseCommit == "" || r.gitClient == nil {
+		return errors.New("Native developer baseline is unavailable; saved work is preserved and no source handoff was accepted")
+	}
+	head, err := r.gitClient.GetLatestCommitSHA(ctx, workspace.Path)
+	if err != nil {
+		return errors.New("Native developer checkpoint is unavailable; saved work is preserved")
+	}
+	contained, err := r.gitClient.CommitContained(ctx, workspace.Path, workspace.BaseCommit, head)
+	if err != nil {
+		return errors.New("Native developer baseline ancestry could not be verified; saved work is preserved")
+	}
+	if !contained {
+		return errors.New(gap)
+	}
+	return nil
+}
+
 func validateManagedReleaseSource(binding *ManagedReleaseClaim, req CompleteAttemptRequest) error {
 	source := req.ManagedReleaseSource
 	if source == nil {

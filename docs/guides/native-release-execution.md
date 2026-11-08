@@ -89,6 +89,26 @@ retry a merge, rewrite the source approval or execute the release script. A
 developer must reconcile only the approved source with the current branch and
 obtain fresh checks and independent review for the resulting checkpoint.
 
+Ordinary repository developer claims refresh the registered project branch ref
+through the saved repository connection before returning execution context. The
+private task branch still resumes in place and pins that imported baseline;
+refreshing does not check out source files, reset commits or resolve conflicts.
+Read-only verification, inspection, operational and native release stages keep
+their exact-source protocols and do not refresh a developer baseline. A failed
+refresh stops the claim before provider execution and retains saved work.
+
+Managed-release developers own local reconciliation with that baseline, including
+local task-branch merge/rebase and conflict resolution when original scope allows
+commits. They cannot change the shared branch, push, open PRs or deploy. Remote
+merge and publication remain native stages after independent source review.
+Before running project checks for a managed developer handoff, the runner verifies
+that the resulting commit contains the pinned baseline supplied for that session.
+An unchanged older branch or unverifiable ancestry fails with a concrete local
+reconciliation gap, before another source-verifier cycle. This read ignores Git
+replacement/graft ancestry and does not modify the task branch. Remote changes
+after session admission still go through native merge and target verification;
+the pinned baseline is not a claim that the release branch can never advance.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.
