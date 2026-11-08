@@ -691,3 +691,14 @@ verification record retains this diagnosis even when no test ran. Missing tests
 in the current source do not authorize inventing replacement tests or waiving
 checks; missing runtime dependencies require preparation in the approved private
 workspace. Neither condition alone proves publication or feature failure.
+
+Registered PHPUnit work now prepares Composer dependencies before model execution
+in private developer workspaces and read-only live-inspection snapshots. Setup
+uses the saved `composer.lock`, credential-free HTTPS archives, ignored private
+`vendor/`, and a temporary Composer home/cache without ambient auth. Composer
+scripts and plugins are disabled; no dependency update is performed. Custom
+repositories or nonstandard vendor paths remain explicit project preparation
+requirements. Inspection revalidates the exact source before taking its read-only
+baseline. Developer setup failures are recorded for scoped recovery; missing
+runtime/targets never become passing tests. A real-Composer offline fixture checks
+that installation preserves the lock and does not execute post-install scripts.

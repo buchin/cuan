@@ -985,6 +985,21 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			prompt += "\nFrontend preparation: the runner checked known npm roots and prepared any present locked public dependencies in this private workspace without lifecycle scripts. Prefer local tools and the supplied browser runtime. Do not borrow node_modules from another workspace. A project-specific lifecycle step may still be required: inspect its scripts and execution scope before running it. Preparation alone is not proof of a successful build or visual verification.\n"
 		}
 	}
+	if err == nil && claim.PHPUnitTargets != "" && ((!policy.ReadOnlyRepository && ws != nil) || claim.LiveInspection != nil) {
+		r.streamLogLine(ctx, att.ID, "system", "Preparing locked PHP dependencies in the private workspace without Composer scripts or plugins.")
+		setupErr := preparePHPDependencies(ctx, workingDir)
+		if claim.LiveInspection != nil {
+			err = setupErr
+			if err == nil {
+				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SnapshotSourceCommit(), claim.LiveInspection.TargetCommit)
+			}
+		} else if setupErr != nil {
+			r.streamLogLine(ctx, att.ID, "system", "Automatic PHP preparation is incomplete: "+setupErr.Error())
+			prompt += "\nAutomatic PHP preparation did not complete. Inspect this project's lock, available runtime and registered test targets. Use project-specific preparation within the original scope; never borrow vendor from another workspace, invent missing tests or waive failed checks. Saved setup diagnostic: " + setupErr.Error() + "\n"
+		} else {
+			prompt += "\nLocked PHP dependencies were prepared in this private workspace without Composer scripts/plugins. This does not prove tests passed; inspect any project-specific bootstrap requirements before verification.\n"
+		}
+	}
 	if claim.Verification != nil && claim.Verification.RuntimeFingerprint != "" && err == nil {
 		evidence := probeBrowserRuntime(ctx)
 		if evidence == nil || evidence.Fingerprint != claim.Verification.RuntimeFingerprint {
