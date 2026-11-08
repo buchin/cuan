@@ -22,6 +22,14 @@ or replaying an original worker. Production automatically started request
 `a3613650-e53f-4f99-a173-d39dcb934bf7` after release; its result still needs
 inspection. No manual task retry or acceptance was used.
 
+That PM request subsequently completed with a saved `revise / implementation /
+replan` assessment and automatically launched developer attempt
+`att_d26ef563e5cb20efeb37d9b0ff156f53` (attempt 12). The official execution
+diagnostic confirms a started ordinary execution with original read/write scope:
+`read_only_repository=false`, `deny_push=false`, `deny_deploy=false`. The new
+developer has begun inspecting the retained repository. This proves production
+handoff recovery, not completed implementation, publication or final acceptance.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
