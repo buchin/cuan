@@ -15,7 +15,89 @@ var (
 	cuanExplicitRoomRegex = regexp.MustCompile(`(?i)\b(?:room|inbox|chat)\s*[:=]?\s*([a-fA-F0-9-]{36})\b`)
 	cuanTaskLinkRegex     = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{6,})`)
 	cuanBareTaskRegex     = regexp.MustCompile(`\b(task_[a-zA-Z0-9_-]{6,}|task-[a-zA-Z0-9_-]{6,}|msg_[a-zA-Z0-9_-]{8,})\b`)
+	viewWorkLinkRegex     = regexp.MustCompile(`(?i)\[View work\]\(\s*(?:https?://[^/\s]+)?/tasks/([a-zA-Z0-9_-]+)/?\s*\)`)
 )
+
+// deduplicateWorkLinks ensures that any [View work](/tasks/<id>) link appears at most once
+// per unique task ID in an agent reply, preserving the first occurrence and retaining links
+// to different tasks.
+func deduplicateWorkLinks(content string) string {
+	matches := viewWorkLinkRegex.FindAllStringSubmatchIndex(content, -1)
+	if len(matches) <= 1 {
+		return content
+	}
+
+	seen := make(map[string]bool)
+	type span struct {
+		start int
+		end   int
+	}
+	var duplicates []span
+
+	for _, m := range matches {
+		taskID := content[m[2]:m[3]]
+		if seen[taskID] {
+			duplicates = append(duplicates, span{start: m[0], end: m[1]})
+		} else {
+			seen[taskID] = true
+		}
+	}
+
+	if len(duplicates) == 0 {
+		return content
+	}
+
+	result := content
+	for i := len(duplicates) - 1; i >= 0; i-- {
+		d := duplicates[i]
+		start := d.start
+		end := d.end
+
+		lineStart := start
+		for lineStart > 0 && result[lineStart-1] != '\n' {
+			lineStart--
+		}
+		lineEnd := end
+		for lineEnd < len(result) && result[lineEnd] != '\n' {
+			lineEnd++
+		}
+
+		isPrefixWS := strings.TrimSpace(result[lineStart:start]) == ""
+		isSuffixWS := strings.TrimSpace(result[end:lineEnd]) == ""
+
+		if isPrefixWS && isSuffixWS {
+			removeStart := lineStart
+			if removeStart > 0 && result[removeStart-1] == '\n' {
+				removeStart--
+				if removeStart > 0 && result[removeStart-1] == '\r' {
+					removeStart--
+				}
+				if removeStart > 0 && result[removeStart-1] == '\n' {
+					removeStart--
+					if removeStart > 0 && result[removeStart-1] == '\r' {
+						removeStart--
+					}
+				}
+			}
+			removeEnd := lineEnd
+			if removeStart == 0 && removeEnd < len(result) && result[removeEnd] == '\n' {
+				removeEnd++
+				if removeEnd < len(result) && result[removeEnd] == '\r' {
+					removeEnd++
+				}
+			}
+			result = result[:removeStart] + result[removeEnd:]
+		} else {
+			removeStart := start
+			if removeStart > 0 && result[removeStart-1] == ' ' {
+				removeStart--
+			}
+			result = result[:removeStart] + result[end:]
+		}
+	}
+
+	return strings.TrimRight(result, " \t\r\n")
+}
 
 func cleanCuanReferenceID(raw string) string {
 	raw = strings.TrimSpace(raw)

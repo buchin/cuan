@@ -27,5 +27,5 @@ func acceptedCustomerTaskResult(d *task.TaskDetailResponse, explanation string) 
 	if draft != "" {
 		body += "\n\n**Customer reply draft:**\n> " + strings.ReplaceAll(draft, "\n", "\n> ")
 	}
-	return body + "\n\n[View work](/tasks/" + d.ID + ")"
+	return deduplicateWorkLinks(body + "\n\n[View work](/tasks/" + d.ID + ")")
 }
