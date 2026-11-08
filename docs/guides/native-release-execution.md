@@ -1,5 +1,38 @@
 # Native release execution
 
+## Required ordering correction (not implemented yet)
+
+The production build-gate benchmark exposed a gap in the current order:
+developer checks can trigger native merge/release before independent source
+review. Candidate `441ca645` added release-check bypasses outside its approved
+scope. Project tests passed, and the release had to be cancelled before activation.
+Passing those tests did not establish scope compliance. The same task was resumed
+for correction; it must not be accepted as an autonomous successful benchmark.
+
+The replacement ordering must preserve these invariants:
+
+- Review the exact developer source independently against the saved original
+  scope before native merge or release. Test fixtures must not authorize new
+  production bypasses. Reviewer execution stays read-only.
+- Bind release admission to both the developer handoff and the successful
+  source-review attempt. A changed SHA, changed authorization, failed review,
+  cancellation or revoked project connection invalidates admission.
+- A passing source review is a stage result, not task acceptance. Preserve
+  incomplete publication and live-behavior criteria. Never infer review success
+  merely from process exit zero or a partial checklist.
+- Publish only the reviewed source through the registered native path, then
+  record fresh post-process revision/health evidence. Perform additional live
+  checks when required by the original task; retain the existing visual gate.
+- Return source defects to the same task's developer. Reconcile publication
+  failures without repeating implementation or replaying uncertain effects.
+- Keep immutable stage identities and evidence separate from retry counts;
+  successful publication/verification stages are not failed developer retries.
+
+Regression coverage must prove rejection before publication for unreviewed,
+changed, cancelled and explicitly rejected source, successful handoff of the
+reviewed source, and preservation of every original acceptance requirement.
+This section specifies pending work; it does not claim that these gates exist.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.
