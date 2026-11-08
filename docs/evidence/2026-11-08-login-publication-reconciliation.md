@@ -349,6 +349,29 @@ Targeted terminal, runner repository/read-only and server account/delegation/
 mutation-rejection tests pass. This fix is not yet deployed; observer four's
 historical failure and single-observer recovery bound remain unchanged.
 
+Release `76b54fe3033ec3042d6273ea9af6c7858e0933fa` passed exact-SHA health
+with 37 migrations. The historical benchmark reached Done automatically after
+five attempts: attempt five `att_e2a7248e9cfd59b4c4148773c8943e06` succeeded,
+delivered a report and native unchanged-repository receipt, then PM request
+`64e2f990-bbc7-4611-a081-d2b355ca4ad9` passed with requested outcome completed
+and no remaining work. No manual retry or acceptance occurred. Five attempts
+and roughly 46 minutes from the fresh request to accepted review remain
+unacceptable for this small report. Attempt five began before the credential
+fix rollout; its success is not production proof of that fix. Its report claims
+a fresh observation but lacks attached raw read receipts, so direct provenance
+still needs stronger evidence than report prose and a manager grant.
+
+A new native runner-to-PTY subprocess regression confirms saved project
+credentials reach the actual provider process and ambient other-owner secrets
+do not. It fails when the runner's delegated map is removed and passes with
+the deployed handoff. A post-fix production benchmark is now running in room
+`dc97b5bd-e46e-4023-8de1-9c96557d63d4`, request
+`48a9b025-6048-485a-900d-af94fb31b038`. It requires a fresh read, downloadable
+report and redacted command/query output with exit status, plus independent
+checking; it forbids business/source/dependency/deployment changes and contact.
+The send observation timed out, but official room read confirms one running
+request; it was not resent. No completion or efficiency claim yet.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
