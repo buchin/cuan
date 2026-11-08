@@ -85,6 +85,19 @@ prompt clarification does not itself enforce filesystem isolation or prove that
 the active verifier's generated runtime inputs were genuine. Existing scoped
 report, bound-context and standalone-artifact guidance tests passed.
 
+PM delegation guidance now explicitly selects the supported execution category
+from the requested outcome. An individual login complaint without an established
+source defect starts as bounded operational diagnosis with source/test/deploy
+preservation, retaining the account outcome and customer reply requirements.
+A discovered source defect requires a concrete scoped handoff under original
+authorization, not silent expansion of that operational session. Existing running
+task permissions are not reclassified retroactively. This is guidance for future
+delegations, not proof that this historical task is complete or operationally
+recovered. Protocol and scope-classification tests passed. Two provider-backed
+delegation fixtures exited without a final response; a baseline Go overlay using
+the unmodified coordinator file reproduced the same managed-project failure.
+Those end-to-end checks remain failing and are not reported as passing validation.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
