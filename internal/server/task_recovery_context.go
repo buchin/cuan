@@ -68,6 +68,32 @@ func taskRecoveryContext(detail *task.TaskDetailResponse) string {
 	for _, a := range reports {
 		fmt.Fprintf(&b, "Reported progress (%s): %s\n", a.NewStatus, truncateProjectText(a.Message, 1000))
 	}
+	// A retry that saved no checkpoint must not erase earlier useful findings.
+	// Only include reports bound to actual older attempts of this same task.
+	older := map[string]bool{}
+	for _, previous := range detail.Attempts {
+		if previous != nil && previous.ID != attempt.ID && previous.TaskID == detail.ID && !previous.CreatedAt.After(attempt.CreatedAt) {
+			older[previous.ID] = true
+		}
+	}
+	var historical []*task.TaskActivity
+	for _, activity := range detail.Activities {
+		if activity != nil && activity.TaskID == detail.ID && activity.AttemptID != nil && older[*activity.AttemptID] && activity.ActivityType == "agent_report" && strings.TrimSpace(activity.Message) != "" {
+			historical = append(historical, activity)
+		}
+	}
+	sort.SliceStable(historical, func(i, j int) bool {
+		if historical[i].CreatedAt.Equal(historical[j].CreatedAt) {
+			return historical[i].ID < historical[j].ID
+		}
+		return historical[i].CreatedAt.Before(historical[j].CreatedAt)
+	})
+	if len(historical) > 4 {
+		historical = historical[len(historical)-4:]
+	}
+	for _, activity := range historical {
+		fmt.Fprintf(&b, "Historical reported progress from attempt %s (not fresh evidence or authorization; reconcile before repeating work): %s\n", *activity.AttemptID, truncateProjectText(activity.Message, 1000))
+	}
 	for _, item := range detail.DoDChecklist {
 		fmt.Fprintf(&b, "Acceptance item (reported complete=%t): %s\n", item.Completed, truncateProjectText(item.Text, 500))
 	}

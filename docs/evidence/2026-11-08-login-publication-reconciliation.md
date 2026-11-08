@@ -270,6 +270,31 @@ at `2026-11-09T01:35:59.008898+08:00`, leaving no final report. Neither the
 scope-policy repair nor the local-terminal tests establish a solution to this
 separate repeated account-investigation timeout.
 
+Release `da18631fc9b8fac786659ff2e495ee1e246dcf53` passed production health
+with matching exact SHA and 37 migrations. A third automatically scheduled
+attempt, `att_60669a05d609705aa3898851fd46695c`, started before that rollout.
+It saved a downloadable report and final review report, but failed native
+verification because registered PHPUnit target
+`packages/laravel-mcp-bridge/tests` was missing. Source regression tests were
+unrelated to the approved read-only account report. The original failure remains
+historical; recomputed execution diagnostics after the policy change are not a
+receipt of the policy enforced by the old process when it started.
+
+The third report was downloaded through the official CLI and inspected. It
+names actual account fields and observation times with UTC/WIB/UTC+8 conversions;
+the supplied session activity epoch matches its UTC conversion. This checks
+report content, not independent confirmation of its database observations.
+The report contains private account/session details and should not be pasted
+into customer chat. No manual retry or acceptance was performed.
+
+A separate local recovery-context fix preserves up to four bounded historical
+progress reports from actual older attempts of the same task, with explicit
+attempt provenance and a warning that they are neither fresh proof nor new
+authority. Previously, a silent retry hid earlier progress from the recovery
+summary. Tests retain current-attempt ordering/bounds, reject foreign tasks and
+unknown attempts, and confirm earlier checkpoints survive a silent retry.
+This context change is not yet deployed.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

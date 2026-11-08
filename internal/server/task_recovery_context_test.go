@@ -50,6 +50,20 @@ func TestTaskRecoveryWithoutReportRequiresWorkspaceInspection(t *testing.T) {
 	}
 }
 
+func TestTaskRecoveryKeepsEarlierBoundCheckpointAcrossSilentRetry(t *testing.T) {
+	old, foreign := "older", "foreign"
+	detail := &task.TaskDetailResponse{Task: task.Task{ID: "task"}, LatestAttempt: &task.TaskAttempt{ID: "silent", TaskID: "task", Status: task.AttemptStatusFailed, CreatedAt: time.Unix(20, 0)}, Attempts: []*task.TaskAttempt{{ID: old, TaskID: "task", CreatedAt: time.Unix(10, 0)}, {ID: foreign, TaskID: "other"}}}
+	detail.Activities = []*task.TaskActivity{
+		{TaskID: "task", AttemptID: &old, ActivityType: "agent_report", Message: "READ_ALREADY_SAVED", CreatedAt: time.Unix(11, 0)},
+		{TaskID: "task", AttemptID: &foreign, ActivityType: "agent_report", Message: "FOREIGN_REPORT"},
+		{TaskID: "other", AttemptID: &old, ActivityType: "agent_report", Message: "FOREIGN_TASK"},
+	}
+	got := taskRecoveryContext(detail)
+	if !strings.Contains(got, "READ_ALREADY_SAVED") || !strings.Contains(got, "not fresh evidence or authorization") || strings.Contains(got, "FOREIGN_") {
+		t.Fatal("lost provenance or crossed task boundary", got)
+	}
+}
+
 func TestTaskRecoveryLabelsRetainedVerifierAsHistorical(t *testing.T) {
 	id := "latest-exit-two"
 	d := &task.TaskDetailResponse{Task: task.Task{ID: "task", TestSummary: "STALE_MODULE_SETUP_FAILURE"}, LatestAttempt: &task.TaskAttempt{ID: id, Status: task.AttemptStatusFailed, ErrorMessage: "exit code 2"}}
