@@ -58,8 +58,15 @@ func reviewAssessmentMissing(d *task.TaskDetailResponse) bool {
 }
 
 func (s *Server) saveReviewAssessment(ctx context.Context, d *task.TaskDetailResponse, q db.InboxRequest, assessment inboxReviewEvaluation) (inboxReviewEvaluation, error) {
+	if assessment.SourceReview == "pass" {
+		source, proof := s.verifiedSupplementalSource(ctx, d)
+		visual := s.requireVisualReview(ctx, d, inboxReviewEvaluation{Decision: "pass", VisualInspection: assessment.VisualInspection})
+		if source == nil || proof == nil || task.SourceReviewReportHash(d.Activities, d.ID, d.LatestAttempt.ID) == "" || visual.Decision != "pass" {
+			assessment.SourceReview = "not_checked"
+		}
+	}
 	if previous, found := reviewAssessment(d, q.RequestID); found {
-		return previous, nil
+		return previous, s.saveNativeSourceReview(ctx, d, q.RequestID, previous)
 	}
 	record := reviewAssessmentRecord{RequestID: q.RequestID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), EvidenceDigest: inboxReviewEvidenceDigest(d), Assessment: assessment}
 	raw, err := json.Marshal(record)
@@ -77,5 +84,5 @@ func (s *Server) saveReviewAssessment(ctx context.Context, d *task.TaskDetailRes
 		return inboxReviewEvaluation{}, errors.New("task review assessment could not be saved")
 	}
 	d.Activities = append(d.Activities, event)
-	return assessment, nil
+	return assessment, s.saveNativeSourceReview(ctx, d, q.RequestID, assessment)
 }

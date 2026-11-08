@@ -20,6 +20,31 @@ type NativeSourceReview struct {
 	SourceCommit     string `json:"source_commit"`
 	InstructionsHash string `json:"instructions_hash"`
 	ReportHash       string `json:"report_hash"`
+	AssessmentHash   string `json:"assessment_hash"`
+}
+
+// The latest coordinator assessment may revoke an earlier source verdict.
+// Reports and assessments from another attempt or scope cannot replace it.
+func SourceReviewAssessmentHash(events []*TaskActivity, taskID, attemptID, instructionsHash string) string {
+	var selected *TaskActivity
+	for _, event := range events {
+		if event != nil && event.TaskID == taskID && event.AttemptID != nil && *event.AttemptID == attemptID && event.ActivityType == "coordinator_review_assessment" && event.Author == "coordinator" && (selected == nil || event.CreatedAt.After(selected.CreatedAt) || (event.CreatedAt.Equal(selected.CreatedAt) && event.ID > selected.ID)) {
+			selected = event
+		}
+	}
+	if selected == nil {
+		return ""
+	}
+	var record struct {
+		InstructionsHash string `json:"instructions_hash"`
+		Assessment       struct {
+			SourceReview string `json:"source_review"`
+		} `json:"assessment"`
+	}
+	if json.Unmarshal([]byte(selected.Message), &record) != nil || record.InstructionsHash != instructionsHash || record.Assessment.SourceReview != "pass" {
+		return ""
+	}
+	return VerificationSummaryHash(selected.Message)
 }
 
 // SourceReviewReportHash binds the latest final report for this exact session.
@@ -83,8 +108,8 @@ func NativeSourceReviewForAttempt(ctx context.Context, store Store, t *Task, rev
 	if approval == nil {
 		return nil, nil
 	}
-	expected := NativeSourceReview{Version: 1, TaskID: t.ID, ReviewAttemptID: reviewID, SourceAttemptID: proof.SourceAttemptID, SourceCommit: proof.SourceCommit, InstructionsHash: proof.InstructionsHash, ReportHash: SourceReviewReportHash(events, t.ID, reviewID)}
-	if !verified || !unchanged || expected.ReportHash == "" || *approval != expected {
+	expected := NativeSourceReview{Version: 1, TaskID: t.ID, ReviewAttemptID: reviewID, SourceAttemptID: proof.SourceAttemptID, SourceCommit: proof.SourceCommit, InstructionsHash: proof.InstructionsHash, ReportHash: SourceReviewReportHash(events, t.ID, reviewID), AssessmentHash: SourceReviewAssessmentHash(events, t.ID, reviewID, proof.InstructionsHash)}
+	if !verified || !unchanged || expected.ReportHash == "" || expected.AssessmentHash == "" || *approval != expected {
 		return nil, ErrInvalidTaskInput
 	}
 	return approval, nil

@@ -34,6 +34,7 @@ When proposing revision, write revision as one concrete next step in the user's 
 native_visual_verification, when present, identifies the exact pinned repository recipe and component paths used by the native runner before model execution. Only delivered_images with runner_capture_verified=true match those recorded capture hashes and dimensions. This proves capture provenance and limited component coverage, not that every requested outcome is implemented. Inspect the actual images; unrelated components, missing required states, or incomplete criteria still prevent pass. Never credit an unverified supplemental image with native capture provenance.
 
 verification_context, when present, binds previously completed implementation checks to the exact unchanged source commit verified by the current supplemental attempt. Those checks ran in source_attempt_id, not the current verifier. Apply the original acceptance and publication requirements without waiving any; read-only verification does not prove original deployment requirements. Missing current evidence still requires revision.
+source_review is a separate source-stage verdict: not_checked, pass or revise. Use pass only when verification_context establishes an independent check of the exact source and the supplied evidence satisfies the original source behavior, scope and required local/visual checks. A developer report or exit zero alone is not independent review. Use revise for a concrete source defect or out-of-scope change; otherwise use not_checked. Source review may pass while publication or required live checks remain unfinished: retain that unfinished overall decision and every original criterion. This field never grants publication or task acceptance.
 
 native_preparation_history contains validated terminal native-stage preparation facts, with the actual terminal outcome preserved. Preparation is not successful deployment or acceptance. A later failed release/completion does not erase its earlier source/target preparation. Reconcile these facts with current publication/containment evidence before asking a restricted verifier to push or merge again. Per-session inability to publish is not proof that an earlier authorized stage never published.
 
@@ -379,10 +380,12 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		}
 		return "Hasil pekerjaan sedang ditinjau ulang oleh tim. Konteks dan bukti pekerjaan tersimpan aman." + link
 	}
+	sourceReview := decision.SourceReview
 	decision = requireOperationalOutcome(d, decision)
 	decision = s.requireVisualReview(ctx, d, decision)
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
+	decision.SourceReview = sourceReview
 	if d.Status != task.TaskStatusDone {
 		decision, err = s.saveReviewAssessment(ctx, d, q, decision)
 		if err != nil {

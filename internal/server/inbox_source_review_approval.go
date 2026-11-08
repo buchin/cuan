@@ -29,8 +29,8 @@ func (s *Server) saveNativeSourceReview(ctx context.Context, d *task.TaskDetailR
 	if gate := s.requireVisualReview(ctx, d, inboxReviewEvaluation{Decision: "pass", VisualInspection: assessment.VisualInspection}); gate.Decision != "pass" {
 		return fmt.Errorf("%w: source visual review is incomplete", task.ErrInvalidTaskInput)
 	}
-	receipt := task.NativeSourceReview{Version: 1, TaskID: d.ID, ReviewAttemptID: d.LatestAttempt.ID, SourceAttemptID: proof.SourceAttemptID, SourceCommit: proof.SourceCommit, InstructionsHash: proof.InstructionsHash, ReportHash: task.SourceReviewReportHash(d.Activities, d.ID, d.LatestAttempt.ID)}
-	if receipt.ReportHash == "" {
+	receipt := task.NativeSourceReview{Version: 1, TaskID: d.ID, ReviewAttemptID: d.LatestAttempt.ID, SourceAttemptID: proof.SourceAttemptID, SourceCommit: proof.SourceCommit, InstructionsHash: proof.InstructionsHash, ReportHash: task.SourceReviewReportHash(d.Activities, d.ID, d.LatestAttempt.ID), AssessmentHash: task.SourceReviewAssessmentHash(d.Activities, d.ID, d.LatestAttempt.ID, proof.InstructionsHash)}
+	if receipt.ReportHash == "" || receipt.AssessmentHash == "" {
 		return task.ErrInvalidTaskInput
 	}
 	raw, err := json.Marshal(receipt)

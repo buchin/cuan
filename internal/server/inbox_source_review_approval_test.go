@@ -58,7 +58,6 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 	must(err)
 	_, err = s.saveReviewAssessment(ctx, d, q, assessment)
 	must(err)
-	must(s.saveNativeSourceReview(ctx, d, q.RequestID, assessment))
 	approved, err := task.NativeSourceReviewForAttempt(ctx, store, &d.Task, att.ID)
 	must(err)
 	if approved == nil || approved.SourceCommit != d.CommitSHA || approved.ReviewAttemptID != att.ID {
