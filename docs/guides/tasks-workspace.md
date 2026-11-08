@@ -461,3 +461,11 @@ secrets, reasoning and incomplete/error calls are not recovery evidence. The
 recovery receives these observations as untrusted data and must preserve the
 original research-versus-implementation intent; reaching a tool limit is not a
 reason to invent a dev task or claim successful retrieval was unavailable.
+
+The registered Inbox browser workflow now includes actual PromptChoiceChips beside
+the task preview in its mobile and desktop captures. It verifies transparent
+backgrounds, the intended 12px option radius and 44px targets, as well as the
+current accordion timeline behavior. The manifest names this component explicitly;
+generic Inbox captures without the component visible are not its visual proof.
+Each viewport gets a fresh browser process so constrained single-process browser
+runtimes do not hang when a closed context is followed by another one.

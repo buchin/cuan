@@ -21,6 +21,7 @@ activities.push({id:'provider-note',task_id:'work',activity_type:'comment',autho
 const fixtureTask={...baseTask,attempts:[attempt],activities}
 const message=(id,text,extra={})=>({id,uuid:String(id),room_id:room,sender_type:'operator',author_type:'agent',author_id:'agent_cuan',author_name:'Cuan',message:text,content:text,is_internal:true,created_at:now,...extra})
 const messages=[message('source','Tolong perbaiki tampilan website.',{author_type:'user',author_id:'operator_user'}),...Array.from({length:12},(_,i)=>message('chat-'+i,'Pembahasan kebutuhan yang tetap tersedia di percakapan.')),
+ message('choices','Pilih langkah yang paling sesuai.',{prompt_choices:{question:'Bagaimana kita lanjutkan?',options:[{id:'continue',label:'Lanjutkan pemeriksaan'},{id:'adjust',label:'Sesuaikan kebutuhan'}],allow_other:true}}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]})]
 const entry=`import React from 'react';
@@ -45,10 +46,11 @@ const server=await createServer({root:webRoot,envDir:path.resolve(output),cacheD
 })}}]})
 await server.listen()
 const origin=server.resolvedUrls.local[0]
-const browser=await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
+let browser
 const checks=[]
 try{
  for(const width of (process.env.CUAN_WORKFLOW_NATIVE==='1'?[390,1440]:[390,1440,1920])){
+  browser=await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
   const context=await browser.newContext({viewport:{width,height:width===390?844:1000},hasTouch:width===390})
   await context.addInitScript(()=>{localStorage.setItem('cuan-language','id');localStorage.setItem('cuan_token','isolated-fixture')})
   const page=await context.newPage(),errors=[]
@@ -91,6 +93,18 @@ try{
   const list=page.locator('.inbox-message-list')
   await list.evaluate(el=>{el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-40)})
   await card.scrollIntoViewIfNeeded()
+  const choices=page.getByTestId('prompt-choice-chips')
+  await choices.waitFor({state:'visible'})
+  assert.equal(await choices.getByRole('button',{name:'Lanjutkan pemeriksaan',exact:true}).count(),1)
+  assert.equal(await choices.getByRole('button',{name:'Sesuaikan kebutuhan',exact:true}).count(),1)
+  for(const button of await choices.getByRole('button').all()) {
+   assert.ok((await button.boundingBox()).height>=44)
+   const style=await button.evaluate(el=>({radius:getComputedStyle(el).borderRadius,background:getComputedStyle(el).backgroundColor}))
+   assert.equal(style.radius,'12px')
+   assert.ok(style.background==='rgba(0, 0, 0, 0)' || style.background==='transparent',JSON.stringify(style))
+  }
+  // Frame the actual choices with the work preview in native Inbox captures.
+  await choices.scrollIntoViewIfNeeded()
   const previousScroll=await list.evaluate(el=>el.scrollTop)
   await page.screenshot({path:path.join(output,`inbox-${width}.png`)})
   await card.locator('[data-task-detail]').click()
@@ -111,15 +125,13 @@ try{
   const dots=panel.locator('[data-status-dot]')
   assert.equal(await dots.filter({has:page.locator('.animate-ping')}).count(),1)
   const report=panel.locator('[data-work-event="long-review"]')
-  const expand=report.getByRole('button',{name:'Lihat laporan',exact:true})
-  await expand.waitFor({state:'visible'})
-  const regionID=await expand.getAttribute('aria-controls')
-  const region=report.locator('[id='+JSON.stringify(regionID)+']')
-  assert.ok((await region.boundingBox()).height<=89,JSON.stringify(await region.evaluate(el=>({height:el.getBoundingClientRect().height,style:el.getAttribute("style"),markdown:getComputedStyle(el.querySelector(".chat-markdown")).lineHeight,p:getComputedStyle(el.querySelector("p")).lineHeight}))))
-  assert.deepEqual(await region.locator('.chat-markdown').evaluate(el=>({size:getComputedStyle(el).fontSize,line:getComputedStyle(el).lineHeight})),{size:'14px',line:'22px'})
+  const expand=report.locator('[data-timeline-trigger]')
+  assert.equal(await expand.getAttribute('aria-expanded'),'true')
   await expand.click()
-  assert.ok((await region.boundingBox()).height>89)
-  await report.getByRole('button',{name:'Tampilkan lebih sedikit'}).click()
+  assert.equal(await expand.getAttribute('aria-expanded'),'false')
+  await expand.click()
+  assert.equal(await expand.getAttribute('aria-expanded'),'true')
+  assert.deepEqual(await report.locator('.chat-markdown').first().evaluate(el=>({size:getComputedStyle(el).fontSize,line:getComputedStyle(el).lineHeight})),{size:'14px',line:'22px'})
   await report.scrollIntoViewIfNeeded()
   await page.screenshot({path:path.join(output,`report-${width}.png`)})
   const scroll=panel.locator('[data-work-scroll]')
@@ -162,7 +174,9 @@ try{
   assert.deepEqual(errors,[])
   checks.push({width,one_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
   await context.close()
+  await browser.close()
+  browser=null
  }
  await fs.writeFile(path.join(output,'verification.json'),JSON.stringify({source:'Actual application React components; isolated API fixtures, not live task evidence',checks},null,2))
  console.log(JSON.stringify(checks))
-}finally{await browser.close();await server.close()}
+}finally{await browser?.close();await server.close()}

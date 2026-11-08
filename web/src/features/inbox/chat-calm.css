@@ -617,3 +617,9 @@
 
 .composer-tasks:has(.composer-tasks-panel) + .shared-composer { border-top-left-radius: 0; border-top-right-radius: 0; }
 .composer-tasks-panel { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+/* Choice pills are an explicit component shape, independent of the global
+   square surface theme. Preserve their quiet, transparent touch surface. */
+.prompt-choice-container .prompt-choice-option {
+  border-radius: 0.75rem !important;
+}
