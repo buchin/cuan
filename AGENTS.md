@@ -27,7 +27,7 @@ Whenever inspecting or operating on Cuan (projects, tasks, inbox rooms, or talki
 - Use the official Cuan CLI `cuan` on PATH or MCP tools (`cuan-inspect` / `cuan mcp`).
 - NEVER write ad-hoc Python scripts or unauthenticated curl commands to interact with Cuan.
 - Subcommands available on PATH:
-  - `cuan chat new [--agent @sm] [--title "..."]`
+  - `cuan chat new [--title "..."] [--agent <id>]`
   - `cuan chat send <room-id> "<message>" [--wait]`
   - `cuan chat list [--limit 20]`
   - `cuan chat messages <room-id>`

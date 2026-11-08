@@ -2,9 +2,9 @@
 name: cuan-agent
 description: >
   Official Cuan CLI & MCP toolkit for interacting directly with Cuan platform:
-  agent chat, inbox rooms (@sm, @dev, @support), task boards (list, update, create, report),
+  agent chat, inbox rooms, task boards (list, update, create, report),
   system diagnostics, and MCP stdio tools without writing ad-hoc scripts.
-  Triggers: cuan, cuan-agent, cuan chat, cuan task, cuan mcp, agent_sm, @sm, cuan inbox.
+  Triggers: cuan, cuan-agent, cuan chat, cuan task, cuan mcp, cuan inbox.
 ---
 
 # cuan-agent & Cuan MCP Reference
@@ -29,12 +29,13 @@ cuan config set auth_token <TOKEN>
 ```
 
 ## Agent Chat & Inbox Rooms
-Interact directly with agent personas (@sm, @dev, @support) without writing custom scripts:
+Interact directly with the Cuan public assistant without writing custom scripts:
 
 ### 1. Create a New Conversation Room
 ```bash
-cuan chat new --agent @sm --title "Audit CI/CD pipeline"
+cuan chat new --title "Audit CI/CD pipeline"
 ```
+Connects directly to the active public assistant without requiring internal persona selection. Legacy aliases (e.g. `--agent @sm`) remain supported for backward compatibility.
 Returns room ID and web inbox URL (e.g. `https://cuan.dojo.cc/inbox/<room-id>`).
 
 ### 2. Send Message & Await Agent Reply
