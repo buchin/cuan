@@ -72,6 +72,7 @@ import { ApprovalCard } from './ApprovalCard'
 import { PromptChoiceChips } from './PromptChoiceChips'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import { InboxWorkPanel } from './InboxWorkPanel'
+import { ComposerTasks } from './ComposerTasks'
 
 import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
@@ -2076,6 +2077,12 @@ export function InboxView({
               onDragOver={uploads.onDragOver}
             >
               <div className="mx-auto max-w-[75ch]">
+                {activeContact.type === 'agent' && <ComposerTasks
+                  key={activeContact.conversation_id || activeContact.id}
+                  tasks={linkedTasks}
+                  onDetails={task => handleOpenTaskDrawer(task)}
+                  onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
+                />}
                 <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
                 {activeContact.type === 'customer' && (
                   <div className="flex items-end justify-between text-xs">

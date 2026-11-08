@@ -1,0 +1,27 @@
+import { useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import { Plus, Send } from 'lucide-react'
+import '../../src/index.css'
+import '../../src/features/inbox/chat-calm.css'
+import { LanguageProvider } from '../../src/context/LanguageContext'
+import { ComposerTasks } from '../../src/features/inbox/ComposerTasks'
+import { Composer, ComposerAccessory, ComposerSendButton } from '../../src/components/ui/Composer'
+import { ComposerInput } from '../../src/components/ui/ComposerInput'
+import type { Task } from '../../src/api/types'
+const initial = [
+ {id:'active',title:'Perbaiki gate build rilis paralel',status:'doing', latest_attempt:{status:'running'},latest_progress:'Perubahan sudah diterapkan. Sedang memeriksa hasil pengujian.'},
+ {id:'queued',title:'Verifikasi production tanpa mengulang deployment yang sudah selesai',status:'queued'},
+ {id:'done',title:'Rapikan balasan pelanggan',status:'done'},
+] as Task[]
+function Fixture() {
+ const [tasks,setTasks]=useState(initial)
+ const [version,setVersion]=useState(0)
+ const [action,setAction]=useState('')
+ return <LanguageProvider><main className="mx-auto flex h-dvh max-w-3xl flex-col p-4">
+  <header className="border-b border-border/40 pb-3 text-lg font-medium">Cuan</header>
+  <nav className="flex flex-wrap gap-3 py-3 text-xs"><button onClick={()=>setTasks([...tasks])}>Poll update</button><button onClick={()=>setTasks([])}>Empty room</button><button onClick={()=>{setTasks(initial);setVersion(v=>v+1)}}>Switch room</button><button onClick={()=>setTasks(tasks.map(t=>({...t,review_state:'queued',status:'review',latest_attempt:undefined,launch:undefined})))}>Queued review</button></nav>
+  <div className="flex-1 overflow-auto"><p className="max-w-md rounded-lg bg-muted/40 p-3 text-sm">Perbaiki proses rilisnya, lalu verifikasi sampai selesai ya.</p><p className="py-4 text-sm text-muted-foreground">Ane cek hasilnya dan lanjutkan verifikasinya.</p><output>{action}</output></div>
+  <div className="wa-composer"><ComposerTasks key={version} tasks={tasks} onDetails={t=>setAction('Details '+t.id)} onTerminal={t=>setAction('Terminal '+t.id)}/><Composer><ComposerAccessory><Plus size={18}/></ComposerAccessory><ComposerInput aria-label="Message" placeholder="Tulis pesan…" rows={1}/><ComposerSendButton aria-label="Send"><Send size={18}/></ComposerSendButton></Composer></div>
+ </main></LanguageProvider>
+}
+createRoot(document.getElementById('root')!).render(<Fixture/> )

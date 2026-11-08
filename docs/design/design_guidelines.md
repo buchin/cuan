@@ -537,3 +537,23 @@ Timeline report bodies use 14px text with 22px line height, medium-weight step
 labels and quiet 11px timestamps. Collapse long bodies after four rendered lines
 using the shared CollapsibleChatText, with View report to expand the original
 Markdown. Determine overflow from rendered height, not a character quota.
+
+### 7.18. Conversation tasks beside the composer
+
+Agent conversations with linked tasks expose a quiet Tasks count above the
+composer. This disclosure is separate from customer Public/Whisper reply modes.
+It starts closed and does not reopen on polling. Opening it expands running
+execution/review tasks by default; explicit accordion choices survive updates.
+Queued, completed and attention states never pulse. Use current native task and
+review projections, with the existing Detail and real Terminal destinations.
+Keep historical task previews in the conversation. Empty rooms show no control.
+The panel scrolls within a bounded height, preserving access to the composer;
+mobile titles retain readable space above their status. Escape closes the panel
+and returns focus to its trigger. Conversation changes reset disclosure choices.
+
+The test-only entry `web/tests/composer-tasks/fixture.html` renders the actual
+ComposerTasks and shared Composer components. With Vite on port5174, run
+`node web/tests/composer-tasks/check.cjs` using an installed Playwright module
+(`PLAYWRIGHT_MODULE`) and optional `CHROMIUM_EXECUTABLE`. It checks390px and1440px,
+update/disclosure behavior, draft preservation, actions and empty/queued states.
+Screenshots are saved under `/tmp/cuan-composer-{width}.png` for visual inspection.

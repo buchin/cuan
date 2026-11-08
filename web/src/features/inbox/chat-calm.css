@@ -594,3 +594,8 @@
   background: rgb(0 0 0 / 55%);
   border-radius: 8px;
 }
+.composer-tasks-panel {
+  max-height: min(34dvh, 280px);
+  margin-bottom: 6px;
+}
+.composer-tasks .composer-tasks-count { border-radius: 999px; }
