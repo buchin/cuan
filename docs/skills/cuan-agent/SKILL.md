@@ -684,3 +684,10 @@ no-publication decision does not assert the retained task commit was deployed:
 historical or reverted branch commits must not manufacture another deployment
 requirement. Original outcome criteria and independent verification still apply.
 Missing, failed, foreign, stale or scope-changed records retain existing checks.
+
+PHP verification prerequisite failures now identify the relative missing target
+or runtime separately from a path escaping the private workspace. The native
+verification record retains this diagnosis even when no test ran. Missing tests
+in the current source do not authorize inventing replacement tests or waiving
+checks; missing runtime dependencies require preparation in the approved private
+workspace. Neither condition alone proves publication or feature failure.

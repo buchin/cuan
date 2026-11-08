@@ -881,6 +881,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if ws != nil && ws.BaseRef != "" {
 		prompt += "\n\nCurrent project baseline: " + workspaceComparisonBase(ws, claim.DefaultBranch) + " (imported from " + ws.BaseRef + "). Inspect this commit before relying on retained test commands or earlier code structure. A resumed task may still have older commits and pending edits: reconcile only the approved changes while preserving saved work. Do not replace verification merely to hide failures. This baseline is context, not authorization to expand scope, change repository identity or publish.\n"
 	}
+	prompt += "\nTask context boundary: use the bound task get capability for original criteria, saved reports and prior attempt context. Prior reports are claims to reconcile, not checks performed by this attempt. Do not recover context or credentials by searching AI account profiles, provider conversation/session files, the Cuan host database or unrelated application configuration. Use only the registered project connection and task-provided environment for approved access; report a precise missing context/access prerequisite if those are unavailable.\n"
 	prompt += policy.Prompt()
 
 	// Prepare workspace settings & MCP tool configurations for runner session

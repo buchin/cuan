@@ -16,7 +16,7 @@ func TestRegisteredPHPUnitRunsOnlySavedTargetsAndPreservesFailure(t *testing.T) 
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Fatal("PHP runtime required for native verifier contract")
 	}
-	for _, scenario := range []string{"pass", "pest", "fail", "missing target", "escaped target", "invalid targets"} {
+	for _, scenario := range []string{"pass", "pest", "fail", "missing runtime", "missing target", "escaped target", "invalid targets"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			for _, dir := range []string{"vendor/bin", "tests/Feature"} {
@@ -40,6 +40,8 @@ exit(` + map[bool]string{true: "7", false: "0"}[scenario == "fail"] + `);`
 				_ = os.Rename(filepath.Join(root, "vendor/bin/phpunit"), filepath.Join(root, "vendor/bin/pest"))
 			}
 			switch scenario {
+			case "missing runtime":
+				_ = os.Remove(filepath.Join(root, "vendor/bin/phpunit"))
 			case "missing target":
 				_ = os.Remove(filepath.Join(root, target))
 			case "escaped target":
@@ -53,6 +55,15 @@ exit(` + map[bool]string{true: "7", false: "0"}[scenario == "fail"] + `);`
 			// Ordinary developer completion must honor the same saved target policy,
 			// including failures, missing dependencies and path escapes.
 			got, _ := verifyTaskRepository(context.Background(), root, "dev", executionpolicy.PublicationPolicy{}, "", env)
+			if scenario == "missing target" || scenario == "missing runtime" || scenario == "escaped target" {
+				want := "target tests/Feature/ContractTest.php"
+				if scenario == "missing runtime" {
+					want = "runtime vendor/bin/phpunit"
+				}
+				if !strings.Contains(got.Error, want) || !strings.Contains(got.Summary, "prerequisite failed") || strings.Contains(got.Summary, root) {
+					t.Fatal("prerequisite diagnostic lost identity or exposed host path", got)
+				}
+			}
 			if got.Passed != (scenario == "pass" || scenario == "pest") {
 				t.Fatal("incorrect native check", got)
 			}

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,8 +28,27 @@ func runRegisteredProjectVerification(ctx context.Context, root, configuredTarge
 	}
 	for _, target := range append(append([]string{}, targets...), runtime) {
 		resolved, e := filepath.EvalSymlinks(filepath.Join(resolvedRoot, filepath.FromSlash(target)))
-		if e != nil || !strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) {
-			return verificationResult{Error: "Registered PHPUnit target or runtime is unavailable outside the private workspace"}
+		kind := "target"
+		if target == runtime {
+			kind = "runtime"
+		}
+		prerequisiteFailure := func(reason string) verificationResult {
+			message := fmt.Sprintf("Registered PHPUnit %s %s: %s. Project checks did not run; no test success or publication is established.", kind, target, reason)
+			return verificationResult{Error: message, Summary: "Project verification prerequisite failed: " + message}
+		}
+		if e != nil {
+			if os.IsNotExist(e) {
+				return prerequisiteFailure("missing from the current private workspace")
+			}
+			return prerequisiteFailure("could not be resolved")
+		}
+		if !strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) {
+			return prerequisiteFailure("resolves outside the private workspace")
+		}
+		if target == runtime {
+			if info, err := os.Stat(resolved); err != nil || !info.Mode().IsRegular() {
+				return prerequisiteFailure("is not an available regular file")
+			}
 		}
 	}
 	var output verifierOutputTail
