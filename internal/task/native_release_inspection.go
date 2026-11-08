@@ -9,6 +9,9 @@ import (
 // The existing read-only live-inspection lane can verify a delivered native
 // target without changing the original task's implementation source identity.
 func validateNativeReleaseInspectionSource(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
+	if proof.PreviousAttemptID != "" && proof.RevalidationKind == EvidenceRevalidation && proof.ReviewRequestID != "" && len(proof.ReviewPaths) == 0 {
+		return validateOutcomeRevalidation(ctx, store, t, proof)
+	}
 	if proof.SourceVerifierAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.ObservedAt.IsZero() || proof.ObservedAt.After(time.Now().Add(5*time.Second)) {
 		return ErrInvalidTaskInput
 	}

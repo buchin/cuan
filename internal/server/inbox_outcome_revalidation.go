@@ -13,11 +13,11 @@ import (
 // One read-only revalidation may inspect a newly changed rejected result. It is
 // not another implementation attempt and is never granted for a deploy alone.
 func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || d.LatestAttempt == nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && len(task.FailedCheckRevalidationPaths(d)) == 0) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || d.LatestAttempt.FinishedAt == nil || s.projectSvc == nil || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
+	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && len(task.FailedCheckRevalidationPaths(d)) == 0) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || d.LatestAttempt.FinishedAt == nil || s.projectSvc == nil || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
 		return false
 	}
 	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || previous == nil || previous.Purpose != task.CurrentOutcomeInspection || previous.PreviousAttemptID != "" {
+	if err != nil || previous == nil || (previous.Purpose != task.CurrentOutcomeInspection && previous.Purpose != task.NativeReleaseInspection) || previous.PreviousAttemptID != "" {
 		return false
 	}
 	assessment, found := reviewAssessment(d, "")
@@ -30,11 +30,11 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 	if evidence {
 		request, paths = evidenceRequest, nil
 	}
-	if request == "" || (!evidence && len(paths) == 0) {
+	if request == "" || (!evidence && (previous.Purpose == task.NativeReleaseInspection || len(paths) == 0)) {
 		return false
 	}
 	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, previous.SourceAttemptID)
-	if err != nil || limits.ReadOnlyRepository {
+	if err != nil || (previous.Purpose != task.NativeReleaseInspection && limits.ReadOnlyRepository) || !s.liveInspectionReadScopeAllowed(ctx, d, previous.SourceAttemptID) {
 		return false
 	}
 	scope := project.TaskScopeInstructions(d.Instructions)
@@ -50,6 +50,12 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 	if observed == nil || observed.Repository != previous.Repository || (!evidence && observed.Commit == previous.TargetCommit) {
 		return false
 	}
+	if previous.Purpose == task.NativeReleaseInspection && observed.Commit != previous.TargetCommit {
+		contained, err := s.projectSvc.PublishedCommitContained(ctx, d.ProjectID, previous.TargetCommit, observed.Commit)
+		if err != nil || !contained {
+			return false
+		}
+	}
 	_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
 		return false
@@ -57,7 +63,7 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 	// Build the next stage from its source binding, not a copy of every
 	// previous-stage flag. The completed parent retains its repair history.
 	proof := task.LiveInspectionIntent{
-		Purpose:                 task.CurrentOutcomeInspection,
+		Purpose:                 previous.Purpose,
 		SourceVerifierAttemptID: previous.SourceVerifierAttemptID,
 		SourceAttemptID:         previous.SourceAttemptID, SourceCommit: previous.SourceCommit,
 		Repository: previous.Repository, OwnerID: previous.OwnerID, RoomID: previous.RoomID,
@@ -87,5 +93,5 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 			return false
 		}
 	}
-	return s.startLiveResultInspection(ctx, d, origin, &proof, true)
+	return s.startLiveResultInspection(ctx, d, origin, &proof, proof.Purpose == task.CurrentOutcomeInspection)
 }

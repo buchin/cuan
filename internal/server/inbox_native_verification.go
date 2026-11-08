@@ -11,6 +11,16 @@ import (
 // Delivered native work enters the existing independent read-only inspection
 // lane. Successful release process/health never replace original DoD review.
 func (s *Server) recoverNativeReleaseVerification(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
+	if d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusSucceeded && (d.Status == task.TaskStatusBlocked || d.Status == task.TaskStatusReview) {
+		if previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && previous != nil && previous.Purpose == task.NativeReleaseInspection {
+			for _, origin := range requests {
+				if origin.RequestID == previous.SourceRequestID && origin.OwnerID == previous.OwnerID && origin.RoomID == previous.RoomID && s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) && s.recoverChangedOutcomeInspection(ctx, d, origin) {
+					return true
+				}
+			}
+		}
+	}
+
 	if d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusFailed {
 		if s.recoverNativeInspectionReporting(ctx, d, requests) {
 			return true

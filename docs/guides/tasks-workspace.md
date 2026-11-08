@@ -469,3 +469,19 @@ current accordion timeline behavior. The manifest names this component explicitl
 generic Inbox captures without the component visible are not its visual proof.
 Each viewport gets a fresh browser process so constrained single-process browser
 runtimes do not hang when a closed context is followed by another one.
+
+### Completing native inspection evidence
+
+The existing single evidence revalidation also applies to a successful native
+release inspection whose current coordinator assessment identifies unfinished
+verification and chooses continue/replan. The prior inspection must retain
+passing native checks, unchanged scope evidence and its authenticated live-result
+receipt. The review must bind the current attempt and original instructions;
+foreign, missing, canceled or superseded authority cannot admit continuation.
+
+This remains a read-only exact-source inspection with the original release and
+owner lineage. Its request identity is stable across subsequent deploys, and a
+completed continuation cannot create another. If the running target advanced,
+the native path first verifies that it contains the prior target. No developer
+execution or publication is repeated. The remaining evidence gap is passed to
+the verifier, and ordinary independent acceptance still decides Done.

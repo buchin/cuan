@@ -56,6 +56,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if p.Purpose == NativeReleaseInspection && p.PreviousAttemptID != "" && p.RevalidationKind == EvidenceRevalidation {
+		return verificationRequestID("native-release-evidence-revalidation:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
+	}
 	if p.ReportingRecoveryAttemptID != "" {
 		return verificationRequestID("native-inspection-reporting-recovery:v1:"+p.InstructionsHash+":", taskID, p.ReportingRecoveryAttemptID)
 	}
@@ -225,7 +228,8 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.ReportingRecoveryAttemptID != "" && (proof.Purpose != NativeReleaseInspection || proof.ReportingRecoveryAttemptID == proof.SourceAttemptID || proof.CapacityRecoveryAttemptID != "") {
 		return invalid("reporting_recovery_shape")
 	}
-	if proof.RevalidationKind != "" && (proof.RevalidationKind != EvidenceRevalidation || proof.Purpose != CurrentOutcomeInspection || proof.PreviousAttemptID == "" || proof.ReviewRequestID == "" || len(proof.ReviewPaths) != 0) {
+	nativeEvidence := proof.Purpose == NativeReleaseInspection && proof.RevalidationKind == EvidenceRevalidation && proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) == 0
+	if proof.RevalidationKind != "" && (proof.RevalidationKind != EvidenceRevalidation || (proof.Purpose != CurrentOutcomeInspection && !nativeEvidence) || proof.PreviousAttemptID == "" || proof.ReviewRequestID == "" || len(proof.ReviewPaths) != 0) {
 		return invalid("revalidation_kind")
 	}
 	if proof.VerifierRecoveryAttemptID != "" && ((proof.Purpose != CurrentOutcomeInspection && proof.Purpose != NativeReleaseInspection) || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
@@ -234,13 +238,13 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.CapacityRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.CapacityRecoveryAttemptID == proof.SourceAttemptID) {
 		return invalid("capacity_recovery_shape")
 	}
-	if proof.Purpose != CurrentOutcomeInspection && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
+	if proof.Purpose != CurrentOutcomeInspection && !nativeEvidence && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
 		return invalid("purpose_shape")
 	}
 	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
 		return invalid("preparation_shape")
 	}
-	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.SourceVerifierAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "") {
+	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.SourceVerifierAttemptID != "" || proof.PreparationLaunchID != "" || (nativeEvidence && (proof.ReportingRecoveryAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.CapacityRecoveryAttemptID != "")) || (!nativeEvidence && (proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != ""))) {
 		return invalid("native_release_shape")
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit

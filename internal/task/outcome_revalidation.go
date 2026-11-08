@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -125,8 +126,20 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 	if err != nil {
 		return err
 	}
-	if binding == nil || binding.Purpose != CurrentOutcomeInspection || binding.PreviousAttemptID != "" || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
+	if binding == nil || (binding.Purpose != CurrentOutcomeInspection && binding.Purpose != NativeReleaseInspection) || binding.Purpose != proof.Purpose || binding.PreviousAttemptID != "" || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
 		return ErrInvalidTaskInput
+	}
+	if binding.Purpose == NativeReleaseInspection {
+		if proof.RevalidationKind != EvidenceRevalidation || binding.ReportingRecoveryAttemptID != "" || binding.VerifierRecoveryAttemptID != "" || binding.CapacityRecoveryAttemptID != "" {
+			return ErrInvalidTaskInput
+		}
+		expected := *proof
+		expected.PreviousAttemptID, expected.PreviousCommit, expected.ReviewRequestID, expected.RevalidationKind = "", "", "", ""
+		expected.ReviewPaths = nil
+		expected.TargetCommit, expected.ObservedAt = binding.TargetCommit, binding.ObservedAt
+		if !reflect.DeepEqual(expected, *binding) {
+			return ErrInvalidTaskInput
+		}
 	}
 	if err := ValidateLiveInspectionSource(ctx, store, t, binding); err != nil {
 		return err
@@ -160,7 +173,7 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 			continue
 		}
 		var receipt LiveInspectionReceipt
-		if json.Unmarshal([]byte(event.Message), &receipt) == nil && receipt.Purpose == CurrentOutcomeInspection && receipt.SourceAttemptID == binding.SourceAttemptID && receipt.SourceCommit == binding.SourceCommit && receipt.TargetCommit == binding.TargetCommit && receipt.Repository == binding.Repository && receipt.ProjectChecksHash == VerificationSummaryHash(AttemptVerificationEvidence(detail).Current) {
+		if json.Unmarshal([]byte(event.Message), &receipt) == nil && receipt.Purpose == binding.Purpose && receipt.SourceAttemptID == binding.SourceAttemptID && receipt.SourceCommit == binding.SourceCommit && receipt.TargetCommit == binding.TargetCommit && receipt.Repository == binding.Repository && receipt.ProjectChecksHash == VerificationSummaryHash(AttemptVerificationEvidence(detail).Current) {
 			return nil
 		}
 	}

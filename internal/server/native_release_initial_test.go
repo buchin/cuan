@@ -289,7 +289,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	s.cfg.Environment = "production"
 	s.cfg.SourceRepository = intent.Repository
 	s.cfg.CommitSHA = target
-	invalid := scenario != "initial verify" && scenario != "initial verify stale"
+	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify evidence"
 	switch scenario {
 	case "initial verify changed release":
 		s.cfg.CommitSHA = strings.Repeat("f", 40)
@@ -361,7 +361,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed)
 		return
 	}
-	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed)
+	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify evidence")
 }
 
 func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent) {

@@ -18,7 +18,7 @@ import (
 
 // Protocol fixture for the final acceptance gates. Model report/process facts
 // are synthetic; actual snapshot contents and native source ancestry are read.
-func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent) {
+func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent, evidenceGap ...bool) {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -96,6 +96,96 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	}
 
 	q := db.InboxRequest{OwnerID: launch.OwnerID, AgentID: launch.AgentID, RoomID: item.SourceRoomID, RequestID: delegationMessageID(key), MessageID: message.ID, ReplyID: delegationMessageID(key + ":reply"), CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour)}
+	if len(evidenceGap) > 0 && evidenceGap[0] {
+		assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Actual mobile and desktop component evidence is missing", Explanation: "Complete original visual evidence", Revision: "Inspect the actual requested component at mobile and desktop viewports; attach the real screenshots.", ManagerAction: "continue", ManagerReason: "The native regression captures do not cover the original component"}
+		_, err = s.saveReviewAssessment(ctx, verified, q, assessment)
+		must(err)
+		blocked := task.TaskStatusBlocked
+		_, err = s.taskSvc.UpdateTask(ctx, item.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
+		must(err)
+		blocker := &task.Task{ID: "evidence-lane-busy", ProjectID: item.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}
+		must(s.taskSvc.Store().CreateTask(ctx, blocker))
+		verified, err = s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		before := len(verified.Attempts)
+		for i := 0; i < 3; i++ {
+			s.queueInboxTaskReview(ctx, verified)
+		}
+		continued := *proof
+		continued.PreviousAttemptID, continued.PreviousCommit = attempt.ID, proof.TargetCommit
+		continued.ReviewRequestID, continued.RevalidationKind = q.RequestID, task.EvidenceRevalidation
+		continued.ObservedAt = time.Now().UTC()
+		if err := task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &verified.Task, &continued); err != nil {
+			t.Fatalf("evidence continuation source invalid: %v", err)
+		}
+		job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, continued.RequestID(item.ID)))
+		if err != nil {
+			request, revision := task.OutcomeEvidenceReview(&verified.Task, verified.LatestAttempt, verified.Activities, "")
+			t.Fatalf("continuation not saved: %v review=%q revision=%q scope=%v observed=%+v", err, request, revision, s.liveInspectionReadScopeAllowed(ctx, verified, proof.SourceAttemptID), s.runningProjectRelease(ctx, verified))
+		}
+		if job == nil || job.State != "queued" {
+			t.Fatalf("missing bounded evidence continuation: %+v", job)
+		}
+		parsed, err := task.LiveInspectionForLaunch(&verified.Task, job)
+		must(err)
+		if parsed == nil || parsed.Purpose != task.NativeReleaseInspection || parsed.PredecessorAttemptID() != attempt.ID || parsed.SourceAttemptID != proof.SourceAttemptID {
+			t.Fatal("lost native lineage", parsed)
+		}
+		must(task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &verified.Task, parsed))
+		changed := *parsed
+		changed.TargetCommit = strings.Repeat("e", 40)
+		if changed.RequestID(item.ID) != parsed.RequestID(item.ID) {
+			t.Fatal("deploy renewed evidence allowance")
+		}
+		forged := *parsed
+		forged.OwnerID = "foreign"
+		if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &verified.Task, &forged) == nil {
+			t.Fatal("changed authority accepted")
+		}
+		forged = *parsed
+		forged.ReviewRequestID = "unrecorded-review"
+		if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &verified.Task, &forged) == nil {
+			t.Fatal("unrecorded decision accepted")
+		}
+		after, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		if len(after.Attempts) != before || after.Status == task.TaskStatusDone {
+			t.Fatal("continuation duplicated work or accepted it")
+		}
+		if !strings.Contains(job.Revision, "actual requested components") {
+			t.Fatal("targeted verification gap missing")
+		}
+		parent, err := s.taskSvc.Store().GetAttempt(ctx, attempt.ID)
+		must(err)
+		parent.CancelRequested = true
+		must(s.taskSvc.Store().UpdateAttempt(ctx, parent))
+		if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &verified.Task, parsed) == nil {
+			t.Fatal("revoked inspection granted evidence continuation")
+		}
+		parent.CancelRequested = false
+		must(s.taskSvc.Store().UpdateAttempt(ctx, parent))
+		must(s.taskSvc.Store().DeleteTask(ctx, blocker.ID))
+		reserved, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "evidence-dispatcher", job.ID)
+		must(err)
+		if reserved == nil {
+			t.Fatal("continuation not claimable")
+		}
+		child, err := s.taskSvc.CreateAttempt(ctx, item.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: attempt.ID})
+		must(err)
+		child.Status = task.AttemptStatusSucceeded
+		child.ExitCode = new(int)
+		end := time.Now().UTC()
+		child.FinishedAt = &end
+		must(s.taskSvc.Store().UpdateAttempt(ctx, child))
+		second := *parsed
+		second.PreviousAttemptID = child.ID
+		second.PreviousCommit = parsed.TargetCommit
+		second.ObservedAt = time.Now().UTC()
+		if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &verified.Task, &second) == nil {
+			t.Fatal("evidence completion renewed itself")
+		}
+		return
+	}
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"pass","finding":"Delivered fixture content verified.","explanation":"Exact delivered content checked","remaining_work":"none","revision":""}`)
 	accepted, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)

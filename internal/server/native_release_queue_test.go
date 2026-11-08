@@ -51,6 +51,10 @@ func TestNativeReleasePublicationObservesPreparedTarget(t *testing.T) {
 func TestNativeReleasePreparationPublishesActualBoundCheckout(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "prepare")
 }
+func TestNativeReleaseEvidenceCompletionUsesExistingReadOnlyAllowance(t *testing.T) {
+	nativeReleaseQueueContract(t, nil, "initial verify evidence")
+}
+
 func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
 	for _, scenario := range []string{"initial merge", "initial merge conflict", "initial verify", "initial verify stale", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial missing verifier", "initial missing tool", "initial wrong source", "initial revoked"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
@@ -122,7 +126,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		}
 	}
 	item := &task.Task{ID: "native-release-task", ProjectID: "default", SourceRoomID: q.RoomID, SourceMessageID: q.MessageID, AssignedAgent: q.AgentID, Title: "Implement approved feature", Instructions: "Cuan managed delegation v1.\nImplement and deploy the approved feature.", Status: task.TaskStatusReview, ExecutionCategory: task.ExecutionCategoryCode, CommitSHA: nativeSource, Summary: "Source handoff", CompleteNote: "Native checks passed; publication pending", CreatedAt: now, UpdatedAt: now}
-	if scenario == "initial verify" {
+	if scenario == "initial verify" || scenario == "initial verify evidence" {
 		item.DoDChecklist = []task.DoDItem{{ID: "delivered-content", Text: "work.txt contains target in the delivered revision", Completed: false, Evidence: "Awaiting independent inspection"}}
 	}
 	start, finish := now.Add(-time.Minute), now.Add(-time.Second)
