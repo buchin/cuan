@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -118,7 +119,7 @@ func TestVisualReviewPreservesPreCaptureDependencyFailure(t *testing.T) {
 }
 
 func TestVisualReviewKeepsFeatureEvidenceAfterFullNativeCaptureSet(t *testing.T) {
-	s, d, _ := stalledReviewFixture(t, "completed")
+	s, d, old := stalledReviewFixture(t, "completed")
 	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	var names []string
@@ -161,5 +162,58 @@ func TestVisualReviewKeepsFeatureEvidenceAfterFullNativeCaptureSet(t *testing.T)
 	}
 	if images[8].Name != names[8] {
 		t.Fatal("supplemental feature evidence missing", images)
+	}
+	// Reconcile the affected historical input without replaying any execution.
+	message, err := s.projectStudioRepo.GetMessageByID(ctx, old.MessageID)
+	if err != nil || message == nil {
+		t.Fatal("missing historical input", err)
+	}
+	message.Content = "Review [/tasks/" + d.ID + "]\nReview evidence digest: " + inboxReviewEvidenceDigest(d) + "\n" + strings.Join([]string{inboxReportProvenancePolicy, inboxReviewAssessmentPolicy, inboxSourceReviewPolicy, inboxVerificationReviewPolicy, "Visual evidence review policy: v1", inboxOperationalReviewPolicy, inboxPublicationReviewPolicy, inboxOwnershipPolicy, inboxReviewProviderPolicy}, "\n")
+	if err := s.projectStudioRepo.UpdateMessage(ctx, message); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	for i := 0; i < 3; i++ {
+		s.queueInboxTaskReview(ctx, d)
+	}
+	requests, err := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, d.SourceRoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := delegationMessageID("task-review:" + d.LatestAttempt.ID + ":visual-assessment-v2:" + inboxReviewEvidenceDigest(d))
+	found := 0
+	for _, request := range requests {
+		if request.RequestID == expected {
+			found++
+			if request.State != "queued" {
+				t.Fatal("repair not queued", request.State)
+			}
+		}
+	}
+	if found != 1 {
+		t.Fatalf("expected one deterministic visual repair, got %d", found)
+	}
+	after, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if len(after.Attempts) != len(before.Attempts) || after.Status == task.TaskStatusDone {
+		t.Fatal("review repair replayed work or accepted it")
+	}
+
+}
+
+func TestVisualReviewRefreshOnlyForAffectedInputs(t *testing.T) {
+	for _, tt := range []struct {
+		previous string
+		count    int
+		want     bool
+	}{
+		{"Visual evidence review policy: v1", 8, false},
+		{"Visual evidence review policy: v1", 12, true},
+		{inboxVisualReviewPolicy, 12, false},
+		{"legacy text-only review", 1, true},
+		{"legacy text-only review", 0, false},
+	} {
+		if got := visualReviewNeedsRefresh(tt.previous, tt.count); got != tt.want {
+			t.Fatalf("previous=%q images=%d got=%v", tt.previous, tt.count, got)
+		}
 	}
 }

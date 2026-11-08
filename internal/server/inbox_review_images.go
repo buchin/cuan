@@ -18,7 +18,16 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxVisualReviewPolicy = "Visual evidence review policy: v1"
+const inboxVisualReviewPolicy = "Visual evidence review policy: v2"
+
+// Version one supplied at most eight images. Revisit only unfinished reviews
+// whose supplemental evidence was crowded out, or older text-only reviews.
+func visualReviewNeedsRefresh(previous string, imageCount int) bool {
+	if imageCount == 0 || strings.Contains(previous, inboxVisualReviewPolicy) {
+		return false
+	}
+	return imageCount > 8 || !strings.Contains(previous, "Visual evidence review policy: v1")
+}
 
 type reviewImage struct {
 	NativeCapture bool   `json:"runner_capture_verified"`

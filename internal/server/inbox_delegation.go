@@ -805,8 +805,8 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				} else if recoverSnapshot && s.sourceReviewClassificationMissing(ctx, detail) && !strings.Contains(previous.Content, inboxSourceReviewPolicy) {
 					key += ":source-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
-				} else if recoverSnapshot && len(s.inboxReviewImages(ctx, detail)) > 0 && !strings.Contains(previous.Content, inboxVisualReviewPolicy) {
-					key += ":visual-assessment:" + inboxReviewEvidenceDigest(detail)
+				} else if recoverSnapshot && visualReviewNeedsRefresh(previous.Content, len(s.inboxReviewImages(ctx, detail))) {
+					key += ":visual-assessment-v2:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else if recoverSnapshot && verificationClassificationMissing(detail) && !strings.Contains(previous.Content, inboxVerificationReviewPolicy) {
 					key += ":verification-assessment:" + inboxReviewEvidenceDigest(detail)

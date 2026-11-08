@@ -428,3 +428,11 @@ captures. Generic regression evidence must not displace the feature screenshots
 needed to assess the original request. Existing ownership, immutable delivery,
 source-attempt and native capture integrity checks still apply; supplemental
 images do not acquire native capture provenance merely by being included.
+
+Visual review policy v2 also repairs unfinished v1 reviews that had more than
+eight delivered images. The coordinator queues one deterministic snapshot review
+for the current attempt and evidence digest; repeated scans reuse that request.
+V1 reviews with at most eight images remain valid. Accepted/canceled work and
+active execution retain their existing guards. The repair neither reruns dev,
+verifier or deployment nor grants additional execution approval: it restores the
+reviewer's missing view of immutable delivered evidence.
