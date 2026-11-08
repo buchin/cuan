@@ -62,6 +62,16 @@ because the older verifier stopped. Legacy v1 launches remain readable and are
 not rewritten. Runtime-recovery and finalization identities retain their existing
 bounded contracts; this change grants no additional recovery or release authority.
 
+An older dispatcher may already have started a current-production inspection
+after an initial verifier collision. Once that exact observation is terminal,
+the coordinator can recover its retained managed developer handoff into source
+verification. The typed observation must bind the same source attempt and SHA;
+native source checks, original publication policy and handoff receipts are
+revalidated. Active/cancelled observations and unrelated source bindings cannot
+take this path. The observation remains history, never source approval, release
+permission or a reason to repeat development. Verifier-backed and prepared-release
+inspection branches retain their own protocols and do not enter this recovery.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.

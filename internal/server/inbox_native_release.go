@@ -15,11 +15,23 @@ import (
 // Developer handoffs enter independent verification first. Only a source-stage
 // approval can admit native publication; neither stage accepts the whole task.
 func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
-	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || d.Status != task.TaskStatusReview || s.projectSvc == nil {
+	if d == nil || d.LatestAttempt == nil || (d.Status != task.TaskStatusReview && d.Status != task.TaskStatusBlocked) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && d.LatestAttempt.Status != task.AttemptStatusFailed) || s.projectSvc == nil {
 		return false
 	}
 	source := d.LatestAttempt
 	reviewID := ""
+	if inspection, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, source.ID); err != nil {
+		return false
+	} else if inspection != nil {
+		if inspection.Purpose != task.CurrentOutcomeInspection || inspection.SourceVerifierAttemptID != "" || inspection.PreparedPublicationAttemptID != "" || source.FinishedAt == nil {
+			return false
+		}
+		retained, err := s.taskSvc.Store().GetAttempt(ctx, inspection.SourceAttemptID)
+		if err != nil || retained == nil {
+			return false
+		}
+		source = retained
+	}
 	if approved, err := task.NativeSourceReviewForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && approved != nil {
 		original, proof := s.verifiedSupplementalSource(ctx, d)
 		if original == nil || proof == nil || proof.SourceAttemptID != approved.SourceAttemptID {
@@ -68,11 +80,15 @@ func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDe
 			assessmentRequest := origin
 			assessmentRequest.RequestID = delegationMessageID("native-source-verification:" + source.ID + ":" + proof.InstructionsHash)
 			assessment := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", Explanation: "Source implementation is ready for independent review; publication remains pending.", Revision: "Independently inspect the exact source against every original source requirement and scope restriction, run relevant checks, and report concrete defects or observed passing evidence. Preserve code, configuration, refs, commits and production. Do not waive pending publication or live checks."}
-			saved, err := s.saveReviewAssessment(ctx, d, assessmentRequest, assessment)
+			// Preserve the completed observation as history. Only the independently
+			// validated developer handoff supplies source evidence to this stage.
+			developer := *d
+			developer.LatestAttempt, developer.Status, developer.ResultKind = source, task.TaskStatusReview, "implementation"
+			saved, err := s.saveReviewAssessment(ctx, &developer, assessmentRequest, assessment)
 			if err != nil {
 				return false
 			}
-			_, started := s.startVerificationFollowup(ctx, assessmentRequest, d, saved)
+			_, started := s.startVerificationFollowup(ctx, assessmentRequest, &developer, saved)
 			return started
 		}
 		if task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &d.Task, &proof) != nil {

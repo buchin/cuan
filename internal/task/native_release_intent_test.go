@@ -73,6 +73,61 @@ func TestLegacyNativeReleaseEvidenceCannotAuthorizeFreshPublication(t *testing.T
 	}
 }
 
+func TestNativeDeveloperHandoffRecoversOnlyAfterBoundTerminalObservation(t *testing.T) {
+	for _, scenario := range []string{"valid", "running", "cancelled", "wrong source", "wrong commit", "no source checks", "no deploy"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			store, item, source, release, _ := nativeReleaseFixture(t)
+			release.SourceReviewAttemptID = ""
+			now := time.Now().UTC()
+			assessment, _ := json.Marshal(map[string]any{"request_id": "source-assessment", "instructions_hash": release.InstructionsHash, "evidence_digest": strings.Repeat("c", 64), "assessment": map[string]string{"decision": "revise", "remaining_work": "verification"}})
+			if err := store.CreateActivity(ctx, &TaskActivity{ID: "source-assessment", TaskID: item.ID, AttemptID: &source.ID, ActivityType: "coordinator_review_assessment", Author: "coordinator", Message: string(assessment), CreatedAt: now.Add(-3 * time.Second)}); err != nil {
+				t.Fatal(err)
+			}
+			inspection := LiveInspectionIntent{Purpose: CurrentOutcomeInspection, SourceAttemptID: source.ID, SourceCommit: item.CommitSHA, TargetCommit: strings.Repeat("d", 40), Repository: release.Repository, OwnerID: release.OwnerID, RoomID: release.RoomID, SourceRequestID: release.SourceRequestID, InstructionsHash: release.InstructionsHash, ObservedAt: now.Add(-2 * time.Second)}
+			if scenario == "wrong source" {
+				inspection.SourceAttemptID = "foreign-source"
+			}
+			if scenario == "wrong commit" {
+				inspection.SourceCommit = strings.Repeat("e", 40)
+			}
+			raw, _ := json.Marshal(inspection)
+			request := inspection.RequestID(item.ID)
+			job, err := store.SaveLaunch(ctx, TaskLaunch{TaskID: item.ID, ProjectID: item.ProjectID, AgentID: item.AssignedAgent, RequestID: request, OwnerID: release.OwnerID, RoomID: release.RoomID, SourceRequestID: release.SourceRequestID, InstructionsHash: release.InstructionsHash, Revision: "Scope: read-only repository. Do not push. Do not deploy.\n" + LiveInspectionMarker + string(raw), CreatedAt: inspection.ObservedAt, AvailableAt: inspection.ObservedAt, ExpiresAt: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.ClaimLaunch(ctx, now, "inspection", job.ID); err != nil {
+				t.Fatal(err)
+			}
+			start, finish, exit := now.Add(-time.Second), now.Add(-time.Millisecond), 1
+			observer := &TaskAttempt{ID: attemptRequestID(item.ID, request), TaskID: item.ID, AgentName: item.AssignedAgent, RunnerID: "observer", Status: AttemptStatusFailed, ExitCode: &exit, CreatedAt: inspection.ObservedAt, StartedAt: &start, FinishedAt: &finish}
+			if scenario == "running" {
+				observer.Status, observer.FinishedAt = AttemptStatusRunning, nil
+			}
+			observer.CancelRequested = scenario == "cancelled"
+			if err := store.CreateAttempt(ctx, observer); err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "no source checks" {
+				source.CancelRequested = true
+				if err := store.UpdateAttempt(ctx, source); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if scenario == "no deploy" {
+				item.Instructions += "\nDo not deploy."
+			}
+			if err := ValidateNativeDeveloperHandoff(ctx, store, item, &release); (err == nil) != (scenario == "valid") {
+				t.Fatal("unexpected observation-to-source verification eligibility", scenario, err)
+			}
+			if ValidateNativeReleaseSource(ctx, store, item, &release) == nil {
+				t.Fatal("observation recovery granted publication without independent source review")
+			}
+		})
+	}
+}
+
 func TestNativeReleaseReviewUpgradeKeepsLegacyIntentHistorySeparate(t *testing.T) {
 	_, item, _, proof, launch := nativeReleaseFixture(t)
 	legacyID := verificationRequestID("native-release:v1:", item.ID, proof.SourceCommit)

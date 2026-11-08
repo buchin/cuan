@@ -113,17 +113,33 @@ func ValidateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 }
 
 // ValidateNativeDeveloperHandoff admits only read-only source verification. It
-// cannot authorize publication and requires the developer to remain current.
+// cannot authorize publication. A terminal observation can retain the exact
+// developer source for read-only verification without replaying development.
 func ValidateNativeDeveloperHandoff(ctx context.Context, store Store, t *Task, p *NativeReleaseIntent) error {
-	if t == nil || p == nil || t.Status != TaskStatusReview || p.SourceReviewAttemptID != "" {
+	if t == nil || p == nil || (t.Status != TaskStatusReview && t.Status != TaskStatusBlocked) || p.SourceReviewAttemptID != "" {
 		return ErrInvalidTaskInput
 	}
 	latest, err := store.GetLatestAttempt(ctx, t.ID)
 	if err != nil {
 		return err
 	}
-	if latest == nil || latest.ID != p.SourceAttemptID {
+	if latest == nil {
 		return ErrRequestConflict
+	}
+	if latest.ID != p.SourceAttemptID {
+		// An older dispatcher may have inspected the current release instead of
+		// this handoff after a verifier-ID collision. Its terminal observation is
+		// not implementation work or source approval. Recover only its exact
+		// retained developer source into a fresh read-only source verification.
+		if latest.CancelRequested || latest.CanceledAt != nil || latest.FinishedAt == nil || (latest.Status != AttemptStatusSucceeded && latest.Status != AttemptStatusFailed) {
+			return ErrRequestConflict
+		}
+		inspection, err := LiveInspectionForAttempt(ctx, store, t, latest.ID)
+		if err != nil || inspection == nil || inspection.Purpose != CurrentOutcomeInspection || inspection.SourceAttemptID != p.SourceAttemptID || inspection.SourceCommit != p.SourceCommit || inspection.OwnerID != p.OwnerID || inspection.RoomID != p.RoomID || inspection.SourceRequestID != p.SourceRequestID || inspection.Repository != p.Repository || inspection.SourceVerifierAttemptID != "" || inspection.PreparedPublicationAttemptID != "" || ValidateLiveInspectionSource(ctx, store, t, inspection) != nil {
+			return ErrRequestConflict
+		}
+	} else if t.Status != TaskStatusReview {
+		return ErrInvalidTaskInput
 	}
 	return validateNativeReleaseSource(ctx, store, t, p, false)
 }
