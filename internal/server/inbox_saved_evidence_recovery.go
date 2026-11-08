@@ -156,7 +156,7 @@ func incorrectPublicationAuditRecovery(d *task.TaskDetailResponse) bool {
 // repair mandate. Recover only current native prerequisite failures, not tests,
 // source changes, cancellation or a worker's generic claim of completion.
 func operationalSourceCheckMismatch(d *task.TaskDetailResponse) bool {
-	return d != nil && d.Status == task.TaskStatusBlocked && d.ExecutionCategory == task.ExecutionCategoryCode && d.CommitSHA == "" && d.DiffSummary == "" && len(task.AcceptanceGaps(&d.Task)) == 0 && task.IsAccountOutcome(&d.Task) && nativePHPPrerequisiteFailure(d) != "" && task.AttemptChangeEvidence(d).RunnerChangeRecord == nil
+	return d != nil && d.Status == task.TaskStatusBlocked && (d.ExecutionCategory == task.ExecutionCategoryCode || d.ExecutionCategory == task.ExecutionCategoryReadOnly) && d.CommitSHA == "" && d.DiffSummary == "" && len(task.AcceptanceGaps(&d.Task)) == 0 && task.IsAccountOutcome(&d.Task) && nativePHPPrerequisiteFailure(d) != "" && task.AttemptChangeEvidence(d).RunnerChangeRecord == nil
 }
 
 func completedAccountOutcomeCandidate(d *task.TaskDetailResponse) bool {

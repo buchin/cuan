@@ -181,7 +181,7 @@ func IsAccountOutcome(t *Task) bool {
 	if IsAccountOperation(t.Title, t.Instructions) {
 		return true
 	}
-	if t.ExecutionCategory != ExecutionCategoryOps {
+	if t.ExecutionCategory != ExecutionCategoryOps && t.ExecutionCategory != ExecutionCategoryReadOnly {
 		return false
 	}
 	return SupportsAccountOutcomeInspection(t)

@@ -13,16 +13,19 @@ import (
 )
 
 func TestAccountOperationRecoversExistingOutcomeWithoutRepeatingEffect(t *testing.T) {
-	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis", "legacy login publication failure", "legacy login source verifier"} {
+	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis", "readonly login source-check failure", "legacy login publication failure", "legacy login source verifier"} {
 		t.Run(mode, func(t *testing.T) { accountOutcomeRecoveryContract(t, mode) })
 	}
 }
 func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	sourceVerified := mode == "legacy login source verifier"
+	readonlyLogin := mode == "readonly login source-check failure"
 	legacyLogin := mode == "legacy login publication failure" || sourceVerified
-	loginDiagnosis := mode == "operational login diagnosis" || legacyLogin
+	loginDiagnosis := mode == "operational login diagnosis" || legacyLogin || readonlyLogin
 	if legacyLogin {
 		mode = "legacy publication failure"
+	} else if readonlyLogin {
+		mode = "legacy source-check failure"
 	} else if loginDiagnosis {
 		mode = "completed operation"
 	}
@@ -38,6 +41,9 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 		d.Instructions = "Cuan managed delegation v1.\nPeriksa status akun dan riwayat autentikasi customer@example.invalid. Verifikasi hasil akun melalui layanan yang sudah ada."
 		if !legacyLogin {
 			d.ExecutionCategory = task.ExecutionCategoryOps
+		}
+		if readonlyLogin {
+			d.ExecutionCategory = task.ExecutionCategoryReadOnly
 		}
 	}
 	d.CommitSHA = ""
@@ -219,7 +225,8 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 			}
 		}
 	}
-	if err := store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: d.ExecutionCategory}); err != nil {
+	// A migration blocks every lane, including concurrent read-only inspection.
+	if err := store.CreateTask(ctx, &task.Task{ID: "busy", Title: "Schema migration", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
 		t.Fatal(err)
 	}
 	parent := d.LatestAttempt.ID

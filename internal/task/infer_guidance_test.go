@@ -45,6 +45,10 @@ func TestOperationalLoginOutcomePreservesHistoricalCodeAuthority(t *testing.T) {
 	if !IsAccountOutcome(item) || !ScopePublicationPolicy(item).ReadOnlyRepository {
 		t.Fatal("operational diagnosis entered source publication")
 	}
+	item.ExecutionCategory = ExecutionCategoryReadOnly
+	if !IsAccountOutcome(item) {
+		t.Fatal("read-only account diagnosis lost independent outcome workflow")
+	}
 	item.ExecutionCategory = ExecutionCategoryCode
 	if IsAccountOutcome(item) || ScopePublicationPolicy(item).ReadOnlyRepository {
 		t.Fatal("existing code task was retroactively restricted or exempted")

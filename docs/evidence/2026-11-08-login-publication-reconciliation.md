@@ -295,6 +295,17 @@ summary. Tests retain current-attempt ordering/bounds, reject foreign tasks and
 unknown attempts, and confirm earlier checkpoints survive a silent retry.
 This context change is not yet deployed.
 
+The fresh task also exposed a lane omission: saved `readonly` account diagnosis
+did not enter the existing account-outcome observer route, unlike `ops` account
+diagnosis. The local fix includes both explicitly non-source lanes while
+preserving historical code-task authority. A native-bound PHP prerequisite
+failure on a completed read-only account report can now admit the same bounded
+independent observation; it does not waive the failure, reset attempt history,
+accept worker claims or repair unrelated source. The existing lifecycle contract
+now exercises this exact lane, source-change/assertion/cancel/incomplete rejection,
+deduplication, scoped observer claim/completion and native independent proof.
+Targeted server/task recovery, operational and classification tests pass.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
