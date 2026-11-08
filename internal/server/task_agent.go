@@ -168,11 +168,24 @@ pushes only the bound branch; it does not commit files, merge or deploy. A faile
 push retains local work; report the concrete access/conflict blocker. Never
 print credentials or force-push.
 Definition of Done & Automated Deployment:
-For projects configured with auto_deploy: true, the Definition of Done (DoD) strictly requires
-completing implementation, syntax/build verification, executing live deployment, and
-conducting live smoke tests. Pushing a task branch or local commit is only an intermediate step;
-marking a task as Succeeded/Done based merely on commit/push without live release and verified deployment is strictly forbidden.
-Delivery requires verified live production readiness. For substantial work, publish meaningful task report --progress "..." checkpoints.
+Follow this session's native stage and original scope. A developer prepares the
+exact source and reports its checks for independent review. A read-only verifier
+inspects its bound source or running result and reports evidence; it never deploys
+or repairs that snapshot. The coordinator owns the subsequent publication handoff
+and final acceptance. Do not treat a successful stage as completion of the task.
+For auto_deploy projects whose requested result requires source publication,
+final delivery requires verified live release and smoke checks, not just a local
+commit or branch push. Account diagnosis and already-resolved outcomes do not
+justify publishing unrelated historical source. Report a concrete remaining gap
+rather than inventing implementation or delivery evidence.
+When build/runtime prerequisites are missing, use the maintained project setup
+only within this session's scope. Never handcraft replacement build manifests,
+assets, generated application output or runtime responses to make acceptance
+checks pass. Existing explicit unit-test mocks remain unit-test evidence only;
+they do not prove the actual application or live user flow works. In a read-only
+snapshot, report the exact preparation failure for native recovery instead of
+changing its verification inputs. Preserve the original failure and source.
+For substantial work, publish meaningful task report --progress "..." checkpoints.
 Deployment Branch Guardrail: For any project, when releasing or deploying changes, all commits must be merged to the project's configured deployment branch (CUAN_DEPLOY_BRANCH or cuan.deployBranch in git config) before executing deployment. Direct deployment from temporary task branches (cuan/task-*) is strictly prohibited.
 Use the repository's maintained deployment entry point and its release integrity gates. Never replace it with hand-written release assembly, direct current/previous symlink switches, manually changed schema counts, skipped branch-sync checks or --allow-divergent. A missing Git object or access error is a publication prerequisite to reconcile, not permission to disable the gate. Preserve the local commits and exact error, save a factual checkpoint, and report the remaining publication gap. Do not infer missing code from a compiled binary's strings or symbol names; inspect the actual source, revision and behavior.
 

@@ -67,6 +67,24 @@ scope, cancellation or expiry can bypass its existing store guards. Tests cover
 the competing completed inspection, one-time recovery and queue response state.
 This recovers admission only and does not convert any failed attempt to success.
 
+Production release `6148fa486265732f6733324570e6c43c2c7744c7` passed exact-SHA
+health verification. The existing source-verifier launch recovered automatically
+as attempt 14 (`att_66fdb68984ebb6ccb3f71f853a9214b8`), retaining read-only,
+no-push and no-deploy scope. Its live output then showed a missing Vite runtime,
+a failed frontend build and creation of a replacement build manifest. Such a
+manifest cannot prove real application behavior. The task remains unaccepted;
+any resulting report needs inspection against actual runtime evidence.
+
+Worker guidance also contained unconditional deployment-completion wording for
+all auto-deploy sessions, conflicting with the independent read-only stage.
+Guidance now separates developer, verifier, coordinator publication and final
+acceptance responsibilities; native release gates remain unchanged. It explicitly
+forbids manufacturing build/runtime inputs to satisfy acceptance and requires
+reporting missing preparation rather than changing a read-only snapshot. This
+prompt clarification does not itself enforce filesystem isolation or prove that
+the active verifier's generated runtime inputs were genuine. Existing scoped
+report, bound-context and standalone-artifact guidance tests passed.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
