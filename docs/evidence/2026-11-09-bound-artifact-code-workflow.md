@@ -288,3 +288,27 @@ with outside-repository temporary fixtures/overlays. Missing coverage must remai
 incomplete; green counts cannot support a claim of full security. Source-handoff
 and verification tests pass, but a prompt change alone does not prove improved
 native verifier quality. The next independent execution must demonstrate it.
+
+## Final bounded handoff and user scope correction
+
+The user explicitly redirected focus away from extended cybersecurity testing
+and back to the PM/developer/verifier workflow. No further adversarial scenario
+was sent to the native task. The exploratory parent-swap fixture was retained
+outside the worktree rather than added as a new acceptance demand.
+
+Developer attempt six succeeded after 14m47, with native checks passing in
+32.47s, and saved source `5e8c79073ebc61d7865f432be76937d11f9eb672`.
+Independent verifier attempt seven `att_1c8a4644cedec3c27117a89710df9a48`
+ran read-only on that exact source, started 04:31:16 +08, and succeeded at
+04:38:54. It explicitly ran the original independent partial-response/static-
+symlink and documented-output fixtures. PM accepted Done at 04:39:48 +08.
+Root fetched that exact remote source and reran the committed original fixture;
+all original independent fixture tests pass. This establishes the bounded tested
+handoff, not exhaustive security assurance. The feature remains on its task
+branch, without merge/deployment as originally required.
+
+This benchmark consumed seven attempts and required externally supplied evidence
+to overturn a false verifier pass. It is not proof of efficient autonomous
+completion. A fresh small useful code task should now test the repaired workflow
+without inheriting this task's failed history or adding unrelated acceptance.
+The in-flight-review/new-message acceptance race remains unresolved.
