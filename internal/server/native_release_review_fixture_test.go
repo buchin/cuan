@@ -66,5 +66,18 @@ func approveNativeReleaseFixtureSource(t *testing.T, s *Server, store task.Store
 	must(s.taskSvc.FinishLaunch(ctx, job.ID, "fixture-review", "stopped", time.Now(), ""))
 	detail, err = s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
+	if !s.hasNativeSourcePublicationHandoff(ctx, detail) {
+		t.Fatal("native reviewed source lost its publication handoff")
+	}
+	without := *detail
+	without.Activities = nil
+	for _, event := range detail.Activities {
+		if event.ActivityType != task.ActivityNativeReleaseHandoff {
+			without.Activities = append(without.Activities, event)
+		}
+	}
+	if s.hasNativeSourcePublicationHandoff(ctx, &without) {
+		t.Fatal("source approval manufactured a missing native publication handoff")
+	}
 	return detail
 }

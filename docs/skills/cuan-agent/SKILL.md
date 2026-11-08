@@ -783,3 +783,11 @@ and current successful execution, final report and native unchanged-repository
 receipt remain mandatory. A worker self-report, role label or unrelated review
 cannot establish independence. Historical incidental source does not require
 publication for an original account-data operation; retain it as diagnostic work.
+
+A source-stage pass alone does not create a publication handoff. The immediate
+native publication path requires the runner's matching developer handoff; legacy
+verified source without that record follows the existing bounded current-outcome
+inspection when publication is unproven. Original source, history and publication
+requirements remain intact. Review must distinguish task-relevant behavior fixes
+from incidental test/setup repairs and inherited branch changes. A login page
+returning HTTP 200 does not alone prove the affected user can authenticate.

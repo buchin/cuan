@@ -72,7 +72,7 @@ func TestUnpublishedCurrentOutcomeLifecycle(t *testing.T) {
 }
 
 func TestSupplementalVerifierCurrentOutcomeHandoff(t *testing.T) {
-	for _, scenario := range []string{"valid", "stale preparation", "missing receipt", "cancelled verifier", "wrong source"} {
+	for _, scenario := range []string{"valid", "valid publication review", "stale preparation", "missing receipt", "cancelled verifier", "wrong source"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished valid supplemental "+scenario, nil)
@@ -270,7 +270,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		// read-only inspection even if a later model opinion asks for approval.
 		d.Instructions = strings.ReplaceAll(d.Instructions, "; do not deploy unless authorized.", ".")
 	}
-	if strings.HasPrefix(scenario, "current outcome unpublished valid registered review") {
+	if strings.HasPrefix(scenario, "current outcome unpublished valid registered review") || scenario == "current outcome unpublished valid supplemental valid publication review" {
 		d.Instructions = strings.ReplaceAll(d.Instructions, "; do not deploy unless authorized.", ".")
 		if strings.HasSuffix(scenario, " handoff") {
 			d.Status = task.TaskStatusReview
@@ -344,11 +344,24 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 		case "wrong source":
 			d.CommitSHA = strings.Repeat("e", 40)
 		}
-		if !strings.HasSuffix(scenario, "supplemental valid") && !staleSupplemental {
+		if !strings.HasSuffix(scenario, "supplemental valid") && !staleSupplemental && !strings.HasSuffix(scenario, "valid publication review") {
 			if s.recoverLiveResultInspection(ctx, d, origin) {
 				t.Fatal("untrusted supplemental evidence granted inspection", scenario)
 			}
 			return
+		}
+		if strings.HasSuffix(scenario, "valid publication review") {
+			if s.verificationReviewContext(ctx, d) == nil {
+				t.Fatal("missing independent source context")
+			}
+			decision := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "revise", SourceReview: "pass", RemainingWork: "publication", Finding: "Account works; incidental tests not deployed", Explanation: "Check live result", Revision: "Publish incidental test repairs"})
+			if decision.RemainingWork != "verification" {
+				t.Fatal("legacy source approval manufactured publication stage", decision)
+			}
+			if _, err := s.saveReviewAssessment(ctx, d, origin, decision); err != nil {
+				t.Fatal(err)
+			}
+			d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
 		}
 		scenario = "current outcome unpublished valid"
 	}

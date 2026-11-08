@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxPublicationReviewPolicy = "Production publication review policy: v2"
+const inboxPublicationReviewPolicy = "Production publication review policy: v3"
 
 type reviewPublication struct {
 	Required              bool   `json:"required"`
@@ -85,7 +86,7 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	}
 	// Source-stage approval keeps the task unfinished. Native publication
 	// admission still checks original authority, exact source and review receipt.
-	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.SourceReview == "pass" && s.verificationReviewContext(ctx, d) != nil {
+	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.SourceReview == "pass" && s.hasNativeSourcePublicationHandoff(ctx, d) {
 		return decision
 	}
 	if paths := task.FailedCheckRevalidationPaths(d); len(paths) > 0 && d.LatestAttempt != nil {
@@ -223,4 +224,32 @@ func (s *Server) reconcileLegacyPublicationAcceptances(ctx context.Context) {
 		}
 		_ = s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: "publication-audit:" + d.LatestAttempt.ID, TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: task.ActivityPublicationAcceptanceAudit, Author: "coordinator", NewStatus: state, Message: "Re-evaluate the exact accepted result under the corrected legacy-footer publication policy. Original scope, failed history and correction budgets are preserved; no execution was started.", CreatedAt: time.Now().UTC()})
 	}
+}
+
+// Source approval alone is not a publication handoff. Legacy verifier reports
+// may describe inherited or incidental changes as a feature repair. Keep the
+// fast publication stage only for the runner's exact native developer handoff;
+// other missing-publication results use the existing current-outcome inspection.
+// This predicate restricts routing; native release admission still revalidates
+// all source, review, project settings and owner authority independently.
+func (s *Server) hasNativeSourcePublicationHandoff(ctx context.Context, d *task.TaskDetailResponse) bool {
+	source, proof := s.verifiedSupplementalSource(ctx, d)
+	if source == nil || proof == nil || source.LatestAttempt == nil {
+		return false
+	}
+	a := source.LatestAttempt
+	if a.Status != task.AttemptStatusSucceeded || a.ExitCode == nil || *a.ExitCode != 0 || a.CancelRequested || a.CanceledAt != nil {
+		return false
+	}
+	checks := task.AttemptVerificationEvidence(source)
+	for _, event := range d.Activities {
+		if event == nil || event.ID != "native-release-handoff:"+a.ID || event.TaskID != d.ID || event.AttemptID == nil || *event.AttemptID != a.ID || event.Author != a.RunnerID || event.ActivityType != task.ActivityNativeReleaseHandoff || a.StartedAt == nil || a.FinishedAt == nil || event.CreatedAt.Before(*a.StartedAt) || event.CreatedAt.After(*a.FinishedAt) {
+			continue
+		}
+		var receipt task.NativeReleaseHandoff
+		if json.Unmarshal([]byte(event.Message), &receipt) == nil && receipt.Version == 1 && receipt.TaskID == d.ID && receipt.AttemptID == a.ID && receipt.SourceCommit == proof.SourceCommit && receipt.InstructionsHash == proof.InstructionsHash && receipt.VerificationHash == task.VerificationSummaryHash(checks.Current) {
+			return true
+		}
+	}
+	return false
 }
