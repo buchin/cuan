@@ -23,6 +23,7 @@ import { StatusDot, type StatusDotVariant } from '../../components/ui/StatusDot'
 import './task-workspace.css'
 import {
   workStatus,
+  workDisplayStatus,
   workStatusBadgeClass,
   taskTargetUrl,
   taskDetailUrl,
@@ -98,6 +99,7 @@ export function TaskItemCard({
   }, [task])
 
   const status = workStatus(currentTask)
+  const displayStatus = workDisplayStatus(currentTask)
   const isWorking = status === 'Working'
   const isQueued =
     !isWorking &&
@@ -295,7 +297,7 @@ export function TaskItemCard({
         )}
       >
         <ListRowContent
-          leading={<span className="flex h-5 w-5 items-center justify-center"><StatusDot status={dotVariant} size="sm" aria-label={t(status)} title={t(status)} /></span>}
+          leading={<span className="flex h-5 w-5 items-center justify-center"><StatusDot status={dotVariant} size="sm" aria-label={t(displayStatus)} title={t(displayStatus)} /></span>}
           title={<span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{currentTask.title}</span>{showProject&&currentTask.project_name&&<span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">· {currentTask.project_name}</span>}</span>}
           description={isWorking&&liveActivity?liveActivity:isQueued?<>{queuePosition? t('Antrean')+' #'+queuePosition+' · ':''}{currentTask.latest_progress?cleanTerminalText(currentTask.latest_progress):t('Menunggu giliran eksekusi runner...')}</>:undefined}
           trailing={<time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()}>{t(relativeTime(currentTask.updated_at))}</time>}
@@ -343,7 +345,7 @@ export function TaskItemCard({
             ) : (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}
-            {isQueued && queuePosition ? `${t('Queued')} #${queuePosition}` : t(status)}
+            {isQueued && queuePosition ? `${t(displayStatus)} #${queuePosition}` : t(displayStatus)}
           </span>
 
           {showProject && currentTask.project_name && (

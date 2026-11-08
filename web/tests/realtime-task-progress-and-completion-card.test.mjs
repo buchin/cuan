@@ -53,9 +53,9 @@ test('2. Self-Contained TaskCard: handles queued, running pulse & duration timer
   // Verify TaskCard identifier and mobile-safe touch targets
   assert.ok(taskCardSource.includes('data-card="task-card"'), 'TaskCard must have data-card="task-card"')
 
-  // Verify running pulse (animate-ping) and queued pulse (animate-pulse)
+  // Only active execution pulses; queued work must not imply activity.
   assert.ok(taskCardSource.includes('animate-ping'), 'TaskCard must render animate-ping indicator when working')
-  assert.ok(taskCardSource.includes('animate-pulse'), 'TaskCard must render animate-pulse indicator when queued')
+  assert.ok(!taskCardSource.includes('animate-pulse'), 'Queued TaskCard must remain static')
 
   // Verify live duration timer with Clock icon and testid
   assert.ok(taskCardSource.includes('data-testid="task-card-live-timer"'), 'TaskCard must render live timer with data-testid')

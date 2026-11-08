@@ -409,9 +409,14 @@ own visibility markers.
 
 Task cards and details distinguish active execution from automatic result review.
 The read-only `review_state` projection is tied to the latest attempt's live Cuan
-review request, never a historical review or a status guess. Running review shows
+review request or exact bound native verifier launch, never a historical review,
+pending continuation or progress-text guess. Native verifier launches are loaded
+in one batch for task lists; this presentation grants no execution or acceptance
+authority. Running review shows
 **Memeriksa hasil / Checking result** with a small round pulse; queued review is
-static. Completed, expired and canceled requests do not pulse. Manual result
+**Menunggu pemeriksaan / Waiting for checks** and remains static. Completed,
+expired and canceled requests do not pulse. Development keeps its Working label.
+Manual result
 approval is unavailable while the coordinator review is active. Respect reduced
 motion. Display a task result card before its ready-to-use customer reply draft,
 including when both are attached to the same message. Do not create extra status

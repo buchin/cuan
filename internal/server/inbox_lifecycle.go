@@ -912,6 +912,10 @@ func (s *Server) projectInboxTaskReviews(ctx context.Context, items []*task.Task
 	for _, item := range items {
 		if item != nil {
 			item.ReviewState = ""
+			a := item.LatestAttempt
+			if a != nil && (a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued) && item.ExecutionReviewState == a.Status && item.Status != task.TaskStatusDone && item.Status != "cancelled" && item.Status != "canceled" && !a.CancelRequested && a.CanceledAt == nil {
+				item.ReviewState = item.ExecutionReviewState
+			}
 		}
 	}
 	for _, q := range requests {

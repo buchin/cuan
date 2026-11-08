@@ -275,7 +275,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 				respondJSONError(w, 503, "Could not read task review progress")
 				return
 			}
-			item := &task.TaskItemResponse{Task: detail.Task, LatestAttempt: detail.LatestAttempt}
+			item := &task.TaskItemResponse{Task: detail.Task, LatestAttempt: detail.LatestAttempt, ExecutionReviewState: detail.ExecutionReviewState}
 			if err := s.projectInboxTaskReviews(r.Context(), []*task.TaskItemResponse{item}, requests, time.Now().UTC()); err != nil {
 				respondJSONError(w, 503, "Could not read task review progress")
 				return

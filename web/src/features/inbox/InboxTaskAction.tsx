@@ -11,7 +11,7 @@ import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
 import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, AlertCircle, Circle, X } from 'lucide-react'
 import { StatusDot } from '../../components/ui/StatusDot'
-import { workStatus, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
 import { taskAttention } from '../tasks/task-attention'
 
 
@@ -106,7 +106,7 @@ export function InboxTaskAction({
   if (!draft && !existing) return null
   if (existing) {
     const attention = taskAttention(existing)
-    const state = existing.review_state === 'running' ? 'Checking result' : existing.review_state === 'queued' ? 'Waiting for review' : workStatus(existing)
+    const state = workDisplayStatus(existing)
     const rawUpdate = existing.latest_progress || (state === 'Completed' ? existing.summary : undefined)
     const titlePrefix = existing.title.trim()
     const update = titlePrefix && rawUpdate?.trim().toLocaleLowerCase().startsWith(titlePrefix.toLocaleLowerCase()) && (!rawUpdate.trim().slice(titlePrefix.length) || /^[\s:,.–—-]/.test(rawUpdate.trim().slice(titlePrefix.length)))
@@ -114,7 +114,7 @@ export function InboxTaskAction({
       : rawUpdate
     const project = existing.project_name || existing.project_names?.join(', ')
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
-    const StateIcon = state === 'Completed' ? Check : (state === 'Queued' || state === 'Waiting for review') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
+    const StateIcon = state === 'Completed' ? Check : (state === 'Queued' || state === 'Waiting for checks') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
 
     return <section data-card="task-card" data-task-id={existing.id} aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <SurfaceHeader variant="card" className="-mx-4 -mt-3 rounded-t-xl bg-muted/50"

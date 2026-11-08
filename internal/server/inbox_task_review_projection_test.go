@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +66,76 @@ func TestInboxTaskReviewProjectionTracksOnlyCurrentActiveCoordinator(t *testing.
 			}
 		})
 	}
+}
+
+func TestNativeVerifierReviewProjectionPostgres(t *testing.T) {
+	withPhasePostgres(t, func(database *sql.DB) {
+		s, origin, d := phaseLineageSetup(t, database)
+		s.inboxStopping.Store(true)
+		ctx := context.Background()
+		must := func(err error) {
+			t.Helper()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		// This test exercises queued role projection only, not verifier admission
+		// or source acceptance (covered by the native verification contracts).
+		d.Status = task.TaskStatusReview
+		must(s.taskSvc.Store().UpdateTask(ctx, &d.Task))
+		created, err := s.taskSvc.CreateTask(ctx, origin.OwnerID, task.CreateTaskRequest{ProjectID: d.ProjectID, SourceRoomID: origin.RoomID, Title: "Verifier role projection", ExecutionCategory: task.ExecutionCategoryReadOnly, Instructions: "Approved verification", AssignedAgent: origin.AgentID})
+		must(err)
+		d = &task.TaskDetailResponse{Task: *created, LatestAttempt: d.LatestAttempt}
+		now := time.Now().UTC()
+		proof := task.VerificationIntent{SourceAttemptID: d.LatestAttempt.ID, SourceCommit: strings.Repeat("a", 40), InstructionsHash: task.LaunchInstructionsHash(d.Instructions), OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, AssessmentRequestID: "projection-assessment", SourceVerificationHash: strings.Repeat("b", 64)}
+		raw, _ := json.Marshal(proof)
+		launch := task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: task.VerificationRequestID(d.ID, proof.SourceCommit, proof.SourceAttemptID), OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, AgentID: origin.AgentID, InstructionsHash: proof.InstructionsHash, Revision: task.VerificationIntentMarker + string(raw), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
+		job, err := s.taskSvc.SaveLaunch(ctx, launch)
+		must(err)
+		claimed, err := s.taskSvc.ClaimLaunch(ctx, now, "projection-fixture", job.ID)
+		must(err)
+		if claimed == nil {
+			t.Fatal("projection fixture launch not claimed")
+		}
+		attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: origin.AgentID, RequestID: launch.RequestID})
+		must(err)
+		check := func(want string) {
+			t.Helper()
+			items, err := s.inboxLinkedTasks(ctx, origin.RoomID)
+			must(err)
+			found := false
+			for _, item := range items {
+				if item.ID == d.ID {
+					found = true
+					if item.ReviewState != want {
+						t.Fatalf("list review=%q want=%q", item.ReviewState, want)
+					}
+				}
+			}
+			if !found {
+				t.Fatal("native verifier task missing")
+			}
+			detail, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+			must(err)
+			if detail.ReviewState != want {
+				t.Fatalf("detail review=%q want=%q", detail.ReviewState, want)
+			}
+		}
+		check("queued")
+		attempt.Status, attempt.StartedAt = task.AttemptStatusRunning, &now
+		must(s.taskSvc.Store().UpdateAttempt(ctx, attempt))
+		check("running")
+		// A later queued developer launch must not replace the current verifier role.
+		future := launch
+		future.RequestID, future.Revision, future.CreatedAt = "future-projection-dev", "Implement the approved work", now.Add(time.Second)
+		future.AvailableAt = future.CreatedAt
+		_, err = s.taskSvc.SaveLaunch(ctx, future)
+		must(err)
+		check("running")
+		attempt.Status = task.AttemptStatusSucceeded
+		must(s.taskSvc.Store().UpdateAttempt(ctx, attempt))
+		check("")
+	})
 }
 
 func TestInboxTaskReviewProgressPostgres(t *testing.T) {

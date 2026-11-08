@@ -89,6 +89,16 @@ export function workStatus(task: Task) {
   return 'Not started'
 }
 
+// Display the actual automated checking phase without changing execution,
+// queue, terminal availability or completion semantics.
+export function workDisplayStatus(task: Task) {
+  const status = workStatus(task)
+  if (status === 'Completed' || status === 'Cancelled') return status
+  if (task.review_state === 'running') return 'Checking result'
+  if (task.review_state === 'queued') return 'Waiting for checks'
+  return status
+}
+
 export function getQueuedTasksPositions(tasks: Task[]): Map<string, number> {
   const positions = new Map<string, number>()
   const queued = tasks

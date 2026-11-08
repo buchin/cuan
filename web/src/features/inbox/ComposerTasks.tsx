@@ -3,7 +3,7 @@ import { ChevronDown, ListTodo, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
-import { workStatus, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 
@@ -48,7 +48,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal }: {
       {ordered.map(task => {
         const expanded = choices[task.id] ?? (running(task) || (!active && task.id === ordered[0].id))
         const work = workStatus(task)
-        const status = ['Completed', 'Cancelled'].includes(work) ? work : task.review_state === 'running' ? 'Checking result' : task.review_state === 'queued' ? 'Queued' : work
+        const status = workDisplayStatus(task)
         const bodyID = `${id}-${task.id}`
         const progress = work === 'Needs attention' ? task.review_finding || ''
           : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)

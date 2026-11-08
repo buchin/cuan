@@ -19,6 +19,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import {
   workStatus,
+  workDisplayStatus,
   workStatusBadgeClass,
   taskTargetUrl,
   taskDetailUrl,
@@ -486,7 +487,7 @@ export const TaskCard = memo(function TaskCard({
               </span>
             ) : isQueued ? (
               <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
               </span>
             ) : isDone ? (
@@ -496,7 +497,7 @@ export const TaskCard = memo(function TaskCard({
             ) : (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}
-            <span>{t(status)}</span>
+            <span>{t(workDisplayStatus(currentTask))}</span>
           </span>
 
           {/* Running/Queued Live Timer with duration */}

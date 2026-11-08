@@ -320,17 +320,20 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 		}
 	}
 
+	executionReview := s.executionReviewState(ctx, t, latestAttempt)
 	return &TaskDetailResponse{
-		ResultKind:     resultKindForAttempt(classifyResult(activities), latestAttempt),
-		Launch:         s.launchInfo(ctx, id),
-		Task:           *t,
-		ProjectName:    projectName,
-		ProjectNames:   projectNamesList,
-		RepoURL:        repoURL,
-		LatestAttempt:  latestAttempt,
-		LatestProgress: latestProgress,
-		Attempts:       attempts,
-		Activities:     activities,
+		ExecutionReviewState: executionReview,
+		ReviewState:          executionReview,
+		ResultKind:           resultKindForAttempt(classifyResult(activities), latestAttempt),
+		Launch:               s.launchInfo(ctx, id),
+		Task:                 *t,
+		ProjectName:          projectName,
+		ProjectNames:         projectNamesList,
+		RepoURL:              repoURL,
+		LatestAttempt:        latestAttempt,
+		LatestProgress:       latestProgress,
+		Attempts:             attempts,
+		Activities:           activities,
 	}, nil
 }
 
@@ -380,6 +383,19 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 	}
 
 	// Cache project names to avoid duplicate lookups
+	boundLaunches := map[string]*TaskLaunch{}
+	if reader, ok := s.store.(attemptLaunchBatchReader); ok {
+		ids := make([]string, 0, len(latestAttempts))
+		for _, a := range latestAttempts {
+			if a != nil && (a.Status == AttemptStatusRunning || a.Status == AttemptStatusQueued) {
+				ids = append(ids, a.ID)
+			}
+		}
+		boundLaunches, err = reader.LaunchesForAttempts(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("list execution review states: %w", err)
+		}
+	}
 	projectNames := make(map[string]string)
 
 	var items []*TaskItemResponse
@@ -412,13 +428,19 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 		if !batchAttempts {
 			latestAttempt, _ = s.store.GetLatestAttempt(ctx, t.ID)
 		}
+		executionReview := ""
+		if latestAttempt != nil {
+			executionReview = executionReviewState(t, latestAttempt, boundLaunches[latestAttempt.ID])
+		}
 		items = append(items, &TaskItemResponse{
-			ResultKind:     resultKindForAttempt(classifications[t.ID], latestAttempt),
-			Task:           *t,
-			ProjectName:    pName,
-			ProjectNames:   pNames,
-			LatestAttempt:  latestAttempt,
-			LatestProgress: progresses[t.ID],
+			ExecutionReviewState: executionReview,
+			ReviewState:          executionReview,
+			ResultKind:           resultKindForAttempt(classifications[t.ID], latestAttempt),
+			Task:                 *t,
+			ProjectName:          pName,
+			ProjectNames:         pNames,
+			LatestAttempt:        latestAttempt,
+			LatestProgress:       progresses[t.ID],
 		})
 	}
 
