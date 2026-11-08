@@ -46,6 +46,9 @@ func TestExecutionInfoUsesExactAttemptWithoutMutatingPendingLaunch(t *testing.T)
 	if info.LatestLaunch == nil || info.LatestLaunch.ID != LaunchID(created.ID, next.RequestID) || info.LatestLaunch.State != "queued" || info.LatestLaunch.IntentKind != "execution" {
 		t.Fatal("latest admission not separately identified", info.LatestLaunch)
 	}
+	if info.LatestLaunch.Scope == nil || info.LatestLaunch.Scope.ReadOnlyRepository || info.LatestLaunch.Scope.DenyPush || info.LatestLaunch.Scope.DenyDeploy {
+		t.Fatal("pending scope confused with previous read-only attempt", info.LatestLaunch)
+	}
 	raw, _ := json.Marshal(info)
 	if strings.Contains(string(raw), "PRIVATE_") {
 		t.Fatal("private launch content leaked")
@@ -79,6 +82,23 @@ func TestExecutionInfoUsesExactAttemptWithoutMutatingPendingLaunch(t *testing.T)
 	}
 	if _, err := svc.ExecutionInfo(ctx, created.ID, "foreign-attempt"); !errors.Is(err, ErrTaskNotFound) {
 		t.Fatal("foreign attempt was disclosed", err)
+	}
+}
+
+func TestLaunchDiagnosticPreservesReadOnlyContinuationScope(t *testing.T) {
+	item := &Task{ID: "task", Instructions: "Implement approved work"}
+	launch := &TaskLaunch{TaskID: item.ID, InstructionsHash: LaunchInstructionsHash(item.Instructions), Revision: "Scope: read-only repository. Do not push. Do not deploy. PRIVATE_REVISION"}
+	diagnostic := DiagnoseLaunch(item, launch)
+	if diagnostic.IntentKind != "execution" || diagnostic.Scope == nil || !diagnostic.Scope.ReadOnlyRepository || !diagnostic.Scope.DenyPush || !diagnostic.Scope.DenyDeploy {
+		t.Fatal("ordinary continuation lost its actual restrictions", diagnostic)
+	}
+	raw, _ := json.Marshal(diagnostic)
+	if strings.Contains(string(raw), "PRIVATE_REVISION") {
+		t.Fatal("scope diagnostic disclosed revision")
+	}
+	launch.InstructionsHash = "changed"
+	if invalid := DiagnoseLaunch(item, launch); invalid.IntentKind != "invalid" || invalid.Scope != nil {
+		t.Fatal("invalid launch advertised usable scope", invalid)
 	}
 }
 

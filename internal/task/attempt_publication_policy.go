@@ -23,16 +23,21 @@ func AttemptPublicationPolicy(ctx context.Context, store Store, t *Task, attempt
 			if err != nil {
 				return policy, err
 			}
-			revision := executionpolicy.FromInstructions(launch.Revision)
-			if proof != nil {
-				revision.ReadOnlyRepository = true
-				revision.DenyPush = true
-				revision.DenyDeploy = true
-			}
-			policy = policy.Restrict(revision)
+			policy = launchPublicationPolicy(t, launch, proof != nil)
 		}
 	}
 	return policy, nil
+}
+
+func launchPublicationPolicy(t *Task, launch *TaskLaunch, verification bool) executionpolicy.PublicationPolicy {
+	policy := executionpolicy.FromInstructions(t.Instructions)
+	revision := executionpolicy.FromInstructions(launch.Revision)
+	if verification {
+		revision.ReadOnlyRepository = true
+		revision.DenyPush = true
+		revision.DenyDeploy = true
+	}
+	return policy.Restrict(revision)
 }
 func (s *Service) AttemptPublicationPolicy(ctx context.Context, taskID, attemptID string) (executionpolicy.PublicationPolicy, error) {
 	t, err := s.store.GetTask(ctx, taskID)

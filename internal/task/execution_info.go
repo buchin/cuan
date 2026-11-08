@@ -40,11 +40,12 @@ type InspectionPlanDiagnostic struct {
 // Latest admission is separate from the attempt's binding: it may have stopped
 // before any worker existed. Never expose its revision or stored free-text error.
 type LaunchDiagnostic struct {
-	RevisionRunes  int    `json:"revision_runes,omitempty"`
-	ID             string `json:"id"`
-	State          string `json:"state"`
-	IntentKind     string `json:"intent_kind"`
-	ValidationCode string `json:"validation_code,omitempty"`
+	Scope          *executionpolicy.PublicationPolicy `json:"scope,omitempty"`
+	RevisionRunes  int                                `json:"revision_runes,omitempty"`
+	ID             string                             `json:"id"`
+	State          string                             `json:"state"`
+	IntentKind     string                             `json:"intent_kind"`
+	ValidationCode string                             `json:"validation_code,omitempty"`
 }
 
 // DiagnoseLaunch reports only fixed classifications and identifiers, never the
@@ -86,6 +87,10 @@ func diagnoseLaunch(t *Task, j *TaskLaunch) *LaunchDiagnostic {
 		d.IntentKind = "verification"
 	case j.InstructionsHash != LaunchInstructionsHash(t.Instructions):
 		d.IntentKind, d.ValidationCode = "invalid", "instructions_changed"
+	}
+	if d.IntentKind != "invalid" {
+		policy := launchPublicationPolicy(t, j, verification != nil)
+		d.Scope = &policy
 	}
 	return d
 }

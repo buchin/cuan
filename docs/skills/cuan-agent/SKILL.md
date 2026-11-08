@@ -242,6 +242,10 @@ separately from the selected attempt. This read does not revive or authorize wor
 before an attempt exists. Its fixed `validation_code` identifies failed intent
 checks without exposing scope prose, member identity or credentials. It does not
 replace the exact attempt's intent or establish authorization/source acceptance.
+Its `scope` reports the saved candidate's effective publication restrictions,
+using the same policy as attempt execution. An ordinary `execution` can still
+be a read-only continuation; do not infer development permission from its name.
+Invalid candidates omit this scope. This diagnostic never authorizes or starts work.
 Diagnosis reruns validation against current saved task scope; it does not rewrite
 historical reasons, retry work, or waive a rejected binding.
 
