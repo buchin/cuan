@@ -574,3 +574,11 @@ ComposerTasks and shared Composer components. With Vite on port5174, run
 (`PLAYWRIGHT_MODULE`) and optional `CHROMIUM_EXECUTABLE`. It checks390px and1440px,
 update/disclosure behavior, draft preservation, actions and empty/queued states.
 Screenshots are saved under `/tmp/cuan-composer-{width}.png` for visual inspection.
+
+### Inbox completion visibility
+
+Show the shared task progress indicator starting with one completed task. One
+completed task displays the same calm green checked circle as a fully completed
+conversation with multiple tasks. Partial completion uses the pie indicator.
+Canceled work is excluded from completion and remains explicit in the breakdown;
+a conversation containing only canceled tasks must not display a done check.

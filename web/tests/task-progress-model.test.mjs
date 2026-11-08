@@ -7,7 +7,7 @@ const {taskProgressModel}=await compile('../src/components/ui/task-progress-mode
 const {workStatus}=await compile('../src/features/tasks/task-ui.ts')
 const {workConversationPreview}=await compile('../src/features/inbox/conversation-work-preview.ts')
 
-test('hide unknown, zero-progress, empty and single-task Inbox indicators',()=>{
+test('hide unknown, zero-progress and empty indicators; show one completed task',()=>{
  for(const input of [{},{total:0,done:0},{total:3,done:0},{total:1,done:1,minTasks:2},{total:2,done:3},{total:3,done:NaN}])assert.equal(taskProgressModel(input),null)
  assert.equal(taskProgressModel({total:1,done:1}).complete,true)
 })
@@ -51,4 +51,9 @@ test('launch previews show current queue state instead of repeated generated ack
  assert.equal(workConversationPreview(ack,{task_count:1,failed_tasks:1}),'The result needs attention.')
  assert.equal(workConversationPreview(link,{task_count:1,queued_tasks:1}),'Work is waiting to start.')
  assert.equal(workConversationPreview('What does “Work queued” mean?'),undefined)
+})
+
+test('Inbox does not suppress a single completed task',()=>{
+ const source=fs.readFileSync(new URL('../src/features/inbox/InboxSubPanel.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/minTasks\s*:\s*2/);
 })

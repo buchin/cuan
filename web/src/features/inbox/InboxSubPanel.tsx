@@ -133,7 +133,7 @@ export function ConversationItem({
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const reviewTasks = Number(contact.review_tasks) || 0
   const failedTasks = Number(contact.failed_tasks) || 0
-  const progress = { total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0), done: contact.done_tasks, canceled: contact.canceled_tasks, active: activeTasks, queued: contact.queued_tasks, review: reviewTasks, blocked: contact.failed_tasks, minTasks: 2 }
+  const progress = { total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0), done: contact.done_tasks, canceled: contact.canceled_tasks, active: activeTasks, queued: contact.queued_tasks, review: reviewTasks, blocked: contact.failed_tasks }
   const showProgress = !!taskProgressModel(progress)
   const hasActiveWork = activeTasks > 0
   const isAgentConnectionIssue =
