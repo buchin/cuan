@@ -13,6 +13,7 @@ import (
 
 const NativeReleaseIntentMarker = "Cuan native-release intent v1: "
 const ActivityNativeReleaseHandoff = "native_release_handoff"
+const NativeReleaseMergeConflictMessage = "Native release source has confirmed merge conflicts with the current release branch. Reconcile the approved source against the latest branch in a developer session, preserve unrelated work and release gates, rerun required checks and independent source review, then publish only the new reviewed source. The release script was not started."
 
 // NativeReleaseHandoff is produced by completion validation, never by agent
 // reports. It records unfinished publication, not a successful deployment.

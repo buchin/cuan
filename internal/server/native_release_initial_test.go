@@ -89,7 +89,6 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 			json.NewEncoder(w).Encode(map[string]any{"status": status, "merge_base_commit": map[string]string{"sha": ancestor}})
 		case r.Method == http.MethodPost && r.URL.Path == "/repos/owner/repo/merges":
 			merges++
-			merged = true
 			var payload map[string]string
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 				t.Error(err)
@@ -99,6 +98,11 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 			if payload["head"] != intent.SourceCommit || payload["base"] != intent.TargetBranch {
 				t.Error("merge changed approved source/target")
 			}
+			if scenario == "initial merge conflict" {
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			merged = true
 			w.WriteHeader(201)
 			json.NewEncoder(w).Encode(map[string]string{"sha": target})
 		default:
@@ -154,6 +158,26 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		}
 	} else {
 		response = request()
+	}
+	if scenario == "initial merge conflict" {
+		if response.Code != http.StatusConflict || merges != 1 || !strings.Contains(response.Body.String(), `"code":"source_merge_conflict"`) {
+			t.Fatal("confirmed conflict lost its native diagnosis", response.Code, response.Body.String())
+		}
+		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		found := false
+		for _, event := range detail.Activities {
+			if event.ID == "native-release-merge-conflict:"+claim.Attempt.ID && event.Author == "cuan-native-release" && event.AttemptID != nil && *event.AttemptID == claim.Attempt.ID && event.Message == "source_merge_conflict" {
+				found = true
+			}
+			if event.ActivityType == task.ActivityNativeReleasePreparation {
+				t.Fatal("conflict produced a prepared release")
+			}
+		}
+		if !found {
+			t.Fatal("merge failure diagnosis was not saved")
+		}
+		return
 	}
 	success := scenario == "initial merge" || strings.HasPrefix(scenario, "initial verify") || scenario == "initial contained"
 	if !success {

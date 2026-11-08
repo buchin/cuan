@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -82,6 +83,9 @@ func TestRemoteBranchMergePinsSourceAndDoesNotReplay(t *testing.T) {
 				}
 			} else if err == nil || result != nil {
 				t.Fatal("uncertain merge accepted")
+			}
+			if errors.Is(err, ErrMergeConflict) != (scenario == "conflict") {
+				t.Fatal("confirmed merge conflict conflated with uncertain publication", err)
 			}
 			want := int32(1)
 			if scenario == "missing access" || scenario == "invalid source" || scenario == "preexisting" || scenario == "observation failed" || scenario == "inconsistent ancestry" || scenario == "unknown ancestry" {

@@ -80,6 +80,15 @@ assessment-only refresh under `Source review policy: v1`. The refresh uses curre
 evidence and cannot approve source from the old report, rerun execution or reset
 correction budgets. Explicit newer verdicts are not treated as missing fields.
 
+GitHub merge HTTP 409 is a confirmed source conflict, separate from transport
+failure or an uncertain merge outcome. Preparation saves the fixed
+`source_merge_conflict` diagnostic against the native attempt and returns that
+typed code to the runner. The runner retains a concrete reconciliation gap in
+its final failure report; raw provider messages are not forwarded. This does not
+retry a merge, rewrite the source approval or execute the release script. A
+developer must reconcile only the approved source with the current branch and
+obtain fresh checks and independent review for the resulting checkpoint.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.
