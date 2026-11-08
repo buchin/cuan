@@ -658,3 +658,12 @@ offering, perform the available read-only fetch/search in that turn and assess
 retrieved facts against known project needs. Do not manufacture package details
 from general knowledge or ask whether to do the same check again. Report missing
 retrieval honestly. This authorizes research only, not purchases or mutations.
+
+Public `web_fetch` uses a destination policy at connection time: every DNS answer
+must be public, and the connection uses the validated numeric address. Loopback,
+private, link-local, shared/reserved ranges, embedded URL credentials and redirects
+to those destinations are rejected. Ambient HTTP proxies are not inherited.
+This also applies to `cuan mcp --public-web`; it grants no internal-service access.
+The Go-only `Options.Client` injection is trusted application code responsible
+for its own routing policy, and is not an agent/MCP argument. A future renderer
+must enforce equivalent restrictions for redirects and every subresource too.

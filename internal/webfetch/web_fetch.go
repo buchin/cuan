@@ -35,7 +35,9 @@ type Result struct {
 	Truncated   bool   `json:"truncated,omitempty"`
 }
 
-// Options allows configuring client, timeout and max payload.
+// Options allows configuring client, timeout and max payload. A supplied client
+// is trusted application code and owns its network policy (for example isolated
+// test servers); agent-facing tools cannot supply one.
 type Options struct {
 	Client     *http.Client
 	Timeout    time.Duration
@@ -79,11 +81,12 @@ func FetchWithOptions(ctx context.Context, rawURL string, opts Options) (*Result
 		maxPayload = MaxPayload
 	}
 
+	if parsedURL.Hostname() == "" || parsedURL.User != nil {
+		return nil, errors.New("a public HTTP(S) URL without embedded credentials is required")
+	}
 	client := opts.Client
 	if client == nil {
-		client = &http.Client{
-			Timeout: timeout,
-		}
+		client = newPublicClient(timeout)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, timeout)

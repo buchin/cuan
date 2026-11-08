@@ -42,7 +42,7 @@ func TestWebFetchSuccess(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	res, err := Fetch(ctx, server.URL)
+	res, err := FetchWithOptions(ctx, server.URL, Options{Client: server.Client()})
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestWebFetchHTTP404(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	_, err := Fetch(ctx, server.URL+"/non-existent-page")
+	_, err := FetchWithOptions(ctx, server.URL+"/non-existent-page", Options{Client: server.Client()})
 	if err == nil {
 		t.Fatalf("expected error for HTTP 404, got nil")
 	}
@@ -93,7 +93,7 @@ func TestWebFetchHTTP500(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	_, err := Fetch(ctx, server.URL)
+	_, err := FetchWithOptions(ctx, server.URL, Options{Client: server.Client()})
 	if err == nil {
 		t.Fatalf("expected error for HTTP 500, got nil")
 	}
@@ -113,6 +113,7 @@ func TestWebFetchTimeout(t *testing.T) {
 	// Use custom options with a tight timeout to verify timeout enforcement
 	ctx := context.Background()
 	opts := Options{
+		Client:  server.Client(),
 		Timeout: 50 * time.Millisecond,
 	}
 	_, err := FetchWithOptions(ctx, server.URL, opts)
@@ -139,7 +140,7 @@ func TestWebFetchPayloadLimitProtection(t *testing.T) {
 
 	ctx := context.Background()
 	// Test with default MaxPayload (2 MB)
-	res, err := Fetch(ctx, server.URL)
+	res, err := FetchWithOptions(ctx, server.URL, Options{Client: server.Client()})
 	if err != nil {
 		t.Fatalf("expected successful fetch with truncation, got error: %v", err)
 	}
@@ -153,6 +154,7 @@ func TestWebFetchPayloadLimitProtection(t *testing.T) {
 
 	// Also verify custom max payload option
 	customOpts := Options{
+		Client:     server.Client(),
 		MaxPayload: 1024, // 1 KB limit
 	}
 	customRes, err := FetchWithOptions(ctx, server.URL, customOpts)
@@ -195,7 +197,7 @@ func TestWebFetchPlainText(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	res, err := Fetch(ctx, server.URL)
+	res, err := FetchWithOptions(ctx, server.URL, Options{Client: server.Client()})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

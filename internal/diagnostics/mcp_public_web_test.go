@@ -3,9 +3,29 @@ package diagnostics
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestPublicWebMCPCannotReachInternalService(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		fmt.Fprint(w, "private-service-content")
+	}))
+	defer server.Close()
+	input := strings.NewReader(fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"web_fetch","arguments":{"url":%q}}}`+"\n", server.URL))
+	var out, stderr bytes.Buffer
+	if RunPublicWebMCP(input, &out, &stderr) != 0 {
+		t.Fatal(stderr.String())
+	}
+	if called || !strings.Contains(out.String(), `"isError":true`) || strings.Contains(out.String(), "private-service-content") {
+		t.Fatal("internal destination boundary failed", out.String())
+	}
+}
 
 func TestPublicWebMCPDiscoveryAndDispatchBoundary(t *testing.T) {
 	input := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}
