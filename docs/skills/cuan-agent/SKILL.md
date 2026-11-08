@@ -832,3 +832,12 @@ matching historical live failures exist, publication requirement, known ancestry
 and observed running commit, with a factual routing code. It contains no owner
 credentials, revision prose or task content and grants no execution permission.
 Historical attempt selection never attaches current recovery diagnostics.
+
+A persisted source-verifier review can predate a newly available native
+integration finding. Manager handoff recovery queues one fresh PM assessment
+through its existing deterministic key when the current publication guard now
+classifies that saved verification as implementation. It preserves the old
+assessment and worker history; it neither directly accepts work nor replays the
+old inspection. An optional missing requested_outcome field does not discard an
+explicit revise/continue or revise/replan decision when the required native
+source/failure/scope evidence is present; needs_input remains excluded.

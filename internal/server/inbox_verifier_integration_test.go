@@ -22,6 +22,10 @@ func TestVerifiedSourceIntegrationRequiresUnchangedNativeFailure(t *testing.T) {
 	if !verifiedSourceIntegrationRequired(verification, &publication, &scope, target) {
 		t.Fatal("known failed native check was routed back to the same inspection")
 	}
+	verification.RequestedOutcome = ""
+	if !verifiedSourceIntegrationRequired(verification, &publication, &scope, target) {
+		t.Fatal("optional absent outcome field discarded the explicit revise/continue decision")
+	}
 	unknown := publication
 	unknown.ResultCommitContained = nil
 	if !verifiedSourceIntegrationRequired(decision, &unknown, &scope, target) {

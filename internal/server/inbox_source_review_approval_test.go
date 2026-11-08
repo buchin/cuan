@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/publication"
 	"strings"
 	"testing"
 	"time"
@@ -101,8 +102,63 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 			t.Fatal("changed scope reused historical native failure")
 		}
 	})
-	t.Run("separate developer correction", func(t *testing.T) {
+
+	t.Run("native findings refresh a stranded saved verification decision", func(t *testing.T) {
 		must(s.taskSvc.FinishLaunch(ctx, job.ID, "source-review-launch", "stopped", time.Now(), "Execution finished"))
+		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(err)
+		p, e := s.projectSvc.Store().GetProject(ctx, d.ProjectID)
+		must(e)
+		p.Metadata = registeredReleaseMetadata(t)
+		if p.RepoURL == "" {
+			p.RepoURL = "https://github.com/fixture/repo"
+		}
+		must(s.projectSvc.Store().UpdateProject(ctx, p))
+		s.cfg.Environment = "production"
+		s.cfg.SourceRepository = "unrelated/config"
+		s.publicationObserver = func(context.Context, publication.Config) (string, error) { return strings.Repeat("f", 40), nil }
+		key := "task-review:" + d.LatestAttempt.ID
+		review := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: d.SourceRoomID, RequestID: delegationMessageID(key), MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour), State: "queued", PayloadHash: delegationMessageID(key)}
+		_, _, e = s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, review, &db.ProjectMessage{ID: review.MessageID, RoomID: review.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: inboxOwnershipPolicy + "\nReview [/tasks/" + d.ID + "].", CreatedAt: review.CreatedAt})
+		must(e)
+		stale := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Existing evidence requires reconciliation", Explanation: "Inspect the original result", Revision: verificationReviewRevision("Inspect the existing release"), ManagerAction: "replan", ManagerReason: "Evaluate the saved result without repeating effects"}
+		_, e = s.saveReviewAssessment(ctx, d, review, stale)
+		must(e)
+		review.State = "completed"
+		must(s.projectStudioRepo.(db.InboxRequestRepository).FinishInboxRequest(ctx, review, nil))
+		requests, e := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, d.SourceRoomID)
+		must(e)
+		var origin db.InboxRequest
+		for _, r := range requests {
+			if r.MessageID == d.SourceMessageID {
+				origin = r
+			}
+		}
+		current, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		if !s.recoverManagerVerificationHandoff(ctx, current, origin, requests) {
+			t.Fatalf("native source finding did not schedule fresh PM assessment: %+v", s.verifierHandoffDiagnostic(ctx, current))
+		}
+		requests, e = s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, d.SourceRoomID)
+		must(e)
+		count := len(requests)
+		if !s.recoverManagerVerificationHandoff(ctx, current, origin, requests) {
+			t.Fatal("queued reassessment was not retained")
+		}
+		again, e := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, d.SourceRoomID)
+		must(e)
+		if len(again) != count {
+			t.Fatal("fresh assessment duplicated")
+		}
+		saved, found := reviewAssessment(current, review.RequestID)
+		if !found || saved.RemainingWork != "verification" {
+			t.Fatal("historical review was rewritten")
+		}
+		if current.LatestAttempt.ID != d.LatestAttempt.ID {
+			t.Fatal("historical source verifier was replayed")
+		}
+	})
+	t.Run("separate developer correction", func(t *testing.T) {
 		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
 		must(err)
 		key := "task-review:" + d.LatestAttempt.ID + ":verifier-correction-v5:" + inboxReviewEvidenceDigest(d)

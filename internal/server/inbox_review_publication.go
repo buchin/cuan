@@ -278,7 +278,7 @@ func (s *Server) hasNativeSourcePublicationHandoff(ctx context.Context, d *task.
 // Native source/outcome evidence supplies failedTarget; reviewer prose cannot.
 // This classification grants no scope and does not waive independent checks.
 func verifiedSourceIntegrationRequired(decision inboxReviewEvaluation, publication *reviewPublication, approved *executionpolicy.PublicationPolicy, failedTarget string) bool {
-	knownVerification := decision.RemainingWork == "verification" && decision.RequestedOutcome == "unfinished" && (decision.ManagerAction == "continue" || decision.ManagerAction == "replan")
+	knownVerification := decision.RemainingWork == "verification" && (decision.ManagerAction == "continue" || decision.ManagerAction == "replan")
 	knownIntegration := decision.RemainingWork == "implementation" && strings.HasPrefix(decision.Revision, "Native publication reconciliation: native source integration finding:")
 	return decision.Decision == "revise" && decision.RequestedOutcome != "needs_input" && (decision.RemainingWork == "publication" || knownVerification || knownIntegration) && publication != nil && publication.Required && !publication.Verified && (publication.ResultCommitContained == nil || !*publication.ResultCommitContained) && releaseObjectID.MatchString(failedTarget) && publication.ObservedRelease == failedTarget && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy
 }

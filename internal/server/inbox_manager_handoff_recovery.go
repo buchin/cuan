@@ -66,6 +66,14 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 			}
 			return false
 		}
+		if sourceCorrection && saved.RemainingWork == "verification" {
+			reconciled := s.requirePublicationReview(ctx, d, saved)
+			if reconciled.Decision == "revise" && reconciled.RemainingWork == "implementation" {
+				// A changed native finding deserves a fresh saved PM decision,
+				// not mutation of the old assessment or replay of its worker.
+				return s.queueManagerAssessment(ctx, q, d)
+			}
+		}
 		if !s.managerContinuationAllowed(ctx, q, d, saved.Revision) {
 			continue
 		}
