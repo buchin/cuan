@@ -188,7 +188,7 @@ func prepareInboxMCPBoundary(home string) (string, error) {
 		return "", err
 	}
 	defer root.Close()
-	const directory = ".cuan-chat-sandbox"
+	const directory = ".cuan-chat-sandbox-public-web-v1"
 	if err := root.Mkdir(directory, 0700); err != nil && !os.IsExist(err) {
 		return "", err
 	}

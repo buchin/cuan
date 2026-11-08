@@ -236,3 +236,27 @@ func TestInboxMCPBoundaryRejectsChangedOrSymlinkedConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxPublicWebBoundaryMigratesWithoutReplacingLegacyConfig(t *testing.T) {
+	home := t.TempDir()
+	legacy := filepath.Join(home, ".cuan-chat-sandbox", "mcp_config.json")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0700); err != nil {
+		t.Fatal(err)
+	}
+	const old = "{\"mcpServers\":{}}\n"
+	if err := os.WriteFile(legacy, []byte(old), 0600); err != nil {
+		t.Fatal(err)
+	}
+	path, err := prepareInboxMCPBoundary(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || string(raw) != inboxPublicWebMCPConfig {
+		t.Fatal("new capability boundary unavailable", err)
+	}
+	raw, err = os.ReadFile(legacy)
+	if err != nil || string(raw) != old {
+		t.Fatal("legacy boundary changed", err)
+	}
+}
