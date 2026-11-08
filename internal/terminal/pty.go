@@ -197,6 +197,13 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 		if key == "" || strings.ContainsAny(key, "=\x00") || strings.ContainsRune(value, 0) {
 			return nil, fmt.Errorf("invalid delegated environment key")
 		}
+		// Ordinary values already passed through the normal environment path.
+		// Only restore filtered project credentials; never overwrite the native
+		// task capability or brain route with project configuration.
+		upper := strings.ToUpper(key)
+		if !IsSensitiveKey(key) || strings.HasPrefix(upper, "CUAN_TASK_") || strings.HasPrefix(upper, "CUAN_BRAIN_") {
+			continue
+		}
 		prefix := key + "="
 		filtered := env[:0]
 		for _, item := range env {

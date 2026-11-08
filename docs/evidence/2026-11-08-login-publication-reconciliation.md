@@ -430,6 +430,25 @@ report consistency and PM acceptance must not be described as direct native
 authentication proof. This benchmark does not measure the newly deployed prompt
 or context changes, since both execution attempts started before that rollout.
 
+A subsequent same-scope benchmark under the latest deployed prompt/context is
+running in room `42cf81c9-506b-4bff-96f9-8eeb2ed33d7d`, request
+`dc76e71b-9e3a-4556-9f86-2f3935bf3b67`. One natural request requires fresh
+account reads, redacted output/exit receipts, downloadable report and independent
+checking, retaining all prior prohibitions. It delegated task
+`msg_2e384c01-97d7-445c-8c25-0f3fcff88da8`, first attempt
+`att_49896cd3782d2c6f65831daba109da9e`. Native PM-stage duration was 66.7s;
+prompt/context sizes were 80,086/18,552 bytes. The smaller context and faster
+single stage are observations, not a causal performance claim across models or
+accounts. The first execution is still running; no first-pass success claimed.
+
+Additional local isolation hardening prevents the new delegated credential map
+from reapplying ordinary project values over native task capability metadata.
+Only filtered sensitive project keys are restored, and task/brain runtime keys
+remain protected. The real subprocess isolation test now tries to override the
+native capability and inject a task API token; both are rejected while approved
+Dojo credentials still arrive. Terminal and native runner-to-PTY tests pass.
+This hardening is not deployed yet.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

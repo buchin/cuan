@@ -71,10 +71,10 @@ func TestSpawnPTYDelegatesOnlyExplicitProjectCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for _, delegated := range []bool{false, true} {
-		cfg := PTYConfig{WorkDir: t.TempDir(), Shell: "/bin/sh", Env: []string{"DOJO_VPS_PASSWORD=untrusted-custom"}}
+		cfg := PTYConfig{WorkDir: t.TempDir(), Shell: "/bin/sh", Env: []string{"DOJO_VPS_PASSWORD=untrusted-custom", "CUAN_TASK_CAPABILITY_JSON=native-bound"}}
 		if delegated {
-			cfg.DelegatedEnv = map[string]string{"DOJO_VPS_PASSWORD": "project-scoped", "DOJO_DEPLOY_HOST": "project-host"}
-			cfg.Args = []string{"-c", `test "$DOJO_VPS_PASSWORD" = project-scoped && test "$DOJO_DEPLOY_HOST" = project-host && test -z "$AWS_SECRET_ACCESS_KEY"`}
+			cfg.DelegatedEnv = map[string]string{"DOJO_VPS_PASSWORD": "project-scoped", "DOJO_DEPLOY_HOST": "project-host", "CUAN_TASK_CAPABILITY_JSON": "project-override", "CUAN_TASK_API_TOKEN": "project-override"}
+			cfg.Args = []string{"-c", `test "$DOJO_VPS_PASSWORD" = project-scoped && test "$DOJO_DEPLOY_HOST" = project-host && test -z "$AWS_SECRET_ACCESS_KEY" && test "$CUAN_TASK_CAPABILITY_JSON" = native-bound && test -z "$CUAN_TASK_API_TOKEN"`}
 		} else {
 			cfg.Args = []string{"-c", `test -z "$DOJO_VPS_PASSWORD" && test -z "$AWS_SECRET_ACCESS_KEY"`}
 		}
