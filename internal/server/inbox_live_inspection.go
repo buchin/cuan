@@ -115,7 +115,7 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 	// A local-only implementation must not substitute an unrelated release.
 	// A later publication-restricted reconciliation can inspect its original
 	// native-prepared source only when current publication proves containment.
-	if currentOutcome && limits.DenyPush && limits.DenyDeploy && !s.preparedSourceAlreadyPublished(ctx, d) {
+	if currentOutcome && limits.DenyDeploy && !s.preparedSourceAlreadyPublished(ctx, d) {
 		return nil, "local_implementation_requires_source_verification"
 	}
 	if !s.liveInspectionReadScopeAllowed(ctx, d, sourceAttempt) {

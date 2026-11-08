@@ -89,3 +89,29 @@ does not operate on production user data. No live task source, task status,
 approval, retry or acceptance was changed. Deployment/merge remain forbidden.
 The final native verifier and source review must reject these behaviors if they
 remain in the actual handed-off commit.
+
+## Proven orchestration routing defect
+
+Developer attempt one timed out at `2026-11-09T03:12:37.807094+08:00` without
+a final report or source commit. Working changes remained in its task workspace.
+The dispatcher automatically admitted attempt two,
+`att_c313791f4e296725f0f4206c1333f30d`, as current-outcome inspection of the
+old running Cuan revision `f4b9c0287c76f19821912882b82bdb55270aa80f`.
+That is not verification of the unfinished local feature. The request permits
+task-branch publication for review while expressly forbidding merge/deployment.
+Attempt two failed native visual/project preparation at
+`2026-11-09T03:14:43.519444+08:00`; it establishes no feature verification.
+
+The exact native planner guard required both deny-push and deny-deploy before
+rejecting substitution of an unrelated running release. The correction uses
+deny-deploy alone, retaining the existing exception for native-proven publication
+containment. Push permission is not deployment scope. A new lifecycle scenario
+permits task-branch push, forbids merge/deploy and uses a timed-out worker without
+a source handoff. It fails against the old planner and passes with the fix.
+Existing live-inspection, unpublished-outcome and supplemental-verifier lifecycle
+tests also pass. This planner repair is not yet deployed.
+
+The PM's subsequent saved assessment requests implementation rather than more
+passive inspection. Its claim of no saved code must not be read as absence of
+working files: the actual uncommitted workspace was independently observed.
+No historical failure was changed and no task acceptance/retry was forced.
