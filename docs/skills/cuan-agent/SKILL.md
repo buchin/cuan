@@ -711,3 +711,15 @@ than repeating account investigation, branch resets or publication. Historical,
 foreign-runner, canceled and assertion-failure evidence cannot use this path.
 Only affected unfinished reviews receive a changed evidence-policy digest for
 one fresh assessment; correction limits and original authorization remain.
+
+A developer source that passed native registered checks but failed solely at the
+publication gate can enter the existing exact-source verifier after a saved,
+current verification assessment. This reuses the publication-reconciliation
+eligibility checks; unknown/failed tests, changed source, missing native change
+records, cancellation and unrecorded review remain ineligible. The failed
+implementation attempt remains failed and deployment remains unverified. The
+verifier gets an isolated snapshot of that local commit, not the older production
+revision, with push/deployment forbidden. Recovery recognizes the dedicated source
+verification launch before considering a current-outcome inspection, preventing
+parallel admissions. Locked PHP preparation also applies to that source snapshot,
+with source identity revalidated before its read-only baseline is captured.

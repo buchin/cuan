@@ -47,7 +47,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 		if recovery == nil {
 			return "A separate verifier recovery is not authorized.", false
 		}
-	} else if !task.ProjectChecksPassed(d) {
+	} else if !task.VerificationSourceChecksPassed(d) {
 		return "Required project checks have not passed for this source.", false
 	}
 	repository, ok := s.projectStudioRepo.(db.InboxRequestRepository)

@@ -137,6 +137,13 @@ func ProjectChecksPassed(d *TaskDetailResponse) bool {
 	return evidence.Author != "" && evidence.Author == d.LatestAttempt.RunnerID && PassingProjectCheckSummary(evidence.Current)
 }
 
+// VerificationSourceChecksPassed admits a clean, natively tested source whose
+// only failed completion gate was publication, after a saved verification review.
+// This never changes the failed attempt or establishes deployment/acceptance.
+func VerificationSourceChecksPassed(d *TaskDetailResponse) bool {
+	return ProjectChecksPassed(d) || (d != nil && IsPublicationReconciliationOutcome(&d.Task, d.LatestAttempt, d.Activities))
+}
+
 func PassingProjectCheckSummary(summary string) bool {
 	first := strings.SplitN(summary, "\n", 2)[0]
 	return first == "Project verification: registered PHPUnit targets (exit 0)" || first == "Project verification: test.sh --fast (exit 0)" || first == "Project verification: go test ./... (exit 0)"
@@ -168,7 +175,7 @@ func ValidateVerificationSource(ctx context.Context, store Store, t *Task, attem
 		return nil, err
 	}
 	d := &TaskDetailResponse{Task: *t, LatestAttempt: source, Activities: activities}
-	if !ProjectChecksPassed(d) || VerificationSummaryHash(AttemptVerificationEvidence(d).Current) != proof.SourceVerificationHash {
+	if !VerificationSourceChecksPassed(d) || VerificationSummaryHash(AttemptVerificationEvidence(d).Current) != proof.SourceVerificationHash {
 		return nil, ErrInvalidTaskInput
 	}
 	if proof.RecoveryAttemptID != "" {

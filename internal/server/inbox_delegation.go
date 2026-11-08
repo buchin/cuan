@@ -738,6 +738,12 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if s.recoverCapacityVerification(ctx, detail, *origin) {
 		return
 	}
+	if task.IsPublicationReconciliationOutcome(&detail.Task, detail.LatestAttempt, detail.Activities) {
+		gate = "source_verification_handoff"
+		if s.recoverManagerVerificationHandoff(ctx, detail, *origin, requests) {
+			return
+		}
+	}
 	gate = "live_inspection"
 	if s.recoverLiveResultInspection(ctx, detail, *origin) {
 		return

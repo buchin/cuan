@@ -48,6 +48,14 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 			return false
 		}
 		s.applyInboxReviewEvaluation(ctx, q, string(raw))
+		sourceRequest := task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)
+		if sourceLaunch, sourceErr := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, sourceRequest)); sourceErr == nil && sourceLaunch != nil && (sourceLaunch.State == "queued" || sourceLaunch.State == "claimed" || sourceLaunch.State == "started") {
+			proof, proofErr := task.VerificationIntentForLaunch(&d.Task, sourceLaunch)
+			if proofErr == nil && proof != nil && proof.SourceAttemptID == d.LatestAttempt.ID && proof.SourceCommit == d.CommitSHA && proof.OwnerID == origin.OwnerID {
+				s.publishInbox(d.SourceRoomID)
+				return true
+			}
+		}
 		launch, err = s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID))
 		if err == nil && launch != nil && (launch.State == "queued" || launch.State == "claimed" || launch.State == "started") {
 			s.publishInbox(d.SourceRoomID)

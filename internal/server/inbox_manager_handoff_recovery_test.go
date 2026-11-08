@@ -18,6 +18,7 @@ func TestSavedManagerVerificationAdmissionRecoversWithoutModelReplay(t *testing.
 			ctx := context.Background()
 			store := s.taskSvc.Store()
 			row, _ := store.GetTask(ctx, d.ID)
+			row.ExecutionCategory = task.ExecutionCategoryOps // This fixture compares findings; code uses exact-source verification.
 			row.Instructions += "\nApproval message: " + d.SourceMessageID
 			if err := store.UpdateTask(ctx, row); err != nil {
 				t.Fatal(err)
@@ -72,7 +73,7 @@ func TestSavedManagerVerificationAdmissionRecoversWithoutModelReplay(t *testing.
 					t.Fatal(err)
 				}
 			}
-			if err := store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+			if err := store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryOps}); err != nil {
 				t.Fatal(err)
 			}
 			d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)

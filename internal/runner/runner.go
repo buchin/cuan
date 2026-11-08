@@ -985,13 +985,18 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			prompt += "\nFrontend preparation: the runner checked known npm roots and prepared any present locked public dependencies in this private workspace without lifecycle scripts. Prefer local tools and the supplied browser runtime. Do not borrow node_modules from another workspace. A project-specific lifecycle step may still be required: inspect its scripts and execution scope before running it. Preparation alone is not proof of a successful build or visual verification.\n"
 		}
 	}
-	if err == nil && claim.PHPUnitTargets != "" && ((!policy.ReadOnlyRepository && ws != nil) || claim.LiveInspection != nil) {
+	if err == nil && claim.PHPUnitTargets != "" && ((!policy.ReadOnlyRepository && ws != nil) || claim.LiveInspection != nil || (claim.Verification != nil && claim.Verification.IsolatedWorkspace)) {
 		r.streamLogLine(ctx, att.ID, "system", "Preparing locked PHP dependencies in the private workspace without Composer scripts or plugins.")
 		setupErr := preparePHPDependencies(ctx, workingDir)
 		if claim.LiveInspection != nil {
 			err = setupErr
 			if err == nil {
 				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SnapshotSourceCommit(), claim.LiveInspection.TargetCommit)
+			}
+		} else if claim.Verification != nil {
+			err = setupErr
+			if err == nil {
+				err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.Verification.SourceCommit, claim.Verification.SourceCommit)
 			}
 		} else if setupErr != nil {
 			r.streamLogLine(ctx, att.ID, "system", "Automatic PHP preparation is incomplete: "+setupErr.Error())

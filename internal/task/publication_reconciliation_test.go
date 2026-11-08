@@ -70,6 +70,13 @@ func TestPublicationReconciliationRequiresNativeSourceChecksAndVerificationRevie
 			}
 			reviewRaw, _ := json.Marshal(map[string]any{"request_id": "review-request", "instructions_hash": LaunchInstructionsHash(instructions), "evidence_digest": strings.Repeat("d", 64), "assessment": map[string]string{"decision": "revise", "remaining_work": decision}})
 			review.Message = string(reviewRaw)
+			detail := &TaskDetailResponse{Task: *item, LatestAttempt: source, Activities: events}
+			if VerificationSourceChecksPassed(detail) != (scenario == "valid") {
+				t.Fatalf("unpublished source verification admission failed for %s", scenario)
+			}
+			if ProjectChecksPassed(detail) {
+				t.Fatal("failed publication became successful execution")
+			}
 			eligible := IsPublicationReconciliationOutcome(item, source, events)
 			if eligible != (scenario == "valid") {
 				t.Fatalf("incorrect eligibility for %s", scenario)
