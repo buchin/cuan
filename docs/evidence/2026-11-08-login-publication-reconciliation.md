@@ -372,6 +372,26 @@ checking; it forbids business/source/dependency/deployment changes and contact.
 The send observation timed out, but official room read confirms one running
 request; it was not resent. No completion or efficiency claim yet.
 
+The post-fix request delegated one saved `readonly` task,
+`msg_cf09e548-4cce-4e6f-97a1-ae376eb0689a`, to attempt
+`att_0fd54e62b7fe9ba4ecf8241aba237cd6`, started at
+`2026-11-09T02:12:48.923358+08:00`. Its output reports successful direct
+production connection, unlike the preceding observer's missing-environment
+searches; final read receipts and independent acceptance remain pending.
+The PM stage took approximately two minutes and its native diagnostic reports
+82,098 prompt bytes / 20,564 context bytes. Those sizes alone do not establish
+the cause of model latency.
+
+Inspection found unrelated project task transcripts and detailed reports were
+loaded into every new request. A local context change retains project counts,
+task IDs/titles/statuses, source references and blocker overview, but only loads
+full attempt errors/logs/activity/summary for tasks bound to this conversation
+or explicitly referenced in its messages. Explicit cross-room task references
+still retain deep failure logs. Targeted project/link context tests pass,
+including a regression that first excludes an unrelated failure transcript,
+then includes it after the owner references that exact task. This change is
+not deployed and has no measured production latency benefit yet.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

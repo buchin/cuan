@@ -139,6 +139,14 @@ func TestInboxProjectContextIncludesDeepFailureLogs(t *testing.T) {
 	if !strings.Contains(snapshot, "Active Blockers / Failed Attempts Needing Review:") {
 		t.Fatalf("expected active blockers section in snapshot")
 	}
+	if strings.Contains(snapshot, "FATAL: schema relation 'customers' does not exist") {
+		t.Fatal("unrelated project task transcript entered a new conversation")
+	}
+	msg.Content = "Check task " + tBlocked.ID
+	if err := s.projectStudioRepo.UpdateMessage(ctx, &msg); err != nil {
+		t.Fatal(err)
+	}
+	_, snapshot = s.inboxProjectContext(ctx, q)
 	if !strings.Contains(snapshot, "FATAL: schema relation 'customers' does not exist") {
 		t.Fatalf("expected deep failure log in snapshot, got: %s", snapshot)
 	}

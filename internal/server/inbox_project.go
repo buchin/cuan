@@ -306,20 +306,26 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			for _, t := range items {
 				fields := map[string]string{"id": t.ID, "title": truncateProjectText(t.Title, 300), "status": t.Status, "priority": t.Priority}
 				var taskLogs string
-				if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
-					fields["execution_state"] = string(detail.LatestAttempt.Status)
-					fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
-					if t.Status == task.TaskStatusBlocked || detail.LatestAttempt.Status == task.AttemptStatusFailed || fields["execution_error"] != "" {
-						taskLogs = s.formatAttemptTerminalLogs(ctx, detail.LatestAttempt.ID, 50)
-						if taskLogs != "" {
-							fields["terminal_failure_logs"] = truncateProjectText(taskLogs, 3000)
+				// Keep project overview available without injecting unrelated room
+				// reports and failure transcripts into every new request. Explicit
+				// task references and this conversation retain their full context.
+				related := t.SourceRoomID == q.RoomID || strings.Contains(combinedLinksText, t.ID)
+				if related {
+					if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
+						fields["execution_state"] = string(detail.LatestAttempt.Status)
+						fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
+						if t.Status == task.TaskStatusBlocked || detail.LatestAttempt.Status == task.AttemptStatusFailed || fields["execution_error"] != "" {
+							taskLogs = s.formatAttemptTerminalLogs(ctx, detail.LatestAttempt.ID, 50)
+							if taskLogs != "" {
+								fields["terminal_failure_logs"] = truncateProjectText(taskLogs, 3000)
+							}
 						}
-					}
-					for i := len(detail.Activities) - 1; i >= 0; i-- {
-						act := detail.Activities[i]
-						if act != nil && strings.TrimSpace(act.Message) != "" {
-							fields["latest_activity"] = truncateProjectText(act.Message, 1500)
-							break
+						for i := len(detail.Activities) - 1; i >= 0; i-- {
+							act := detail.Activities[i]
+							if act != nil && strings.TrimSpace(act.Message) != "" {
+								fields["latest_activity"] = truncateProjectText(act.Message, 1500)
+								break
+							}
 						}
 					}
 				}
@@ -327,7 +333,9 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				if t.SourceRoomID != "" {
 					fields["source_room_id"] = t.SourceRoomID
 				}
-				fields["summary"] = truncateProjectText(t.Summary, 1500)
+				if related {
+					fields["summary"] = truncateProjectText(t.Summary, 1500)
+				}
 				if (t.Status == task.TaskStatusBlocked || fields["execution_error"] != "") && len(activeBlockers) < 5 {
 					errSummary := fields["execution_error"]
 					if errSummary == "" {
