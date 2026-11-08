@@ -7,11 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
 
-func TestTestedUnpublishedSourceGetsExactReadOnlyVerifier(t *testing.T) {
+func unpublishedSourceVerificationFixture(t *testing.T) (*Server, *task.TaskDetailResponse, db.InboxRequest, inboxReviewEvaluation) {
+	t.Helper()
 	s, d := managerFixture(t)
 	ctx := context.Background()
 	store := s.taskSvc.Store()
@@ -48,6 +50,13 @@ func TestTestedUnpublishedSourceGetsExactReadOnlyVerifier(t *testing.T) {
 	if task.ProjectChecksPassed(d) || !task.VerificationSourceChecksPassed(d) {
 		t.Fatal("publication failure became execution success or blocked tested source")
 	}
+	return s, d, q, decision
+}
+
+func TestTestedUnpublishedSourceGetsExactReadOnlyVerifier(t *testing.T) {
+	s, d, q, decision := unpublishedSourceVerificationFixture(t)
+	ctx := context.Background()
+	store, row, source := s.taskSvc.Store(), &d.Task, d.LatestAttempt
 	if err := store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
 		t.Fatal(err)
 	}

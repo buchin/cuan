@@ -26,7 +26,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	// Verification may itself be an unmet original criterion. Admission is a
 	// read-only evidence run, not acceptance: the original checklist stays
 	// incomplete until the verifier supplies current observed evidence.
-	if d == nil || d.LatestAttempt == nil || q.RoomID != d.SourceRoomID || d.Status == "cancelled" || d.Status == "canceled" || d.Status == task.TaskStatusDone || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || assessment.Decision != "revise" || assessment.RemainingWork != "verification" || d.ResultKind != "implementation" {
+	if d == nil || d.LatestAttempt == nil || q.RoomID != d.SourceRoomID || d.Status == "cancelled" || d.Status == "canceled" || d.Status == task.TaskStatusDone || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || assessment.Decision != "revise" || assessment.RemainingWork != "verification" {
 		return "Source verification is not eligible for this attempt.", false
 	}
 	// Require the exact saved assessment, never text inferred from a chat promise.
@@ -34,10 +34,24 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	if !ok || saved != assessment || d.CommitSHA == "" {
 		return "The current source verification assessment is unavailable.", false
 	}
-	if live, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || live != nil {
-		return "This attempt already belongs to a live-result inspection.", false
+	sourceDetail := d
+	live, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if err != nil {
+		return "The source inspection intent could not be validated.", false
 	}
-	previousIntent, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if live != nil {
+		if live.OwnerID != q.OwnerID {
+			return "The source inspection owner does not match.", false
+		}
+		sourceDetail = s.testedSourceAfterFailedInspection(ctx, d, live)
+		if sourceDetail == nil {
+			return "This attempt already belongs to a live-result inspection.", false
+		}
+	}
+	if sourceDetail.ResultKind != "implementation" {
+		return "The source is not an implemented result.", false
+	}
+	previousIntent, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &sourceDetail.Task, sourceDetail.LatestAttempt.ID)
 	if err != nil {
 		return "The source verification intent could not be validated.", false
 	}
@@ -47,7 +61,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 		if recovery == nil {
 			return "A separate verifier recovery is not authorized.", false
 		}
-	} else if !task.VerificationSourceChecksPassed(d) {
+	} else if !task.VerificationSourceChecksPassed(sourceDetail) {
 		return "Required project checks have not passed for this source.", false
 	}
 	repository, ok := s.projectStudioRepo.(db.InboxRequestRepository)
@@ -69,7 +83,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	if origin == nil {
 		return "The original source verification authorization is unavailable.", false
 	}
-	proof := task.VerificationIntent{IsolatedWorkspace: true, SourceAttemptID: d.LatestAttempt.ID, SourceCommit: d.CommitSHA, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: origin.RequestID, AssessmentRequestID: q.RequestID, SourceVerificationHash: task.VerificationSummaryHash(task.AttemptVerificationEvidence(d).Current)}
+	proof := task.VerificationIntent{IsolatedWorkspace: true, SourceAttemptID: sourceDetail.LatestAttempt.ID, SourceCommit: d.CommitSHA, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: origin.RequestID, AssessmentRequestID: q.RequestID, SourceVerificationHash: task.VerificationSummaryHash(task.AttemptVerificationEvidence(sourceDetail).Current)}
 	if recovery != nil {
 		proof = *recovery
 	}
@@ -161,4 +175,27 @@ func (s *Server) verifiedSupplementalSource(ctx context.Context, d *task.TaskDet
 	original := *d
 	original.LatestAttempt = source
 	return &original, proof
+}
+
+// A failed production inspection does not erase the tested unpublished source
+// explicitly bound into its native intent. Reuse that exact source for one
+// isolated verifier; never replay the inspection or turn it into implementation.
+func (s *Server) testedSourceAfterFailedInspection(ctx context.Context, d *task.TaskDetailResponse, live *task.LiveInspectionIntent) *task.TaskDetailResponse {
+	if d == nil || d.LatestAttempt == nil || live == nil || live.Purpose != task.CurrentOutcomeInspection || live.SourceCommit == "" || live.SourceCommit != d.CommitSHA || live.TargetCommit == live.SourceCommit || live.PreviousAttemptID != "" || live.SourceVerifierAttemptID != "" {
+		return nil
+	}
+	a := d.LatestAttempt
+	if a.Status != task.AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.FinishedAt == nil || a.CancelRequested || a.CanceledAt != nil || a.ErrorMessage != "Live result inspection project checks did not pass" {
+		return nil
+	}
+	if err := task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, live); err != nil {
+		return nil
+	}
+	source, err := s.taskSvc.Store().GetAttempt(ctx, live.SourceAttemptID)
+	if err != nil || source == nil || source.TaskID != d.ID || !task.IsPublicationReconciliationOutcome(&d.Task, source, d.Activities) {
+		return nil
+	}
+	original := *d
+	original.LatestAttempt, original.ResultKind = source, "implementation"
+	return &original
 }

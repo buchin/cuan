@@ -17,8 +17,16 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 	if !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil {
 		return false
 	}
-	if proof, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
+	live, liveErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if liveErr != nil {
 		return false
+	}
+	inspectedSource := false
+	if live != nil {
+		inspectedSource = live.OwnerID == origin.OwnerID && s.testedSourceAfterFailedInspection(ctx, d, live) != nil
+		if !inspectedSource {
+			return false
+		}
 	}
 	if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
 		return false
@@ -32,7 +40,24 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 			continue
 		}
 		saved, found := reviewAssessment(d, q.RequestID)
-		if !found || saved != decision || !s.managerContinuationAllowed(ctx, q, d, saved.Revision) {
+		if !found || saved != decision {
+			continue
+		}
+		if inspectedSource {
+			message, messageErr := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+			if messageErr != nil || message == nil || !strings.Contains(message.Content, inboxOwnershipPolicy) || s.inboxReviewedTask(ctx, q) == nil {
+				continue
+			}
+			if saved.ManagerReason == "" || (saved.ManagerAction != "continue" && saved.ManagerAction != "replan") {
+				continue
+			}
+			if _, scheduled := s.startVerificationFollowup(ctx, q, d, saved); scheduled {
+				s.publishInbox(d.SourceRoomID)
+				return true
+			}
+			return false
+		}
+		if !s.managerContinuationAllowed(ctx, q, d, saved.Revision) {
 			continue
 		}
 		message, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)

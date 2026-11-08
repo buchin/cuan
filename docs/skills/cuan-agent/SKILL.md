@@ -723,3 +723,14 @@ revision, with push/deployment forbidden. Recovery recognizes the dedicated sour
 verification launch before considering a current-outcome inspection, preventing
 parallel admissions. Locked PHP preparation also applies to that source snapshot,
 with source identity revalidated before its read-only baseline is captured.
+
+For an existing failed current-outcome inspection that points to a different,
+original tested but unpublished source, a saved current manager verification
+assessment can resume the original exact-source verifier. Native validation must
+still bind the failed inspection, original source attempt/commit, passing source
+checks, final implementation report, owner and original scope. The same dedicated
+source-verification request identity prevents duplicate admission; neither failed
+attempt is rewritten or credited as deployed. Running/canceled inspections,
+changed source, source-check failures and unrelated inspection types cannot use
+this handoff. This reuses the source verifier; it grants no implementation or
+publication authority and does not reset correction limits.
