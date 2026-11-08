@@ -10,6 +10,8 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+const independentAcceptanceGuidance = "For each original criterion, identify the actual observed check and what its assertions establish. Inspect whether existing tests cover the requested behavior before relying on them. For safety or rejection boundaries, independently exercise representative invalid inputs and verify their actual effects, using temporary fixtures or overlays outside the repository. Derive cases from the original requirement rather than copying the implementation's assumptions. A passing test count is not coverage proof. Mark an untested criterion incomplete; never claim full security or 100% verification from existing green tests alone. Retain reproducible commands, results and precise remaining gaps in the report."
+
 const inboxVerificationReviewPolicy = "Verification review policy: v1"
 
 func verificationClassificationMissing(d *task.TaskDetailResponse) bool {
@@ -93,7 +95,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 		visualEvidence = "Use CUAN_TASK_ARTIFACTS_DIR for output and attach session:mobile.png, session:desktop.png and the actual inspection report. Use the installed native browser tool. Never use generated images, image-generation tools or HTML mockups as application screenshot evidence."
 	}
 	raw, _ := json.Marshal(proof)
-	revision := "Scope: read-only repository. Do not push. Do not deploy.\n" + task.VerificationIntentMarker + string(raw) + "\nVerify only the remaining evidence for the exact implemented commit. Do not modify code, configuration, tests, documentation, git index, refs or commits. Preserve existing work; reconcile uncertain prior effects. " + visualEvidence + " Set up any required verification tools outside the repository. Report concrete checks and unchanged original criteria; never invent acceptance or publication.\nRemaining gap:\n" + truncateProjectText(assessment.Revision, 2500)
+	revision := "Scope: read-only repository. Do not push. Do not deploy.\n" + task.VerificationIntentMarker + string(raw) + "\nVerify only the remaining evidence for the exact implemented commit. Do not modify code, configuration, tests, documentation, git index, refs or commits. Preserve existing work; reconcile uncertain prior effects. " + visualEvidence + " Set up any required verification tools outside the repository. Report concrete checks and unchanged original criteria; never invent acceptance or publication. " + independentAcceptanceGuidance + "\nRemaining gap:\n" + truncateProjectText(assessment.Revision, 2500)
 	requestID := task.VerificationRequestID(d.ID, d.CommitSHA, proof.SourceAttemptID)
 	if proof.RecoveryAttemptID != "" {
 		requestID = task.VerificationRecoveryRequestID(d.ID, d.CommitSHA)

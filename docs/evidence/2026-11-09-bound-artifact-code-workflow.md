@@ -269,3 +269,22 @@ autonomous verifier success. Preserve both the false review and correction.
 The feature remains unmerged/undeployed and its correct final implementation,
 independent acceptance quality, and communication during conflicting review are
 still unresolved requirements of the larger goal.
+
+## Review context and independent acceptance guidance correction
+
+A regression proves the canonical review payload omitted a later authenticated
+owner correction. Review now projects bounded follow-ups from persisted requests
+of the original task owner and original room, after the original request. Foreign
+owners, agent claims and user-looking messages without an authenticated request
+are excluded. Missing original binding yields no data; bounded excerpts explicitly
+remain untrusted evidence, never new execution authority. Owner-scope separation
+and context/budget tests pass. This improves context when inference starts;
+it does not yet invalidate an inference already running when a new message lands.
+That acceptance race remains open and must not be called fixed by this change.
+
+Exact-source verifier guidance now requires relating actual assertions to each
+original criterion and independently exercising relevant rejection boundaries
+with outside-repository temporary fixtures/overlays. Missing coverage must remain
+incomplete; green counts cannot support a claim of full security. Source-handoff
+and verification tests pass, but a prompt change alone does not prove improved
+native verifier quality. The next independent execution must demonstrate it.

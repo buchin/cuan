@@ -173,6 +173,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	}
 	approvedScope, approvedContinuation := s.inboxApprovedTaskScope(ctx, d)
 	raw, _ := json.Marshal(map[string]any{
+		"owner_followups":                s.inboxReviewOwnerFollowups(ctx, d),
 		"approved_phase_context":         phaseContext,
 		"approved_task_scope":            approvedScope,
 		"account_outcome_context":        s.accountOutcomeReviewContext(ctx, d),
