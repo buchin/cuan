@@ -460,6 +460,10 @@ func TestRunner_AutoDeployCompliance_NonCodeInvestigation_SucceedsWithoutDeploy(
 		RequiresDeploy:       &noDeploy,
 		DiffSummary:          "",
 		CommitSHA:            "",
+		RepositoryVerification: &RepositoryVerification{
+			Baseline: strings.Repeat("a", 64),
+			Final:    strings.Repeat("a", 64),
+		},
 	}
 
 	completedAtt, err := svc.Complete(ctx, att.ID, req)
