@@ -56,3 +56,10 @@ if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts
   npm_cache_args+=(--legacy-accounts "$maintenance_home/.local/share/cuan/accounts")
 fi
 python3 "$install_dir/maintenance/prune-runtime-build-cache.py" "${npm_cache_args[@]}"
+
+if [[ -d "$install_dir/data/projects/release-workspaces" ]]; then
+  python3 "$install_dir/maintenance/prune-native-release-caches.py" \
+    --workspaces "$install_dir/data/projects/release-workspaces" --apply
+  python3 "$install_dir/maintenance/prune-verification-dependencies.py" \
+    --snapshots "$install_dir/data/projects/release-workspaces" --apply
+fi

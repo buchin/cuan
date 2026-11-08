@@ -335,3 +335,27 @@ To roll back scheduling, restore the saved Nginx stanza, remove only
 `/etc/systemd/system/logrotate.timer.d/90-cuan-storage-pressure.conf`, reload
 systemd and restart the logrotate timer. Compressed logs remain readable with
 standard gzip tools; no archive restoration is needed to inspect their contents.
+
+### Native release workspace caches
+
+Release workspaces also contain isolated Go module/build and npm download caches
+under `.git/cuan-native-runtime`. The two-minute maintenance timer now covers
+these workspaces as well as verifier snapshots. Previously those private caches
+were outside the managed runtime cache roots, so each release retained another
+copy and could eventually block admission even though routine cleanup succeeded.
+
+`scripts/prune-native-release-caches.py --workspaces /opt/cuan/data/projects/release-workspaces --apply`
+starts below 4 GiB available and stops at 8 GiB. `--force` is an explicit operator
+option for reclaiming all eligible idle caches. It validates the native snapshot
+binding and source HEAD, takes the workspace verification lease, checks process
+references and rejects linked cache ancestors. Official Go/npm cache commands run
+as the workspace owner with isolated configuration. Source, Git history, runtime
+configuration, reports, attachments and live executions are retained. Ignored
+node_modules use the existing dependency pruner with the same workspace lease.
+
+On 2026-11-08, production recovery increased available space from about 0.7 GiB
+to 8.6 GiB by clearing idle release dependencies and isolated caches. The queued
+native inspection then resumed automatically. Other hosted applications were
+also inspected: inactive rotated Dracin logs were compressed with contents
+preserved; the existing Laravel expired-file-cache pruner runs independently
+with file locking and expiry checks, preserving sessions and application data.

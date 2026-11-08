@@ -23,7 +23,7 @@ class MaintenanceInstall(unittest.TestCase):
             self.assertIn(str(pinned) + '/prune-runtime-build-cache.py', service)
             self.assertIn('--kind npm --legacy-accounts ' + str(home), service)
             self.assertNotIn('/usr/local/bin/cuan-disk-guard', service)
-            self.assertEqual(service.count('ExecStart='), 3)
+            self.assertEqual(service.count('ExecStart='), 5)
             self.assertIn('--under-storage-pressure --apply', service)
             self.assertIn('OnUnitInactiveSec=2min', (units / 'cuan-runtime-cache-maintenance.timer').read_text())
             (source / module.TOOLS[0]).write_text('# legacy overwrite')

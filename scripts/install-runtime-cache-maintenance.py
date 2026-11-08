@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 
-TOOLS = ('prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py')
+TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py')
 
 
 def install(base, service_home, unit_dir, source):
@@ -52,6 +52,8 @@ IOSchedulingClass=idle
 TimeoutStartSec=180
 ExecStart={command} --runtime {base}/data/go-build-runtime --apply
 ExecStart={command} --runtime {base}/data/npm-build-runtime --kind npm --legacy-accounts {service_home}/.local/share/cuan/accounts --apply
+ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/release-workspaces --under-storage-pressure --apply
+ExecStart=/usr/bin/python3 {target}/prune-native-release-caches.py --workspaces {base}/data/projects/release-workspaces --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/verification-snapshots --under-storage-pressure --apply
 '''
     timer = '''[Unit]
