@@ -174,6 +174,14 @@ Pending work is never reset, cleaned or committed to make a release pass.
 
 ## Maintainer CLI
 
+Ordinary agent package regression tests use explicit local process fixtures,
+including edit/output-redaction and cancellation checks. Installing `agy` does
+not enable provider-backed inference during `go test ./internal/agent`. To run
+the separate live spike intentionally, use `CUAN_TEST_LIVE_AGY=1 go test
+./internal/agent -run '^TestAGYAdapter_LiveSpikeFixtureEditAndSecrets$' -count=1`.
+`CUAN_TEST_LIVE_AGY_BINARY` optionally selects the operator's CLI explicitly.
+This live check can consume provider quota and is not a routine verifier gate.
+
 If a native release verifier is rejected before model execution because the
 running release changed while queued, the coordinator can schedule one bounded
 read-only successor inspection. It preserves the original source, delivery,

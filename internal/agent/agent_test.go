@@ -27,10 +27,7 @@ func TestMaskSecrets(t *testing.T) {
 }
 
 func TestAGYAdapter_Basics(t *testing.T) {
-	adapter, err := NewAGYAdapter("")
-	if err != nil {
-		t.Skipf("agy binary not available in test environment: %v", err)
-	}
+	adapter := fixtureAGYAdapter(t, "printf 'agy-fixture 1.0\\n'\n")
 
 	if adapter.Name() != "agy" {
 		t.Errorf("expected adapter name 'agy', got '%s'", adapter.Name())
@@ -47,10 +44,28 @@ func TestAGYAdapter_Basics(t *testing.T) {
 }
 
 func TestAGYAdapter_SpikeFixtureEditAndSecrets(t *testing.T) {
-	adapter, err := NewAGYAdapter("")
-	if err != nil {
-		t.Skipf("agy binary not available: %v", err)
+	adapter := fixtureAGYAdapter(t, "printf 'spike-edited-by-agy' > fixture.txt\nprintf 'SENSITIVE_SECRET_TOKEN_9999\\n'\n")
+	result := verifyAGYFixtureEditAndSecrets(t, adapter)
+	if !strings.Contains(result.Stdout, "[REDACTED]") {
+		t.Fatal("fixture output did not exercise secret redaction")
 	}
+}
+
+// Provider-backed execution is intentionally separate from ordinary package
+// tests: an installed CLI must never silently consume another agent's quota.
+func TestAGYAdapter_LiveSpikeFixtureEditAndSecrets(t *testing.T) {
+	if os.Getenv("CUAN_TEST_LIVE_AGY") != "1" {
+		t.Skip("explicit live provider opt-in required: CUAN_TEST_LIVE_AGY=1")
+	}
+	adapter, err := NewAGYAdapter(os.Getenv("CUAN_TEST_LIVE_AGY_BINARY"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyAGYFixtureEditAndSecrets(t, adapter)
+}
+
+func verifyAGYFixtureEditAndSecrets(t *testing.T, adapter *AGYAdapter) *ExecutionResult {
+	t.Helper()
 
 	// Create temporary fixture git repo
 	tmpDir, err := os.MkdirTemp("", "cuan-spike-fixture-*")
@@ -108,13 +123,11 @@ func TestAGYAdapter_SpikeFixtureEditAndSecrets(t *testing.T) {
 	if !strings.Contains(string(updated), "spike-edited-by-agy") {
 		t.Errorf("expected fixture file to be edited by agent, got %q", string(updated))
 	}
+	return res
 }
 
 func TestAGYAdapter_Cancelation(t *testing.T) {
-	adapter, err := NewAGYAdapter("")
-	if err != nil {
-		t.Skipf("agy binary not available: %v", err)
-	}
+	adapter := fixtureAGYAdapter(t, "exec sleep 30\n")
 
 	tmpDir, err := os.MkdirTemp("", "cuan-cancel-*")
 	if err != nil {
@@ -152,4 +165,17 @@ func TestAGYAdapter_Cancelation(t *testing.T) {
 	if res.ExitCode != -1 {
 		t.Errorf("expected ExitCode -1 for canceled task, got %d", res.ExitCode)
 	}
+}
+
+func fixtureAGYAdapter(t *testing.T, body string) *AGYAdapter {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "agy-fixture")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nset -eu\n"+body), 0700); err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := NewAGYAdapter(binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return adapter
 }
