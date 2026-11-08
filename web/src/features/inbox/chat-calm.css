@@ -596,6 +596,9 @@
 }
 .composer-tasks-panel {
   max-height: min(34dvh, 280px);
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 .composer-tasks .composer-tasks-count { border-radius: 999px; }
+
+.composer-tasks:has(.composer-tasks-panel) + .shared-composer { border-top-left-radius: 0; border-top-right-radius: 0; }
+.composer-tasks-panel { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }

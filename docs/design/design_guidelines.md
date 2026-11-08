@@ -546,8 +546,8 @@ It starts closed and does not reopen on polling. Opening it expands running
 execution/review tasks by default; explicit accordion choices survive updates.
 Queued, completed and attention states never pulse. Use current native task and
 review projections, with the existing Detail and real Terminal destinations.
-Keep historical task previews in the conversation. Empty rooms show no control.
-The panel scrolls within a bounded height, preserving access to the composer;
+Agent conversations show existing task previews only in this panel, without duplicate cards in chat. Preserve final results, approval proposals, unsaved task drafts and customer reply drafts in the conversation. Customer conversation previews retain their existing visibility rules. Empty rooms show no control.
+The expanded panel joins the composer without a vertical margin. Technical execution errors stay in Detail; attention summaries use the saved user-facing review finding. Terminal actions require the current attempt’s actual live session. The panel scrolls within a bounded height, preserving access to the composer;
 mobile titles retain readable space above their status. Escape closes the panel
 and returns focus to its trigger. Conversation changes reset disclosure choices.
 

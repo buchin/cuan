@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const inboxViewPath = path.resolve(__dirname, '../src/features/inbox/InboxView.tsx')
@@ -43,8 +44,24 @@ test('3. InboxView enables image attachments for customer contacts', () => {
 
 test('4. InboxView preserves attachmentIds when sending in customer rooms', () => {
   const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
-  assert.ok(
-    !inboxViewSrc.includes("activeContact.type !== 'agent'"),
-    'InboxView must not discard attachmentIds for customer contacts'
-  )
+  const source = ts.createSourceFile('InboxView.tsx', inboxViewSrc, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const initializers = []
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(source) === 'request' && node.initializer) {
+      const findAttachments = child => {
+        if (ts.isPropertyAssignment(child) && child.name.getText(source) === 'attachmentIds') initializers.push(child.initializer.getText(source))
+        ts.forEachChild(child, findAttachments)
+      }
+      findAttachments(node.initializer)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  assert.equal(initializers.length, 1, 'Locate the actual outgoing request attachment expression')
+  const collect = new Function('activeContact', 'approveMessageId', 'overrideText', 'uploads', `return (${initializers[0]})`)
+  for (const type of ['customer', 'agent']) {
+    assert.deepEqual(collect({type}, undefined, undefined, {items:[{id:'image-a'},{id:'file-b'}]}), ['image-a','file-b'])
+    assert.deepEqual(collect({type}, 'approval', undefined, {items:[{id:'unsent'}]}), [])
+    assert.deepEqual(collect({type}, undefined, 'override', {items:[{id:'unsent'}]}), [])
+  }
 })

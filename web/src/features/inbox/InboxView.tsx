@@ -1576,7 +1576,7 @@ export function InboxView({
                   textareaRef.current?.focus()
                 }
                 const backgroundWork = isBackgroundWorkUpdate(msg)
-                if (backgroundWork && !linkedTaskForMsg && !msg.reply_draft) return null
+                if (backgroundWork && (activeContact.type === 'agent' || !linkedTaskForMsg) && !msg.reply_draft) return null
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
                 if (!msg.regenerate_reply_id && !backgroundWork) previousBubbleMessage = msg
                 const hasSpeech = !backgroundWork && withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
@@ -1713,7 +1713,7 @@ export function InboxView({
                         </div>
                       )}
 
-                      {isAgentMessage && msg.approval_plan && !(msg.approval_plan.continuation && !isSupersededTaskMessage && linkedTasksForMsg.some(task => task.id === msg.approval_plan?.continuation?.task_id && task.latest_attempt?.id === msg.approval_plan?.continuation?.attempt_id)) && (
+                      {isAgentMessage && msg.approval_plan && (
                         <ApprovalCard
                           plan={msg.approval_plan}
                           accepted={msg.approval_accepted}
@@ -1825,7 +1825,7 @@ export function InboxView({
                       )}
                     </div>
                     </ItemActions>}
-                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (linkedTasksForMsg.length ? linkedTasksForMsg : [undefined]).map(linkedTask => (
+                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (linkedTasksForMsg.length ? linkedTasksForMsg : [undefined]).filter(task => activeContact.type !== 'agent' || !task).map(linkedTask => (
                         <InboxTaskAction
                           key={linkedTask?.id || msg.uuid}
                           linkedTask={linkedTask}
@@ -1908,7 +1908,7 @@ export function InboxView({
               })}
 
               {/* Unattached active or in-flight conversation tasks */}
-              {unattachedActiveTasks.map((t) => (
+              {activeContact.type !== 'agent' && unattachedActiveTasks.map((t) => (
                 <div
                   key={`standalone-active-${t.id}`}
                   className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
@@ -1930,7 +1930,7 @@ export function InboxView({
               ))}
 
               {/* Unattached or latest completed conversation tasks */}
-              {unattachedCompletedTasks.map((completedTask) => (
+              {activeContact.type !== 'agent' && unattachedCompletedTasks.map((completedTask) => (
                 <div
                   key={`standalone-completed-${completedTask.id}`}
                   className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"

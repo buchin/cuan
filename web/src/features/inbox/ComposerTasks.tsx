@@ -1,9 +1,10 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ChevronDown, ListTodo, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { workStatus, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
+import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 
 function running(task: Task) {
@@ -48,7 +49,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal }: {
         const work = workStatus(task)
         const status = ['Completed', 'Cancelled'].includes(work) ? work : task.review_state === 'running' ? 'Checking result' : task.review_state === 'queued' ? 'Queued' : work
         const bodyID = `${id}-${task.id}`
-        const progress = taskLiveActivityText(task, '') || taskSummaryText(task)
+        const progress = work === 'Needs attention' ? task.review_finding || '' : taskLiveActivityText(task, '') || taskSummaryText(task)
         return <article key={task.id} className="border-b border-border/40 last:border-0">
           <button type="button" aria-expanded={expanded} aria-controls={expanded ? bodyID : undefined}
             onClick={() => setChoices(value => ({ ...value, [task.id]: !expanded }))}
@@ -64,11 +65,29 @@ export function ComposerTasks({ tasks, onDetails, onTerminal }: {
             {progress && <p className="line-clamp-3 px-3 pb-2 text-sm leading-relaxed text-muted-foreground">{progress}</p>}
             <CardActions className="px-3 text-xs">
               <button type="button" className="mr-auto" onClick={() => onDetails(task)}>{t('Details')}</button>
-              {workStatus(task) === 'Working' && <button type="button" className="inline-flex items-center gap-1.5" onClick={() => onTerminal(task)}><Terminal className="h-3.5 w-3.5" />{t('Live terminal')}</button>}
+              {workStatus(task) === 'Working' && <TaskTerminalAction task={task} onTerminal={onTerminal} />}
             </CardActions>
           </div>}
         </article>
       })}
     </div>}
   </section>
+}
+
+function TaskTerminalAction({ task, onTerminal }: { task: Task; onTerminal: (task: Task) => void }) {
+  const { t } = useLanguage()
+  const attempt = task.latest_attempt?.id
+  const [available, setAvailable] = useState('')
+  useEffect(() => {
+    if (!attempt) return
+    let live = true
+    const check = () => tasksApi.runtime(task.id).then(runtime => {
+      if (live) setAvailable(runtime.live_session?.attempt_id === attempt ? attempt : '')
+    }).catch(() => { if (live) setAvailable('') })
+    void check()
+    const timer = setInterval(check, 5000)
+    return () => { live = false; clearInterval(timer) }
+  }, [task.id, attempt])
+  if (!attempt || available !== attempt) return null
+  return <button type="button" className="inline-flex items-center gap-1.5" onClick={() => onTerminal(task)}><Terminal className="h-3.5 w-3.5" />{t('Live terminal')}</button>
 }
