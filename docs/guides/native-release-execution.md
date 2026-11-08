@@ -54,6 +54,14 @@ native source evidence for independent verification; it creates no release
 handoff, managed publication ownership, push permission or deployment receipt.
 Verifier/read-only sessions do not enter this developer observation path.
 
+Initial source-verification launches use `verification-only:v2:` identities bound
+to task, exact commit and developer attempt. Repeated scans of that same handoff
+reuse its launch. A new developer handoff at the same commit cannot reuse an old
+verifier bound to another attempt, or fall through to production inspection just
+because the older verifier stopped. Legacy v1 launches remain readable and are
+not rewritten. Runtime-recovery and finalization identities retain their existing
+bounded contracts; this change grants no additional recovery or release authority.
+
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
 merge source, accept tasks or infer production health from a zero exit code.

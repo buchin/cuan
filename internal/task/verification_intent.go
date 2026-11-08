@@ -31,7 +31,10 @@ type VerificationIntent struct {
 	SourceVerificationHash string `json:"source_verification_hash"`
 }
 
-func VerificationRequestID(taskID, commit string) string {
+func VerificationRequestID(taskID, commit string, sourceAttempt ...string) string {
+	if len(sourceAttempt) > 0 && sourceAttempt[0] != "" {
+		return verificationRequestID("verification-only:v2:"+sourceAttempt[0]+":", taskID, commit)
+	}
 	return verificationRequestID("verification-only:v1:", taskID, commit)
 }
 func VerificationRecoveryRequestID(taskID, commit string) string {
@@ -73,6 +76,7 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 		return nil, ErrInvalidTaskInput
 	}
 	expected := VerificationRequestID(t.ID, proof.SourceCommit)
+	bound := VerificationRequestID(t.ID, proof.SourceCommit, proof.SourceAttemptID)
 	if proof.RecoveryAttemptID != "" || proof.RuntimeFingerprint != "" || proof.RecoveryCause != "" {
 		if proof.RecoveryAttemptID == "" || proof.RecoveryAttemptID == proof.SourceAttemptID {
 			return nil, ErrInvalidTaskInput
@@ -90,14 +94,16 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 			}
 		}
 		expected = VerificationRecoveryRequestID(t.ID, proof.SourceCommit)
+		bound = expected
 	}
 	if proof.FinalizeAttemptID != "" || proof.ArtifactManifestHash != "" || proof.RepositoryBaseline != "" {
 		if proof.FinalizeAttemptID == "" || proof.FinalizeAttemptID == proof.SourceAttemptID || proof.FinalizeAttemptID == proof.RecoveryAttemptID || proof.RecoveryAttemptID == "" || !validVerificationHash(proof.ArtifactManifestHash) || !validVerificationHash(proof.RepositoryBaseline) {
 			return nil, ErrInvalidTaskInput
 		}
 		expected = VerificationFinalizeRequestID(t.ID, proof.SourceCommit)
+		bound = expected
 	}
-	if j.RequestID != expected {
+	if j.RequestID != expected && j.RequestID != bound {
 		return nil, ErrInvalidTaskInput
 	}
 	if _, err := hex.DecodeString(proof.SourceVerificationHash); err != nil {

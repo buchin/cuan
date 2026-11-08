@@ -32,7 +32,7 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 	must(store.UpdateAttempt(ctx, source))
 	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
 	must(err)
-	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
 	must(err)
 	_, err = store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "source-review-launch", job.ID)
 	must(err)

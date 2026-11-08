@@ -226,7 +226,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 			before, err := repo.ListInboxRequests(ctx, q.RoomID)
 			must(err)
 			s.queueInboxTaskReview(ctx, detail)
-			admitted, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.VerificationRequestID(item.ID, item.CommitSHA)))
+			admitted, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.VerificationRequestID(item.ID, item.CommitSHA, source.ID)))
 			must(err)
 			scheduled = admitted != nil
 			after, err := repo.ListInboxRequests(ctx, q.RoomID)
@@ -257,7 +257,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		if release, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID)); release != nil || (err != nil && !errors.Is(err, task.ErrTaskNotFound)) {
 			t.Fatal("unreviewed source reached publication", release, err)
 		}
-		verification, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.VerificationRequestID(item.ID, item.CommitSHA)))
+		verification, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.VerificationRequestID(item.ID, item.CommitSHA, source.ID)))
 		must(err)
 		if verification == nil {
 			t.Fatal("source verification was not durable")

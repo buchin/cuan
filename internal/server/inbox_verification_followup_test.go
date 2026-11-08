@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/buchin/cuan/internal/db"
 	"strings"
 	"testing"
@@ -23,6 +24,55 @@ func TestVerificationFollowupPostgres(t *testing.T) {
 		s, q, d := phaseLineageSetup(t, database)
 		verificationFollowupQueueContract(t, s, d, q)
 	})
+}
+
+func TestVerificationFollowupDoesNotReuseAnotherSourceAtSameCommit(t *testing.T) {
+	for _, sqlStore := range []bool{false, true} {
+		t.Run(fmt.Sprint("postgres=", sqlStore), func(t *testing.T) {
+			run := func(s *Server, d *task.TaskDetailResponse, q db.InboxRequest) {
+				ctx := context.Background()
+				commit := strings.Repeat("a", 40)
+				prior, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: task.VerificationRequestID(d.ID, commit), OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: q.RequestID, AgentID: q.AgentID, InstructionsHash: task.LaunchInstructionsHash(d.Instructions), Revision: "Preserve this previous source verification admission", CreatedAt: time.Now(), AvailableAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = s.taskSvc.Store().DeleteTask(ctx, "phase-blocker")
+				row, err := s.taskSvc.Store().GetTask(ctx, d.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				row.Status = task.TaskStatusReview
+				if err := s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
+					t.Fatal(err)
+				}
+				claimed, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "old-source-review", prior.ID)
+				if err != nil || claimed == nil {
+					t.Fatal("old verification fixture was not claimed", err)
+				}
+				if err := s.taskSvc.FinishLaunch(ctx, prior.ID, "old-source-review", "stopped", time.Now(), "Previous source review completed"); err != nil {
+					t.Fatal(err)
+				}
+				prior, err = s.taskSvc.GetLaunch(ctx, prior.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				verificationFollowupQueueContract(t, s, d, q)
+				after, err := s.taskSvc.GetLaunch(ctx, prior.ID)
+				if err != nil || after.Revision != prior.Revision || after.State != prior.State {
+					t.Fatal("new source rewrote the old verification admission", after, err)
+				}
+			}
+			if sqlStore {
+				withPhasePostgres(t, func(database *sql.DB) {
+					s, q, d := phaseLineageSetup(t, database)
+					run(s, d, q)
+				})
+			} else {
+				s, d, q := stalledReviewFixture(t, "completed")
+				run(s, d, q)
+			}
+		})
+	}
 }
 func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest, commits ...string) {
 	t.Helper()
@@ -81,7 +131,7 @@ func verificationFollowupQueueContract(t *testing.T, s *Server, d *task.TaskDeta
 			t.Fatalf("not queued %v %s", ok, outcome)
 		}
 	}
-	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
 	if err != nil || job == nil || job.State != "queued" {
 		t.Fatalf("missing durable intent %+v %v", job, err)
 	}
@@ -133,7 +183,7 @@ func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDeta
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
 	if err != nil {
 		t.Fatal(err)
 	}

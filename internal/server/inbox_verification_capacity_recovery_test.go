@@ -40,7 +40,7 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	_ = store.DeleteTask(ctx, "busy")
 	_ = store.DeleteTask(ctx, "phase-blocker")
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
 	if err != nil {
 		t.Fatal(err)
 	}

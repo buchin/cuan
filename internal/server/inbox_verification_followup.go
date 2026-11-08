@@ -80,7 +80,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	}
 	raw, _ := json.Marshal(proof)
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\n" + task.VerificationIntentMarker + string(raw) + "\nVerify only the remaining evidence for the exact implemented commit. Do not modify code, configuration, tests, documentation, git index, refs or commits. Preserve existing work; reconcile uncertain prior effects. " + visualEvidence + " Set up any required verification tools outside the repository. Report concrete checks and unchanged original criteria; never invent acceptance or publication.\nRemaining gap:\n" + truncateProjectText(assessment.Revision, 2500)
-	requestID := task.VerificationRequestID(d.ID, d.CommitSHA)
+	requestID := task.VerificationRequestID(d.ID, d.CommitSHA, proof.SourceAttemptID)
 	if proof.RecoveryAttemptID != "" {
 		requestID = task.VerificationRecoveryRequestID(d.ID, d.CommitSHA)
 	}
@@ -88,7 +88,9 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 	if _, err := task.VerificationIntentForLaunch(&d.Task, candidate); err != nil {
 		return "The source verification scope could not be validated.", false
 	}
-	// A source commit has one immutable intent, even if evidence/reviews change.
+	// One developer attempt and exact commit have one immutable intent. Another
+	// developer handoff at the same SHA has different native evidence and cannot
+	// reuse an older verifier's source binding.
 	previous, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID))
 	if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
 		return "The saved source verification launch could not be read.", false

@@ -42,7 +42,7 @@ func supplementalInspectionFixture(t *testing.T, s *Server, origin db.InboxReque
 	if _, ok := s.startVerificationFollowup(ctx, review, d, assessment); !ok {
 		t.Fatal("supplemental verification not admitted")
 	}
-	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA)))
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
 	if err != nil || job == nil {
 		t.Fatal("missing supplemental launch", err)
 	}
