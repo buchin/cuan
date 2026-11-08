@@ -1249,6 +1249,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed
 					compReq.ErrorMessage = verification.Error
+					if lane == task.ExecutionCategoryCode && !policy.ReadOnlyRepository && claim.Verification == nil && claim.LiveInspection == nil {
+						// Failed checks must not leave review comparing a previous
+						// attempt's commit. Observe only an existing clean checkpoint;
+						// retain failure and never commit, publish or waive checks.
+						observation, stop := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+						_ = r.observeLocalImplementationSource(observation, ws, claim.DefaultBranch, &compReq)
+						stop()
+					}
 				}
 			}
 			if compReq.Status == task.AttemptStatusSucceeded && !claim.AutoDeploy && lane == task.ExecutionCategoryCode && !policy.ReadOnlyRepository && claim.Verification == nil && claim.LiveInspection == nil {

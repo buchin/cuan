@@ -145,6 +145,19 @@ checks original code permissions remain unchanged while the observer is restrict
 and verifies observation deduplication. Native source-review and original account
 operation tests remain passing. Production completion remains unproven.
 
+Attempt 17 exposed a source-information gap: its report named checkpoint
+`571b29c`, but native project checks failed before the runner observed the local
+checkpoint, leaving task-level source identity at previous `553cd2c`. The next
+PM assessment compared that stale source with the running release. Runner failure
+completion now observes an existing clean local code checkpoint after failed
+native checks, using the same read-only source observation helper as local
+handoffs. Failure status and failed check output remain unchanged; dirty source
+is not attributed to HEAD. No commit, push, release preparation or publication
+authority is created. An end-to-end runner fixture verifies actual completion
+contains the new checkpoint and failing check output together. Local-source
+dirty/unknown-baseline tests and read-only runner completion tests pass. This does
+not retroactively replace attempt 17's recorded evidence or establish delivery.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

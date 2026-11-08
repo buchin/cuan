@@ -2,14 +2,89 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/config"
 	cuangit "github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/task"
 )
+
+type failedCheckSourceAdapter struct {
+	t      *testing.T
+	commit string
+	path   string
+}
+
+func (a *failedCheckSourceAdapter) Name() string             { return "source-fixture" }
+func (a *failedCheckSourceAdapter) Version() (string, error) { return "1", nil }
+func (a *failedCheckSourceAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+	if err := os.WriteFile(filepath.Join(req.WorkingDir, "feature.go"), []byte("package feature\n"), 0600); err != nil {
+		a.t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "feature.go"}, {"-c", "user.name=Fixture Human", "-c", "user.email=human@example.invalid", "commit", "-m", "Observed checkpoint"}} {
+		if out, err := exec.CommandContext(ctx, "git", append([]string{"-C", req.WorkingDir}, args...)...).CombinedOutput(); err != nil {
+			a.t.Fatalf("checkpoint: %v %s", err, out)
+		}
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", req.WorkingDir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	a.commit = strings.TrimSpace(string(out))
+	a.path = req.WorkingDir
+	return &agent.ExecutionResult{Status: "SUCCEEDED", ExitCode: 0}, nil
+}
+
+func TestFailedNativeChecksRetainActualDeveloperCheckpoint(t *testing.T) {
+	root := documentationFixture(t)
+	// Native provider setup writes its private local configuration. The fixture
+	// ignores it just as a registered application does; source remains tracked.
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".agents/\n.gemini/\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"checkout", "dev"}, {"add", ".gitignore"}, {"commit", "-m", "Ignore native provider setup"}} {
+		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("fixture: %v %s", err, out)
+		}
+	}
+	t.Setenv("HOME", t.TempDir())
+	var completion CompleteAttemptRequest
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if req.URL.Path == "/report" {
+			w.Write([]byte(`{"summary":"Checkpoint saved","complete_note":"Source checkpoint prepared; native checks pending","activities":[{"attempt_id":"source-attempt","activity_type":"agent_report","new_status":"done"}]}`))
+			return
+		}
+		if strings.HasSuffix(req.URL.Path, "/complete") {
+			if err := json.NewDecoder(req.Body).Decode(&completion); err != nil {
+				t.Error(err)
+			}
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer api.Close()
+	a := &failedCheckSourceAdapter{t: t}
+	r := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: filepath.Join(t.TempDir(), "workspaces")}, a, api.Client())
+	r.runAttempt(context.Background(), ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: root, DefaultBranch: "dev", AutoDeploy: true, Task: &task.Task{ID: "source", ProjectID: "project", BranchName: "source-checkpoint", Title: "Implement approved feature", Instructions: "Implement the approved source correction", ExecutionCategory: task.ExecutionCategoryCode}, Attempt: &task.TaskAttempt{ID: "source-attempt", TaskID: "source", AttemptNumber: 1}, TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"}})
+	if completion.Status != task.AttemptStatusFailed || completion.ErrorMessage != "Project verification failed" || !strings.Contains(completion.TestSummary, "project verifier reached") {
+		t.Fatalf("native failure lost: %+v", completion)
+	}
+	if a.commit == "" || completion.CommitSHA != a.commit || !strings.Contains(completion.DiffSummary, "feature.go") {
+		state, _ := exec.Command("git", "-C", a.path, "status", "--porcelain").CombinedOutput()
+		t.Fatalf("review retained stale source identity: %+v state=%s", completion, state)
+	}
+	if completion.LiveDeploymentConfirmed || completion.ManagedReleaseSource != nil || completion.RequiresDeploy != nil {
+		t.Fatal("failed checkpoint became publication evidence")
+	}
+}
 
 func TestLocalImplementationSourceRecordsCheckpointWithoutPublication(t *testing.T) {
 	for _, scenario := range []string{"clean", "dirty", "untracked", "unchanged", "missing baseline"} {
