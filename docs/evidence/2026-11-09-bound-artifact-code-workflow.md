@@ -190,3 +190,17 @@ case. Partial HTTP response and parent-symlink containment cases still fail,
 including an actual out-of-root write in the isolated test directory. This is
 measured partial implementation progress, not final source acceptance. No final
 commit or independent verifier handoff was present at this observation.
+
+## Actual developer checkpoint: security acceptance still fails
+
+The developer pushed clean checkpoint
+`553bcaf9477fcef2ffb5d6a16858d25a470213ff` on the bound task branch and
+submitted its review report at `2026-11-09T03:47:54.359708+08:00`. The report
+claims complete security boundaries and 100% targeted test coverage. That claim
+is contradicted by independent executable evidence: fetching this exact remote
+commit and overlaying its taskcli artifact.go and cli.go into the independent
+local fixture still accepts HTTP 206 and writes outside the artifact directory
+through a parent symlink. The documented-output test passes. These findings now
+apply to an actual committed handoff, rather than an unfinished working copy.
+Native final checks and independent task verification remain pending; no task
+acceptance, source patch, manual retry, merge or feature deployment was performed.
