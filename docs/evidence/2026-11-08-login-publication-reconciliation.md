@@ -409,6 +409,27 @@ CUAN_TASK_ARTIFACTS_DIR without repository writes. All prompt tests and targeted
 prepared-report/project-context server tests pass. No timeout increase was made;
 this prompt repair is not deployed or proven to prevent model delay.
 
+Release `4d91c709c550059a3d681750cf07d0b008c40bf4` passed exact-SHA health
+with 37 migrations. It includes scoped project context and prepared-report/
+checkpoint guidance. The second attempt of the existing post-credential-fix
+benchmark had already started under the previous runner, and succeeded at
+`2026-11-09T02:22:35.391892+08:00`. PM request
+`012b4475-32f6-427e-ac5d-d37021938357` accepted it with pass/completed/none at
+`2026-11-09T02:23:31.789309+08:00`; the task reached Done automatically with
+two total execution attempts and no manual retry/acceptance. End-to-end duration
+was approximately 12m47s, versus about 46 minutes/five attempts in the preceding
+benchmark. This is improvement, not adequate proof of efficient first-pass work.
+
+Attachment `6277d8f6-7eba-40c2-a69f-af206a83686d` was downloaded through the
+official CLI and inspected. It contains account observation time, three read
+commands, sanitized outputs and reported exit status zero for each. Session IDs
+are absent and IPs/connection identities are masked. The second attempt has a
+native unchanged-repository receipt. Command/output provenance inside the report
+is still worker-supplied, not a native signed record of each remote command;
+report consistency and PM acceptance must not be described as direct native
+authentication proof. This benchmark does not measure the newly deployed prompt
+or context changes, since both execution attempts started before that rollout.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
