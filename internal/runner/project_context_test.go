@@ -16,7 +16,7 @@ func TestRunnerClaimAndCompletionUseFrozenProjectContext(t *testing.T) {
 		t.Run(map[bool]string{false: "saved deployment disabled", true: "saved deployment required"}[originalDeploy], func(t *testing.T) {
 			ctx := context.Background()
 			projects := project.NewMemoryStore()
-			metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &originalDeploy, Environment: "DEPLOY_TARGET=saved", DeployBranch: "saved-release"}})
+			metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &originalDeploy, Environment: "DEPLOY_TARGET=saved\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/SavedTest.php\"]", DeployBranch: "saved-release"}})
 			p := &project.Project{ID: "context-project", LocalPath: t.TempDir(), DefaultBranch: "main", Metadata: metadata}
 			if err := projects.CreateProject(ctx, p); err != nil {
 				t.Fatal(err)
@@ -34,7 +34,7 @@ func TestRunnerClaimAndCompletionUseFrozenProjectContext(t *testing.T) {
 				t.Fatal(err)
 			}
 			latestDeploy := !originalDeploy
-			p.Metadata, _ = json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &latestDeploy, Environment: "DEPLOY_TARGET=latest", DeployBranch: "latest-release"}})
+			p.Metadata, _ = json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &latestDeploy, Environment: "DEPLOY_TARGET=latest\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/LatestTest.php\"]", DeployBranch: "latest-release"}})
 			if err := projects.UpdateProject(ctx, p); err != nil {
 				t.Fatal(err)
 			}
@@ -43,8 +43,11 @@ func TestRunnerClaimAndCompletionUseFrozenProjectContext(t *testing.T) {
 			if err != nil || claim == nil || !claim.Claimed {
 				t.Fatal("claim failed", err)
 			}
-			if claim.Environment != "DEPLOY_TARGET=saved" || claim.DeployBranch != "saved-release" || claim.AutoDeploy != originalDeploy || claim.WorkingDir != original.LocalPath {
+			if claim.Environment != "DEPLOY_TARGET=saved\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/SavedTest.php\"]" || claim.DeployBranch != "saved-release" || claim.AutoDeploy != originalDeploy || claim.WorkingDir != original.LocalPath {
 				t.Fatal("current defaults replaced saved context")
+			}
+			if claim.PHPUnitTargets != `["tests/Feature/SavedTest.php"]` {
+				t.Fatal("ordinary worker lost frozen registered test targets", claim.PHPUnitTargets)
 			}
 			changed := true
 			result, err := svc.Complete(ctx, a.ID, CompleteAttemptRequest{RunnerID: "context-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, AgentReportRequired: true, AgentReportConfirmed: true, CommitSHA: strings.Repeat("a", 40), HasCodeChanges: &changed})

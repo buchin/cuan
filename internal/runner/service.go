@@ -386,14 +386,15 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		return nil, err
 	}
 
+	resp.PHPUnitTargets = project.ParseEnvironment(resp.Environment)["CUAN_VERIFICATION_PHPUNIT_TARGETS"]
 	if verification != nil && verification.FinalizeAttemptID != "" {
 		resp.Task = &task.Task{ID: t.ID, ProjectID: t.ProjectID, Title: t.Title, SourceRoomID: t.SourceRoomID, ExecutionCategory: t.ExecutionCategory}
 		resp.Environment = ""
+		resp.PHPUnitTargets = ""
 		resp.AutoDeploy = false
 		resp.OwnerID = verification.OwnerID
 	}
 	if inspection != nil {
-		resp.PHPUnitTargets = project.ParseEnvironment(resp.Environment)["CUAN_VERIFICATION_PHPUNIT_TARGETS"]
 		resp.Environment = ""
 		resp.AutoDeploy = false
 	}
