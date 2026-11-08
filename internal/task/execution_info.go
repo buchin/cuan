@@ -25,7 +25,20 @@ type ExecutionInfo struct {
 	RevalidationKind   string                            `json:"revalidation_kind,omitempty"`
 	Scope              executionpolicy.PublicationPolicy `json:"scope"`
 	LatestLaunch       *LaunchDiagnostic                 `json:"latest_launch,omitempty"`
+	VerifierHandoff    *VerifierHandoffDiagnostic        `json:"verifier_handoff,omitempty"`
 	LiveInspectionPlan *InspectionPlanDiagnostic         `json:"live_inspection_plan,omitempty"`
+}
+
+// VerifierHandoffDiagnostic exposes native routing facts, never source prose,
+// credentials or permission to execute a correction.
+type VerifierHandoffDiagnostic struct {
+	Code                  string                             `json:"code"`
+	SourceVerified        bool                               `json:"source_verified"`
+	HistoricalLiveFailure bool                               `json:"historical_live_failure"`
+	ApprovedScope         *executionpolicy.PublicationPolicy `json:"approved_scope,omitempty"`
+	RunningCommit         string                             `json:"running_commit,omitempty"`
+	PublicationRequired   *bool                              `json:"publication_required,omitempty"`
+	SourceContained       *bool                              `json:"source_contained,omitempty"`
 }
 
 type InspectionPlanDiagnostic struct {

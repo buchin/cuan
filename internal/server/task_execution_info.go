@@ -39,5 +39,6 @@ func (s *Server) handleTaskExecutionInfo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	info.LiveInspectionPlan = s.liveInspectionPlanDiagnostic(r.Context(), detail)
+	info.VerifierHandoff = s.verifierHandoffDiagnostic(r.Context(), detail)
 	respondJSON(w, 200, info)
 }

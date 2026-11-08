@@ -825,3 +825,10 @@ untrusted reviewer prose into the execution policy. Source and live verifier
 sessions are told about the existing official browser runtime even when the
 original task was not classified as a UI change; browser use remains conditional
 on the actual requested outcome.
+
+Current execution diagnostics include `verifier_handoff` only when native
+independent source evidence is valid. It exposes original scope flags, whether
+matching historical live failures exist, publication requirement, known ancestry
+and observed running commit, with a factual routing code. It contains no owner
+credentials, revision prose or task content and grants no execution permission.
+Historical attempt selection never attaches current recovery diagnostics.

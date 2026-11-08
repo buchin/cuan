@@ -68,3 +68,46 @@ func (s *Server) verifiedCorrectionExecutionContext(ctx context.Context, d *task
 	}
 	return fmt.Sprintf("\n\nSeparate developer correction after independent source verification. Retain source attempt %s, commit %s, and verifier %s as immutable history. Inspect the existing private workspace and current project baseline before changing anything. Implement only the saved PM correction within the original approved task; preserve unrelated/inherited source and existing effects. The verifier's read-only boundary belongs to its completed session, not permission to mutate that snapshot. Work in the developer workspace, retain original owner restrictions, and hand the resulting exact source back to independent verification before acceptance. Publication follows the original owner limits and independent acceptance gates after source reconciliation.", proof.SourceAttemptID, proof.SourceCommit, d.LatestAttempt.ID)
 }
+
+func (s *Server) verifierHandoffDiagnostic(ctx context.Context, d *task.TaskDetailResponse) *task.VerifierHandoffDiagnostic {
+	source, proof := s.verifiedSupplementalSource(ctx, d)
+	if source == nil || proof == nil {
+		return nil
+	}
+	out := &task.VerifierHandoffDiagnostic{SourceVerified: true, Code: "matching_live_failure_missing"}
+	out.ApprovedScope, _ = s.inboxApprovedTaskScope(ctx, d)
+	previous := s.verifierCorrectionContext(ctx, d)
+	out.HistoricalLiveFailure = previous != nil
+	publication := s.inboxReviewPublication(ctx, d)
+	if publication != nil {
+		required := publication.Required
+		out.PublicationRequired = &required
+		out.SourceContained = publication.ResultCommitContained
+	}
+	current := s.runningProjectRelease(ctx, d)
+	if current != nil {
+		out.RunningCommit = current.Commit
+	}
+	switch {
+	case out.ApprovedScope == nil:
+		out.Code = "owner_scope_unavailable"
+	case out.ApprovedScope.ReadOnlyRepository:
+		out.Code = "owner_repository_read_only"
+	case out.ApprovedScope.DenyDeploy:
+		out.Code = "owner_deployment_prohibited"
+	case previous == nil:
+	case current == nil:
+		out.Code = "running_release_unavailable"
+	case previous["historical_live_commit"] != current.Commit:
+		out.Code = "running_release_changed"
+	case publication == nil || !publication.Required:
+		out.Code = "publication_not_required"
+	case publication.Verified:
+		out.Code = "publication_verified"
+	case out.SourceContained != nil && *out.SourceContained:
+		out.Code = "source_contained_in_release"
+	default:
+		out.Code = "verified_source_reconciliation_available"
+	}
+	return out
+}
