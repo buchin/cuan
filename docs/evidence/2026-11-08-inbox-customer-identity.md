@@ -67,3 +67,28 @@ The native receipt binds the evidence launch and unchanged repository; a worker'
 claim alone cannot pass the independent-outcome gate. Code changes, failing actual
 assertions, cancellation and incomplete criteria cannot use the legacy recovery.
 Production recovery and actual access remain unproven at this checkpoint.
+
+## Production checkpoint
+
+Release `5440ba10245086762315e849cddeadd18fb49204` is healthy on the exact
+production SHA, with37 migrations. An initial activation-safety test stopped an
+attempt before deployment because the readiness constant still expected36;
+`5440ba10` aligned the release gate before the successful deployment.
+
+A private, read-only owner whisper explicitly tested the real runtime in the
+same room. Request `7e053722-0996-4588-95a9-f8641f986869` completed with native
+`call_mcp_tool` input `cuan-inspect/get_contact {contact_id: current}` and a real
+contact result in0.1seconds. Provider execution took27.2seconds. The final reply
+identified the correct name/email; both probe and reply remained internal. The
+CLI's30-second observation expired just before persisted completion; the same
+request was inspected, never resent. The test explicitly forbade access changes,
+new tasks/proposals and customer delivery. No such actions occurred in its trace.
+This is a maintainer-directed tool test, not proof of autonomous task completion.
+
+The activation task's third attempt, already started by the old release, remained
+running at the last read (`att_9b26f069674ded2db9bddfbf6164a7c7`). It had restored
+unrelated MCP source/tests in its isolated task context. No task was canceled,
+manually retried, accepted or duplicated here. Its actual outcome and any required
+scope correction still need observation before claiming the workflow is fixed.
+The original login task's exact-source recovery is durably queued behind active
+work. Neither task is claimed Done by this checkpoint.

@@ -108,3 +108,10 @@ capacity and changed-preparation recovery both queue, claim and complete through
 DB-backed stores. Tests found and corrected a33-character activity type exceeding
 the native32-character column. The existing execution-lifecycle SQL regression
 also passed. This does not yet establish production verifier completion.
+
+Production `5440ba10` successfully applied37 migrations and verified its exact
+healthy SHA. Fresh persisted readiness automatically admitted the source
+preparation recovery. Its launch is queued while another user-authorized Dojo
+execution is active; the previous failed attempt8 remains unchanged and the
+source remains `52d92fccd2019e492d4c314ade211742fffba35b`. No manual retry was used.
+Actual Composer setup, independent verification and publication remain pending.
