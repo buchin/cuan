@@ -401,9 +401,10 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 		view.Instructions = project.TaskPromptInstructions(latest.Instructions)
 		respondJSON(w, 200, struct {
 			*task.TaskDetailResponse
-			GitHubConnection         map[string]any `json:"github_connection"`
-			PublicationConfiguration string         `json:"publication_configuration"`
-		}{&view, s.boundTaskGitHubConnection(r.Context(), latest), s.publicationConfigurationForTask(r.Context(), latest)})
+			GitHubConnection         map[string]any      `json:"github_connection"`
+			PublicationConfiguration string              `json:"publication_configuration"`
+			DeliveredArtifacts       []map[string]string `json:"delivered_artifacts,omitempty"`
+		}{&view, s.boundTaskGitHubConnection(r.Context(), latest), s.publicationConfigurationForTask(r.Context(), latest), s.taskDeliveredContext(r.Context(), latest)})
 		return
 	}
 	var report struct {

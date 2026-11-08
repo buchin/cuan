@@ -466,6 +466,26 @@ runes and forbids repository mutation, push and deployment. This second session
 is the intended independent inspection, not a retry of a failed worker. It is
 still running; neither independent verification nor Done is established yet.
 
+The independent observer succeeded at
+`2026-11-09T02:36:46.703416+08:00`, and PM accepted pass/completed/none at
+`2026-11-09T02:38:01.141117+08:00`. Official task state is Done with exactly
+two successful sessions: worker and independent observer, with no failed retry
+or manual intervention. The first worker took 4m31s and observer about 4m28s;
+end-to-end time remains roughly 11m43s from acceptance, so first-pass reliability
+is improved but speed is still not adequately demonstrated across tasks.
+
+Verifier output still showed repeated tool setup/searching. Inspection identified
+a concrete information gap: PM review received delivered text, but bound worker
+`task get` did not expose actual prior delivered files. A local read-only context
+addition supplies bounded text excerpts/metadata with source attempt identity
+through that existing authenticated capability. It accepts only real attempt
+deliveries bound to the original room/source message and owner attachment store.
+No host paths or additional Owner credentials are supplied. Tests use the actual
+authenticated GET, retained worker files, later-verifier context, and reject
+foreign rooms, wrong source replies and user-authored replacement deliveries.
+Artifact/account lifecycle and prompt tests pass. This addition is not deployed;
+it does not prove the observer read a full file or natively attest remote output.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

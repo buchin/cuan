@@ -23,6 +23,19 @@ type artifactDeliveryRepository interface {
 	db.InboxRequestRepository
 }
 
+type alteredTaskDeliveryRepository struct {
+	db.ProjectStudioRepository
+	message db.ProjectMessage
+}
+
+func (r alteredTaskDeliveryRepository) GetMessageByID(ctx context.Context, id string) (*db.ProjectMessage, error) {
+	if id == r.message.ID {
+		copy := r.message
+		return &copy, nil
+	}
+	return r.ProjectStudioRepository.GetMessageByID(ctx, id)
+}
+
 type observedArtifactDeliveryRepository struct {
 	artifactDeliveryRepository
 	beforeDelivery func(context.Context) error
@@ -284,6 +297,50 @@ func taskArtifactDeliveryFormatContract(t *testing.T, session bool, format strin
 		t.Fatal("identical delivery was not idempotent", w.Code, w.Body.String())
 	}
 	detail, _ := s.taskSvc.GetTaskDetail(ctx, saved.ID)
+	read := httptest.NewRequest("GET", "/api/v1/task-agent/"+saved.ID, nil)
+	read.Header.Set("Authorization", "Bearer "+capability)
+	readResponse := httptest.NewRecorder()
+	s.Router().ServeHTTP(readResponse, read)
+	var workerContext struct {
+		DeliveredArtifacts []map[string]string `json:"delivered_artifacts"`
+	}
+	if err := json.Unmarshal(readResponse.Body.Bytes(), &workerContext); err != nil || readResponse.Code != 200 || len(workerContext.DeliveredArtifacts) != 1 {
+		t.Fatal("bound worker cannot read delivered report", readResponse.Code, err)
+	}
+	if artifact := workerContext.DeliveredArtifacts[0]; artifact["source_attempt_id"] != a.ID || !strings.Contains(artifact["untrusted_excerpt"], "FINAL_VERIFICATION_RESULT") {
+		t.Fatal("worker report context lost file provenance or final evidence")
+	}
+	verifierView := *detail
+	verifier := *detail.LatestAttempt
+	verifier.ID = "later-verifier"
+	verifierView.LatestAttempt = &verifier
+	verifierView.Attempts = append([]*task.TaskAttempt{&verifier}, detail.Attempts...)
+	if files := s.taskDeliveredContext(ctx, &verifierView); len(files) != 1 || files[0]["source_attempt_id"] != a.ID {
+		t.Fatal("new verifier lost prior delivered report")
+	}
+	deliveryID := delegationMessageID("task-delivery:" + a.ID)
+	delivery, err := s.projectStudioRepo.GetMessageByID(ctx, deliveryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalDelivery := *delivery
+	for _, scenario := range []string{"foreign room", "wrong source", "user message"} {
+		altered := originalDelivery
+		switch scenario {
+		case "foreign room":
+			altered.RoomID = db.GenerateUUID()
+		case "wrong source":
+			id := db.GenerateUUID()
+			altered.ReplyToID = &id
+		case "user message":
+			altered.AuthorType = "user"
+		}
+		s.projectStudioRepo = alteredTaskDeliveryRepository{originalRepository, altered}
+		if files := s.taskDeliveredContext(ctx, &verifierView); len(files) != 0 {
+			t.Fatal("unbound deliverable exposed", scenario)
+		}
+	}
+	s.projectStudioRepo = originalRepository
 	var assessment map[string]any
 	if err := json.Unmarshal([]byte(s.inboxReviewData(ctx, detail)), &assessment); err != nil {
 		t.Fatal(err)
