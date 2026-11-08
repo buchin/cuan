@@ -8,6 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/buchin/cuan/internal/webfetch"
 )
 
 // Registry manages the lifecycle of Apps, Skills, Agent bindings, and MCP tools.
@@ -210,6 +212,35 @@ func NewRegistry() *Registry {
 			return &ToolCallResponse{
 				IsError: false,
 				Content: []ToolContent{{Type: "text", Text: msg}},
+			}, nil
+		},
+	)
+
+	r.RegisterTool(
+		ToolDefinition{
+			Name:        "web_fetch",
+			Description: "Fetch and extract clean readable text content and title from a public web page URL (cleans ads, navigation, headers, scripts).",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"url": map[string]any{"type": "string", "description": "Public HTTP or HTTPS URL of the web page or article to fetch"},
+				},
+				"required": []string{"url"},
+			},
+		},
+		func(ctx context.Context, args map[string]any) (*ToolCallResponse, error) {
+			rawURL, _ := args["url"].(string)
+			res, err := webfetch.Fetch(ctx, rawURL)
+			if err != nil {
+				return &ToolCallResponse{
+					IsError: true,
+					Content: []ToolContent{{Type: "text", Text: fmt.Sprintf("Error fetching web page: %v", err)}},
+				}, nil
+			}
+			b, _ := json.Marshal(res)
+			return &ToolCallResponse{
+				IsError: false,
+				Content: []ToolContent{{Type: "text", Text: string(b)}},
 			}, nil
 		},
 	)
