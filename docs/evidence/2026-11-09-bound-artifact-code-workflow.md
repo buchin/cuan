@@ -154,3 +154,12 @@ This proves separate developer admission only; retained-work reuse, final source
 quality and independent verification remain unproven. Early terminal activity
 still inspects prior native visual-check machinery, so routing admission alone
 must not be reported as successful end-to-end recovery or efficient execution.
+
+The independent fixture now also exercises the documented positional-ID-before-
+flags download invocation, verifies the requested filename and complete bytes,
+and requires repeated download to preserve existing content. On the preserved
+interim snapshot, the new case fails because `--output` is ignored after the
+attachment ID; the earlier partial-response and symlink-write cases still fail.
+These are interim-source findings, not findings against a final developer commit.
+Run all `^TestIndependentArtifact` tests against the exact handoff before drawing
+any acceptance conclusion. No task data, worker source or task acceptance changed.

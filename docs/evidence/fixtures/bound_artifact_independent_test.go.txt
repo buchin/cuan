@@ -45,3 +45,39 @@ func TestIndependentArtifactBoundaries(t *testing.T) {
 		})
 	}
 }
+
+func TestIndependentArtifactDocumentedOutput(t *testing.T) {
+	root := t.TempDir()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Disposition", `attachment; filename="server-name.txt"`)
+		w.Write([]byte("complete artifact"))
+	}))
+	defer api.Close()
+	capability, _ := json.Marshal(Capability{API: api.URL, Token: "fixture", TaskID: "task", AttemptID: "attempt", ArtifactsDir: root})
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", string(capability))
+	var out, errs bytes.Buffer
+	if code := Run([]string{"artifact", "download", "attachment", "--output", "requested.txt"}, &out, &errs); code != 0 {
+		t.Fatalf("documented invocation failed: %s", errs.String())
+	}
+	data, err := os.ReadFile(filepath.Join(root, "requested.txt"))
+	if err != nil || string(data) != "complete artifact" {
+		t.Fatalf("documented --output was not honored: data=%q err=%v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "server-name.txt")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected default output created: %v", err)
+	}
+	// A repeated download must fail and preserve the existing destination bytes.
+	if err := os.WriteFile(filepath.Join(root, "requested.txt"), []byte("preserve me"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	errs.Reset()
+	if code := Run([]string{"artifact", "download", "attachment", "--output", "requested.txt"}, &out, &errs); code == 0 {
+		t.Error("existing destination accepted")
+	}
+	data, err = os.ReadFile(filepath.Join(root, "requested.txt"))
+	if err != nil || string(data) != "preserve me" {
+		t.Fatalf("existing destination modified: data=%q err=%v", data, err)
+	}
+}
