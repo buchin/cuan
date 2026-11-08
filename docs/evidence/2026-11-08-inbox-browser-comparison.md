@@ -40,3 +40,24 @@ Sources:
 - https://github.com/h4ckf0r0day/obscura
 - https://github.com/KnockOutEZ/wigolo
 - https://wigolo.app/
+
+## Primary-source-first follow-up
+
+Release `a58035b29f632438028f857c71481e718011aab8` shortened and clarified
+research guidance: fetch supplied primary URLs first, batch independent sources,
+search only material gaps, cite sources and separate vendor claims from measured
+outcomes. The same question was sent to a fresh room without tool directions:
+https://cuan.dojo.cc/inbox/9d75cbc6-9099-4b5c-a814-b4d7f45969ff
+Request `3a1c3092-329a-49b8-8859-98ec6b5e841f`.
+
+Observed completion was 99 seconds versus the earlier 143 seconds, with the same
+`gemini-3.8-flash-high` route. Both supplied URLs were fetched in one provider
+turn, followed by a README fetch and two searches. The result retained the Obscura
+recommendation, included direct source links and created no tasks. There was no
+response recovery. This is one paired observation, not a statistical latency
+claim or proof that fewer tool calls caused the improvement.
+
+Remaining quality gaps: the answer was longer than requested, used unqualified
+upstream memory/binary-size figures, overstated certainty about disk impact and
+licensing safety, and appended an unrequested integration-task offer. Do not
+claim these quality requirements solved from the instruction change alone.
