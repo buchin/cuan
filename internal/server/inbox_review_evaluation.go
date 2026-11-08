@@ -63,9 +63,12 @@ Mere generic claims without factual data or evidence must be treated as unverifi
 In explanation, use readable chat paragraphs suited to the actual outcome and concrete remaining issue. Preserve important context without a fixed sentence quota. No greetings, taglines, checklist headings, generic follow-up options, administrative status labels or requests for the owner to diagnose agent-fixable problems. Keep technical commands, package names, revision steps and the full acceptance breakdown in revision and the task evidence, rather than the chat explanation. Mention a human action only for a specific external prerequisite that truly requires it. Do not claim the visitor has received an internal draft or that deployment succeeded without matching evidence.
 
 Use the user's language from the original request (default to English if the original request is English, or Indonesian if Indonesian; never use Spanish or another language absent from the request). Do not include task identifiers, authorization metadata or JSON in explanation.`
-const inboxReviewEvaluationSchema = `{"type":"object","properties":{"requested_outcome":{"enum":["completed","needs_input","unfinished"]},"customer_reply_draft":{"type":"string"},"visual_inspection":{"type":"string"},"decision":{"enum":["pass","revise","blocked"]},"finding":{"type":"string"},"remaining_work":{"enum":["none","verification","implementation","external"]},"explanation":{"type":"string"},"revision":{"type":"string"},"manager_action":{"enum":["continue","replan","wait","needs_owner"]},"manager_reason":{"type":"string"}},"required":["visual_inspection","decision","finding","remaining_work","explanation","revision"],"additionalProperties":false}`
+const inboxReviewEvaluationSchema = `{"type":"object","properties":{"requested_outcome":{"enum":["completed","needs_input","unfinished"]},"customer_reply_draft":{"type":"string"},"visual_inspection":{"type":"string"},"decision":{"enum":["pass","revise","blocked"]},"source_review":{"enum":["not_checked","pass","revise"]},"finding":{"type":"string"},"remaining_work":{"enum":["none","verification","implementation","external"]},"explanation":{"type":"string"},"revision":{"type":"string"},"manager_action":{"enum":["continue","replan","wait","needs_owner"]},"manager_reason":{"type":"string"}},"required":["visual_inspection","decision","finding","remaining_work","explanation","revision"],"additionalProperties":false}`
 
 type inboxReviewEvaluation struct {
+	// Stage classification only. Publication admission must independently bind
+	// this verdict to the current verifier/source evidence; parsing grants none.
+	SourceReview       string `json:"source_review,omitempty"`
 	RequestedOutcome   string `json:"requested_outcome,omitempty"`
 	CustomerReplyDraft string `json:"customer_reply_draft,omitempty"`
 	VisualInspection   string `json:"visual_inspection,omitempty"`
@@ -245,6 +248,12 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 		if err != nil || duplicate != result || decoder.Decode(new(any)) != io.EOF {
 			return result, bad
 		}
+	}
+	if result.SourceReview != "" && result.SourceReview != "not_checked" && result.SourceReview != "pass" && result.SourceReview != "revise" {
+		return result, bad
+	}
+	if result.SourceReview == "revise" && result.Decision == "pass" {
+		return result, bad
 	}
 	if (result.RequestedOutcome != "" && result.RequestedOutcome != "completed" && result.RequestedOutcome != "needs_input" && result.RequestedOutcome != "unfinished") || result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" || strings.TrimSpace(result.Explanation) == "" || len(result.VisualInspection) > 4000 || len(result.Finding) > 1000 || (result.RemainingWork != "" && result.RemainingWork != "none" && result.RemainingWork != "verification" && result.RemainingWork != "implementation" && result.RemainingWork != "external") || len(result.Explanation) > 6000 || len(result.Revision) > 6000 || len(result.CustomerReplyDraft) > 6000 || result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" || result.Decision != "revise" && result.Revision != "" {
 		return result, bad
