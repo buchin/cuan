@@ -50,7 +50,7 @@ func printChatHelp(out io.Writer) {
 	fmt.Fprintln(out, `Cuan Chat CLI — Interact directly with agents and Inbox conversations
 
 Usage:
-  cuan chat new [--agent @sm] [--project default] [--title "New conversation"] [--json]
+  cuan chat new [--title "New conversation"] [--project default] [--agent <id>] [--json]
   cuan chat send <room-id> "<message>" [--wait] [--timeout 30] [--json]
   cuan chat list [--project default] [--limit 20] [--json]
   cuan chat messages <room-id> [--limit 30] [--json]
@@ -67,7 +67,7 @@ Subcommands:
   messages  Inspect message history for a conversation room
 
 Examples:
-  cuan chat new --agent @sm --title "Audit CI/CD pipeline"
+  cuan chat new --title "Audit CI/CD pipeline"
   cuan chat send <room-id> "Verify go.mod dependencies" --wait
   cuan chat list --limit 10
   cuan chat messages <room-id>`)
@@ -76,7 +76,7 @@ Examples:
 func runChatNew(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("chat new", flag.ContinueOnError)
 	fs.SetOutput(errOut)
-	agentFlag := fs.String("agent", "@sm", "Agent persona alias (@sm, @dev, @support) or ID")
+	agentFlag := fs.String("agent", "", "Agent handle or ID (optional; defaults to the active public assistant)")
 	projFlag := fs.String("project", "default", "Project ID or name")
 	titleFlag := fs.String("title", "New conversation", "Conversation topic title")
 	jsonFlag := fs.Bool("json", false, "Output in JSON format")
@@ -108,8 +108,8 @@ func runChatNew(ctx context.Context, args []string, out, errOut io.Writer) int {
 	}
 	title, _ := resMap["title"].(string)
 	agentName, _ := resMap["agent_name"].(string)
-	if agentName == "" {
-		agentName = *agentFlag
+	if strings.TrimSpace(agentName) == "" {
+		agentName = ResolveActiveAgentName(ctx, *agentFlag)
 	}
 
 	cfg := GetCuanConfig()

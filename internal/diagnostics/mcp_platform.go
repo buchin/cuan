@@ -1210,11 +1210,14 @@ func CreateInboxConversation(ctx context.Context, agentID, projectID, title stri
 		return nil, fmt.Errorf("create room in db: %w", err)
 	}
 
+	agentName := ResolveActiveAgentName(ctx, agentID)
+
 	return map[string]any{
 		"id":              "topic_" + roomID,
 		"room_id":         roomID,
 		"conversation_id": roomID,
 		"agent_id":        agentID,
+		"agent_name":      agentName,
 		"project_id":      projectID,
 		"title":           title,
 		"topic":           topic,
