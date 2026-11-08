@@ -17,7 +17,7 @@ func TestReviewContractTraceDistinguishesFallbackWithoutPrivateEvidence(t *testi
 	previous := log.Writer()
 	log.SetOutput(&output)
 	defer log.SetOutput(previous)
-	decision := inboxReviewEvaluation{VisualInspection: "PRIVATE_IMAGE_DESCRIPTION", Explanation: "PRIVATE_CHAT_CONTENT"}
+	decision := inboxReviewEvaluation{VisualInspection: "PRIVATE_IMAGE_DESCRIPTION", Explanation: "PRIVATE_CHAT_CONTENT", Decision: "revise", RemainingWork: "implementation", RequestedOutcome: "unfinished", ManagerAction: "replan", SourceReview: "PRIVATE_INVALID_ENUM"}
 	traceInboxReviewContract(db.InboxRequest{}, 100, true, true, decision)
 	if output.Len() != 0 {
 		t.Fatal("uncorrelated review trace")
@@ -33,6 +33,9 @@ func TestReviewContractTraceDistinguishesFallbackWithoutPrivateEvidence(t *testi
 	}
 	if record["request_id"] != "review-fixture" || record["room_id"] != "room-fixture" || record["structured_valid"] != false || record["parsed"] != true || record["visual_inspection_present"] != true || record["response_bytes"] != float64(100) {
 		t.Fatal("lost contract diagnosis", record)
+	}
+	if record["decision"] != "revise" || record["remaining_work"] != "implementation" || record["requested_outcome"] != "unfinished" || record["manager_action"] != "replan" || record["source_review"] != "unknown" {
+		t.Fatal("lost pre-guard classification or leaked malformed enum", record)
 	}
 }
 

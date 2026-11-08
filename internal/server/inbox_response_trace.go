@@ -18,15 +18,40 @@ func traceInboxReviewContract(q db.InboxRequest, responseBytes int, structuredVa
 		return
 	}
 	record := struct {
-		RequestID       string `json:"request_id"`
-		RoomID          string `json:"room_id"`
-		ResponseBytes   int    `json:"response_bytes"`
-		StructuredValid bool   `json:"structured_valid"`
-		Parsed          bool   `json:"parsed"`
-		VisualPresent   bool   `json:"visual_inspection_present"`
-	}{q.RequestID, q.RoomID, responseBytes, structuredValid, parsed, strings.TrimSpace(decision.VisualInspection) != ""}
+		RequestID        string `json:"request_id"`
+		RoomID           string `json:"room_id"`
+		ResponseBytes    int    `json:"response_bytes"`
+		StructuredValid  bool   `json:"structured_valid"`
+		Parsed           bool   `json:"parsed"`
+		VisualPresent    bool   `json:"visual_inspection_present"`
+		Decision         string `json:"decision"`
+		RemainingWork    string `json:"remaining_work"`
+		RequestedOutcome string `json:"requested_outcome"`
+		ManagerAction    string `json:"manager_action"`
+		SourceReview     string `json:"source_review"`
+	}{q.RequestID, q.RoomID, responseBytes, structuredValid, parsed, strings.TrimSpace(decision.VisualInspection) != "",
+		reviewTraceEnum(decision.Decision, "pass", "revise", "blocked"),
+		reviewTraceEnum(decision.RemainingWork, "none", "implementation", "verification", "publication", "external"),
+		reviewTraceEnum(decision.RequestedOutcome, "completed", "unfinished", "needs_input"),
+		reviewTraceEnum(decision.ManagerAction, "continue", "replan", "wait", "accept"),
+		reviewTraceEnum(decision.SourceReview, "pass", "revise", "not_checked"),
+	}
 	raw, _ := json.Marshal(record)
 	log.Printf("inbox review contract %s", raw)
+}
+
+// Model fields are untrusted strings. Only known contract enums may enter logs;
+// malformed values must not turn diagnostics into a private-content archive.
+func reviewTraceEnum(value string, allowed ...string) string {
+	if value == "" {
+		return ""
+	}
+	for _, candidate := range allowed {
+		if value == candidate {
+			return value
+		}
+	}
+	return "unknown"
 }
 
 type inboxRequestTraceKey struct{}
