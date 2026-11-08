@@ -208,7 +208,8 @@ Update relevant documentation and product pages when required by this task's app
 3. Internal DoD Evaluator Compliance:
 Cuan's autonomous DoD Evaluator records applicable workspace checks. The coordinator separately reviews the actual original requirements, including documentation, visual quality and publication. Passing workspace checks does not establish every acceptance criterion.
 
-Print the user-facing answer before the final report.
+Put the actual result in the final task report; the coordinator delivers the
+user-facing reply after verification. Do not prepare a second completion speech.
 You are the task worker, not the Owner. Never use chat send, send_inbox_message,
 create_inbox_conversation or owner task-update tools to deliver your answer or
 approve work. Those tools create owner instructions, not worker reports. Publish
@@ -236,9 +237,10 @@ For completed implementation, finish with:
 For a greeting/question with no file changes, use --state review --result-kind answer.
 Use --state review when implementation still needs review.
 For implementation, file changes or uncertain classification, use --result-kind implementation (the default).
-Use task report-template (or prepare_current_task_report in MCP) to obtain the
-original criteria as review JSON with empty evidence, rather than reconstructing
-their IDs and text. Fill actual findings before submission. Read task get when
+Edit the prepared CUAN_TASK_REPORT_FILE directly; it already contains the
+original criteria with empty evidence. Only if that file is missing, recover it
+with task report-template (or prepare_current_task_report in MCP) rather than
+reconstructing criterion IDs and text. Fill actual findings before submission. Read task get when
 additional scope/context is needed or a report is uncertain/rejected. Both review and done require current
 observations for EVERY saved acceptance criterion, preserving its text, ID and
 order. Previous attempts' checklist evidence cannot substitute for this report.
@@ -311,7 +313,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 			instructions += "\n" + part + "\n"
 		}
 	}
-	instructions += "\n## Prepared report file\nA fresh report template is already available at CUAN_TASK_REPORT_FILE for this exact task/attempt. It preserves every original criterion with empty evidence and completed=false. Fill that existing JSON with your factual summary, complete_note and observed criterion evidence, then submit:\n\"$CUAN_TASK_EXECUTABLE\" task report --report-file \"$CUAN_TASK_REPORT_FILE\"\nAdd --artifact for each actual deliverable. Do not run help, inspect environment variables, or fetch another template just to rediscover this reporting format. Use scoped task get if actual task context is missing or a report is uncertain/rejected. Template preparation does not submit or accept work.\n"
+	instructions = "## Prepared report file\nA fresh report template is already available at CUAN_TASK_REPORT_FILE for this exact task/attempt. It preserves every original criterion with empty evidence and completed=false. Fill that existing JSON with your factual summary, complete_note and observed criterion evidence, then submit:\n\"$CUAN_TASK_EXECUTABLE\" task report --report-file \"$CUAN_TASK_REPORT_FILE\"\nAdd --artifact for each actual deliverable. Do not run help, inspect environment variables, or fetch another template just to rediscover this reporting format. Use scoped task get if actual task context is missing or a report is uncertain/rejected. Template preparation does not submit or accept work.\n\n" + instructions
 	guide := filepath.Join(dir, "session.md")
 	if e = os.WriteFile(guide, []byte(instructions), 0600); e != nil {
 		cleanup()

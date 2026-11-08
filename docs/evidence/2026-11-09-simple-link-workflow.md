@@ -70,3 +70,25 @@ exact-SHA production health with 37 migrations. It refreshes in-flight reviews
 when newer authenticated owner context arrives, reusing the same review request
 without repeating developer execution. This benchmark did not exercise that
 new-message branch; its dispatcher regression is separate evidence.
+
+## Reporting overhead follow-up
+
+The session guidance both prepared a report at launch and instructed the worker
+to fetch another report template. The prepared-file instruction was at the end
+of the long guide. It also required a separate printed completion answer before
+the canonical final report, although the coordinator delivers the owner reply.
+The benchmark's developer terminal logged 40.6 seconds of provider reasoning
+around final report submission; this observation does not isolate its cause.
+
+Guidance now puts the prepared report entry point first, makes template fetching
+an explicit missing-file fallback, and directs the actual answer into the report
+rather than another completion speech. Original criteria, evidence requirements,
+native checks and independent review are unchanged. Prepared-report round-trip,
+scoped reporting/review and executable report-command integration tests pass.
+No end-to-end speed improvement is claimed without a subsequent measurement.
+
+The original diagnostic history no longer starts at developer launch (its first
+retained record starts at 07:22:25), consistent with bounded log retention.
+A sampled 1,000-record window contained 48 short spinner fragments; that sample
+alone does not establish logging as the primary latency cause. No logging
+behavior or retention limits were changed as a speculative speed fix.
