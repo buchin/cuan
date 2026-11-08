@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -46,40 +47,61 @@ func savedEvidenceRecoveryRequestID(d *task.TaskDetailResponse) string {
 }
 
 func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
+	gate := "already_verified"
+	defer func() {
+		if ctx.Value(inboxDeliveryDiagnosticKey{}) == true && d != nil && d.LatestAttempt != nil && task.SupportsAccountOutcomeInspection(&d.Task) {
+			log.Printf("inbox account recovery checkpoint task=%s attempt=%s gate=%s", d.ID, d.LatestAttempt.ID, gate)
+		}
+	}()
 	// A recognized verifier goes straight to review; do not start a second
 	// observation merely because its completed outcome is recovery-eligible.
 	if s.accountOutcomeIndependentlyVerified(ctx, d) {
 		return false
 	}
-	if !savedEvidenceRecoveryCandidate(d) || origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
+	gate = "candidate"
+	if !savedEvidenceRecoveryCandidate(d) {
+		return false
+	}
+	gate = "origin_binding"
+	if origin.MessageID != d.SourceMessageID || origin.RoomID != d.SourceRoomID || !strings.HasPrefix(d.Instructions, "Cuan managed delegation v1.\n") || !s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent) {
+		return false
+	}
+	gate = "review_authority"
+	if !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
 		return false
 	}
 	// Existing authorization/cancellation rules remain authoritative. A historical
 	// summary cannot grant a new action or reset the code-correction budget.
+	gate = "saved_authorization"
 	_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
 		return false
 	}
+	gate = "source_intent"
 	if proof, err := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err != nil || proof != nil {
 		return false
 	}
 	id := savedEvidenceRecoveryRequestID(d)
+	gate = "saved_launch_read"
 	previous, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
 		return false
 	}
 	if previous != nil {
+		gate = "existing_" + previous.State
 		return previous.State == "queued" || previous.State == "claimed" || previous.State == "started"
 	}
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\nOne bounded recovery of saved task evidence, not another implementation cycle. The historical task-level verification text is unbound and is only a diagnostic hint; do not claim its checks ran in this attempt. Read the actual existing deliverables and inspect the existing workspace. Do not modify code, configuration, tests, documentation, git index, refs or commits. Do not reproduce prior deployment, migration, payment or other external effects. Independently verify each original acceptance criterion from actual files and reproducible read-only observations. Deliver the existing report as session artifacts under CUAN_TASK_ARTIFACTS_DIR, preserving its source provenance. Report current factual findings with the original criteria unchanged. If a required result or publication is missing, report that precise gap; do not repair it or waive it. The runner must verify unchanged repository state and independent review must assess the actual report. Historical attempt outcomes remain unchanged." + taskRecoveryContext(d)
 	if task.SupportsAccountOutcomeInspection(&d.Task) {
 		revision += "\nOperational account outcome inspection: the original requested outcome concerns the existing account, authentication or entitlement. Retained source changes do not by themselves establish an account repair or a publication requirement. The prior worker reported completion; independent verification is still required. A historical unrelated source-test failure does not prove an account defect. Independently inspect the existing account and entitlement through the project's authorized read-only commands/API. Never run access-grant, activate, revoke, update or another external mutation to obtain proof. Inspect retained repository changes too; unexpected source edits are out-of-scope findings, not accepted work. Verify every original criterion with fresh observations. Do not prepare or run unrelated source regression tests, invent code repairs, publish or waive missing outcome evidence. Retain any historical local source commit and diff as unrequested diagnostic work, not accepted implementation or approved release scope. Reconcile any recorded publication effects without repeating them; never infer that this branch was deployed or that no prior effects occurred."
 	}
+	gate = "launch_admission"
 	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil || launch == nil || (launch.State != "queued" && launch.State != "claimed" && launch.State != "started") {
 		return false
 	}
+	gate = "admitted"
 	now := time.Now().UTC()
 	_ = s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{ID: delegationMessageID(id + ":notice"), RoomID: d.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Cuan memeriksa laporan yang sudah tersimpan sebelum menuntaskan review.\n\n[View work](/tasks/" + d.ID + ")", CreatedAt: now, UpdatedAt: now})
 	s.publishInbox(d.SourceRoomID)

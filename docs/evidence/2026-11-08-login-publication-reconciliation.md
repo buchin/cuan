@@ -158,6 +158,18 @@ contains the new checkpoint and failing check output together. Local-source
 dirty/unknown-baseline tests and read-only runner completion tests pass. This does
 not retroactively replace attempt 17's recorded evidence or establish delivery.
 
+Read-only diagnostic overlays against the saved production scope confirm login
+support eligibility is true and the terminal attempt-18 snapshot is a valid
+legacy account-publication candidate (complete report, passing native checks,
+bound current source record). No corresponding account-observation launch was
+recorded; source verifier 19 ran instead. Recovery now logs its exact gate when
+the existing dispatcher diagnostic context is active: candidate, origin binding,
+review authority, saved authorization, source intent, saved launch read, existing
+launch or admission. Only task/attempt identity and gate codes are logged, never
+scope prose, account data, credentials or model output. This is diagnostic work;
+the production admission blocker is not yet established. Existing recovery
+lifecycle tests still pass.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
