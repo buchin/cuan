@@ -90,3 +90,21 @@ a fresh authenticated runner advertises the changed executable policy. It retain
 source, assessment, owner, cancellation rules and failure history. No manual
 retry or acceptance is used. Deployment and production recovery are still pending
 at this checkpoint; passing isolated tests is not proof that the task is Done.
+
+The cache/recovery repair shipped as `3e0ba2a6`, exact production health verified.
+The installed pinned maintenance service includes Composer mode. Production
+observation then found a separate process-boundary gap: runner readiness was
+stored in the API service's memory, while the external chat worker had another
+service instance. Therefore no recovery launch was admitted. The subsequent fix
+moves authenticated fresh runtime evidence into the runner heartbeat row using an
+additive JSONB column. Old runners clear omitted readiness; freshness is still
+checked on read. This applies to the already existing browser capability too.
+Regression tests recreate the service before admitting the same recovery, rather
+than assuming API and chat share memory. No manual task retry was issued.
+
+The process-boundary repair passed actual PostgreSQL tests in a disposable local
+cluster: API heartbeat and a recreated chat-worker service share readiness;
+capacity and changed-preparation recovery both queue, claim and complete through
+DB-backed stores. Tests found and corrected a33-character activity type exceeding
+the native32-character column. The existing execution-lifecycle SQL regression
+also passed. This does not yet establish production verifier completion.

@@ -179,19 +179,16 @@ func (r *Runner) phpPreparationEvidence() *task.DependencyPreparationRuntime {
 	return &task.DependencyPreparationRuntime{Policy: task.PHPPreparationPolicy, CheckedAt: time.Now().UTC()}
 }
 func (s *RunnerService) DependencyPreparationRuntime(ctx context.Context, runnerID string) *task.DependencyPreparationRuntime {
-	value, ok := s.dependencyPreparations.Load(runnerID)
-	if !ok {
-		return nil
-	}
-	evidence, ok := value.(task.DependencyPreparationRuntime)
-	if !ok || !evidence.Fresh(time.Now()) {
-		return nil
-	}
 	info, err := s.store.GetRunner(ctx, runnerID)
-	if err != nil || info == nil || info.LastHeartbeatAt.Before(time.Now().Add(-45*time.Second)) {
+	if err != nil || info == nil || info.LastHeartbeatAt.Before(time.Now().Add(-45*time.Second)) || info.LastHeartbeatAt.After(time.Now().Add(5*time.Second)) {
 		return nil
 	}
-	return &evidence
+	evidence := info.RuntimeEvidence.DependencyPreparation
+	if !evidence.Fresh(time.Now()) {
+		return nil
+	}
+	copy := *evidence
+	return &copy
 }
 
 type dependencyPreparationClaimKey struct{}

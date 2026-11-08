@@ -376,3 +376,11 @@ Setup allows at most four minutes, or half the remaining execution budget,
 whichever is smaller. Timeout stops the installer process group, retains already
 downloaded archives, and records an explicit setup diagnosis. This budget does
 not replace verification or turn setup into passing checks.
+
+Readiness evidence travels with the runner's persisted heartbeat, so API and
+external chat-worker processes see the same installed preparation policy. An
+additive `runners.runtime_evidence` JSONB column defaults to an empty object;
+previous binaries can run against the migrated schema. Roll back application
+code without dropping the column; dropping it requires stopping all binaries
+that read it. Omitted, expired, unknown or future-dated capabilities never grant
+recovery or claim eligibility.

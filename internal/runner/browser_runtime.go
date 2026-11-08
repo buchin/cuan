@@ -106,17 +106,14 @@ func (r *Runner) browserRuntimeEvidence(ctx context.Context) *task.VerificationR
 	return &copy
 }
 func (s *RunnerService) BrowserRuntime(ctx context.Context, runnerID string) *task.VerificationRuntime {
-	value, ok := s.browserRuntimes.Load(runnerID)
-	if !ok {
-		return nil
-	}
-	evidence, ok := value.(task.VerificationRuntime)
-	if !ok || !evidence.Fresh(time.Now()) {
-		return nil
-	}
 	info, err := s.store.GetRunner(ctx, runnerID)
-	if err != nil || info == nil || info.LastHeartbeatAt.Before(time.Now().Add(-45*time.Second)) {
+	if err != nil || info == nil || info.LastHeartbeatAt.Before(time.Now().Add(-45*time.Second)) || info.LastHeartbeatAt.After(time.Now().Add(5*time.Second)) {
 		return nil
 	}
-	return &evidence
+	evidence := info.RuntimeEvidence.BrowserRuntime
+	if !evidence.Fresh(time.Now()) {
+		return nil
+	}
+	copy := *evidence
+	return &copy
 }

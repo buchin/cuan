@@ -16,24 +16,30 @@ const (
 )
 
 // RunnerInfo contains metadata, status, and health metrics of a runner daemon.
+type RunnerRuntimeEvidence struct {
+	BrowserRuntime        *task.VerificationRuntime          `json:"browser_runtime,omitempty"`
+	DependencyPreparation *task.DependencyPreparationRuntime `json:"dependency_preparation,omitempty"`
+}
+
 type RunnerInfo struct {
-	ID               string    `json:"id"`
-	Name             string    `json:"name"`
-	Hostname         string    `json:"hostname"`
-	SupportedAgents  []string  `json:"supported_agents"`
-	Status           string    `json:"status"` // idle, busy, offline
-	ActiveLanes      []string  `json:"active_lanes,omitempty"`
-	ActiveAttemptIDs []string  `json:"active_attempt_ids,omitempty"`
-	LastHeartbeatAt  time.Time `json:"last_heartbeat_at"`
-	CurrentTaskID    string    `json:"current_task_id,omitempty"`
-	CurrentAttemptID string    `json:"current_attempt_id,omitempty"`
-	CPUPercent       float64   `json:"cpu_percent"`
-	MemoryUsedBytes  int64     `json:"memory_used_bytes"`
-	MemoryTotalBytes int64     `json:"memory_total_bytes"`
-	DiskUsedBytes    int64     `json:"disk_used_bytes"`
-	DiskTotalBytes   int64     `json:"disk_total_bytes"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	RuntimeEvidence  RunnerRuntimeEvidence `json:"runtime_evidence,omitempty"`
+	ID               string                `json:"id"`
+	Name             string                `json:"name"`
+	Hostname         string                `json:"hostname"`
+	SupportedAgents  []string              `json:"supported_agents"`
+	Status           string                `json:"status"` // idle, busy, offline
+	ActiveLanes      []string              `json:"active_lanes,omitempty"`
+	ActiveAttemptIDs []string              `json:"active_attempt_ids,omitempty"`
+	LastHeartbeatAt  time.Time             `json:"last_heartbeat_at"`
+	CurrentTaskID    string                `json:"current_task_id,omitempty"`
+	CurrentAttemptID string                `json:"current_attempt_id,omitempty"`
+	CPUPercent       float64               `json:"cpu_percent"`
+	MemoryUsedBytes  int64                 `json:"memory_used_bytes"`
+	MemoryTotalBytes int64                 `json:"memory_total_bytes"`
+	DiskUsedBytes    int64                 `json:"disk_used_bytes"`
+	DiskTotalBytes   int64                 `json:"disk_total_bytes"`
+	CreatedAt        time.Time             `json:"created_at"`
+	UpdatedAt        time.Time             `json:"updated_at"`
 }
 
 // HeartbeatRequest is sent periodically by runner daemon to keep its lease alive and report metrics.

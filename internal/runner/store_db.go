@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -32,14 +33,18 @@ func (s *DBStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *RunnerInf
 	}
 
 	agentsStr := strings.Join(info.SupportedAgents, ",")
+	runtimeJSON, err := json.Marshal(info.RuntimeEvidence)
+	if err != nil {
+		return err
+	}
 
 	query := `
 		INSERT INTO runners (
 			id, name, hostname, supported_agents, status, last_heartbeat_at,
 			current_task_id, current_attempt_id, cpu_percent, memory_used_bytes,
-			memory_total_bytes, disk_used_bytes, disk_total_bytes, created_at, updated_at
+			memory_total_bytes, disk_used_bytes, disk_total_bytes, created_at, updated_at, runtime_evidence
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 		)
 		ON CONFLICT (id) DO UPDATE SET
 			hostname = EXCLUDED.hostname,
@@ -53,7 +58,8 @@ func (s *DBStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *RunnerInf
 			memory_total_bytes = EXCLUDED.memory_total_bytes,
 			disk_used_bytes = EXCLUDED.disk_used_bytes,
 			disk_total_bytes = EXCLUDED.disk_total_bytes,
-			updated_at = EXCLUDED.updated_at
+			updated_at = EXCLUDED.updated_at,
+ runtime_evidence = EXCLUDED.runtime_evidence
 	`
 	var taskID, attemptID *string
 	if info.CurrentTaskID != "" {
@@ -63,7 +69,7 @@ func (s *DBStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *RunnerInf
 		attemptID = &info.CurrentAttemptID
 	}
 
-	_, err := s.db.ExecContext(ctx, query,
+	_, err = s.db.ExecContext(ctx, query,
 		info.ID,
 		info.Name,
 		info.Hostname,
@@ -79,6 +85,7 @@ func (s *DBStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *RunnerInf
 		info.DiskTotalBytes,
 		info.CreatedAt,
 		info.UpdatedAt,
+		string(runtimeJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("register/heartbeat runner: %w", err)
@@ -92,12 +99,13 @@ func (s *DBStore) GetRunner(ctx context.Context, id string) (*RunnerInfo, error)
 			id, name, hostname, supported_agents, status, last_heartbeat_at,
 			COALESCE(current_task_id, ''), COALESCE(current_attempt_id, ''),
 			cpu_percent, memory_used_bytes, memory_total_bytes, disk_used_bytes, disk_total_bytes,
-			created_at, updated_at
+			created_at, updated_at, runtime_evidence
 		FROM runners
 		WHERE id = $1
 	`
 	var r RunnerInfo
 	var agentsStr string
+	var runtimeJSON []byte
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&r.ID,
 		&r.Name,
@@ -114,12 +122,16 @@ func (s *DBStore) GetRunner(ctx context.Context, id string) (*RunnerInfo, error)
 		&r.DiskTotalBytes,
 		&r.CreatedAt,
 		&r.UpdatedAt,
+		&runtimeJSON,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrRunnerNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get runner: %w", err)
+	}
+	if err := json.Unmarshal(runtimeJSON, &r.RuntimeEvidence); err != nil {
+		return nil, fmt.Errorf("invalid runner runtime evidence: %w", err)
 	}
 	if agentsStr != "" {
 		r.SupportedAgents = strings.Split(agentsStr, ",")
@@ -133,7 +145,7 @@ func (s *DBStore) ListRunners(ctx context.Context) ([]*RunnerInfo, error) {
 			id, name, hostname, supported_agents, status, last_heartbeat_at,
 			COALESCE(current_task_id, ''), COALESCE(current_attempt_id, ''),
 			cpu_percent, memory_used_bytes, memory_total_bytes, disk_used_bytes, disk_total_bytes,
-			created_at, updated_at
+			created_at, updated_at, runtime_evidence
 		FROM runners
 		ORDER BY id ASC
 	`
@@ -148,6 +160,7 @@ func (s *DBStore) ListRunners(ctx context.Context) ([]*RunnerInfo, error) {
 	for rows.Next() {
 		var r RunnerInfo
 		var agentsStr string
+		var runtimeJSON []byte
 		if err := rows.Scan(
 			&r.ID,
 			&r.Name,
@@ -164,8 +177,12 @@ func (s *DBStore) ListRunners(ctx context.Context) ([]*RunnerInfo, error) {
 			&r.DiskTotalBytes,
 			&r.CreatedAt,
 			&r.UpdatedAt,
+			&runtimeJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan runner: %w", err)
+		}
+		if err := json.Unmarshal(runtimeJSON, &r.RuntimeEvidence); err != nil {
+			return nil, fmt.Errorf("invalid runner runtime evidence: %w", err)
 		}
 		if agentsStr != "" {
 			r.SupportedAgents = strings.Split(agentsStr, ",")

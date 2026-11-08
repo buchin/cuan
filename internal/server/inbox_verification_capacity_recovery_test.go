@@ -30,13 +30,13 @@ func TestVerificationCapacityRecoveryPostgres(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) {
 				s, q, d := phaseLineageSetup(t, database)
-				verificationCapacityRecoveryContract(t, s, d, q, scenario)
+				verificationCapacityRecoveryContract(t, s, d, q, scenario, runner.NewDBStore(database))
 			})
 		})
 	}
 }
 
-func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest, scenario string) {
+func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest, scenario string, runtimeStores ...runner.Store) {
 	t.Helper()
 	ctx := context.Background()
 	preparation := strings.HasPrefix(scenario, "preparation ")
@@ -62,8 +62,15 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	if err != nil {
 		t.Fatal(err)
 	}
-	runnerStore := runner.NewMemoryStore(store)
+	var runnerStore runner.Store = runner.NewMemoryStore(store)
+	if len(runtimeStores) > 0 {
+		runnerStore = runtimeStores[0]
+	}
 	s.runnerSvc = runner.NewService(runnerStore, store, nil)
+	s.runnerSvc.SetEventBus(runner.NewEventBus())
+	if _, err := s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: "verifier"}, time.Minute); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "verifier"}, time.Minute); err != nil {
 		t.Fatal(err)
 	}
@@ -125,6 +132,10 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 			t.Fatal(err)
 		}
 	}
+	// Recreate the service as a separate chat-worker process: readiness is in
+	// the shared runner store, never in the API process's private map.
+	s.runnerSvc = runner.NewService(runnerStore, store, nil)
+	s.runnerSvc.SetEventBus(runner.NewEventBus())
 	if scenario != "no account" {
 		account, err := agent.CreateProviderAccount(origin.OwnerID, "fixture")
 		if err != nil {
@@ -168,7 +179,9 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	before := len(d.Attempts)
 	want := scenario == "ready" || scenario == "recovery quota"
 	if got := s.recoverSourceVerifier(ctx, d, origin); got != want {
-		t.Fatalf("recovery=%v scenario=%s", got, scenario)
+		runtime := s.runnerSvc.DependencyPreparationRuntime(ctx, d.LatestAttempt.RunnerID)
+		_, sourceErr := task.ValidateVerificationSource(ctx, store, &d.Task, d.LatestAttempt.ID)
+		t.Fatalf("recovery=%v scenario=%s setup=%v infrastructure=%v runtime=%+v source=%v status=%s latest=%+v", got, scenario, task.PHPPreparationStoppedVerification(d.LatestAttempt, d.Activities), task.InspectionInfrastructureFailure(d.LatestAttempt, d.Activities), runtime, sourceErr, d.Status, d.LatestAttempt)
 	}
 	if !want {
 		return

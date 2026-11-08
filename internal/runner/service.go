@@ -20,17 +20,15 @@ type ProjectFinder interface {
 }
 
 type RunnerService struct {
-	browserRuntimes        sync.Map
-	dependencyPreparations sync.Map
-	store                  Store
-	taskStore              task.Store
-	projectFinder          ProjectFinder
-	dodEvaluator           *DoDEvaluator
-	chatNotifier           BusinessChatNotifier
-	eventBus               *EventBus
-	steerMu                sync.Mutex
-	pendingSteering        map[string][]SteeringDirective
-	steerHandlers          map[string]func(attemptID, prompt string) error
+	store           Store
+	taskStore       task.Store
+	projectFinder   ProjectFinder
+	dodEvaluator    *DoDEvaluator
+	chatNotifier    BusinessChatNotifier
+	eventBus        *EventBus
+	steerMu         sync.Mutex
+	pendingSteering map[string][]SteeringDirective
+	steerHandlers   map[string]func(attemptID, prompt string) error
 }
 
 func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
@@ -107,19 +105,16 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		info.Status = StatusIdle
 	}
 
-	if err := s.store.RegisterOrUpdateHeartbeat(ctx, info); err != nil {
-		return nil, err
-	}
-
 	if req.DependencyPreparation.Fresh(time.Now()) {
-		s.dependencyPreparations.Store(req.RunnerID, *req.DependencyPreparation)
-	} else {
-		s.dependencyPreparations.Delete(req.RunnerID)
+		copy := *req.DependencyPreparation
+		info.RuntimeEvidence.DependencyPreparation = &copy
 	}
 	if req.BrowserRuntime.Fresh(time.Now()) {
-		s.browserRuntimes.Store(req.RunnerID, *req.BrowserRuntime)
-	} else {
-		s.browserRuntimes.Delete(req.RunnerID)
+		copy := *req.BrowserRuntime
+		info.RuntimeEvidence.BrowserRuntime = &copy
+	}
+	if err := s.store.RegisterOrUpdateHeartbeat(ctx, info); err != nil {
+		return nil, err
 	}
 
 	shouldCancel := false
@@ -393,7 +388,9 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		return nil, err
 	}
 
-	resp.PHPUnitTargets = project.ParseEnvironment(resp.Environment)["CUAN_VERIFICATION_PHPUNIT_TARGETS"]
+	if !limits.ReadOnlyRepository || verification != nil || inspection != nil {
+		resp.PHPUnitTargets = project.ParseEnvironment(resp.Environment)["CUAN_VERIFICATION_PHPUNIT_TARGETS"]
+	}
 	if verification != nil && verification.FinalizeAttemptID != "" {
 		resp.Task = &task.Task{ID: t.ID, ProjectID: t.ProjectID, Title: t.Title, SourceRoomID: t.SourceRoomID, ExecutionCategory: t.ExecutionCategory}
 		resp.Environment = ""

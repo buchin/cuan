@@ -42,6 +42,7 @@ func (m *MemoryStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *Runne
 		return nil
 	}
 
+	existing.RuntimeEvidence = info.RuntimeEvidence
 	existing.Hostname = info.Hostname
 	if len(info.SupportedAgents) > 0 {
 		existing.SupportedAgents = info.SupportedAgents

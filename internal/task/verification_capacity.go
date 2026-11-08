@@ -8,7 +8,7 @@ import (
 )
 
 const ActivityVerificationCapacityRecovery = "verification_capacity_recovery"
-const ActivityVerificationPreparationRecovery = "verification_preparation_recovery"
+const ActivityVerificationPreparationRecovery = "verification_setup_recovery"
 const PHPPreparationPolicy = "locked-php-owner-cache-v1"
 
 type DependencyPreparationRuntime struct {
