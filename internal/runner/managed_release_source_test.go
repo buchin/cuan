@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	cuanGit "github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
 	"os"
 	"os/exec"
@@ -65,6 +66,18 @@ func TestManagedReleaseSourceObservesExactDeveloperCheckpointWithoutExecution(t 
 				summary = "Project verification failed"
 			}
 			evidence, err := observeManagedReleaseSource(context.Background(), root, commit, branch, summary)
+			if scenario == "valid" || scenario == "dirty" || scenario == "failed checks" {
+				unchanged := false
+				req := CompleteAttemptRequest{TestSummary: summary, HasCodeChanges: &unchanged, RequiresDeploy: &unchanged}
+				err := observeUnchangedManagedSource(context.Background(), &cuanGit.TaskWorkspace{Path: root, BranchName: branch}, &req)
+				if scenario == "valid" {
+					if err != nil || req.ManagedReleaseSource == nil || req.CommitSHA != commit || req.BranchName != branch || req.DiffSummary == "" || req.LiveDeploymentConfirmed || *req.HasCodeChanges || *req.RequiresDeploy || git("rev-parse", "HEAD") != commit {
+						t.Fatal("unchanged checked source lost identity or invented effects", err)
+					}
+				} else if err == nil || req.ManagedReleaseSource != nil {
+					t.Fatal("dirty or unchecked unchanged source received a handoff")
+				}
+			}
 			if scenario == "valid" {
 				hash := sha256.Sum256([]byte(manifest))
 				if err != nil || evidence == nil || evidence.Commit != commit || evidence.Branch != "task/dev" || evidence.ManifestHash != hex.EncodeToString(hash[:]) || evidence.VerificationHash == "" {

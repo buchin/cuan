@@ -174,6 +174,14 @@ Pending work is never reset, cleaned or committed to make a release pass.
 
 ## Maintainer CLI
 
+A managed developer can find that the approved implementation already exists in
+the refreshed baseline. After native comparison reports no code changes and
+project checks pass, the runner records that existing clean HEAD and release
+descriptor for independent source review. It records no new diff, commit, push
+or deployment, and keeps both change/deployment-required flags false. Dirty
+workspaces and failed checks cannot use this path. A source handoff is still not
+acceptance or live publication proof; the original criteria remain authoritative.
+
 ```sh
 cuan release inspect --path . --commit FULL_SHA --branch dev [--runtime-path PATH]
 cuan release run --path . --commit FULL_SHA --branch dev [--logs]

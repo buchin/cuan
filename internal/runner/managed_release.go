@@ -124,6 +124,28 @@ func observeManagedReleaseSource(ctx context.Context, root, commit, branch, summ
 	return &ManagedReleaseSource{Commit: description.Commit, Branch: description.Branch, ManifestHash: description.ManifestHash, VerificationHash: task.VerificationSummaryHash(summary)}, nil
 }
 
+// An implementation can already exist in the refreshed baseline. Preserve its
+// clean, checked source identity without inventing a diff, commit or deployment.
+// The ordinary independent source review and publication gates still apply.
+func observeUnchangedManagedSource(ctx context.Context, ws *git.TaskWorkspace, req *CompleteAttemptRequest) error {
+	if ws == nil || req == nil || req.HasCodeChanges == nil || *req.HasCodeChanges || req.RequiresDeploy == nil || *req.RequiresDeploy {
+		return errors.New("unchanged managed source requires a native no-change observation")
+	}
+	head, err := fingerprintGit(ctx, ws.Path, "rev-parse", "--verify", "HEAD")
+	if err != nil {
+		return err
+	}
+	source, err := observeManagedReleaseSource(ctx, ws.Path, strings.TrimSpace(string(head)), ws.BranchName, req.TestSummary)
+	if err != nil {
+		return err
+	}
+	req.ManagedReleaseSource, req.CommitSHA, req.BranchName = source, source.Commit, source.Branch
+	if strings.TrimSpace(req.DiffSummary) == "" {
+		req.DiffSummary = "Native comparison found no code changes relative to the execution baseline; existing clean source retained for independent verification."
+	}
+	return nil
+}
+
 // A resumed developer must reconcile the baseline supplied for this execution,
 // rather than repeatedly submitting an old checkpoint for the same merge failure.
 // Publication may still merge newer remote changes after independent review.

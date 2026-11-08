@@ -1268,6 +1268,11 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 							compReq.CommitSHA = commit
 							compReq.LiveDeploymentConfirmed = claim.ManagedRelease == nil
 						}
+					} else if claim.ManagedRelease != nil && lane == task.ExecutionCategoryCode {
+						if err := observeUnchangedManagedSource(ctx, ws, &compReq); err != nil {
+							compReq.Status = task.AttemptStatusFailed
+							compReq.ErrorMessage = "Existing managed source could not be verified; local work is preserved"
+						}
 					} else {
 						// Non-code or investigation tasks pass compliance without forcing fake live deploy
 						passed, errNote := r.confirmAutoDeployCompliance(ctx, claim, false, "")

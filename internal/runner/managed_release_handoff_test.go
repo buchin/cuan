@@ -19,7 +19,7 @@ import (
 )
 
 func TestManagedReleaseCompletionAtomicallyHandsOffWithoutAcceptingTask(t *testing.T) {
-	for _, scenario := range []string{"valid", "no admission", "no report", "changed source", "false deployment"} {
+	for _, scenario := range []string{"valid", "unchanged source", "no admission", "no report", "changed source", "false deployment"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			store := task.NewMemoryStore()
@@ -46,8 +46,14 @@ func TestManagedReleaseCompletionAtomicallyHandsOffWithoutAcceptingTask(t *testi
 				must(store.CreateActivity(ctx, &task.TaskActivity{ID: "kind", TaskID: item.ID, AttemptID: &att.ID, ActivityType: "agent_result_kind", NewStatus: "implementation", CreatedAt: now}))
 			}
 			changed := true
+			if scenario == "unchanged source" {
+				changed = false
+			}
 			req := CompleteAttemptRequest{RunnerID: "runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, CommitSHA: strings.Repeat("a", 40), BranchName: "task/approved", DiffSummary: "main.go | 1 +", TestSummary: "Project verification: test.sh --fast (exit 0)", AgentReportRequired: true, AgentReportConfirmed: true, HasCodeChanges: &changed, RequiresDeploy: &changed, DoDValidation: &DoDValidationResult{Passed: true, Action: "done"}}
 			req.ManagedReleaseSource = &ManagedReleaseSource{Commit: req.CommitSHA, Branch: req.BranchName, ManifestHash: strings.Repeat("b", 64), VerificationHash: task.VerificationSummaryHash(req.TestSummary)}
+			if scenario == "unchanged source" {
+				req.DiffSummary = "Native comparison found no code changes; existing clean source retained for independent verification."
+			}
 			if scenario == "changed source" {
 				req.CommitSHA = strings.Repeat("c", 40)
 			}
@@ -66,7 +72,7 @@ func TestManagedReleaseCompletionAtomicallyHandsOffWithoutAcceptingTask(t *testi
 					handoffs++
 				}
 			}
-			if scenario != "valid" {
+			if scenario != "valid" && scenario != "unchanged source" {
 				if completed.Status == task.AttemptStatusSucceeded || handoffs != 0 || saved.Status == task.TaskStatusDone {
 					t.Fatal("invalid source accepted or handoff emitted")
 				}
