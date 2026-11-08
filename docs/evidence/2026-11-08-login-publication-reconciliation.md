@@ -30,6 +30,18 @@ diagnostic confirms a started ordinary execution with original read/write scope:
 developer has begun inspecting the retained repository. This proves production
 handoff recovery, not completed implementation, publication or final acceptance.
 
+Developer attempt 12 subsequently failed the native publication gate despite
+passing registered source checks. Its branch push returned HTTP 409 with an
+unconfirmed-push error. The Git adapter discarded subprocess output, conflating
+divergence, repository policy, access rejection and network failures. The original
+specific cause cannot be recovered from that discarded output; no remote push was
+replayed for diagnosis. The adapter now classifies those failures from captured
+output into fixed safe messages without exposing raw remote output or secrets.
+Unknown/interrupted outcomes still require remote-state reconciliation. Targeted
+Git tests cover the subprocess path, classification, redaction and retained native
+source push behavior. PM automatically started review request
+`08683cc4-b989-4a7e-a72a-ad3681b3650c`; acceptance remains pending.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

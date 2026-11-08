@@ -70,8 +70,28 @@ func (c *Client) pushExactBranch(ctx context.Context, path, repoURL, branch, tok
 	}
 	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", path, "push", "--porcelain", "--", c.repoURL(owner, repo), strings.TrimSpace(string(head))+":refs/heads/"+branch)
 	cmd.Env = repositoryEnvironment(token)
-	if err = cmd.Run(); err != nil {
-		return "", errors.New("GitHub push was not confirmed. Check access or branch conflicts; retrying this push does not recreate commits")
+	if output, pushErr := cmd.CombinedOutput(); pushErr != nil {
+		return "", classifyPushFailure(ctx, output)
 	}
 	return strings.TrimSpace(string(head)), nil
+}
+
+// Never expose Git output: remote URLs and credential-helper failures may carry
+// secrets. Stable categories let the coordinator choose a concrete recovery.
+func classifyPushFailure(ctx context.Context, output []byte) error {
+	text := strings.ToLower(string(output))
+	reason := "unknown remote outcome; inspect the remote branch before retrying"
+	switch {
+	case ctx.Err() != nil:
+		reason = "request interrupted; inspect the remote branch before retrying"
+	case strings.Contains(text, "non-fast-forward"), strings.Contains(text, "fetch first"):
+		reason = "remote branch has diverged; compare existing commits and preserve both histories; do not force push"
+	case strings.Contains(text, "protected branch"), strings.Contains(text, "repository rule"), strings.Contains(text, "gh013"), strings.Contains(text, "gh006"):
+		reason = "repository policy rejected the update; inspect the registered repository rules"
+	case strings.Contains(text, "authentication failed"), strings.Contains(text, "permission to"), strings.Contains(text, "could not read username"), strings.Contains(text, "repository not found"), strings.Contains(text, "returned error: 403"), strings.Contains(text, "returned error: 401"):
+		reason = "repository access was rejected; verify the saved project GitHub connection and repository permissions"
+	case strings.Contains(text, "could not resolve host"), strings.Contains(text, "failed to connect"), strings.Contains(text, "connection timed out"), strings.Contains(text, "connection reset"):
+		reason = "remote connection failed; inspect remote state before a bounded retry"
+	}
+	return errors.New("GitHub push was not confirmed: " + reason + ". Local commits are preserved")
 }
