@@ -184,7 +184,33 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" 
 pid_migrate=$!
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-runner" ./cmd/runner &
 pid_runner=$!
-wait "$pid_server" "$pid_migrate" "$pid_runner"
+status_server=0
+status_migrate=0
+status_runner=0
+
+wait "$pid_server" || status_server=$?
+wait "$pid_migrate" || status_migrate=$?
+wait "$pid_runner" || status_runner=$?
+
+if [[ "$status_server" -ne 0 || "$status_migrate" -ne 0 || "$status_runner" -ne 0 ]]; then
+  echo "❌ ERROR: Backend binary compilation failed:" >&2
+  if [[ "$status_server" -ne 0 ]]; then
+    echo "  - cuan-server build failed with exit code $status_server." >&2
+  fi
+  if [[ "$status_migrate" -ne 0 ]]; then
+    echo "  - cuan-migrate build failed with exit code $status_migrate." >&2
+  fi
+  if [[ "$status_runner" -ne 0 ]]; then
+    echo "  - cuan-runner build failed with exit code $status_runner." >&2
+  fi
+  if [[ "$status_server" -ne 0 ]]; then
+    exit "$status_server"
+  elif [[ "$status_migrate" -ne 0 ]]; then
+    exit "$status_migrate"
+  else
+    exit "$status_runner"
+  fi
+fi
 echo "✓ Backend binaries compiled successfully."
 if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
   npm run build --prefix web
