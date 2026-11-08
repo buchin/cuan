@@ -92,3 +92,30 @@ manually retried, accepted or duplicated here. Its actual outcome and any requir
 scope correction still need observation before claiming the workflow is fixed.
 The original login task's exact-source recovery is durably queued behind active
 work. Neither task is claimed Done by this checkpoint.
+
+## Legacy publication mismatch
+
+The third old-generation attempt finished failed solely at the native publication
+gate, exit0, after native registered checks passed. Its local source commit is
+`4c47df54003740b7b1ec89c597d9925d2908a803`. The55-file branch comparison includes
+inherited work against the registered baseline and is not55 files attributable
+to this worker. The original task remains an existing-account activation, not an
+approval to release incidental source/test work.
+
+The same bounded saved-evidence inspection now also admits this exact legacy
+state: current final report and reported completed criteria, unchanged original
+account scope, exact native passing checks/change binding, failed exit0 with the
+canonical publication-only error, and no cancellation. It preserves the local
+source and failed history; it does not approve or publish that source. Account
+outcome inspection is considered before source/publication orchestration.
+The PM receives the operational scope and treats retained source as diagnostic,
+without mistaking it for a delivered code repair. Original account criteria still
+need fresh independent observations. Actual assertion failures, changed source
+identity, canceled work and unfinished reported criteria are excluded.
+
+The contract tests exercise the native queue/claim/completion path for missing
+source prerequisites, an ordinary completed operation, and this publication-only
+legacy case. All preserve their prior attempt status, enforce read-only/no-publish
+inspection, retain original source data and require PM review. A regression uses
+the actual frozen request format with a fixture email. Production deployment of
+this final legacy-state handling remains pending at this checkpoint.

@@ -12,7 +12,7 @@ type AttemptLaunchStore interface {
 }
 
 func AttemptPublicationPolicy(ctx context.Context, store Store, t *Task, attemptID string) (executionpolicy.PublicationPolicy, error) {
-	policy := taskScopePublicationPolicy(t)
+	policy := ScopePublicationPolicy(t)
 	if launches, ok := store.(AttemptLaunchStore); ok {
 		launch, err := launches.LaunchForAttempt(ctx, attemptID)
 		if err != nil {
@@ -30,7 +30,7 @@ func AttemptPublicationPolicy(ctx context.Context, store Store, t *Task, attempt
 }
 
 func launchPublicationPolicy(t *Task, launch *TaskLaunch, verification bool) executionpolicy.PublicationPolicy {
-	policy := taskScopePublicationPolicy(t)
+	policy := ScopePublicationPolicy(t)
 	revision := executionpolicy.FromInstructions(launch.Revision)
 	if verification {
 		revision.ReadOnlyRepository = true
@@ -60,7 +60,9 @@ func (m *MemoryStore) LaunchForAttempt(_ context.Context, attemptID string) (*Ta
 	return nil, nil
 }
 
-func taskScopePublicationPolicy(t *Task) executionpolicy.PublicationPolicy {
+// ScopePublicationPolicy restricts execution to original account-data work;
+// repository existence and historical lane defaults grant no source publication.
+func ScopePublicationPolicy(t *Task) executionpolicy.PublicationPolicy {
 	policy := executionpolicy.FromInstructions(t.Instructions)
 	if IsAccountOperation(t.Title, t.Instructions) {
 		policy = policy.Restrict(executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyPush: true, DenyDeploy: true})

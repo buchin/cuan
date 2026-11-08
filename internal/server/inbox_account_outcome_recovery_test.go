@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestAccountOperationRecoversExistingOutcomeWithoutRepeatingEffect(t *testing.T) {
-	for _, mode := range []string{"legacy source-check failure", "completed operation"} {
+	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure"} {
 		t.Run(mode, func(t *testing.T) { accountOutcomeRecoveryContract(t, mode) })
 	}
 }
@@ -42,8 +43,34 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if err := s.projectStudioRepo.UpdateMessage(ctx, message); err != nil {
 		t.Fatal(err)
 	}
+	if mode == "legacy publication failure" {
+		now := time.Now().UTC()
+		original := *d.LatestAttempt
+		original.ID = "legacy-publication-worker"
+		original.CreatedAt = now
+		original.StartedAt = &now
+		original.FinishedAt = &now
+		original.ErrorMessage = task.PublicationVerificationUnavailableMessage
+		if err := store.CreateAttempt(ctx, &original); err != nil {
+			t.Fatal(err)
+		}
+		d.CommitSHA = strings.Repeat("c", 40)
+		d.DiffSummary = "retained unrequested source tests | 1 +"
+		if err := store.UpdateTask(ctx, &d.Task); err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := json.Marshal(task.RunnerVerificationRecord{Summary: "Project verification: registered PHPUnit targets (exit 0)\nChecks passed", Changes: task.NewRunnerChangeRecord(d.CommitSHA, d.DiffSummary)})
+		for _, event := range []*task.TaskActivity{
+			{ID: "legacy-publication-report", TaskID: d.ID, AttemptID: &original.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Account access was reported active; incidental source tests also passed; publication unverified", CreatedAt: now},
+			{ID: "verification:" + original.ID, TaskID: d.ID, AttemptID: &original.ID, Author: original.RunnerID, ActivityType: task.ActivityTypeRunnerVerification, Message: string(raw), CreatedAt: now},
+		} {
+			if err := store.CreateActivity(ctx, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	if !operationalSourceCheckMismatch(d) {
+	if !operationalSourceCheckMismatch(d) && !legacyAccountPublicationMismatch(d) {
 		t.Fatal("original account operation was not recognized")
 	}
 	for _, mode := range []string{"source change", "assertion", "cancelled", "unfinished"} {
@@ -60,7 +87,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 		case "unfinished":
 			altered.DoDChecklist = []task.DoDItem{{Text: "Access still unverified"}}
 		}
-		if operationalSourceCheckMismatch(&altered) {
+		if operationalSourceCheckMismatch(&altered) || legacyAccountPublicationMismatch(&altered) {
 			t.Fatal("ineligible failure admitted", mode)
 		}
 	}
@@ -95,6 +122,9 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	}
 	parent := d.LatestAttempt.ID
 	for i := 0; i < 2; i++ {
+		if i == 0 {
+			s.queueInboxTaskReview(ctx, d)
+		}
 		if !s.recoverSavedEvidence(ctx, d, origin) {
 			saved, e := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, savedEvidenceRecoveryRequestID(d)))
 			t.Fatalf("existing outcome recovery not queued iteration=%d candidate=%v reviewauth=%v sameagent=%v continue=%v origin=%+v launch=%+v err=%v", i, savedEvidenceRecoveryCandidate(d), s.reviewSnapshotRecoveryAuthorized(ctx, d, origin), s.sameRuntimeAgent(ctx, origin.AgentID, d.AssignedAgent), s.taskContinuationAfterCancel(ctx, origin, d), origin, saved, e)
@@ -142,6 +172,16 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	decision := s.requireIndependentCodeReview(ctx, current, inboxReviewEvaluation{Decision: "pass", RequestedOutcome: "completed"})
 	if decision.Decision != "pass" {
 		t.Fatal("observed outcome trapped in another verification loop")
+	}
+	if mode == "legacy publication failure" {
+		pub := s.inboxReviewPublication(ctx, current)
+		if pub == nil || pub.Required || pub.Provenance != "original_account_scope_no_source_publication" || current.CommitSHA != d.CommitSHA || current.DiffSummary != d.DiffSummary {
+			t.Fatal("retained source was waived, released or demanded as original scope")
+		}
+		approved, _ := s.inboxApprovedTaskScope(ctx, current)
+		if approved == nil || !approved.ReadOnlyRepository || !approved.DenyDeploy {
+			t.Fatal("review lost original operational scope")
+		}
 	}
 	if s.independentCodeReviewMissing(ctx, current) {
 		t.Fatal("account outcome treated as unverified source implementation")

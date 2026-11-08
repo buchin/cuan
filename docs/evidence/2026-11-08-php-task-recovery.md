@@ -115,3 +115,23 @@ preparation recovery. Its launch is queued while another user-authorized Dojo
 execution is active; the previous failed attempt8 remains unchanged and the
 source remains `52d92fccd2019e492d4c314ade211742fffba35b`. No manual retry was used.
 Actual Composer setup, independent verification and publication remain pending.
+
+## Production preparation recovery result
+
+Attempt9 `att_97afadd2bf31cbaf948ef427c1a90799` started automatically and succeeded.
+Native system logs show PHP preparation at20:08:03.821709+08:00 and model execution
+at20:08:20.266033+08:00: approximately16.4seconds instead of the prior120second
+setup expiry. Native source and unchanged-repository receipts bind it to
+`52d92fccd2019e492d4c314ade211742fffba35b`. Its native completion summary is the
+read-only scope check; its report separately claims40 target tests and12 unit
+tests passed. The earlier source attempt's native checks remain bound to the
+same unchanged commit; this is not a claim that the runner reran those tests
+natively during attempt9.
+
+PM assessment `c02d9b16-30aa-4ab7-acfe-373616cc0163` saved source_review=pass,
+decision=revise, remaining_work=publication. The task is still blocked. The report
+confirms normal account state but leaves integration of the test-source changes
+pending; the review describes them as authentication changes despite the original
+observed repair being test declarations. Publication necessity/scope and native
+handoff still require investigation. No Dojo deployment or manual acceptance was
+performed here, and overall end-to-end latency remains unacceptable.

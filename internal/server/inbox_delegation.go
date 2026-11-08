@@ -721,6 +721,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			RoomID:  targetRoomID,
 		}
 	}
+	gate = "account_outcome_inspection"
+	if task.IsAccountOperation(detail.Title, detail.Instructions) && !s.accountOutcomeIndependentlyVerified(ctx, detail) && s.recoverSavedEvidence(ctx, detail, *origin) {
+		return
+	}
 	gate = "native_release_verification"
 	if s.recoverNativeReleaseVerification(ctx, detail, requests) {
 		return

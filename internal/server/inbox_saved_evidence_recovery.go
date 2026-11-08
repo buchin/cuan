@@ -21,7 +21,7 @@ func savedEvidenceRecoveryCandidate(d *task.TaskDetailResponse) bool {
 		return false
 	}
 	a := d.LatestAttempt
-	if operationalSourceCheckMismatch(d) || completedAccountOutcomeCandidate(d) {
+	if operationalSourceCheckMismatch(d) || legacyAccountPublicationMismatch(d) || completedAccountOutcomeCandidate(d) {
 		return true
 	}
 	if a.Status != task.AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || !strings.HasPrefix(a.ErrorMessage, "Kepatuhan auto_deploy:") || (!historicalDocumentationCheck.MatchString(d.TestSummary) && !incorrectPublicationAuditRecovery(d)) {
@@ -65,9 +65,9 @@ func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailRes
 	if previous != nil {
 		return previous.State == "queued" || previous.State == "claimed" || previous.State == "started"
 	}
-	revision := "Scope: read-only repository. Do not push. Do not deploy.\nOne bounded recovery of saved task evidence, not another implementation cycle. The historical task-level verification text is unbound and is only a diagnostic hint; do not claim its checks ran in this attempt. Read the actual existing deliverables and inspect the existing workspace. Do not modify code, configuration, tests, documentation, git index, refs or commits. Do not reproduce prior deployment, migration, payment or other external effects. Independently verify each original acceptance criterion from actual files and reproducible read-only observations. Deliver the existing report as session artifacts under CUAN_TASK_ARTIFACTS_DIR, preserving its source provenance. Report current factual findings with the original criteria unchanged. If a required result or publication is missing, report that precise gap; do not repair it or waive it. The runner must verify unchanged repository state and independent review must assess the actual report. The original failed attempt remains failed." + taskRecoveryContext(d)
+	revision := "Scope: read-only repository. Do not push. Do not deploy.\nOne bounded recovery of saved task evidence, not another implementation cycle. The historical task-level verification text is unbound and is only a diagnostic hint; do not claim its checks ran in this attempt. Read the actual existing deliverables and inspect the existing workspace. Do not modify code, configuration, tests, documentation, git index, refs or commits. Do not reproduce prior deployment, migration, payment or other external effects. Independently verify each original acceptance criterion from actual files and reproducible read-only observations. Deliver the existing report as session artifacts under CUAN_TASK_ARTIFACTS_DIR, preserving its source provenance. Report current factual findings with the original criteria unchanged. If a required result or publication is missing, report that precise gap; do not repair it or waive it. The runner must verify unchanged repository state and independent review must assess the actual report. Historical attempt outcomes remain unchanged." + taskRecoveryContext(d)
 	if task.IsAccountOperation(d.Title, d.Instructions) {
-		revision += "\nOperational account outcome inspection: the original scope changes account data, not repository source. The prior worker reported completion; independent verification is still required. A historical unrelated source-test failure does not prove an account defect. Independently inspect the existing account and entitlement through the project's authorized read-only commands/API. Never run access-grant, activate, revoke, update or another external mutation to obtain proof. Inspect retained repository changes too; unexpected source edits are out-of-scope findings, not accepted work. Verify every original criterion with fresh observations. Do not prepare or run unrelated source regression tests, invent code repairs, publish or waive missing outcome evidence."
+		revision += "\nOperational account outcome inspection: the original scope changes account data, not repository source. The prior worker reported completion; independent verification is still required. A historical unrelated source-test failure does not prove an account defect. Independently inspect the existing account and entitlement through the project's authorized read-only commands/API. Never run access-grant, activate, revoke, update or another external mutation to obtain proof. Inspect retained repository changes too; unexpected source edits are out-of-scope findings, not accepted work. Verify every original criterion with fresh observations. Do not prepare or run unrelated source regression tests, invent code repairs, publish or waive missing outcome evidence. Retain any historical local source commit and diff as unrequested diagnostic work, not accepted implementation or approved release scope. Reconcile any recorded publication effects without repeating them; never infer that this branch was deployed or that no prior effects occurred."
 	}
 	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
@@ -134,4 +134,27 @@ func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *tas
 	}
 	_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
 	return err == nil && unchanged
+}
+
+// Old code-default execution may have repaired incidental project tests and
+// then failed publication. Preserve that source without approving or releasing
+// it; original account criteria still need a separate read-only observation.
+func legacyAccountPublicationMismatch(d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked || d.ExecutionCategory != task.ExecutionCategoryCode || !task.IsAccountOperation(d.Title, d.Instructions) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+		return false
+	}
+	a := d.LatestAttempt
+	if a.Status != task.AttemptStatusFailed || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != task.PublicationVerificationUnavailableMessage {
+		return false
+	}
+	checks := task.AttemptVerificationEvidence(d)
+	changes := task.AttemptChangeEvidence(d)
+	return checks.Author == a.RunnerID && task.PassingProjectCheckSummary(checks.Current) && changes.Provenance == "current_runner_branch_diff" && changes.RunnerChangeRecord != nil && changes.ResultCommit == d.CommitSHA && releaseObjectID.MatchString(d.CommitSHA)
+}
+
+func (s *Server) accountOutcomeReviewContext(ctx context.Context, d *task.TaskDetailResponse) map[string]any {
+	if d == nil || !task.IsAccountOperation(d.Title, d.Instructions) {
+		return nil
+	}
+	return map[string]any{"original_scope": "existing_account_data_operation", "independently_observed": s.accountOutcomeIndependentlyVerified(ctx, d), "source_publication_requested": false, "retained_source": "Any historical local source changes remain diagnostic, outside the requested account outcome and not approved for publication. Preserve them; do not release them or repeat account effects to obtain evidence."}
 }

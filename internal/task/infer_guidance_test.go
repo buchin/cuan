@@ -59,3 +59,15 @@ func TestAccountOperationsDoNotInheritRepositoryImplementationLane(t *testing.T)
 		}
 	}
 }
+
+func TestFrozenAccountOperationScopeDoesNotRequireSourcePublication(t *testing.T) {
+	scope := "Cuan managed delegation v1.\nApproved scope digest: d5b3579348ee7e6b57ce8a08911eb3d6bc32680a30da1b5fa8e448a4469dedeb\n### Problem Statement & Outcome\nPengguna dengan email customer@example.invalid membutuhkan aktivasi hak akses produk/membership Dracin 3 pada platform Dojo agar dapat mengakses konten dan fitur digital yang bersangkutan.\n\n### Scope of Work\n1. Cari dan verifikasi akun dengan email customer@example.invalid pada sistem membership Dojo.\n2. Berikan hak akses/entitlement produk Dracin 3 ke akun pengguna tersebut.\n3. Verifikasi status akses bahwa entitlement aktif dan tercatat di database Dojo.\n\n### Definition of Done (DoD)\n- [ ] Akun pengguna customer@example.invalid terverifikasi di Dojo.\n- [ ] Akses produk Dracin 3 berhasil diberikan ke akun tersebut.\n- [ ] Status hak akses terverifikasi aktif tanpa error pada sistem Dojo.\n\nApproval message: aafa00af-d8c1-4d88-8c90-dd6296b5d5cd\nUser authorization: @cuan Gas\nConversation: f299b6de-3470-4fd4-8b9f-30eba98402f8\nReport actual progress and verification evidence. Stay within this scope."
+	title := "Aktivasi Akses Dracin 3 untuk customer@example.invalid di Dojo"
+	if !IsAccountOperation(title, scope) {
+		t.Fatal("frozen business scope lost its operational classification")
+	}
+	policy := ScopePublicationPolicy(&Task{Title: title, Instructions: scope, ExecutionCategory: ExecutionCategoryCode})
+	if !policy.ReadOnlyRepository || !policy.DenyPush || !policy.DenyDeploy {
+		t.Fatal("legacy lane granted source publication", policy)
+	}
+}

@@ -16,7 +16,7 @@ func (s *Server) inboxApprovedTaskScope(ctx context.Context, d *task.TaskDetailR
 	if err != nil {
 		return nil, ""
 	}
-	policy := executionpolicy.FromInstructions(d.Instructions)
+	policy := task.ScopePublicationPolicy(&d.Task)
 	continuation := ""
 	if owner != nil {
 		policy = policy.Restrict(executionpolicy.FromInstructions(owner.Revision))

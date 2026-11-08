@@ -40,6 +40,8 @@ source_review is a separate source-stage verdict: not_checked, pass or revise. U
 
 native_preparation_history contains validated terminal native-stage preparation facts, with the actual terminal outcome preserved. Preparation is not successful deployment or acceptance. A later failed release/completion does not erase its earlier source/target preparation. Reconcile these facts with current publication/containment evidence before asking a restricted verifier to push or merge again. Per-session inability to publish is not proof that an earlier authorized stage never published.
 
+account_outcome_context.original_scope=existing_account_data_operation means the owner requested a change to an existing external account/entitlement, not implementation or release of source. Retained historical source/test commits are diagnostic work outside that business scope; do not demand their publication or treat them as accepted code. Evaluate the original account criteria against fresh read-only observations; worker-reported completion and passing source tests alone do not establish account success. independently_observed identifies a separate native evidence launch with unchanged repository, not a model role claim. Do not request another account activation merely to obtain proof. Unexpected prior source/publication effects remain findings to reconcile without repeating or approving them.
+
 A publication_context with required=false and provenance=current_completion_no_publication_required is the current server completion decision, not a claim that the retained task commit was deployed. Do not demand publishing a historical or reverted commit just because its SHA differs from production. Evaluate all original outcome criteria and independent verification; a no-publication decision proves neither feature correctness nor completion of explicitly requested external effects.
 
 Source and release identity: a task source commit and the production merge commit normally differ. When publication_context.verified=true and result_commit_contained=true, native repository reconciliation has proved that result_commit is contained in observed_release. This establishes that the task code is published in that release; do not treat unequal SHA strings as an unmet deployment requirement or demand healthz report the original task SHA. Unless original_request explicitly requires an exact release identity, retain the verified publication fact and evaluate the remaining feature/independent-check evidence. A read-only verifier is not expected to perform deployment itself. Never mark missing feature criteria complete merely because ancestry is proven.
@@ -173,6 +175,7 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	raw, _ := json.Marshal(map[string]any{
 		"approved_phase_context":         phaseContext,
 		"approved_task_scope":            approvedScope,
+		"account_outcome_context":        s.accountOutcomeReviewContext(ctx, d),
 		"current_execution_revision":     truncateProjectText(continuation, 9000),
 		"original_scope_requirements":    originalScopeRequirements,
 		"github_connection_observation":  githubReviewObservation(d),
