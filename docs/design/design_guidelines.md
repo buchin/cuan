@@ -567,7 +567,7 @@ owns the next step, including queued checks. Do not infer ownership from a board
 label or model prose alone. Completed tasks use a green checked circle; unresolved
 attention and owner-decision states stay static. Use current native task and
 review projections, with the existing Detail and real Terminal destinations.
-Agent conversations show existing task previews only in this panel, without duplicate cards in chat. Preserve final results, approval proposals, unsaved task drafts and customer reply drafts in the conversation. Customer conversation previews retain their existing visibility rules. Empty rooms show no control.
+All owner Inbox conversations, including customer Public/Whisper rooms, show existing task previews only in this panel, without duplicate cards in chat. Preserve final results, approval proposals, unsaved task drafts and customer reply drafts in the conversation. Task visibility remains owner-only; visitors never receive internal work previews. Empty rooms show no control.
 The expanded panel joins the composer without a vertical margin. Technical execution errors stay in Detail; attention summaries use the saved user-facing review finding. Terminal actions require the current attempt’s actual live session. The panel scrolls within a bounded height, preserving access to the composer;
 mobile titles retain readable space above their status. Escape closes the panel
 and returns focus to its trigger. Conversation changes reset disclosure choices.

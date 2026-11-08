@@ -75,8 +75,7 @@ import { InboxWorkPanel } from './InboxWorkPanel'
 import { ComposerTasks } from './ComposerTasks'
 
 import { isTaskActive } from './task-progress'
-import { TaskCompletionCard } from './TaskCompletionCard'
-import { TaskCard, cacheTasks } from './TaskCard'
+import { cacheTasks } from './TaskCard'
 import { notifyTaskCompleted } from './task-notifications'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
@@ -428,12 +427,6 @@ export function InboxView({
     () => taskMessageBindings(linkedTasks, messages, requests, activeContact?.type === 'customer'),
     [linkedTasks, messages, requests, activeContact?.type],
   )
-  const unattachedCompletedTasks = useMemo(() => linkedTasks.filter(task =>
-    ['done', 'review'].includes((task.status || '').toLowerCase().trim()) && !latestMessageIdPerTask.has(task.id)),
-    [linkedTasks, latestMessageIdPerTask])
-  const unattachedActiveTasks = useMemo(() => linkedTasks.filter(task =>
-    !['done', 'review'].includes((task.status || '').toLowerCase().trim()) && !latestMessageIdPerTask.has(task.id)),
-    [linkedTasks, latestMessageIdPerTask])
   const [inputMessage, setInputMessage] = useState('')
   const uploads = useAttachments(
     'cuan-inbox-attachments:' +
@@ -1828,17 +1821,9 @@ export function InboxView({
                       />
                     )}
                     </ItemActions>}
-                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && (linkedTasksForMsg.length ? linkedTasksForMsg : [undefined]).filter(task => activeContact.type !== 'agent' || !task).map(linkedTask => (
+                      {msg.uuid && isTaskAgentMessage && !isSupersededTaskMessage && linkedTasksForMsg.length === 0 && (
                         <InboxTaskAction
-                          key={linkedTask?.id || msg.uuid}
-                          linkedTask={linkedTask}
-                          proposal={linkedTask && msg.approval_plan?.continuation?.task_id === linkedTask.id && msg.approval_plan.continuation.attempt_id === linkedTask.latest_attempt?.id ? {
-                            description: msg.approval_plan.description,
-                            accepted: msg.approval_accepted,
-                            disabled: sending || uploads.busy || retryCount >= 3 || !!pendingRef.current,
-                            onApprove: () => { void handleSendMessage(msg.uuid, msg.approval_request_id) },
-                            onOther: () => handleTaskDiscussion(t('Changes to this plan') + ' — ' + linkedTask.title + ': '),
-                          } : undefined}
+                          key={msg.uuid}
                           conversationId={
                             activeContact.conversation_id || activeContact.id
                           }
@@ -1851,7 +1836,7 @@ export function InboxView({
                           onContinueChat={handleTaskDiscussion}
                           isCustomerRoom={activeContact.type === 'customer'}
                         />
-                      ))}
+                      )}
                     {msg.reply_draft && (
                       <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true}
                         regenerateDisabled={sending || uploads.busy || !!pendingRef.current || requests.some((q) => ['queued', 'running', 'retrying'].includes(q.state))}
@@ -1909,51 +1894,6 @@ export function InboxView({
                   </div>
                 )
               })}
-
-              {/* Unattached active or in-flight conversation tasks */}
-              {activeContact.type !== 'agent' && unattachedActiveTasks.map((t) => (
-                <div
-                  key={`standalone-active-${t.id}`}
-                  className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
-                >
-                  <div className="inbox-attachment relative">
-                    <TaskCard
-                      taskId={t.id}
-                      initialTask={t}
-                      returnTo={`/inbox/${encodeURIComponent(activeContact.conversation_id || activeContact.id)}`}
-                      onClick={handleTaskDetailsClick}
-                      onOpenTerminal={handleTaskTerminalClick}
-                      onUseDraft={handleUseDraft}
-                      onRetry={handleTaskRetry}
-                      onContinueChat={handleTaskDiscussion}
-                      isCustomerRoom={activeContact.type === 'customer'}
-                    />
-                  </div>
-                </div>
-              ))}
-
-              {/* Unattached or latest completed conversation tasks */}
-              {activeContact.type !== 'agent' && unattachedCompletedTasks.map((completedTask) => (
-                <div
-                  key={`standalone-completed-${completedTask.id}`}
-                  className="mt-3 flex w-full self-stretch flex-col items-start animate-fade-in"
-                >
-                  <div className="inbox-attachment relative">
-                    <TaskCompletionCard
-                      task={completedTask}
-                      conversationId={
-                        activeContact.conversation_id || activeContact.id
-                      }
-                      onContinueChat={handleTaskDiscussion}
-                      onUseDraft={handleUseDraft}
-                      onOpenTerminal={(task) => handleOpenTaskDrawer(task, 'terminal')}
-                      onRetry={handleTaskRetry}
-                      onViewDetails={() => handleOpenTaskDrawer(completedTask)}
-                      isCustomerRoom={activeContact.type === 'customer'}
-                    />
-                  </div>
-                </div>
-              ))}
 
               {sendError && (
                 <div
