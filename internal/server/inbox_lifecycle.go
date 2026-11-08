@@ -274,7 +274,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 			}
 		}
 		now := time.Now().UTC()
-		reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: q.AgentID, AuthorName: name, Content: s.applyInboxReviewEvaluation(ctx, q, saved), ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
+		reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: q.AgentID, AuthorName: name, Content: deduplicateWorkLinks(s.applyInboxReviewEvaluation(ctx, q, saved)), ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
 		s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
 	} else if q.AgentID != "" {
 		if q.OwnerID == "" {
@@ -469,6 +469,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 								output = s.applyInboxDelegation(ctx, q, output)
 							}
+							output = deduplicateWorkLinks(output)
 							now := time.Now().UTC()
 							reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
 							s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))

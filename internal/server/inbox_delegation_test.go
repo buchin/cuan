@@ -1053,6 +1053,140 @@ func TestInboxDelegation_PreservesAIProseExplanation(t *testing.T) {
 	}
 }
 
+func TestInboxDelegation_DeduplicatesIdenticalTaskLinks(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "terminal-project", Name: "Terminal"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		RoomID:      resolved.RoomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "approval",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	planPayload := attachmentMessage{
+		Text: "Approved: Koreksi bug link",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: q.MessageID,
+			Plan: inboxApprovalPlan{
+				Title:       "Koreksi bug link",
+				Description: "Perbaiki duplikasi link pada pembentukan balasan",
+				ProjectName: "Default",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{
+		ID:         q.MessageID,
+		RoomID:     q.RoomID,
+		AuthorType: "user",
+		Content:    attachmentEnvelope + string(rawMsg),
+		CreatedAt:  now,
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	taskID := "msg_" + q.MessageID
+	// The AI explanation already contains a [View work] link to the exact task being created/launched
+	explanation := "Siap, perbaikan langsung kami proses.\n\n[View work](/tasks/" + taskID + ")"
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Koreksi bug link",
+		Description:     "Perbaiki duplikasi link pada pembentukan balasan",
+		ProjectName:     "Default",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	combinedInput := explanation + "\n\n```cuan-delegate\n" + string(raw) + "\n```"
+
+	out := s.applyInboxDelegation(ctx, q, combinedInput)
+	expectedLink := "[View work](/tasks/" + taskID + ")"
+	if count := strings.Count(out, expectedLink); count != 1 {
+		t.Fatalf("expected exactly 1 occurrence of %q in balasan, got %d. Full output:\n%s", expectedLink, count, out)
+	}
+}
+
+func TestInboxDelegation_PreservesMultiTaskLinks(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "terminal-project", Name: "Terminal"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	resolved := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		RoomID:      resolved.RoomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "approval",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	planPayload := attachmentMessage{
+		Text: "Approved: Task Kedua",
+		Approval: &approvedInboxPlan{
+			Action:    "approve",
+			MessageID: q.MessageID,
+			Plan: inboxApprovalPlan{
+				Title:       "Task Kedua",
+				Description: "Menjalankan task kedua setelah task pertama selesai",
+				ProjectName: "Default",
+			},
+		},
+	}
+	rawMsg, _ := json.Marshal(planPayload)
+	message := &db.ProjectMessage{
+		ID:         q.MessageID,
+		RoomID:     q.RoomID,
+		AuthorType: "user",
+		Content:    attachmentEnvelope + string(rawMsg),
+		CreatedAt:  now,
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	launchedTaskID := "msg_" + q.MessageID
+	previousTaskID := "task_previous_reference_123"
+	// Explanation references another task, and the delegation launches the new task
+	explanation := "Task sebelumnya telah selesai: [View work](/tasks/" + previousTaskID + "). Melanjutkan task baru."
+	delegation := inboxDelegation{
+		Action:          "run",
+		Title:           "Task Kedua",
+		Description:     "Menjalankan task kedua setelah task pertama selesai",
+		ProjectName:     "Default",
+		AuthorizationID: q.MessageID,
+	}
+	raw, _ := json.Marshal(delegation)
+	combinedInput := explanation + "\n\n```cuan-delegate\n" + string(raw) + "\n```"
+
+	out := s.applyInboxDelegation(ctx, q, combinedInput)
+	previousLink := "[View work](/tasks/" + previousTaskID + ")"
+	launchedLink := "[View work](/tasks/" + launchedTaskID + ")"
+
+	if strings.Count(out, previousLink) != 1 {
+		t.Fatalf("expected previous task link %q to be preserved exactly once, got: %s", previousLink, out)
+	}
+	if strings.Count(out, launchedLink) != 1 {
+		t.Fatalf("expected launched task link %q to appear exactly once, got: %s", launchedLink, out)
+	}
+}
+
 func TestInboxDelegation_CustomerRoomAllowsMultiProjectDelegation(t *testing.T) {
 	s, _, _, _ := inboxFixture(t)
 	ctx := context.Background()

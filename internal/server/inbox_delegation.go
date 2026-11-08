@@ -149,18 +149,18 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		return clean + "\n\n*(Catatan: Rencana delegasi otomatis tidak dapat divalidasi. Anda dapat memberikan instruksi klarifikasi untuk memulai pekerjaan.)*"
 	}
 	if d == nil {
-		return content
+		return deduplicateWorkLinks(content)
 	}
 	wrapResult := func(res string) string {
 		clean := strings.TrimSpace(cleanText)
 		if clean == "" {
-			return res
+			return deduplicateWorkLinks(res)
 		}
 		trimmedRes := strings.TrimSpace(res)
 		if trimmedRes == "" {
-			return clean
+			return deduplicateWorkLinks(clean)
 		}
-		return clean + "\n\n" + trimmedRes
+		return deduplicateWorkLinks(clean + "\n\n" + trimmedRes)
 	}
 	fail := func(message string) string {
 		return wrapResult("I could not start the work: " + message + " No new execution was started.")
@@ -290,7 +290,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			return fail(reconcileErr.Error())
 		}
 		if status != "" {
-			return status
+			return deduplicateWorkLinks(status)
 		}
 	}
 	room, err := s.projectStudioRepo.GetRoomByID(ctx, q.RoomID)

@@ -237,3 +237,101 @@ func TestInboxProjectContextResolvesLinksAndRetry(t *testing.T) {
 		t.Fatalf("expected referenced context at top of context before backlog, refIdx=%d, backlogIdx=%d", refIdx, backlogIdx)
 	}
 }
+
+func TestDeduplicateWorkLinks_DuplicateTask(t *testing.T) {
+	// Case 1: Identical duplicate links separated by blank lines (as in d9fa85bd-0edb-4e89-b95a-f25f733e1ffa)
+	inputReal := `Siap, perbaikan langsung ane kembalikan ke tim dev pada task yang sama.
+
+[View work](/tasks/msg_10d11aa8-27f4-40a2-8653-4603c6ed15e6)
+
+[View work](/tasks/msg_10d11aa8-27f4-40a2-8653-4603c6ed15e6)`
+
+	expectedReal := `Siap, perbaikan langsung ane kembalikan ke tim dev pada task yang sama.
+
+[View work](/tasks/msg_10d11aa8-27f4-40a2-8653-4603c6ed15e6)`
+
+	gotReal := deduplicateWorkLinks(inputReal)
+	if gotReal != expectedReal {
+		t.Fatalf("expected duplicate link to identical task to be deduplicated to one,\ngot:\n%q\nwant:\n%q", gotReal, expectedReal)
+	}
+
+	// Verify count is exactly 1
+	if count := strings.Count(gotReal, "[View work](/tasks/msg_10d11aa8-27f4-40a2-8653-4603c6ed15e6)"); count != 1 {
+		t.Fatalf("expected count 1, got %d", count)
+	}
+
+	// Case 2: Three identical links
+	inputTriple := `Progress update.
+
+[View work](/tasks/task-abc)
+
+[View work](/tasks/task-abc)
+
+[View work](/tasks/task-abc)`
+
+	expectedTriple := `Progress update.
+
+[View work](/tasks/task-abc)`
+
+	gotTriple := deduplicateWorkLinks(inputTriple)
+	if gotTriple != expectedTriple {
+		t.Fatalf("expected triple duplicate to deduplicate to one,\ngot:\n%q\nwant:\n%q", gotTriple, expectedTriple)
+	}
+
+	// Case 3: Duplicate in middle of text
+	inputMiddle := `Header line
+
+[View work](/tasks/task-middle)
+
+[View work](/tasks/task-middle)
+
+Footer note`
+
+	expectedMiddle := `Header line
+
+[View work](/tasks/task-middle)
+
+Footer note`
+
+	gotMiddle := deduplicateWorkLinks(inputMiddle)
+	if gotMiddle != expectedMiddle {
+		t.Fatalf("expected middle duplicate to deduplicate cleanly,\ngot:\n%q\nwant:\n%q", gotMiddle, expectedMiddle)
+	}
+}
+
+func TestDeduplicateWorkLinks_MultiTask(t *testing.T) {
+	// Case 1: Two different tasks
+	inputMulti := `Progress dari dua pekerjaan:
+- Task 1: [View work](/tasks/task-first)
+- Task 2: [View work](/tasks/task-second)`
+
+	gotMulti := deduplicateWorkLinks(inputMulti)
+	if gotMulti != inputMulti {
+		t.Fatalf("expected different task links to be preserved unchanged,\ngot:\n%q\nwant:\n%q", gotMulti, inputMulti)
+	}
+	if !strings.Contains(gotMulti, "/tasks/task-first") || !strings.Contains(gotMulti, "/tasks/task-second") {
+		t.Fatalf("expected both task links to be present in output, got: %q", gotMulti)
+	}
+
+	// Case 2: Multi-task with duplicate of one of the tasks
+	inputMixed := `Pekerjaan yang diproses:
+- Task 1: [View work](/tasks/task-1)
+- Task 2: [View work](/tasks/task-2)
+
+[View work](/tasks/task-1)`
+
+	expectedMixed := `Pekerjaan yang diproses:
+- Task 1: [View work](/tasks/task-1)
+- Task 2: [View work](/tasks/task-2)`
+
+	gotMixed := deduplicateWorkLinks(inputMixed)
+	if gotMixed != expectedMixed {
+		t.Fatalf("expected duplicate task-1 removed while task-2 preserved,\ngot:\n%q\nwant:\n%q", gotMixed, expectedMixed)
+	}
+	if strings.Count(gotMixed, "/tasks/task-1") != 1 {
+		t.Fatalf("expected task-1 exactly once, got: %s", gotMixed)
+	}
+	if strings.Count(gotMixed, "/tasks/task-2") != 1 {
+		t.Fatalf("expected task-2 exactly once, got: %s", gotMixed)
+	}
+}

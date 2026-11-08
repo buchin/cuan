@@ -128,7 +128,7 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 }
 
 func verificationFollowupNotice(d *task.TaskDetailResponse, assessment inboxReviewEvaluation) string {
-	return strings.TrimSpace(assessment.Finding) + "\n\nCuan menyiapkan verifikasi tambahan pada hasil yang sama.\n\n[View work](/tasks/" + d.ID + ")"
+	return deduplicateWorkLinks(strings.TrimSpace(assessment.Finding) + "\n\nCuan menyiapkan verifikasi tambahan pada hasil yang sama.\n\n[View work](/tasks/" + d.ID + ")")
 }
 
 // Only backend receipts for the current verifier can bind old implementation
