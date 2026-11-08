@@ -1,4 +1,5 @@
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
+import { StatusDot } from '../../components/ui/StatusDot'
 import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -6,6 +7,7 @@ import {
   Terminal,
   Copy,
   Check,
+  CheckCircle2,
   RefreshCw,
   FileText,
   AlertCircle,
@@ -20,6 +22,7 @@ import { cn } from '../../lib/utils'
 import {
   workStatus,
   workDisplayStatus,
+  taskAgentPending,
   workStatusBadgeClass,
   taskTargetUrl,
   taskDetailUrl,
@@ -480,18 +483,10 @@ export const TaskCard = memo(function TaskCard({
               statusBadge
             )}
           >
-            {isWorking ? (
-              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-600 dark:bg-blue-400" />
-              </span>
-            ) : isQueued ? (
-              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500 dark:bg-amber-400" />
-              </span>
+            {taskAgentPending(currentTask) ? (
+              <StatusDot status="working" size="xs" label={t(workDisplayStatus(currentTask))} />
             ) : isDone ? (
-              <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" />
+              <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" />
             ) : isNeedsAttention ? (
               <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
             ) : (

@@ -9,9 +9,9 @@ import { InboxTaskDraft } from '../../api/chat'
 import { tasksApi } from '../../api/tasks'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, AlertCircle, Circle, X } from 'lucide-react'
+import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, CheckCircle2, AlertCircle, Circle, X } from 'lucide-react'
 import { StatusDot } from '../../components/ui/StatusDot'
-import { workStatus, workDisplayStatus, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskAgentPending, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
 import { taskAttention } from '../tasks/task-attention'
 
 
@@ -114,12 +114,12 @@ export function InboxTaskAction({
       : rawUpdate
     const project = existing.project_name || existing.project_names?.join(', ')
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
-    const StateIcon = state === 'Completed' ? Check : (state === 'Queued' || state === 'Waiting for checks') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
+    const StateIcon = state === 'Completed' ? CheckCircle2 : (state === 'Queued' || state === 'Waiting for checks') ? Clock3 : state === 'Cancelled' ? X : state === 'Needs attention' ? AlertCircle : Circle
 
     return <section data-card="task-card" data-task-id={existing.id} aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <SurfaceHeader variant="card" className="-mx-4 -mt-3 rounded-t-xl bg-muted/50"
         title={<span className="inline-flex min-w-0 max-w-full items-center gap-1.5">{isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}<ProjectIcon aria-hidden className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{project || t('Task')}</span></span>}
-        actions={<span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{(state === 'Working' || state === 'Checking result') ? <StatusDot status="working" size="xs" pulse aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span>}
+        actions={<span data-task-status={state} className="inline-flex shrink-0 items-center gap-1.5 py-1">{taskAgentPending(existing) ? <StatusDot status="working" size="xs" aria-hidden /> : <StateIcon aria-hidden className={`h-3 w-3 ${state === 'Completed' ? 'text-[color:var(--status-success)]' : ''}`} />}{t(state)}</span>}
       />
       <p className="text-sm font-medium leading-5 line-clamp-2">{existing.title}</p>
       {attention ? <p className="break-words text-sm leading-5 text-muted-foreground"><span className="text-foreground">{t(attention.reason)}</span></p> : update && <p data-task-latest-update className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}

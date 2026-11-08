@@ -2,13 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import ts from 'typescript'
-async function load(file){const source=fs.readFileSync(new URL(file,import.meta.url),'utf8');return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2020}}).outputText).toString('base64'))}
+const taskUIURL='data:text/javascript;base64,'+Buffer.from(ts.transpileModule(fs.readFileSync(new URL('../src/features/tasks/task-ui.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2020}}).outputText).toString('base64')
+async function load(file){const source=fs.readFileSync(new URL(file,import.meta.url),'utf8').replace(/(['"])\.\/task-ui\1/g,JSON.stringify(taskUIURL));return import('data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2020}}).outputText).toString('base64'))}
 const {workTimeline}=await load('../src/features/tasks/task-timeline.ts')
 const {isBackgroundWorkUpdate,taskMessageBindings}=await load('../src/features/inbox/task-message-bindings.ts')
 const task={id:'work',status:'review',activities:[],attempts:[{id:'a',status:'succeeded',attempt_number:1,started_at:'2026-11-06T00:00:00Z',finished_at:'2026-11-06T00:01:00Z'}],latest_attempt:{id:'a',status:'succeeded'}}
 test('successful execution never invents accepted completion; active review alone pulses',()=>{
  assert.equal(workTimeline(task,false).events.some(event=>event.tone==='success'),false)
- assert.equal(workTimeline({...task,review_state:'queued'},false).events.slice(-1)[0].pulse,false)
+ assert.equal(workTimeline({...task,review_state:'queued'},false).events.slice(-1)[0].pulse,true)
  const events=workTimeline({...task,review_state:'running'},false).events
  assert.equal(events.filter(event=>event.pulse).length,1)
  assert.equal(events.slice(-1)[0].pulse,true)

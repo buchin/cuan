@@ -24,6 +24,7 @@ import './task-workspace.css'
 import {
   workStatus,
   workDisplayStatus,
+  taskAgentPending,
   workStatusBadgeClass,
   taskTargetUrl,
   taskDetailUrl,
@@ -38,8 +39,6 @@ import {
 
 function getTaskDotVariant(status: string): StatusDotVariant {
   switch (status) {
-    case 'Working':
-      return 'working'
     case 'Queued':
     case 'Waiting to start':
       return 'warning'
@@ -117,7 +116,7 @@ export function TaskItemCard({
   const liveActivity = taskLiveActivityText(currentTask, t('Runner aktif...'))
 
   useEffect(() => {
-    if (!isRunning || managedUpdates) return
+    if ((!isRunning && !taskAgentPending(currentTask)) || managedUpdates) return
     let active = true
     const interval = setInterval(async () => {
       try {
@@ -126,6 +125,9 @@ export function TaskItemCard({
           setCurrentTask((prev) => {
             if (
               prev.latest_progress !== updated.latest_progress ||
+              prev.review_state !== updated.review_state ||
+              prev.launch?.state !== updated.launch?.state ||
+              prev.latest_attempt?.cancel_requested !== updated.latest_attempt?.cancel_requested ||
               prev.status !== updated.status ||
               prev.latest_attempt?.status !== updated.latest_attempt?.status
             ) {
@@ -142,7 +144,7 @@ export function TaskItemCard({
       active = false
       clearInterval(interval)
     }
-  }, [isRunning, currentTask.id, managedUpdates])
+  }, [isRunning, currentTask.id, currentTask.review_state, managedUpdates])
   const agent =
     currentTask.latest_attempt?.agent_name || currentTask.assignee_id || currentTask.assignee
   const statusBadgeClass = workStatusBadgeClass(status)
@@ -265,7 +267,7 @@ export function TaskItemCard({
   }
 
   if (variant === 'row') {
-    const dotVariant = getTaskDotVariant(status)
+    const dotVariant = taskAgentPending(currentTask) ? 'working' : getTaskDotVariant(status)
 
     return (
       <div
@@ -297,7 +299,7 @@ export function TaskItemCard({
         )}
       >
         <ListRowContent
-          leading={<span className="flex h-5 w-5 items-center justify-center"><StatusDot status={dotVariant} size="sm" aria-label={t(displayStatus)} title={t(displayStatus)} /></span>}
+          leading={<span className="flex h-5 w-5 items-center justify-center">{status === 'Completed' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-label={t(displayStatus)} /> : <StatusDot status={dotVariant} size="sm" aria-label={t(displayStatus)} title={t(displayStatus)} />}</span>}
           title={<span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{currentTask.title}</span>{showProject&&currentTask.project_name&&<span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">· {currentTask.project_name}</span>}</span>}
           description={isWorking&&liveActivity?liveActivity:isQueued?<>{queuePosition? t('Antrean')+' #'+queuePosition+' · ':''}{currentTask.latest_progress?cleanTerminalText(currentTask.latest_progress):t('Menunggu giliran eksekusi runner...')}</>:undefined}
           trailing={<time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()}>{t(relativeTime(currentTask.updated_at))}</time>}
@@ -324,16 +326,8 @@ export function TaskItemCard({
               statusBadgeClass
             )}
           >
-            {isWorking ? (
-              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
-              </span>
-            ) : isQueued ? (
-              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
-              </span>
+            {taskAgentPending(currentTask) ? (
+              <StatusDot status="working" size="sm" label={t(displayStatus)} />
             ) : status === 'Ready for review' ? (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
             ) : status === 'Completed' || status === 'Answered' ? (
@@ -468,20 +462,14 @@ export function TaskItemCard({
 
         {isWorking ? (
           <div className="relative z-10 flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2.5 py-1.5 text-xs text-blue-700 dark:text-blue-300 animate-in fade-in duration-200">
-            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-400" />
-            </span>
+            <StatusDot status={taskAgentPending(currentTask) ? 'working' : 'neutral'} size="sm" label={t(displayStatus)} />
             <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
               {liveActivity}
             </span>
           </div>
         ) : isQueued ? (
           <div className="relative z-10 flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300 animate-in fade-in duration-200">
-            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-              <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 dark:bg-amber-400" />
-            </span>
+            <StatusDot status={taskAgentPending(currentTask) ? 'working' : 'warning'} size="sm" label={t(displayStatus)} />
             <span className="line-clamp-2 break-words text-[11px] font-medium leading-tight">
               {queuePosition ? `${t('Antrean')} #${queuePosition} · ` : ''}
               {currentTask.latest_progress

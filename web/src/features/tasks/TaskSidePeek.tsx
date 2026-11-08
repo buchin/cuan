@@ -53,6 +53,7 @@ import { TaskSessions } from './TaskSessions'
 import {
   TASK_STATUSES,
   activeAttempt,
+  taskAgentPending,
   statusLabel,
   taskRef,
   relativeTime,
@@ -605,7 +606,7 @@ function TaskDetailView({
         </h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
           <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border", taskStatusBadgeClass(detail.status))}>
-            {detail.review_state === 'running' && <StatusDot status="working" size="xs" pulse aria-hidden />}
+            {detail.status === 'done' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden /> : taskAgentPending(detail) && <StatusDot status="working" size="xs" aria-hidden />}
             {detail.review_state ? (detail.review_state === 'running' ? (id ? 'Memeriksa hasil' : 'Checking result') : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : running ? (detail.latest_attempt?.status === 'queued' ? (id ? 'Dalam antrean' : 'Queued') : (id ? 'Sedang dikerjakan' : 'Working')) : publicStatus}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
@@ -1393,7 +1394,7 @@ function TaskDetailView({
                     {busy ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
                     ) : detail.review_state ? (
-                      <StatusDot status={detail.review_state === 'running' ? 'working' : 'idle'} size="xs" pulse={detail.review_state === 'running'} aria-hidden />
+                      <StatusDot status={taskAgentPending(detail) ? 'working' : 'idle'} size="xs" aria-hidden />
                     ) : (
                       running ? (detail.latest_attempt?.status !== 'queued' && <Terminal aria-hidden="true" className="h-4 w-4" />) : <Play className="h-4 w-4" />
                     )}

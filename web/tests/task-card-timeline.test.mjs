@@ -121,7 +121,7 @@ test('4. Queued / Pending Visual State Differentiation from Blue Working', () =>
 
   // Working state: blue pulsing ping dot and blue pill
   assert(
-    taskItemCardSrc.includes('bg-blue-500 opacity-75'),
+    taskItemCardSrc.includes('<StatusDot') && taskItemCardSrc.includes('taskAgentPending(currentTask)'),
     'Working state must render blue animated ping dot'
   )
   assert(
@@ -131,8 +131,8 @@ test('4. Queued / Pending Visual State Differentiation from Blue Working', () =>
 
   // Queued state: amber calm pulse dot and amber pill
   assert(
-    taskItemCardSrc.includes('bg-amber-400 opacity-75') || taskItemCardSrc.includes('animate-pulse'),
-    'Queued state must render amber pulse dot'
+    taskItemCardSrc.includes("taskAgentPending(currentTask) ? 'working' : 'warning'"),
+    'Queued state must use the shared ownership-aware dot'
   )
   assert(
     taskItemCardSrc.includes('bg-amber-500/10') && taskItemCardSrc.includes('border-amber-500/25'),

@@ -1,4 +1,5 @@
 import type { Attachment, TaskActivity, TaskDetail } from '../../api/types'
+import { taskAgentPending } from './task-ui'
 
 export interface WorkEvent {
   id: string
@@ -57,8 +58,8 @@ export function workTimeline(task: TaskDetail, id: boolean): { events: WorkEvent
     }
   }
   events.sort((a,b) => Date.parse(a.at || '') - Date.parse(b.at || '') || a.id.localeCompare(b.id))
-  if (task.review_state) events.push({ id: 'current', title: task.review_state === 'running' ? text('Memeriksa hasil', 'Checking result') : text('Menunggu pemeriksaan', 'Waiting for review'), pulse: task.review_state === 'running' })
-  else if (latest?.status === 'running' || latest?.status === 'queued' || task.launch?.state === 'queued' || task.launch?.state === 'claimed') events.push({ id: 'current', title: latest?.status === 'running' ? text('Dikerjakan', 'Working') : text('Dalam antrean', 'Queued'), pulse: latest?.status === 'running' })
+  if (task.review_state) events.push({ id: 'current', title: task.review_state === 'running' ? text('Memeriksa hasil', 'Checking result') : text('Menunggu pemeriksaan', 'Waiting for review'), pulse: taskAgentPending(task) })
+  else if (latest?.status === 'running' || latest?.status === 'queued' || task.launch?.state === 'queued' || task.launch?.state === 'claimed') events.push({ id: 'current', title: latest?.status === 'running' ? text('Dikerjakan', 'Working') : text('Dalam antrean', 'Queued'), pulse: taskAgentPending(task) })
   else if (task.status === 'done') events.push({ id: 'current', title: text('Pekerjaan selesai', 'Work completed'), tone: 'success' })
   return { events, technical }
 }

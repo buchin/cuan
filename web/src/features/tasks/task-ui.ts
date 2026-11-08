@@ -75,6 +75,7 @@ export function attemptLabel(attempt: TaskAttempt) {
 // process is not proof that a task was accepted or completed.
 export function workStatus(task: Task) {
   if (task.status === 'done') return 'Completed'
+  if (['cancelled', 'canceled'].includes(task.status as string)) return 'Cancelled'
   if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Queued'
   const attempt = task.latest_attempt?.status || task.execution_status
   if (attempt === 'running') return 'Working'
@@ -97,6 +98,17 @@ export function workDisplayStatus(task: Task) {
   if (task.review_state === 'running') return 'Checking result'
   if (task.review_state === 'queued') return 'Waiting for checks'
   return status
+}
+
+// Pulse means the next step still belongs to Cuan, including durable waiting
+// work. Board labels and a model's progress prose alone cannot prove that.
+export function taskAgentPending(task: Task) {
+  if (['done', 'cancelled', 'canceled'].includes(task.status as string)) return false
+  if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return true
+  const attempt = task.latest_attempt
+  if (attempt?.cancel_requested || attempt?.canceled_at || ['cancelled', 'canceled'].includes(attempt?.status || '')) return false
+  if (task.review_state === 'queued' || task.review_state === 'running') return true
+  return ['queued', 'running'].includes(attempt?.status || task.execution_status || '')
 }
 
 export function getQueuedTasksPositions(tasks: Task[]): Map<string, number> {

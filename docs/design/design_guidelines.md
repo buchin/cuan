@@ -414,8 +414,12 @@ pending continuation or progress-text guess. Native verifier launches are loaded
 in one batch for task lists; this presentation grants no execution or acceptance
 authority. Running review shows
 **Memeriksa hasil / Checking result** with a small round pulse; queued review is
-**Menunggu pemeriksaan / Waiting for checks** and remains static. Completed,
-expired and canceled requests do not pulse. Development keeps its Working label.
+**Menunggu pemeriksaan / Waiting for checks** and also pulses while a durable
+automatic next step is pending. Pulse means Cuan owns the next step, including
+execution/check/release queues and admitted recovery, rather than proof that a
+model is currently executing. Preserve each phase label. Completed, cancelled,
+unresolved stopped work and manual approval states do not pulse. Completed tasks
+use a green checked-circle icon rather than a green dot. Development keeps its Working label.
 Manual result
 approval is unavailable while the coordinator review is active. Respect reduced
 motion. Display a task result card before its ready-to-use customer reply draft,
@@ -554,7 +558,10 @@ It starts closed and does not reopen on polling. Opening it expands running
 execution/review tasks by default; without active work, expand the newest task
 by creation time. Sort active work first, then newest tasks. Explicit accordion
 choices survive updates and always override automatic defaults.
-Queued, completed and attention states never pulse. Use current native task and
+Pulse while native execution, an admitted queued launch or coordinator review
+owns the next step, including queued checks. Do not infer ownership from a board
+label or model prose alone. Completed tasks use a green checked circle; unresolved
+attention and owner-decision states stay static. Use current native task and
 review projections, with the existing Detail and real Terminal destinations.
 Agent conversations show existing task previews only in this panel, without duplicate cards in chat. Preserve final results, approval proposals, unsaved task drafts and customer reply drafts in the conversation. Customer conversation previews retain their existing visibility rules. Empty rooms show no control.
 The expanded panel joins the composer without a vertical margin. Technical execution errors stay in Detail; attention summaries use the saved user-facing review finding. Terminal actions require the current attempt’s actual live session. The panel scrolls within a bounded height, preserving access to the composer;

@@ -1,4 +1,5 @@
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
+import { StatusDot } from '../../components/ui/StatusDot'
 import { useState, useMemo, useEffect, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
@@ -19,7 +20,7 @@ import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
-import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl, workStatus } from '../tasks/task-ui'
+import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl, workStatus, workDisplayStatus, taskAgentPending } from '../tasks/task-ui'
 import { ChatMarkdown } from './ChatMarkdown'
 import { parseTaskReviewEnvelope } from './task-envelope'
 
@@ -181,12 +182,12 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
                 : 'text-muted-foreground'
             )}
           >
-            {isDone ? (
+            {taskAgentPending(currentTask) ? <StatusDot status="working" size="xs" aria-hidden /> : isDone ? (
               <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)] shrink-0" />
             ) : (
               <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             )}
-            <span>{stopped ? t(stateLabel) : isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
+            <span>{taskAgentPending(currentTask) ? t(workDisplayStatus(currentTask)) : stopped ? t(stateLabel) : isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
           </span>
 
           <span className="text-xs font-mono font-medium text-muted-foreground">

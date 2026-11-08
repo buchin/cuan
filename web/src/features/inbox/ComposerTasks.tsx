@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown, Terminal } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
-import { workStatus, workDisplayStatus, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskAgentPending, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 
@@ -44,7 +44,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       onClick={() => setOpen(value => !value)}>
       <span>{t('Tasks')}</span>
       <span className="composer-tasks-count tabular-nums bg-muted px-1.5 text-[11px]">{ordered.length}</span>
-      {active && <StatusDot status="working" size="xs" label={t('Working')} />}
+      {ordered.some(taskAgentPending) && <StatusDot status="working" size="xs" label={t('In progress')} />}
     </button>}
     </div>
     {open && tasks.length > 0 && <div id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30">
@@ -60,7 +60,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           <button type="button" aria-expanded={expanded} aria-controls={expanded ? bodyID : undefined}
             onClick={() => setChoices(value => ({ ...value, [task.id]: !expanded }))}
             className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-sm">
-            <StatusDot status={running(task) ? 'working' : status === 'Completed' ? 'healthy' : status === 'Needs attention' ? 'warning' : 'neutral'} size="xs" label={t(status)} />
+            {status === 'Completed' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} /> : <StatusDot status={taskAgentPending(task) ? 'working' : status === 'Needs attention' ? 'warning' : 'neutral'} size="xs" label={t(status)} />}
             <span className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3">
               <span className={`min-w-0 flex-1 font-medium ${expanded ? 'line-clamp-2 sm:line-clamp-1' : 'block truncate'}`}>{task.title}</span>
               <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>

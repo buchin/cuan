@@ -67,6 +67,8 @@ export interface DoDItem {
 }
 
 export interface TaskAttempt {
+  cancel_requested?: boolean
+  canceled_at?: string
   execution_deadline?: string
   id: string
   task_id: string
