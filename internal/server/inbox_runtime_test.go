@@ -375,3 +375,23 @@ func TestInboxRuntimeStreamConsecutiveFailureLoopProtection(t *testing.T) {
 		t.Fatalf("expected consecutive error loop trace, got: %s", joined)
 	}
 }
+
+func TestPublicWebRecoveryRetainsObservedFactsWithoutPrivateReads(t *testing.T) {
+	t.Setenv("CUAN_TEST_SECRET", "private-sentinel-credential")
+	s := &inboxRuntimeStream{details: newInboxToolDetailRecorder("")}
+	events := []string{
+		`{"event":"step_update","step_update":{"step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"call_mcp_tool","tool_info":{"parameters":{"ServerName":"cuan-inspect","ToolName":"web_fetch","Arguments":{"url":"https://example.com"}}}}}`,
+		`{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"call_mcp_tool","tool_info":{"output":{"content":"Provider offers public IPv4 and IPv6","secret":"private-sentinel-credential"}}}}`,
+		`{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"tool","tool_name":"read_file","tool_info":{"parameters":{"Path":"private-notes.txt"},"output":"private-file-sentinel"}}}`,
+	}
+	for _, event := range events {
+		s.Write([]byte(event + "\n"))
+	}
+	notes := s.publicWebRecoveryContext()
+	if !strings.Contains(notes, "Provider offers public IPv4 and IPv6") || !strings.Contains(notes, "https://example.com") {
+		t.Fatal("lost completed web evidence", notes)
+	}
+	if strings.Contains(notes, "private-file-sentinel") || strings.Contains(notes, "private-sentinel-credential") {
+		t.Fatal("private output entered research recovery")
+	}
+}

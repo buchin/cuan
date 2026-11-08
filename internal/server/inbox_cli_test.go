@@ -170,6 +170,7 @@ count=$((count + 1))
 echo "$count" > "$count_file"
 
 if [ "$count" -eq 1 ]; then
+    printf '%s\n' '{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"tool","tool_name":"web_fetch","tool_info":{"parameters":{"url":"https://example.com"},"output":"public-fixture-observed"}}}'
     # First invocation: emit 13 tool calls to exceed 12 tool budget
     i=1
     while [ "$i" -le 13 ]; do
@@ -181,6 +182,8 @@ if [ "$count" -eq 1 ]; then
     sleep 2
     exit 0
 else
+    # Recovery must receive the completed observation, not discard it.
+    case "$*" in *public-fixture-observed*) ;; *) exit 9;; esac
     # Second invocation (recovery): return direct synthesis with action: null
     printf '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis komponen filter tasks telah diperiksa sebagian dari konteks yang ada.\",\"topic_title\":\"\",\"action\":null}"}}\n'
     exit 0
@@ -195,7 +198,7 @@ fi
 	s := &Server{cfg: &config.Config{Environment: "staging"}}
 	var trace []string
 	safe := false
-	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", "Quick filter perlu perbaikan?", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) }, &safe)
+	out, failure := s.executeInboxCLIWithSafety(context.WithValue(context.Background(), inboxRequestTraceKey{}, inboxRequestTrace{RequestID: "public-research-fixture"}), "Coordinator", "agy", "Quick filter perlu perbaikan?", home, workspace, func(k, v string) { trace = append(trace, k+":"+v) }, &safe)
 
 	if failure != "" {
 		t.Fatalf("expected graceful recovery without fatal failure, got failure: %q", failure)
