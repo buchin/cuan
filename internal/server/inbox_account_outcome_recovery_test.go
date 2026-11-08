@@ -13,7 +13,7 @@ import (
 )
 
 func TestAccountOperationRecoversExistingOutcomeWithoutRepeatingEffect(t *testing.T) {
-	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure"} {
+	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification"} {
 		t.Run(mode, func(t *testing.T) { accountOutcomeRecoveryContract(t, mode) })
 	}
 }
@@ -43,7 +43,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if err := s.projectStudioRepo.UpdateMessage(ctx, message); err != nil {
 		t.Fatal(err)
 	}
-	if mode == "legacy publication failure" {
+	if mode == "legacy publication failure" || mode == "manager verification" {
 		now := time.Now().UTC()
 		original := *d.LatestAttempt
 		original.ID = "legacy-publication-worker"
@@ -134,6 +134,22 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if err != nil || launch.State != "queued" || !strings.Contains(launch.Revision, "Never run access-grant") {
 		t.Fatal("lost durable no-replay inspection", err)
 	}
+	if mode == "manager verification" {
+		assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", ManagerAction: "continue", ManagerReason: "Independently observe account access", Revision: "Observe existing account access without external effects"}
+		launch.ID = ""
+		launch.RequestID = delegationMessageID("manager-account-verification")
+		launch.Revision = verificationReviewRevision(assessment.Revision)
+		launch.CreatedAt = time.Now().UTC()
+		launch.AvailableAt = launch.CreatedAt
+		raw, _ := json.Marshal(reviewAssessmentRecord{RequestID: launch.RequestID, InstructionsHash: launch.InstructionsHash, EvidenceDigest: inboxReviewEvidenceDigest(d), Assessment: assessment})
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "manager-grant", TaskID: d.ID, AttemptID: &parent, Author: "coordinator", ActivityType: reviewAssessmentActivity, Message: string(raw), CreatedAt: launch.CreatedAt}); err != nil {
+			t.Fatal(err)
+		}
+		launch, err = s.taskSvc.SaveLaunch(ctx, *launch)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	// Use the same native claim/completion path. The failed worker is preserved;
 	// the independent read-only observation still goes through PM review.
 	_ = store.DeleteTask(ctx, "busy")
@@ -173,7 +189,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if decision.Decision != "pass" {
 		t.Fatal("observed outcome trapped in another verification loop")
 	}
-	if mode == "legacy publication failure" {
+	if mode == "legacy publication failure" || mode == "manager verification" {
 		pub := s.inboxReviewPublication(ctx, current)
 		if pub == nil || pub.Required || pub.Provenance != "original_account_scope_no_source_publication" || current.CommitSHA != d.CommitSHA || current.DiffSummary != d.DiffSummary {
 			t.Fatal("retained source was waived, released or demanded as original scope")
@@ -188,5 +204,59 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	}
 	if s.recoverSavedEvidence(ctx, current, origin) {
 		t.Fatal("evidence recovery chained")
+	}
+}
+
+func TestManagerAccountObservationRequiresExactPredecessorGrant(t *testing.T) {
+	now := time.Now().UTC()
+	finished := now.Add(-time.Minute)
+	parent := &task.TaskAttempt{ID: "parent", TaskID: "account", CreatedAt: now.Add(-2 * time.Minute), FinishedAt: &finished, Status: task.AttemptStatusSucceeded}
+	current := &task.TaskAttempt{ID: "observer", TaskID: "account", CreatedAt: now.Add(time.Second)}
+	d := &task.TaskDetailResponse{Task: task.Task{ID: "account", SourceRoomID: "room", ProjectID: "project", AssignedAgent: "agent"}, LatestAttempt: current, Attempts: []*task.TaskAttempt{current, parent}}
+	assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", ManagerAction: "continue", ManagerReason: "Check existing access", Revision: "Observe access without activation"}
+	launch := &task.TaskLaunch{TaskID: d.ID, RoomID: d.SourceRoomID, ProjectID: d.ProjectID, AgentID: d.AssignedAgent, RequestID: "review-request", InstructionsHash: task.LaunchInstructionsHash(d.Instructions), CreatedAt: now, Revision: verificationReviewRevision(assessment.Revision)}
+	raw, _ := json.Marshal(reviewAssessmentRecord{RequestID: launch.RequestID, InstructionsHash: launch.InstructionsHash, EvidenceDigest: strings.Repeat("a", 64), Assessment: assessment})
+	event := &task.TaskActivity{TaskID: d.ID, AttemptID: &parent.ID, Author: "coordinator", ActivityType: reviewAssessmentActivity, CreatedAt: finished.Add(time.Second), Message: string(raw)}
+	d.Activities = []*task.TaskActivity{event}
+	if !managerAccountObservationGrant(d, launch) {
+		t.Fatal("exact admitted verifier was rejected")
+	}
+	launch.Revision = "Binding approved continuation:\nOriginal owner constraints\n\nAutomatic correction feedback:\n" + launch.Revision
+	if !managerAccountObservationGrant(d, launch) {
+		t.Fatal("inherited constraints lost verifier grant")
+	}
+	for _, mode := range []string{"self report", "foreign request", "changed instructions", "unwrapped feedback", "cancelled predecessor", "foreign room", "future assessment", "later predecessor"} {
+		t.Run(mode, func(t *testing.T) {
+			dd := *d
+			ll := *launch
+			ee := *event
+			pp := *parent
+			dd.Activities = []*task.TaskActivity{&ee}
+			dd.Attempts = []*task.TaskAttempt{current, &pp}
+			switch mode {
+			case "self report":
+				ee.AttemptID = &current.ID
+			case "foreign request":
+				ll.RequestID = "other"
+			case "changed instructions":
+				ll.InstructionsHash = "other"
+			case "unwrapped feedback":
+				ll.Revision = assessment.Revision
+			case "cancelled predecessor":
+				pp.CancelRequested = true
+			case "foreign room":
+				ll.RoomID = "other"
+			case "future assessment":
+				ee.CreatedAt = now.Add(time.Minute)
+			case "later predecessor":
+				later := pp
+				later.ID = "later"
+				later.CreatedAt = finished
+				dd.Attempts = append(dd.Attempts, &later)
+			}
+			if managerAccountObservationGrant(&dd, &ll) {
+				t.Fatal("invalid verifier grant accepted")
+			}
+		})
 	}
 }

@@ -774,3 +774,12 @@ prerequisites can use the same bounded observation, preserving its failed attemp
 Inspect existing account/access state; never replay activation to obtain proof.
 Actual assertions, source changes, cancellation and unreported criteria remain
 outside that legacy recovery. No manual status acceptance is implied.
+
+Independent account observations also recognize an existing PM verification
+continuation: its immutable launch must match the saved coordinator assessment
+for the immediately preceding completed attempt and the exact native read-only
+verification revision. Original authorization and cancellation checks still apply,
+and current successful execution, final report and native unchanged-repository
+receipt remain mandatory. A worker self-report, role label or unrelated review
+cannot establish independence. Historical incidental source does not require
+publication for an original account-data operation; retain it as diagnostic work.

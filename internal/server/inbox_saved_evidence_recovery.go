@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"strings"
@@ -111,15 +112,15 @@ func operationalSourceCheckMismatch(d *task.TaskDetailResponse) bool {
 }
 
 func completedAccountOutcomeCandidate(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusReview || !task.IsAccountOperation(d.Title, d.Instructions) || d.CommitSHA != "" || d.DiffSummary != "" || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusReview || !task.IsAccountOperation(d.Title, d.Instructions) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
 		return false
 	}
 	a := d.LatestAttempt
 	return a.Status == task.AttemptStatusSucceeded && !a.CancelRequested && a.CanceledAt == nil && a.FinishedAt != nil && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == ""
 }
 
-// An independent observation is bound to the one saved evidence launch, not a
-// worker's role label or generic test prose. It never establishes publication.
+// Independent observations require a saved native verification grant, never a
+// worker role label or generic test prose. They never establish publication.
 func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *task.TaskDetailResponse) bool {
 	if d == nil || d.LatestAttempt == nil || !task.IsAccountOperation(d.Title, d.Instructions) || !inboxReviewExecutionSucceeded(d) || inboxReportEvidence(d).Provenance != "current_attempt_report" {
 		return false
@@ -129,7 +130,15 @@ func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *tas
 		return false
 	}
 	launch, err := store.LaunchForAttempt(ctx, d.LatestAttempt.ID)
-	if err != nil || launch == nil || launch.TaskID != d.ID || launch.RequestID != savedEvidenceRecoveryRequestID(d) || launch.InstructionsHash != task.LaunchInstructionsHash(d.Instructions) || !strings.Contains(launch.Revision, "Operational account outcome inspection:") {
+	if err != nil || launch == nil || launch.TaskID != d.ID || launch.InstructionsHash != task.LaunchInstructionsHash(d.Instructions) {
+		return false
+	}
+	dedicated := launch.RequestID == savedEvidenceRecoveryRequestID(d) && strings.Contains(launch.Revision, "Operational account outcome inspection:")
+	if !dedicated && !managerAccountObservationGrant(d, launch) {
+		return false
+	}
+	origin, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, *launch, d)
+	if authErr != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
 		return false
 	}
 	_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
@@ -157,4 +166,47 @@ func (s *Server) accountOutcomeReviewContext(ctx context.Context, d *task.TaskDe
 		return nil
 	}
 	return map[string]any{"original_scope": "existing_account_data_operation", "independently_observed": s.accountOutcomeIndependentlyVerified(ctx, d), "source_publication_requested": false, "retained_source": "Any historical local source changes remain diagnostic, outside the requested account outcome and not approved for publication. Preserve them; do not release them or repeat account effects to obtain evidence."}
+}
+
+// Admission already checked the assessment's then-current evidence digest. Here
+// validate that exact immutable grant against its predecessor, not today's
+// changed report digest. A new report cannot retroactively authorize itself.
+func managerAccountObservationGrant(d *task.TaskDetailResponse, launch *task.TaskLaunch) bool {
+	if d == nil || d.LatestAttempt == nil || launch == nil || launch.RoomID != d.SourceRoomID || launch.ProjectID != d.ProjectID || launch.AgentID != d.AssignedAgent {
+		return false
+	}
+	var parent *task.TaskAttempt
+	for _, a := range d.Attempts {
+		if a == nil || a.ID == d.LatestAttempt.ID || a.TaskID != d.ID || a.FinishedAt == nil || a.FinishedAt.After(launch.CreatedAt) || !a.CreatedAt.Before(d.LatestAttempt.CreatedAt) {
+			continue
+		}
+		if parent == nil || a.CreatedAt.After(parent.CreatedAt) {
+			parent = a
+		}
+	}
+	if parent == nil || parent.CancelRequested || parent.CanceledAt != nil {
+		return false
+	}
+	revision := launch.Revision
+	if strings.HasPrefix(revision, "Binding approved continuation:\n") {
+		_, tail, found := strings.Cut(revision, "\n\nAutomatic correction feedback:\n")
+		if !found {
+			return false
+		}
+		revision = tail
+	}
+	for _, event := range d.Activities {
+		if event == nil || event.TaskID != d.ID || event.AttemptID == nil || *event.AttemptID != parent.ID || event.Author != "coordinator" || event.ActivityType != reviewAssessmentActivity || event.CreatedAt.Before(*parent.FinishedAt) || event.CreatedAt.After(launch.CreatedAt) {
+			continue
+		}
+		var saved reviewAssessmentRecord
+		if json.Unmarshal([]byte(event.Message), &saved) != nil || saved.RequestID != launch.RequestID || saved.InstructionsHash != launch.InstructionsHash || len(saved.EvidenceDigest) != 64 {
+			continue
+		}
+		a := saved.Assessment
+		if a.Decision == "revise" && a.RemainingWork == "verification" && a.RequestedOutcome != "needs_input" && a.ManagerReason != "" && (a.ManagerAction == "continue" || a.ManagerAction == "replan") && revision == verificationReviewRevision(a.Revision) {
+			return true
+		}
+	}
+	return false
 }
