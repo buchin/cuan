@@ -725,7 +725,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	gate = "account_outcome_inspection"
-	if task.IsAccountOperation(detail.Title, detail.Instructions) && !s.accountOutcomeIndependentlyVerified(ctx, detail) && s.recoverSavedEvidence(ctx, detail, *origin) {
+	if task.IsAccountOutcome(&detail.Task) && !s.accountOutcomeIndependentlyVerified(ctx, detail) && s.recoverSavedEvidence(ctx, detail, *origin) {
 		return
 	}
 	gate = "native_release_verification"

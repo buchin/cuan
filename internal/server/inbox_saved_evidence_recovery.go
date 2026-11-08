@@ -72,7 +72,7 @@ func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailRes
 		return previous.State == "queued" || previous.State == "claimed" || previous.State == "started"
 	}
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\nOne bounded recovery of saved task evidence, not another implementation cycle. The historical task-level verification text is unbound and is only a diagnostic hint; do not claim its checks ran in this attempt. Read the actual existing deliverables and inspect the existing workspace. Do not modify code, configuration, tests, documentation, git index, refs or commits. Do not reproduce prior deployment, migration, payment or other external effects. Independently verify each original acceptance criterion from actual files and reproducible read-only observations. Deliver the existing report as session artifacts under CUAN_TASK_ARTIFACTS_DIR, preserving its source provenance. Report current factual findings with the original criteria unchanged. If a required result or publication is missing, report that precise gap; do not repair it or waive it. The runner must verify unchanged repository state and independent review must assess the actual report. Historical attempt outcomes remain unchanged." + taskRecoveryContext(d)
-	if task.IsAccountOperation(d.Title, d.Instructions) {
+	if task.IsAccountOutcome(&d.Task) {
 		revision += "\nOperational account outcome inspection: the original scope changes account data, not repository source. The prior worker reported completion; independent verification is still required. A historical unrelated source-test failure does not prove an account defect. Independently inspect the existing account and entitlement through the project's authorized read-only commands/API. Never run access-grant, activate, revoke, update or another external mutation to obtain proof. Inspect retained repository changes too; unexpected source edits are out-of-scope findings, not accepted work. Verify every original criterion with fresh observations. Do not prepare or run unrelated source regression tests, invent code repairs, publish or waive missing outcome evidence. Retain any historical local source commit and diff as unrequested diagnostic work, not accepted implementation or approved release scope. Reconcile any recorded publication effects without repeating them; never infer that this branch was deployed or that no prior effects occurred."
 	}
 	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
@@ -113,11 +113,11 @@ func incorrectPublicationAuditRecovery(d *task.TaskDetailResponse) bool {
 // repair mandate. Recover only current native prerequisite failures, not tests,
 // source changes, cancellation or a worker's generic claim of completion.
 func operationalSourceCheckMismatch(d *task.TaskDetailResponse) bool {
-	return d != nil && d.Status == task.TaskStatusBlocked && d.ExecutionCategory == task.ExecutionCategoryCode && d.CommitSHA == "" && d.DiffSummary == "" && len(task.AcceptanceGaps(&d.Task)) == 0 && task.IsAccountOperation(d.Title, d.Instructions) && nativePHPPrerequisiteFailure(d) != "" && task.AttemptChangeEvidence(d).RunnerChangeRecord == nil
+	return d != nil && d.Status == task.TaskStatusBlocked && d.ExecutionCategory == task.ExecutionCategoryCode && d.CommitSHA == "" && d.DiffSummary == "" && len(task.AcceptanceGaps(&d.Task)) == 0 && task.IsAccountOutcome(&d.Task) && nativePHPPrerequisiteFailure(d) != "" && task.AttemptChangeEvidence(d).RunnerChangeRecord == nil
 }
 
 func completedAccountOutcomeCandidate(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusReview || !task.IsAccountOperation(d.Title, d.Instructions) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusReview || !task.IsAccountOutcome(&d.Task) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
 		return false
 	}
 	a := d.LatestAttempt
@@ -127,7 +127,7 @@ func completedAccountOutcomeCandidate(d *task.TaskDetailResponse) bool {
 // Independent observations require a saved native verification grant, never a
 // worker role label or generic test prose. They never establish publication.
 func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || !task.IsAccountOperation(d.Title, d.Instructions) || !inboxReviewExecutionSucceeded(d) || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+	if d == nil || d.LatestAttempt == nil || !task.IsAccountOutcome(&d.Task) || !inboxReviewExecutionSucceeded(d) || inboxReportEvidence(d).Provenance != "current_attempt_report" {
 		return false
 	}
 	store, ok := s.taskSvc.Store().(task.AttemptLaunchStore)
@@ -154,7 +154,7 @@ func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *tas
 // then failed publication. Preserve that source without approving or releasing
 // it; original account criteria still need a separate read-only observation.
 func legacyAccountPublicationMismatch(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked || d.ExecutionCategory != task.ExecutionCategoryCode || !task.IsAccountOperation(d.Title, d.Instructions) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusBlocked || d.ExecutionCategory != task.ExecutionCategoryCode || !task.IsAccountOutcome(&d.Task) || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
 		return false
 	}
 	a := d.LatestAttempt
@@ -167,7 +167,7 @@ func legacyAccountPublicationMismatch(d *task.TaskDetailResponse) bool {
 }
 
 func (s *Server) accountOutcomeReviewContext(ctx context.Context, d *task.TaskDetailResponse) map[string]any {
-	if d == nil || !task.IsAccountOperation(d.Title, d.Instructions) {
+	if d == nil || !task.IsAccountOutcome(&d.Task) {
 		return nil
 	}
 	return map[string]any{"original_scope": "existing_account_data_operation", "independently_observed": s.accountOutcomeIndependentlyVerified(ctx, d), "source_publication_requested": false, "retained_source": "Any historical local source changes remain diagnostic, outside the requested account outcome and not approved for publication. Preserve them; do not release them or repeat account effects to obtain evidence."}

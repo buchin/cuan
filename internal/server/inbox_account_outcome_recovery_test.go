@@ -13,11 +13,15 @@ import (
 )
 
 func TestAccountOperationRecoversExistingOutcomeWithoutRepeatingEffect(t *testing.T) {
-	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification"} {
+	for _, mode := range []string{"legacy source-check failure", "completed operation", "legacy publication failure", "manager verification", "operational login diagnosis"} {
 		t.Run(mode, func(t *testing.T) { accountOutcomeRecoveryContract(t, mode) })
 	}
 }
 func accountOutcomeRecoveryContract(t *testing.T, mode string) {
+	loginDiagnosis := mode == "operational login diagnosis"
+	if loginDiagnosis {
+		mode = "completed operation"
+	}
 	s, d := prerequisiteReviewFixture(t)
 	ctx := context.Background()
 	store := s.taskSvc.Store()
@@ -25,6 +29,11 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	d.Instructions = "Cuan managed delegation v1.\nAktifkan akses produk yang sudah ada untuk customer@example.invalid. Verifikasi entitlement aktif melalui API."
 	d.Status = task.TaskStatusBlocked
 	d.ExecutionCategory = task.ExecutionCategoryCode
+	if loginDiagnosis {
+		d.Title = "Investigasi dan perbaiki kendala login akun pelanggan"
+		d.Instructions = "Cuan managed delegation v1.\nPeriksa status akun dan riwayat autentikasi customer@example.invalid. Verifikasi hasil akun melalui layanan yang sudah ada."
+		d.ExecutionCategory = task.ExecutionCategoryOps
+	}
 	d.CommitSHA = ""
 	d.DiffSummary = ""
 	d.DoDChecklist = []task.DoDItem{{Text: "Customer access active", Completed: true, Evidence: "Worker reported existing access API has_access=true"}}
@@ -40,6 +49,9 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	}
 	message, _ := s.projectStudioRepo.GetMessageByID(ctx, origin.MessageID)
 	message.Content = "Aktifkan akses produk yang sudah ada untuk customer@example.invalid. Verifikasi entitlement aktif melalui API."
+	if loginDiagnosis {
+		message.Content = "Investigasi dan perbaiki kendala login akun pelanggan lewat layanan yang sudah ada."
+	}
 	if err := s.projectStudioRepo.UpdateMessage(ctx, message); err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +82,10 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 		}
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
-	if !operationalSourceCheckMismatch(d) && !legacyAccountPublicationMismatch(d) {
+	if loginDiagnosis && !task.IsAccountOutcome(&d.Task) {
+		t.Fatal("operational login diagnosis did not require account outcome evidence")
+	}
+	if !loginDiagnosis && !operationalSourceCheckMismatch(d) && !legacyAccountPublicationMismatch(d) {
 		t.Fatal("original account operation was not recognized")
 	}
 	for _, mode := range []string{"source change", "assertion", "cancelled", "unfinished"} {

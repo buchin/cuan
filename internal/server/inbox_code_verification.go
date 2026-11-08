@@ -11,7 +11,7 @@ const inboxIndependentCodeReviewPolicy = "Independent code execution review: v3"
 
 func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskDetailResponse) bool {
 	return d != nil && d.Status != task.TaskStatusDone && d.ExecutionCategory == task.ExecutionCategoryCode &&
-		!executionpolicy.FromInstructions(d.Instructions).ReadOnlyRepository && !task.IsAccountOperation(d.Title, d.Instructions) &&
+		!executionpolicy.FromInstructions(d.Instructions).ReadOnlyRepository && !task.IsAccountOutcome(&d.Task) &&
 		s.verificationReviewContext(ctx, d) == nil && s.liveInspectionReviewContext(ctx, d) == nil
 }
 
@@ -19,7 +19,7 @@ func (s *Server) requireIndependentCodeReview(ctx context.Context, d *task.TaskD
 	// Pending acceptance evidence must not send an implemented result back to
 	// its author just to claim independent verification. Exact-source native
 	// admission still checks the result; only the verifier can establish gaps.
-	accountMissing := d != nil && task.IsAccountOperation(d.Title, d.Instructions) && !s.accountOutcomeIndependentlyVerified(ctx, d)
+	accountMissing := d != nil && task.IsAccountOutcome(&d.Task) && !s.accountOutcomeIndependentlyVerified(ctx, d)
 	if assessment.Decision != "pass" || !inboxReviewExecutionSucceeded(d) || (!accountMissing && !s.independentCodeReviewMissing(ctx, d)) {
 		return assessment
 	}

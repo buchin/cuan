@@ -40,6 +40,22 @@ func TestExecutionClassificationUsesApprovedScopeNotProjectDefaults(t *testing.T
 
 type classificationProjectFinder struct{ p *project.ProjectResponse }
 
+func TestOperationalLoginOutcomePreservesHistoricalCodeAuthority(t *testing.T) {
+	item := &Task{Title: "Investigasi dan perbaiki kendala login akun pelanggan", Instructions: "Periksa status akun dan riwayat autentikasi. Verifikasi hasil akun melalui layanan yang sudah ada.", ExecutionCategory: ExecutionCategoryOps}
+	if !IsAccountOutcome(item) || !ScopePublicationPolicy(item).ReadOnlyRepository {
+		t.Fatal("operational diagnosis entered source publication")
+	}
+	item.ExecutionCategory = ExecutionCategoryCode
+	if IsAccountOutcome(item) || ScopePublicationPolicy(item).ReadOnlyRepository {
+		t.Fatal("existing code task was retroactively restricted or exempted")
+	}
+	item.ExecutionCategory = ExecutionCategoryOps
+	item.Instructions = "Fix the authentication controller for this customer account login."
+	if IsAccountOutcome(item) {
+		t.Fatal("explicit source repair was treated as account-only evidence")
+	}
+}
+
 func (f *classificationProjectFinder) Get(context.Context, string) (*project.ProjectResponse, error) {
 	return f.p, nil
 }

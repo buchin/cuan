@@ -64,7 +64,7 @@ func (m *MemoryStore) LaunchForAttempt(_ context.Context, attemptID string) (*Ta
 // repository existence and historical lane defaults grant no source publication.
 func ScopePublicationPolicy(t *Task) executionpolicy.PublicationPolicy {
 	policy := executionpolicy.FromInstructions(t.Instructions)
-	if IsAccountOperation(t.Title, t.Instructions) {
+	if IsAccountOutcome(t) {
 		policy = policy.Restrict(executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyPush: true, DenyDeploy: true})
 	}
 	return policy

@@ -167,3 +167,23 @@ func IsAccountOperation(title, instructions string) bool {
 	scope := project.TaskScopeInstructions(instructions)
 	return InferExecutionCategory(title, scope) == ExecutionCategoryOps && accountOperation.MatchString(operationProhibition.ReplaceAllString(strings.ToLower(title+"\n"+scope), " "))
 }
+
+var accountSupportIdentity = regexp.MustCompile(`(?i)\b(akun|account|customer|member|pelanggan|pengguna)\b`)
+var accountSupportAuthentication = regexp.MustCompile(`(?i)\b(login|log in|sign in|authentication|autentikasi)\b`)
+
+// Operational login diagnosis shares account-outcome verification, never the
+// source-publication pipeline. Require the saved ops lane so historical code
+// sessions retain their original authority and evidence requirements.
+func IsAccountOutcome(t *Task) bool {
+	if t == nil {
+		return false
+	}
+	if IsAccountOperation(t.Title, t.Instructions) {
+		return true
+	}
+	if t.ExecutionCategory != ExecutionCategoryOps {
+		return false
+	}
+	scope := operationProhibition.ReplaceAllString(t.Title+"\n"+project.TaskScopeInstructions(t.Instructions), " ")
+	return accountSupportIdentity.MatchString(scope) && accountSupportAuthentication.MatchString(scope) && !sourceChangeForOperation.MatchString(scope) && !IsSchemaMigrationPrompt(t.Title, scope)
+}

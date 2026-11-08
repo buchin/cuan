@@ -112,6 +112,20 @@ the original account outcome. The native workflow automatically scheduled the
 next verifier. The task remains incomplete until actual independent outcome and
 applicable publication evidence are accepted.
 
+New login-support tasks explicitly saved in the operational lane now use the
+existing independent account-outcome pipeline, rather than merely relying on a
+PM prompt to avoid source verification. Authentication plus account scope is
+required; explicit source/schema work remains outside this classification.
+Historical code-lane login tasks retain their native source/publication gates
+and permissions. The common account-outcome predicate is used consistently by
+scope limits, acceptance review, publication review and saved-evidence recovery.
+No duplicate verification service was added. Targeted tests demonstrate that an
+operational login worker cannot be accepted without independent observation and
+that observation retains native read-only/no-replay boundaries. Task-classification
+tests reject retroactive restriction/exemption of existing code work and explicit
+controller repair. These tests do not establish production completion of the
+historical login task or resolve its generated-manifest evidence concern.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
