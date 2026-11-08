@@ -556,7 +556,7 @@ task capability:
   "$CUAN_TASK_EXECUTABLE" task artifact read <attachment-id> [--raw]
   ```
 - MCP tools:
-  - `download_current_task_artifact`: accepts `attachment_id` (required) and optional `output` filename. Safely stores output in `CUAN_TASK_ARTIFACTS_DIR` and rejects path escape, overwriting existing files, partial/error responses, and files over 25 MB.
+  - `download_current_task_artifact`: accepts `attachment_id` (required) and optional `output` filename. Safely stores output in `CUAN_TASK_ARTIFACTS_DIR` and rejects path escape (including parent symlinks), overwriting existing files, partial/range responses, and files over 25 MB.
   - `read_current_task_artifact`: accepts `attachment_id` (required) and returns complete text content.
 
 Downloading an artifact transfers the file but does not constitute acceptance or

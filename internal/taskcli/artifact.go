@@ -115,22 +115,19 @@ func runArtifact(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	artifactsDir = filepath.Clean(artifactsDir)
+	canonicalArtifactsDir, err := filepath.EvalSymlinks(artifactsDir)
+	if err != nil {
+		canonicalArtifactsDir = artifactsDir
+	} else {
+		canonicalArtifactsDir = filepath.Clean(canonicalArtifactsDir)
+	}
 
 	var cleanTarget string
 	if action == "download" && *outputFlag != "" {
-		target := *outputFlag
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(artifactsDir, target)
-		}
-		cleanTarget = filepath.Clean(target)
-		rel, err := filepath.Rel(artifactsDir, cleanTarget)
-		if err != nil || strings.HasPrefix(rel, "..") || rel == "." {
-			fmt.Fprintln(errOut, "Path escape detected: output file must reside inside the attempt artifact directory")
-			return 2
-		}
-		if _, err := os.Stat(cleanTarget); err == nil || !errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintf(errOut, "Output file %q already exists; overwriting existing files is not permitted\n", cleanTarget)
-			return 1
+		var code int
+		cleanTarget, code = validateArtifactDestination(artifactsDir, canonicalArtifactsDir, *outputFlag, errOut)
+		if code != 0 {
+			return code
 		}
 	}
 
@@ -153,7 +150,11 @@ func runArtifact(args []string, out, errOut io.Writer) int {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode == http.StatusPartialContent || resp.Header.Get("Content-Range") != "" {
+		fmt.Fprintln(errOut, "Partial response received; artifact transfer rejected")
+		return 1
+	}
+	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		fmt.Fprintf(errOut, "Artifact download failed (%d): %s\n", resp.StatusCode, bytes.TrimSpace(errBody))
 		return 1
@@ -205,15 +206,10 @@ func runArtifact(args []string, out, errOut io.Writer) int {
 		if filename == "" || filename == "." || filename == "/" || filename == ".." {
 			filename = attachmentID
 		}
-		cleanTarget = filepath.Join(artifactsDir, filename)
-		rel, err := filepath.Rel(artifactsDir, cleanTarget)
-		if err != nil || strings.HasPrefix(rel, "..") || rel == "." {
-			fmt.Fprintln(errOut, "Path escape detected: resolved filename escapes attempt artifact directory")
-			return 2
-		}
-		if _, err := os.Stat(cleanTarget); err == nil || !errors.Is(err, os.ErrNotExist) {
-			fmt.Fprintf(errOut, "Output file %q already exists; overwriting existing files is not permitted\n", cleanTarget)
-			return 1
+		var code int
+		cleanTarget, code = validateArtifactDestination(artifactsDir, canonicalArtifactsDir, filename, errOut)
+		if code != 0 {
+			return code
 		}
 	}
 
@@ -248,6 +244,13 @@ func runArtifact(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
+	if parentDir := filepath.Dir(cleanTarget); parentDir != artifactsDir && parentDir != canonicalArtifactsDir {
+		if err := os.MkdirAll(parentDir, 0755); err != nil {
+			fmt.Fprintln(errOut, "Failed to create target directory")
+			return 1
+		}
+	}
+
 	if err = os.Link(tmpName, cleanTarget); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			fmt.Fprintf(errOut, "Output file %q already exists; overwriting existing files is not permitted\n", cleanTarget)
@@ -259,6 +262,19 @@ func runArtifact(args []string, out, errOut io.Writer) int {
 		}
 	}
 	_ = os.Remove(tmpName)
+
+	realTarget, err := filepath.EvalSymlinks(cleanTarget)
+	if err != nil {
+		_ = os.Remove(cleanTarget)
+		fmt.Fprintln(errOut, "Path escape detected: unable to verify real file location")
+		return 2
+	}
+	relTarget, err := filepath.Rel(canonicalArtifactsDir, filepath.Clean(realTarget))
+	if err != nil || strings.HasPrefix(relTarget, "..") {
+		_ = os.Remove(cleanTarget)
+		fmt.Fprintln(errOut, "Path escape detected: output file wrote outside attempt artifact directory")
+		return 2
+	}
 
 	if *rawFlag {
 		fmt.Fprintln(out, cleanTarget)
@@ -275,4 +291,67 @@ func runArtifact(args []string, out, errOut io.Writer) int {
 	_, _ = out.Write(encoded)
 	fmt.Fprintln(out)
 	return 0
+}
+
+func validateArtifactDestination(artifactsDir, canonicalArtifactsDir, target string, errOut io.Writer) (string, int) {
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(artifactsDir, target)
+	}
+	cleanTarget := filepath.Clean(target)
+
+	rel, err := filepath.Rel(artifactsDir, cleanTarget)
+	if err != nil || strings.HasPrefix(rel, "..") || rel == "." {
+		fmt.Fprintln(errOut, "Path escape detected: output file must reside inside the attempt artifact directory")
+		return "", 2
+	}
+	if relCanon, errCanon := filepath.Rel(canonicalArtifactsDir, cleanTarget); errCanon == nil {
+		if strings.HasPrefix(relCanon, "..") || relCanon == "." {
+			fmt.Fprintln(errOut, "Path escape detected: output file must reside inside the attempt artifact directory")
+			return "", 2
+		}
+	}
+
+	fi, lstatErr := os.Lstat(cleanTarget)
+	if lstatErr == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if realDest, err := filepath.EvalSymlinks(cleanTarget); err == nil {
+				realDest = filepath.Clean(realDest)
+				if relDest, errDest := filepath.Rel(canonicalArtifactsDir, realDest); errDest != nil || strings.HasPrefix(relDest, "..") {
+					fmt.Fprintln(errOut, "Path escape detected: output destination symlink resolves outside attempt artifact directory")
+					return "", 2
+				}
+			}
+		}
+		fmt.Fprintf(errOut, "Output file %q already exists; overwriting existing files is not permitted\n", cleanTarget)
+		return "", 1
+	} else if !errors.Is(lstatErr, os.ErrNotExist) {
+		fmt.Fprintf(errOut, "Output file %q check failed: %v\n", cleanTarget, lstatErr)
+		return "", 1
+	}
+
+	curr := filepath.Dir(cleanTarget)
+	for {
+		_, err := os.Lstat(curr)
+		if err == nil {
+			realCurr, err := filepath.EvalSymlinks(curr)
+			if err != nil {
+				fmt.Fprintln(errOut, "Path escape detected: unable to resolve parent directory symlink")
+				return "", 2
+			}
+			realCurr = filepath.Clean(realCurr)
+			relCurr, errRel := filepath.Rel(canonicalArtifactsDir, realCurr)
+			if errRel != nil || strings.HasPrefix(relCurr, "..") {
+				fmt.Fprintln(errOut, "Path escape detected: output file parent directory resolves outside attempt artifact directory")
+				return "", 2
+			}
+			break
+		}
+		parent := filepath.Dir(curr)
+		if parent == curr {
+			break
+		}
+		curr = parent
+	}
+
+	return cleanTarget, 0
 }

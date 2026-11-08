@@ -383,4 +383,22 @@ func TestTaskAgentArtifactDownloadAndGuardrails(t *testing.T) {
 			t.Errorf("expected 404 when requesting another task's attachment, got %d: %s", badW.Code, badW.Body.String())
 		}
 	})
+
+	// 12. Test rejecting Range requests (no partial content)
+	t.Run("RejectRangeRequests", func(t *testing.T) {
+		_, _, capRange, cleanRange, err := s.issueTaskAgent(ctx, saved.ID, aLater.ID, "verifier")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cleanRange()
+
+		req := httptest.NewRequest("GET", "/api/v1/task-agent/"+saved.ID+"/artifacts/"+imgAttID, nil)
+		req.Header.Set("Authorization", "Bearer "+capRange)
+		req.Header.Set("Range", "bytes=0-10")
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, req)
+		if w.Code != 400 {
+			t.Errorf("expected 400 when requesting range, got %d: %s", w.Code, w.Body.String())
+		}
+	})
 }

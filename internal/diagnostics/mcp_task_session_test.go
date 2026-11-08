@@ -206,4 +206,18 @@ func TestTaskSessionMCPArtifactTools(t *testing.T) {
 	if _, err := callTaskSessionTool("read_current_task_artifact", map[string]any{}); err == nil {
 		t.Fatal("expected error when attachment_id missing")
 	}
+
+	// 5. Test MCP rejects symlink parent output
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(artifactsDir, "symlink_dir")); err == nil {
+		if _, err := callTaskSessionTool("download_current_task_artifact", map[string]any{
+			"attachment_id": "att_test",
+			"output":        "symlink_dir/escaped.txt",
+		}); err == nil {
+			t.Fatal("expected error when downloading to symlink parent")
+		}
+		if _, err := os.Stat(filepath.Join(outside, "escaped.txt")); err == nil {
+			t.Fatal("wrote outside attempt artifacts via MCP")
+		}
+	}
 }

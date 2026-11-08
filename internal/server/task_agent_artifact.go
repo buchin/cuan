@@ -71,6 +71,12 @@ func (s *Server) handleTaskAgentArtifact(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if r.Header.Get("Range") != "" {
+		respondJSONError(w, http.StatusBadRequest, "Range requests and partial content are not permitted")
+		return
+	}
+
+	w.Header().Set("Accept-Ranges", "none")
 	w.Header().Set("Content-Type", a.Type)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "private, no-store")
