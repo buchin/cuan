@@ -34,6 +34,9 @@ func approveNativeReleaseFixtureSource(t *testing.T, s *Server, store task.Store
 	verifier, err := s.taskSvc.CreateAttempt(ctx, item.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "fixture-reviewer", AgentName: item.AssignedAgent, RequestID: requestID})
 	must(err)
 	service := runner.NewService(runtime, store, nil)
+	// The test drives coordinator scans explicitly. Publishing to the process
+	// global bus here would start unrelated fixture callbacks during setup.
+	service.SetEventBus(runner.NewEventBus())
 	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "fixture-reviewer"}, time.Minute)
 	must(err)
 	if !claim.Claimed || claim.Attempt.ID != verifier.ID {
