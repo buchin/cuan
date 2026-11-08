@@ -42,6 +42,20 @@ Git tests cover the subprocess path, classification, redaction and retained nati
 source push behavior. PM automatically started review request
 `08683cc4-b989-4a7e-a72a-ad3681b3650c`; acceptance remains pending.
 
+That review admitted current-outcome attempt
+`att_4f6c8d0985cac4a92d192ab17d85f688` on the unchanged running target. It
+failed the same native project checks. Planning previously checked only the
+selected source attempt's inspection identity, so a new developer attempt could
+renew an otherwise unchanged failing inspection. Planning now checks historical
+native current-outcome failures across source attempts, bound to the same task,
+owner, room, original request, scope hash, repository and target release. A native
+runner check receipt is required. The diagnostic is
+`running_release_native_checks_failed`; changed targets retain existing recovery.
+This blocks redundant observation, not acceptance checks or the original task.
+Targeted live lifecycle, source handoff, unpublished outcome, preparation,
+infrastructure and evidence-revalidation tests passed, including foreign and
+changed-scope negatives. This does not fix the underlying project test failure.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

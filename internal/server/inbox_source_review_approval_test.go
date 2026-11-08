@@ -96,6 +96,28 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		if context == nil || context["source_attempt_id"] != bound.SourceAttemptID || context["historical_source_attempt_id"] != "earlier-source-attempt" {
 			t.Fatal("same exact source lost its original native failure across handoff", context)
 		}
+		origin := db.InboxRequest{OwnerID: bound.OwnerID, RoomID: bound.RoomID, RequestID: bound.SourceRequestID}
+		if !s.runningReleaseChecksAlreadyFailed(ctx, current, origin, live.TargetCommit, live.Repository) {
+			t.Fatal("new source attempt erased unchanged running release check failure")
+		}
+		for _, mode := range []string{"changed target", "different repository", "foreign owner", "changed scope", "untrusted check"} {
+			dd, request, target, repository := *current, origin, live.TargetCommit, live.Repository
+			switch mode {
+			case "changed target":
+				target = strings.Repeat("e", 40)
+			case "different repository":
+				repository = "other/repo"
+			case "foreign owner":
+				request.OwnerID = "foreign"
+			case "changed scope":
+				dd.Instructions += " changed scope"
+			case "untrusted check":
+				dd.Activities = nil
+			}
+			if s.runningReleaseChecksAlreadyFailed(ctx, &dd, request, target, repository) {
+				t.Fatal("unbound historical failure blocked a new inspection", mode)
+			}
+		}
 		foreign := *current
 		foreign.Instructions += " Changed original scope"
 		if s.verifierCorrectionContext(ctx, &foreign) != nil {

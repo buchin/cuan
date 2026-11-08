@@ -131,6 +131,9 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 	if previous != nil && observed.Commit == previous.TargetCommit {
 		return nil, "running_release_already_inspected"
 	}
+	if currentOutcome && s.runningReleaseChecksAlreadyFailed(ctx, d, origin, observed.Commit, observed.Repository) {
+		return nil, "running_release_native_checks_failed"
+	}
 	_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
 	if err != nil || !authorized || !s.taskContinuationAfterCancel(ctx, origin, d) {
 		return nil, "original_authorization_unavailable"
@@ -156,6 +159,28 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 		return nil, "source_binding_invalid"
 	}
 	return proof, "ready"
+}
+
+// A new developer attempt is not a new running release. Native check failures
+// on an unchanged target remain actionable across source attempts. Reporting,
+// capacity and changed-target recovery keep their separate bounded paths.
+func (s *Server) runningReleaseChecksAlreadyFailed(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest, target, repository string) bool {
+	for _, attempt := range d.Attempts {
+		if attempt == nil || attempt.Status != task.AttemptStatusFailed || attempt.CancelRequested || attempt.CanceledAt != nil || attempt.ErrorMessage != "Live result inspection project checks did not pass" {
+			continue
+		}
+		proof, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, attempt.ID)
+		if err != nil || proof == nil || proof.Purpose != task.CurrentOutcomeInspection || proof.TargetCommit != target || proof.Repository != repository || proof.OwnerID != origin.OwnerID || proof.RoomID != origin.RoomID || proof.SourceRequestID != origin.RequestID || proof.InstructionsHash != task.LaunchInstructionsHash(d.Instructions) {
+			continue
+		}
+		historical := *d
+		historical.LatestAttempt = attempt
+		checks := task.AttemptVerificationEvidence(&historical)
+		if checks.Author == attempt.RunnerID && checks.Current != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // A current review may grant a new correction before the correction budget is
