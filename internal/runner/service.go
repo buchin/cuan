@@ -20,16 +20,17 @@ type ProjectFinder interface {
 }
 
 type RunnerService struct {
-	browserRuntimes sync.Map
-	store           Store
-	taskStore       task.Store
-	projectFinder   ProjectFinder
-	dodEvaluator    *DoDEvaluator
-	chatNotifier    BusinessChatNotifier
-	eventBus        *EventBus
-	steerMu         sync.Mutex
-	pendingSteering map[string][]SteeringDirective
-	steerHandlers   map[string]func(attemptID, prompt string) error
+	browserRuntimes        sync.Map
+	dependencyPreparations sync.Map
+	store                  Store
+	taskStore              task.Store
+	projectFinder          ProjectFinder
+	dodEvaluator           *DoDEvaluator
+	chatNotifier           BusinessChatNotifier
+	eventBus               *EventBus
+	steerMu                sync.Mutex
+	pendingSteering        map[string][]SteeringDirective
+	steerHandlers          map[string]func(attemptID, prompt string) error
 }
 
 func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
@@ -110,6 +111,11 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		return nil, err
 	}
 
+	if req.DependencyPreparation.Fresh(time.Now()) {
+		s.dependencyPreparations.Store(req.RunnerID, *req.DependencyPreparation)
+	} else {
+		s.dependencyPreparations.Delete(req.RunnerID)
+	}
 	if req.BrowserRuntime.Fresh(time.Now()) {
 		s.browserRuntimes.Store(req.RunnerID, *req.BrowserRuntime)
 	} else {
@@ -251,6 +257,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	}
 
 	claimCtx := context.WithValue(ctx, verificationFinalizationClaimKey{}, req.SupportsVerificationFinalization)
+	claimCtx = context.WithValue(claimCtx, dependencyPreparationClaimKey{}, s.DependencyPreparationRuntime(ctx, req.RunnerID) != nil)
 	claimCtx = context.WithValue(claimCtx, nativeReleaseClaimKey{}, req.SupportsNativeRelease)
 	claimCtx = context.WithValue(claimCtx, liveInspectionClaimKey{}, req.SupportsLiveInspection && req.SupportsNativeVisualVerification)
 	claimCtx = context.WithValue(claimCtx, liveInspectionRecoveryClaimKey{}, req.SupportsLiveInspectionRecovery)

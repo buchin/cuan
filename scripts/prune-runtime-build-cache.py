@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import shutil
 import subprocess
 import tempfile
 import time
@@ -57,7 +58,20 @@ def clean(cache, identity, kind="go"):
     credentials = {}
     if os.geteuid() == 0 and identity.st_uid != 0:
         credentials = dict(user=identity.st_uid, group=identity.st_gid, extra_groups=[])
-    if kind == 'npm':
+    if kind in ('npm', 'composer'):
+        if kind == 'composer':
+            with tempfile.TemporaryDirectory(prefix='cuan-composer-maintenance-') as temporary:
+                home = Path(temporary)
+                if credentials:
+                    os.chown(home, identity.st_uid, identity.st_gid)
+                executable = shutil.which('composer', path='/usr/local/bin:' + os.defpath)
+                if executable is None:
+                    raise ValueError('Composer maintenance runtime unavailable')
+                subprocess.run([executable, '--no-plugins', '--no-scripts', 'clear-cache'],
+                               cwd=home, env={'PATH': os.defpath, 'HOME': str(home),
+                                              'COMPOSER_HOME': str(home), 'COMPOSER_CACHE_DIR': str(cache)},
+                               capture_output=True, timeout=60, check=True, **credentials)
+            return
         with tempfile.TemporaryDirectory(prefix='cuan-cache-maintenance-') as temporary:
             home = Path(temporary)
             if credentials:
@@ -90,7 +104,7 @@ def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean
             break
         if not re.fullmatch('[0-9a-f]{64}', owner.name) or not directory(owner):
             continue
-        cache = owner / ('go-build' if kind == 'go' else 'npm-cache')
+        cache = owner / {'go': 'go-build', 'npm': 'npm-cache', 'composer': 'composer-cache'}[kind]
         gate = owner / '.build-cache.lock'
         if not directory(cache) or cache.stat().st_dev != base.stat().st_dev:
             continue
@@ -99,6 +113,9 @@ def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean
             if marker.is_symlink() or not marker.is_file() or marker.stat().st_size > 4096:
                 continue
             if not marker.read_text().startswith('This directory holds cached build artifacts from the Go build system.'):
+                continue
+        elif kind == 'composer':
+            if not directory(cache / 'files'):
                 continue
         elif not npm_cache(cache):
             continue
@@ -130,7 +147,7 @@ def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean
                 if kind == "go":
                     cleaner(cache, identity)
                 else:
-                    cleaner(cache, identity, "npm")
+                    cleaner(cache, identity, kind)
                 result['removed'] += 1
     return result
 
@@ -177,7 +194,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', required=True, type=Path)
     parser.add_argument('--apply', action='store_true')
-    parser.add_argument('--kind', choices=('go','npm'), default='go')
+    parser.add_argument('--kind', choices=('go','npm','composer'), default='go')
     parser.add_argument('--legacy-accounts', type=Path, help='Also consider idle legacy npm download caches')
     args = parser.parse_args()
     try:

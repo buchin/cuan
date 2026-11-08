@@ -359,3 +359,20 @@ native inspection then resumed automatically. Other hosted applications were
 also inspected: inactive rotated Dracin logs were compressed with contents
 preserved; the existing Laravel expired-file-cache pruner runs independently
 with file locking and expiry checks, preserving sessions and application data.
+
+### Locked PHP archives
+
+PHP preparation retains public Composer archives in
+`data/php-build-runtime/<owner-sha256>/composer-cache/files`. Each snapshot still
+installs its own ignored `vendor/`; provider profiles, auth, source and vendor
+are never borrowed. Repository/VCS caches and Composer configuration use a
+removed temporary HOME. Scripts/plugins stay disabled and custom cache paths
+require project-specific preparation. Composer's archive limit is 256 MiB per
+owner, with the existing pressure cleaner taking the same exclusive cache lease
+before invoking auth-free `composer clear-cache`. Active installs hold a shared
+lease. Neither maintenance nor install failure deletes the owner's source.
+
+Setup allows at most four minutes, or half the remaining execution budget,
+whichever is smaller. Timeout stops the installer process group, retains already
+downloaded archives, and records an explicit setup diagnosis. This budget does
+not replace verification or turn setup into passing checks.

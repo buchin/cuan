@@ -38,17 +38,18 @@ type RunnerInfo struct {
 
 // HeartbeatRequest is sent periodically by runner daemon to keep its lease alive and report metrics.
 type HeartbeatRequest struct {
-	BrowserRuntime   *task.VerificationRuntime `json:"browser_runtime,omitempty"`
-	RunnerID         string                    `json:"runner_id"`
-	Hostname         string                    `json:"hostname,omitempty"`
-	SupportedAgents  []string                  `json:"supported_agents,omitempty"`
-	CurrentAttemptID string                    `json:"current_attempt_id,omitempty"`
-	ActiveAttemptIDs []string                  `json:"active_attempt_ids,omitempty"`
-	CPUPercent       float64                   `json:"cpu_percent"`
-	MemoryUsedBytes  int64                     `json:"memory_used_bytes"`
-	MemoryTotalBytes int64                     `json:"memory_total_bytes"`
-	DiskUsedBytes    int64                     `json:"disk_used_bytes"`
-	DiskTotalBytes   int64                     `json:"disk_total_bytes"`
+	DependencyPreparation *task.DependencyPreparationRuntime `json:"dependency_preparation,omitempty"`
+	BrowserRuntime        *task.VerificationRuntime          `json:"browser_runtime,omitempty"`
+	RunnerID              string                             `json:"runner_id"`
+	Hostname              string                             `json:"hostname,omitempty"`
+	SupportedAgents       []string                           `json:"supported_agents,omitempty"`
+	CurrentAttemptID      string                             `json:"current_attempt_id,omitempty"`
+	ActiveAttemptIDs      []string                           `json:"active_attempt_ids,omitempty"`
+	CPUPercent            float64                            `json:"cpu_percent"`
+	MemoryUsedBytes       int64                              `json:"memory_used_bytes"`
+	MemoryTotalBytes      int64                              `json:"memory_total_bytes"`
+	DiskUsedBytes         int64                              `json:"disk_used_bytes"`
+	DiskTotalBytes        int64                              `json:"disk_total_bytes"`
 }
 
 // HeartbeatResponse instructs the runner on lease renewal and whether cancellation is requested.

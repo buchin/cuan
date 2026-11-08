@@ -734,3 +734,19 @@ attempt is rewritten or credited as deployed. Running/canceled inspections,
 changed source, source-check failures and unrelated inspection types cannot use
 this handoff. This reuses the source verifier; it grants no implementation or
 publication authority and does not reset correction limits.
+
+Locked PHP preparation now keeps archives in an owner-scoped managed cache while
+isolating each snapshot's vendor and disposable Composer auth/configuration.
+Preparation has a bounded cold-install budget that reserves half the remaining
+execution time; timeout retains downloads and kills the installer process group.
+Disk-pressure maintenance uses Composer's own cache cleaner under the shared
+runner/maintenance lease, preserving active downloads and all source files.
+
+A legacy source verifier stopped at the native two-minute Composer cold-download
+boundary, before checks or a final model report, can use the existing single
+verifier-recovery allowance after an authenticated runner advertises the repaired
+preparation policy. The original authority, exact source and saved assessment
+remain unchanged; old runners cannot claim this recovery. Assertions, final
+blocked findings, cancellation, source changes and repeated recovery remain
+ineligible. Failed history stays failed, and original publication/acceptance
+requirements remain pending. No developer investigation is replayed.

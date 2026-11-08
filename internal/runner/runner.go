@@ -347,17 +347,18 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 		}
 	}
 	reqPayload := HeartbeatRequest{
-		BrowserRuntime:   r.browserRuntimeEvidence(ctx),
-		RunnerID:         r.cfg.RunnerID,
-		Hostname:         hostname,
-		SupportedAgents:  []string{r.adapter.Name()},
-		CurrentAttemptID: primaryAttemptID,
-		ActiveAttemptIDs: attemptIDs,
-		CPUPercent:       metrics.CPUPercent,
-		MemoryUsedBytes:  metrics.MemoryUsedBytes,
-		MemoryTotalBytes: metrics.MemoryTotalBytes,
-		DiskUsedBytes:    metrics.DiskUsedBytes,
-		DiskTotalBytes:   metrics.DiskTotalBytes,
+		BrowserRuntime:        r.browserRuntimeEvidence(ctx),
+		DependencyPreparation: r.phpPreparationEvidence(),
+		RunnerID:              r.cfg.RunnerID,
+		Hostname:              hostname,
+		SupportedAgents:       []string{r.adapter.Name()},
+		CurrentAttemptID:      primaryAttemptID,
+		ActiveAttemptIDs:      attemptIDs,
+		CPUPercent:            metrics.CPUPercent,
+		MemoryUsedBytes:       metrics.MemoryUsedBytes,
+		MemoryTotalBytes:      metrics.MemoryTotalBytes,
+		DiskUsedBytes:         metrics.DiskUsedBytes,
+		DiskTotalBytes:        metrics.DiskTotalBytes,
 	}
 
 	resp, err := r.doRequest(ctx, http.MethodPost, "/api/v1/runner/heartbeat", reqPayload)
@@ -987,7 +988,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 	if err == nil && claim.PHPUnitTargets != "" && ((!policy.ReadOnlyRepository && ws != nil) || claim.LiveInspection != nil || (claim.Verification != nil && claim.Verification.IsolatedWorkspace)) {
 		r.streamLogLine(ctx, att.ID, "system", "Preparing locked PHP dependencies in the private workspace without Composer scripts or plugins.")
-		setupErr := preparePHPDependencies(ctx, workingDir)
+		setupErr := preparePHPDependencies(ctx, workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "php-build-runtime"), claim.OwnerID)
 		if claim.LiveInspection != nil {
 			err = setupErr
 			if err == nil {

@@ -67,3 +67,26 @@ independent verifier completes original criteria, required publication is observ
 and PM accepts the task with a usable customer reply. End-to-end duration remains
 too high for a simple account investigation; autonomous continuation alone is not
 proof of acceptable efficiency.
+
+## Exact-source verification checkpoint
+
+Attempt6 passed the native registered tests on source
+`52d92fccd2019e492d4c314ade211742fffba35b`, but failed publication. An initial
+current-outcome inspection tested the older running source and failed. Repairs
+`f9116ffd` and `7bfc60fd` admitted the existing exact tested local source without
+rewriting either failure or replaying implementation.
+
+Source verifier `att_5b5efab8a98e24fc7dc325e0d8a6b335` then failed before model
+execution: system setup logs span exactly120seconds and its retained diagnostic
+contains package downloads, not failing tests. Composer's cache was a disposable
+HOME removed on every attempt. The actual registered source remains preserved.
+
+The next repair retains owner-scoped public archives, uses a clean per-snapshot
+vendor/auth environment, limits archive size, integrates pressure/lease cleanup,
+and reserves at least half the remaining task budget for verification. The
+existing one-per-source verifier recovery can recognize only the legacy native
+cold-download boundary with empty native checks and no final model result, after
+a fresh authenticated runner advertises the changed executable policy. It retains
+source, assessment, owner, cancellation rules and failure history. No manual
+retry or acceptance is used. Deployment and production recovery are still pending
+at this checkpoint; passing isolated tests is not proof that the task is Done.

@@ -17,7 +17,7 @@ import (
 )
 
 func TestVerificationCapacityRecovery(t *testing.T) {
-	for _, scenario := range []string{"ready", "recovery quota", "no account", "busy account", "cancelled", "wrong owner", "changed source", "offline runner"} {
+	for _, scenario := range []string{"ready", "recovery quota", "no account", "busy account", "cancelled", "wrong owner", "changed source", "offline runner", "preparation ready", "preparation old runner", "preparation changed source", "preparation cancelled", "preparation assertion", "preparation reported result", "preparation recovery quota"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, d, q := stalledReviewFixture(t, "completed")
 			verificationCapacityRecoveryContract(t, s, d, q, scenario)
@@ -26,15 +26,25 @@ func TestVerificationCapacityRecovery(t *testing.T) {
 }
 
 func TestVerificationCapacityRecoveryPostgres(t *testing.T) {
-	withPhasePostgres(t, func(database *sql.DB) {
-		s, q, d := phaseLineageSetup(t, database)
-		verificationCapacityRecoveryContract(t, s, d, q, "ready")
-	})
+	for _, scenario := range []string{"ready", "preparation ready"} {
+		t.Run(scenario, func(t *testing.T) {
+			withPhasePostgres(t, func(database *sql.DB) {
+				s, q, d := phaseLineageSetup(t, database)
+				verificationCapacityRecoveryContract(t, s, d, q, scenario)
+			})
+		})
+	}
 }
 
 func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskDetailResponse, q db.InboxRequest, scenario string) {
 	t.Helper()
 	ctx := context.Background()
+	preparation := strings.HasPrefix(scenario, "preparation ")
+	scenario = strings.TrimPrefix(scenario, "preparation ")
+	cause := "capacity"
+	if preparation {
+		cause = "php_preparation"
+	}
 	verificationFollowupQueueContract(t, s, d, q)
 	store := s.taskSvc.Store()
 	_ = store.DeleteTask(ctx, "busy")
@@ -57,7 +67,21 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	if _, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "verifier"}, time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.runnerSvc.Complete(ctx, a.ID, runner.CompleteAttemptRequest{RunnerID: "verifier", Status: task.AttemptStatusFailed, ExitCode: 75, ErrorMessage: "The AI provider reported a usage limit. The run was stopped; saved work is preserved."}); err != nil {
+	failure := runner.CompleteAttemptRequest{RunnerID: "verifier", Status: task.AttemptStatusFailed, ExitCode: 75, ErrorMessage: "The AI provider reported a usage limit. The run was stopped; saved work is preserved."}
+	if preparation {
+		running, _ := store.GetAttempt(ctx, a.ID)
+		started := time.Now().Add(-125 * time.Second)
+		running.StartedAt = &started
+		if err := store.UpdateAttempt(ctx, running); err != nil {
+			t.Fatal(err)
+		}
+		failure.ExitCode = 1
+		failure.ErrorMessage = task.InspectionDependencyFailurePrefix + ": PHP locked dependency preparation: - Downloading fixture/package (1.0)"
+		if scenario == "assertion" {
+			failure.ErrorMessage = "Source project checks did not pass"
+		}
+	}
+	if _, err := s.runnerSvc.Complete(ctx, a.ID, failure); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.taskSvc.FinishLaunch(ctx, job.ID, claimedJob.LeaseToken, "stopped", time.Now().UTC(), ""); err != nil {
@@ -65,6 +89,13 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	}
 	d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
 	parent, commit := d.LatestAttempt.ID, d.CommitSHA
+	if scenario == "reported result" {
+		event := &task.TaskActivity{ID: "report:" + parent, TaskID: d.ID, AttemptID: &parent, ActivityType: "agent_report", Author: d.LatestAttempt.RunnerID, NewStatus: task.TaskStatusBlocked, Message: "real blocked findings", CreatedAt: time.Now().UTC()}
+		if err := store.CreateActivity(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	}
 	prior, err := task.VerificationIntentForAttempt(ctx, store, &d.Task, parent)
 	if err != nil || prior == nil {
 		t.Fatal("missing verifier", err)
@@ -81,7 +112,12 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 		t.Fatal("missing source authorization")
 	}
 	if scenario != "offline runner" {
-		if _, err := s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: "verifier"}, time.Minute); err != nil {
+		if _, err := s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: "verifier", DependencyPreparation: func() *task.DependencyPreparationRuntime {
+			if !preparation || scenario == "old runner" {
+				return nil
+			}
+			return &task.DependencyPreparationRuntime{Policy: task.PHPPreparationPolicy, CheckedAt: time.Now().UTC()}
+		}()}, time.Minute); err != nil {
 			t.Fatal(err)
 		}
 	} else {
@@ -131,14 +167,14 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	}
 	before := len(d.Attempts)
 	want := scenario == "ready" || scenario == "recovery quota"
-	if got := s.recoverCapacityVerification(ctx, d, origin); got != want {
+	if got := s.recoverSourceVerifier(ctx, d, origin); got != want {
 		t.Fatalf("recovery=%v scenario=%s", got, scenario)
 	}
 	if !want {
 		return
 	}
 	for i := 0; i < 2; i++ {
-		if !s.recoverCapacityVerification(ctx, d, origin) {
+		if !s.recoverSourceVerifier(ctx, d, origin) {
 			t.Fatal("lost idempotent pending recovery")
 		}
 	}
@@ -147,24 +183,30 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 		t.Fatal("missing durable recovery", err)
 	}
 	proof, err := task.VerificationIntentForLaunch(&d.Task, queued)
-	if err != nil || proof.RecoveryCause != "capacity" || proof.RecoveryAttemptID != parent || proof.SourceAttemptID != source || proof.SourceCommit != commit || proof.RuntimeFingerprint != "" {
+	if err != nil || proof.RecoveryCause != cause || proof.RecoveryAttemptID != parent || proof.SourceAttemptID != source || proof.SourceCommit != commit || proof.RuntimeFingerprint != "" {
 		t.Fatal("recovery changed source or cause", err)
 	}
 	current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
-	if err := task.ValidateVerificationCapacityRecovery(ctx, store, &d.Task, proof, current.Activities); err != nil {
+	validate := task.ValidateVerificationCapacityRecovery
+	if preparation {
+		validate = task.ValidateVerificationPreparationRecovery
+	}
+	if err := validate(ctx, store, &d.Task, proof, current.Activities); err != nil {
 		t.Fatal("native admission receipt lost", err)
 	}
-	for _, fault := range []string{"agent receipt", "wrong owner receipt", "future receipt", "old receipt", "missing receipt"} {
+	for _, fault := range []string{"agent receipt", "wrong owner receipt", "future receipt", "old receipt", "missing receipt", "wrong policy receipt"} {
 		var events []*task.TaskActivity
 		for _, event := range current.Activities {
 			copyEvent := *event
-			if event.ActivityType == task.ActivityVerificationCapacityRecovery {
+			if event.ActivityType == task.ActivityVerificationCapacityRecovery || event.ActivityType == task.ActivityVerificationPreparationRecovery {
 				if fault == "missing receipt" {
 					continue
 				}
 				var receipt task.VerificationCapacity
 				json.Unmarshal([]byte(event.Message), &receipt)
 				switch fault {
+				case "wrong policy receipt":
+					receipt.PreparationPolicy = "invalid-policy"
 				case "agent receipt":
 					copyEvent.Author = "agent"
 				case "wrong owner receipt":
@@ -179,7 +221,7 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 			}
 			events = append(events, &copyEvent)
 		}
-		if task.ValidateVerificationCapacityRecovery(ctx, store, &d.Task, proof, events) == nil {
+		if validate(ctx, store, &d.Task, proof, events) == nil {
 			t.Fatal("invalid admission evidence accepted", fault)
 		}
 	}
@@ -195,6 +237,12 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	recovered, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: queued.RequestID})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if preparation {
+		old, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "old-verifier"}, time.Minute)
+		if err != nil || old.Claimed {
+			t.Fatal("old runner claimed changed preparation policy", err)
+		}
 	}
 	claim, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "verifier"}, time.Minute)
 	if err != nil || !claim.Claimed || claim.Verification == nil || !claim.PublicationLimits.ReadOnlyRepository || !claim.PublicationLimits.DenyDeploy || !claim.PublicationLimits.DenyPush {
@@ -219,7 +267,7 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	if old.Status != task.AttemptStatusFailed || current.Status != expectedStatus || current.LatestAttempt.ID != recovered.ID {
 		t.Fatal("recovery rewrote history or bypassed review")
 	}
-	if s.recoverCapacityVerification(ctx, current, origin) {
+	if s.recoverSourceVerifier(ctx, current, origin) {
 		t.Fatal("chained capacity recovery")
 	}
 }

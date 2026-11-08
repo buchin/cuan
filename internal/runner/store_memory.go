@@ -275,12 +275,12 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 						isNativeRelease = proof != nil
 					}
 				}
-				if ctx.Value(verificationFinalizationClaimKey{}) != true {
+				if ctx.Value(verificationFinalizationClaimKey{}) != true || ctx.Value(dependencyPreparationClaimKey{}) != true {
 					proof, err := task.VerificationIntentForAttempt(ctx, m.taskStore, t, a.ID)
 					if err != nil {
 						return nil, nil, err
 					}
-					if proof != nil && proof.FinalizeAttemptID != "" {
+					if proof != nil && ((proof.FinalizeAttemptID != "" && ctx.Value(verificationFinalizationClaimKey{}) != true) || (proof.RecoveryCause == "php_preparation" && ctx.Value(dependencyPreparationClaimKey{}) != true)) {
 						continue
 					}
 				}

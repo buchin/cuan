@@ -51,6 +51,9 @@ if [[ -d "$install_dir/data/go-build-runtime" ]]; then
     --runtime "$install_dir/data/go-build-runtime" --apply
 fi
 
+python3 "$install_dir/maintenance/prune-runtime-build-cache.py" \
+  --runtime "$install_dir/data/php-build-runtime" --kind composer --apply
+
 npm_cache_args=(--runtime "$install_dir/data/npm-build-runtime" --kind npm --apply)
 if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts" ]]; then
   npm_cache_args+=(--legacy-accounts "$maintenance_home/.local/share/cuan/accounts")

@@ -200,5 +200,50 @@ class NPMCacheTest(unittest.TestCase):
             self.assertEqual(protected.read_text(),'preserve')
             self.assertTrue(package.exists())
 
+
+class ComposerCacheTest(unittest.TestCase):
+    def test_pressure_cleaner_retains_live_downloads_and_uses_same_lease(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary);owner=base/('a'*64);cache=owner/'composer-cache'
+            (cache/'files').mkdir(parents=True)
+            archive=cache/'files/package.zip';archive.write_text('partial download')
+            gate=owner/'.build-cache.lock';gate.touch(mode=0o600)
+            source=owner/'workspace.php';source.write_text('preserve')
+            def cleaner(path,identity,kind):
+                self.assertEqual((path,kind),(cache,'composer'))
+                archive.unlink()
+            args=dict(kind='composer',apply=True,free=lambda _:2*module.GIB,
+                      in_use=lambda _:False,cleaner=cleaner)
+            with gate.open('r+b') as lease:
+                fcntl.flock(lease,fcntl.LOCK_SH)
+                self.assertEqual(module.prune(base,**args)['busy'],1)
+            self.assertTrue(archive.exists())
+            self.assertEqual(module.prune(base,**args)['removed'],1)
+            self.assertEqual(source.read_text(),'preserve')
+            self.assertTrue(gate.exists())
+
+    def test_native_composer_cleaner_has_disposable_auth_free_home(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cache=Path(temporary)/'composer-cache';cache.mkdir()
+            with patch.object(module.shutil,'which',return_value='/usr/local/bin/composer'), patch.object(module.subprocess,'run') as run:
+                module.clean(cache,cache.stat(),'composer')
+                args,kwargs=run.call_args
+                self.assertEqual(args[0],['/usr/local/bin/composer','--no-plugins','--no-scripts','clear-cache'])
+                self.assertEqual(kwargs['env']['COMPOSER_CACHE_DIR'],str(cache))
+                self.assertNotIn('COMPOSER_AUTH',kwargs['env'])
+                home=Path(kwargs['env']['HOME'])
+                self.assertFalse(home.exists())
+
+    @unittest.skipUnless(shutil.which('composer'), 'native Composer required')
+    def test_real_composer_clears_only_archive_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            owner=Path(temporary);cache=owner/'composer-cache';(cache/'files').mkdir(parents=True)
+            (cache/'files/archive.zip').write_text('download')
+            protected=owner/'vendor/source.php';protected.parent.mkdir();protected.write_text('preserve')
+            with patch.object(module.os,'defpath',str(Path(shutil.which('php')).parent)+':'+os.defpath), patch.object(module.shutil,'which',return_value=shutil.which('composer')):
+                module.clean(cache,cache.stat(),'composer')
+            self.assertFalse((cache/'files/archive.zip').exists())
+            self.assertEqual(protected.read_text(),'preserve')
+
 if __name__ == '__main__':
     unittest.main()
