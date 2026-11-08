@@ -92,3 +92,30 @@ retained record starts at 07:22:25), consistent with bounded log retention.
 A sampled 1,000-record window contained 48 short spinner fragments; that sample
 alone does not establish logging as the primary latency cause. No logging
 behavior or retention limits were changed as a speculative speed fix.
+
+## Parent integration after independent source review
+
+The delegate's no-merge/no-deploy boundary was retained throughout the native
+benchmark. After reviewing its exact successful handoff, the parent integrated
+only the link fix into dev as `b1c7615e`, under the existing direct repository
+shipping authorization. The artifact-download feature was not integrated.
+Focused deduplication/delegation tests and the newer owner-context review refresh
+regression pass on the combined source. This is a parent release step, not a
+claim that either delegate published the change.
+
+Real Inbox React components were rendered at 390px and 1440px with isolated
+fixture API data, with no live user/customer writes. Both have no horizontal
+overflow or page errors. The screenshots were inspected: current conversation
+bubbles, typography, navigation and composer remain calm and usable; task links
+are projected into the existing task UI as designed. Files remain at
+`/home/dev/artifacts/cuan-link-integration-b1c7615e/` on the development host.
+These captures verify rendering, not a production end-to-end execution.
+
+The maintained full work-panel fixture failed its obsolete expectation that a
+task card initially appears in the chat; current UI intentionally uses the
+composer Tasks disclosure. That failed check was not counted as passing. The
+narrow capture adapter used the same actual application components and isolated
+API setup and was removed after capture. Updating the maintained full fixture to
+the current task disclosure remains a separate correctness issue for future
+visual verification. Local Chromium required the existing Alpine runtime's
+library path; no browser dependencies were installed or production config changed.
