@@ -31,6 +31,7 @@ type NativeReleaseHandoff struct {
 // NativeReleaseIntent binds one durable release stage to a verified source
 // handoff. Parsing this value grants neither original authorization nor access.
 type NativeReleaseIntent struct {
+	SourceReviewAttemptID  string `json:"source_review_attempt_id,omitempty"`
 	SourceAttemptID        string `json:"source_attempt_id"`
 	SourceCommit           string `json:"source_commit"`
 	SourceVerificationHash string `json:"source_verification_hash"`
@@ -114,6 +115,16 @@ func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	if !nativeReleaseShape(t, p) || t.CommitSHA != p.SourceCommit || (requireLatest && t.Status == TaskStatusDone) || t.Status == "cancelled" || t.Status == "canceled" || t.ExecutionCategory != ExecutionCategoryCode {
 		return ErrInvalidTaskInput
 	}
+	// Legacy records remain readable as history, never as fresh release grants.
+	if requireLatest && p.SourceReviewAttemptID == "" {
+		return ErrInvalidTaskInput
+	}
+	if p.SourceReviewAttemptID != "" {
+		review, err := NativeSourceReviewForAttempt(ctx, store, t, p.SourceReviewAttemptID)
+		if err != nil || review == nil || review.SourceAttemptID != p.SourceAttemptID || review.SourceCommit != p.SourceCommit || review.InstructionsHash != p.InstructionsHash {
+			return ErrInvalidTaskInput
+		}
+	}
 	source, err := store.GetAttempt(ctx, p.SourceAttemptID)
 	if err != nil {
 		return err
@@ -125,7 +136,7 @@ func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	if latest == nil {
 		return ErrInvalidTaskInput
 	}
-	if requireLatest && latest.ID != p.SourceAttemptID {
+	if requireLatest && latest.ID != p.SourceReviewAttemptID {
 		if latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusQueued && latest.Status != AttemptStatusRunning) {
 			return ErrRequestConflict
 		}
