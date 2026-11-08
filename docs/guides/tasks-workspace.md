@@ -421,3 +421,10 @@ preserves the original failed attempt. Original files keep their attempt identit
 and Inbox delivery; no duplicate attachment message is created. A successful
 integrity check moves the result to ordinary independent review. Original visual,
 acceptance, publication and phase approval requirements still apply before Done.
+
+Visual PM review retains up to sixteen images from the exact attempt: the native
+recipe's maximum eight regression captures plus up to eight supplemental feature
+captures. Generic regression evidence must not displace the feature screenshots
+needed to assess the original request. Existing ownership, immutable delivery,
+source-attempt and native capture integrity checks still apply; supplemental
+images do not acquire native capture provenance merely by being included.

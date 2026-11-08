@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/png"
 	"os"
@@ -113,5 +114,52 @@ func TestVisualReviewPreservesPreCaptureDependencyFailure(t *testing.T) {
 		if decision.Decision != "revise" || decision.RemainingWork != "verification" || !strings.Contains(decision.Revision, "EAI_AGAIN") || !strings.Contains(decision.Revision, "before visual capture") {
 			t.Fatal("setup failure became a missing-image task", decision)
 		}
+	}
+}
+
+func TestVisualReviewKeepsFeatureEvidenceAfterFullNativeCaptureSet(t *testing.T) {
+	s, d, _ := stalledReviewFixture(t, "completed")
+	t.Setenv("HOME", t.TempDir())
+	dir := t.TempDir()
+	var names []string
+	for i := 0; i < 12; i++ {
+		name := fmt.Sprintf("evidence-%02d.png", i)
+		file, err := os.Create(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = png.Encode(file, image.NewRGBA(image.Rect(0, 0, 390, 844)))
+		file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, name)
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	files, err := readTaskArtifacts(root, d.ID, d.LatestAttempt.ID, names[:8])
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err = s.publishTaskArtifactsWithKey(ctx, d, "owner", files[:8], "task-visual-delivery:"+d.LatestAttempt.ID); err != nil {
+		t.Fatal(err)
+	}
+	supplemental, err := readTaskArtifacts(root, d.ID, d.LatestAttempt.ID, names[8:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.publishTaskArtifacts(ctx, d, "owner", supplemental); err != nil {
+		t.Fatal(err)
+	}
+	images := s.inboxReviewImages(ctx, d)
+	if len(images) != 12 {
+		t.Fatalf("feature evidence crowded out: got %d images", len(images))
+	}
+	if images[8].Name != names[8] {
+		t.Fatal("supplemental feature evidence missing", images)
 	}
 }
