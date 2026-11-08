@@ -6,6 +6,9 @@ approved_branch=""
 explicit_branch=0
 frontend_only=0
 force_local=0
+build_only=0
+skip_deploy=0
+skip_checks=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,8 +25,20 @@ while [[ $# -gt 0 ]]; do
       force_local=1
       shift
       ;;
+    --build-only)
+      build_only=1
+      shift
+      ;;
+    --skip-deploy|--package-only)
+      skip_deploy=1
+      shift
+      ;;
+    --skip-checks|--skip-preflight)
+      skip_checks=1
+      shift
+      ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--build-only] [--skip-deploy] [--skip-checks] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
       exit 0
       ;;
     *)
@@ -32,6 +47,16 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "${CUAN_DEPLOY_BUILD_ONLY:-}" ]]; then
+  build_only=1
+fi
+if [[ -n "${CUAN_DEPLOY_SKIP_DEPLOY:-}" ]]; then
+  skip_deploy=1
+fi
+if [[ -n "${CUAN_DEPLOY_SKIP_CHECKS:-}" ]]; then
+  skip_checks=1
+fi
 
 cd "$(dirname "$0")/.."
 
@@ -76,20 +101,22 @@ fi
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 
 local_sha="$(git rev-parse HEAD)"
-if [[ -n "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" ]]; then
-  if [[ ! "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" =~ ^[a-f0-9]{40}$ || "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" != "$local_sha" || "${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" != "$approved_branch" ]]; then
-    echo "ERROR: Native prepared source does not match its observed release branch." >&2
-    exit 1
-  fi
-  echo "==> Using native saved-connection branch observation for $local_sha..."
-else
-  echo "==> Verifying branch sync with origin/$approved_branch..."
-  git fetch origin "$approved_branch" --quiet
-  remote_sha="$(git rev-parse "origin/$approved_branch")"
-  if [[ "$local_sha" != "$remote_sha" ]]; then
-    echo "ERROR: Local HEAD ($local_sha) is not synchronized with origin/$approved_branch ($remote_sha)." >&2
-    echo "Pull and push latest changes before releasing to avoid regressing production." >&2
-    exit 1
+if [[ "$skip_checks" == 0 ]]; then
+  if [[ -n "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" ]]; then
+    if [[ ! "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" =~ ^[a-f0-9]{40}$ || "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" != "$local_sha" || "${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" != "$approved_branch" ]]; then
+      echo "ERROR: Native prepared source does not match its observed release branch." >&2
+      exit 1
+    fi
+    echo "==> Using native saved-connection branch observation for $local_sha..."
+  else
+    echo "==> Verifying branch sync with origin/$approved_branch..."
+    git fetch origin "$approved_branch" --quiet
+    remote_sha="$(git rev-parse "origin/$approved_branch")"
+    if [[ "$local_sha" != "$remote_sha" ]]; then
+      echo "ERROR: Local HEAD ($local_sha) is not synchronized with origin/$approved_branch ($remote_sha)." >&2
+      echo "Pull and push latest changes before releasing to avoid regressing production." >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -98,25 +125,28 @@ if [ ! -d "web/dist" ] && [ -d "/opt/cuan/current/web/dist" ]; then
   cp -a /opt/cuan/current/web/dist web/
 fi
 
-echo '::cuan-release-stage::checks'
-echo "==> Checking release activation safety..."
-python3 scripts/test-activate-release.py
-python3 scripts/test-release-ancestry.py
-python3 scripts/test-authorized-release.py
-python3 scripts/test-cuan-disk-guard.py
-python3 scripts/test-prune-release-artifacts.py
-python3 scripts/test-prune-provider-go-cache.py
-python3 scripts/test-prune-verification-dependencies.py
-python3 scripts/test-prune-runtime-build-cache.py
-python3 scripts/test-runtime-cache-maintenance.py
+if [[ "$skip_checks" == 0 ]]; then
+  echo '::cuan-release-stage::checks'
+  echo "==> Checking release activation safety..."
+  python3 scripts/test-activate-release.py
+  python3 scripts/test-release-ancestry.py
+  python3 scripts/test-authorized-release.py
+  python3 scripts/test-cuan-disk-guard.py
+  python3 scripts/test-prune-release-artifacts.py
+  python3 scripts/test-prune-provider-go-cache.py
+  python3 scripts/test-prune-verification-dependencies.py
+  python3 scripts/test-prune-runtime-build-cache.py
+  python3 scripts/test-runtime-cache-maintenance.py
+  python3 scripts/test-release-build-gate.py
 
-echo '::cuan-release-stage::dependencies'
-echo "==> Installing locked frontend dependencies in this release checkout..."
-npm ci --prefix web --no-audit --no-fund
+  echo '::cuan-release-stage::dependencies'
+  echo "==> Installing locked frontend dependencies in this release checkout..."
+  npm ci --prefix web --no-audit --no-fund
 
-echo '::cuan-release-stage::tests'
-echo "==> Running frontend test gate..."
-npm test --prefix web
+  echo '::cuan-release-stage::tests'
+  echo "==> Running frontend test gate..."
+  npm test --prefix web
+fi
 
 release_sha="$local_sha"
 
@@ -184,8 +214,78 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" 
 pid_migrate=$!
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-runner" ./cmd/runner &
 pid_runner=$!
-wait "$pid_server" "$pid_migrate" "$pid_runner"
+all_build_pids=("$pid_server" "$pid_migrate" "$pid_runner")
+declare -A build_component_names=(
+  ["$pid_server"]="cuan-server"
+  ["$pid_migrate"]="cuan-migrate"
+  ["$pid_runner"]="cuan-runner"
+)
+declare -A active_build_pids=(
+  ["$pid_server"]=1
+  ["$pid_migrate"]=1
+  ["$pid_runner"]=1
+)
+
+terminate_build_children() {
+  for pid in "${all_build_pids[@]}"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      pkill -P "$pid" 2>/dev/null || true
+      kill -TERM "$pid" 2>/dev/null || true
+    fi
+  done
+  for pid in "${all_build_pids[@]}"; do
+    if [[ -n "$pid" ]]; then
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
+  for pid in "${all_build_pids[@]}"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      pkill -9 -P "$pid" 2>/dev/null || true
+      kill -KILL "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+trap 'terminate_build_children; exit 1' INT TERM
+
+build_failed=0
+failed_component=""
+failed_code=0
+
+while [[ ${#active_build_pids[@]} -gt 0 ]]; do
+  for pid in "${!active_build_pids[@]}"; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      status=0
+      wait "$pid" || status=$?
+      unset "active_build_pids[$pid]"
+      if [[ "$status" -ne 0 && "$build_failed" -eq 0 ]]; then
+        build_failed=1
+        failed_component="${build_component_names[$pid]}"
+        failed_code="$status"
+        terminate_build_children
+        break 2
+      fi
+    fi
+  done
+  if [[ ${#active_build_pids[@]} -gt 0 ]]; then
+    sleep 0.02
+  fi
+done
+
+trap - INT TERM
+
+if [[ "$build_failed" -ne 0 ]]; then
+  echo "❌ ERROR: Backend binary compilation failed: $failed_component exited with code $failed_code." >&2
+  exit "${failed_code:-1}"
+fi
+
 echo "✓ Backend binaries compiled successfully."
+
+if [[ "$build_only" == 1 ]]; then
+  echo "Build completed successfully (--build-only specified)."
+  exit 0
+fi
 if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
   npm run build --prefix web
 elif [ -d "web/dist" ]; then
@@ -207,6 +307,11 @@ root=pathlib.Path(sys.argv[1])
 checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.rglob('*') if p.is_file() and not p.is_symlink() and p.name!='release.json'}
 (root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1,'inbox_worker':1}})+'\n')
 PY
+
+if [[ "$skip_deploy" == 1 ]]; then
+  echo "✓ Release artifacts packaged successfully into $release_dir (--skip-deploy specified)."
+  exit 0
+fi
 
 if [[ "$is_local" == 1 ]]; then
   sudo -n mkdir -p /opt/cuan/maintenance
