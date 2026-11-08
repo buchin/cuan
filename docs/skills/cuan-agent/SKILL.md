@@ -67,6 +67,12 @@ cuan task get <task-id>
 
 ### 3. Update Task Status & Evidence
 
+A delayed admission error is reconciled against the exact saved execution before
+updating its launch or emitting an Inbox failure. A queued/running attempt keeps
+its launch started; a terminal attempt retains its actual outcome. This does not
+start a replacement or turn failed work into success. An unrelated execution does
+not erase a genuine admission failure.
+
 After native publication, an independent inspection that reaches its reporting
 deadline can receive one read-only reporting recovery. Native runner receipts
 must prove unchanged source, an exact reporting timeout, no final agent report

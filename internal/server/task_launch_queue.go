@@ -137,35 +137,64 @@ const supersededRecoveryLaunchReason = "A newer execution replaced this recovery
 
 const staleInspectionLaunchReason = task.InspectionPredecessorPreparationError
 
+func (s *Server) finishQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch, background bool, state, reason string) string {
+	link := "\n\n[View work](/tasks/" + job.TaskID + ")"
+	save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	// The response describes admission, not the execution's current state.
+	// Another dispatcher may have reserved this exact request while the
+	// response was in flight. Its durable attempt wins over a late error.
+	if state != "started" {
+		detail, err := s.taskSvc.GetTaskDetail(save, job.TaskID)
+		if err != nil {
+			return "The saved execution is being reconciled. No replacement was started." + link
+		}
+		owned, err := s.launchOwnsLatestAttempt(save, &job, detail)
+		if err != nil {
+			return "The saved execution is being reconciled. No replacement was started." + link
+		}
+		if owned {
+			a := detail.LatestAttempt
+			actual := "stopped"
+			if !a.CancelRequested && a.CanceledAt == nil && (a.Status == task.AttemptStatusRunning || a.Status == task.AttemptStatusQueued) {
+				actual = "started"
+			}
+			if err := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, actual, time.Now().UTC(), ""); err != nil {
+				return "The saved execution is being reconciled. No replacement was started." + link
+			}
+			return "This request already has a recorded execution. No replacement was started." + link
+		}
+	}
+	if e := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC().Add(30*time.Second), reason); e != nil {
+		return "The launch status is being reconciled. I have not started a replacement." + link
+	}
+	job.SafeError = reason
+	text := "The work is saved, but could not start. " + reason + link
+	if state == "queued" {
+		text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
+		if strings.Contains(job.Revision, "Cuan native-release intent") {
+			text = "The release is saved and will continue when its execution requirements are available." + link
+		}
+		if strings.Contains(reason, "project") || strings.Contains(reason, "task") || strings.Contains(reason, "active") {
+			text = "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
+		}
+	}
+	if state == "queued" && strings.Contains(reason, "Project files could not be downloaded.") {
+		text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
+	}
+	if state == "started" {
+		text = strings.TrimSpace(link)
+	}
+	if background && state != "queued" {
+		s.publishTaskLaunchOutcome(save, job, state, text)
+	}
+	return text
+}
+
 func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch, background bool) string {
 	link := "\n\n[View work](/tasks/" + job.TaskID + ")"
 	finish := func(state, reason string) string {
-		save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-		defer cancel()
-		if e := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC().Add(30*time.Second), reason); e != nil {
-			return "The launch status is being reconciled. I have not started a replacement." + link
-		}
-		job.SafeError = reason
-		text := "The work is saved, but could not start. " + reason + link
-		if state == "queued" {
-			text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
-			if strings.Contains(job.Revision, "Cuan native-release intent") {
-				text = "The release is saved and will continue when its execution requirements are available." + link
-			}
-			if strings.Contains(reason, "project") || strings.Contains(reason, "task") || strings.Contains(reason, "active") {
-				text = "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
-			}
-		}
-		if state == "queued" && strings.Contains(reason, "Project files could not be downloaded.") {
-			text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
-		}
-		if state == "started" {
-			text = strings.TrimSpace(link)
-		}
-		if background && state != "queued" {
-			s.publishTaskLaunchOutcome(save, job, state, text)
-		}
-		return text
+		return s.finishQueuedTaskLaunch(ctx, job, background, state, reason)
 	}
 	current, e := s.taskSvc.GetLaunch(ctx, job.ID)
 	if e != nil || current.State != "claimed" || current.LeaseToken != job.LeaseToken || current.LeaseUntil == nil || !current.LeaseUntil.After(time.Now()) {
