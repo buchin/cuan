@@ -8,7 +8,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxVerifierCorrectionPolicy = "Verified implementation correction: v4"
+const inboxVerifierCorrectionPolicy = "Verified implementation correction: v5"
 
 // A verifier never gains write permission. A saved PM assessment may instead
 // admit a separate developer continuation within the original owner's scope.
@@ -42,7 +42,7 @@ func (s *Server) verifierCorrectionContext(ctx context.Context, d *task.TaskDeta
 			continue
 		}
 		intent, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, a.ID)
-		if err != nil || intent == nil || intent.Purpose != task.CurrentOutcomeInspection || intent.SourceAttemptID != proof.SourceAttemptID || intent.SourceCommit != proof.SourceCommit || intent.OwnerID != proof.OwnerID || intent.RoomID != proof.RoomID || intent.SourceRequestID != proof.SourceRequestID {
+		if err != nil || intent == nil || intent.Purpose != task.CurrentOutcomeInspection || intent.SourceCommit != proof.SourceCommit || intent.OwnerID != proof.OwnerID || intent.RoomID != proof.RoomID || intent.SourceRequestID != proof.SourceRequestID {
 			continue
 		}
 		if previous == nil || a.CreatedAt.After(previous.CreatedAt) {
@@ -58,7 +58,7 @@ func (s *Server) verifierCorrectionContext(ctx context.Context, d *task.TaskDeta
 	if checks.Author != previous.RunnerID || checks.Current == "" {
 		return nil
 	}
-	return map[string]any{"source_attempt_id": proof.SourceAttemptID, "verified_source_commit": proof.SourceCommit, "source_verifier_attempt_id": d.LatestAttempt.ID, "historical_live_attempt_id": previous.ID, "historical_live_commit": previousIntent.TargetCommit, "historical_native_checks": truncateProjectText(checks.Current, 3000), "meaning": "These checks failed on the identified historical live revision; independent source verification later passed on the retained local source. Reconcile this concrete difference with the current registered release. Do not repeat an unchanged failed inspection, treat it as missing deployment evidence alone, or call incidental test corrections authentication fixes. If an actual in-scope source/integration correction remains, classify remaining_work implementation and give the developer a concrete scoped revision. A separate developer continuation may implement it within original owner limits; the verifier itself remains read-only. Preserve inherited work and all independent review and publication requirements."}
+	return map[string]any{"source_attempt_id": proof.SourceAttemptID, "verified_source_commit": proof.SourceCommit, "source_verifier_attempt_id": d.LatestAttempt.ID, "historical_live_attempt_id": previous.ID, "historical_source_attempt_id": previousIntent.SourceAttemptID, "historical_live_commit": previousIntent.TargetCommit, "historical_native_checks": truncateProjectText(checks.Current, 3000), "meaning": "These checks failed on the identified historical live revision; independent source verification later passed on the retained local source. Reconcile this concrete difference with the current registered release. Do not repeat an unchanged failed inspection, treat it as missing deployment evidence alone, or call incidental test corrections authentication fixes. If an actual in-scope source/integration correction remains, classify remaining_work implementation and give the developer a concrete scoped revision. A separate developer continuation may implement it within original owner limits; the verifier itself remains read-only. Preserve inherited work and all independent review and publication requirements."}
 }
 
 func (s *Server) verifiedCorrectionExecutionContext(ctx context.Context, d *task.TaskDetailResponse) string {

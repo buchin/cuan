@@ -67,11 +67,45 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		t.Fatal("review lost source binding", approved)
 	}
 	must(s.saveNativeSourceReview(ctx, d, q.RequestID, assessment))
+
+	t.Run("historical live failure follows exact source across developer handoff", func(t *testing.T) {
+		_, bound := s.verifiedSupplementalSource(ctx, d)
+		if bound == nil {
+			t.Fatal("missing source proof")
+		}
+		finished := d.LatestAttempt.CreatedAt.Add(-5 * time.Second)
+		created := finished.Add(-15 * time.Second)
+		live := task.LiveInspectionIntent{Purpose: task.CurrentOutcomeInspection, SourceAttemptID: "earlier-source-attempt", SourceCommit: bound.SourceCommit, TargetCommit: strings.Repeat("f", 40), Repository: "fixture/repo", OwnerID: bound.OwnerID, RoomID: bound.RoomID, SourceRequestID: bound.SourceRequestID, InstructionsHash: bound.InstructionsHash, ObservedAt: created}
+		encoded, _ := json.Marshal(live)
+		requestID := live.RequestID(d.ID)
+		job, e := store.(task.LaunchStore).SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: requestID, OwnerID: bound.OwnerID, RoomID: bound.RoomID, SourceRequestID: bound.SourceRequestID, AgentID: d.AssignedAgent, InstructionsHash: bound.InstructionsHash, Revision: "Scope: read-only repository. Do not push. Do not deploy.\n" + task.LiveInspectionMarker + string(encoded), CreatedAt: created, AvailableAt: created, ExpiresAt: time.Now().Add(time.Hour)})
+		must(e)
+		if _, e := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "historical-live", job.ID); e != nil {
+			t.Fatal(e)
+		}
+		id := "att_" + strings.TrimPrefix(job.ID, "launch_")[:32]
+		exit := 1
+		old := &task.TaskAttempt{ID: id, TaskID: d.ID, RunnerID: "historical-runner", AgentName: d.AssignedAgent, CreatedAt: created, StartedAt: &created, FinishedAt: &finished, ExitCode: &exit, Status: task.AttemptStatusFailed, ErrorMessage: "Live result inspection project checks did not pass"}
+		must(store.CreateAttempt(ctx, old))
+		record, _ := json.Marshal(task.RunnerVerificationRecord{Summary: "Project verification: test.sh --fast (exit 1)\nConcrete native check failure"})
+		must(store.CreateActivity(ctx, &task.TaskActivity{ID: "verification:" + id, TaskID: d.ID, AttemptID: &id, Author: old.RunnerID, ActivityType: task.ActivityTypeRunnerVerification, Message: string(record), CreatedAt: finished}))
+		current, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		context := s.verifierCorrectionContext(ctx, current)
+		if context == nil || context["source_attempt_id"] != bound.SourceAttemptID || context["historical_source_attempt_id"] != "earlier-source-attempt" {
+			t.Fatal("same exact source lost its original native failure across handoff", context)
+		}
+		foreign := *current
+		foreign.Instructions += " Changed original scope"
+		if s.verifierCorrectionContext(ctx, &foreign) != nil {
+			t.Fatal("changed scope reused historical native failure")
+		}
+	})
 	t.Run("separate developer correction", func(t *testing.T) {
 		must(s.taskSvc.FinishLaunch(ctx, job.ID, "source-review-launch", "stopped", time.Now(), "Execution finished"))
 		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
 		must(err)
-		key := "task-review:" + d.LatestAttempt.ID + ":verifier-correction-v4:" + inboxReviewEvidenceDigest(d)
+		key := "task-review:" + d.LatestAttempt.ID + ":verifier-correction-v5:" + inboxReviewEvidenceDigest(d)
 		review := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: d.SourceRoomID, RequestID: delegationMessageID(key), MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), CreatedAt: time.Now().UTC(), Deadline: time.Now().Add(time.Hour), State: "queued", PayloadHash: delegationMessageID(key)}
 		_, _, e := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, review, &db.ProjectMessage{ID: review.MessageID, RoomID: review.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: inboxOwnershipPolicy + "\nReview [/tasks/" + d.ID + "].", CreatedAt: review.CreatedAt})
 		must(e)

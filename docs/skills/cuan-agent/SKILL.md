@@ -814,3 +814,14 @@ diagnostic identifies this as `verified_source_integration_required` with
 `native_project_checks_failed`, rather than suggesting the stopped inspection is
 ready to run again. Changed releases, unbound failures, known containment,
 read-only owner scope and deployment prohibitions retain their existing gates.
+
+Historical live-check findings follow the exact retained source SHA across
+subsequent developer handoffs in the same task/owner/room/approval lineage. The
+historical source attempt remains explicitly identified; a different commit or
+changed original scope cannot borrow that observation. This is historical review
+context, never proof of publication or authority by itself. Native integration
+revisions retain factual source identities and original criteria without copying
+untrusted reviewer prose into the execution policy. Source and live verifier
+sessions are told about the existing official browser runtime even when the
+original task was not classified as a UI change; browser use remains conditional
+on the actual requested outcome.
