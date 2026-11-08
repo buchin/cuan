@@ -64,8 +64,11 @@ func TestNativeReleaseHandoffSchedulesWithoutPMModel(t *testing.T) {
 func TestReviewedSourceHandoffSchedulesNativeReleaseWithoutPMModel(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "schedule reviewed")
 }
+func TestReviewedSourceHandoffDoesNotRepeatVerifiedPublication(t *testing.T) {
+	nativeReleaseQueueContract(t, nil, "schedule reviewed delivered")
+}
 func TestNativeReleaseQueuePostgres(t *testing.T) {
-	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule", "publication activation receipt"} {
+	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule", "schedule reviewed", "schedule reviewed delivered", "publication activation receipt"} {
 		t.Run(scenario, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { nativeReleaseQueueContract(t, database, scenario) })
 		})
@@ -139,7 +142,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	}
 	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
-	if !strings.HasPrefix(scenario, "schedule") || scenario == "schedule reviewed" {
+	if !strings.HasPrefix(scenario, "schedule") || strings.HasPrefix(scenario, "schedule reviewed") {
 		detail = approveNativeReleaseFixtureSource(t, s, store, runtimeStore, item, source, q, &p)
 	}
 	var capacityCalls atomic.Int32
@@ -173,6 +176,26 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		if scenario == "schedule revoked" {
 			source.CancelRequested = true
 			must(store.UpdateAttempt(ctx, source))
+		}
+		if scenario == "schedule reviewed delivered" {
+			s.cfg.Environment, s.cfg.SourceRepository, s.cfg.CommitSHA = "production", "owner/repo", item.CommitSHA
+			observed := s.inboxReviewPublication(ctx, detail)
+			if observed == nil || !observed.Verified {
+				t.Fatal("fixture publication was not observed", observed)
+			}
+			if s.recoverNativeReleaseHandoff(ctx, detail, []db.InboxRequest{q}) {
+				t.Fatal("verified publication scheduled another release")
+			}
+			launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID))
+			if launch != nil || !errors.Is(err, task.ErrTaskNotFound) {
+				t.Fatal("verified publication created a new execution identity", launch, err)
+			}
+			current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+			must(err)
+			if len(current.Attempts) != 2 || current.Status != task.TaskStatusReview || capacityCalls.Load() != 0 {
+				t.Fatal("publication observation started work or accepted the task")
+			}
+			return
 		}
 		if scenario == "schedule reviewed" {
 			before, err := repo.ListInboxRequests(ctx, q.RoomID)

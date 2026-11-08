@@ -78,6 +78,10 @@ func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDe
 		if task.ValidateNativeReleaseSource(ctx, s.taskSvc.Store(), &d.Task, &proof) != nil {
 			return false
 		}
+		// A namespace upgrade is not permission to repeat an existing effect.
+		if observed := s.inboxReviewPublication(ctx, d); observed != nil && observed.Verified {
+			return false
+		}
 		raw, _ := json.Marshal(proof)
 		requestID := task.NativeReleaseRequestID(d.ID, proof.SourceCommit)
 		s.startAuthorizedLaunch(ctx, origin, d, requestID, origin.RequestID, task.NativeReleaseIntentMarker+string(raw))

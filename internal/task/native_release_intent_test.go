@@ -73,6 +73,24 @@ func TestLegacyNativeReleaseEvidenceCannotAuthorizeFreshPublication(t *testing.T
 	}
 }
 
+func TestNativeReleaseReviewUpgradeKeepsLegacyIntentHistorySeparate(t *testing.T) {
+	_, item, _, proof, launch := nativeReleaseFixture(t)
+	legacyID := verificationRequestID("native-release:v1:", item.ID, proof.SourceCommit)
+	if legacyID == NativeReleaseRequestID(item.ID, proof.SourceCommit) {
+		t.Fatal("reviewed source reused legacy execution identity")
+	}
+	launch.RequestID = legacyID
+	if _, err := NativeReleaseIntentForLaunch(item, &launch); err == nil {
+		t.Fatal("review approval reused a legacy launch key")
+	}
+	proof.SourceReviewAttemptID = ""
+	raw, _ := json.Marshal(proof)
+	launch.Revision = NativeReleaseIntentMarker + string(raw)
+	if historical, err := NativeReleaseIntentForLaunch(item, &launch); err != nil || historical == nil {
+		t.Fatal("legacy intent history unreadable", err)
+	}
+}
+
 func TestNativeReleaseSourceRequiresExactCurrentBackendHandoff(t *testing.T) {
 	for _, scenario := range []string{"valid", "unreviewed source", "self review", "cancelled review", "missing review approval", "wrong owner", "wrong approval", "failed source", "cancelled source", "future source", "missing handoff", "agent handoff", "wrong receipt identity", "changed commit", "changed scope", "wrong repository", "wrong target", "wrong manifest", "failed checks", "wrong check author", "newer execution", "no deploy"} {
 		t.Run(scenario, func(t *testing.T) {

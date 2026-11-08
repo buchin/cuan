@@ -45,7 +45,7 @@ type NativeReleaseIntent struct {
 }
 
 func NativeReleaseRequestID(taskID, source string) string {
-	return verificationRequestID("native-release:v1:", taskID, source)
+	return verificationRequestID("native-release:v2:", taskID, source)
 }
 
 func NativeReleaseIntentForLaunch(t *Task, j *TaskLaunch) (*NativeReleaseIntent, error) {
@@ -69,7 +69,11 @@ func NativeReleaseIntentForLaunch(t *Task, j *TaskLaunch) (*NativeReleaseIntent,
 	var p NativeReleaseIntent
 	decoder := json.NewDecoder(strings.NewReader(line))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&p) != nil || decoder.Decode(&struct{}{}) != io.EOF || !nativeReleaseShape(t, &p) || j.InstructionsHash != p.InstructionsHash || j.TaskID != t.ID || j.ProjectID != t.ProjectID || j.OwnerID != p.OwnerID || j.RoomID != p.RoomID || j.SourceRequestID != p.SourceRequestID || j.RequestID != NativeReleaseRequestID(t.ID, p.SourceCommit) {
+	if decoder.Decode(&p) != nil || decoder.Decode(&struct{}{}) != io.EOF || !nativeReleaseShape(t, &p) || j.InstructionsHash != p.InstructionsHash || j.TaskID != t.ID || j.ProjectID != t.ProjectID || j.OwnerID != p.OwnerID || j.RoomID != p.RoomID || j.SourceRequestID != p.SourceRequestID {
+		return nil, ErrInvalidTaskInput
+	}
+	legacyRequest := verificationRequestID("native-release:v1:", t.ID, p.SourceCommit)
+	if j.RequestID != NativeReleaseRequestID(t.ID, p.SourceCommit) && !(p.SourceReviewAttemptID == "" && j.RequestID == legacyRequest) {
 		return nil, ErrInvalidTaskInput
 	}
 	return &p, nil

@@ -1,6 +1,6 @@
 # Native release execution
 
-## Required ordering correction (not implemented yet)
+## Independent source review before publication
 
 The production build-gate benchmark exposed a gap in the current order:
 developer checks can trigger native merge/release before independent source
@@ -9,7 +9,7 @@ scope. Project tests passed, and the release had to be cancelled before activati
 Passing those tests did not establish scope compliance. The same task was resumed
 for correction; it must not be accepted as an autonomous successful benchmark.
 
-The replacement ordering must preserve these invariants:
+The source-review admission path preserves these invariants:
 
 - Review the exact developer source independently against the saved original
   scope before native merge or release. Test fixtures must not authorize new
@@ -28,10 +28,23 @@ The replacement ordering must preserve these invariants:
 - Keep immutable stage identities and evidence separate from retry counts;
   successful publication/verification stages are not failed developer retries.
 
-Regression coverage must prove rejection before publication for unreviewed,
+Regression coverage checks rejection before publication for unreviewed,
 changed, cancelled and explicitly rejected source, successful handoff of the
 reviewed source, and preservation of every original acceptance requirement.
-This section specifies pending work; it does not claim that these gates exist.
+These gates are implemented in the task admission and Inbox coordinator, with
+memory and PostgreSQL queue coverage. Production rollout and the end-to-end
+benchmark remain pending; passing regression tests is not proof of deployment.
+
+Reviewed launches use the `native-release:v2:` request namespace. Historical v1
+launches remain readable without acquiring source approval or fresh execution
+authority. An already verified publication is not repeated merely because its
+request namespace changed. Active older executors must finish or be reconciled
+before replacing them; a new namespace is never permission to replay effects.
+
+Legacy developer attempts without a backend-managed source handoff cannot
+retroactively acquire one from a model report or passing verifier. Recovery must
+preserve their exact source and original authorization through a native stage;
+it must not forge runner evidence or weaken read-only/publication restrictions.
 
 The release executor runs the repository's maintained release entry point against
 an exact clean commit and expected branch. It uses no language model and does not
