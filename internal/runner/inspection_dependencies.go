@@ -15,7 +15,7 @@ import (
 
 const InspectionDependencyFailurePrefix = task.InspectionDependencyFailurePrefix
 
-// Prepare only known frontend roots in the owned verification snapshot. npm
+// Prepare only known frontend roots in an owned private workspace. npm
 // receives no task capability, provider credentials, user npm config or scripts.
 // Source identity is revalidated by the caller after preparation.
 func prepareInspectionDependencies(parent context.Context, root string) error {

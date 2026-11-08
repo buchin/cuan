@@ -330,6 +330,16 @@ service browser cache independently of the leased AI account's private HOME.
 Visual tasks receive this tool context automatically; they should not search
 entire filesystems or install duplicate browsers when the platform tool exists.
 
+Visual development in an isolated code workspace also uses the maintained locked
+frontend dependency preparation before model execution. It checks the root and
+`web` npm lockfiles and uses private, script-free `npm ci` without task/provider
+credentials or the user's npm configuration. Shared dependency links are rejected.
+Unsupported layouts or failed preparation are recorded for the developer to
+resolve within the original scope; they do not imply installed dependencies or
+stop the agent from diagnosing a project-specific prerequisite. Backend and
+operational tasks, source verifiers and live inspectors retain their own paths.
+Builds and actual visual inspection are still required after preparation.
+
 Delivered images are sent to an independent vision-capable reviewer with their
 server-resolved paths and decoded pixel dimensions. Filenames and worker claims
 are not image inspection. Review may read those delivered images with bounded

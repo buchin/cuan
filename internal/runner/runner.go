@@ -975,6 +975,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	env["CUAN_TASK_GRACE_PERIOD"] = gracePeriod.String()
 
 	verificationRuntimeFingerprint := ""
+	if err == nil && !policy.ReadOnlyRepository && developerFrontendDependenciesRequired(&claim, ws != nil) {
+		r.streamLogLine(ctx, att.ID, "system", "Preparing locked frontend dependencies in the private development workspace.")
+		if setupErr := prepareInspectionDependencies(ctx, workingDir); setupErr != nil {
+			r.streamLogLine(ctx, att.ID, "system", "Automatic frontend dependency preparation is incomplete: "+setupErr.Error())
+			prompt += "\nAutomatic frontend preparation did not complete. Inspect this workspace's dependency manifests and the saved setup diagnostic before choosing a project-specific preparation step. Do not borrow node_modules from another workspace or infer that dependencies are installed.\n"
+		} else {
+			prompt += "\nFrontend preparation: the runner checked known npm roots and prepared any present locked public dependencies in this private workspace without lifecycle scripts. Prefer local tools and the supplied browser runtime. Do not borrow node_modules from another workspace. A project-specific lifecycle step may still be required: inspect its scripts and execution scope before running it. Preparation alone is not proof of a successful build or visual verification.\n"
+		}
+	}
 	if claim.Verification != nil && claim.Verification.RuntimeFingerprint != "" && err == nil {
 		evidence := probeBrowserRuntime(ctx)
 		if evidence == nil || evidence.Fingerprint != claim.Verification.RuntimeFingerprint {
