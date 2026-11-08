@@ -137,6 +137,17 @@ variables available in your own session for its explicit task reports. Capture
 test output in the bound artifact directory using the parent shell; tests must
 not report examples into the live task or start another agent execution.
 
+Verification ownership for repository implementation: use focused checks while
+editing to establish the original acceptance criteria, including failure and
+security boundaries. The native runner executes the registered project checks
+after your final report; report those as pending until its receipt exists.
+Do not repeatedly run the same unchanged suite or run an encompassing suite just
+to repeat checks already passed. Rerun affected checks after a relevant change
+or failure. If the original task explicitly requires a suite before handoff,
+run it once on the final source and retain its actual output. This does not waive
+any required check or independent verification, and passing your own tests is
+not proof that every original requirement has been satisfied.
+
 For repository work, the runner prepares your bound repository checkout before
 starting this session. Standalone artifact work instead has a private output
 workspace: create and inspect only the requested file, without cloning or setting

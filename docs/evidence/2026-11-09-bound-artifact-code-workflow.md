@@ -224,3 +224,22 @@ publication exception. Targeted local-only, ordinary live-result, unpublished
 and supplemental-verifier lifecycle tests pass. These repairs do not change the
 failed attempt or make its artifact security failures acceptable. Production
 recovery and a corrected final handoff remain unproven.
+
+## Native developer correction succeeded, independent security remains open
+
+The saved PM decision automatically started developer attempt
+`att_53b03973c65443a46594be3f4a3eb145` at 03:52:09 +08 (before the later
+routing repair deployed). It corrected only the stale runner fixture, preserving
+production completion enforcement. The native project suite passed in 31 seconds
+after the model report; the attempt succeeded in 10m59 and saved/pushed commit
+`bd6238d437c341ecd8932949edf958b14b8a7e85`. No manual retry or acceptance.
+Independent tests fetched from that exact remote source still fail HTTP 206 and
+parent-symlink confinement. Native suite success does not establish feature DoD.
+Separate source verification and PM acceptance remain pending.
+
+Implementation session guidance now distinguishes focused developer checks from
+the native post-report registered suite. It discourages repeatedly running an
+unchanged suite and requires actual original failure/security acceptance checks;
+an explicitly requested pre-handoff suite still runs on final source, with no
+waiver of native checks or independent verification. The scoped reporting/review
+integration test passes. This guidance cannot change an already issued session.
