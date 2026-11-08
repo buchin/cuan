@@ -392,6 +392,23 @@ including a regression that first excludes an unrelated failure transcript,
 then includes it after the owner references that exact task. This change is
 not deployed and has no measured production latency benefit yet.
 
+The post-fix first attempt timed out at
+`2026-11-09T02:17:49.249961+08:00` without a saved checkpoint, final report
+or attachment. Its terminal output describes observed account data and report
+editing, followed by uncertainty about attachment submission. Successful access
+therefore did not solve delivery. PM automatically scheduled the same task's
+second attempt `att_478837665f5a9b4c2893b4d94039c6cf`; no manual retry occurred.
+
+Runner prompt inspection found a contradictory checkpoint cadence: save progress
+at least every five minutes, while read-only execution has a five-minute deadline.
+It also directed schema/template preparation without prioritizing the native
+prepared report file. The local prompt now asks for a checkpoint immediately
+after the first decisive observation, before slow work, and explicitly describes
+using CUAN_TASK_REPORT_FILE plus session-relative attachments from
+CUAN_TASK_ARTIFACTS_DIR without repository writes. All prompt tests and targeted
+prepared-report/project-context server tests pass. No timeout increase was made;
+this prompt repair is not deployed or proven to prevent model delay.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

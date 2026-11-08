@@ -137,6 +137,7 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		sb.WriteString("Before concluding, you MUST state your verification evidence (exact test outputs, commit SHA, and verified behavior).\n")
 		sb.WriteString("For each original criterion, name the exact check or artifact and the observed feature/state it proves. Leave criteria without relevant evidence incomplete; passing generic checks or unrelated screenshots do not prove them. An empty checklist does not waive verification or reporting for the original requirements.\n")
 		sb.WriteString("For investigation/audit tasks, provide factual findings, commit SHAs, or diagnostic outputs.\n")
+		sb.WriteString("When CUAN_TASK_REPORT_FILE is set, fill that existing report JSON with actual findings and submit it with \"$CUAN_TASK_EXECUTABLE\" task report --report-file \"$CUAN_TASK_REPORT_FILE\". Do not rebuild its schema or fetch another template. Create requested reports and raw check output directly under CUAN_TASK_ARTIFACTS_DIR, outside the repository; attach a file from that directory with --artifact \"session:filename.md\" on the same report command. A file path in prose does not attach a file. Do not move the report into the repository merely to attach it.\n")
 		if artifactOnly {
 			sb.WriteString("Use the supplied original task and acceptance snapshot. Read \"$CUAN_TASK_EXECUTABLE\" task get when information is missing or after an uncertain/rejected report; do not reread known instructions merely as a startup ritual. ")
 		} else {
@@ -147,7 +148,7 @@ func BuildRunnerPromptWithDoD(taskTitle, taskInstructions, agentPrompt string, d
 		sb.WriteString("For criteria without IDs, itemized verification can use repeatable flags (include every saved criterion):\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state review --summary \"<summary>\" --dod-item \"<original criterion>\" --dod-evidence \"<observed result>\"\n")
 		sb.WriteString("Final results require an explicit state: review for result review, blocked for a blocker, or done for a completed implementation report. Worker completion requests independent review; it does not accept the task. A metadata update or progress checkpoint does not finish the session.\n")
-		sb.WriteString("Save a factual checkpoint before broad investigation, before slow or risky steps, and at least every five minutes during substantial work:\n")
+		sb.WriteString("Save a factual checkpoint after the first decisive observation, before broad investigation, and before slow or risky steps. Include observed results, saved artifact paths and the remaining check so another session can continue without repeating setup. Do not wait until the execution deadline to save progress:\n")
 		sb.WriteString("  \"$CUAN_TASK_EXECUTABLE\" task report --state progress --progress \"<observed findings, checks, saved files, uncertainty and next concrete step>\"\n")
 		sb.WriteString("A progress report is not completion. Continue the approved task afterward. Keep checkpoints concise and do not report guesses as findings.\n")
 	}
