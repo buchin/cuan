@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -13,7 +14,7 @@ const navUserPath = path.resolve(webDir, 'src/components/layout/NavUser.tsx')
 const deployScriptPath = path.resolve(rootDir, 'scripts/deploy.sh')
 const packageJsonPath = path.resolve(webDir, 'package.json')
 
-test('1. S68-T1: High-Speed & Fail-Fast Pipeline Gate Architecture', () => {
+test('1. S68-T1: Type-safe frontend and verified parallel build gates', () => {
   const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
   const deployScript = fs.readFileSync(deployScriptPath, 'utf8')
 
@@ -23,14 +24,15 @@ test('1. S68-T1: High-Speed & Fail-Fast Pipeline Gate Architecture', () => {
     'web/package.json test script must run tsc --noEmit for fail-fast typechecking'
   )
 
-  // Deploy script executes parallel Go binary compilations
-  assert.ok(
-    deployScript.includes('pid_server=$!') &&
-    deployScript.includes('pid_migrate=$!') &&
-    deployScript.includes('pid_runner=$!') &&
-    deployScript.includes('wait "$pid_server" "$pid_migrate" "$pid_runner"'),
-    'scripts/deploy.sh must compile Go server, migrate, and runner binaries in parallel'
+  // Exercise the actual build block with process fixtures. Matching the old
+  // collective wait text incorrectly required the release-gate bug to remain.
+  const buildGate = spawnSync(
+    'python3', ['-B', path.join(rootDir, 'scripts/test-release-build-gate.py')],
+    { cwd: rootDir, encoding: 'utf8', timeout: 60_000 }
   )
+  assert.ifError(buildGate.error)
+  assert.equal(buildGate.status, 0,
+    `Parallel build failures, successful builds and child reaping must pass:\n${buildGate.stdout}\n${buildGate.stderr}`)
 
   // Deploy script uses rsync for atomic payload deployment
   assert.ok(
