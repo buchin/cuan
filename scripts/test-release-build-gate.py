@@ -73,6 +73,7 @@ class ReleaseBuildGateTests(unittest.TestCase):
             "test-prune-release-artifacts.py",
             "test-prune-provider-go-cache.py",
             "test-prune-verification-dependencies.py",
+            "test-prune-native-release-caches.py",
             "test-prune-runtime-build-cache.py",
             "test-runtime-cache-maintenance.py",
         ]:
