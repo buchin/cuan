@@ -889,6 +889,21 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 	}
+	var repositoryBaseline string
+	if attempt != nil && detail != nil {
+		limits, policyErr := s.taskSvc.AttemptPublicationPolicy(r.Context(), taskID, attempt.ID)
+		if policyErr == nil && limits.ReadOnlyRepository {
+			repositoryBaseline, policyErr = runner.ObserveRepositoryScope(r.Context(), workDir)
+			taskPrompt += limits.Prompt()
+		}
+		if policyErr != nil {
+			_, _ = s.taskSvc.UpdateAttemptStatus(context.Background(), attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Read-only repository baseline could not be verified. Execution did not start."})
+			_ = s.taskSvc.ReconcileLocalTask(context.Background(), taskID, attempt.ID)
+			reportCleanup()
+			respondJSONError(w, 409, "Read-only repository baseline could not be verified. Existing files were preserved.")
+			return
+		}
+	}
 	var quotaHit atomic.Bool
 	retryCount := 0
 	launched := false
@@ -979,6 +994,17 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						}
 					}
 					var e error
+					if repositoryBaseline != "" {
+						final, observeErr := runner.ObserveRepositoryScope(ctx, workDir)
+						if observeErr == nil && final == repositoryBaseline {
+							observeErr = s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: "repository-scope:" + attempt.ID, TaskID: taskID, AttemptID: &attempt.ID, Author: attempt.RunnerID, ActivityType: "repository_scope_verified", NewStatus: "read_only", Message: final, CreatedAt: time.Now().UTC()})
+						}
+						if observeErr != nil || final != repositoryBaseline {
+							_, _ = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: "Read-only repository state changed or could not be verified. Existing files were preserved."})
+							_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
+							return
+						}
+					}
 					if h.EndReason == "agent_report" {
 						_, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
 					} else {

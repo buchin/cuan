@@ -221,7 +221,54 @@ forbids data/access changes, email/OTP, resets, source/tests and deployment, ask
 for independently inspectable facts and a customer reply, and does not prescribe
 an internal execution category. The initial CLI send observation timed out;
 reading the same room confirmed one running request, so it was not resent.
-The benchmark has not yet established latency, session count or completion.
+The benchmark completed at `2026-11-09T01:19:05.348498+08:00`, approximately
+80.2 seconds after acceptance. The room has zero tasks and zero execution
+attempts. Its trace contains response formatting but no fresh investigation
+tool calls: the reply reused accepted historical findings. A separate internal
+customer draft is present. This proves reuse without redundant execution, not
+fresh account inspection or a new independently verified workflow. The response's
+claim that the account is currently normal is stronger than this trace alone
+establishes; a public login page returning HTTP 200 is not account login proof.
+
+A follow-up requests a genuinely new read-only, downloadable account report,
+with observation time and timezone, concrete sources, and explicit uncertainty
+where authentication history is unavailable. It forbids account/data/source/test/
+deployment changes and customer contact. Request
+`6a97bee3-8b7b-4e12-850c-1a92bffc9c0a` was accepted at
+`2026-11-09T01:23:21.630987+08:00`; an official room read confirmed it running
+after the CLI observation timed out. It was not resent or manually retried.
+It delegated one saved `readonly` task,
+`msg_18c7b5ba-ad2f-4544-9159-67c70f37050c`, to attempt
+`att_c9fae09071763859a9040c340685f57e`. That attempt timed out after five
+minutes at `2026-11-09T01:29:34.086337+08:00`, without a final report; the task
+was blocked on observation. This fresh benchmark therefore failed. Saved output
+shows reading account data and attempting to interpret access logs, but does not
+establish a completed fresh report or authenticated login proof.
+
+The official execution diagnostic exposed another concrete gap: despite the
+saved `readonly` category, repository read-only and deny-push limits were false
+(deny-deploy was true). A local change binds the category to all three limits,
+independent of prompt phrasing. Targeted task policy tests pass. A server
+delegation test now refuses acceptance for the legacy `local_terminal` path,
+which supplies no native unchanged-repository receipt; that path still needs
+reconciliation before this change is released. No acceptance gate was waived,
+and the local policy change is not yet deployed.
+
+The local-terminal gap is now repaired locally: native observation runs before
+launch and after process exit, persists an attempt/runner-bound unchanged receipt,
+and refuses completion on mutation or unavailable evidence. Non-Git project
+directories use a bounded filesystem fingerprint without following symlinks;
+agents still place report artifacts outside the inspected project. Native runner
+baseline/final checks share this observer. Targeted tests pass for unchanged
+delegation, managed projects, mutation rejection with file preservation, review
+recovery, account outcome recovery, directory mutation/symlink/cancellation, and
+existing runner repository checks.
+
+The production task automatically launched attempt two,
+`att_3fbe697499e4ca201555072cd22388bb`, without manual retry. It also timed out
+at `2026-11-09T01:35:59.008898+08:00`, leaving no final report. Neither the
+scope-policy repair nor the local-terminal tests establish a solution to this
+separate repeated account-investigation timeout.
 
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This

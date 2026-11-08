@@ -24,6 +24,79 @@ type RepositoryVerification struct {
 	Final    string `json:"final"`
 }
 
+// ObserveRepositoryScope is shared by native and local terminal execution.
+// It reads existing Git state; it never prepares or repairs a repository.
+func ObserveRepositoryScope(ctx context.Context, root string) (string, error) {
+	if err := git.ValidatePrivateBuildOutput(root); err != nil {
+		return "", err
+	}
+	if _, err := os.Lstat(filepath.Join(root, ".git")); os.IsNotExist(err) {
+		return directoryScopeFingerprint(ctx, root)
+	}
+	return repositoryFingerprint(ctx, root)
+}
+
+// Projects without Git still need native proof that an audit preserved files.
+// WalkDir never follows symlinks; bounds prevent hashing arbitrary large trees.
+func directoryScopeFingerprint(ctx context.Context, root string) (string, error) {
+	digest := sha256.New()
+	count, remaining := 0, int64(16<<20)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		count++
+		if count > 4096 {
+			return fmt.Errorf("directory verification budget exceeded")
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(digest, "%d:%s:%s:", len(relative), relative, info.Mode())
+		if entry.IsDir() {
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(digest, "%d:%s", len(target), target)
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("unsupported directory entry")
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(digest, "%d:", info.Size())
+		n, copyErr := io.Copy(digest, io.LimitReader(file, remaining+1))
+		closeErr := file.Close()
+		remaining -= n
+		if remaining < 0 {
+			return fmt.Errorf("directory verification budget exceeded")
+		}
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
+}
+
 func (v *RepositoryVerification) Unchanged() bool {
 	if v == nil || len(v.Baseline) != 64 || v.Baseline != v.Final {
 		return false
@@ -134,7 +207,7 @@ func verifyTaskRepository(ctx context.Context, root, branch string, policy execu
 		}
 		return result, nil
 	}
-	final, err := repositoryFingerprint(ctx, root)
+	final, err := ObserveRepositoryScope(ctx, root)
 	evidence := &RepositoryVerification{Baseline: baseline, Final: final}
 	if err != nil || !evidence.Unchanged() {
 		return verificationResult{Error: "Read-only scope verification failed: repository state changed or could not be verified. Preserve existing work; do not repair unrelated tests or publish changes."}, evidence

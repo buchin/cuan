@@ -19,6 +19,44 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 )
 
+func TestObserveDirectoryScopeDetectsMutationWithoutFollowingLinks(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "private")
+	if err := os.WriteFile(outside, []byte("outside"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(root, "report.txt")
+	if err := os.WriteFile(file, []byte("before"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := ObserveRepositoryScope(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outside, []byte("external change"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	unchanged, err := ObserveRepositoryScope(context.Background(), root)
+	if err != nil || unchanged != before {
+		t.Fatal("followed external symlink", err)
+	}
+	if err := os.WriteFile(file, []byte("after"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := ObserveRepositoryScope(context.Background(), root)
+	if err != nil || after == before {
+		t.Fatal("missed local mutation", err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := ObserveRepositoryScope(canceled, root); err == nil {
+		t.Fatal("ignored cancellation")
+	}
+}
+
 func TestReadOnlyRepositoryVerificationPreservesBaselineWithoutRunningProjectTests(t *testing.T) {
 	ctx := context.Background()
 	root := documentationFixture(t)

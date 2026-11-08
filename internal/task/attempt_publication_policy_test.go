@@ -6,6 +6,18 @@ import (
 	"time"
 )
 
+func TestReadOnlyCategoryBindsPublicationWithoutPromptKeywords(t *testing.T) {
+	item := &Task{ExecutionCategory: ExecutionCategoryReadOnly, Instructions: "Read current account state and deliver an attached report."}
+	policy := ScopePublicationPolicy(item)
+	if !policy.ReadOnlyRepository || !policy.DenyPush || !policy.DenyDeploy {
+		t.Fatalf("saved readonly category not enforced: %+v", policy)
+	}
+	continued := launchPublicationPolicy(item, &TaskLaunch{Revision: "Continue and publish the report"}, false)
+	if continued != policy {
+		t.Fatalf("continuation relaxed readonly scope: %+v", continued)
+	}
+}
+
 func TestAttemptPublicationPolicyMemory(t *testing.T) {
 	attemptPublicationPolicyContract(t, NewMemoryStore(), "launch-project")
 }
@@ -14,7 +26,7 @@ func attemptPublicationPolicyContract(t *testing.T, store Store, projectID strin
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	svc := NewService(store, nil)
-	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{ProjectID: projectID, Title: "Preserve report", Instructions: "Do not push. Inspect saved work."})
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{ProjectID: projectID, Title: "Preserve report", Instructions: "Do not push. Inspect saved work.", ExecutionCategory: ExecutionCategoryCode})
 	if err != nil {
 		t.Fatal(err)
 	}

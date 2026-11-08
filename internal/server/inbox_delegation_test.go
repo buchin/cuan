@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,6 +56,10 @@ func TestInboxDelegationManagedProject(t *testing.T) { runInboxDelegation(t, tru
 func TestInboxDelegationClearInstructionNeedsNoPlanningTurn(t *testing.T) {
 	runInboxDelegation(t, true, false, "Audit this project read-only and report the findings. Do not deploy.")
 }
+
+func TestInboxReadOnlyLocalTerminalRejectsRepositoryMutation(t *testing.T) {
+	runInboxDelegation(t, true, false, "Audit this project read-only and report the findings. Do not deploy.", "mutate")
+}
 func TestInboxModelPassCannotCompleteFailedTask(t *testing.T) {
 	runInboxDelegation(t, true, true, "Perform the approved audit and report evidence; do not deploy.", "bad-pass")
 }
@@ -75,10 +80,19 @@ func runInboxDelegation(t *testing.T, topic, managed bool, promptOverride ...str
 	badPass := len(promptOverride) > 1 && promptOverride[1] == "bad-pass"
 	failedFirst := interrupted || badPass
 	reviewDenied := len(promptOverride) > 1 && promptOverride[1] == "review-denied"
+	mutate := len(promptOverride) > 1 && promptOverride[1] == "mutate"
 	s, token, call, home := inboxFixture(t)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
-	if err := projects.CreateProject(ctx, &project.Project{ID: "delegate-project", Name: "Delegate project"}); err != nil {
+	repository := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "-q", "--allow-empty", "-m", "Audit baseline"}} {
+		command := exec.Command("git", args...)
+		command.Dir = repository
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("audit repository: %s: %v", output, err)
+		}
+	}
+	if err := projects.CreateProject(ctx, &project.Project{ID: "delegate-project", Name: "Delegate project", LocalPath: repository}); err != nil {
 		t.Fatal(err)
 	}
 	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
@@ -116,6 +130,9 @@ esac
   exit 0
  fi
 `, 1)
+	}
+	if mutate {
+		script = strings.Replace(script, ` "$CUAN_TASK_EXECUTABLE" task report --state done`, " printf 'unexpected change' > unexpected.txt\n"+` "$CUAN_TASK_EXECUTABLE" task report --state done`, 1)
 	}
 	if failedFirst {
 		script = strings.Replace(script, `if [ "$1" = "--dangerously-skip-permissions" ]; then`, `if [ "$1" = "--dangerously-skip-permissions" ]; then
@@ -206,6 +223,16 @@ esac
 			t.Fatal(err)
 		}
 		s.deliverInboxTaskUpdates(ctx)
+	}
+	if mutate {
+		result := waitWorkspaceTask(t, s, tasks[0].ID, "failed")
+		if !strings.Contains(result.LatestAttempt.ErrorMessage, "Read-only repository state changed") || result.Status == task.TaskStatusDone {
+			t.Fatalf("mutation was not rejected: %+v", result.LatestAttempt)
+		}
+		if _, err := os.Stat(filepath.Join(repository, "unexpected.txt")); err != nil {
+			t.Fatal("mutation evidence was not preserved", err)
+		}
+		return
 	}
 	result := waitWorkspaceTask(t, s, tasks[0].ID, "succeeded")
 	if failedFirst {
