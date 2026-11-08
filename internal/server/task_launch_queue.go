@@ -90,6 +90,14 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	job, e := s.taskSvc.SaveLaunch(ctx, candidate)
 	link := "\n\n[View work](/tasks/" + t.ID + ")"
 	if e != nil {
+		code := "storage_unavailable"
+		if errors.Is(e, task.ErrInvalidTaskInput) {
+			code = "invalid_launch"
+		}
+		if len([]rune(candidate.Revision)) > task.ExecutionRevisionStorageLimit(candidate.Revision) {
+			code = "revision_too_large"
+		}
+		log.Printf("inbox launch persistence task=%s code=%s revision_runes=%d limit=%d", t.ID, code, len([]rune(candidate.Revision)), task.ExecutionRevisionStorageLimit(candidate.Revision))
 		recordInboxReviewLaunchError(ctx, e)
 		return "The work is saved, but its launch could not be recorded. No new execution was started." + link
 	}

@@ -49,6 +49,13 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	d.CommitSHA = ""
 	d.DiffSummary = ""
 	d.DoDChecklist = []task.DoDItem{{Text: "Customer access active", Completed: true, Evidence: "Worker reported existing access API has_access=true"}}
+	if readonlyLogin {
+		// Real account reports carry long criteria and observations. They belong
+		// in bound task context, not duplicated into the feedback-sized launch.
+		for i := 0; i < 8; i++ {
+			d.DoDChecklist = append(d.DoDChecklist, task.DoDItem{Text: strings.Repeat("Verify account outcome with actual observations. ", 20), Completed: true, Evidence: "Worker claim; independent observation still required"})
+		}
+	}
 	if err := store.UpdateTask(ctx, &d.Task); err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +249,9 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, savedEvidenceRecoveryRequestID(d)))
 	if err != nil || launch.State != "queued" || !strings.Contains(launch.Revision, "Never run access-grant") {
 		t.Fatal("lost durable no-replay inspection", err)
+	}
+	if readonlyLogin && (len([]rune(launch.Revision)) > task.MaxTaskFeedbackRunes || !strings.Contains(launch.Revision, "Read the bound task get")) {
+		t.Fatal("saved reports prevented bounded observer admission")
 	}
 	if mode == "manager verification" {
 		assessment := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", ManagerAction: "continue", ManagerReason: "Independently observe account access", Revision: "Observe existing account access without external effects"}

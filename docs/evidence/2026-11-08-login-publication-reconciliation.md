@@ -306,6 +306,25 @@ now exercises this exact lane, source-change/assertion/cancel/incomplete rejecti
 deduplication, scoped observer claim/completion and native independent proof.
 Targeted server/task recovery, operational and classification tests pass.
 
+Release `edc1fda359d4adbe1a90320945e0c0f0de724b8c` deployed both lane recovery
+and historical checkpoints; official health verification matched that exact SHA
+with 37 migrations. The first post-release task read still showed the third
+historical failed attempt and no admitted observer. Deployment success therefore
+does not yet prove production recovery or acceptance of this benchmark.
+
+Production dispatcher logs subsequently show `gate=launch_admission` for this
+task: eligibility and owner checks pass, but no observer launch is persisted.
+A read-only Go diagnostic against the official task snapshot reports 3,656
+checkpoint runes before adding observer instructions. The untyped launch only
+accepts 6,000 feedback runes. Recovery now keeps reports/criteria in bound task
+context and instructs the observer to read `task get` before inspecting retained
+artifacts, rather than duplicating those records in a feedback-sized revision.
+A long-report lifecycle regression fails against the previous recovery code and
+passes with the change, retaining independent proof, no-write scope and dedupe.
+Launch persistence failures now log fixed safe codes and rune counts/limit,
+without reporting revision prose or credentials. Targeted lifecycle/checkpoint
+tests pass. Production acceptance is still unproven.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
