@@ -28,15 +28,19 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runStopHook(os.Stdin, out)
 	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
-		fmt.Fprintln(out, "Usage: cuan-server task get | report-template | push | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done requests verified implementation completion; it does not bypass independent review. Review requires summary and verification evidence; workflow changes after process exit.")
+		fmt.Fprintln(out, "Usage: cuan-server task get | report-template | push | artifact download <id> [--output filename] | artifact read <id> | report [--title TEXT] [--priority low|normal|high|urgent] [--summary TEXT] [--complete-note TEXT] [--progress TEXT] [--state progress|review|blocked|done] [--result-kind answer|implementation] [--report-file FILE] [--dod-item TEXT --dod-evidence TEXT ...] [--artifact RELATIVE_PATH ...]\nUses CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON; reports affect only the current task/session. Human instructions cannot be changed. Done requests verified implementation completion; it does not bypass independent review. Review requires summary and verification evidence; workflow changes after process exit.")
 		fmt.Fprintln(out, `Optional --report-file JSON example:
 {"state":"review","summary":"Actual result","complete_note":"Verification and limitations","dod_checklist":[{"text":"Verified requirement","completed":true,"evidence":"Observed output or check result"}],"commit_sha":"optional commit","test_summary":"Actual checks"}
 Use task report-template for current criterion IDs/text/order, or task get when more task context is needed. If the task has saved criteria, review/done require every original criterion with unchanged ID, text and order and current observed evidence. Use completed:false with a factual gap for unmet criteria, or state blocked for a blocker. Correct rejected reports within the same attempt. Only tasks without a saved checklist may use --state review --summary TEXT --complete-note TEXT alone. Final results require an explicit state; progress checkpoints do not finish the session.`)
 		fmt.Fprintln(out, "For read-only verification, write output under CUAN_TASK_ARTIFACTS_DIR and use --artifact session:PATH. Ordinary artifact paths remain relative to WORKSPACE_DIR. Both sources share the eight-file and 25 MB limits.")
+		fmt.Fprintln(out, "Use task artifact download <attachment-id> [--output filename] to download delivered task artifacts into the active attempt's artifact directory.")
 		fmt.Fprintln(out, "Use task report-template to print a review JSON template with current original criteria and empty evidence. Fill actual findings before task report --report-file FILE; generating a template does not submit or accept work.")
 		return 0
 	}
 	command := args[0]
+	if command == "artifact" || command == "download" || command == "download-artifact" {
+		return runArtifact(args, out, errOut)
+	}
 	if command != "get" && command != "report" && command != "push" && command != "report-template" {
 		fmt.Fprintln(errOut, "Unknown task command; use task --help")
 		return 2
@@ -79,31 +83,9 @@ Use task report-template for current criterion IDs/text/order, or task get when 
 		fmt.Fprintln(errOut, "Only task report accepts artifacts")
 		return 2
 	}
-	var raw []byte
-	if inline := os.Getenv("CUAN_TASK_CAPABILITY_JSON"); inline != "" {
-		raw = []byte(inline)
-	} else {
-		path := os.Getenv("CUAN_TASK_CAPABILITY_FILE")
-		info, e := os.Stat(path)
-		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
-			fmt.Fprintln(errOut, "Task capability is unavailable or not private. Run this tool inside the bound agent session.")
-			return 1
-		}
-		raw, e = os.ReadFile(path)
-		if e != nil {
-			fmt.Fprintln(errOut, "Cannot read task capability")
-			return 1
-		}
-	}
-	var c Capability
-	if e := json.Unmarshal(raw, &c); e != nil || c.Token == "" || c.TaskID == "" {
-		fmt.Fprintln(errOut, "Invalid task capability")
-		return 1
-	}
-	u, e := url.Parse(c.API)
-	if e != nil || u.Scheme != "http" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1") {
-		fmt.Fprintln(errOut, "Task tool requires a loopback API")
-		return 1
+	c, code := LoadCapability(errOut)
+	if code != 0 {
+		return code
 	}
 	method := "GET"
 	var body io.Reader
@@ -206,7 +188,7 @@ Use task report-template for current criterion IDs/text/order, or task get when 
 		return 1
 	}
 	if command == "report-template" {
-		data, e = PrepareReportTemplate(data, c)
+		data, e = PrepareReportTemplate(data, *c)
 		if e != nil {
 			fmt.Fprintln(errOut, e.Error())
 			return 1
@@ -218,4 +200,34 @@ Use task report-template for current criterion IDs/text/order, or task get when 
 	}
 	fmt.Fprintln(out)
 	return 0
+}
+
+func LoadCapability(errOut io.Writer) (*Capability, int) {
+	var raw []byte
+	if inline := os.Getenv("CUAN_TASK_CAPABILITY_JSON"); inline != "" {
+		raw = []byte(inline)
+	} else {
+		path := os.Getenv("CUAN_TASK_CAPABILITY_FILE")
+		info, e := os.Stat(path)
+		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+			fmt.Fprintln(errOut, "Task capability is unavailable or not private. Run this tool inside the bound agent session.")
+			return nil, 1
+		}
+		raw, e = os.ReadFile(path)
+		if e != nil {
+			fmt.Fprintln(errOut, "Cannot read task capability")
+			return nil, 1
+		}
+	}
+	var c Capability
+	if e := json.Unmarshal(raw, &c); e != nil || c.Token == "" || c.TaskID == "" {
+		fmt.Fprintln(errOut, "Invalid task capability")
+		return nil, 1
+	}
+	u, e := url.Parse(c.API)
+	if e != nil || u.Scheme != "http" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1") {
+		fmt.Fprintln(errOut, "Task tool requires a loopback API")
+		return nil, 1
+	}
+	return &c, 0
 }

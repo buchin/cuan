@@ -121,13 +121,89 @@ func TestTaskSessionMCPUsesOnlyBoundCapability(t *testing.T) {
 func TestTaskSessionMCPWithoutCapabilityNeverUsesOwner(t *testing.T) {
 	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
 	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
-	for _, name := range []string{"get_current_task", "prepare_current_task_report", "report_current_task", "push_current_task"} {
-		if _, err := callTaskSessionTool(name, map[string]any{"progress": "Checkpoint"}); err == nil {
-			t.Fatal("unbound tool accepted")
+	for _, name := range []string{"get_current_task", "prepare_current_task_report", "report_current_task", "push_current_task", "download_current_task_artifact", "read_current_task_artifact"} {
+		if _, err := callTaskSessionTool(name, map[string]any{"progress": "Checkpoint", "attachment_id": "att"}); err == nil {
+			t.Fatalf("unbound tool %s accepted", name)
 		}
 	}
 	// Owner writes remain a different interface, not a fallback in these tools.
 	if taskSessionOwnerWriteError() != nil {
 		t.Fatal("unbound owner tools unexpectedly disabled")
+	}
+}
+
+func TestTaskSessionMCPArtifactTools(t *testing.T) {
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
+
+	artifactsDir := t.TempDir()
+	sampleContent := "Hello from MCP artifact test"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path == "/task/bound/artifacts/att_test" {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Header().Set("Content-Disposition", `attachment; filename="report.txt"`)
+			w.Write([]byte(sampleContent))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cap := taskcli.Capability{
+		API:          server.URL + "/task/bound",
+		Token:        "test-token",
+		TaskID:       "bound",
+		AttemptID:    "attempt",
+		ArtifactsDir: artifactsDir,
+	}
+	raw, _ := json.Marshal(cap)
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", string(raw))
+
+	// 1. download_current_task_artifact
+	res, err := callTaskSessionTool("download_current_task_artifact", map[string]any{"attachment_id": "att_test"})
+	if err != nil {
+		t.Fatalf("download failed: %v", err)
+	}
+	resMap, ok := res.(map[string]any)
+	if !ok || resMap["attachment_id"] != "att_test" {
+		t.Fatalf("unexpected download result: %+v", res)
+	}
+	savedPath, _ := resMap["saved_path"].(string)
+	if savedPath == "" {
+		t.Fatalf("saved path missing: %+v", res)
+	}
+	data, err := os.ReadFile(savedPath)
+	if err != nil || string(data) != sampleContent {
+		t.Fatalf("downloaded content mismatch: %s, %v", string(data), err)
+	}
+
+	// 2. read_current_task_artifact
+	readRes, err := callTaskSessionTool("read_current_task_artifact", map[string]any{"attachment_id": "att_test"})
+	if err != nil {
+		t.Fatalf("read failed: %v", err)
+	}
+	readMap, ok := readRes.(map[string]any)
+	if !ok || readMap["content"] != sampleContent {
+		t.Fatalf("read content mismatch: %+v", readRes)
+	}
+
+	// 3. Security boundaries: foreign task_id rejected
+	if _, err := callTaskSessionTool("download_current_task_artifact", map[string]any{"attachment_id": "att_test", "task_id": "foreign"}); err == nil {
+		t.Fatal("expected error when passing task_id")
+	}
+	if _, err := callTaskSessionTool("read_current_task_artifact", map[string]any{"attachment_id": "att_test", "task_id": "foreign"}); err == nil {
+		t.Fatal("expected error when passing task_id")
+	}
+
+	// 4. Missing attachment_id rejected
+	if _, err := callTaskSessionTool("download_current_task_artifact", map[string]any{}); err == nil {
+		t.Fatal("expected error when attachment_id missing")
+	}
+	if _, err := callTaskSessionTool("read_current_task_artifact", map[string]any{}); err == nil {
+		t.Fatal("expected error when attachment_id missing")
 	}
 }

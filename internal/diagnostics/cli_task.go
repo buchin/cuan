@@ -46,6 +46,9 @@ func RunTaskCLI(args []string, out, errOut io.Writer) int {
 		return runTaskUpdate(ctx, extraArgs, out, errOut)
 	case "create", "draft", "new":
 		return runTaskCreate(ctx, extraArgs, out, errOut)
+	case "artifact", "download", "download-artifact":
+		fmt.Fprintln(errOut, "This command requires an active task capability session (CUAN_TASK_CAPABILITY_FILE or CUAN_TASK_CAPABILITY_JSON).")
+		return 1
 	default:
 		fmt.Fprintf(errOut, "Unknown task command: %s. Run 'cuan task help' for usage.\n", subcommand)
 		return 2
@@ -127,6 +130,7 @@ Usage:
   cuan task steer <task-id> "guidance"
   cuan task update <task-id> --status doing [--summary "Plan"] [--complete-note "Evidence"] [--json]
   cuan task create --title "Title" --instructions "Scope" [--priority normal] [--project default] [--json]
+  cuan task artifact download <attachment-id> [--output filename] (requires task capability session)
 
 Subcommands:
   execution Inspect the saved attempt's execution intent and scope (read-only JSON)
@@ -135,6 +139,7 @@ Subcommands:
   update    Update status, summary, and verification evidence
   create    Create a new task draft on the board
   delete    Permanently delete an inactive task (Owner only)
+  artifact  Download or read delivered artifacts (task capability session)
 
 Examples:
   cuan task list --status doing

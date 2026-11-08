@@ -16,6 +16,23 @@ var taskSessionMCPTools = []mcpToolDefinition{
 	{Name: "get_current_task", Description: "Read the task and attempt bound to this worker session using its private task capability. No task ID or Owner credentials are accepted.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
 	{Name: "report_current_task", Description: "Report progress or verified results for the bound task attempt. Use state progress for checkpoints; final reports need actual summary, verification and unchanged acceptance criteria with evidence. Attach deliverables using workspace-relative artifacts, or session:PATH for files under CUAN_TASK_ARTIFACTS_DIR outside the repository. This is a worker report, not an Owner message or coordinator acceptance.", InputSchema: taskSessionReportSchema()},
 	{Name: "push_current_task", Description: "Publish only the bound task branch through its scoped capability when approved scope allows it. Does not prove deployment or complete the task. Never use for no-push work.", InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}},
+	{Name: "download_current_task_artifact", Description: "Download a complete delivered file from a prior or current attempt of this bound task into the active attempt's private artifact directory. Rejects unrelated task attachments, path escape, overwrites, partial responses, and excessive size. Transferring an artifact is not acceptance or verification of its content.", InputSchema: map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"attachment_id": map[string]any{"type": "string", "description": "Attachment ID of the delivered file to download."},
+			"output":        map[string]any{"type": "string", "description": "Optional destination filename inside the attempt artifact directory."},
+		},
+		"required":             []string{"attachment_id"},
+		"additionalProperties": false,
+	}},
+	{Name: "read_current_task_artifact", Description: "Read the complete text content of a delivered file from a prior or current attempt of this bound task. Rejects unrelated task attachments, grant expiration, and excessive size.", InputSchema: map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"attachment_id": map[string]any{"type": "string", "description": "Attachment ID of the delivered file to read."},
+		},
+		"required":             []string{"attachment_id"},
+		"additionalProperties": false,
+	}},
 }
 
 func taskSessionReportSchema() map[string]any {
@@ -100,11 +117,38 @@ func callTaskSessionTool(name string, arguments map[string]any) (any, error) {
 			return nil, errors.New("could not prepare private task report")
 		}
 		args = []string{"report", "--report-file", file.Name()}
+	case "download_current_task_artifact", "download_task_artifact":
+		if arguments["task_id"] != nil {
+			return nil, errors.New("current-task tools do not accept task IDs; use the bound capability")
+		}
+		attID, _ := arguments["attachment_id"].(string)
+		attID = strings.TrimSpace(attID)
+		if attID == "" {
+			return nil, errors.New("attachment_id is required")
+		}
+		args = []string{"artifact", "download", attID}
+		if outPath, ok := arguments["output"].(string); ok && strings.TrimSpace(outPath) != "" {
+			args = append(args, "--output", strings.TrimSpace(outPath))
+		}
+	case "read_current_task_artifact", "read_task_artifact":
+		if arguments["task_id"] != nil {
+			return nil, errors.New("current-task tools do not accept task IDs; use the bound capability")
+		}
+		attID, _ := arguments["attachment_id"].(string)
+		attID = strings.TrimSpace(attID)
+		if attID == "" {
+			return nil, errors.New("attachment_id is required")
+		}
+		args = []string{"artifact", "read", attID}
 	default:
 		return nil, errors.New("unknown task session tool")
 	}
-	if name != "report_current_task" && len(arguments) > 0 {
-		return nil, errors.New("current-task tools do not accept task IDs or other arguments")
+	switch name {
+	case "report_current_task", "download_current_task_artifact", "download_task_artifact", "read_current_task_artifact", "read_task_artifact":
+	default:
+		if len(arguments) > 0 {
+			return nil, errors.New("current-task tools do not accept task IDs or other arguments")
+		}
 	}
 	var out, errOut bytes.Buffer
 	if code := taskcli.Run(args, &out, &errOut); code != 0 {

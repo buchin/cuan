@@ -731,6 +731,8 @@ func (s *Server) Router() http.Handler {
 
 func (s *Server) routes() {
 	s.router.Get("/api/v1/task-agent/{id}", s.handleTaskAgent)
+	s.router.Get("/api/v1/task-agent/{id}/artifacts/{attachment_id}", s.handleTaskAgentArtifact)
+	s.router.Get("/api/v1/task-agent/{id}/attachments/{attachment_id}", s.handleTaskAgentArtifact)
 	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}/publish", s.handleTaskAgent)
@@ -765,6 +767,8 @@ func (s *Server) routes() {
 
 		// Public aliases
 		r.Get("/task-agent/{id}", s.handleTaskAgent)
+		r.Get("/task-agent/{id}/artifacts/{attachment_id}", s.handleTaskAgentArtifact)
+		r.Get("/task-agent/{id}/attachments/{attachment_id}", s.handleTaskAgentArtifact)
 		r.Post("/task-agent/{id}", s.handleTaskAgent)
 		r.Post("/task-agent/{id}/push", s.handleTaskAgent)
 		r.Post("/task-agent/{id}/publish", s.handleTaskAgent)

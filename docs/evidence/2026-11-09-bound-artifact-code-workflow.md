@@ -30,4 +30,28 @@ running request, so it was not resent. No task was created at that observation.
 
 This evaluates the actual user → PM → developer → independent verifier workflow
 for useful code work, rather than repeating the resolved account investigation.
-No result, source commit, independent verification or efficiency claim yet.
+
+## Implementation details
+
+1. **Backend Capability Endpoint (`internal/server/task_agent_artifact.go`)**:
+   - Endpoints: `GET /api/v1/task-agent/{id}/artifacts/{attachment_id}` and alias `GET /api/v1/task-agent/{id}/attachments/{attachment_id}`.
+   - Authenticated strictly via active task capability token (Bearer token hashed against `s.taskAgentGrants`).
+   - Boundary checks: verifies grant expiration, bound task ID, running status of latest attempt, source room and message binding.
+   - Rejects unauthenticated requests (401), expired grants (401), foreign task IDs (403), inactive/ended attempts (409), invalid attachment IDs / path escapes (400/404), and attachments from other tasks (404).
+   - Supports metadata inspection (`?metadata=true`) and full binary/text file downloads with strict Content-Type, Content-Disposition, nosniff, and sandbox CSP headers.
+
+2. **CLI Worker (`internal/taskcli/artifact.go`)**:
+   - Subcommands: `cuan-server task artifact download <attachment-id> [--output filename]` and `cuan-server task artifact read <attachment-id> [--raw]`.
+   - Resolves target within the attempt's private artifact directory (`CUAN_TASK_ARTIFACTS_DIR` / `c.ArtifactsDir`).
+   - Guardrails: prevents path escape (`..` or absolute paths outside artifact dir), prevents overwriting existing files, validates Content-Length against received bytes, rejects partial/error responses and responses exceeding 25 MB.
+
+3. **MCP Tool Extensions (`internal/diagnostics/mcp_task_session.go`)**:
+   - Registered tools: `download_current_task_artifact` and `read_current_task_artifact`.
+   - Uses the private task capability session without accepting task IDs or Owner credentials.
+   - Delegates directly to `taskcli` artifact download/read implementations.
+
+4. **Targeted Automated Tests**:
+   - `internal/server/task_agent_artifact_test.go`: `TestTaskAgentArtifactDownloadAndGuardrails` (11 subtests covering binary PNG transfer, text Markdown transfer, alias endpoints, metadata queries, unauthenticated rejection, expired grant rejection, wrong task ID rejection, path traversal rejection, ended attempt 409 rejection, multi-attempt verifier access, and other-task attachment rejection).
+   - `internal/taskcli/artifact_test.go`: `TestArtifactDownloadSuccess`, `TestArtifactDownloadCustomOutput`, `TestArtifactDownloadPathEscapeRejected`, `TestArtifactDownloadAntiOverwrite`, `TestArtifactDownloadPartialAndErrorResponses`, `TestArtifactReadText`, `TestArtifactDownloadDirectCommand`.
+   - `internal/diagnostics/mcp_task_session_test.go`: `TestTaskSessionMCPArtifactTools`, `TestTaskSessionMCPUsesOnlyBoundCapability`, `TestTaskSessionMCPWithoutCapabilityNeverUsesOwner`.
+   - All tests pass 100%.

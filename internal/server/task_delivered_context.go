@@ -34,28 +34,30 @@ func (s *Server) taskDeliveredContext(ctx context.Context, d *task.TaskDetailRes
 		if attempt == nil || attempt.TaskID != d.ID {
 			continue
 		}
-		message, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+attempt.ID))
-		if err != nil || message == nil || message.RoomID != d.SourceRoomID || message.AuthorType != "agent" || message.ReplyToID == nil || *message.ReplyToID != d.SourceMessageID {
-			continue
-		}
-		_, ids := decodeAttachmentMessage(message.Content)
-		for _, id := range ids {
-			if len(result) >= 8 {
-				return result
-			}
-			attachment, path, err := loadAttachment(owner, id)
-			if err != nil {
+		for _, prefix := range []string{"task-delivery:", "task-visual-delivery:"} {
+			message, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID(prefix+attempt.ID))
+			if err != nil || message == nil || message.RoomID != d.SourceRoomID || message.AuthorType != "agent" || message.ReplyToID == nil || *message.ReplyToID != d.SourceMessageID {
 				continue
 			}
-			row := map[string]string{"source_attempt_id": attempt.ID, "attachment_id": attachment.ID, "name": attachment.Name, "media_type": attachment.Type}
-			if reviewableTextMediaType(attachment.Type) && budget > 0 {
-				if excerpt, scope, err := reviewTextExcerpt(path, min(6000, budget)); err == nil && excerpt != "" {
-					row["untrusted_excerpt"] = excerpt
-					row["excerpt_scope"] = scope
-					budget -= len(excerpt)
+			_, ids := decodeAttachmentMessage(message.Content)
+			for _, id := range ids {
+				if len(result) >= 8 {
+					return result
 				}
+				attachment, path, err := loadAttachment(owner, id)
+				if err != nil {
+					continue
+				}
+				row := map[string]string{"source_attempt_id": attempt.ID, "attachment_id": attachment.ID, "name": attachment.Name, "media_type": attachment.Type}
+				if reviewableTextMediaType(attachment.Type) && budget > 0 {
+					if excerpt, scope, err := reviewTextExcerpt(path, min(6000, budget)); err == nil && excerpt != "" {
+						row["untrusted_excerpt"] = excerpt
+						row["excerpt_scope"] = scope
+						budget -= len(excerpt)
+					}
+				}
+				result = append(result, row)
 			}
-			result = append(result, row)
 		}
 	}
 	return result
