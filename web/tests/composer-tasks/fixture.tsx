@@ -9,9 +9,9 @@ import { Composer, ComposerAccessory, ComposerSendButton } from '../../src/compo
 import { ComposerInput } from '../../src/components/ui/ComposerInput'
 import type { Task } from '../../src/api/types'
 const initial = [
- {id:'active',title:'Perbaiki gate build rilis paralel',status:'doing', latest_attempt:{id:'fixture-attempt',status:'running'},latest_progress:'Perubahan sudah diterapkan. Sedang memeriksa hasil pengujian.'},
- {id:'queued',title:'Verifikasi production tanpa mengulang deployment yang sudah selesai',status:'queued'},
- {id:'done',title:'Rapikan balasan pelanggan',status:'done'},
+ {id:'active',created_at:'2026-11-08T09:00:00Z',title:'Perbaiki gate build rilis paralel',status:'doing', latest_attempt:{id:'fixture-attempt',status:'running'},latest_progress:'Perubahan sudah diterapkan. Sedang memeriksa hasil pengujian.'},
+ {id:'queued',created_at:'2026-11-08T10:00:00Z',title:'Verifikasi production tanpa mengulang deployment yang sudah selesai',status:'queued'},
+ {id:'done',created_at:'2026-11-08T08:00:00Z',title:'Rapikan balasan pelanggan',status:'done'},
 ] as Task[]
 function Fixture() {
  const [tasks,setTasks]=useState(initial)

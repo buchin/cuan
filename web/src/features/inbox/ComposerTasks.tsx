@@ -25,7 +25,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal }: {
   const [choices, setChoices] = useState<Record<string, boolean>>({})
   if (!tasks.length) return null
   const ordered = [...new Map(tasks.map(task => [task.id, task])).values()]
-    .sort((a, b) => Number(running(b)) - Number(running(a)))
+    .sort((a, b) => Number(running(b)) - Number(running(a)) ||
+      (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0))
   const active = ordered.some(running)
   return <section className="composer-tasks" aria-label={t('Conversation tasks')} onKeyDown={event => {
     if (event.key === 'Escape' && open) {
@@ -45,11 +46,13 @@ export function ComposerTasks({ tasks, onDetails, onTerminal }: {
     </button>
     {open && <div id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30">
       {ordered.map(task => {
-        const expanded = choices[task.id] ?? running(task)
+        const expanded = choices[task.id] ?? (running(task) || (!active && task.id === ordered[0].id))
         const work = workStatus(task)
         const status = ['Completed', 'Cancelled'].includes(work) ? work : task.review_state === 'running' ? 'Checking result' : task.review_state === 'queued' ? 'Queued' : work
         const bodyID = `${id}-${task.id}`
-        const progress = work === 'Needs attention' ? task.review_finding || '' : taskLiveActivityText(task, '') || taskSummaryText(task)
+        const progress = work === 'Needs attention' ? task.review_finding || ''
+          : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
+          : taskLiveActivityText(task, '') || taskSummaryText(task)
         return <article key={task.id} className="border-b border-border/40 last:border-0">
           <button type="button" aria-expanded={expanded} aria-controls={expanded ? bodyID : undefined}
             onClick={() => setChoices(value => ({ ...value, [task.id]: !expanded }))}

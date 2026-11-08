@@ -543,7 +543,9 @@ Markdown. Determine overflow from rendered height, not a character quota.
 Agent conversations with linked tasks expose a quiet Tasks count above the
 composer. This disclosure is separate from customer Public/Whisper reply modes.
 It starts closed and does not reopen on polling. Opening it expands running
-execution/review tasks by default; explicit accordion choices survive updates.
+execution/review tasks by default; without active work, expand the newest task
+by creation time. Sort active work first, then newest tasks. Explicit accordion
+choices survive updates and always override automatic defaults.
 Queued, completed and attention states never pulse. Use current native task and
 review projections, with the existing Detail and real Terminal destinations.
 Agent conversations show existing task previews only in this panel, without duplicate cards in chat. Preserve final results, approval proposals, unsaved task drafts and customer reply drafts in the conversation. Customer conversation previews retain their existing visibility rules. Empty rooms show no control.
