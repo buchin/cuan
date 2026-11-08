@@ -2077,14 +2077,13 @@ export function InboxView({
               onDragOver={uploads.onDragOver}
             >
               <div className="mx-auto max-w-[75ch]">
-                {activeContact.type === 'agent' && <ComposerTasks
+                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
+                <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}
                   tasks={linkedTasks}
                   onDetails={task => handleOpenTaskDrawer(task)}
                   onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
-                />}
-                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
-                {activeContact.type === 'customer' && (
+                  modes={activeContact.type === 'customer' && (
                   <div className="flex items-end justify-between text-xs">
                     <div className="flex min-w-0 items-center">
                       <div role="tablist" aria-label={t('Reply mode')} className="composer-mode-tabs inline-flex" onKeyDown={event => {
@@ -2145,6 +2144,7 @@ export function InboxView({
                     </div>
                   </div>
                 )}
+                />
                 <Composer
                   id="compose-panel"
                   role={activeContact.type === 'customer' ? 'tabpanel' : undefined}

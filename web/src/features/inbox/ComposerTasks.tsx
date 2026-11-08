@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronDown, ListTodo, Terminal } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ChevronDown, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
@@ -13,17 +14,18 @@ function running(task: Task) {
 }
 
 // Key this component by conversation so disclosure choices never leak between rooms.
-export function ComposerTasks({ tasks, onDetails, onTerminal }: {
+export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   tasks: Task[]
   onDetails: (task: Task) => void
   onTerminal: (task: Task) => void
+  modes?: ReactNode
 }) {
   const { t } = useLanguage()
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [choices, setChoices] = useState<Record<string, boolean>>({})
-  if (!tasks.length) return null
+  if (!tasks.length && !modes) return null
   const ordered = [...new Map(tasks.map(task => [task.id, task])).values()]
     .sort((a, b) => Number(running(b)) - Number(running(a)) ||
       (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0))
@@ -35,16 +37,17 @@ export function ComposerTasks({ tasks, onDetails, onTerminal }: {
       trigger.current?.focus()
     }
   }}>
-    <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined}
-      className="inline-flex min-h-11 items-center gap-2 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+    <div className="flex flex-wrap items-end justify-between gap-x-2">
+    {modes}
+    {tasks.length > 0 && <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined}
+      className="composer-mode-tab ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-medium hover:text-foreground"
       onClick={() => setOpen(value => !value)}>
-      <ListTodo className="h-3.5 w-3.5" aria-hidden="true" />
       <span>{t('Tasks')}</span>
       <span className="composer-tasks-count tabular-nums bg-muted px-1.5 text-[11px]">{ordered.length}</span>
       {active && <StatusDot status="working" size="xs" label={t('Working')} />}
-      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-    </button>
-    {open && <div id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30">
+    </button>}
+    </div>
+    {open && tasks.length > 0 && <div id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30">
       {ordered.map(task => {
         const expanded = choices[task.id] ?? (running(task) || (!active && task.id === ordered[0].id))
         const work = workStatus(task)

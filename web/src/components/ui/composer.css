@@ -21,7 +21,7 @@
   background: transparent;
   color: oklch(var(--muted-foreground));
 }
-.composer-mode-tab[aria-selected='true'] {
+.composer-mode-tab:is([aria-selected='true'], [aria-expanded='true']) {
   background: linear-gradient(to bottom, transparent 12px, var(--composer-surface) 12px);
   color: oklch(var(--foreground));
 }

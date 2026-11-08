@@ -545,8 +545,11 @@ Markdown. Determine overflow from rendered height, not a character quota.
 
 ### 7.18. Conversation tasks beside the composer
 
-Agent conversations with linked tasks expose a quiet Tasks count above the
-composer. This disclosure is separate from customer Public/Whisper reply modes.
+Conversations with linked tasks expose a quiet Tasks count at the right of the
+composer's control row. Customer Public/Whisper reply modes stay at the left.
+The Tasks disclosure shares their visible size and active surface, but remains
+an independent disclosure button rather than a third reply mode. Attachment
+previews precede this row. Empty task lists retain reply modes without Tasks.
 It starts closed and does not reopen on polling. Opening it expands running
 execution/review tasks by default; without active work, expand the newest task
 by creation time. Sort active work first, then newest tasks. Explicit accordion
