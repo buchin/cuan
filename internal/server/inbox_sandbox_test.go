@@ -66,8 +66,8 @@ test ! -e /opt/cuan/.env
 test "$(cat "$3")" = attached
 if (echo bad > README) 2>/dev/null; then exit 40; fi
 if (touch new-file) 2>/dev/null; then exit 41; fi
-test "$(cat "$5")" = '{"mcpServers":{}}'
-test "$(cat "$6")" = '{"mcpServers":{}}'
+test "$(cat "$5")" = '{"mcpServers":{"cuan-inspect":{"command":"/cuan-public-web-mcp","args":["mcp","--public-web"]}}}'
+test "$(cat "$6")" = '{"mcpServers":{"cuan-inspect":{"command":"/cuan-public-web-mcp","args":["mcp","--public-web"]}}}'
 echo temporary > /tmp/scratch
 echo refreshed > "$2"
 echo BOUNDARY_OK
@@ -196,8 +196,8 @@ func TestInboxSandboxMasksMCPConnectionsWithoutChangingProfile(t *testing.T) {
 		for i := 0; i+2 < len(args); i++ {
 			if args[i] == "--ro-bind" && args[i+2] == target && args[i+1] != target {
 				raw, err := os.ReadFile(args[i+1])
-				if err != nil || string(raw) != "{\"mcpServers\":{}}\n" {
-					t.Fatal("invalid empty MCP boundary")
+				if err != nil || string(raw) != inboxPublicWebMCPConfig {
+					t.Fatal("invalid public web MCP boundary")
 				}
 				masked = true
 			}

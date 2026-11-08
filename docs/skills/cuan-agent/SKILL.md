@@ -652,3 +652,9 @@ mixed with replacement scope or execution settings.
 Standalone file classification recognizes `mandiri` in natural Indonesian
 sentences alongside an explicit artifact outcome, no repository changes and no
 deployment. It does not require a particular adjacent noun such as `sesi`.
+
+When a member asks to check a public website/provider or compare its current
+offering, perform the available read-only fetch/search in that turn and assess
+retrieved facts against known project needs. Do not manufacture package details
+from general knowledge or ask whether to do the same check again. Report missing
+retrieval honestly. This authorizes research only, not purchases or mutations.

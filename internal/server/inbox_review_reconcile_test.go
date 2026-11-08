@@ -79,6 +79,11 @@ func TestStalledReviewReconcilesCurrentSnapshotWithoutReplayingOldProvider(t *te
 		t.Run(state, func(t *testing.T) {
 			s, d, old := stalledReviewFixture(t, state)
 			ctx := context.Background()
+			// This fixture compares retained findings; it does not implement code.
+			d.ExecutionCategory = task.ExecutionCategoryReadOnly
+			if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+				t.Fatal(err)
+			}
 			var scans sync.WaitGroup
 			for i := 0; i < 8; i++ {
 				scans.Add(1)

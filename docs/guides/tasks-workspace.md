@@ -436,3 +436,20 @@ V1 reviews with at most eight images remain valid. Accepted/canceled work and
 active execution retain their existing guards. The repair neither reruns dev,
 verifier or deployment nor grants additional execution approval: it restores the
 reviewer's missing view of immutable delivered evidence.
+
+### Public web tools inside Inbox isolation
+
+Chat previously advertised `web_fetch` while its sandbox overlaid every MCP
+configuration with an empty server list. Provider-native search remained usable,
+but the Cuan fetch tool was not discoverable. The sandbox now mounts the exact
+native worker executable at `/cuan-public-web-mcp` and supplies only the pinned
+`cuan-inspect` connection running `mcp --public-web`. This mode advertises and
+dispatches only `web_fetch`; mutation, database, environment and task-session
+methods are rejected even when called directly. Ambient account/workspace MCP
+connections remain masked and unchanged on the host. Existing public URL policy
+and response limits apply. No service credentials are needed for public fetch.
+
+A public website evaluation is read-only chat research. Fetch the supplied URL
+before making claims about its packages; search can supplement or recover from
+unusable retrieval. Return supported findings and any genuine limitation without
+asking permission again or delegating a simple fetch to a development session.

@@ -528,6 +528,39 @@ var nativeMCPTools = []mcpToolDefinition{
 
 // RunMCP implements a Stdio MCP (Model Context Protocol) JSON-RPC 2.0 server.
 func RunMCP(in io.Reader, out io.Writer, errOut io.Writer) int {
+	return runMCP(in, out, errOut, handleMCPRequest)
+}
+
+// RunPublicWebMCP exposes only public web retrieval to isolated chat providers.
+// Calls are filtered as well as discovery; hidden mutation names stay rejected.
+func RunPublicWebMCP(in io.Reader, out io.Writer, errOut io.Writer) int {
+	return runMCP(in, out, errOut, handlePublicWebMCPRequest)
+}
+
+func handlePublicWebMCPRequest(req jsonRPCRequest, out io.Writer) {
+	if req.Method == "tools/list" {
+		tools := []mcpToolDefinition{}
+		for _, tool := range nativeMCPTools {
+			if tool.Name == "web_fetch" {
+				tools = append(tools, tool)
+			}
+		}
+		sendResponse(out, jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{"tools": tools}})
+		return
+	}
+	if req.Method == "tools/call" {
+		var params struct {
+			Name string `json:"name"`
+		}
+		if json.Unmarshal(req.Params, &params) != nil || params.Name != "web_fetch" {
+			sendResponse(out, jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32601, Message: "Tool unavailable in public web chat mode"}})
+			return
+		}
+	}
+	handleMCPRequest(req, out)
+}
+
+func runMCP(in io.Reader, out io.Writer, errOut io.Writer, handler func(jsonRPCRequest, io.Writer)) int {
 	scanner := bufio.NewScanner(in)
 	// Support large JSON-RPC messages up to 1MB
 	buf := make([]byte, 1024*1024)
@@ -558,7 +591,7 @@ func RunMCP(in io.Reader, out io.Writer, errOut io.Writer) int {
 			continue
 		}
 
-		handleMCPRequest(req, out)
+		handler(req, out)
 	}
 
 	return 0

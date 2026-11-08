@@ -68,6 +68,9 @@ func main() {
 		os.Exit(diagnostics.RunDiagCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		if len(os.Args) == 3 && os.Args[2] == "--public-web" {
+			os.Exit(diagnostics.RunPublicWebMCP(os.Stdin, os.Stdout, os.Stderr))
+		}
 		os.Exit(diagnostics.RunMCP(os.Stdin, os.Stdout, os.Stderr))
 	}
 	showHelp := flag.Bool("help", false, "Show help message")

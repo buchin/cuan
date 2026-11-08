@@ -83,6 +83,16 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string) ([]s
 			}
 		}
 	}
+	// Pin the native MCP executable independently of provider PATH or profile.
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	executable, err = absolute(executable)
+	if err != nil {
+		return nil, err
+	}
+	bindRO(executable, "/cuan-public-web-mcp")
 	// Mount local PostgreSQL socket if available
 	for _, sockDir := range []string{"/run/postgresql", "/var/run/postgresql"} {
 		if info, err := os.Stat(sockDir); err == nil && info.IsDir() {
@@ -170,6 +180,8 @@ func sandboxInboxCommand(binary string, args, env []string, home, workspace stri
 	return wrapper, append(mounts, args...), nil
 }
 
+const inboxPublicWebMCPConfig = "{\"mcpServers\":{\"cuan-inspect\":{\"command\":\"/cuan-public-web-mcp\",\"args\":[\"mcp\",\"--public-web\"]}}}\n"
+
 func prepareInboxMCPBoundary(home string) (string, error) {
 	root, err := os.OpenRoot(home)
 	if err != nil {
@@ -185,7 +197,7 @@ func prepareInboxMCPBoundary(home string) (string, error) {
 		return "", fmt.Errorf("chat MCP boundary directory must be private")
 	}
 	path := filepath.Join(directory, "mcp_config.json")
-	if err := writeNativeRuntimeFile(root, path, []byte("{\"mcpServers\":{}}\n"), 0600); err != nil {
+	if err := writeNativeRuntimeFile(root, path, []byte(inboxPublicWebMCPConfig), 0600); err != nil {
 		return "", err
 	}
 	return filepath.Join(home, path), nil
