@@ -370,6 +370,14 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	if d != nil && d.Status != task.TaskStatusDone && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusCanceled {
 		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
 	}
+	if d != nil {
+		if changed, err := s.inboxReviewOwnerContextChanged(ctx, q); changed || err != nil {
+			if retry, ok := ctx.Value(inboxReviewRefreshKey{}).(*bool); ok {
+				*retry = true
+			}
+			return "Pesan terbaru sedang diselaraskan dengan hasil pekerjaan sebelum review diterapkan."
+		}
+	}
 	decision, err := parseInboxReviewEvaluation(raw)
 	structuredValid := err == nil
 	if isCustomerReplyDelivery(q, d) {

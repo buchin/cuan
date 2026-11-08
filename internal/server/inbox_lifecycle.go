@@ -206,6 +206,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	s.learnInboxPreferences(ctx, q)
 	handoffPersistenceRetry := false
 	ctx = context.WithValue(ctx, inboxHandoffPersistenceKey{}, &handoffPersistenceRetry)
+	reviewRefresh := false
+	ctx = context.WithValue(ctx, inboxReviewRefreshKey{}, &reviewRefresh)
 	if db.InboxRetryNeedsReconciliation(q) {
 		ctx = context.WithValue(ctx, inboxRetryReconcileKey{}, true)
 	}
@@ -480,9 +482,13 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		q.SafeError = inboxHandoffPersistenceWaiting
 		reply = nil
 	}
+	if reviewRefresh {
+		q.SafeError = inboxReviewRefreshWaiting
+		reply = nil
+	}
 	if q.SafeError != "" {
 		q.State = "failed"
-		if (q.SafeError == inboxQuotaNoBackup || q.SafeError == inboxHandoffPersistenceWaiting || q.SafeError == inboxReviewProviderWaiting) && time.Since(q.CreatedAt) < 24*time.Hour {
+		if (q.SafeError == inboxQuotaNoBackup || q.SafeError == inboxHandoffPersistenceWaiting || q.SafeError == inboxReviewProviderWaiting || q.SafeError == inboxReviewRefreshWaiting) && time.Since(q.CreatedAt) < 24*time.Hour {
 			q.State = "queued"
 			q.Deadline = time.Now().Add(24 * time.Hour)
 		} else if q.SafeError == inboxQuotaNoBackup {
@@ -491,6 +497,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 			q.SafeError = "The review service is still unavailable. Saved work remains unaccepted; review has not completed."
 		} else if q.SafeError == inboxHandoffPersistenceWaiting {
 			q.SafeError = "The verified handoff could not be saved. The result remains available; acceptance has not been confirmed."
+		} else if q.SafeError == inboxReviewRefreshWaiting {
+			q.SafeError = "Review context is still changing. Saved work remains unaccepted."
 		}
 	}
 	step("persistence", "Saving the final conversation state.")
@@ -957,7 +965,7 @@ func (s *Server) projectInboxTaskReviews(ctx context.Context, items []*task.Task
 // A durable queued request can wait for capacity without creating another
 // message, task or provider session. Cancellation remains available while waiting.
 func inboxCapacityWaiting(q db.InboxRequest, now time.Time) bool {
-	if q.State != "queued" || (q.SafeError != inboxQuotaNoBackup && q.SafeError != inboxHandoffPersistenceWaiting && q.SafeError != inboxReviewProviderWaiting) {
+	if q.State != "queued" || (q.SafeError != inboxQuotaNoBackup && q.SafeError != inboxHandoffPersistenceWaiting && q.SafeError != inboxReviewProviderWaiting && q.SafeError != inboxReviewRefreshWaiting) {
 		return false
 	}
 	for i := len(q.Steps) - 1; i >= 0; i-- {

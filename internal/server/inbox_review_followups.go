@@ -2,12 +2,44 @@ package server
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
+
+type inboxReviewRefreshKey struct{}
+
+const inboxReviewRefreshWaiting = "New owner context arrived; reviewing the saved result again."
+
+func (s *Server) inboxReviewOwnerContextChanged(ctx context.Context, q db.InboxRequest) (bool, error) {
+	if q.StartedAt == nil {
+		return false, nil
+	}
+	repository, ok := s.projectStudioRepo.(db.InboxRequestRepository)
+	if !ok {
+		return false, errors.New("review conversation unavailable")
+	}
+	requests, err := repository.ListInboxRequests(ctx, q.RoomID)
+	if err != nil {
+		return false, err
+	}
+	for _, later := range requests {
+		if later.OwnerID != q.OwnerID || later.RoomID != q.RoomID || !later.CreatedAt.After(*q.StartedAt) || later.State == "cancelled" || later.State == "canceled" || later.State == "cancelling" {
+			continue
+		}
+		m, err := s.projectStudioRepo.GetMessageByID(ctx, later.MessageID)
+		if err != nil {
+			return false, err
+		}
+		if m != nil && m.RoomID == q.RoomID && m.AuthorType == "user" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
 // Preserve later owner evidence without replaying agent actions or treating
 // conversation text as a replacement for the task's original authorization.

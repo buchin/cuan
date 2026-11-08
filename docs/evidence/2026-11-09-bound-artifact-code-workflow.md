@@ -312,3 +312,21 @@ to overturn a false verifier pass. It is not proof of efficient autonomous
 completion. A fresh small useful code task should now test the repaired workflow
 without inheriting this task's failed history or adding unrelated acceptance.
 The in-flight-review/new-message acceptance race remains unresolved.
+
+## In-flight review refresh on newer authenticated owner context
+
+A regression reproduced applying an old model verdict after a newer owner message
+was accepted. Before applying a canonical task review, Cuan now checks accepted
+owner requests newer than that review's native claim start. It discards the stale
+assessment, suppresses its final reply and durably requeues the same review with
+existing bounded retry/backoff. No new task/developer attempt or execution grant
+is created. Claiming again refreshes the start timestamp, and the review payload
+includes the newer owner evidence via the previously deployed projection.
+
+A real dispatcher fixture proves queued persistence, no stale reply/assessment,
+unchanged task/attempt count, reclaimability, fresh correction context and no
+repeat loop on the same message. Foreign owners, agent messages, canceled turns
+and already-known messages do not trigger refresh. Storage/handoff recovery and
+follow-up binding/budget regressions pass. This guards messages accepted during
+model inference at application-time revalidation; it is not a claim of a single
+atomic database transaction across message acceptance and task completion.
