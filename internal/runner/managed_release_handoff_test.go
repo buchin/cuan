@@ -76,7 +76,10 @@ func TestManagedReleaseCompletionAtomicallyHandsOffWithoutAcceptingTask(t *testi
 				t.Fatal("source completion lost pending publication state")
 			}
 			intent := &task.NativeReleaseIntent{SourceAttemptID: att.ID, SourceCommit: req.CommitSHA, SourceVerificationHash: req.ManagedReleaseSource.VerificationHash, InstructionsHash: task.LaunchInstructionsHash(item.Instructions), OwnerID: "owner", RoomID: item.SourceRoomID, SourceRequestID: "approved-request", Repository: "owner/repo", TargetBranch: "dev", ManifestHash: req.ManagedReleaseSource.ManifestHash}
-			must(task.ValidateNativeReleaseSource(ctx, store, saved, intent))
+			must(task.ValidateNativeDeveloperHandoff(ctx, store, saved, intent))
+			if task.ValidateNativeReleaseSource(ctx, store, saved, intent) == nil {
+				t.Fatal("developer handoff bypassed independent source review")
+			}
 			if task.VerifiedDeployment(activities, completed, req.CommitSHA, time.Now()) {
 				t.Fatal("source handoff manufactured deployment proof")
 			}

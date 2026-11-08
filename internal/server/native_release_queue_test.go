@@ -61,6 +61,9 @@ func TestNativeReleaseHandoffSchedulesWithoutPMModel(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
+func TestReviewedSourceHandoffSchedulesNativeReleaseWithoutPMModel(t *testing.T) {
+	nativeReleaseQueueContract(t, nil, "schedule reviewed")
+}
 func TestNativeReleaseQueuePostgres(t *testing.T) {
 	for _, scenario := range []string{"ready", "revoked", "foreign approval", "prepare", "initial merge", "initial verify", "schedule", "publication activation receipt"} {
 		t.Run(scenario, func(t *testing.T) {
@@ -136,6 +139,9 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	}
 	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
+	if !strings.HasPrefix(scenario, "schedule") || scenario == "schedule reviewed" {
+		detail = approveNativeReleaseFixtureSource(t, s, store, runtimeStore, item, source, q, &p)
+	}
 	var capacityCalls atomic.Int32
 	oldFetch := fetchInboxModelUsage
 	defer func() { fetchInboxModelUsage = oldFetch }()
@@ -167,6 +173,30 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		if scenario == "schedule revoked" {
 			source.CancelRequested = true
 			must(store.UpdateAttempt(ctx, source))
+		}
+		if scenario == "schedule reviewed" {
+			before, err := repo.ListInboxRequests(ctx, q.RoomID)
+			must(err)
+			s.queueInboxTaskReview(ctx, detail)
+			launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, requestID))
+			must(err)
+			if launch == nil || launch.State != "started" {
+				t.Fatal("approved source did not schedule publication", launch)
+			}
+			parsed, err := task.NativeReleaseIntentForLaunch(&detail.Task, launch)
+			must(err)
+			if parsed == nil || parsed.SourceReviewAttemptID != detail.LatestAttempt.ID || parsed.SourceAttemptID != source.ID {
+				t.Fatal("publication lost source/reviewer binding", parsed)
+			}
+			s.queueInboxTaskReview(ctx, detail)
+			after, err := repo.ListInboxRequests(ctx, q.RoomID)
+			must(err)
+			current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+			must(err)
+			if len(after) != len(before) || len(current.Attempts) != 3 || current.Status == task.TaskStatusDone || capacityCalls.Load() != 0 {
+				t.Fatal("reviewed publication duplicated work, used AI or accepted task")
+			}
+			return
 		}
 		scheduled := false
 		if scenario == "schedule" {
@@ -220,7 +250,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 		}
 		current, loadErr := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		must(loadErr)
-		if current.Status != task.TaskStatusReview || len(current.Attempts) != 1 || capacityCalls.Load() != 0 {
+		if current.Status != task.TaskStatusReview || len(current.Attempts) != 2 || capacityCalls.Load() != 0 {
 			t.Fatal("foreign approval changed task state or consumed AI")
 		}
 		return
@@ -231,7 +261,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	}
 	current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
-	if len(current.Attempts) != 2 || current.LatestAttempt.Status != task.AttemptStatusQueued || current.Status == task.TaskStatusDone || capacityCalls.Load() != 0 {
+	if len(current.Attempts) != 3 || current.LatestAttempt.Status != task.AttemptStatusQueued || current.Status == task.TaskStatusDone || capacityCalls.Load() != 0 {
 		t.Fatal("native admission used AI or accepted publication", capacityCalls.Load())
 	}
 	restarted := *s
@@ -239,7 +269,7 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	restarted.startAuthorizedLaunch(ctx, q, detail, requestID, q.RequestID, task.NativeReleaseIntentMarker+string(raw))
 	after, err := restarted.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
-	if len(after.Attempts) != 2 {
+	if len(after.Attempts) != 3 {
 		t.Fatal("reconstructed server replayed native stage")
 	}
 	_, err = s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: "native-runner"}, time.Minute)

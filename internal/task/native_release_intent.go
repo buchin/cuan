@@ -140,6 +140,10 @@ func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 		if err != nil || review == nil || review.SourceAttemptID != p.SourceAttemptID || review.SourceCommit != p.SourceCommit || review.InstructionsHash != p.InstructionsHash {
 			return ErrInvalidTaskInput
 		}
+		origin, err := VerificationIntentForAttempt(ctx, store, t, p.SourceReviewAttemptID)
+		if err != nil || origin == nil || origin.OwnerID != p.OwnerID || origin.RoomID != p.RoomID || origin.SourceRequestID != p.SourceRequestID {
+			return ErrInvalidTaskInput
+		}
 	}
 	source, err := store.GetAttempt(ctx, p.SourceAttemptID)
 	if err != nil {

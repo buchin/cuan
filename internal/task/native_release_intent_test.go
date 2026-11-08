@@ -74,13 +74,17 @@ func TestLegacyNativeReleaseEvidenceCannotAuthorizeFreshPublication(t *testing.T
 }
 
 func TestNativeReleaseSourceRequiresExactCurrentBackendHandoff(t *testing.T) {
-	for _, scenario := range []string{"valid", "unreviewed source", "self review", "cancelled review", "missing review approval", "failed source", "cancelled source", "future source", "missing handoff", "agent handoff", "wrong receipt identity", "changed commit", "changed scope", "wrong repository", "wrong target", "wrong manifest", "failed checks", "wrong check author", "newer execution", "no deploy"} {
+	for _, scenario := range []string{"valid", "unreviewed source", "self review", "cancelled review", "missing review approval", "wrong owner", "wrong approval", "failed source", "cancelled source", "future source", "missing handoff", "agent handoff", "wrong receipt identity", "changed commit", "changed scope", "wrong repository", "wrong target", "wrong manifest", "failed checks", "wrong check author", "newer execution", "no deploy"} {
 		t.Run(scenario, func(t *testing.T) {
 			store, item, source, p, _ := nativeReleaseFixture(t)
 			ctx := context.Background()
 			switch scenario {
 			case "unreviewed source":
 				p.SourceReviewAttemptID = ""
+			case "wrong owner":
+				p.OwnerID = "foreign-owner"
+			case "wrong approval":
+				p.SourceRequestID = "foreign-request"
 			case "self review":
 				p.SourceReviewAttemptID = source.ID
 			case "cancelled review":
