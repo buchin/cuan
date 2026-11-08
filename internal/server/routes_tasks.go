@@ -584,7 +584,7 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 			resp.RequiresVision = s.runnerClaimRequiresVision(r.Context(), resp, detail, revision)
 			if resp.LiveInspection != nil {
 				if !s.liveInspectionMatchesRelease(r.Context(), detail, resp.LiveInspection) {
-					_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "The running release changed before inspection; no model execution was started"})
+					_, _ = s.runnerSvc.Complete(r.Context(), resp.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.StaleInspectionReleaseMessage})
 					respondJSONError(w, http.StatusConflict, "Inspection no longer matches the running release")
 					return
 				}

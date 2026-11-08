@@ -14,6 +14,7 @@ const LiveInspectionMarker = "Cuan live-result inspection v1: "
 const ActivityLiveInspection = "live_result_verified"
 const CurrentOutcomeInspection = "current_outcome"
 const NativeReleaseInspection = "native_release"
+const StaleInspectionReleaseMessage = "The running release changed before inspection; no model execution was started"
 const EvidenceRevalidation = "evidence"
 
 type LiveInspectionIntent struct {
@@ -57,6 +58,9 @@ func (p *LiveInspectionIntent) RequestID(taskID string) string {
 		return verificationRequestID("current-outcome-capacity:v1:"+p.InstructionsHash+":", taskID, p.CapacityRecoveryAttemptID)
 	}
 	if p.Purpose == NativeReleaseInspection {
+		if p.VerifierRecoveryAttemptID != "" {
+			return verificationRequestID("native-release-inspection-recovery:v1:"+p.InstructionsHash+":", taskID, p.VerifierRecoveryAttemptID)
+		}
 		return verificationRequestID("native-release-inspection:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
 	}
 	if p.VerifierRecoveryAttemptID != "" {
@@ -213,7 +217,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.RevalidationKind != "" && (proof.RevalidationKind != EvidenceRevalidation || proof.Purpose != CurrentOutcomeInspection || proof.PreviousAttemptID == "" || proof.ReviewRequestID == "" || len(proof.ReviewPaths) != 0) {
 		return invalid("revalidation_kind")
 	}
-	if proof.VerifierRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
+	if proof.VerifierRecoveryAttemptID != "" && ((proof.Purpose != CurrentOutcomeInspection && proof.Purpose != NativeReleaseInspection) || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.VerifierRecoveryAttemptID == proof.SourceAttemptID) {
 		return invalid("recovery_shape")
 	}
 	if proof.CapacityRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.CapacityRecoveryAttemptID == proof.SourceAttemptID) {
@@ -225,7 +229,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
 		return invalid("preparation_shape")
 	}
-	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.SourceVerifierAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "") {
+	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.SourceVerifierAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "") {
 		return invalid("native_release_shape")
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit

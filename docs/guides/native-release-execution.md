@@ -174,6 +174,16 @@ Pending work is never reset, cleaned or committed to make a release pass.
 
 ## Maintainer CLI
 
+If a native release verifier is rejected before model execution because the
+running release changed while queued, the coordinator can schedule one bounded
+read-only successor inspection. It preserves the original source, delivery,
+approval and failed-attempt history. Fresh native observation and Git ancestry
+must prove the new running target contains the delivered target; snapshot
+preparation independently checks the implementation ancestry. Cancellation,
+model results and actual check failures do not qualify. The replacement verifier
+still has to pass original acceptance and unchanged-source checks; recovery
+never repeats publication or accepts work merely from the earlier delivery.
+
 A managed developer can find that the approved implementation already exists in
 the refreshed baseline. After native comparison reports no code changes and
 project checks pass, the runner records that existing clean HEAD and release

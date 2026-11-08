@@ -289,7 +289,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	s.cfg.Environment = "production"
 	s.cfg.SourceRepository = intent.Repository
 	s.cfg.CommitSHA = target
-	invalid := scenario != "initial verify"
+	invalid := scenario != "initial verify" && scenario != "initial verify stale"
 	switch scenario {
 	case "initial verify changed release":
 		s.cfg.CommitSHA = strings.Repeat("f", 40)
@@ -357,5 +357,84 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	if len(after.Attempts) != before {
 		t.Fatal("reconstructed review duplicated independent verifier")
 	}
+	if scenario == "initial verify stale" {
+		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed)
+		return
+	}
 	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed)
+}
+
+func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent) {
+	t.Helper()
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	current, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if current.LatestAttempt.ID == releaseAttemptID {
+		_, err = s.taskSvc.ClaimLaunch(ctx, time.Now(), "fixture-verifier", launch.ID)
+		must(err)
+		_, err = s.taskSvc.CreateAttempt(ctx, item.ID, launch.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: launch.AgentID, RequestID: launch.RequestID, ExpectedPredecessorID: releaseAttemptID})
+		must(err)
+	}
+	_, err = s.runnerSvc.Heartbeat(ctx, runner.HeartbeatRequest{RunnerID: "stale-verifier"}, time.Minute)
+	must(err)
+	current, err = s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	claimed, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "stale-verifier", SupportedAgents: []string{current.LatestAttempt.AgentName}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true}, time.Minute)
+	must(err)
+	if !claimed.Claimed || claimed.LiveInspection == nil {
+		t.Fatal("fixture verifier not claimed")
+	}
+	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.StaleInspectionReleaseMessage})
+	must(err)
+	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
+	p, err := s.projectSvc.Get(ctx, item.ProjectID)
+	must(err)
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", p.LocalPath}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("fixture git: %s", out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("checkout", "--detach", proof.TargetCommit)
+	must(os.WriteFile(filepath.Join(p.LocalPath, "later-release.txt"), []byte("unrelated release"), 0600))
+	run("add", "later-release.txt")
+	run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Later release retains delivered source")
+	s.cfg.CommitSHA = run("rev-parse", "HEAD")
+	failed, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	s.queueInboxTaskReview(ctx, failed)
+	recovery := *proof
+	recovery.VerifierRecoveryAttemptID = claimed.Attempt.ID
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, recovery.RequestID(item.ID)))
+	must(err)
+	if job == nil {
+		t.Fatal("changed release did not queue native recovery")
+	}
+	parsed, err := task.LiveInspectionForLaunch(&failed.Task, job)
+	must(err)
+	if parsed == nil || parsed.TargetCommit != s.cfg.CommitSHA || parsed.SourceCommit != proof.SourceCommit || parsed.SourceAttemptID != proof.SourceAttemptID || parsed.VerifierRecoveryAttemptID != claimed.Attempt.ID {
+		t.Fatal("recovery lost source/target/parent binding")
+	}
+	if parsed.PredecessorAttemptID() != claimed.Attempt.ID {
+		t.Fatal("recovery bypassed failed verifier predecessor")
+	}
+	before, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	s.queueInboxTaskReview(ctx, failed)
+	after, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if len(after.Attempts) != len(before.Attempts) || after.Status == task.TaskStatusDone {
+		t.Fatal("recovery duplicated execution or accepted work")
+	}
+	if _, err := s.projectSvc.VerificationSnapshot(ctx, item.ProjectID, item.ID, parsed.SourceCommit, parsed.TargetCommit); err != nil {
+		t.Fatal("recovered snapshot lacks original implementation", err)
+	}
 }

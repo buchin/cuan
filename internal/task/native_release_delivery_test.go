@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -144,10 +145,74 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 					if !limits.ReadOnlyRepository || !limits.DenyPush || !limits.DenyDeploy {
 						t.Fatal("native verifier gained implementation permission")
 					}
+					testStaleNativeInspectionRecovery(t, store, item, verifier, proof, j)
 				}
 			} else if err == nil || result != nil {
 				t.Fatal("invalid delivery lineage accepted")
 			}
 		})
+	}
+}
+
+func testStaleNativeInspectionRecovery(t *testing.T, store *MemoryStore, item *Task, verifier *TaskAttempt, original LiveInspectionIntent, launch TaskLaunch) {
+	t.Helper()
+	ctx := context.Background()
+	start, finish, exit := verifier.CreatedAt, time.Now().UTC(), 1
+	verifier.Status, verifier.StartedAt, verifier.FinishedAt, verifier.ExitCode = AttemptStatusFailed, &start, &finish, &exit
+	verifier.ErrorMessage = StaleInspectionReleaseMessage
+	base := *verifier
+	proof := original
+	proof.VerifierRecoveryAttemptID = verifier.ID
+	proof.TargetCommit, proof.ObservedAt = strings.Repeat("d", 40), finish
+	for _, scenario := range []string{"valid", "wrong owner", "wrong source", "same target", "generic failure", "cancelled", "still running", "missing finish"} {
+		candidate, stopped := proof, base
+		switch scenario {
+		case "wrong owner":
+			candidate.OwnerID = "foreign"
+		case "wrong source":
+			candidate.SourceCommit = strings.Repeat("f", 40)
+		case "same target":
+			candidate.TargetCommit = original.TargetCommit
+		case "generic failure":
+			stopped.ErrorMessage = "Project tests failed"
+		case "cancelled":
+			stopped.CancelRequested = true
+		case "still running":
+			stopped.Status = AttemptStatusRunning
+		case "missing finish":
+			stopped.FinishedAt = nil
+		}
+		// Separate fixture state per case; never revive a terminal attempt.
+		variant := NewMemoryStore()
+		variant.tasks, variant.activities, variant.launches = store.tasks, store.activities, store.launches
+		for id, attempt := range store.attempts {
+			variant.attempts[id] = attempt
+		}
+		variant.attempts[verifier.ID] = &stopped
+		err := ValidateLiveInspectionSource(ctx, variant, item, &candidate)
+		if (err == nil) != (scenario == "valid") {
+			t.Fatalf("stale native recovery %s: %v", scenario, err)
+		}
+	}
+	if err := store.UpdateAttempt(ctx, &base); err != nil {
+		t.Fatal(err)
+	}
+	if proof.RequestID(item.ID) == original.RequestID(item.ID) || proof.PredecessorAttemptID() != verifier.ID {
+		t.Fatal("recovery reused stopped launch or original release predecessor")
+	}
+	// Parsing and admission retain the exact recovery binding and read-only scope.
+	raw, _ := json.Marshal(proof)
+	launch.RequestID, launch.ID = proof.RequestID(item.ID), ""
+	launch.Revision = "Scope: read-only repository. Do not push. Do not deploy.\n" + LiveInspectionMarker + string(raw)
+	launch.CreatedAt, launch.AvailableAt = finish, finish
+	if parsed, err := LiveInspectionForLaunch(item, &launch); err != nil || parsed == nil || !reflect.DeepEqual(*parsed, proof) {
+		t.Fatal("native recovery launch lost exact identity", err)
+	}
+	// A completed model report can never be reclassified as a pre-model stop.
+	if err := store.CreateActivity(ctx, &TaskActivity{ID: "unexpected-report", TaskID: item.ID, AttemptID: &verifier.ID, ActivityType: "agent_report", Message: "Provider result exists", CreatedAt: finish}); err != nil {
+		t.Fatal(err)
+	}
+	if ValidateLiveInspectionSource(ctx, store, item, &proof) == nil {
+		t.Fatal("stale-target recovery discarded an existing model result")
 	}
 }
