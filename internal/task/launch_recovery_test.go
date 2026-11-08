@@ -15,7 +15,7 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 	ctx := context.Background()
 	launches := store.(LaunchStore)
 	recovery := store.(launchRecoveryStore)
-	for _, scenario := range []string{"recover", "legacy-agent", "custom-agent-error", "no-revision", "scope-changed", "newer-intent", "already-reserved", "active-attempt", "cancelled", "done", "expired", "stale-observation", "wrong-blocker", "artifact", "artifact-no-scope", "artifact-reserved", "artifact-expired", "artifact-scope-changed", "artifact-cancelled"} {
+	for _, scenario := range []string{"recover", "active-collision", "legacy-agent", "custom-agent-error", "no-revision", "scope-changed", "newer-intent", "already-reserved", "active-attempt", "cancelled", "done", "expired", "stale-observation", "wrong-blocker", "artifact", "artifact-no-scope", "artifact-reserved", "artifact-expired", "artifact-scope-changed", "artifact-cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Microsecond)
 			svc := NewService(store, nil)
@@ -70,7 +70,17 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 					}
 				}
 			}
+			if scenario == "active-collision" {
+				// The competing inspection finished; the blocked launch itself
+				// never reserved an attempt and may recover exactly once.
+				if err = store.CreateAttempt(ctx, &TaskAttempt{ID: "competing-" + item.ID, TaskID: item.ID, RunnerID: "fixture", AgentName: "agent", Status: AttemptStatusFailed, CreatedAt: now}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			reason := MissingWorkspaceLaunchError
+			if scenario == "active-collision" {
+				reason = ActiveAttemptLaunchError
+			}
 			if strings.HasPrefix(scenario, "artifact") {
 				reason = InvalidRepositoryLaunchError
 			}
@@ -120,7 +130,7 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 				expected = expected.Add(-time.Second)
 			}
 			recovered, err := recovery.RecoverUnstartedLaunch(ctx, j.ID, expected, at)
-			if err != nil || recovered != (scenario == "recover" || scenario == "legacy-agent" || scenario == "artifact") {
+			if err != nil || recovered != (scenario == "recover" || scenario == "active-collision" || scenario == "legacy-agent" || scenario == "artifact") {
 				t.Fatalf("recovery %v: %v", recovered, err)
 			}
 			if !recovered {

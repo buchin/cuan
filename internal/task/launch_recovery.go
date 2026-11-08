@@ -12,9 +12,13 @@ const MissingWorkspaceLaunchError = "Original task workspace is missing; its bra
 const missingWorkspaceRecoveryKey = "missing-workspace-v1"
 const StandaloneArtifactRecoveryKind = "standalone-artifact-workspace-v1"
 const InvalidRepositoryLaunchError = "invalid GitHub repository URL. Use format 'https://github.com/owner/repo' or 'owner/repo'"
+const ActiveAttemptLaunchError = "This task already has an active attempt. Check the session before retrying."
 
 // Only known pre-reservation failures with a shipped repair are replayable.
 func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
+	if j.SafeError == ActiveAttemptLaunchError {
+		return "active-attempt-admission-v1"
+	}
 	if len(tasks) > 0 && tasks[0] != nil && j.SafeError == InvalidRepositoryLaunchError &&
 		executionpolicy.StandaloneArtifactWork(tasks[0].Instructions) &&
 		InferExecutionCategory(tasks[0].Title, tasks[0].Instructions) == ExecutionCategoryOps {

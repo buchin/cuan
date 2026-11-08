@@ -12,13 +12,13 @@ import (
 )
 
 func TestLateLaunchErrorPreservesRecordedExecution(t *testing.T) {
-	for _, state := range []string{task.AttemptStatusQueued, task.AttemptStatusRunning, task.AttemptStatusFailed, task.AttemptStatusSucceeded, "unbound"} {
+	for _, state := range []string{task.AttemptStatusQueued, task.AttemptStatusRunning, task.AttemptStatusFailed, task.AttemptStatusSucceeded, "unbound", "busy"} {
 		t.Run(state, func(t *testing.T) { lateLaunchResponseContract(t, nil, state) })
 	}
 }
 
 func TestLateLaunchErrorPreservesRecordedExecutionPostgres(t *testing.T) {
-	for _, state := range []string{task.AttemptStatusRunning, task.AttemptStatusFailed, "unbound"} {
+	for _, state := range []string{task.AttemptStatusRunning, task.AttemptStatusFailed, "unbound", "busy"} {
 		t.Run(state, func(t *testing.T) {
 			withPhasePostgres(t, func(database *sql.DB) { lateLaunchResponseContract(t, database, state) })
 		})
@@ -54,7 +54,7 @@ func lateLaunchResponseContract(t *testing.T, database *sql.DB, state string) {
 	if lease == nil {
 		t.Fatal("launch not claimable")
 	}
-	if state != "unbound" {
+	if state != "unbound" && state != "busy" {
 		a, err := s.taskSvc.CreateAttempt(ctx, item.ID, j.OwnerID, task.CreateAttemptRequest{RunnerID: "fixture", AgentName: item.AssignedAgent, RequestID: j.RequestID})
 		must(err)
 		a.Status = state
@@ -76,7 +76,11 @@ func lateLaunchResponseContract(t *testing.T, database *sql.DB, state string) {
 	must(err)
 	// Reproduce a dispatcher receiving a stale HTTP rejection after another
 	// dispatcher already saved this exact request's execution.
-	out := s.finishQueuedTaskLaunch(ctx, *lease, true, "stopped", "the saved result inspection no longer matches this task and running release")
+	reason := "the saved result inspection no longer matches this task and running release"
+	if state == "busy" {
+		reason = task.ActiveAttemptLaunchError
+	}
+	out := s.finishQueuedTaskLaunch(ctx, *lease, true, "stopped", reason)
 	after, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
 	saved, err := s.taskSvc.GetLaunch(ctx, j.ID)
@@ -85,6 +89,12 @@ func lateLaunchResponseContract(t *testing.T, database *sql.DB, state string) {
 	must(err)
 	if len(before.Attempts) != len(after.Attempts) || (state != "unbound" && before.Status != after.Status) {
 		t.Fatal("late response changed execution or task")
+	}
+	if state == "busy" {
+		if saved.State != "queued" || after.LatestAttempt != nil || after.Status != before.Status {
+			t.Fatal("temporary reservation conflict stopped the intent or changed execution", saved)
+		}
+		return
 	}
 	if state == "unbound" {
 		if saved.State != "stopped" || saved.SafeError == "" || !strings.Contains(out, "could not start") {

@@ -781,7 +781,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash, ExpectedPredecessorID: payload.RecoverySourceAttemptID, InitializeQueuedTask: runnerID == "cuan-runner", PreserveQueuedReport: revision != ""})
 			if errors.Is(err, task.ErrTaskActive) {
-				respondJSONError(w, 409, "This task already has an active attempt. Check the session before retrying.")
+				respondJSONError(w, 409, task.ActiveAttemptLaunchError)
 				return
 			}
 			if errors.Is(err, task.ErrRequestConflict) && payload.RecoverySourceAttemptID != "" {

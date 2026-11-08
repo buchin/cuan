@@ -56,6 +56,17 @@ Targeted live lifecycle, source handoff, unpublished outcome, preparation,
 infrastructure and evidence-revalidation tests passed, including foreign and
 changed-scope negatives. This does not fix the underlying project test failure.
 
+The stopped latest source-verifier launch
+`launch_66fdb68984ebb6ccb3f71f853a9214b87d899fb1a9e85fa4d5393c69480563ee`
+had no execution attempt: admission lost a race with live attempt 13 and recorded
+the exact active-attempt rejection as permanent failure. A temporary reservation
+collision now keeps the launch queued without changing the active task. Legacy
+unstarted launches with that exact rejection can use the existing once-only
+pre-reservation recovery; no own attempt, newer launch, active execution, changed
+scope, cancellation or expiry can bypass its existing store guards. Tests cover
+the competing completed inspection, one-time recovery and queue response state.
+This recovers admission only and does not convert any failed attempt to success.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

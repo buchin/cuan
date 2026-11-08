@@ -138,6 +138,11 @@ const supersededRecoveryLaunchReason = "A newer execution replaced this recovery
 const staleInspectionLaunchReason = task.InspectionPredecessorPreparationError
 
 func (s *Server) finishQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch, background bool, state, reason string) string {
+	if state == "stopped" && reason == task.ActiveAttemptLaunchError {
+		// Another request may win reservation after this dispatcher read the
+		// task. Keep this unstarted intent queued; do not alter the active task.
+		state = "queued"
+	}
 	link := "\n\n[View work](/tasks/" + job.TaskID + ")"
 	save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
