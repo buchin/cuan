@@ -14,6 +14,7 @@ import { InboxRequest } from '../../api/chat'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { inboxRecoveryControls } from './inbox-recovery'
 import { StatusDot } from '../../components/ui/StatusDot'
+import { AccordionTimeline } from '../../components/ui/AccordionTimeline'
 
 export function evaluateInboxQuotaStatus(q: {
   steps?: { seq: number; kind: string; text: string; at: string }[]
@@ -361,50 +362,17 @@ export function InboxActivity({
                 <p className="text-muted-foreground">{q.safe_error}</p>
               )}
               {processSteps.length ? (
-                <ol
-                  aria-label="Response timeline"
-                  className="ml-1 space-y-0"
-                >
-                  {processSteps.map((step, index) => (
-                    <li key={step.seq} className="relative pb-5 pl-6 last:pb-0">
-                      {index < processSteps.length - 1 && <span data-timeline-connector aria-hidden className="absolute left-[3.5px] top-3 -bottom-1.5 w-px bg-muted-foreground/25" />}
-                      <StatusDot aria-hidden size="md" status={['running', 'cancelling'].includes(q.state) && index === processSteps.length - 1 ? 'working' : 'neutral'} className="absolute left-0 top-1.5" />
-                      {step.kind.startsWith('runtime_tool_') && (
-                        <span
-                          className={`text-xs font-medium ${step.kind === 'runtime_tool_failed' ? 'text-destructive' : 'text-muted-foreground'}`}
-                        >
-                          Tool
-                          {step.kind === 'runtime_tool_failed' ? ' failed' : ''}
-                        </span>
-                      )}
-                      {step.kind.startsWith('runtime_provider_') && (
-                        <span
-                          className={`text-xs font-medium ${step.kind === 'runtime_provider_failed' ? 'text-destructive' : 'text-muted-foreground'}`}
-                        >
-                          Provider
-                          {step.kind === 'runtime_provider_failed'
-                            ? ' failed'
-                            : ''}
-                        </span>
-                      )}
-                      <p>{step.kind.startsWith('runtime_tool_') ? step.text.split('\n\n')[0] : step.text}</p>
-                      {step.kind.startsWith('runtime_tool_') && step.text.includes('\n\n') && (
-                        <details className="mt-1 min-w-0" data-tool-detail>
-                          <summary className="min-h-11 cursor-pointer py-3 text-xs font-medium text-muted-foreground">{t('Detail')}</summary>
-                          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words pb-2 font-mono text-xs leading-relaxed text-muted-foreground">{step.text.slice(step.text.indexOf('\n\n') + 2)}</pre>
-                        </details>
-                      )}
-                      {Number.isFinite(Date.parse(step.at)) && (
-                        <time
-                          dateTime={step.at}
-                          className="mt-1 block text-xs tabular-nums text-muted-foreground"
-                        >
-                          {new Date(step.at).toLocaleTimeString(language)}
-                        </time>
-                      )}
-                    </li>
-                  ))}
-                </ol>
+                <AccordionTimeline key={q.request_id} label="Response timeline" followLatest={!timelinePaused} items={processSteps.map((step, index) => {
+                  const headline = step.text.split('\n')[0]
+                  const detail = step.text.slice(headline.length).trim()
+                  return {
+                    id: String(step.seq),
+                    title: <span className={step.kind.endsWith('_failed') ? 'text-destructive' : undefined}>{headline}</span>,
+                    meta: Number.isFinite(Date.parse(step.at)) ? <time dateTime={step.at}>{new Date(step.at).toLocaleTimeString(language,{hour:'2-digit',minute:'2-digit'})}</time> : undefined,
+                    indicator: <StatusDot aria-hidden size="md" status={active && index === processSteps.length - 1 ? 'working' : 'neutral'} />,
+                    content: detail ? step.kind.startsWith('runtime_tool_') ? <pre data-tool-detail className="max-h-80 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">{detail}</pre> : <p className="whitespace-pre-wrap break-words">{detail}</p> : undefined,
+                  }
+                })} />
               ) : (
                 <p className="text-muted-foreground">
                   No activity has been recorded yet.

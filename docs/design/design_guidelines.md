@@ -456,8 +456,11 @@ second nested box, prominent warning banner, or extra vertical footer margins.
 Use `StatusDot` for response timeline markers so the global square-surface theme
 cannot flatten them. Connect consecutive dots with a muted vertical line; stop
 the line at the last item. Only the final dot of a running/cancelling response
-pulses. Queued and terminal states are static, and reduced motion is respected.
+pulses. Queued work also pulses while Cuan owns the next step; terminal states
+are static, and reduced motion is respected.
 
+Response and task details use `AccordionTimeline`, with the latest meaningful
+detail expanded by default. Explicit disclosure choices survive polling.
 Active response details follow new activity until the user scrolls upward.
 Preserve that reading position across live updates. Scrolling back to the bottom
 or selecting Latest activity resumes following. Do not force-scroll a user who
@@ -556,7 +559,8 @@ an independent disclosure button rather than a third reply mode. Attachment
 previews precede this row. Empty task lists retain reply modes without Tasks.
 It starts closed and does not reopen on polling. Opening it expands running
 execution/review tasks by default; without active work, expand the newest task
-by creation time. Sort active work first, then newest tasks. Explicit accordion
+by creation time. Use the shared `AccordionTimeline`: oldest first, with muted
+vertical connectors between circular indicators. Explicit accordion
 choices survive updates and always override automatic defaults.
 Pulse while native execution, an admitted queued launch or coordinator review
 owns the next step, including queued checks. Do not infer ownership from a board
