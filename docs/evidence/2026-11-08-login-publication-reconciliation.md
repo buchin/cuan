@@ -98,6 +98,20 @@ delegation fixtures exited without a final response; a baseline Go overlay using
 the unmodified coordinator file reproduced the same managed-project failure.
 Those end-to-end checks remain failing and are not reported as passing validation.
 
+Follow-up isolated the fixture failure: its shell substitution took everything
+after `Target message ID:`, including later prompt sections containing `/`, and
+passed that text as a sed replacement. A diagnostic overlay captured
+`sed: unmatched '/'` before the fixture emitted any provider response. The fixture
+now extracts only the UUID on the target line and fails explicitly if it is
+absent. Both managed-project and clear-instruction delegation tests now pass.
+This changes the test harness, not production provider execution.
+
+Developer attempt 15 reported reconciliation of the divergent remote task branch
+and successful push of merge commit `553cd2c`; this does not prove deployment or
+the original account outcome. The native workflow automatically scheduled the
+next verifier. The task remains incomplete until actual independent outcome and
+applicable publication evidence are accepted.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw

@@ -103,7 +103,9 @@ fi
 printf '%s' "$2" >> "$HOME/delegation-prompts"
 case "$2" in
  *'reported_verification'*) printf '%s' '` + string(verified) + `' ;;
- *) target="${2##*Target message ID: }"; printf '%s' '` + string(raw) + `' | sed "s/AUTH/$target/g" ;;
+ *) target=$(printf '%s\n' "$2" | sed -n 's/^Target message ID: \([a-f0-9-]*\).*$/\1/p' | tail -n 1)
+    [ -n "$target" ] || exit 30
+    printf '%s' '` + string(raw) + `' | sed "s/AUTH/$target/g" ;;
 esac
 `
 	if reviewDenied {
