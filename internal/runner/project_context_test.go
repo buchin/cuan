@@ -123,3 +123,45 @@ func TestInvalidSavedProjectContextStopsClaimBeforeProviderExecution(t *testing.
 		t.Fatal("unavailable context waived completion checks", err)
 	}
 }
+
+func TestAccountOperationKeepsProjectAccessWithoutSourceTestsOrDeployment(t *testing.T) {
+	for _, legacyCode := range []bool{false, true} {
+		t.Run(fmt.Sprint(legacyCode), func(t *testing.T) {
+			ctx := context.Background()
+			projects := project.NewMemoryStore()
+			deploy := true
+			environment := "PROJECT_TEST_ACCESS_KEY=fixture\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/UnrelatedTest.php\"]"
+			metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &deploy, Environment: environment}})
+			p := &project.Project{ID: "account-project", LocalPath: t.TempDir(), DefaultBranch: "main", Metadata: metadata}
+			if err := projects.CreateProject(ctx, p); err != nil {
+				t.Fatal(err)
+			}
+			projectSvc := project.NewService(projects, nil, "fixture", t.TempDir())
+			saved, _ := projectSvc.Get(ctx, p.ID)
+			store := task.NewMemoryStore()
+			tasks := task.NewService(store, nil)
+			category := ""
+			if legacyCode {
+				category = task.ExecutionCategoryCode
+			}
+			item, err := tasks.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: p.ID, Title: "Aktivasi akses pelanggan", Instructions: project.SnapshotProjectGuidance("Aktifkan akses produk yang sudah ada untuk customer@example.invalid. Verifikasi entitlement aktif.", saved), ExecutionCategory: category})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !legacyCode && item.ExecutionCategory != task.ExecutionCategoryOps {
+				t.Fatal("account operation became implementation")
+			}
+			if _, err := tasks.CreateAttempt(ctx, item.ID, "owner", task.CreateAttemptRequest{RunnerID: "worker", AgentName: "agent"}); err != nil {
+				t.Fatal(err)
+			}
+			svc := NewService(NewMemoryStore(store), store, projectSvc)
+			claim, err := svc.Claim(ctx, ClaimTaskRequest{RunnerID: "worker"}, time.Minute)
+			if err != nil || !claim.Claimed {
+				t.Fatal(err)
+			}
+			if claim.Environment != environment || claim.AutoDeploy || claim.PHPUnitTargets != "" || !claim.PublicationLimits.ReadOnlyRepository || !claim.PublicationLimits.DenyDeploy || !claim.PublicationLimits.DenyPush {
+				t.Fatal("operation inherited source gates or lost original project access")
+			}
+		})
+	}
+}

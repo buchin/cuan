@@ -49,6 +49,12 @@ func NormalizeExecutionCategory(val string) string {
 	}
 }
 
+// Data/account actions do not become source work merely because their project
+// has a repository. An explicit implementation/schema change still wins.
+var accountOperation = regexp.MustCompile(`(?i)\b(grant (access|permission|entitlement)|revoke (access|permission)|activate (access|subscription)|assign membership|aktifkan akses|aktivasi (akses|hak akses)|berikan (akses|hak akses)|pemberian (akses|hak akses)|cabut (akses|hak akses)|nonaktifkan akses)\b`)
+var operationProhibition = regexp.MustCompile(`(?i)\b(?:jangan|dilarang|tanpa|tidak|do not|don't|must not|never|no)\b[^\n.!?]{0,400}`)
+var sourceChangeForOperation = regexp.MustCompile(`(?i)\b(implement|build|create|change|modify|add|update|fix|refactor|implementasi|implementasikan|buat|ubah|tambahkan|perbaiki)\b[^\n.]{0,60}\b(code|source|kode|schema|migration|controller|endpoint|api|frontend|backend|middleware|component|komponen|feature|fitur)\b`)
+
 var deployActionWord = regexp.MustCompile(`(?i)\bdeploy\b`)
 
 // InferExecutionCategory determines the appropriate execution lane (code, ops, readonly)
@@ -71,6 +77,14 @@ func InferExecutionCategory(title, instructions string) string {
 	// A feature described as read-only is not itself a read-only inspection.
 	if executionpolicy.FromInstructions(title + "\n" + instructions).ReadOnlyRepository {
 		return ExecutionCategoryReadOnly
+	}
+
+	activeScope := operationProhibition.ReplaceAllString(combined, " ")
+	if accountOperation.MatchString(activeScope) && sourceChangeForOperation.MatchString(activeScope) {
+		return ExecutionCategoryCode
+	}
+	if accountOperation.MatchString(activeScope) && !sourceChangeForOperation.MatchString(activeScope) && (!deployActionWord.MatchString(activeScope) || executionpolicy.FromInstructions(title+"\n"+instructions).DenyDeploy) {
+		return ExecutionCategoryOps
 	}
 
 	// Code creation/modification signals take precedence over incidental words like 'view'
@@ -145,4 +159,11 @@ func IsTaskSchemaMigration(t *Task) bool {
 		return false
 	}
 	return IsSchemaMigrationPrompt(t.Title, t.Instructions)
+}
+
+// Scope, not a historical lane default, identifies existing account-data work.
+// This is a restriction on repository work, never permission for a new effect.
+func IsAccountOperation(title, instructions string) bool {
+	scope := project.TaskScopeInstructions(instructions)
+	return InferExecutionCategory(title, scope) == ExecutionCategoryOps && accountOperation.MatchString(operationProhibition.ReplaceAllString(strings.ToLower(title+"\n"+scope), " "))
 }

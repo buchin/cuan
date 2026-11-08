@@ -750,3 +750,27 @@ remain unchanged; old runners cannot claim this recovery. Assertions, final
 blocked findings, cancellation, source changes and repeated recovery remain
 ineligible. Failed history stays failed, and original publication/acceptance
 requirements remain pending. No developer investigation is replayed.
+
+For an owner turn in a customer conversation, the current persisted CRM identity
+is injected automatically. The isolated AGY MCP boundary now exposes read-only
+`list_contacts` and `get_contact` alongside public fetch, using a private fresh
+per-execution snapshot without Owner API or DB credentials. `get_contact` accepts
+`current`, an exact contact ID or conversation/session ID. Searches declare their
+bounded directory/observation time. Returned notes declare whether fetched and
+whether older entries remain; use application-managed `memory_search` for further
+relationship history. Missing snapshot data is not proof of nonexistent records.
+A CRM email is an external-account lookup hint, not verified ownership, payment or
+access rights. Mutations and arbitrary DB tools remain unavailable in this mode.
+
+Existing account entitlement operations infer the operational lane in Indonesian
+and English; an explicit source/schema change remains code work. Native scope
+restricts source changes/push/deployment while retaining approved project access.
+Unrelated registered implementation tests are not injected into that restricted
+claim. This does not waive verification of the actual account operation.
+A final reported account result requires one independent read-only outcome
+inspection through the existing saved-evidence launch before PM acceptance.
+A legacy code-default account task rejected only for missing native source-test
+prerequisites can use the same bounded observation, preserving its failed attempt.
+Inspect existing account/access state; never replay activation to obtain proof.
+Actual assertions, source changes, cancellation and unreported criteria remain
+outside that legacy recovery. No manual status acceptance is implied.

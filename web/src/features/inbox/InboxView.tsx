@@ -1331,12 +1331,12 @@ export function InboxView({
                           )}
                         </button>
                 )}
-                {activeContact.type === 'customer' && (
+                {activeContact.type === 'customer' && activeContact.contact_id && (
                   <Link
                     className="icon-action text-muted-foreground hover:text-foreground"
                     aria-label="View contact details"
                     title={t('View contact details & memory')}
-                    to={`/contacts?contact=${encodeURIComponent(activeContact.id)}`}
+                    to={`/contacts?contact=${encodeURIComponent(activeContact.contact_id)}`}
                   >
                     <User className="h-4 w-4" />
                   </Link>

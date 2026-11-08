@@ -43,3 +43,19 @@ type classificationProjectFinder struct{ p *project.ProjectResponse }
 func (f *classificationProjectFinder) Get(context.Context, string) (*project.ProjectResponse, error) {
 	return f.p, nil
 }
+
+func TestAccountOperationsDoNotInheritRepositoryImplementationLane(t *testing.T) {
+	for _, c := range []struct{ title, scope, want string }{
+		{"Aktivasi Akses Dracin 3", "Cari dan verifikasi akun dengan email customer@example.invalid. Berikan hak akses produk Dracin 3. Verifikasi status akses aktif di database Dojo.", ExecutionCategoryOps},
+		{"Berikan hak akses", "Aktifkan akses user ini. Jangan ubah kode. Jangan deploy.", ExecutionCategoryOps},
+		{"Grant access", "Activate access for the customer so they can use existing content and features. Verify the entitlement.", ExecutionCategoryOps},
+		{"Grant access", "Grant access and implement a new middleware to enforce it.", ExecutionCategoryCode},
+		{"Activate subscription", "Add a database migration and verify it.", ExecutionCategoryCode},
+		{"Inspect access", "Read-only: inspect existing entitlement and report findings. Do not activate access.", ExecutionCategoryReadOnly},
+		{"Grant access", "Grant permission and deploy a new build.", ExecutionCategoryCode},
+	} {
+		if got := InferExecutionCategory(c.title, c.scope); got != c.want {
+			t.Fatalf("%s: got %s want %s", c.title, got, c.want)
+		}
+	}
+}

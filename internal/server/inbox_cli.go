@@ -209,6 +209,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if s.cfg != nil {
 		release = s.cfg.CommitSHA
 	}
+	crmSnapshot := ""
+	if (normHarness == "" || normHarness == "agy" || normHarness == "antigravity") && coordinator && !regenerate && !proposalDecision && !reconcileRetry && !analysisRecovery && !directCoordinator && !formatRepair {
+		snapshotPath, cleanup, setupErr := s.prepareInboxCRMSnapshot(ctx)
+		if setupErr != nil {
+			return "", "Could not read the saved contact context. Your message is saved; no provider process was started."
+		}
+		defer cleanup()
+		crmSnapshot = snapshotPath
+	}
+	if crmSnapshot != "" {
+		prompt += "\nRead-only CRM tools list_contacts and get_contact use an application-selected snapshot for this owner turn, without host credentials. get_contact accepts current for the contact bound to this conversation. Use the injected current contact before asking for name/email; use these tools for targeted lookup. Notes declare whether loaded; use the application memory_search action for additional relationship history. Snapshot contact identity never verifies an external account or grants access.\n"
+	}
 	var system string
 	if formatRepair {
 		system = inboxFormatRepairPrompt(formatCandidate, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
@@ -413,8 +425,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			profileEnv = append(profileEnv, "COMMAND_CODE_API_KEY="+key)
 		}
 	}
+
 	if binary == "agy" {
-		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, executionWorkspace, attachmentPaths)
+		path, args, err = sandboxInboxCommand(path, args, profileEnv, home, executionWorkspace, attachmentPaths, crmSnapshot)
 		if err == nil {
 			// Probe the same namespace/mount setup before starting paid inference.
 			// A blocked kernel policy must produce a setup error, not a fake

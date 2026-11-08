@@ -83,6 +83,32 @@ func TestCRMContactIdentityAndTags(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
+	list := call("GET", "/api/v1/chat/contacts?type=customers", "", true)
+	var inbox struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if list.Code != 200 || json.Unmarshal(list.Body.Bytes(), &inbox) != nil {
+		t.Fatal("Inbox contact lookup failed", list.Code)
+	}
+	found := false
+	for _, c := range inbox.Contacts {
+		if c.ConversationID == a {
+			found = true
+			if c.ContactID != id || c.ID == c.ContactID {
+				t.Fatal("Inbox alias replaced CRM identity", c)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("conversation missing from Inbox")
+	}
+	detail := call("GET", "/api/v1/chat/conversations/"+a+"/messages", "", true)
+	var payload struct {
+		Contact ChatContact `json:"contact"`
+	}
+	if detail.Code != 200 || json.Unmarshal(detail.Body.Bytes(), &payload) != nil || payload.Contact.ContactID != id || payload.Contact.Email != "a@example.com" {
+		t.Fatal("detail identity not bound to CRM", detail.Code, detail.Body.String())
+	}
 	if call("GET", "/api/chat/messages?session_uuid="+defaultScrumMasterRoomID, "", false).Code != 404 {
 		t.Fatal("visitor can read internal room")
 	}

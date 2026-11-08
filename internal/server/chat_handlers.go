@@ -26,6 +26,7 @@ import (
 
 // ChatContact represents a contact in the direct messenger hub (agent or customer).
 type ChatContact struct {
+	ContactID      string    `json:"contact_id,omitempty"`
 	AgentID        string    `json:"agent_id,omitempty"`
 	AgentName      string    `json:"agent_name,omitempty"`
 	ID             string    `json:"id"`
@@ -768,6 +769,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	// 3. Customer Live Chat Sessions (from Dojo Live Chat visitors)
 	if typeFilter != "agents" {
 		sessionList := []*LiveChatSession{}
+		contactIDs := map[string]string{}
 		saved, err := s.crmList(r.Context())
 		if err != nil {
 			respondJSONError(w, 503, "Could not load customer conversations")
@@ -777,6 +779,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			if c.IsManual {
 				continue
 			}
+			contactIDs[c.SessionUUID] = c.ID
 			name := c.Name
 			if name == "" {
 				name = "Visitor #" + c.ID[:6]
@@ -872,6 +875,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			}
 
 			custContact := ChatContact{
+				ContactID:      contactIDs[sess.UUID],
 				ID:             "cust_" + sess.UUID,
 				Type:           "customer",
 				Name:           sess.Name,
@@ -1262,7 +1266,9 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			}
 		}
 
-		if crmSess, err := s.crmSession(r.Context(), resolved.RoomID); err == nil && crmSess != nil {
+		contactID := ""
+		if crmSess, err := s.crmContactForSession(r.Context(), resolved.RoomID); err == nil {
+			contactID = crmSess.ID
 			if name == "" || name == "Customer" {
 				name = crmSess.Name
 			}
@@ -1279,6 +1285,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 
 		contact = ChatContact{
 			ID:             "cust_" + resolved.RoomID,
+			ContactID:      contactID,
 			Type:           "customer",
 			Name:           name,
 			Email:          email,

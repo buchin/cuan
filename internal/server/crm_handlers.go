@@ -148,43 +148,41 @@ ORDER BY c.updated_at DESC`)
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.After(out[j].UpdatedAt) })
 	return out, nil
 }
-func (s *Server) crmSession(ctx context.Context, id string) (*LiveChatSession, error) {
-	var c CRMContact
-	found := false
+
+// Contact identity is keyed by the conversation binding, never by an Inbox
+// display alias (cust_...) or a model's guess from a title/email.
+func (s *Server) crmContactForSession(ctx context.Context, id string) (CRMContact, error) {
 	if s.db != nil {
-		var err error
-		c, err = scanCRM(s.db.QueryRowContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts WHERE session_uuid::text=$1`, id))
-		if err == nil {
-			found = true
-		}
-	} else {
-		s.crm.Lock()
-		for _, v := range s.crm.contacts {
-			if v.SessionUUID == id {
-				c = v
-				found = true
-				break
-			}
-		}
-		s.crm.Unlock()
+		return scanCRM(s.db.QueryRowContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts WHERE session_uuid::text=$1`, id))
 	}
-	if found {
-		if c.Name == "" {
-			c.Name = "Visitor #" + c.ID[:6]
+	s.crm.Lock()
+	defer s.crm.Unlock()
+	for _, c := range s.crm.contacts {
+		if c.SessionUUID == id {
+			return c, nil
 		}
-		return &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: c.Name, Email: c.Email, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Status: "offline"}, nil
 	}
-
-	// Fallback to active transient session in globalChatManager
-	globalChatManager.RLock()
-	live, ok := globalChatManager.sessions[id]
-	globalChatManager.RUnlock()
-	if ok && live != nil {
-		return live, nil
-	}
-
-	return nil, sql.ErrNoRows
+	return CRMContact{}, sql.ErrNoRows
 }
+func (s *Server) crmSession(ctx context.Context, id string) (*LiveChatSession, error) {
+	c, err := s.crmContactForSession(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		globalChatManager.RLock()
+		live := globalChatManager.sessions[id]
+		globalChatManager.RUnlock()
+		if live != nil {
+			return live, nil
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if c.Name == "" {
+		c.Name = "Visitor #" + c.ID[:6]
+	}
+	return &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: c.Name, Email: c.Email, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Status: "offline"}, nil
+}
+
 func normalizeCRMEmail(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {

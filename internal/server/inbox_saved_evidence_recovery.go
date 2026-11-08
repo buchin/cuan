@@ -17,10 +17,13 @@ var historicalDocumentationCheck = regexp.MustCompile(`^Markdown-only diff verif
 // This is a bounded evidence-recovery hint, never proof that the historical
 // verifier ran or that the deliverable is correct. No old failed run is replayed.
 func savedEvidenceRecoveryCandidate(d *task.TaskDetailResponse) bool {
-	if d == nil || d.Status != task.TaskStatusBlocked || d.LatestAttempt == nil || d.LatestAttempt.ID == "" || d.LatestAttempt.RunnerID == "" || len(task.AcceptanceGaps(&d.Task)) > 0 {
+	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || d.LatestAttempt.ID == "" || d.LatestAttempt.RunnerID == "" || len(task.AcceptanceGaps(&d.Task)) > 0 {
 		return false
 	}
 	a := d.LatestAttempt
+	if operationalSourceCheckMismatch(d) || completedAccountOutcomeCandidate(d) {
+		return true
+	}
 	if a.Status != task.AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || !strings.HasPrefix(a.ErrorMessage, "Kepatuhan auto_deploy:") || (!historicalDocumentationCheck.MatchString(d.TestSummary) && !incorrectPublicationAuditRecovery(d)) {
 		return false
 	}
@@ -63,6 +66,9 @@ func (s *Server) recoverSavedEvidence(ctx context.Context, d *task.TaskDetailRes
 		return previous.State == "queued" || previous.State == "claimed" || previous.State == "started"
 	}
 	revision := "Scope: read-only repository. Do not push. Do not deploy.\nOne bounded recovery of saved task evidence, not another implementation cycle. The historical task-level verification text is unbound and is only a diagnostic hint; do not claim its checks ran in this attempt. Read the actual existing deliverables and inspect the existing workspace. Do not modify code, configuration, tests, documentation, git index, refs or commits. Do not reproduce prior deployment, migration, payment or other external effects. Independently verify each original acceptance criterion from actual files and reproducible read-only observations. Deliver the existing report as session artifacts under CUAN_TASK_ARTIFACTS_DIR, preserving its source provenance. Report current factual findings with the original criteria unchanged. If a required result or publication is missing, report that precise gap; do not repair it or waive it. The runner must verify unchanged repository state and independent review must assess the actual report. The original failed attempt remains failed." + taskRecoveryContext(d)
+	if task.IsAccountOperation(d.Title, d.Instructions) {
+		revision += "\nOperational account outcome inspection: the original scope changes account data, not repository source. The prior worker reported completion; independent verification is still required. A historical unrelated source-test failure does not prove an account defect. Independently inspect the existing account and entitlement through the project's authorized read-only commands/API. Never run access-grant, activate, revoke, update or another external mutation to obtain proof. Inspect retained repository changes too; unexpected source edits are out-of-scope findings, not accepted work. Verify every original criterion with fresh observations. Do not prepare or run unrelated source regression tests, invent code repairs, publish or waive missing outcome evidence."
+	}
 	s.startAuthorizedLaunch(ctx, origin, d, id, origin.RequestID, revision)
 	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, id))
 	if err != nil || launch == nil || (launch.State != "queued" && launch.State != "claimed" && launch.State != "started") {
@@ -95,4 +101,37 @@ func incorrectPublicationAuditRecovery(d *task.TaskDetailResponse) bool {
 		}
 	}
 	return false
+}
+
+// A legacy code default cannot turn a completed account operation into a source
+// repair mandate. Recover only current native prerequisite failures, not tests,
+// source changes, cancellation or a worker's generic claim of completion.
+func operationalSourceCheckMismatch(d *task.TaskDetailResponse) bool {
+	return d != nil && d.Status == task.TaskStatusBlocked && d.ExecutionCategory == task.ExecutionCategoryCode && d.CommitSHA == "" && d.DiffSummary == "" && len(task.AcceptanceGaps(&d.Task)) == 0 && task.IsAccountOperation(d.Title, d.Instructions) && nativePHPPrerequisiteFailure(d) != "" && task.AttemptChangeEvidence(d).RunnerChangeRecord == nil
+}
+
+func completedAccountOutcomeCandidate(d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil || d.Status != task.TaskStatusReview || !task.IsAccountOperation(d.Title, d.Instructions) || d.CommitSHA != "" || d.DiffSummary != "" || len(task.AcceptanceGaps(&d.Task)) > 0 || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+		return false
+	}
+	a := d.LatestAttempt
+	return a.Status == task.AttemptStatusSucceeded && !a.CancelRequested && a.CanceledAt == nil && a.FinishedAt != nil && a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == ""
+}
+
+// An independent observation is bound to the one saved evidence launch, not a
+// worker's role label or generic test prose. It never establishes publication.
+func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil || !task.IsAccountOperation(d.Title, d.Instructions) || !inboxReviewExecutionSucceeded(d) || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+		return false
+	}
+	store, ok := s.taskSvc.Store().(task.AttemptLaunchStore)
+	if !ok {
+		return false
+	}
+	launch, err := store.LaunchForAttempt(ctx, d.LatestAttempt.ID)
+	if err != nil || launch == nil || launch.TaskID != d.ID || launch.RequestID != savedEvidenceRecoveryRequestID(d) || launch.InstructionsHash != task.LaunchInstructionsHash(d.Instructions) || !strings.Contains(launch.Revision, "Operational account outcome inspection:") {
+		return false
+	}
+	_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
+	return err == nil && unchanged
 }
