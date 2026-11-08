@@ -7,8 +7,10 @@ const ActivityTypeRunnerVerification = "runner_verification"
 // RunnerVerificationRecord is saved atomically with execution completion, even
 // when no verifier ran. Task-level TestSummary remains historical display data.
 type RunnerVerificationRecord struct {
-	Summary string              `json:"summary"`
-	Changes *RunnerChangeRecord `json:"changes,omitempty"`
+	Summary                     string              `json:"summary"`
+	PublicationInstructionsHash string              `json:"publication_instructions_hash,omitempty"`
+	PublicationRequired         *bool               `json:"publication_required,omitempty"`
+	Changes                     *RunnerChangeRecord `json:"changes,omitempty"`
 }
 
 type VerificationEvidence struct {
@@ -53,4 +55,26 @@ func AttemptVerificationEvidence(d *TaskDetailResponse) VerificationEvidence {
 		out.Historical = ""
 	}
 	return out
+}
+
+// AttemptPublicationRequired reads the server's completion-time decision, never
+// report prose or an older attempt's retained task commit.
+func AttemptPublicationRequired(d *TaskDetailResponse) *bool {
+	if d == nil || d.LatestAttempt == nil || d.Status == "cancelled" || d.Status == "canceled" {
+		return nil
+	}
+	a := d.LatestAttempt
+	if a.Status != AttemptStatusSucceeded || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || a.RunnerID == "" {
+		return nil
+	}
+	for _, e := range d.Activities {
+		if e == nil || e.ID != "verification:"+a.ID || e.TaskID != d.ID || e.AttemptID == nil || *e.AttemptID != a.ID || e.Author != a.RunnerID || e.ActivityType != ActivityTypeRunnerVerification || e.CreatedAt.Before(*a.FinishedAt) {
+			continue
+		}
+		var record RunnerVerificationRecord
+		if json.Unmarshal([]byte(e.Message), &record) == nil && record.PublicationInstructionsHash == LaunchInstructionsHash(d.Instructions) {
+			return record.PublicationRequired
+		}
+	}
+	return nil
 }

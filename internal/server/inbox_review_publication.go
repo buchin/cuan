@@ -29,6 +29,9 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	if d == nil || d.LatestAttempt == nil || s.projectSvc == nil || d.ProjectID == "" || !releaseObjectID.MatchString(d.CommitSHA) || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
 		return nil
 	}
+	if required := task.AttemptPublicationRequired(d); required != nil && !*required {
+		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "current_completion_no_publication_required"}
+	}
 	_, err := s.taskPublicationPolicy(ctx, d)
 	if err != nil {
 		return &reviewPublication{Required: true, Commit: d.CommitSHA}

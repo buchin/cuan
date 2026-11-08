@@ -675,3 +675,12 @@ failing checks remain failures; agent prose cannot replace them. Without saved
 PHP targets, existing fixed project verifier selection remains. Read-only audits
 retain their repository fingerprint boundary without running implementation tests.
 Passing these local checks does not prove publication or independent acceptance.
+
+Execution completion saves the server's publication-required decision alongside
+runner verification when the runner supplied change/deployment classification.
+Review consumes that decision only from the successful current attempt's native
+completion record, with matching runner and instruction hash. A current
+no-publication decision does not assert the retained task commit was deployed:
+historical or reverted branch commits must not manufacture another deployment
+requirement. Original outcome criteria and independent verification still apply.
+Missing, failed, foreign, stale or scope-changed records retain existing checks.

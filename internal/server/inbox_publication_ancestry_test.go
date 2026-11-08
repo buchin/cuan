@@ -203,3 +203,51 @@ func TestConfirmedMissingPublicationReturnsToDev(t *testing.T) {
 		t.Fatal("retry changed durable handoff", err)
 	}
 }
+
+func TestCurrentNoPublicationDecisionDoesNotReviveHistoricalCommit(t *testing.T) {
+	for _, scenario := range []string{"current", "old attempt", "wrong runner", "changed scope", "failed", "missing record", "required"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			s, _, _, _ := inboxFixture(t)
+			store := project.NewMemoryStore()
+			if err := store.CreateProject(ctx, &project.Project{ID: "project", RepoURL: "https://github.com/fixture/repo", LocalPath: t.TempDir()}); err != nil {
+				t.Fatal(err)
+			}
+			s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+			now := time.Now().UTC()
+			required := scenario == "required"
+			d := &task.TaskDetailResponse{Task: task.Task{ID: "task", ProjectID: "project", Instructions: "Investigate login and fix only if needed", CommitSHA: strings.Repeat("a", 40)}, LatestAttempt: &task.TaskAttempt{ID: "attempt", TaskID: "task", RunnerID: "runner", Status: task.AttemptStatusSucceeded, FinishedAt: &now}}
+			raw, _ := json.Marshal(task.RunnerVerificationRecord{Summary: "No source changes remain", PublicationRequired: &required, PublicationInstructionsHash: task.LaunchInstructionsHash(d.Instructions)})
+			attemptID := "attempt"
+			event := &task.TaskActivity{ID: "verification:attempt", TaskID: "task", AttemptID: &attemptID, Author: "runner", ActivityType: task.ActivityTypeRunnerVerification, CreatedAt: now, Message: string(raw)}
+			d.Activities = []*task.TaskActivity{event}
+			switch scenario {
+			case "old attempt":
+				attemptID = "older"
+			case "wrong runner":
+				event.Author = "agent"
+			case "changed scope":
+				d.Instructions += " and deploy exact commit"
+			case "failed":
+				d.LatestAttempt.Status = task.AttemptStatusFailed
+			case "missing record":
+				d.Activities = nil
+			}
+			got := s.inboxReviewPublication(ctx, d)
+			if got == nil {
+				t.Fatal("missing publication context")
+			}
+			if scenario == "current" {
+				if got.Required || got.Verified || got.Provenance != "current_completion_no_publication_required" {
+					t.Fatal("native no-publication decision lost", got)
+				}
+				decision := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Independent login evidence still needed"}
+				if s.requirePublicationReview(ctx, d, decision) != decision {
+					t.Fatal("publication guard replaced original verification gap")
+				}
+			} else if !got.Required || got.Verified {
+				t.Fatal("untrusted exemption waived publication", got)
+			}
+		})
+	}
+}

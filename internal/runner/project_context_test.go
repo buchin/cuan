@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,54 +14,65 @@ import (
 
 func TestRunnerClaimAndCompletionUseFrozenProjectContext(t *testing.T) {
 	for _, originalDeploy := range []bool{false, true} {
-		t.Run(map[bool]string{false: "saved deployment disabled", true: "saved deployment required"}[originalDeploy], func(t *testing.T) {
-			ctx := context.Background()
-			projects := project.NewMemoryStore()
-			metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &originalDeploy, Environment: "DEPLOY_TARGET=saved\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/SavedTest.php\"]", DeployBranch: "saved-release"}})
-			p := &project.Project{ID: "context-project", LocalPath: t.TempDir(), DefaultBranch: "main", Metadata: metadata}
-			if err := projects.CreateProject(ctx, p); err != nil {
-				t.Fatal(err)
-			}
-			projectSvc := project.NewService(projects, nil, "fixture", t.TempDir())
-			original, _ := projectSvc.Get(ctx, p.ID)
-			store := task.NewMemoryStore()
-			tasks := task.NewService(store, nil)
-			created, err := tasks.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: p.ID, Title: "Implement approved feature", Instructions: project.SnapshotProjectGuidance("Implement approved feature", original)})
-			if err != nil {
-				t.Fatal(err)
-			}
-			a, err := tasks.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "context-runner", AgentName: "agent"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			latestDeploy := !originalDeploy
-			p.Metadata, _ = json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &latestDeploy, Environment: "DEPLOY_TARGET=latest\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/LatestTest.php\"]", DeployBranch: "latest-release"}})
-			if err := projects.UpdateProject(ctx, p); err != nil {
-				t.Fatal(err)
-			}
-			svc := NewService(NewMemoryStore(store), store, projectSvc)
-			claim, err := svc.Claim(ctx, ClaimTaskRequest{RunnerID: "context-runner"}, time.Minute)
-			if err != nil || claim == nil || !claim.Claimed {
-				t.Fatal("claim failed", err)
-			}
-			if claim.Environment != "DEPLOY_TARGET=saved\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/SavedTest.php\"]" || claim.DeployBranch != "saved-release" || claim.AutoDeploy != originalDeploy || claim.WorkingDir != original.LocalPath {
-				t.Fatal("current defaults replaced saved context")
-			}
-			if claim.PHPUnitTargets != `["tests/Feature/SavedTest.php"]` {
-				t.Fatal("ordinary worker lost frozen registered test targets", claim.PHPUnitTargets)
-			}
-			changed := true
-			result, err := svc.Complete(ctx, a.ID, CompleteAttemptRequest{RunnerID: "context-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, AgentReportRequired: true, AgentReportConfirmed: true, CommitSHA: strings.Repeat("a", 40), HasCodeChanges: &changed})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if originalDeploy && (result.Status != task.AttemptStatusFailed || !strings.Contains(result.ErrorMessage, "auto_deploy")) {
-				t.Fatal("saved deployment requirement waived", result)
-			}
-			if !originalDeploy && result.Status != task.AttemptStatusSucceeded {
-				t.Fatal("new defaults imposed deployment", result)
-			}
-		})
+		for _, codeChanges := range []bool{false, true} {
+			t.Run(fmt.Sprintf("saved auto deploy %v changes %v", originalDeploy, codeChanges), func(t *testing.T) {
+				ctx := context.Background()
+				projects := project.NewMemoryStore()
+				metadata, _ := json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &originalDeploy, Environment: "DEPLOY_TARGET=saved\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/SavedTest.php\"]", DeployBranch: "saved-release"}})
+				p := &project.Project{ID: "context-project", LocalPath: t.TempDir(), DefaultBranch: "main", Metadata: metadata}
+				if err := projects.CreateProject(ctx, p); err != nil {
+					t.Fatal(err)
+				}
+				projectSvc := project.NewService(projects, nil, "fixture", t.TempDir())
+				original, _ := projectSvc.Get(ctx, p.ID)
+				store := task.NewMemoryStore()
+				tasks := task.NewService(store, nil)
+				created, err := tasks.CreateTask(ctx, "owner", task.CreateTaskRequest{ProjectID: p.ID, Title: "Implement approved feature", Instructions: project.SnapshotProjectGuidance("Implement approved feature", original)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				a, err := tasks.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{RunnerID: "context-runner", AgentName: "agent"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				latestDeploy := !originalDeploy
+				p.Metadata, _ = json.Marshal(map[string]any{"cuan_settings": project.Settings{AutoDeploy: &latestDeploy, Environment: "DEPLOY_TARGET=latest\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/LatestTest.php\"]", DeployBranch: "latest-release"}})
+				if err := projects.UpdateProject(ctx, p); err != nil {
+					t.Fatal(err)
+				}
+				svc := NewService(NewMemoryStore(store), store, projectSvc)
+				claim, err := svc.Claim(ctx, ClaimTaskRequest{RunnerID: "context-runner"}, time.Minute)
+				if err != nil || claim == nil || !claim.Claimed {
+					t.Fatal("claim failed", err)
+				}
+				if claim.Environment != "DEPLOY_TARGET=saved\nCUAN_VERIFICATION_PHPUNIT_TARGETS=[\"tests/Feature/SavedTest.php\"]" || claim.DeployBranch != "saved-release" || claim.AutoDeploy != originalDeploy || claim.WorkingDir != original.LocalPath {
+					t.Fatal("current defaults replaced saved context")
+				}
+				if claim.PHPUnitTargets != `["tests/Feature/SavedTest.php"]` {
+					t.Fatal("ordinary worker lost frozen registered test targets", claim.PHPUnitTargets)
+				}
+				changed := codeChanges
+				result, err := svc.Complete(ctx, a.ID, CompleteAttemptRequest{RunnerID: "context-runner", Status: task.AttemptStatusSucceeded, ExitCode: 0, AgentReportRequired: true, AgentReportConfirmed: true, CommitSHA: strings.Repeat("a", 40), HasCodeChanges: &changed, RequiresDeploy: &changed})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if originalDeploy && changed && (result.Status != task.AttemptStatusFailed || !strings.Contains(result.ErrorMessage, "auto_deploy")) {
+					t.Fatal("saved deployment requirement waived", result)
+				}
+				if (!originalDeploy || !changed) && result.Status != task.AttemptStatusSucceeded {
+					t.Fatal("new defaults imposed deployment", result)
+				}
+				activities, err := store.ListActivities(ctx, created.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				detail := &task.TaskDetailResponse{Task: *created, LatestAttempt: result, Activities: activities}
+				required := task.AttemptPublicationRequired(detail)
+				if result.Status == task.AttemptStatusSucceeded && (required == nil || *required != (originalDeploy && changed)) {
+					t.Fatal("completion publication decision lost", required)
+				}
+			})
+		}
 	}
 }
 

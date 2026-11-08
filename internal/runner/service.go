@@ -572,6 +572,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			att.ErrorMessage = "Native release process and production observation could not be verified; completion was not accepted"
 		}
 	}
+	var publicationRequired *bool
 	if status == task.AttemptStatusSucceeded && s.projectFinder != nil {
 		if t, err := s.taskStore.GetTask(ctx, att.TaskID); err == nil && t != nil && t.ProjectID != "" {
 			if p, err := s.projectFinder.TaskContext(ctx, t.ProjectID, t.Instructions); err == nil && p != nil {
@@ -593,6 +594,12 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				limits, policyErr := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
 				if policyErr != nil {
 					return nil, policyErr
+				}
+				// Persist the same native decision used here so later review
+				// cannot revive a historical commit's deployment requirement.
+				if req.HasCodeChanges != nil || req.RequiresDeploy != nil {
+					required := settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy
+					publicationRequired = &required
 				}
 				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy && managedHandoff == nil && nativeDelivery == nil {
 					activities, receiptErr := s.taskStore.ListActivities(ctx, att.TaskID)
@@ -925,7 +932,11 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		if req.DiffSummary != "" && req.CommitSHA != "" {
 			changes = task.NewRunnerChangeRecord(req.CommitSHA, req.DiffSummary)
 		}
-		verification, _ := json.Marshal(task.RunnerVerificationRecord{Summary: req.TestSummary, Changes: changes})
+		record := task.RunnerVerificationRecord{Summary: req.TestSummary, Changes: changes, PublicationRequired: publicationRequired}
+		if publicationRequired != nil {
+			record.PublicationInstructionsHash = task.LaunchInstructionsHash(t.Instructions)
+		}
+		verification, _ := json.Marshal(record)
 		completionActivities = append(completionActivities, &task.TaskActivity{
 			ID: "verification:" + att.ID, TaskID: t.ID, AttemptID: &att.ID,
 			ActivityType: task.ActivityTypeRunnerVerification, Author: req.RunnerID,
