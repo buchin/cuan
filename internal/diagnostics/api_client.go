@@ -142,6 +142,47 @@ func NormalizeAgentAlias(agent string) string {
 	}
 }
 
+// ResolveActiveAgentName resolves the display handle/name of an agent dynamically
+// based on active agent settings (API or database) without hardcoding.
+func ResolveActiveAgentName(ctx context.Context, agentID string) string {
+	normalized := NormalizeAgentAlias(agentID)
+	if normalized == "" {
+		normalized = "agent_cuan"
+	}
+
+	// 1. Try querying via CuanClient if configured
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		if agentData, err := client.GetAgent(ctx, normalized); err == nil {
+			if ag, ok := agentData["agent"].(map[string]any); ok {
+				if name, ok := ag["name"].(string); ok && strings.TrimSpace(name) != "" {
+					return strings.TrimSpace(name)
+				}
+			}
+		}
+	}
+
+	// 2. Try querying via database if connected
+	if dbConn := getPlatformDB(); dbConn != nil {
+		var name string
+		_ = dbConn.QueryRowContext(ctx, "SELECT name FROM agents WHERE id = $1", normalized).Scan(&name)
+		if strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name)
+		}
+		if normalized == "agent_cuan" {
+			_ = dbConn.QueryRowContext(ctx, "SELECT name FROM agents WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1").Scan(&name)
+			if strings.TrimSpace(name) != "" {
+				return strings.TrimSpace(name)
+			}
+		}
+	}
+
+	// 3. Fallback: if specific non-cuan handle was given, retain it; otherwise use default handle constant
+	if agentID != "" && normalized != "agent_cuan" {
+		return agentID
+	}
+	return db.DefaultAgentHandle
+}
+
 // IsConfigured returns true if BaseURL and AuthToken are populated.
 func (c *CuanClient) IsConfigured() bool {
 	return c != nil && c.BaseURL != "" && c.AuthToken != ""
@@ -220,7 +261,29 @@ func (c *CuanClient) CreateConversation(ctx context.Context, agentID, projectID,
 	if title != "" && title != "New conversation" {
 		res["title"] = title
 	}
+	if agName, _ := res["agent_name"].(string); strings.TrimSpace(agName) == "" {
+		res["agent_name"] = ResolveActiveAgentName(ctx, agentID)
+	}
 
+	return res, nil
+}
+
+// GetAgent retrieves agent details by ID.
+func (c *CuanClient) GetAgent(ctx context.Context, id string) (map[string]any, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/agents/"+url.PathEscape(id), nil)
+	if err != nil {
+		return nil, fmt.Errorf("get agent: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("get agent failed (status %d)", resp.StatusCode)
+	}
+
+	var res map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, fmt.Errorf("unmarshal get agent response: %w", err)
+	}
 	return res, nil
 }
 
