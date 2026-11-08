@@ -449,6 +449,23 @@ native capability and inject a task API token; both are rejected while approved
 Dojo credentials still arrive. Terminal and native runner-to-PTY tests pass.
 This hardening is not deployed yet.
 
+Release `50c8b73e716701abf50df1a777b586a733304db0` passed exact-SHA production
+health with 37 migrations. The reporting benchmark's first attempt (started on
+the preceding deployed prompt/context) succeeded at
+`2026-11-09T02:32:08.730886+08:00`, about 4m31s after start, with downloadable
+attachment `d2895527-01db-41db-aa70-c76e87839ce7`. Official download inspection
+finds dated source observations, four reported read commands, masked outputs and
+reported exit statuses. This is a real first-execution delivery improvement,
+not evidence that the model saved an early checkpoint: its progress/final report
+were both saved near the end, at approximately 02:32:06 UTC+8.
+
+The dispatcher automatically admitted separate read-only account observation
+`att_7c722f4611d4ff6bf032b2ac0a9f4181`, started at
+`2026-11-09T02:32:18.522926+08:00`. Its saved observer envelope has 2,503
+runes and forbids repository mutation, push and deployment. This second session
+is the intended independent inspection, not a retry of a failed worker. It is
+still running; neither independent verification nor Done is established yet.
+
 Review contract logs now retain sanitized decision enums before guards run.
 Unexpected values become `unknown`; private review prose is not logged. This
 allows a subsequent routing contradiction to be traced without guessing the raw
