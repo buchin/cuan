@@ -166,6 +166,7 @@ export function ConversationItem({
       className={cn(
         'inbox-item-row border-b border-border/40 transition-colors hover:bg-accent/40',
         isSelected && 'bg-accent/35 text-accent-foreground',
+        showProgress && '[&_.item-menu-quiet]:right-11',
         !isLast && 'has-divider',
       )}
       actions={[
