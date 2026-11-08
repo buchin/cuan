@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,11 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		}
 		if launch == nil || launch.State != "queued" || !strings.Contains(launch.Revision, "Separate developer correction after independent source verification") {
 			t.Fatal("correction did not preserve native source provenance", output)
+		}
+		limits := executionpolicy.FromInstructions(launch.Revision)
+		original, _ := s.inboxApprovedTaskScope(ctx, current)
+		if original == nil || limits.ReadOnlyRepository != original.ReadOnlyRepository || limits.DenyPush != original.DenyPush || limits.DenyDeploy != original.DenyDeploy {
+			t.Fatal("generated correction context manufactured new scope restrictions", limits, original)
 		}
 		latest, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
 		must(e)
