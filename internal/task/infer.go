@@ -57,6 +57,15 @@ var sourceChangeForOperation = regexp.MustCompile(`(?i)\b(implement|build|create
 
 var deployActionWord = regexp.MustCompile(`(?i)\bdeploy\b`)
 
+// A category is scheduling metadata, never permission to prepare a repository
+// explicitly excluded by the approved standalone-file scope.
+func scopeConstrainedCategory(title, instructions, category string) string {
+	if executionpolicy.StandaloneArtifactWork(instructions) && !IsSchemaMigrationPrompt(title, instructions) {
+		return ExecutionCategoryOps
+	}
+	return category
+}
+
 // InferExecutionCategory determines the appropriate execution lane (code, ops, readonly)
 // based on task title and instructions.
 func InferExecutionCategory(title, instructions string) string {

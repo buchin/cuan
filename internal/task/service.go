@@ -222,6 +222,7 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 	if executionCategory == "" {
 		executionCategory = InferExecutionCategory(title, instructions)
 	}
+	executionCategory = scopeConstrainedCategory(title, instructions, executionCategory)
 	t := &Task{
 		CreationHash:      taskCreationHash(req),
 		DoDChecklist:      append([]DoDItem{}, req.DoDChecklist...),
@@ -594,6 +595,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 			t.ExecutionCategory = cat
 		}
 	}
+	t.ExecutionCategory = scopeConstrainedCategory(t.Title, t.Instructions, t.ExecutionCategory)
 	if req.BranchName != nil {
 		t.BranchName = strings.TrimSpace(*req.BranchName)
 	}

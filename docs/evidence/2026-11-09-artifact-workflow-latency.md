@@ -244,3 +244,29 @@ backend files reproduces the identical failures before this change. No test or
 acceptance gate was weakened to hide this baseline issue. Baseline output is
 retained under `/home/dev/.tmp/cuan-context-baseline-7il2ndzo/result.log`.
 No claim of a fully green server suite or production latency improvement yet.
+
+## Preparation rollout: category override found during native benchmark
+
+Release `75ff6f20a671c83732d6e6ea61d3de9510d551fd` passed exact-SHA health
+with38 migrations at2026-11-09T06:04:50Z. New room
+`0f940c51-afc8-4ddc-a712-232da0ed256f`, request
+`62ef2af0-6bb4-4da3-b18b-21b9e8e16ab6`, repeats the unchanged file request.
+The durable trace now exposes actual initial input:79646 prompt bytes and15720
+context bytes. This is production evidence without journal access, not token
+usage or proof that input length alone causes the latency.
+
+Initial PM completed at14:07:51.482+08 (153.4 seconds) and created task
+`msg_42ac02ae-7c8e-4c7a-b10b-4aaef8b14f2c`. The task scope is recognized
+standalone artifact work, but the explicit category supplied to creation can
+override inference. It incorrectly used code lane and prepared a Git checkout.
+Root canceled the diagnostic task to preserve the no-repository scope; native
+attempt `att_1aa24bf8ff94586f7470440d6950b833` is confirmed canceled at
+14:09:03.443021+08. No acceptance or latency improvement is claimed.
+
+A regression reproduces explicit code/readonly hints overriding this recognized
+scope, including through metadata update. Task creation and updates now constrain
+such hints to ops for explicit standalone-file work. Category is scheduling
+metadata, not authority to open a forbidden repository. Ordinary repository work
+and schema-migration locking retain their existing classification. Targeted
+category/inference/frozen-project-context tests pass. Historical canceled tasks
+are not manually recategorized, restarted or removed.
