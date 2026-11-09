@@ -165,3 +165,48 @@ all native observation types present, conservative fallback, independent-artifac
 routing and read-only/publication acceptance regressions. Source compaction alone
 does not prove faster or equally good model judgments; fresh native production
 completion remains required after rollout.
+
+## Context-selection native production result
+
+Release `25da3ccf11778067ff568fedb95d759a8927f3bf` passed exact-SHA health
+with38 migrations at2026-11-09T05:40:14Z. Fresh room
+`33e1d537-ecbd-4b46-81e9-2d59f62ea015` repeated the unchanged five-line request.
+Task `msg_c3a16b0e-36b5-468d-a6fc-cdd658cd7558` reached native Done at
+13:49:05.240282+08 with two attempts and no manual acceptance, retry, steering
+or workspace intervention:
+
+- Initial PM request `68085755-6c91-4134-adbb-5e87d68cba7a`:
+  13:40:39.092–13:44:14.948,215.9 seconds; provider process204.3 seconds.
+- Developer `att_33a69ba6cab55721fdf9071fa0abb57a`:
+  13:44:16.239–13:45:36.350,80.1 seconds; admission1.3 seconds.
+- Mandatory handoff `18f6a1fb-a8c1-44d5-a660-bacd7f1a7ff3`:
+  13:45:36.472–13:45:37.753,1.3 seconds with no provider stage.
+- Verifier `att_bc69c02416f2bc5c642ffc50dd50f4a3`:
+  13:45:41.239–13:47:38.290,117.1 seconds. Native read-only/deny push/deploy
+  scope, private artifact workspace without Git checkout, and runner unchanged
+  receipt are present.
+- Final PM `d03a6b5b-ee0a-4608-a867-dd8076f65b04`:
+  13:47:38.374–13:49:05.253,86.9 seconds. Context completes at13:47:45.295;
+  model selection at13:47:53.011, before a72.1-second provider process with
+  a67.9-second response stage. Model remains `gemini-3.8-flash-high`.
+
+Total request to Done is506.1 seconds, slower than the previous409.7-second
+run; final review86.9 seconds versus83.9 previously. This does not establish a
+latency improvement, nor statistically establish a regression from selection:
+the unchanged initial PM stage alone increased by115 seconds. Native completion
+and correct output are proven for this fixture, not general model quality.
+
+Root officially downloaded attachment `9f994111-9fc6-421b-a2c4-3fa988e23a7f`
+and2557-byte report `07229ec6-c70f-409f-a02c-c3b8bf9d271f`, reading both.
+The actual170-byte file has expected SHA256
+`b903747b2d3c581e6a87b03e0bc310dfcd337daf503375bfc15102ac3b8f3d50`.
+Copies reside in `/home/dev/artifacts/cuan-review-context/`.
+
+Two official `inspect_app_logs` MCP invocations on the host returned no matching
+trace records, including with system-journal privileges. This is unavailable
+diagnostic evidence, not proof no process ran. Actual per-request selected prompt
+bytes were not observed; only local selector sizes above are established. The
+durable request trace does prove the measured stage boundaries. Next investigate
+the repeated context/catalog preparation (about15 seconds here), the large
+unchanged initial coordinator policy, and expose numeric prompt diagnostics
+through durable trace so future investigations need no journal access.
