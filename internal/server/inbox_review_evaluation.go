@@ -887,7 +887,7 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
 	if d.ExecutionCategory == task.ExecutionCategoryCode {
-		parts = append(parts, inboxIndependentCodeReviewPolicy)
+		parts = append(parts, inboxIndependentCodeReviewPolicy, inboxPublicationReviewPolicy)
 	}
 	if nativePHPPrerequisiteFailure(d) != "" {
 		parts = append(parts, inboxPrerequisiteReviewPolicy)

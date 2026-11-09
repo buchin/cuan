@@ -124,3 +124,21 @@ func TestPublicationEvidenceCautionIsNotBlanketDeploymentBan(t *testing.T) {
 		}
 	}
 }
+
+func TestCompletedNativeInspectionHeaderDoesNotRestrictNextDeveloper(t *testing.T) {
+	prefix := "Native publication reconciliation: the retained source aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has completed a source-bound read-only inspection; the current registered release does not contain that commit. "
+	for _, tc := range []struct {
+		text                   string
+		readonly, push, deploy bool
+	}{
+		{prefix + "Reconcile the code and publish the approved result.", false, false, false},
+		{prefix + "Reconcile the code. Do not deploy.", false, false, true},
+		{prefix + "\nScope: read-only repository. Inspect code only.", true, true, true},
+		{"Native publication reconciliation: a read-only inspection of code is required.", true, true, true},
+	} {
+		got := FromInstructions(tc.text)
+		if got.ReadOnlyRepository != tc.readonly || got.DenyPush != tc.push || got.DenyDeploy != tc.deploy {
+			t.Fatalf("historical scope crossed attempts: %+v", got)
+		}
+	}
+}

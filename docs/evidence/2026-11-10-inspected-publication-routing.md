@@ -34,3 +34,23 @@ receipt, changed source, owner deployment prohibition, wait and owner-input gate
 Existing publication, scope and source-correction contracts pass (4.332s);
 project-owned snapshot/connection checks pass (1.247s). Git ancestry regressions
 pass (0.652s). Production rollout and recovery remain to observe.
+
+## Follow-up: continuation scope and optional manager metadata
+
+Production review still stalled because an explicit publication revision omitted
+optional manager action/reason. Normalize that explicit revision only under the
+same native source/receipt/non-inclusion and original-authority gates. Explicit
+wait, owner input and unknown evidence remain excluded. Repeated normalization
+preserves the saved revision exactly.
+
+The generated continuation also described the predecessor as a read-only
+inspection, accidentally restricting its separate developer when reviewer prose
+mentioned code. New text omits that historical adjective; policy parsing repairs
+only the exact old native completed-inspection header. Explicit owner/attempt
+read-only and deployment restrictions remain effective.
+
+Publication policy v5 participates in the review evidence digest so affected
+unfinished reviews receive one fresh assessment through existing deduplication.
+Targeted execution policy tests pass (0.018s); server publication, persisted
+handoff, idempotence and native-check regressions pass (4.427s). Production
+recovery and task acceptance remain unproven at this checkpoint.

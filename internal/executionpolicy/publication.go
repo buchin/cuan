@@ -20,6 +20,10 @@ var publicationProhibition = regexp.MustCompile(`(?i)\b(?:jangan|dilarang|tanpa|
 // "tidak menyalin ... lalu lakukan deployment" does not prohibit deployment.
 // Any prohibition before the transition is still evaluated independently.
 var publicationClauseTransition = regexp.MustCompile(`(?i)\b(?:(?:lalu|kemudian)\s+(?:lakukan|jalankan)|then\s+(?:perform|execute|run))\b`)
+
+// This exact native header describes a completed predecessor. It is not the
+// new attempt's scope. Keep explicit owner/attempt bans elsewhere untouched.
+var completedNativeInspection = regexp.MustCompile(`(?i)^(Native publication reconciliation: the retained source (?:[a-f0-9]{40}|[a-f0-9]{64}) has completed a source-bound )read-only (inspection; the current registered release does not contain that commit\.)`)
 var repositoryTarget = regexp.MustCompile(`(?i)\b(?:repo|repository|repositori|git|kode|code)\b`)
 var pushAction = regexp.MustCompile(`(?i)\b(?:push|publishing|publish)\b`)
 var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspection|investigasi|pemeriksaan)\s+(?:read[ -]only|baca[ -]saja)\b|\bread[ -]only\s+(?:audit|investigation|inspection)\b|\b(?:repository|repositori|repo)\s+(?:is |must remain |harus tetap )?read[ -]only\b|^\s*(?:scope|batasan)\s*:\s*read[ -]only\b)`)
@@ -37,6 +41,7 @@ var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat depl
 
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
+	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
 	if policy.ReadOnlyRepository {
 		policy.DenyPush, policy.DenyDeploy = true, true

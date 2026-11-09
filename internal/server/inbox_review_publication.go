@@ -12,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxPublicationReviewPolicy = "Production publication review policy: v4"
+const inboxPublicationReviewPolicy = "Production publication review policy: v5"
 
 type reviewPublication struct {
 	Required              bool   `json:"required"`
@@ -139,8 +139,8 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	// inspection of itself when the PM identifies remaining publication. Its
 	// historical receipt can admit separate reconciliation under original scope;
 	// it does not grant writes to the snapshot or establish feature absence.
-	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.RequestedOutcome != "needs_input" &&
-		(decision.ManagerAction == "continue" || decision.ManagerAction == "replan") && decision.ManagerReason != "" &&
+	if decision.Decision == "revise" && (decision.RemainingWork == "publication" || decision.RemainingWork == "implementation") && decision.RequestedOutcome != "needs_input" && strings.TrimSpace(decision.Revision) != "" &&
+		(decision.ManagerAction == "" || decision.ManagerAction == "continue" || decision.ManagerAction == "replan") &&
 		observation != nil && observation.Required && observation.ResultCommitContained != nil && !*observation.ResultCommitContained &&
 		(!observation.Verified || observation.Provenance == "verified_current_project_snapshot") {
 		inspection, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
@@ -148,7 +148,16 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 		if err == nil && inspection != nil && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy &&
 			s.inspectedSourceCorrectionAllowed(ctx, db.InboxRequest{OwnerID: inspection.OwnerID, RoomID: inspection.RoomID}, d) {
 			decision.RemainingWork, decision.RequestedOutcome, decision.SourceReview = "implementation", "unfinished", "not_checked"
-			decision.Revision = "Native publication reconciliation: the retained source " + d.CommitSHA + " has completed a source-bound read-only inspection; the current registered release does not contain that commit. This is not proof that the feature is absent or permission to replay effects. Reconcile the retained source, equivalent changes and saved publication effects in the private developer workspace. Complete only remaining original work and publication through the native release pipeline; preserve unrelated work, original scope and independent verification. Reviewer instruction: " + decision.Revision
+			if decision.ManagerAction == "" {
+				decision.ManagerAction = "continue"
+			}
+			if decision.ManagerReason == "" {
+				decision.ManagerReason = "The completed source-bound inspection and native non-inclusion observation leave original publication unfinished; reconcile saved effects within original authorization."
+			}
+			prefix := "Native publication reconciliation: the retained source " + d.CommitSHA + " has completed a source-bound inspection;"
+			if !strings.HasPrefix(decision.Revision, prefix) {
+				decision.Revision = prefix + " the current registered release does not contain that commit. This is not proof that the feature is absent or permission to replay effects. Reconcile the retained source, equivalent changes and saved publication effects in the private developer workspace. Complete only remaining original work and publication through the native release pipeline; preserve unrelated work, original scope and independent verification. Reviewer instruction: " + decision.Revision
+			}
 			return decision
 		}
 	}

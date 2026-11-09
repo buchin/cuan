@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
 
 func TestInspectedUnpublishedSourceReturnsPublicationToDeveloper(t *testing.T) {
-	for _, scenario := range []string{"valid", "changed release", "already contained", "unknown ancestry", "missing receipt", "missing report", "changed source", "owner prohibition", "wait", "needs owner", "needs input"} {
+	for _, scenario := range []string{"valid", "changed release", "missing optional manager fields", "implementation without manager fields", "already contained", "unknown ancestry", "missing receipt", "missing report", "changed source", "owner prohibition", "wait", "needs owner", "needs input"} {
 		t.Run(scenario, func(t *testing.T) {
 			s, d, origin, _, binding := failedInspectionSourceFixture(t, false, true)
 			ctx := context.Background()
@@ -69,7 +70,7 @@ func TestInspectedUnpublishedSourceReturnsPublicationToDeveloper(t *testing.T) {
 			if scenario == "owner prohibition" {
 				d.Instructions += "\nDo not deploy."
 			}
-			decision := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "publication", Finding: "Reviewed implementation still requires publication", Explanation: "Source behavior passed; complete original delivery", Revision: "Reconcile the existing source and publish the authorized result through native release", ManagerAction: "continue", ManagerReason: "Source checks passed; original publication remains"}
+			decision := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "publication", Finding: "Reviewed implementation still requires publication", Explanation: "Source behavior passed; complete original delivery", Revision: "Reconcile the existing code and publish the authorized result through native release", ManagerAction: "continue", ManagerReason: "Source checks passed; original publication remains"}
 			if scenario == "wait" {
 				decision.ManagerAction = "wait"
 			}
@@ -79,13 +80,22 @@ func TestInspectedUnpublishedSourceReturnsPublicationToDeveloper(t *testing.T) {
 			if scenario == "needs input" {
 				decision.RequestedOutcome = "needs_input"
 			}
+			if scenario == "missing optional manager fields" || scenario == "implementation without manager fields" {
+				decision.ManagerAction, decision.ManagerReason = "", ""
+			}
+			if scenario == "implementation without manager fields" {
+				decision.RemainingWork = "implementation"
+			}
 			got := s.requirePublicationReview(ctx, d, decision)
-			allowed := scenario == "valid" || scenario == "changed release"
+			allowed := scenario == "valid" || scenario == "changed release" || scenario == "missing optional manager fields" || scenario == "implementation without manager fields"
 			if (got.RemainingWork == "implementation") != allowed {
 				t.Fatalf("publication routing=%+v for %s", got, scenario)
 			}
 			if !allowed {
 				return
+			}
+			if again := s.requirePublicationReview(ctx, d, got); again != got {
+				t.Fatal("publication normalization changed its saved continuation")
 			}
 			// Exercise the persisted review and actual separate developer launch.
 			repo := s.projectStudioRepo.(db.InboxRequestRepository)
@@ -104,6 +114,9 @@ func TestInspectedUnpublishedSourceReturnsPublicationToDeveloper(t *testing.T) {
 			}
 			if live, err := task.LiveInspectionForLaunch(&d.Task, launch); err != nil || live != nil {
 				t.Fatal("publication reused read-only inspection", err)
+			}
+			if limits := executionpolicy.FromInstructions(launch.Revision); limits.ReadOnlyRepository || limits.DenyPush || limits.DenyDeploy {
+				t.Fatal("historical inspection description restricted the separate developer", limits)
 			}
 			after, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
 			if after.Status == task.TaskStatusDone || len(after.Attempts) != len(d.Attempts) {
