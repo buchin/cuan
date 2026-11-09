@@ -188,6 +188,9 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		if response.Code != expectedCode || merges != 0 || gets != 0 {
 			t.Fatal("invalid initial source reached merge")
 		}
+		if scenario == "initial missing verifier" && !strings.Contains(response.Body.String(), `"code":"native_preparation_publication_config"`) {
+			t.Fatal("missing publication configuration lost its concrete native diagnosis", response.Body.String())
+		}
 		stage := map[string]string{"initial missing tool": "runtime", "initial wrong source": "source_identity", "initial no access": "source_push"}[scenario]
 		if stage != "" {
 			code := "native_preparation_" + stage

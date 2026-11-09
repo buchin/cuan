@@ -103,6 +103,19 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 		decision.Revision = "Native project checks failed on the current developer attempt. Read the full current runner_verification record with the bound task tools and inspect the retained source. Reproduce the failing check and correct its root cause within the original authorized scope. Preserve unrelated work and failed history. Do not waive checks, repeat investigation or deployment, or start an independent source verifier before the registered checks pass. Submit the corrected exact source for separate verification; original publication and acceptance requirements remain. Native diagnostic: " + nativeCheckDiagnostic(failure)
 		return decision
 	}
+	// A bound independent source rejection precedes publication just like a
+	// native test failure. Missing deployment evidence must not turn an actual
+	// implementation correction into another inspection of production. This
+	// preserves classification only; admission still enforces owner scope.
+	if d != nil && d.LatestAttempt != nil && decision.Decision == "revise" && decision.SourceReview == "revise" &&
+		decision.RemainingWork == "implementation" && decision.RequestedOutcome != "needs_input" && decision.Revision != "" {
+		if source, proof := s.verifiedSupplementalSource(ctx, d); source != nil && proof != nil {
+			return decision
+		}
+		if inspection, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && inspection != nil && s.inspectedSourceCorrectionAllowed(ctx, db.InboxRequest{OwnerID: inspection.OwnerID, RoomID: inspection.RoomID}, d) {
+			return decision
+		}
+	}
 	// Source-stage approval keeps the task unfinished. Native publication
 	// admission still checks original authority, exact source and review receipt.
 	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.SourceReview == "pass" && s.hasNativeSourcePublicationHandoff(ctx, d) {

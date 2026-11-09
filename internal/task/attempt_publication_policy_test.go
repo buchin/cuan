@@ -53,3 +53,20 @@ func attemptPublicationPolicyContract(t *testing.T, store Store, projectID strin
 		}
 	}
 }
+
+func TestEvidenceCautionCannotRelaxOriginalPublicationBan(t *testing.T) {
+	revision := &TaskLaunch{Revision: "Do not repeat deployment solely to obtain evidence. Deploy the verified correction to production."}
+	for _, instructions := range []string{"Do not deploy.", "Scope: read-only repository. Deploy production."} {
+		item := &Task{ExecutionCategory: ExecutionCategoryCode, Instructions: instructions}
+		if got := launchPublicationPolicy(item, revision, false); !got.DenyDeploy {
+			t.Fatalf("correction relaxed original restriction: %+v", got)
+		}
+	}
+	allowed := &Task{ExecutionCategory: ExecutionCategoryCode, Instructions: "Implement and deploy the verified correction to production."}
+	if got := launchPublicationPolicy(allowed, revision, false); got.DenyDeploy {
+		t.Fatalf("evidence caution stranded approved publication: %+v", got)
+	}
+	if got := launchPublicationPolicy(allowed, revision, true); !got.ReadOnlyRepository || !got.DenyDeploy || !got.DenyPush {
+		t.Fatalf("verifier boundary relaxed: %+v", got)
+	}
+}

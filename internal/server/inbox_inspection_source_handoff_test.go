@@ -367,3 +367,100 @@ func TestFailedLocalInspectionResumesSeparateDeveloperFromSavedDecision(t *testi
 		t.Fatal("developer claim lost saved scope", err)
 	}
 }
+
+func TestSuccessfulSourceBoundInspectionReturnsToSeparateDeveloper(t *testing.T) {
+	s, d, origin, _, binding := failedInspectionSourceFixture(t, false, true)
+	ctx := context.Background()
+	store := s.taskSvc.Store()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := s.projectSvc.Store().GetProject(ctx, d.ProjectID)
+	must(err)
+	p.RepoURL = "https://github.com/fixture/repo.git"
+	must(s.projectSvc.Store().UpdateProject(ctx, p))
+	s.cfg.Environment = "production"
+	s.cfg.SourceRepository = "fixture/repo"
+	s.cfg.CommitSHA = binding.TargetCommit
+	raw, _ := json.Marshal(task.LiveInspectionReceipt{Purpose: binding.Purpose, SourceAttemptID: binding.SourceAttemptID, SourceCommit: binding.SourceCommit, TargetCommit: binding.TargetCommit, Repository: binding.Repository, ProjectChecksHash: task.VerificationSummaryHash("Project verification: test.sh --fast (exit 0)")})
+	id := d.LatestAttempt.ID
+	must(store.CreateActivity(ctx, &task.TaskActivity{ID: "live-result:" + id, TaskID: d.ID, AttemptID: &id, ActivityType: task.ActivityLiveInspection, Author: d.LatestAttempt.RunnerID, Message: string(raw), CreatedAt: time.Now()}))
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	must(err)
+	if s.liveInspectionReviewContext(ctx, d) == nil {
+		t.Fatal("fixture missing native live receipt")
+	}
+	repo := s.projectStudioRepo.(db.InboxRequestRepository)
+	q := origin
+	key := managerReviewKey(d)
+	q.RequestID = delegationMessageID(key)
+	q.MessageID = delegationMessageID(key + ":input")
+	q.ReplyID = delegationMessageID(key + ":reply")
+	q.State = "queued"
+	q.CreatedAt = time.Now()
+	q.Deadline = time.Now().Add(time.Hour)
+	_, _, err = repo.AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: inboxOwnershipPolicy + "\nReview [/tasks/" + d.ID + "]", CreatedAt: q.CreatedAt})
+	must(err)
+	decision := inboxReviewEvaluation{Decision: "revise", SourceReview: "revise", Explanation: "Inspection found an unfinished original source requirement", RequestedOutcome: "unfinished", RemainingWork: "implementation", Revision: "Correct the independently observed remaining source defect within the original scope", ManagerAction: "continue", ManagerReason: "Native current-result inspection identified an unfinished original requirement"}
+	_, err = s.saveReviewAssessment(ctx, d, q, decision)
+	must(err)
+	q.State = "completed"
+	must(repo.FinishInboxRequest(ctx, q, nil))
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	must(err)
+	decision, _ = reviewAssessment(d, q.RequestID)
+	if !s.localSourceCorrectionAllowed(ctx, q, d, decision.Revision) {
+		t.Fatalf("successful source-bound inspection stranded implementation: status=%s category=%s report=%+v sourceAllowed=%v reviewed=%v decision=%+v", d.Status, d.ExecutionCategory, inboxReportEvidence(d), s.inspectedSourceCorrectionAllowed(ctx, q, d), s.inboxReviewedTask(ctx, q) != nil, decision)
+	}
+	for _, scenario := range []string{"foreign owner", "changed source", "cancelled", "missing report", "missing receipt"} {
+		altered := *d
+		latest := *d.LatestAttempt
+		altered.LatestAttempt = &latest
+		request := q
+		previousRelease := s.cfg.CommitSHA
+		switch scenario {
+		case "foreign owner":
+			request.OwnerID = "foreign"
+		case "changed source":
+			altered.CommitSHA = strings.Repeat("e", 40)
+		case "cancelled":
+			latest.CancelRequested = true
+		case "missing report", "missing receipt":
+			altered.Activities = nil
+			for _, event := range d.Activities {
+				if event.AttemptID != nil && *event.AttemptID == latest.ID && ((scenario == "missing report" && event.ActivityType == "agent_report") || (scenario == "missing receipt" && event.ActivityType == task.ActivityLiveInspection)) {
+					continue
+				}
+				altered.Activities = append(altered.Activities, event)
+			}
+		}
+		allowed := s.localSourceCorrectionAllowed(ctx, request, &altered, decision.Revision)
+		s.cfg.CommitSHA = previousRelease
+		if allowed {
+			t.Fatal("invalid source inspection admitted developer", scenario)
+		}
+	}
+	s.cfg.CommitSHA = strings.Repeat("e", 40)
+	if s.liveInspectionReviewContext(ctx, d) != nil {
+		t.Fatal("historical inspection accepted as current-release evidence")
+	}
+	if !s.localSourceCorrectionAllowed(ctx, q, d, decision.Revision) {
+		t.Fatal("new orchestrator release erased a scoped developer correction")
+	}
+	requests, err := repo.ListInboxRequests(ctx, d.SourceRoomID)
+	must(err)
+	if !s.recoverManagerVerificationHandoff(ctx, d, origin, requests) {
+		t.Fatal("saved correction not recovered")
+	}
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, q.RequestID))
+	must(err)
+	if launch == nil || launch.State != "queued" {
+		t.Fatal("missing separate developer launch")
+	}
+	if proof, err := task.LiveInspectionForLaunch(&d.Task, launch); err != nil || proof != nil {
+		t.Fatal("developer reused read-only inspection")
+	}
+}

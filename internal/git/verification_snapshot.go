@@ -291,7 +291,7 @@ func (c *Client) verifySnapshotCommitState(ctx context.Context, root, sourceComm
 	return nil
 }
 
-// VerificationPathsChanged checks literal paths only, against two immutable
+// VerificationPathsChanged checks literal paths and Go assertion package repairs against two immutable
 // commits in a clean snapshot. A deployment alone is not a reason to retry work.
 func (c *Client) VerificationPathsChanged(parent context.Context, root, source, target string, paths []string) (bool, error) {
 	if len(paths) == 0 || len(paths) > 16 {
@@ -356,5 +356,32 @@ func (c *Client) CommittedPathsChanged(parent context.Context, root, source, tar
 	if err != nil {
 		return false, err
 	}
-	return len(output) > 0, nil
+	if len(output) > 0 {
+		return true, nil
+	}
+	// A failed Go assertion names its test file, but a valid repair usually
+	// changes package implementation instead. Permit one fresh observation for
+	// changed sibling Go source, without requiring edits to the assertion or
+	// treating documentation, nested packages or other releases as a repair.
+	packages := map[string]bool{}
+	packageArgs := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-renames", "--name-only", "-z", source, target, "--"}
+	for _, name := range paths {
+		if strings.HasSuffix(name, "_test.go") && filepath.Dir(name) != "." && !packages[filepath.Dir(name)] {
+			packages[filepath.Dir(name)] = true
+			packageArgs = append(packageArgs, filepath.Dir(name))
+		}
+	}
+	if len(packages) == 0 {
+		return false, nil
+	}
+	output, err = c.snapshotGit(ctx, root, packageArgs...)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range strings.Split(string(output), "\x00") {
+		if packages[filepath.Dir(name)] && strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+			return true, nil
+		}
+	}
+	return false, nil
 }

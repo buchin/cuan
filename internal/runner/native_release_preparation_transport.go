@@ -25,13 +25,13 @@ func (r *Runner) requestNativeReleasePreparation(ctx context.Context, claim Clai
 			Code string `json:"code"`
 		}
 		decoder := json.NewDecoder(io.LimitReader(response.Body, 2048))
-		if response.StatusCode == http.StatusConflict && decoder.Decode(&failure) == nil && decoder.Decode(new(any)) == io.EOF {
-			if failure.Code == "source_merge_conflict" {
+		if (response.StatusCode == http.StatusConflict || response.StatusCode == http.StatusServiceUnavailable) && decoder.Decode(&failure) == nil && decoder.Decode(new(any)) == io.EOF {
+			if response.StatusCode == http.StatusConflict && failure.Code == "source_merge_conflict" {
 				return nil, task.NativeReleaseMergeConflictMessage
 			}
 			stage := strings.TrimPrefix(failure.Code, "native_preparation_")
 			switch stage {
-			case "authorization", "saved_preparation", "source_workspace", "project_context", "source_lease", "source_identity", "release_manifest", "runtime", "source_push", "merge", "release_workspace":
+			case "publication_config", "source_preparation", "canonical_preparation", "runtime_paths", "runtime_permissions", "npm_config", "ssh_runtime", "context_changed", "remote_target", "authorization", "saved_preparation", "source_workspace", "project_context", "source_lease", "source_identity", "release_manifest", "runtime", "source_push", "merge", "release_workspace":
 				if failure.Code == "native_preparation_"+stage {
 					return nil, "Native release preparation failed at " + stage + "; no release process started"
 				}

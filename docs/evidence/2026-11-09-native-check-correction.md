@@ -539,6 +539,164 @@ limits without typed inspection/verifier intent. Original timeout history remain
 failed. Targeted legacy recovery, changed/canceled-source and manager-handoff
 checks pass. Production recovery remains to be observed after release.
 
+Release `8d8647c18aa1ad2c1f1c9086e7c78a61a1e891a5` completed at 12:47:08 UTC
+on November 9, exit zero, source unchanged and production health matching the
+exact commit. It includes the negative-inspection handoff, complete-redraw
+diagnostic grouping and the opt-in backup-maintenance installer. The persisted
+backup count remained 3 and the installed unit still invokes pinned backup
+retention; observed available bytes were 6,132,158,464 after release activity.
+
+The existing saved PM decision automatically admitted separate developer
+attempt `att_f4563b9240647c044af2476e8e14293d`, created at 20:45:28 (+08) and
+started at 20:45:45 during activation. Official execution diagnostics report
+ordinary `execution` intent with original read-only/push/deploy restrictions all
+false, no typed inspection/verifier intent, and the same task/room. No new chat
+send, retry, manual status update or additional steering was used for this
+handoff. Prior source timeout and successful negative inspection remain intact.
+This proves recovery of the stranded decision, not completion of the still-
+running dependency optimization or fully autonomous readiness.
+
+## Steering transport could acknowledge a write without PTY delivery
+
+Fural's AGY seed uses a text write followed by CR Enter after 120 ms. Cuan's
+interactive and detached steering paths sent LF; its terminal split a trailing
+keypress after only 25 ms. These are distinct keys in a raw TUI, so this was a
+concrete mismatch, not proof of how a particular old model turn behaved.
+
+A new real raw-PTY test then reproduced another failure even with CR: the
+socket-only sender closed immediately after writing, while the bridge first
+wrote retained scrollback. A peer close could terminate that history write
+before the bridge read stdin. Existing socket tests checked only that the
+sender returned no error and did not establish delivery. Thus an earlier
+`delivered` acknowledgement is not evidence that the provider received the
+checkpoint request; the actual contribution to the original timeout is unknown.
+
+Steering now sends CR in all three paths. The shared terminal input writer uses
+a separate Enter write after 120 ms. Socket steering sends a framed stdin
+request with a random correlation ID, drains the history stream and waits for
+the matching acknowledgement after the full PTY input write. It rejects failed,
+missing or foreign acknowledgements and never resends automatically on uncertain
+observation. Old detached workers may receive the framed input but cannot issue
+this acknowledgement; keep that uncertainty visible until those sessions end.
+
+The real Linux PTY fixture uses noncanonical input with CR/LF translation
+disabled, accepts only CR as submit, and verifies exact multibyte/multiline input
+including leading whitespace and literal JSON-shaped text through the actual
+detached socket bridge. Missing/foreign/rejected receipt tests pass. The complete
+terminal package and targeted detached-steering, heartbeat and final-report-stop
+runner regressions pass. This fixes transport semantics, not an AI-consumption
+receipt or proof of autonomous task completion. Production rollout is pending.
+
+### Independent counterexample after dependency-reuse verifier pass
+
+Production release of root commit `2bdd54c8995e44dd4f495db9c06d1e9948f80218`
+finished 2026-11-09 13:14:55Z after 198.1 seconds with exact health and 38
+migrations. This does not publish native task source `fe821357daa5ea8d2bcd7a4b9475f25632d8117b`.
+
+Native verifier `att_f6c79b2e890788f9015ed8fdd0a0f7e4` succeeded at
+21:18:36 +08 and accepted isolation based on existing tests. Root independently
+read dependency_reuse.go from that exact Git commit through registered SSH and
+ran its unchanged functions in a temporary Go package. Counterexample:
+create dev/dependency.js containing `original`; call seedWarmDirectory(dev,
+verifier, "fingerprint"); os.WriteFile verifier/dependency.js with
+`verifier-write`; read dev/dependency.js. TestSeedMustNotMutateDeveloper FAILED
+in 0.008s: developer content became `verifier-write`. The os.Link fast path
+shares writable inodes. Existing symlink tests do not establish isolation.
+No application source, real dependency tree or task workspace was changed by
+this fixture. The verifier pass is therefore insufficient for the original DoD.
+
+Native release attempts 5 and 6 both failed before any model/release execution:
+`Native release workspace preparation is unavailable; no model or release
+execution was started`. This is a separate preparation failure, not proof of a
+production deployment failure. Correction evidence was sent once to the original
+room through official CLI; CLI timed out but room read confirms saved message
+`a2d31ae7-6ea2-4e6f-9765-8bfef2f493a3`, request
+`038281e7-d9e0-41b5-a9dc-405cb672e22a` queued. No resend, manual Done or
+publication of the rejected optimization. Corrective dev and independent
+verification remain pending; no claim of end-to-end speedup or autonomous Done.
+
+Preparation diagnosis follow-up: several preflight/runtime error responses had no
+machine-readable code, so the runner collapsed them into the same generic
+unavailable message. Added bounded native stage codes for those existing branches
+and recognition on both 409 and 503; raw server/provider text is never copied.
+Runner transport tests pass, including all newly named 503 stages. The real
+server missing-publication-config fixture passes with the exact code assertion.
+Initial server compilation was killed by memory pressure; retry with GOGC=20,
+GOMAXPROCS=2 and -p 1 passed. This diagnoses future failures; it does not establish
+the lost historical preparation cause or fix it by assumption.
+Native corrective developer `att_dea6ef01e90f6b80a1dcc907308bf6f9` is now running
+on the original task; official logs confirm it is examining the hardlink issue.
+
+Diagnosis release `5ca49aa0fe86ac2fe32cc59001e771c867e5a04a` was pushed
+and deployed through official `cuan release run`; exact production health matched,
+38 migrations, exit 0, source unchanged. Started 13:28:14Z, finished 13:31:32Z,
+198.2 seconds. Full initial native preparation scenario group subsequently passed
+(16.998s), covering approved merge/reuse, conflict, revoked/wrong source, missing
+publication configuration/runtime/access and live-observation cases. Corrective
+dev remained running after deploy; no forced acceptance or restart was requested.
+
+Verifier instruction correction: the real false-positive isolation review showed
+that the generic existing instruction (developer claims are not proof) was not
+sufficient. The native verifier role now explicitly inspects what passing tests
+cover and uses the smallest relevant counterexample when a material guarantee is
+uncovered, with fixtures outside the protected checkout. Isolation is explained
+as observing independence under mutation rather than different paths. It forbids
+a duplicate full suite or unrelated checks. This is a prompt correction, not a
+claim of proven model compliance; the next independent review must establish
+that behavior. Existing exact-source/private-workspace runner regression passes.
+Native corrective dev completed source 469f1a93 in 7m3s including 34.179s native
+checks; the queued follow-up original-scope correction is running as
+att_1762ec8bc1f13ceeac29e6a66052052b. No forced Done or extra task was created.
+
+Verifier-role correction ac68234a15002e7c8916ee47e7ad60e312667081 deployed
+13:35:42Z–13:38:58Z, 196.1 seconds, exact healthy production SHA, 38 migrations,
+exit 0 and unchanged source. Do not infer a verifier already started during this
+rollout consumed the new prompt.
+
+Independent checks of pushed corrected source 469f1a93: immutable Git reads
+confirmed copying replaces writable hardlinks, but warm matching still checks
+only package-lock.json and returns before git check-ignore. Two direct
+counterexamples ran the exact dependency_reuse.go and inspection_dependencies.go
+in temporary package fixtures (only diagnostic-output helpers stubbed; no npm
+calls or network required):
+- TestWarmMustRetainIgnoredOutputGuard: a Git repository with node_modules not
+  ignored and a matching marker was incorrectly accepted; FAIL.
+- TestWarmMustValidateChangedManifest: after changing package.json dependencies
+  while preserving package-lock and marker, setup incorrectly returned success;
+  FAIL.
+Both finished in 0.023s. Temporary fixture source retained at
+/tmp/cuan-reuse-behavior-proof-469f1a93; original task checkout untouched.
+Native independent verifier att_d554bca3ccbc4130929a04fab178aaa0 is currently
+running on 469f1a93. These concrete original-scope gaps remain unaccepted.
+
+The two counterexamples were delivered once using official task steer to the
+confirmed-running native verifier att_d554bca3ccbc4130929a04fab178aaa0.
+CLI returned delivered with no fallback; terminal diagnostics contain the
+injected text. This is an explicit operator intervention and PTY delivery
+observation, not proof of provider consumption or untouched autonomous review.
+No write/deploy authority was added; verifier was asked to independently evaluate
+the observed original-scope defects and report to PM. Maintenance status also
+confirms the existing storage job is enabled and last succeeded at 21:37:45 +08;
+this status alone does not establish reclaimed byte counts.
+
+Native verifier att_d554bca3ccbc4130929a04fab178aaa0 independently reproduced
+both warm-reuse counterexamples, reported criteria 2/3/4 incomplete and publication
+pending, and completed successfully at 21:44:27 +08. Successful verifier execution
+is not feature acceptance. Report artifact 1cb8e14a-8092-4c87-abf6-4c6a315d7a58.
+
+A separate policy fault surfaced in the official handoff diagnostic:
+owner_deployment_prohibited despite original task publication approval. The saved
+owner correction contains `jangan lakukan deploy buta atau menandai task selesai
+sebelum ada bukti valid`, alongside a separate explicit native-deploy request.
+The prohibition parser treated this bounded caution as a blanket prohibition.
+Three regression cases failed before correction. Added bounded recognition of
+that caution and the generated English `Do not repeat deployment solely to
+obtain evidence` only with a separate positive publication request. Other/unknown
+qualifiers, unconditional bans and original-task restrictions remain binding;
+verification intent is still forcibly read-only/no-push/no-deploy. Targeted
+executionpolicy/task tests and real server independent-source/owner-scope
+regressions pass. This does not waive the rejected source's implementation gaps.
+
 ## Dev-to-verifier dependency reuse optimization
 
 Analysis of the runner lifecycle identified repeated dependency installation
@@ -551,25 +709,28 @@ through 19:42:22.497 in attempt `att_d5470bf99f98d16fcea8112a7efcee4e`).
 Because `PrepareVerificationSnapshot` creates a clean clone of the committed
 source tree, untracked directories (`node_modules`) are excluded, forcing the
 subsequent verifier session to repeat the full extraction even when the
-underlying `package-lock.json` is completely unchanged.
+underlying `package.json` and `package-lock.json` are completely unchanged.
 
 The smallest proven-useful optimization has been implemented in the runner
 lifecycle:
-1. Lockfile fingerprinting: `prepareInspectionDependencies` computes the
-   SHA-256 digest of `package-lock.json` and records `.cuan-lock-fingerprint`
-   within the verified `node_modules`. If the directory exists as a regular
-   directory and its fingerprint matches the current lockfile, `npm ci` is
-   safely skipped.
+1. Lockfile and manifest fingerprinting: `prepareInspectionDependencies` computes the
+   SHA-256 digest of both `package.json` and `package-lock.json`, recording
+   `.cuan-lock-fingerprint` within the verified `node_modules`. If the directory
+   exists as a regular directory and its fingerprint matches both manifest and lockfile,
+   and `git check-ignore` confirms `node_modules/` is ignored by the repository,
+   `npm ci` is safely skipped.
 2. Verified snapshot seeding: upon preparing the verifier snapshot in
    `runner.go`, `seedWarmDependencies` inspects the originating task workspace.
-   If its `node_modules` holds a verified fingerprint matching the snapshot's
-   committed lockfile, dependencies are independently copied into the snapshot
-   (`copyRegularFile` in `copyDirectoryIndependent`). Hardlinks across workspaces
-   are strictly forbidden so that mutations or writes in the verifier snapshot
-   cannot alter files in the developer workspace.
-3. Invalidation: if `package-lock.json` was altered in the commit or the
-   fingerprint is missing/tampered, seeding does not occur and the runner
-   executes a clean `npm ci`.
+   Before attempting warm seeding, it validates that `git check-ignore` ignores
+   `node_modules/` in the target repository. If the source `node_modules` holds a
+   verified fingerprint matching the target's committed manifest and lockfile,
+   dependencies are independently copied into the snapshot (`copyRegularFile` in
+   `copyDirectoryIndependent`). Hardlinks across workspaces are strictly forbidden
+   so that mutations or writes in the verifier snapshot cannot alter files in the
+   developer workspace.
+3. Invalidation: if `package.json` or `package-lock.json` was altered in the commit,
+   the fingerprint is missing/tampered, or `node_modules` is not ignored, seeding
+   does not occur and the runner executes a clean `npm ci`.
 4. Isolation & security: the snapshot remains an independent directory under its
    own lease (`AcquireVerificationLease`). Symlinks across workspaces and shared
    directories remain strictly rejected by `check-ignore` and directory mode
@@ -577,8 +738,8 @@ lifecycle:
    No duplicate global cache mechanisms or whole-workspace reuses are
    introduced.
 
-Targeted tests (`TestDependencyReuse*`) prove warm reuse in the same workspace,
-warm seeding from dev to verifier snapshot, invalidation on lockfile change,
-rejection of shared symlinks, and full workspace mutation isolation
-(`TestDependencyReuseIsolationTargetModificationDoesNotAffectSource`).
-
+Targeted tests (`TestDependencyReuse*`, `TestWarmMustRetainIgnoredOutputGuard`,
+`TestWarmMustValidateChangedManifest`) prove warm reuse in the same workspace,
+warm seeding from dev to verifier snapshot, invalidation on manifest and lockfile change,
+guard enforcement against unignored node_modules, rejection of shared symlinks,
+and full workspace mutation isolation (`TestDependencyReuseIsolationTargetModificationDoesNotAffectSource`).

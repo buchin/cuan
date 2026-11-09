@@ -69,6 +69,27 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 	}
 	must(s.saveNativeSourceReview(ctx, d, q.RequestID, assessment))
 
+	t.Run("rejected source returns to implementation before publication", func(t *testing.T) {
+		p, e := s.projectSvc.Store().GetProject(ctx, d.ProjectID)
+		must(e)
+		oldMetadata := p.Metadata
+		p.Metadata = registeredReleaseMetadata(t)
+		must(s.projectSvc.Store().UpdateProject(ctx, p))
+		t.Cleanup(func() { p.Metadata = oldMetadata; _ = s.projectSvc.Store().UpdateProject(ctx, p) })
+		correction := inboxReviewEvaluation{Decision: "revise", SourceReview: "revise", RequestedOutcome: "unfinished", RemainingWork: "implementation", Finding: "Independent counterexample reproduces incorrect warm reuse", Revision: "Repair manifest invalidation and retain the ignored-output guard", ManagerAction: "continue", ManagerReason: "Independent verifier reproduced source defects"}
+		if got := s.requirePublicationReview(ctx, d, correction); got != correction {
+			t.Fatalf("source defect diverted into publication inspection: %+v", got)
+		}
+		unbound := *d
+		unbound.Instructions += " changed scope"
+		if source, _ := s.verifiedSupplementalSource(ctx, &unbound); source != nil {
+			t.Fatal("changed scope retained verifier proof")
+		}
+		if got := s.requirePublicationReview(ctx, &unbound, correction); got == correction {
+			t.Fatal("unbound model source verdict bypassed publication reconciliation")
+		}
+	})
+
 	t.Run("historical live failure follows exact source across developer handoff", func(t *testing.T) {
 		_, bound := s.verifiedSupplementalSource(ctx, d)
 		if bound == nil {

@@ -275,11 +275,17 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 }
 
 func (s *Server) liveInspectionReviewContext(ctx context.Context, d *task.TaskDetailResponse) map[string]any {
+	return s.liveInspectionEvidence(ctx, d, true)
+}
+
+// Historical native inspection evidence can support a scoped developer review,
+// but only current-release evidence may support result acceptance.
+func (s *Server) liveInspectionEvidence(ctx context.Context, d *task.TaskDetailResponse, requireCurrentRelease bool) map[string]any {
 	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
 		return nil
 	}
 	proof, err := task.ValidateLiveInspection(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || proof == nil || !s.liveInspectionMatchesRelease(ctx, d, proof) {
+	if err != nil || proof == nil || (requireCurrentRelease && !s.liveInspectionMatchesRelease(ctx, d, proof)) {
 		return nil
 	}
 	_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
