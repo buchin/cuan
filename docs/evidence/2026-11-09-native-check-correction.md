@@ -538,3 +538,20 @@ actual separate developer attempt and assert it retains the original deployment
 limits without typed inspection/verifier intent. Original timeout history remains
 failed. Targeted legacy recovery, changed/canceled-source and manager-handoff
 checks pass. Production recovery remains to be observed after release.
+
+Release `8d8647c18aa1ad2c1f1c9086e7c78a61a1e891a5` completed at 12:47:08 UTC
+on November 9, exit zero, source unchanged and production health matching the
+exact commit. It includes the negative-inspection handoff, complete-redraw
+diagnostic grouping and the opt-in backup-maintenance installer. The persisted
+backup count remained 3 and the installed unit still invokes pinned backup
+retention; observed available bytes were 6,132,158,464 after release activity.
+
+The existing saved PM decision automatically admitted separate developer
+attempt `att_f4563b9240647c044af2476e8e14293d`, created at 20:45:28 (+08) and
+started at 20:45:45 during activation. Official execution diagnostics report
+ordinary `execution` intent with original read-only/push/deploy restrictions all
+false, no typed inspection/verifier intent, and the same task/room. No new chat
+send, retry, manual status update or additional steering was used for this
+handoff. Prior source timeout and successful negative inspection remain intact.
+This proves recovery of the stranded decision, not completion of the still-
+running dependency optimization or fully autonomous readiness.
