@@ -21,6 +21,7 @@ import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl, workStatus, workDisplayStatus, taskAgentPending } from '../tasks/task-ui'
+import { TaskDuration } from '../tasks/TaskDuration'
 import { ChatMarkdown } from './ChatMarkdown'
 import { parseTaskReviewEnvelope } from './task-envelope'
 
@@ -196,7 +197,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
 
           <div className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
             <Clock className="h-3 w-3 shrink-0" />
-            <span>{relativeTime(currentTask.updated_at || currentTask.created_at)}</span>
+            <TaskDuration task={currentTask} compact fallback={<span>{relativeTime(currentTask.updated_at || currentTask.created_at)}</span>} />
           </div>
         </div>
 

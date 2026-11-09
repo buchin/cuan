@@ -8,6 +8,7 @@ import { AccordionTimeline } from '../../components/ui/AccordionTimeline'
 import { workStatus, workDisplayStatus, taskAgentPending, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
+import { TaskDuration } from '../tasks/TaskDuration'
 
 function running(task: Task) {
   const status = workStatus(task)
@@ -61,6 +62,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
               <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
             </span>,
           content: <>
+            <TaskDuration task={task} className="mb-2 block" />
             {progress && <p className="line-clamp-3 pb-2 text-sm leading-relaxed text-muted-foreground">{progress}</p>}
             <CardActions className="px-0 text-xs">
               <button type="button" className="mr-auto" onClick={() => onDetails(task)}>{t('Details')}</button>

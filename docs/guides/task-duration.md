@@ -17,15 +17,29 @@ last edit timestamp or display a successful completion duration for stopped,
 failed, canceled or reopened work. A later genuine Done transition replaces the
 earlier completion when the work is reopened and accepted again.
 
-The API foundation is implemented; duration display is not yet implemented.
-The proposed quiet display is `Berjalan 3 menit` / `Running for 3 minutes` during
-active work and `Selesai dalam 7 menit` / `Completed in 7 minutes` once accepted.
+The shared `TaskDuration` display uses `Durasi 3 menit` / `Elapsed 3 minutes`
+during active work and `Selesai dalam 7 menit` / `Completed in 7 minutes` once accepted.
+Rows use the compact duration with an accessible full label and explanatory title;
+detail and expanded Inbox tasks show the full label. Completed tasks without
+known completion history retain their ordinary last-update timestamp in rows.
 Use minute-level refresh without another status pill. Avoid estimated time left
 until sufficient data supports an estimate. Detailed phase timing needs attempt
 and review intervals; elapsed lifecycle duration must not be described as model
 compute time. Paused or user-blocked time remains part of elapsed time and must
 not be labeled continuous agent execution.
 
-Before shipping the display, inspect real desktop and390px mobile screenshots,
-check long durations/localization, confirm terminal timers stop and that later
-title edits do not change completed duration. API omission means unknown, not0.
+The Inbox card's old per-attempt, per-second timer is removed. The shared display
+uses minute refresh and preserves elapsed time across dev/verifier handoff.
+It appears in task rows/table/cards, expanded Composer Tasks and task details.
+No API polling is added for the timer. API omission means unknown, not0.
+
+Built-app browser verification: `node web/tests/task-duration/check.cjs`.
+The isolated API fixture exercises390px and1440px in light/dark, detail and
+Inbox accordion, English/Indonesian and multi-day formatting. Advancing the
+browser clock verifies live minute refresh and frozen Done duration; deleting
+fixture completion evidence verifies no fallback to last-edit duration.
+Actual screenshots under `/home/dev/artifacts/cuan-task-duration/` were opened
+and evaluated. Quiet muted text fits the existing rows/header without another
+badge, progress bar or counter. Desktop header/data column alignment was checked
+and corrected during visual inspection. The simulated Inbox connecting notice
+belongs to the isolated fixture, not an observed production outage.

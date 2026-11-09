@@ -1,4 +1,5 @@
 import { TaskTimeline } from './TaskTimeline'
+import { TaskDuration } from './TaskDuration'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { IconButton } from '../../components/ui/IconButton'
 import { GitHubPrerequisite } from './GitHubPrerequisite'
@@ -20,7 +21,6 @@ import {
   CheckCircle2,
   FolderOpen,
   ChevronDown,
-  Clock,
   ShieldCheck,
   Flame,
   Bot,
@@ -610,8 +610,7 @@ function TaskDetailView({
             {detail.review_state ? (detail.review_state === 'running' ? (id ? 'Memeriksa hasil' : 'Checking result') : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : running ? (detail.latest_attempt?.status === 'queued' ? (id ? 'Dalam antrean' : 'Queued') : (id ? 'Sedang dikerjakan' : 'Working')) : publicStatus}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
-            <Clock className="h-3 w-3" />
-            Updated {relativeTime(detail.updated_at)}
+            <TaskDuration task={detail} fallback={<>Updated {relativeTime(detail.updated_at)}</>} />
           </span>
         </div>
       </header>

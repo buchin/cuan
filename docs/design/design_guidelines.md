@@ -40,6 +40,11 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
 - **Larangan Keras:** Dilarang menempatkan tombol aksi eksekusi berwarna mencolok (`action-primary`, *View result*, *Retry*, *Live Terminal*) pada baris daftar tugas. Seluruh baris adalah satu kesatuan *touch target* yang membuka laci samping (`SlideDrawer` / `TaskSidePeek`) di mana aksi eksekusi dipusatkan secara teratur.
 
 ### 2.3. Information Layering & Progressive Disclosure
+
+- Task duration uses quiet, tabular muted text from task creation to native Done,
+  including queueing and verification. Use the shared `TaskDuration` component;
+  no per-attempt timer reset, per-second animation or additional status pill.
+  Missing completion history is unknown; never substitute the last edit time.
 - **Aturan Utama:** Pisahkan pengalaman pengguna menjadi dua lapisan yang tegas:
   1. **Glanceable Layer (Permukaan):** Menampilkan informasi esensial dan hasil ringkas yang langsung dapat dipahami dalam 2 detik (judul tugas, waktu relatif, status terkini, hasil utama).
   2. **Deep Layer (Kedalaman On-Demand):** Menyembunyikan seluruh parameter teknis (prompt mentah, log stdout/stderr, token usage, hash commit, branch git, konfigurasi API model) hingga pengguna secara sadar meminta untuk melihatnya.

@@ -1,3 +1,4 @@
+import { TaskDuration } from './TaskDuration'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { TaskPagePager } from './TaskPagePager'
 import { useTaskPage } from './useTaskPage'
@@ -55,7 +56,7 @@ export function TaskBoardView({
   onDeleteTask,
   onRunAgent,
 }: Props) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [params, setParams] = useSearchParams(),
     [filtersOpen, setFiltersOpen] = useState(false),
@@ -592,15 +593,8 @@ export function TaskBoardView({
                       {sort === 'priority' ? <ArrowUp className="h-3 w-3 text-primary" /> : sort === 'priority-desc' ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
                     </span>
                   </th>
-                  <th
-                    className="w-[11%] px-2 py-2 text-right font-medium cursor-pointer select-none hover:text-foreground transition-colors"
-                    onClick={() => handleSortColumn('updated')}
-                    title="Sort by Updated Time"
-                  >
-                    <span className="inline-flex items-center gap-1 justify-end w-full">
-                      <span>Updated</span>
-                      {sort === 'updated-asc' ? <ArrowUp className="h-3 w-3 text-primary" /> : (sort === 'updated' || !sort) ? <ArrowDown className="h-3 w-3 text-primary" /> : null}
-                    </span>
+                  <th className="w-[11%] px-2 py-2 text-right font-medium">
+                    {language === 'id' ? 'Waktu' : 'Time'}
                   </th>
                   <th className="w-[96px] px-1 py-2 text-center">
                     <span className="sr-only">Actions</span>
@@ -676,12 +670,7 @@ export function TaskBoardView({
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-2 py-2.5 text-right text-xs font-mono text-muted-foreground">
-                      <time
-                        dateTime={t.updated_at}
-                        title={new Date(t.updated_at).toLocaleString('en-US')}
-                      >
-                        {relativeTime(t.updated_at)}
-                      </time>
+                      <TaskDuration task={t} compact fallback={<time dateTime={t.updated_at} title={new Date(t.updated_at).toLocaleString()}>{relativeTime(t.updated_at)}</time>} />
                     </td>
                     <td className="px-1 py-1 text-center" onClick={(e) => e.stopPropagation()}>
                       <TaskRowActions task={t} onDelete={onDeleteTask} onChanged={onRetry} />

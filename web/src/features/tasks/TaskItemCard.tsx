@@ -1,3 +1,4 @@
+import { TaskDuration } from './TaskDuration'
 import { ListRowContent } from '../../components/layout/ListControls'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
@@ -304,7 +305,7 @@ export function TaskItemCard({
           leading={<span className="flex h-5 w-5 items-center justify-center">{status === 'Completed' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-label={t(displayStatus)} /> : <StatusDot status={dotVariant} size="sm" aria-label={t(displayStatus)} title={t(displayStatus)} />}</span>}
           title={<span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{currentTask.title}</span>{showProject&&currentTask.project_name&&<span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">· {currentTask.project_name}</span>}</span>}
           description={isWorking&&liveActivity?liveActivity:isQueued?<>{queuePosition? t('Antrean')+' #'+queuePosition+' · ':''}{currentTask.latest_progress?cleanTerminalText(currentTask.latest_progress):t('Menunggu giliran eksekusi runner...')}</>:undefined}
-          trailing={<time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()}>{t(relativeTime(currentTask.updated_at))}</time>}
+          trailing={<TaskDuration task={currentTask} compact fallback={<time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()}>{t(relativeTime(currentTask.updated_at))}</time>} />}
         />
       </div>
     )
@@ -365,13 +366,11 @@ export function TaskItemCard({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <time
-            dateTime={currentTask.updated_at}
-            title={new Date(currentTask.updated_at).toLocaleString()}
-            className="text-xs text-muted-foreground whitespace-nowrap"
-          >
-            {t(relativeTime(currentTask.updated_at))}
-          </time>
+          <TaskDuration task={currentTask} compact fallback={
+            <time dateTime={currentTask.updated_at} title={new Date(currentTask.updated_at).toLocaleString()} className="text-xs text-muted-foreground whitespace-nowrap">
+              {t(relativeTime(currentTask.updated_at))}
+            </time>
+          } />
           {status === 'Not started' && (
             <div className="relative">
               <button

@@ -1,3 +1,4 @@
+import { TaskDuration } from '../tasks/TaskDuration'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { useState, useEffect, memo } from 'react'
@@ -11,7 +12,6 @@ import {
   RefreshCw,
   FileText,
   AlertCircle,
-  Clock,
   Send,
   Sparkles,
 } from 'lucide-react'
@@ -32,7 +32,7 @@ import {
   taskRef,
   relativeTime,
 } from '../tasks/task-ui'
-import { isTaskActive, formatDuration } from './task-progress'
+import { isTaskActive } from './task-progress'
 import { TaskCompletionCard } from './TaskCompletionCard'
 import { parseTaskReviewEnvelope } from './task-envelope'
 
@@ -95,7 +95,6 @@ export const TaskCard = memo(function TaskCard({
   const [error, setError] = useState(false)
   const [copied, setCopied] = useState(false)
   const [retrying, setRetrying] = useState(false)
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0)
 
   useEffect(() => {
     let active = true
@@ -165,59 +164,6 @@ export const TaskCard = memo(function TaskCard({
     currentTask?.status,
     currentTask?.latest_attempt?.status,
     currentTask?.launch?.state,
-  ])
-
-  // Live timer interval for queued/running tasks
-  useEffect(() => {
-    if (!currentTask) {
-      setElapsedSeconds(0)
-      return
-    }
-
-    const taskStatus = (currentTask.status || '').toLowerCase().trim()
-    const attemptStatus = (currentTask.latest_attempt?.status || '').toLowerCase().trim()
-    const launchState = (currentTask.launch?.state || '').toLowerCase().trim()
-    const isRunningOrQueued =
-      taskStatus === 'doing' ||
-      taskStatus === 'queued' ||
-      attemptStatus === 'running' ||
-      attemptStatus === 'queued' ||
-      launchState === 'started' ||
-      launchState === 'claimed' ||
-      launchState === 'queued' ||
-      isTaskActive(currentTask)
-
-    if (!isRunningOrQueued) {
-      setElapsedSeconds(0)
-      return
-    }
-
-    const startTimestamp =
-      currentTask.latest_attempt?.started_at ||
-      currentTask.latest_attempt?.created_at ||
-      currentTask.updated_at ||
-      currentTask.created_at
-
-    const parseTime = Date.parse(startTimestamp || '')
-    const startTime = Number.isFinite(parseTime) ? parseTime : Date.now()
-
-    const updateTimer = () => {
-      const diff = Math.max(0, Math.floor((Date.now() - startTime) / 1000))
-      setElapsedSeconds(diff)
-    }
-
-    updateTimer()
-    const timer = setInterval(updateTimer, 1000)
-
-    return () => clearInterval(timer)
-  }, [
-    currentTask?.id,
-    currentTask?.status,
-    currentTask?.latest_attempt?.status,
-    currentTask?.latest_attempt?.started_at,
-    currentTask?.latest_attempt?.created_at,
-    currentTask?.updated_at,
-    currentTask?.created_at,
   ])
 
   const handleCardClick = (_e: React.MouseEvent) => {
@@ -495,17 +441,7 @@ export const TaskCard = memo(function TaskCard({
             <span>{t(workDisplayStatus(currentTask))}</span>
           </span>
 
-          {/* Running/Queued Live Timer with duration */}
-          {(isWorking || isQueued) && (
-            <span
-              data-testid="task-card-live-timer"
-              className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground/80 font-medium"
-              title={t('Durasi pengerjaan')}
-            >
-              <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" />
-              <span>{formatDuration(elapsedSeconds)}</span>
-            </span>
-          )}
+          <TaskDuration task={currentTask} />
 
           {currentTask.project_name && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80 font-medium truncate max-w-[150px]">
