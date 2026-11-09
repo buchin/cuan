@@ -27,6 +27,17 @@ type ExecutionInfo struct {
 	LatestLaunch       *LaunchDiagnostic                 `json:"latest_launch,omitempty"`
 	VerifierHandoff    *VerifierHandoffDiagnostic        `json:"verifier_handoff,omitempty"`
 	LiveInspectionPlan *InspectionPlanDiagnostic         `json:"live_inspection_plan,omitempty"`
+	InspectionHandoff  *InspectionHandoffDiagnostic      `json:"inspection_handoff,omitempty"`
+}
+
+// Native routing observations only; no review prose, secrets or authority.
+type InspectionHandoffDiagnostic struct {
+	Code                    string                             `json:"code"`
+	SourceCorrectionAllowed bool                               `json:"source_correction_allowed"`
+	ApprovedScope           *executionpolicy.PublicationPolicy `json:"approved_scope,omitempty"`
+	PublicationRequired     *bool                              `json:"publication_required,omitempty"`
+	SourceContained         *bool                              `json:"source_contained,omitempty"`
+	RunningCommit           string                             `json:"running_commit,omitempty"`
 }
 
 // VerifierHandoffDiagnostic exposes native routing facts, never source prose,

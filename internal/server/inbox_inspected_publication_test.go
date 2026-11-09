@@ -94,6 +94,10 @@ func TestInspectedUnpublishedSourceReturnsPublicationToDeveloper(t *testing.T) {
 			if !allowed {
 				return
 			}
+			diagnostic := s.inspectionHandoffDiagnostic(ctx, d)
+			if diagnostic == nil || diagnostic.Code != "separate_developer_reconciliation_required" || !diagnostic.SourceCorrectionAllowed || diagnostic.SourceContained == nil || *diagnostic.SourceContained {
+				t.Fatal("missing native inspection handoff diagnostic", diagnostic)
+			}
 			if again := s.requirePublicationReview(ctx, d, got); again != got {
 				t.Fatal("publication normalization changed its saved continuation")
 			}

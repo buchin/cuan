@@ -54,3 +54,42 @@ unfinished reviews receive one fresh assessment through existing deduplication.
 Targeted execution policy tests pass (0.018s); server publication, persisted
 handoff, idempotence and native-check regressions pass (4.427s). Production
 recovery and task acceptance remain unproven at this checkpoint.
+
+## Production contract loss observed after v5
+
+Request 1bfbbfaf-7cc8-4ae7-ac53-d38322797d7d completed at 02:34:26+08.
+The chat-worker journal records response_bytes=2475, structured_valid=false,
+parsed=true and empty remaining_work/manager_action/source_review. The provider
+boundary nevertheless emitted 'Provider reply validated'. The legacy text
+fallback retained only revise/explanation/revision, losing routing metadata;
+publication review then scheduled the already-completed inspection again.
+The precise original JSON violation is not retained, so it is not attributed to
+a particular model field. No new developer was admitted by that review.
+
+Task reviews now use the same strict parser at the provider boundary as at
+application. AGY can repair one rejected candidate through the existing bounded
+45-second format stage (40-second native timeout), with no original context,
+attachments or inspection tools. It uses the review schema rather than the chat
+action schema. A second invalid response or attempted tool remains a failure,
+never accepted/fallback work. Native scope and acceptance gates are unchanged.
+
+A regression reproduced the old false-success behavior and passes after this
+change, including successful classification preservation, repeated-invalid and
+unexpected-tool cases. Existing formatter deadline/no-replay, publication launch,
+source verdict and manager authority regressions pass (3.269s).
+
+Official task execution diagnostics now expose inspection_handoff with bounded
+native classification, approved scope, source-correction eligibility and current
+publication ancestry observations. Historical attempt selection omits current
+recovery diagnostics. It contains no reviewer prose or credentials and grants no
+authority. Publication policy v6 requests a fresh assessment for affected
+unfinished reviews through the existing digest/deduplication path. Production
+recovery is still pending; neither this test nor deployment means task Done.
+
+Before rollout, native storage maintenance reported success at02:38:25+08 but
+available disk remained below2GiB (2,135,969,792 bytes). Six old /tmp/go-build
+compilation directories had no open files (lsof) and no Go/compiler/test process.
+Only those regenerable intermediate directories were removed; source, reports,
+snapshots, logs and receipts were retained. Available disk then measured
+2,654,560,256 bytes. This was explicit OS recovery, not proof the native workflow
+already reclaims abandoned Go temporary builds automatically.

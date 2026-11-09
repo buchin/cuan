@@ -12,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxPublicationReviewPolicy = "Production publication review policy: v5"
+const inboxPublicationReviewPolicy = "Production publication review policy: v6"
 
 type reviewPublication struct {
 	Required              bool   `json:"required"`

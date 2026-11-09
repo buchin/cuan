@@ -223,6 +223,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	var system string
 	if formatRepair {
 		system = inboxFormatRepairPrompt(formatCandidate, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
+		if snapshotReview {
+			system = inboxReviewFormatRepairPrompt(formatCandidate)
+		}
 	} else {
 		reviewInstruction := ""
 		if snapshotReview {
@@ -274,6 +277,17 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	finishTrace := traceInboxResponseStage(parentStageContext, ctx, phase, normHarness, release, input)
 	defer func() { finishTrace(failureResult != "") }()
 	validateReply := func(reply string) (string, string) {
+		if snapshotReview {
+			decision, err := parseInboxReviewEvaluation(reply)
+			if err != nil {
+				if step != nil {
+					step("response_contract", "The review JSON did not satisfy the task review contract; no assessment was applied.")
+				}
+				return "", "The task review response could not be validated. Saved evidence remains unaccepted."
+			}
+			canonical, _ := json.Marshal(decision)
+			return string(canonical), ""
+		}
 		if !coordinator {
 			return reply, ""
 		}
@@ -580,7 +594,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			repairCtx = context.WithValue(repairCtx, inboxSchemaRetryKey{}, true)
 			return s.executeInboxCLIWithSafety(repairCtx, name, harness, prompt, home, workspace, step, nil, attachmentPaths...)
 		}
-		if coordinator && reason == "coordinator_invalid" && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow && len(rejectedReply) <= 40000 {
+		if (coordinator || snapshotReview) && reason == "coordinator_invalid" && !alreadyRepaired && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow && len(rejectedReply) <= 40000 {
 			finishTrace(true)
 			if step != nil {
 				step("response_recovery", "Repairing the completed reply's format without repeating investigation or applying the rejected response.")
