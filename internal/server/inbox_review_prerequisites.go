@@ -9,6 +9,30 @@ import (
 
 const inboxPrerequisiteReviewPolicy = "Native prerequisite review: v1"
 
+const inboxProjectCheckFailurePolicy = "Native project check correction: v1"
+
+// Only a native, current developer completion can establish a source-test gap.
+// Inspection failures retain their separate read-only recovery boundaries.
+func nativeProjectCheckFailure(d *task.TaskDetailResponse) string {
+	if d == nil || d.LatestAttempt == nil || d.ExecutionCategory != task.ExecutionCategoryCode || d.Status == task.TaskStatusDone || d.Status == "cancelled" || d.Status == "canceled" {
+		return ""
+	}
+	a := d.LatestAttempt
+	if a.Status != task.AttemptStatusFailed || a.ErrorMessage != "Project verification failed" || a.ExitCode == nil || *a.ExitCode != 0 || a.CancelRequested || a.CanceledAt != nil || a.FinishedAt == nil || a.RunnerID == "" || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+		return ""
+	}
+	for _, e := range d.Activities {
+		if e == nil || e.ID != "verification:"+a.ID || e.TaskID != d.ID || e.AttemptID == nil || *e.AttemptID != a.ID || e.Author != a.RunnerID || e.ActivityType != task.ActivityTypeRunnerVerification || e.CreatedAt.Before(*a.FinishedAt) {
+			continue
+		}
+		var record task.RunnerVerificationRecord
+		if json.Unmarshal([]byte(e.Message), &record) == nil && strings.HasPrefix(record.Summary, "Project verification:") && !task.PassingProjectCheckSummary(record.Summary) {
+			return record.Summary
+		}
+	}
+	return ""
+}
+
 // A completed worker report cannot override failed native checks. Restrict this
 // classification to this exact runner completion; prose and historical reports
 // cannot manufacture either a failure or another continuation.

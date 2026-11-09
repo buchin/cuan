@@ -18,9 +18,25 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+func privateCompletionFixture(t *testing.T) string {
+	t.Helper()
+	source := documentationFixture(t)
+	// completionDirectory deliberately lives beside WorkspacesDir. Nest the
+	// fixture workspace so its outbox also stays inside this test's cleanup root.
+	workspaceRoot := filepath.Join(t.TempDir(), "workspaces")
+	if err := os.MkdirAll(workspaceRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	isolatedSource := filepath.Join(workspaceRoot, filepath.Base(source))
+	if err := os.Rename(source, isolatedSource); err != nil {
+		t.Fatal(err)
+	}
+	return isolatedSource
+}
+
 func TestSupplementalVerifierUsesPrivateExactCommitWorkspace(t *testing.T) {
 	ctx := context.Background()
-	source := documentationFixture(t)
+	source := privateCompletionFixture(t)
 	head, err := fingerprintGit(ctx, source, "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +61,8 @@ func TestSupplementalVerifierUsesPrivateExactCommitWorkspace(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&completion); err != nil {
 				t.Error(err)
 			}
+			json.NewEncoder(w).Encode(task.TaskAttempt{ID: "verifier", TaskID: filepath.Base(source), RunnerID: "fixture", Status: task.AttemptStatusSucceeded})
+			return
 		}
 		w.Write([]byte(`{}`))
 	}))
@@ -73,6 +91,12 @@ func TestSupplementalVerifierUsesPrivateExactCommitWorkspace(t *testing.T) {
 	worker.runAttempt(ctx, claim)
 	if !called || completion.Status != task.AttemptStatusSucceeded || completion.VerifiedSourceCommit != commit || !completion.RepositoryVerification.Unchanged() {
 		t.Fatalf("verification failed or lost native identity: %+v called=%v", completion, called)
+	}
+	if !strings.HasPrefix(worker.completionDirectory(), filepath.Dir(filepath.Dir(source))+string(filepath.Separator)) {
+		t.Fatal("fixture outbox escaped its cleanup root")
+	}
+	if len(worker.pendingCompletionIDs()) != 0 {
+		t.Fatal("fixture did not acknowledge its native completion")
 	}
 	data, _ := os.ReadFile(filepath.Join(source, "scripts/test.sh"))
 	if string(data) != "pending developer work\n" {

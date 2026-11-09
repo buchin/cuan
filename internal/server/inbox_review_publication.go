@@ -84,6 +84,28 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	if decision.Decision != "pass" && decision.Decision != "revise" {
 		return decision
 	}
+	// A failed source check precedes publication. Missing release evidence must
+	// not redirect an authenticated test failure into a read-only release audit.
+	failure := nativeProjectCheckFailure(d)
+	if failure != "" {
+		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		verification, verificationErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		if inspectionErr != nil || verificationErr != nil || inspection != nil || verification != nil {
+			failure = ""
+		}
+	}
+	if failure != "" && decision.RequestedOutcome != "needs_input" {
+		decision.Decision, decision.RequestedOutcome, decision.RemainingWork = "revise", "unfinished", "implementation"
+		decision.SourceReview = "not_checked"
+		decision.ManagerAction, decision.ManagerReason = "replan", "Repair the recorded native project check failure before independent verification or publication."
+		decision.Finding = "Pengujian otomatis gagal; Cuan perlu memperbaikinya sebelum melanjutkan."
+		decision.Explanation = decision.Finding
+		const prefix = "Native project checks failed on the current developer attempt. "
+		if !strings.HasPrefix(decision.Revision, prefix) {
+			decision.Revision = prefix + "Inspect the saved runner diagnostic and retained source, reproduce the concrete failing check, and correct its root cause within the original authorized scope. Preserve unrelated work and failed history. Do not waive checks, repeat investigation or deployment, or start an independent source verifier before the registered checks pass. Submit the corrected exact source for separate verification; original publication and acceptance requirements remain. Native diagnostic: " + truncateProjectText(failure, 6000)
+		}
+		return decision
+	}
 	// Source-stage approval keeps the task unfinished. Native publication
 	// admission still checks original authority, exact source and review receipt.
 	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.SourceReview == "pass" && s.hasNativeSourcePublicationHandoff(ctx, d) {

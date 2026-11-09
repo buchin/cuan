@@ -408,6 +408,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
 	decision.SourceReview = sourceReview
+	if nativeProjectCheckFailure(d) != "" {
+		decision.SourceReview = "not_checked"
+	}
 	decision = requireNativePrerequisiteReview(d, decision)
 	if d.Status != task.TaskStatusDone {
 		decision, err = s.saveReviewAssessment(ctx, d, q, decision)
@@ -888,6 +891,9 @@ func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	}
 	if nativePHPPrerequisiteFailure(d) != "" {
 		parts = append(parts, inboxPrerequisiteReviewPolicy)
+	}
+	if nativeProjectCheckFailure(d) != "" {
+		parts = append(parts, inboxProjectCheckFailurePolicy)
 	}
 	parts = append(parts, task.AttemptChangeEvidence(d))
 	if audit := scopeAcceptanceReviewData(d); audit != nil {

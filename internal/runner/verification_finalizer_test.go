@@ -28,7 +28,7 @@ func TestVerificationFinalizerChecksActualGitWithoutAIOrWorkspaceRepair(t *testi
 	for _, scenario := range []string{"valid", "dirty", "different fingerprint", "different commit"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
-			root := documentationFixture(t)
+			root := privateCompletionFixture(t)
 			head, err := fingerprintGit(ctx, root, "rev-parse", "HEAD")
 			if err != nil {
 				t.Fatal(err)
@@ -56,6 +56,8 @@ func TestVerificationFinalizerChecksActualGitWithoutAIOrWorkspaceRepair(t *testi
 						t.Error(err)
 					}
 					completed++
+					json.NewEncoder(w).Encode(task.TaskAttempt{ID: "finalization", TaskID: filepath.Base(root), RunnerID: "fixture", Status: completion.Status})
+					return
 				}
 				w.Write([]byte(`{}`))
 			}))
@@ -68,6 +70,9 @@ func TestVerificationFinalizerChecksActualGitWithoutAIOrWorkspaceRepair(t *testi
 			}
 			if completed != 1 || completion.Status != want || completion.AgentReportConfirmed || completion.AgentReportRequired || completion.CommitSHA != "" || completion.PRURL != "" {
 				t.Fatalf("invalid finalization completion %+v", completion)
+			}
+			if len(worker.pendingCompletionIDs()) != 0 {
+				t.Fatal("fixture completion was not acknowledged")
 			}
 			if scenario == "valid" && (!completion.RepositoryVerification.Unchanged() || completion.FinalizationManifestHash != proof.ArtifactManifestHash || completion.VerifiedSourceCommit != proof.SourceCommit) {
 				t.Fatal("missing independent source evidence")
