@@ -29,7 +29,7 @@ func (s *Server) inboxCodeVerificationHandoff(ctx context.Context, q db.InboxReq
 	return string(raw), err == nil && decision.Decision == "revise" && decision.RemainingWork == "verification"
 }
 
-const inboxIndependentCodeReviewPolicy = "Independent code execution review: v3"
+const inboxIndependentCodeReviewPolicy = "Independent code execution review: v4"
 
 func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskDetailResponse) bool {
 	return d != nil && d.Status != task.TaskStatusDone && d.ExecutionCategory == task.ExecutionCategoryCode &&
@@ -38,6 +38,16 @@ func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskD
 }
 
 func (s *Server) requireIndependentCodeReview(ctx context.Context, d *task.TaskDetailResponse, assessment inboxReviewEvaluation) inboxReviewEvaluation {
+	// A successful source review and publication observation do not fill a
+	// verifier's pending acceptance checklist. Route that gap to the existing
+	// read-only outcome inspection before saving a contradictory overall pass.
+	if assessment.Decision == "pass" && d != nil && len(task.AcceptanceGaps(&d.Task)) > 0 && inboxReportEvidence(d).Provenance == "current_attempt_report" {
+		if source, proof := s.verifiedSupplementalSource(ctx, d); source != nil && proof != nil {
+			if published := s.inboxReviewPublication(ctx, d); published != nil && published.Verified {
+				return inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "verification", Finding: "Pembaruan sudah aktif; bukti pemeriksaan akhir belum lengkap.", Explanation: "Pembaruan sudah aktif. Cuan melengkapi pemeriksaan hasilnya sebelum menutup pekerjaan.", Revision: "Independently inspect the existing running release against every remaining original criterion and report concrete evidence. Native evidence already establishes source verification and publication; do not repeat deployment or implementation, or treat read-only verifier permissions as missing deployment. Preserve original scope, source, configuration and history. Do not mark a criterion complete without observing its requested result.", ManagerAction: "continue", ManagerReason: "Verified source is already published, but the current independent report retains incomplete original acceptance criteria."}
+			}
+		}
+	}
 	// Pending acceptance evidence must not send an implemented result back to
 	// its author just to claim independent verification. Exact-source native
 	// admission still checks the result; only the verifier can establish gaps.

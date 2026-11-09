@@ -90,6 +90,36 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		}
 	})
 
+	t.Run("published source with pending criteria schedules final verification", func(t *testing.T) {
+		p, e := s.projectSvc.Store().GetProject(ctx, d.ProjectID)
+		must(e)
+		oldMetadata, oldURL, oldConfig := p.Metadata, p.RepoURL, *s.cfg
+		p.Metadata = registeredReleaseMetadata(t)
+		p.RepoURL = "https://github.com/fixture/repo.git"
+		must(s.projectSvc.Store().UpdateProject(ctx, p))
+		s.cfg.Environment, s.cfg.SourceRepository, s.cfg.CommitSHA = "production", "fixture/repo", d.CommitSHA
+		t.Cleanup(func() {
+			p.Metadata, p.RepoURL = oldMetadata, oldURL
+			_ = s.projectSvc.Store().UpdateProject(ctx, p)
+			*s.cfg = oldConfig
+		})
+		pending := *d
+		pending.DoDChecklist = append([]task.DoDItem(nil), d.DoDChecklist...)
+		pending.DoDChecklist = append(pending.DoDChecklist, task.DoDItem{ID: "publication-check", Text: "Verify the deployed original outcome and exact health", Completed: false, Evidence: "Pending because source verifier cannot deploy"})
+		before := pending.DoDChecklist[len(pending.DoDChecklist)-1]
+		got := s.requireIndependentCodeReview(ctx, &pending, inboxReviewEvaluation{Decision: "pass", SourceReview: "pass", RequestedOutcome: "completed", RemainingWork: "none"})
+		if got.Decision != "revise" || got.RemainingWork != "verification" || got.RequestedOutcome != "unfinished" || got.ManagerAction != "continue" {
+			t.Fatalf("pending acceptance was not routed to read-only verification: %+v", got)
+		}
+		if pending.DoDChecklist[len(pending.DoDChecklist)-1] != before {
+			t.Fatal("publication observation silently completed a criterion")
+		}
+		complete := *d
+		if got := s.requireIndependentCodeReview(ctx, &complete, inboxReviewEvaluation{Decision: "pass"}); got.Decision != "pass" {
+			t.Fatal("complete report got redundant verification", got)
+		}
+	})
+
 	t.Run("historical live failure follows exact source across developer handoff", func(t *testing.T) {
 		_, bound := s.verifiedSupplementalSource(ctx, d)
 		if bound == nil {
