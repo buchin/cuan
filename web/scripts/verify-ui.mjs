@@ -60,6 +60,9 @@ try {
   }
   const components = [
     'web/src/features/inbox/InboxView.tsx',
+    'web/src/features/inbox/ComposerTasks.tsx',
+    'web/src/features/inbox/InboxWorkPanel.tsx',
+    'web/src/components/ui/AccordionTimeline.tsx',
     'web/src/features/inbox/PromptChoiceChips.tsx',
     'web/src/features/tasks/TaskSessionPage.tsx',
     'web/src/features/tasks/TaskTerminal.tsx',

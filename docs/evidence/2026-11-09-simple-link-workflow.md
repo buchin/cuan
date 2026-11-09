@@ -119,3 +119,27 @@ API setup and was removed after capture. Updating the maintained full fixture to
 the current task disclosure remains a separate correctness issue for future
 visual verification. Local Chromium required the existing Alpine runtime's
 library path; no browser dependencies were installed or production config changed.
+
+Release `4ecd373dddd4395f350854121fdd65462ee4070b` subsequently passed
+exact-SHA production health with 37 migrations. Authenticated Inbox history
+remained readable after release. Historical replies were preserved; new reply
+formation uses the integrated deduplication.
+
+## Maintain the real visual workflow fixture
+
+The stale full work-panel fixture is now updated to open the current composer
+Tasks disclosure, assert it initially closed, assert no duplicate task card in
+chat, and verify the active task expands with its current progress. Details and
+terminal actions use their actual accessible controls. Existing panel, timeline,
+back/draft/scroll, full-height terminal and session-loading/state-transition
+assertions are retained. Captured component metadata now includes ComposerTasks,
+InboxWorkPanel and AccordionTimeline, which are actually rendered by the flow.
+
+The maintained script passes at 390, 1440 and 1920px. Real screenshots were
+inspected at mobile, desktop and the wide four-column detail view. A deliberate
+conditional-hook regression still fails with the actual React error “Rendered
+more hooks than during the previous render”, demonstrating the lifecycle guard
+was not removed. The full native `scripts/verify-ui.sh` entry point also passes,
+including its diagram build/capture and workflow captures, in 45.2 seconds.
+Evidence is retained at `/home/dev/artifacts/cuan-current-task-disclosure/`.
+This repairs a false verification prerequisite; no application UI was redesigned.
