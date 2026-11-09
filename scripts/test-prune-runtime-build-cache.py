@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import fcntl
 import importlib.util
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -27,6 +28,8 @@ class RuntimeCacheTest(unittest.TestCase):
         (cache / 'README').write_text('This directory holds cached build artifacts from the Go build system.')
         gate = owner / '.build-cache.lock'
         gate.touch(mode=0o600)
+        old = time.time() - 3600
+        os.utime(gate, (old, old))
         protected = [owner / 'go/pkg/mod/source.go', owner / 'credentials', root / 'workspace/checkpoint']
         for path in protected:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,6 +109,139 @@ class RuntimeCacheTest(unittest.TestCase):
         self.assertEqual(kwargs['cwd'], '/')
         self.assertEqual(kwargs['env']['GOTOOLCHAIN'], 'local')
         self.assertNotIn('HOME', kwargs['env'])
+
+    def test_moderate_pressure_protects_recent_warm_idle_cache(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            owner, cache, artifact, gate, protected = self.fixture(root)
+            now = 1731219116.0
+            # 1. Warm cache with explicit metadata (5 minutes old < 15 min)
+            gate.write_text(json.dumps({'version': 1, 'last_used_at': now - 300}))
+            result = module.prune(root, apply=True, free=lambda _: int(2.5 * module.GIB),
+                                  in_use=lambda _: False, now=now)
+            self.assertTrue(result['pressure'])
+            self.assertEqual(result['eligible'], 0)
+            self.assertEqual(result['removed'], 0)
+            self.assertTrue(artifact.exists())
+
+            # 2. Warm legacy cache without metadata (5 minutes old mtime < 15 min)
+            gate.write_text('')
+            os.utime(gate, (now - 300, now - 300))
+            result = module.prune(root, apply=True, free=lambda _: int(2.5 * module.GIB),
+                                  in_use=lambda _: False, now=now)
+            self.assertEqual(result['eligible'], 0)
+            self.assertEqual(result['removed'], 0)
+            self.assertTrue(artifact.exists())
+
+    def test_moderate_pressure_cleans_old_idle_cache(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            owner, cache, artifact, gate, protected = self.fixture(root)
+            now = 1731219116.0
+            # Old cache with explicit metadata (20 minutes old >= 15 min)
+            gate.write_text(json.dumps({'version': 1, 'last_used_at': now - 1200}))
+            cleaned = []
+            def cleaner(path, identity):
+                cleaned.append(path)
+                artifact.unlink()
+            result = module.prune(root, apply=True, free=lambda _: int(2.5 * module.GIB),
+                                  in_use=lambda _: False, cleaner=cleaner, now=now)
+            self.assertTrue(result['pressure'])
+            self.assertEqual(result['eligible'], 1)
+            self.assertEqual(result['removed'], 1)
+            self.assertEqual(cleaned, [cache])
+            self.assertFalse(artifact.exists())
+            for path in protected:
+                self.assertEqual(path.read_text(), 'preserve')
+
+    def test_critical_pressure_reclaims_recent_cache_below_admission_floor(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            owner, cache, artifact, gate, protected = self.fixture(root)
+            now = 1731219116.0
+            # Brand new cache (just finished 30 seconds ago)
+            gate.write_text(json.dumps({'version': 1, 'last_used_at': now - 30}))
+            cleaned = []
+            def cleaner(path, identity):
+                cleaned.append(path)
+                artifact.unlink()
+            # Under critical pressure (e.g. 1.8 GiB < 2 GiB admission floor)
+            result = module.prune(root, apply=True, free=lambda _: int(1.8 * module.GIB),
+                                  in_use=lambda _: False, cleaner=cleaner, now=now)
+            self.assertTrue(result['pressure'])
+            self.assertEqual(result['eligible'], 1)
+            self.assertEqual(result['removed'], 1)
+            self.assertEqual(cleaned, [cache])
+            self.assertFalse(artifact.exists())
+            for path in protected:
+                self.assertEqual(path.read_text(), 'preserve')
+
+    def test_critical_pressure_protects_active_lease_and_unclear_reader(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            owner, cache, artifact, gate, protected = self.fixture(root)
+            now = 1731219116.0
+            gate.write_text(json.dumps({'version': 1, 'last_used_at': now - 30}))
+            def forbidden(*_):
+                self.fail('cleaner called on protected target')
+            # 1. Active shared lease under critical pressure
+            with gate.open('r+') as lease:
+                fcntl.flock(lease, fcntl.LOCK_SH)
+                result = module.prune(root, apply=True, free=lambda _: int(1.5 * module.GIB),
+                                      in_use=lambda _: False, cleaner=forbidden, now=now)
+                self.assertEqual(result['busy'], 1)
+                self.assertEqual(result['removed'], 0)
+            self.assertTrue(artifact.exists())
+
+            # 2. Unclear reader (/proc link or environ) under critical pressure
+            result = module.prune(root, apply=True, free=lambda _: int(1.5 * module.GIB),
+                                  in_use=lambda _: True, cleaner=forbidden, now=now)
+            self.assertEqual(result['busy'], 1)
+            self.assertEqual(result['removed'], 0)
+            self.assertTrue(artifact.exists())
+
+    def test_invalid_metadata_and_corrupt_files_handled_safely_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            owner, cache, artifact, gate, protected = self.fixture(root)
+            now = 1731219116.0
+            # 1. Future timestamp in metadata (invalid timestamp: must not protect cache forever)
+            gate.write_text(json.dumps({'version': 1, 'last_used_at': now + 3600}))
+            cleaned = []
+            result = module.prune(root, apply=True, free=lambda _: int(2.5 * module.GIB),
+                                  in_use=lambda _: False, cleaner=lambda p, i: cleaned.append(p), now=now)
+            self.assertEqual(result['eligible'], 1)
+            self.assertEqual(result['removed'], 1)
+            self.assertEqual(cleaned, [cache])
+
+            # 2. Corrupted JSON in gate
+            gate.write_text('corrupt-not-json-{{{')
+            # If mtime is old, it is eligible
+            os.utime(gate, (now - 3600, now - 3600))
+            cleaned.clear()
+            artifact.write_text('compiled artifact')
+            result = module.prune(root, apply=True, free=lambda _: int(2.5 * module.GIB),
+                                  in_use=lambda _: False, cleaner=lambda p, i: cleaned.append(p), now=now)
+            self.assertEqual(result['eligible'], 1)
+            self.assertEqual(result['removed'], 1)
+            self.assertEqual(gate.read_text(), 'corrupt-not-json-{{{')
+
+    def test_hardlink_and_foreign_files_skipped_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            owner, cache, artifact, gate, protected = self.fixture(root)
+            alias = owner / '.build-cache.hardlink-alias'
+            os.link(gate, alias)
+            self.assertEqual(gate.stat().st_nlink, 2)
+            gate.write_text('hardlink-original-content')
+            def forbidden(*_):
+                self.fail('cleaner called on hardlinked gate')
+            result = module.prune(root, apply=True, free=lambda _: int(1.5 * module.GIB),
+                                  in_use=lambda _: False, cleaner=forbidden)
+            self.assertEqual(result['eligible'], 0)
+            self.assertEqual(result['removed'], 0)
+            self.assertEqual(gate.read_text(), 'hardlink-original-content')
+            self.assertTrue(artifact.exists())
 
 
 

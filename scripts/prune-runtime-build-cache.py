@@ -54,6 +54,26 @@ def available(path):
     return filesystem.f_bavail * filesystem.f_frsize
 
 
+def parse_last_used(lease, info, now):
+    try:
+        lease.seek(0)
+        raw = lease.read().strip()
+        if raw:
+            data = json.loads(raw.decode('utf-8'))
+            if isinstance(data, dict):
+                ts = data.get('last_used_at')
+                if isinstance(ts, (int, float)) and not isinstance(ts, bool):
+                    if 0 < ts <= now + 10:
+                        return float(ts)
+                    return None
+    except Exception:
+        pass
+    mtime = info.st_mtime
+    if 0 < mtime <= now + 10:
+        return float(mtime)
+    return None
+
+
 def clean(cache, identity, kind="go"):
     credentials = {}
     if os.geteuid() == 0 and identity.st_uid != 0:
@@ -92,7 +112,8 @@ def clean(cache, identity, kind="go"):
                    capture_output=True, timeout=60, check=True, **credentials)
 
 
-def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean, kind="go"):
+def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean, kind="go", now=None):
+    now = time.time() if now is None else now
     result = dict(pressure=False, eligible=0, removed=0, busy=0)
     if not directory(base):
         return result
@@ -128,7 +149,7 @@ def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean
         with os.fdopen(descriptor, 'r+b') as lease:
             identity = owner.stat()
             info = os.fstat(lease.fileno())
-            if not stat.S_ISREG(info.st_mode) or info.st_uid != identity.st_uid or cache.stat().st_uid != identity.st_uid:
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != identity.st_uid or cache.stat().st_uid != identity.st_uid:
                 continue
             try:
                 fcntl.flock(lease.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -142,6 +163,12 @@ def prune(base, *, apply=False, free=available, in_use=referenced, cleaner=clean
             # in sibling paths and are never passed to the cleaner.
             if kind == 'go' and not any(re.fullmatch('[0-9a-f]{2}', p.name) and directory(p) for p in cache.iterdir()):
                 continue
+            if kind == 'go':
+                is_critical = free(base) < 2 * GIB
+                if not is_critical:
+                    last_used = parse_last_used(lease, info, now)
+                    if last_used is not None and (now - last_used) < 15 * 60:
+                        continue
             result['eligible'] += 1
             if apply:
                 if kind == "go":
