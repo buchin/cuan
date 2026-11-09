@@ -95,11 +95,16 @@ func (s *Server) handleRunnerVisualVerification(w http.ResponseWriter, r *http.R
 // before the model capability is issued. The model cannot supply this binding.
 var visualCaptureProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:take|capture|create|generate|buat|ambil|membuat|mengambil)\s+|(?:no|tanpa)\s+)(?:new\s+)?(?:screenshots?|tangkapan layar)\b`)
 
+// Reading an attached image remains allowed; an explicit browser prohibition
+// prevents the native recipe from launching browser automation on the owner's behalf.
+var browserAutomationProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:use|run|launch|open|invoke|gunakan|menggunakan|pakai|memakai|jalankan|menjalankan|buka|membuka)\s+(?:(?:a|an|the|any|automated|headless|automation|otomasi|otomatisasi|alat|tool|tools)\s+)*(?:browser|playwright|puppeteer|chromium)|(?:no|without|tanpa)\s+(?:(?:otomasi|otomatisasi|headless)\s+)?(?:browser|playwright|puppeteer|chromium))\b`)
+
 func (s *Server) bindRunnerVisualRecipe(ctx context.Context, claim *runner.ClaimTaskResponse, snapshot string, revision ...string) error {
 	if !claim.RequiresVision || claim.LiveInspection == nil {
 		return nil
 	}
-	if visualCaptureProhibited.MatchString(project.TaskScopeInstructions(claim.Task.Instructions) + "\n" + strings.Join(revision, "\n")) {
+	scope := project.TaskScopeInstructions(claim.Task.Instructions) + "\n" + strings.Join(revision, "\n")
+	if visualCaptureProhibited.MatchString(scope) || browserAutomationProhibited.MatchString(scope) {
 		return nil
 	}
 	recipe, err := runner.VisualRecipeAt(snapshot, claim.LiveInspection.TargetCommit)
@@ -119,7 +124,7 @@ var originalVisualScope = regexp.MustCompile(`(?i)\b(?:ui|ux|frontend|front-end|
 // Remove only explicit mutation prohibitions, not visual inspection duties.
 // The bounded list vocabulary also covers "no push, deploy, or UI changes"
 // without swallowing a later request to inspect the UI.
-var visualMutationProhibition = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak ada|jangan|dilarang|do not|don't|never)\s+(?:(?:push|pr|deploy|deployment|perubahan konfigurasi|configuration changes?)(?:\s*,\s*|\s+(?:or|and|atau|dan)\s+))*(?:(?:perubahan|modifikasi|ubah|mengubah|change|changes? to|modify|edit)\s+(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\s+changes?\b)`)
+var visualMutationProhibition = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak ada|jangan|dilarang|do not|don't|never)\s+(?:(?:push|pr|deploy|deployment|perubahan konfigurasi|configuration changes?)(?:\s*,\s*|\s+(?:or|and|atau|dan)\s+))*(?:(?:perubahan|modifikasi|ubah|mengubah|menyentuh|change|changes? to|modify|edit|touch)\s+(?:(?:komponen|components?|elemen)\s+)?(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\b|(?:ui|ux|frontend|front-end|layout|typography|styling|antarmuka|tampilan|desain|visual)\s+changes?\b)`)
 
 var commandOutputScope = regexp.MustCompile(`(?i)--help\b|\b(?:cli|command-line|terminal|stdout|stderr)\b`)
 var webOutputScope = regexp.MustCompile(`(?i)\b(?:halaman|page|browser|web|component|komponen|panel)\b`)

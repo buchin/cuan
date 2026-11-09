@@ -17,6 +17,9 @@ func TestInspectionVisionUsesOriginalScopeInsteadOfGenericTransport(t *testing.T
 	}{
 		{"database inspection", "Migrate PostgreSQL data to SQLite and reconcile row counts", nil, true, false},
 		{"backend no UI", "Add quota regression tests. Tidak ada perubahan UI, konfigurasi, push, PR, atau deployment.", nil, true, false},
+		{"backend telemetry production constraint", "Fix database status and telemetry timestamp. Batasan ketat: Jangan mengubah komponen UI, jangan menghapus riwayat data/history, jangan mengirim email, dan jangan menggunakan otomasi browser.", nil, true, false},
+		{"no touching UI", "Backend saja tanpa menyentuh UI", nil, true, false},
+		{"no UI components English", "Fix backend status. Do not modify UI components.", nil, true, false},
 		{"negative criterion list", "Add quota regression tests", []task.DoDItem{{Text: "Tidak ada push, PR, deploy, perubahan konfigurasi, perubahan UI, atau pesan keluar."}}, true, false},
 		{"english no UI", "Add quota tests without UI changes", nil, true, false},
 		{"artifact backend restriction", "Backend/CLI/MCP saja tanpa modifikasi UI, tanpa mengubah/menghapus data pengguna.", nil, true, false},

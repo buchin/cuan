@@ -162,7 +162,7 @@ func nativeVisualLifecycleRecord(t *testing.T, s *Server, d *task.TaskDetailResp
 }
 
 func TestNativeVisualRecipeDoesNotOverrideCaptureRestriction(t *testing.T) {
-	for _, restriction := range []string{"Do not capture new screenshots.", "No screenshots.", "Jangan ambil tangkapan layar.", "Tanpa screenshot."} {
+	for _, restriction := range []string{"Do not capture new screenshots.", "No screenshots.", "Jangan ambil tangkapan layar.", "Tanpa screenshot.", "Do not use browser automation.", "No browser.", "Without browser automation.", "Jangan menggunakan otomasi browser.", "Jangan pakai browser.", "Tanpa browser.", "Inspect the supplied UI image. Do not launch Chromium."} {
 		t.Run(restriction, func(t *testing.T) {
 			s := &Server{}
 			claim := &runner.ClaimTaskResponse{RequiresVision: true, Task: &task.Task{Instructions: restriction}, LiveInspection: &task.LiveInspectionIntent{TargetCommit: strings.Repeat("a", 40)}}

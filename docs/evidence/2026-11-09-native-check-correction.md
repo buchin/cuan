@@ -202,3 +202,63 @@ codes in its completion; merge-conflict classification is unchanged. Native
 tests verify runtime/source-identity/source-push stage records and reject
 unrecognized/secret-bearing transport diagnostics. This improves future
 diagnosis; it does not invent a stage for the already generic failed attempt.
+
+## Production recovery and publication observed
+
+Framework release `2560ae084e0d3b08c9cd2a69944acd9b26af57cb` passed exact-SHA
+health at 2026-11-09T10:50:59Z. Native preparation recovery automatically created
+attempt `att_63b05dd489d23b5bbedfbc57c2262530` at 18:49:23 (+08), keeping
+source `712d56e0` and the existing independent review. Preparation succeeded:
+the immutable source ref contains that exact SHA, the old task ref was retained,
+and the target branch was reconciled to merge `7d6b9285b52a111958b88bf28c96e66d6403a337`.
+No developer or source-verifier execution was repeated by this recovery.
+
+The native process ran checks, dependencies, release tests, build, transfer and
+exact production health observation, finishing at 18:57:41.650. Attempt completion
+succeeded at 18:57:42.111. Its backend native delivery receipt binds the original
+source, target, manifest, owner scope and process timestamps. Production health
+matched `7d6b9285`, with 38 migrations. This proves publication, not final DoD.
+
+Post-publication inspection initially queued behind storage admission. The
+installed maintenance job completed successfully but storage remained about
+1.9 GiB free, below the 2 GiB admission floor. Registered project SSH credentials
+and pinned host trust were used only to inspect host storage and clean disposable
+OS package caches via `apt-get clean` and `apt-get distclean`. No application
+source, task evidence or business data was removed. Logs older than 14 days were
+checked but none qualified; no log deletion was performed. Available bytes were
+then 2,333,130,752. This operational cleanup does not prove recurring storage
+pressure is solved; maintenance eligibility and protected retained snapshots
+remain follow-up work.
+
+The same queued launch resumed automatically as read-only live inspection
+`att_dcefcf8253510250e69490bc3ae0374e` at 19:06:49.384, binding original source
+`712d56e0`, delivered target `7d6b9285` and release attempt `att_63b05dd...`.
+The source and release failures remain in history. This final inspection is
+still active; no final DoD acceptance or task Done is credited.
+
+## Task acceptance and scope waste found
+
+Live inspection `att_dcefcf8253510250e69490bc3ae0374e` completed successfully
+at 19:14:51.595 (+08), with unchanged repository evidence, passing native project
+checks, source containment and live-result receipt. It reported the deployed
+database cases, snapshot consistency, observation timestamp and active healthy
+release. PM request `efdabb2d-4912-4b4b-ac09-f7aa2cbe9814` accepted at
+19:16:46.078. Official task state is Done, and all seven saved DoD items have
+evidence. No manual task-status update was used.
+
+This is not evidence of a lean or fully scope-correct run. Seven attempts and
+platform interventions were necessary. In addition, the live inspector wrongly
+received the generic native UI recipe and produced eight unrelated UI captures
+despite the task's explicit browser prohibition. PM then read those images before
+acceptance. They are not telemetry evidence. Preserve this violation in the
+history rather than counting it as required validation.
+
+The visual classifier failed to strip `Jangan mengubah komponen UI` as a mutation
+prohibition. Its existing English/Indonesian negative-UI vocabulary now handles
+component wording and touching UI, while positive UI inspection exceptions still
+require vision. Native recipe binding also respects explicit English/Indonesian
+browser prohibitions independently of the ability to read attached images. Tests
+cover the actual production sentence, backend variants, positive visual duties
+and browser restrictions. The old captures remain historical; no source/evidence
+is deleted to hide the waste. A fresh production workflow must prove this scope
+fix and the other corrections before claiming autonomous readiness.
