@@ -358,3 +358,57 @@ trace regressions pass. The obsolete full-platform-catalogue source assertion is
 replaced with an assertion that capability claims match exposed runtime tools;
 the existing runtime permission tests remain. Fresh production quality and
 prompt-size evidence are still required after rollout.
+
+## Canonical-policy production checks and timeout recovery
+
+Release `29667205867327fbc6a89adeef578f9eb115c221` passed exact-SHA health
+with38 migrations at2026-11-09T06:35:55Z. Fresh room
+`3db5de04-6b50-497d-bb0d-805a378b6a9b` received the unchanged five-line request.
+Request `cf4a1e5c-deaf-45c7-8a02-ca79464eb93f` proves actual initial input is
+59607 bytes versus79646 before, with identical15720-byte context:20039 fewer
+bytes, about25 percent. That is verified input reduction, not a speed claim.
+
+The initial provider did not return a result. At the six-minute request deadline
+14:42:31+08 its process was killed, signal9, duration348.3 seconds. State remains
+interrupted with unknown provider result; no task existed. Root used the official
+saved-request retry once, not a duplicate message or manual acceptance. Retry
+`3280c149-4697-c0f4-1bd5-af727f498056` runs fresh reconciliation,9131 prompt
+bytes/3572 context bytes,14:43:54.843–14:45:18.470+08, and creates exactly one
+task `msg_6325148b-4b0b-4418-9fa2-13c73f0a533b` with original scope intact.
+
+That task reaches native Done14:51:31.703589+08 with two attempts:
+dev `att_58306153f775ccab8bdddec7009770ac`14:45:22.879–14:47:05.809;
+independent verifier `att_3f171ceaffa09d9bedd7abd7794b0f8f`
+14:47:07.880–14:49:13.845. Private ops workspace/no Git checkout and unchanged
+runner receipt remain. Final review `5add13cd-5626-4f0b-adaf-9d4bb4670471`
+finishes14:51:31.720,137.8 seconds with43051 prompt bytes. No status forcing,
+steering, worker edits or additional task retries occurred.
+
+Root downloaded/read file `8c99b26d-658d-4d0b-afdf-1fb3440df135` and1867-byte
+report `be18bce1-cd71-49b3-a10a-e5c42c353580`. Actual170-byte file has the exact
+five lines/newline and expected hash
+`b903747b2d3c581e6a87b03e0bc310dfcd337daf503375bfc15102ac3b8f3d50`.
+Copies: `/home/dev/artifacts/cuan-canonical-coordinator/`.
+This is successful recovery after root-triggered retry, not autonomous initial
+success, latency improvement or proof that prompt size caused the timeout.
+
+In the same room, read-only request `a3bc9ea4-dbfe-4c36-a3d6-0070ef8b1a50`
+asks the existing InstaBox limits question. It completes14:52:47.875–14:53:47.991,
+60.1 seconds, correctly distinguishing fixed20GiB machine disk from200GiB
+account stored-data cap, with the source link. Task count stays one. Trace shows
+the requested `cuan-inspect/web_fetch` plus two searches, and one failed sensitive
+file read whose reference/content remains withheld. Output bodies are not present
+in those native trace events; do not invent them. An independent official
+`cuan mcp --public-web` fetch confirms the public page's20GiB/200GiB table.
+The answer is factual and creates no work; redundant research and the failed
+file read remain efficiency gaps. Its input grows to95319 bytes with50597-byte
+context, showing that conversation/project context growth remains another gap.
+
+The previously failing stalled-review acceptance fixture now includes a finished
+current-attempt report and the runner read-only receipt required by current
+acceptance. The missing-receipt rejection test still passes. Recovery, native
+composition, coordinator action/advisory and scope tests pass; production gates
+were not weakened. This is a test-fixture correction, not a change to runtime
+acceptance or historical production status. Provider stalls and the need for
+manual retry remain the next reliability problem; fewer prompt bytes alone did
+not resolve them.
