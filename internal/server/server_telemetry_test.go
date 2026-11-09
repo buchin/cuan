@@ -2,12 +2,19 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestServerTelemetry_Summary(t *testing.T) {
+	observedTime := time.Date(2026, 11, 9, 9, 3, 32, 0, time.UTC)
 	telem := ServerTelemetry{
+		ObservedAt:        observedTime,
 		DiskTotalBytes:    40 * 1024 * 1024 * 1024,
 		DiskFreeBytes:     12 * 1024 * 1024 * 1024,
 		DiskUsedBytes:     28 * 1024 * 1024 * 1024,
@@ -28,6 +35,9 @@ func TestServerTelemetry_Summary(t *testing.T) {
 	if !strings.Contains(summary, "Server Infrastructure & Host Telemetry:") {
 		t.Fatalf("expected header in summary, got: %s", summary)
 	}
+	if !strings.Contains(summary, "- Observed At: 2026-11-09T09:03:32Z") {
+		t.Fatalf("expected observation timestamp line, got: %s", summary)
+	}
 	if !strings.Contains(summary, "- Host Disk: 12.0 GiB free of 40.0 GiB (70.0% used, path: /opt/cuan) [HEALTHY]") {
 		t.Fatalf("expected healthy disk line, got: %s", summary)
 	}
@@ -42,6 +52,20 @@ func TestServerTelemetry_Summary(t *testing.T) {
 	}
 	if strings.Contains(summary, "⚠️ INFRASTRUCTURE WARNING") {
 		t.Fatalf("unexpected warning in healthy summary: %s", summary)
+	}
+
+	// Verify JSON serialization format of ObservedAt
+	marshaled, err := json.Marshal(telem)
+	if err != nil {
+		t.Fatalf("failed to marshal telemetry: %v", err)
+	}
+	var unmarshaled map[string]any
+	if err := json.Unmarshal(marshaled, &unmarshaled); err != nil {
+		t.Fatalf("failed to unmarshal telemetry json: %v", err)
+	}
+	rawObserved, ok := unmarshaled["observed_at"].(string)
+	if !ok || rawObserved != "2026-11-09T09:03:32Z" {
+		t.Fatalf("expected observed_at in RFC3339 format '2026-11-09T09:03:32Z', got: %v", unmarshaled["observed_at"])
 	}
 
 	// Now test warning condition
@@ -63,6 +87,9 @@ func TestServerTelemetry_GetSystemResources(t *testing.T) {
 	s := &Server{}
 	telem := s.getServerTelemetry(ctx, "/")
 
+	if telem.ObservedAt.IsZero() {
+		t.Fatalf("expected non-zero observed_at timestamp")
+	}
 	if telem.DiskTotalBytes == 0 {
 		t.Fatalf("expected non-zero disk total bytes, got: %d", telem.DiskTotalBytes)
 	}
@@ -73,6 +100,82 @@ func TestServerTelemetry_GetSystemResources(t *testing.T) {
 	summary := telem.Summary()
 	if !strings.Contains(summary, "Server Infrastructure & Host Telemetry:") {
 		t.Fatalf("expected header, got: %s", summary)
+	}
+	if !strings.Contains(summary, "- Observed At: ") {
+		t.Fatalf("expected Observed At in summary, got: %s", summary)
+	}
+}
+
+func TestServerTelemetry_DatabaseStatus_NilDB(t *testing.T) {
+	ctx := context.Background()
+	s := &Server{db: nil}
+	telem := s.getServerTelemetry(ctx, "/")
+
+	if telem.DatabaseStatus == "connected" {
+		t.Fatalf("nil db handle must not report 'connected'")
+	}
+	if telem.DatabaseStatus != "disconnected" {
+		t.Fatalf("expected 'disconnected' for nil db, got: %s", telem.DatabaseStatus)
+	}
+
+	summary := telem.Summary()
+	if strings.Contains(summary, "- Database: connected") {
+		t.Fatalf("summary must not contain '- Database: connected' when db is nil, got: %s", summary)
+	}
+	if !strings.Contains(summary, "- Database: disconnected") {
+		t.Fatalf("expected summary to contain '- Database: disconnected', got: %s", summary)
+	}
+}
+
+func TestServerTelemetry_DatabaseStatus_Connected(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open sqlite in-memory db: %v", err)
+	}
+	defer db.Close()
+
+	s := &Server{db: db}
+	telem := s.getServerTelemetry(ctx, "/")
+
+	if telem.DatabaseStatus != "connected" {
+		t.Fatalf("expected 'connected' for valid db ping, got: %s", telem.DatabaseStatus)
+	}
+	if telem.DatabaseLatencyMs < 0 {
+		t.Fatalf("expected non-negative latency, got: %d", telem.DatabaseLatencyMs)
+	}
+
+	summary := telem.Summary()
+	if !strings.Contains(summary, "- Database: connected") {
+		t.Fatalf("expected summary to contain '- Database: connected', got: %s", summary)
+	}
+}
+
+func TestServerTelemetry_DatabaseStatus_Failed(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open sqlite in-memory db: %v", err)
+	}
+	// Close immediately so ping fails
+	_ = db.Close()
+
+	s := &Server{db: db}
+	telem := s.getServerTelemetry(ctx, "/")
+
+	if telem.DatabaseStatus == "connected" {
+		t.Fatalf("closed db must not report 'connected'")
+	}
+	if !strings.HasPrefix(telem.DatabaseStatus, "disconnected: ") {
+		t.Fatalf("expected disconnected with error, got: %s", telem.DatabaseStatus)
+	}
+
+	summary := telem.Summary()
+	if strings.Contains(summary, "- Database: connected") {
+		t.Fatalf("summary must not contain '- Database: connected' when db ping fails, got: %s", summary)
+	}
+	if !strings.Contains(summary, "- Database: disconnected: ") {
+		t.Fatalf("expected summary to contain '- Database: disconnected: ', got: %s", summary)
 	}
 }
 
