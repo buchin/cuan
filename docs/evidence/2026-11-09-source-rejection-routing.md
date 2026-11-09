@@ -60,3 +60,12 @@ forced success was added. Original literal-path/identity checks and unchanged
 snapshot requirements remain. Git behavioral tests, server live-inspection,
 source-verifier handoff and revalidation lifecycle groups pass; targeted runner
 live-inspection and preparation groups pass after the Git change.
+
+Release d73beea3209d4ab42956721261b85ac35982f116 succeeded through official
+CLI 14:02:59Z–14:06:09Z, 190.3 seconds, exit 0, exact healthy production SHA,
+38 migrations, unchanged source. The native workflow automatically started
+att_345246a22acc5f76bb790b417643dd47 as current-outcome inspection of this exact
+new revision, retaining original source 469f1a93 and read-only/no-push/no-deploy
+scope. No manual retry/status edit/new room triggered this revalidation. Its
+result remains pending; the two dependency-reuse implementation defects are
+still unaccepted, so this is recovery evidence rather than verified Done.
