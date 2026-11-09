@@ -129,7 +129,22 @@ func (r Runtime) fetch(ctx context.Context, rawURL string, timeout time.Duration
 		return nil, fmt.Errorf("browser inspection stopped: %w", ctx.Err())
 	}
 	if err != nil {
-		return nil, errors.New("browser inspection failed; no rendered content was verified")
+		return nil, fmt.Errorf("browser inspection failed (%s); no rendered content was verified", browserFailureCode(stderr.buffer.String()))
 	}
 	return &Result{URL: rawURL, Content: output.buffer.String(), Truncated: output.truncated}, nil
+}
+
+// Preserve useful native failure classification without returning arbitrary
+// stderr, page text, request URLs or environment data to the coordinator.
+func browserFailureCode(stderr string) string {
+	if strings.Contains(stderr, "bwrap:") {
+		if (strings.Contains(stderr, "setting up uid map") || strings.Contains(stderr, "setting up gid map")) && strings.Contains(stderr, "Read-only file system") {
+			return "sandbox_userns_maps_readonly"
+		}
+		if strings.Contains(stderr, "Creating new namespace failed") || strings.Contains(stderr, "No permissions to create new namespace") {
+			return "sandbox_namespace_unavailable"
+		}
+		return "sandbox_setup_failed"
+	}
+	return "engine_failed"
 }

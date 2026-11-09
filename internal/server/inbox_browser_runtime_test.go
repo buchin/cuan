@@ -125,3 +125,88 @@ func TestInboxBrowserManifestCannotBeOverriddenByProviderEnvironment(t *testing.
 		t.Fatal("runtime selection lost or duplicated", count)
 	}
 }
+
+func TestInboxBrowserProjectionUpdatesWithoutOverwritingOldBinding(t *testing.T) {
+	source, manifestPath := inboxBrowserFixture(t)
+	home := t.TempDir()
+	mcp, err := prepareInboxMCPBoundary(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projection := func(args []string) string {
+		for i := 0; i+2 < len(args); i++ {
+			if args[i] == "--ro-bind" && args[i+2] == "/cuan-chat-browser/runtime.json" {
+				return args[i+1]
+			}
+		}
+		return ""
+	}
+	before, err := prepareInboxBrowserMounts(home, mcp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPath := projection(before)
+	oldData, err := os.ReadFile(oldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("#!/bin/sh\nprintf fresh\n")
+	source.Binary = source.Binary + ".new"
+	if err := os.WriteFile(source.Binary, body, 0700); err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.Sum256(body)
+	source.BinarySHA256 = hex.EncodeToString(hash[:])
+	raw, _ := json.Marshal(source)
+	if err := os.WriteFile(manifestPath, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := prepareInboxBrowserMounts(home, mcp)
+	if err != nil {
+		t.Fatal("updated runtime blocked chat", err)
+	}
+	if projection(after) == oldPath || projection(after) == "" {
+		t.Fatal("runtime snapshot reused old immutable binding")
+	}
+	saved, err := os.ReadFile(oldPath)
+	if err != nil || string(saved) != string(oldData) {
+		t.Fatal("old binding overwritten", err)
+	}
+}
+
+func TestInboxBrowserAllowsChildUserNamespaceMapsWithKernelControlsReadOnly(t *testing.T) {
+	inboxBrowserFixture(t)
+	args, err := inboxSandboxArgs("/bin/sh", t.TempDir(), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateProc, readOnlyControls := false, false
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--proc" && args[i+1] == "/proc" {
+			privateProc = true
+		}
+		if args[i] == "--remount-ro" && args[i+1] == "/proc" {
+			t.Fatal("child UID maps remain blocked")
+		}
+		if i+2 < len(args) && args[i] == "--ro-bind" && args[i+1] == "/proc/sys" && args[i+2] == "/proc/sys" {
+			readOnlyControls = true
+		}
+	}
+	if !privateProc || !readOnlyControls {
+		t.Fatal("PID namespace or kernel controls lost", args)
+	}
+	t.Setenv("CUAN_CHAT_BROWSER_MANIFEST", filepath.Join(t.TempDir(), "missing"))
+	args, err = inboxSandboxArgs("/bin/sh", t.TempDir(), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readOnlyProc := false
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--remount-ro" && args[i+1] == "/proc" {
+			readOnlyProc = true
+		}
+	}
+	if !readOnlyProc {
+		t.Fatal("ordinary chat proc policy changed")
+	}
+}

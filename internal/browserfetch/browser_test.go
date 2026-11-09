@@ -166,3 +166,18 @@ func TestBrowserInspectionRejectsCredentialsSchemesAndLockSymlinks(t *testing.T)
 		t.Fatal("unrelated file changed")
 	}
 }
+
+func TestBrowserFailureClassificationDoesNotExposeStderr(t *testing.T) {
+	for _, sample := range []struct{ stderr, code string }{
+		{"bwrap: setting up uid map: Read-only file system PRIVATE_SENTINEL", "sandbox_userns_maps_readonly"},
+		{"bwrap: No permissions to create new namespace PRIVATE_SENTINEL", "sandbox_namespace_unavailable"},
+		{"bwrap: unexpected setup failure PRIVATE_SENTINEL", "sandbox_setup_failed"},
+		{"page failed PRIVATE_SENTINEL", "engine_failed"},
+	} {
+		r := fixtureRuntime(t, "printf '%s' '"+sample.stderr+"' >&2\nexit 1\n")
+		_, err := r.Fetch(context.Background(), "https://example.invalid/")
+		if err == nil || !strings.Contains(err.Error(), sample.code) || strings.Contains(err.Error(), "PRIVATE_SENTINEL") {
+			t.Fatal("lost diagnosis or leaked stderr", err)
+		}
+	}
+}

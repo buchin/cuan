@@ -218,3 +218,47 @@ navigation and script-originated fetch through the redirect fail before the
 private listener; it receives zero requests. The test passed using the installed
 manifest and mandatory browser filesystem sandbox, with no private-network opt-in.
 Native fixture completes in about0.4s here; this is not a production latency claim.
+
+## Production rollout exposed a nested namespace defect
+
+Release `72403d81b80a4d22fdfa855d3612e67de75b4ecc` passed exact-SHA health at
+2026-11-09T08:28:32Z. The packaged installer then installed/verified official0.2.6
+for the non-root production service account using registered Cuan project SSH
+configuration, without importing any developer/Fural browser or login profile.
+
+Initial chat test:
+https://cuan.dojo.cc/inbox/5aafde63-9738-4d64-8899-7f97d3962804
+Request `87e87829-01bb-4fcf-9292-770ed43749fc` discovered and invoked
+`browser_fetch`, but it failed. The agent disclosed that failure and used
+`web_fetch`; this is NOT successful browser acceptance. History is retained.
+Standalone MCP under the same service account successfully read the public page.
+
+Actual two-layer namespace probes on production isolated the defect:
+`bwrap: setting up uid map: Read-only file system`. Both aliased and original
+sandbox executable paths failed, disproving the initial AppArmor-path hypothesis.
+The outer private proc was globally read-only, preventing child userns UID/GID
+map setup. With that private PID-namespace proc writable and kernel control
+surfaces individually read-only, both paths successfully launched a nested
+sandbox. No global kernel/AppArmor policy was disabled or changed by the probe.
+
+The correction preserves the old fully read-only proc policy when no verified
+browser is installed. Browser-enabled turns retain private PID isolation and
+read-only /proc/sys, /proc/sysrq-trigger, /proc/irq, /proc/bus and /proc/fs, while
+allowing the required child namespace mapping. The browser's own proc stays empty.
+Regression tests cover both configurations. Sanitized error classification now
+records `sandbox_userns_maps_readonly`/namespace/setup/engine failure codes without
+copying arbitrary stderr, URLs or secrets into the response.
+
+A second correction makes projected manifests content-addressed. The existing
+native-file writer intentionally refuses replacing an immutable binding; a later
+runtime selection must receive a new projection path rather than disable chat or
+overwrite an old turn's binding. A regression test retains the old snapshot while
+preparing a new valid runtime selection.
+
+The initial staging tunnel key rejected remote execution; it was not bypassed.
+The registered project SSH configuration was used for reviewed installer/OS
+probes. An automatic review rejected recursive temporary-directory cleanup before
+execution. The replacement removes only the two files created by the operation,
+then removes their empty directory. No credentials were printed.
+
+Corrective release and fresh production browser acceptance remain to be observed.

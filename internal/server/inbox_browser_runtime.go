@@ -1,7 +1,9 @@
 package server
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -35,7 +37,7 @@ func prepareInboxBrowserMounts(home, mcpFile string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(filepath.Dir(mcpFile), "browser_runtime.json")
+	path := filepath.Join(filepath.Dir(mcpFile), fmt.Sprintf("browser_runtime_%x.json", sha256.Sum256(raw)))
 	relative, err := filepath.Rel(home, path)
 	if err != nil {
 		return nil, err

@@ -11,7 +11,8 @@ import (
 // inboxSandboxArgs builds an allowlisted filesystem rather than binding the host
 // root. The selected provider must read its own authentication profile; other
 // accounts, service configuration and host process metadata are not mounted.
-// /proc belongs to the new PID namespace; AGY subprocesses need /proc/self/exe.
+// /proc belongs to the new PID namespace; AGY needs /proc/self/exe and
+// optional nested browser namespaces need their own child UID/GID maps.
 func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmSnapshots ...string) ([]string, error) {
 	absolute := func(path string) (string, error) {
 		p, err := filepath.Abs(path)
@@ -47,7 +48,7 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 			bindRO(path, path)
 		}
 	}
-	args = append(args, "--proc", "/proc", "--remount-ro", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", home)
+	args = append(args, "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", home)
 	// Keep token refresh and provider state persistent without exposing the rest of
 	// the service HOME (database settings, SSH keys, other account profiles).
 	profile := filepath.Join(home, ".gemini", "antigravity-cli")
@@ -150,6 +151,18 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 	browserMounts, err := prepareInboxBrowserMounts(home, mcpFile)
 	if err != nil {
 		return nil, err
+	}
+	if len(browserMounts) == 0 {
+		args = append(args, "--remount-ro", "/proc")
+	} else {
+		// This proc belongs to the private PID namespace, never the host PID tree.
+		// Nested Bubblewrap must write its child userns maps; keep kernel control
+		// surfaces read-only while preserving that namespace-local setup operation.
+		for _, path := range []string{"/proc/sys", "/proc/sysrq-trigger", "/proc/irq", "/proc/bus", "/proc/fs"} {
+			if _, err := os.Stat(path); err == nil {
+				bindRO(path, path)
+			}
+		}
 	}
 	args = append(args, browserMounts...)
 	mcpTargets := []string{

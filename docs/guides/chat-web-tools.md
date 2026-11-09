@@ -53,7 +53,8 @@ The installer writes `~/.local/share/cuan-chat-browser/runtime.json`. The server
 selects its service user's manifest, or an explicit `CUAN_CHAT_BROWSER_MANIFEST`.
 It verifies the actual binary hash and exposes only a rebased private manifest,
 engine, sandbox executable and the shared lease file inside provider isolation.
-The full runtime/service HOME is not mounted. Provider environment variables
+Projected manifests use content-addressed files so a changed runtime does not
+overwrite an older turn's binding. The full runtime/service HOME is not mounted. Provider environment variables
 cannot replace the application's manifest selection. Missing/invalid optional
 runtime leaves ordinary HTTP/chat available.
 
@@ -71,7 +72,10 @@ files. The outer provider namespace uses a private temporary filesystem.
 Bubblewrap is mandatory. It exposes only OS executables/libraries,
 certificate/DNS files, the engine and the disposable HOME. Host profiles,
 application data and lease file are hidden; OS paths are read-only and `/proc`
-is empty. The browser namespace inherits no account cookies, Owner credentials,
+is empty. When a verified browser is present, the outer chat's private PID-namespace
+proc permits child UID/GID map setup; kernel control surfaces stay read-only.
+Without a browser installation, the outer proc remains fully read-only.
+The browser namespace inherits no account cookies, Owner credentials,
 proxy or private-network opt-in. Missing sandbox support has no unrestricted
 fallback. This text browser does not replace screenshot verification tooling.
 
