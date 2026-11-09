@@ -204,11 +204,22 @@ func (s *Server) TriggerRoomIdleNotification(ctx context.Context, roomID string)
 	// Persisted sends survive deployments and are shared by server processes.
 	// Read failures must not turn into permission to replay an old notification.
 	if s.db != nil {
+		var alreadyNotified bool
+		if err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM chat_message_emails WHERE CAST(message_id AS TEXT)=$1 AND recipient_type='operator')`, latestCustomerMsg.ID).Scan(&alreadyNotified); err != nil {
+			return false, fmt.Errorf("read idle message notification history: %w", err)
+		}
+		if alreadyNotified {
+			return false, nil
+		}
 		var sentAt sql.NullTime
-		if err := s.db.QueryRowContext(ctx, `SELECT sent_at FROM resend_email_logs WHERE room_id=$1 AND status='sent' ORDER BY sent_at DESC LIMIT 1`, roomID).Scan(&sentAt); err != nil && err != sql.ErrNoRows {
+		var hasMessageMapping bool
+		err := s.db.QueryRowContext(ctx, `SELECT sent_at, EXISTS (SELECT 1 FROM chat_message_emails m WHERE m.email_id=e.resend_email_id AND m.recipient_type='operator') FROM resend_email_logs e WHERE room_id=$1 AND status='sent' ORDER BY sent_at DESC LIMIT 1`, roomID).Scan(&sentAt, &hasMessageMapping)
+		if err != nil && err != sql.ErrNoRows {
 			return false, fmt.Errorf("read idle notification history: %w", err)
 		}
-		if sentAt.Valid && (!latestCustomerMsg.CreatedAt.After(sentAt.Time) || time.Since(sentAt.Time) < 5*time.Minute) {
+		// Timestamp fallback is only for legacy sends without exact message tracking.
+		// A newer customer message may arrive while a previous email is in flight.
+		if sentAt.Valid && ((!hasMessageMapping && !latestCustomerMsg.CreatedAt.After(sentAt.Time)) || time.Since(sentAt.Time) < 5*time.Minute) {
 			return false, nil
 		}
 	}

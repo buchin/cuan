@@ -32,3 +32,17 @@ emoji banner or status pill. Browser inspection is not cross-client email QA.
 
 Native task benchmark continues independently; this correction has not been
 used to manually accept or publish its task implementation.
+
+## Retained implementation history
+
+The initial idle reminder feature exists in7bc3265f/e84cad43 (31October).
+A later deduplication correction,a97707a8 (7November), exists only on retained
+`origin/task/msg_56556e6a-5dc8-44a6-ae56-978f925e245d`; it is not an ancestor of
+the active root dev source. It added persisted receipt/log lookups, but was never
+integrated into the active implementation. This is a publication gap, not proof
+that the original idle feature was removed. Retain that branch/history.
+
+Current correction reuses existing exact operator message-email mappings plus
+legacy send timestamps. Exact mappings prevent confusing a newly arrived message
+with an older email still in flight. Database errors stop sending. Regression
+also proves exact mapping suppresses replay after the legacy log is absent.

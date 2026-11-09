@@ -307,11 +307,15 @@ func TestChatIdleDetectionFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	_, err = database.Exec(`CREATE TABLE resend_email_logs(room_id TEXT, status TEXT, sent_at TIMESTAMP)`)
+	_, err = database.Exec(`CREATE TABLE resend_email_logs(room_id TEXT, status TEXT, sent_at TIMESTAMP, resend_email_id TEXT)`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = database.Exec(`INSERT INTO resend_email_logs VALUES(?, 'sent', ?)`, roomID2, now.Add(-6*time.Minute))
+	_, err = database.Exec(`CREATE TABLE chat_message_emails(message_id TEXT, email_id TEXT, recipient_type TEXT)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = database.Exec(`INSERT INTO resend_email_logs VALUES(?, 'sent', ?, 'legacy')`, roomID2, now.Add(-6*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,6 +329,23 @@ func TestChatIdleDetectionFlow(t *testing.T) {
 	if len(mock.getSentEmails()) != 1 {
 		t.Fatal("restart sent duplicate email")
 	}
+	// Exact message receipts remain authoritative even after legacy log retention.
+	messages, err := srv.projectStudioRepo.ListMessagesByRoomID(context.Background(), roomID2)
+	if err != nil || len(messages) != 1 {
+		t.Fatal("missing customer fixture", err)
+	}
+	_, err = database.Exec(`DELETE FROM resend_email_logs`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = database.Exec(`INSERT INTO chat_message_emails VALUES(?, 'sent-email', 'operator')`, messages[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sent, err := srv.TriggerRoomIdleNotification(context.Background(), roomID2); err != nil || sent {
+		t.Fatalf("exact persisted receipt replayed: sent=%v err=%v", sent, err)
+	}
+	_, _ = database.Exec(`DELETE FROM chat_message_emails`)
 	// Database errors must fail closed, rather than replaying historical email.
 	_, _ = database.Exec(`DROP TABLE resend_email_logs`)
 	if sent, err := srv.TriggerRoomIdleNotification(context.Background(), roomID2); err == nil || sent {
