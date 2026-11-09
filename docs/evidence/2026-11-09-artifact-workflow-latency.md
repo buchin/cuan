@@ -270,3 +270,54 @@ metadata, not authority to open a forbidden repository. Ordinary repository work
 and schema-migration locking retain their existing classification. Targeted
 category/inference/frozen-project-context tests pass. Historical canceled tasks
 are not manually recategorized, restarted or removed.
+
+## Native proof after category enforcement
+
+Release `c73bc0dfca38986ad9661b25378cec90e2812da8` passed exact-SHA health
+with38 migrations at2026-11-09T06:16:01Z. Fresh room
+`9140612b-dd6e-499c-a7c4-e810558d8e1d` repeated the original request without
+changing its wording. Task `msg_01a99aa6-9092-4f5d-9247-7e68f5c344e6`
+reached native Done at14:22:18.828365+08, exactly two attempts, without manual
+retry, acceptance, steering or workspace edits in this run.
+
+| Stage | Time (+08) | Seconds |
+| --- | --- | ---: |
+| Initial PM | 14:16:46.124–14:18:29.374 | 103.2 |
+| Dev | 14:18:33.871–14:19:41.749 | 67.9 |
+| Mandatory handoff | 14:19:41.825–14:19:42.378 | 0.55 |
+| Verifier | 14:19:43.874–14:21:01.228 | 77.4 |
+| Final PM | 14:21:01.310–14:22:18.845 | 77.5 |
+
+Both dev `att_8836ba1c31c5966822df9770bbddbb7c` and verifier
+`att_db77272a202b46551f39f04685ccc266` use the private ops artifact workspace
+without Git checkout. The verifier has native read-only/deny push/deploy scope
+and the runner's unchanged-directory receipt. Handoff request
+`5ccf8ad1-a5c9-4eec-ac7b-71ac957c039a` uses no provider stage.
+
+Final review `be42515b-47a1-45b9-a9e2-ac2517d64cd7` records context complete
+at14:21:01.456753,0.146 seconds after request creation, versus6.921 seconds
+in the preceding completed benchmark. Actual input preparation ends at
+14:21:02.706315,1.396 seconds after creation, versus14.676 previously; quota
+and catalog-cache variability also affects that latter difference. The provider
+process still takes76.0 seconds, including a71.5-second response stage. Do not
+attribute provider inference speed to removal of discarded project analysis.
+
+Durable input counters now prove the actual final review prompt is41040 bytes,
+context15263 bytes; initial PM is79646/15720 bytes. These are actual request
+bytes, not token usage. The unchanged initial coordinator instructions account
+for approximately64KB beyond context and remain a concrete next investigation.
+
+Total request to Done is332.704 seconds versus506.149 in the preceding completed
+run. This is one observed workflow, not a controlled latency distribution or a
+claim that all173 seconds were saved by this code. Initial model latency and
+worker/verifier durations also vary. The confirmed deterministic reduction is
+the discarded context path, while Done still uses independent semantic review.
+
+Root officially downloaded170-byte file attachment
+`cf965365-af7b-4550-a65e-04c8a8cacfb2` and1147-byte verifier report
+`0e8f3678-128a-4597-a4dc-fca04cabc1bc`, reading both. Actual file contents match
+all five lines/newline and SHA256
+`b903747b2d3c581e6a87b03e0bc310dfcd337daf503375bfc15102ac3b8f3d50`.
+Copies: `/home/dev/artifacts/cuan-snapshot-preparation/`. Without an explicit
+maintenance trigger in this run, the existing job records success at
+14:21:17.057839576+08 after verifier completion. No reclaimed-byte claim.
