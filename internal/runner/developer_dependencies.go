@@ -50,7 +50,9 @@ func developerFrontendDependenciesRequired(claim *ClaimTaskResponse, isolated bo
 // verifier needs frontend dependencies. Pure backend tasks skip node_modules seeding,
 // while tasks with vision requirements, registered visual recipes, or frontend scope
 // retain complete dependencies per manifest and lockfile even when UI modification is prohibited.
-func verificationFrontendDependenciesRequired(claim *ClaimTaskResponse, workingDir string) bool {
+// Optional visual verification scripts in the repository (such as scripts/verify-ui.sh)
+// that are not bound to the claim do not trigger frontend dependencies for pure backend tasks.
+func verificationFrontendDependenciesRequired(claim *ClaimTaskResponse, _ string) bool {
 	if claim == nil || claim.Verification == nil {
 		return false
 	}
@@ -59,12 +61,6 @@ func verificationFrontendDependenciesRequired(claim *ClaimTaskResponse, workingD
 	}
 	if claim.VisualRecipe != nil {
 		return true
-	}
-	if claim.Verification.SourceCommit != "" {
-		recipe, err := VisualRecipeAt(workingDir, claim.Verification.SourceCommit)
-		if err == nil && recipe != nil {
-			return true
-		}
 	}
 	if claim.Task != nil {
 		if hasFrontendVerificationScope(claim.Task.Title) || hasFrontendVerificationScope(claim.Task.Instructions) {

@@ -35,7 +35,13 @@ func setupWarmFrontendSource(t *testing.T) (source, commit, manifestContent, loc
 	if err := os.WriteFile(filepath.Join(source, ".gitignore"), []byte("node_modules/\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("git", "add", "package.json", "package-lock.json", ".gitignore")
+	if err := os.MkdirAll(filepath.Join(source, "scripts"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "scripts", "verify-ui.sh"), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "add", "package.json", "package-lock.json", ".gitignore", "scripts/verify-ui.sh")
 	cmd.Dir = source
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatal(err, string(out))
@@ -330,11 +336,37 @@ func TestLeaseFailureDoesNotMutateVerificationSnapshot(t *testing.T) {
 }
 
 func TestVerificationFrontendDependenciesRequiredTable(t *testing.T) {
+	dirWithScript := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dirWithScript, "scripts"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dirWithScript, "scripts", "verify-ui.sh"), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
-		name     string
-		claim    ClaimTaskResponse
-		expected bool
+		name       string
+		claim      ClaimTaskResponse
+		workingDir string
+		expected   bool
 	}{
+		{
+			name: "pure backend with unbound verify-ui.sh in repo skips frontend dependencies",
+			claim: ClaimTaskResponse{
+				Verification:   &task.VerificationIntent{IsolatedWorkspace: true, SourceCommit: strings.Repeat("a", 40)},
+				RequiresVision: false,
+				VisualRecipe:   nil,
+				Task: &task.Task{
+					Title:        "Backend runner optimization",
+					Instructions: "1 task backend terfokus, tanpa modifikasi UI, browser screenshot, atau email.",
+					DoDChecklist: []task.DoDItem{
+						{Text: "1 task backend terfokus, tanpa modifikasi UI, browser screenshot, atau email."},
+					},
+				},
+			},
+			workingDir: dirWithScript,
+			expected:   false,
+		},
 		{
 			name: "pure backend with prohibition in instructions",
 			claim: ClaimTaskResponse{
@@ -451,7 +483,7 @@ func TestVerificationFrontendDependenciesRequiredTable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := verificationFrontendDependenciesRequired(&tc.claim, "")
+			actual := verificationFrontendDependenciesRequired(&tc.claim, tc.workingDir)
 			if actual != tc.expected {
 				t.Fatalf("expected verificationFrontendDependenciesRequired to be %t, got %t", tc.expected, actual)
 			}
