@@ -57,6 +57,14 @@ handoff before provider inference. It never accepts the source, changes scope,
 resets correction budgets or bypasses native launch admission. Unknown outcomes
 and independent verifier findings still need their ordinary assessment.
 
+Production `b7b9f4c69d51434fe5e4e8b4756e84f54ea2b865` passed exact-SHA
+health verification. Request `491cdff6-2726-42c7-a325-df9fe18e2d42` ran from
+17:51:58.930 to 17:52:09.113 (+08), recorded `native_check_correction`, and had
+no provider stage. The same telemetry task automatically entered developer
+attempt `att_50ac926908cecd2779da1e162aafb8ef` at 17:52:10.338. This proves
+the correction admission and removes the prior 191.2-second provider decision;
+it does not yet prove that the corrected feature passes independent/live DoD.
+
 ## Separate visual coverage finding
 
 Room `a86b4638-8afc-4fea-a542-d07d52880488` received Mermaid and terminal
