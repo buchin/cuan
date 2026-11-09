@@ -210,3 +210,37 @@ durable request trace does prove the measured stage boundaries. Next investigate
 the repeated context/catalog preparation (about15 seconds here), the large
 unchanged initial coordinator policy, and expose numeric prompt diagnostics
 through durable trace so future investigations need no journal access.
+
+## Remove discarded review preparation and persist input counters
+
+`prepareInboxTurnContext` now selects the authenticated current task-review
+snapshot before normal conversation/project analysis. Previously each review
+built chat history, inspected project/backlog/Git state, then replaced that
+entire prompt with the canonical review snapshot. The new review path retains
+the exact bound project's AGENTS root and frozen task guidance, owner follow-ups,
+current evidence and phase approval. Ordinary user messages and retry
+reconciliation retain their existing context path. User text cannot select the
+internal review path. A real Git probe fixture confirms that a review does not
+run the discarded repository inspection.
+
+Every provider stage also records `response_input` in the existing durable
+request steps: known stage enum plus prompt/context/repair-candidate byte counts,
+never prompt content, account paths or model reasoning. These counters appear
+only under Response details → Technical details, and through official chat
+trace/copy; they do not add a visible progress-timeline row. Bytes are explicitly
+not tokens. A persistence failure follows the existing trace-integrity stop path.
+
+Targeted context, authorization/follow-up, launch-persistence, CLI, artifact and
+numeric-only trace tests pass. All463 frontend tests/typecheck pass. Real browser
+fixture screenshots at390px and1440px were opened and inspected, confirming quiet
+technical disclosure, unchanged timeline connectors and no horizontal overflow.
+Screenshots: `/tmp/cuan-response-timeline-390.png` and1440.png.
+
+Broader targeted testing found
+`TestStalledReviewReconcilesCurrentSnapshotWithoutReplayingOldProvider` fails in
+all three historical request states: its expected acceptance instead returns
+saved-execution reconciliation. A Git-HEAD overlay of all modified existing
+backend files reproduces the identical failures before this change. No test or
+acceptance gate was weakened to hide this baseline issue. Baseline output is
+retained under `/home/dev/.tmp/cuan-context-baseline-7il2ndzo/result.log`.
+No claim of a fully green server suite or production latency improvement yet.

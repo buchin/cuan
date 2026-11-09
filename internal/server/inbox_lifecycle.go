@@ -324,19 +324,14 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 				if err != nil {
 					q.SafeError = "The agent connection is not ready. Check its sign-in status."
 				} else {
-					prompt, err := s.inboxContext(ctx, q, db.InboxRetryNeedsReconciliation(q))
+					turn, err := s.prepareInboxTurnContext(ctx, q)
 					if err != nil {
 						q.SafeError = "Could not read conversation context. Your message is saved."
 					} else {
-						workspace := ""
-						if !db.InboxRetryNeedsReconciliation(q) {
-							var projectContext string
-							workspace, projectContext = s.inboxProjectContext(ctx, q)
-							prompt = truncateProjectText(projectContext, 24000) + "\n\n" + s.inboxCoordinatorTopicContext(ctx, q) + prompt
-						}
+						prompt, workspace := turn.Prompt, turn.Workspace
 						step("context", "Project context checked for analysis.")
 						var output, failure string
-						snapshotReview := false
+						snapshotReview := turn.Review
 						plan, planErr := s.inboxApprovedPlan(ctx, q)
 						if db.InboxRetryNeedsReconciliation(q) {
 							step("reconciliation", "Checking the saved message against current recorded state without replaying earlier actions.")
@@ -361,7 +356,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							if s.inboxProposalDecision(ctx, q) {
 								inferenceCtx = context.WithValue(inferenceCtx, inboxProposalDecisionKey{}, true)
 							}
-							if snapshot, ok := s.inboxTaskReviewPrompt(ctx, q); ok {
+							if snapshot := prompt; snapshotReview {
 								inferenceCtx = context.WithValue(ctx, inboxTaskReviewKey{}, true)
 								if isCustomerReplyDelivery(q, s.inboxReviewedTask(ctx, q)) {
 									inferenceCtx = context.WithValue(inferenceCtx, inboxCustomerReplyKey{}, true)

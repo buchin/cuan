@@ -207,7 +207,7 @@ export function InboxActivity({
   const processSteps =
     q.steps?.filter(
       (step) =>
-        step.kind !== 'provider_result' && step.kind !== 'runtime_session' && step.kind !== 'recovery_policy',
+        step.kind !== 'provider_result' && step.kind !== 'runtime_session' && step.kind !== 'recovery_policy' && step.kind !== 'response_input',
     ) || []
   const Icon =
     (autoPending || waitingForCapacity) ? Clock3 : q.state === 'queued'
@@ -424,6 +424,12 @@ export function InboxActivity({
                         </dd>
                       </div>
                     ))}
+                  {q.steps?.filter(step => step.kind === 'response_input').map(step => (
+                    <div key={step.seq}>
+                      <dt className="font-medium">Provider input</dt>
+                      <dd className="break-words tabular-nums">{step.text}</dd>
+                    </div>
+                  ))}
                   {finished && (
                     <div>
                       <dt className="font-medium">CLI result</dt>

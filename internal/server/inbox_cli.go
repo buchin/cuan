@@ -271,6 +271,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		input.ContextBytes = 0
 		input.CandidateBytes = len(formatCandidate)
 	}
+	traceInboxResponseInput(step, phase, input)
 	finishTrace := traceInboxResponseStage(parentStageContext, ctx, phase, normHarness, release, input)
 	defer func() { finishTrace(failureResult != "") }()
 	validateReply := func(reply string) (string, string) {

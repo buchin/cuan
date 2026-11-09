@@ -12,6 +12,15 @@ import (
 	"github.com/buchin/cuan/internal/db"
 )
 
+func TestDurableResponseInputContainsOnlySizesAndKnownStage(t *testing.T) {
+	var kind, value string
+	traceInboxResponseInput(func(k, v string) { kind, value = k, v }, "PRIVATE_MODEL_TEXT", inboxResponseInput{PromptBytes: 1200, ContextBytes: 400, CandidateBytes: -2})
+	if kind != "response_input" || !strings.Contains(value, "prompt 1200 bytes; context 400 bytes; repair candidate 0 bytes") || !strings.Contains(value, "Stage unknown") || strings.Contains(value, "PRIVATE") {
+		t.Fatal("private text or incorrect counters in durable trace", kind, value)
+	}
+	traceInboxResponseInput(nil, "task_review", inboxResponseInput{})
+}
+
 func TestReviewContractTraceDistinguishesFallbackWithoutPrivateEvidence(t *testing.T) {
 	var output bytes.Buffer
 	previous := log.Writer()

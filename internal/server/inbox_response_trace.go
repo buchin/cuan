@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -62,6 +63,16 @@ type inboxResponseInput struct {
 	PromptBytes    int
 	ContextBytes   int
 	CandidateBytes int
+}
+
+// Persist only sizes in the existing durable trace. Diagnostics must remain
+// available after log rotation without archiving prompts or private model text.
+func traceInboxResponseInput(step func(string, string), phase string, input inboxResponseInput) {
+	if step == nil {
+		return
+	}
+	stage := reviewTraceEnum(phase, "analysis", "format_repair", "analysis_recovery", "retry_reconciliation", "draft_regeneration", "proposal_decision", "direct_recovery", "task_review", "answer_only")
+	step("response_input", fmt.Sprintf("Stage %s: prompt %d bytes; context %d bytes; repair candidate %d bytes. Byte counts are not token usage.", stage, max(0, input.PromptBytes), max(0, input.ContextBytes), max(0, input.CandidateBytes)))
 }
 
 type inboxResponseStageRecord struct {
