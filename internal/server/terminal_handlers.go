@@ -1262,12 +1262,19 @@ func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail 
 		if checkText(projectpkg.TaskScopeInstructions(detail.Instructions)) || checkText(detail.Title) {
 			return true
 		}
+		delivered := taskDeliveredAttachmentIDs(detail)
 		for _, att := range detail.Attachments {
 			if ca, ok := att.(conversationAttachment); ok {
+				if delivered[ca.ID] {
+					continue
+				}
 				if isImageAttachmentNameOrType(ca.Name, ca.Type) {
 					return true
 				}
 			} else if m, ok := att.(map[string]any); ok {
+				if id, _ := m["id"].(string); delivered[id] {
+					continue
+				}
 				name, _ := m["name"].(string)
 				mime, _ := m["type"].(string)
 				if isImageAttachmentNameOrType(name, mime) {

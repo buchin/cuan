@@ -93,11 +93,11 @@ func (s *Server) handleRunnerVisualVerification(w http.ResponseWriter, r *http.R
 
 // Called after the registered project's exact snapshot has been validated and
 // before the model capability is issued. The model cannot supply this binding.
-var visualCaptureProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:take|capture|create|generate|use|buat|ambil|membuat|mengambil|gunakan|menggunakan|pakai)\s+|(?:no|without|tanpa)\s+)(?:(?:(?:browser\s+automation|(?:otomasi|otomatisasi)\s+browser)\s+(?:or|and|atau|dan)\s+))?(?:new\s+)?(?:screenshots?|tangkapan layar)\b`)
+var visualCaptureProhibited = regexp.MustCompile(`(?i)\b(?:(?:(?:do not|don't|never|jangan|dilarang)\s+(?:take|capture|create|generate|use|buat|ambil|membuat|mengambil|gunakan|menggunakan|pakai)\s+|(?:no|without|tanpa)\s+)(?:(?:(?:browser\s+automation|(?:otomasi|otomatisasi)\s+browser)\s+(?:or|and|atau|dan)\s+))?(?:new\s+)?(?:screenshots?|tangkapan layar)|(?:jangan|dilarang|tanpa|without|no)\s+(?:(?:(?:modifikasi|perubahan)\s+(?:ui|frontend)|(?:ui|frontend)\s+changes?)\s*,\s*)?browser\s*[/ ]\s*screenshots?)\b`)
 
 // Reading an attached image remains allowed; an explicit browser prohibition
 // prevents the native recipe from launching browser automation on the owner's behalf.
-var browserAutomationProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:use|run|launch|open|invoke|gunakan|menggunakan|pakai|memakai|jalankan|menjalankan|buka|membuka)\s+(?:(?:a|an|the|any|automated|headless|automation|otomasi|otomatisasi|alat|tool|tools)\s+)*(?:browser|playwright|puppeteer|chromium)|(?:no|without|tanpa)\s+(?:(?:otomasi|otomatisasi|headless)\s+)?(?:browser|playwright|puppeteer|chromium))\b`)
+var browserAutomationProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:(?:use|run|launch|open|invoke|gunakan|menggunakan|pakai|memakai|jalankan|menjalankan|buka|membuka)\s+)?(?:(?:a|an|the|any|automated|headless|automation|otomasi|otomatisasi|alat|tool|tools)\s+)*(?:browser|playwright|puppeteer|chromium)|(?:no|without|tanpa)\s+(?:(?:otomasi|otomatisasi|headless)\s+)?(?:browser|playwright|puppeteer|chromium))\b`)
 
 func (s *Server) bindRunnerVisualRecipe(ctx context.Context, claim *runner.ClaimTaskResponse, snapshot string, revision ...string) error {
 	if !claim.RequiresVision || claim.LiveInspection == nil {
