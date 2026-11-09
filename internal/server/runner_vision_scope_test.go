@@ -50,3 +50,41 @@ func TestInspectionVisionUsesOriginalScopeInsteadOfGenericTransport(t *testing.T
 		})
 	}
 }
+
+func TestScreenshotProhibitionDoesNotRequestVisionOrFrontendSetup(t *testing.T) {
+	s := &Server{}
+	for _, scope := range []string{
+		"Backend/tooling saja. Jangan gunakan otomasi browser atau screenshot.",
+		"Batasan ketat: jangan mengubah komponen UI, jangan menggunakan otomasi browser atau screenshot, jangan mengirim email.",
+		"Backend only. Do not use browser automation or screenshots.",
+		"Backend only, no screenshots.",
+		"Backend saja tanpa screenshot.",
+	} {
+		for _, inspection := range []bool{false, true} {
+			t.Run(scope+map[bool]string{false: "/developer", true: "/inspection"}[inspection], func(t *testing.T) {
+				d := &task.TaskDetailResponse{Task: task.Task{Instructions: scope, DoDChecklist: []task.DoDItem{{Text: scope}}}}
+				claim := &runner.ClaimTaskResponse{}
+				if inspection {
+					claim.LiveInspection = &task.LiveInspectionIntent{}
+				}
+				if s.runnerClaimRequiresVision(context.Background(), claim, d, "") {
+					t.Fatal("negative screenshot constraint requested visual capability")
+				}
+			})
+		}
+	}
+	for _, scope := range []string{
+		"Do not create new screenshots; inspect existing screenshots.",
+		"Jangan gunakan otomasi browser atau screenshot. Periksa lampiran evidence.png.",
+	} {
+		d := &task.TaskDetailResponse{Task: task.Task{Instructions: scope}}
+		if !s.runnerClaimRequiresVision(context.Background(), &runner.ClaimTaskResponse{}, d, "") {
+			t.Fatalf("lost actual image inspection requirement: %s", scope)
+		}
+	}
+	// Native attachments remain authoritative even with a capture prohibition.
+	d := &task.TaskDetailResponse{Task: task.Task{Instructions: "No screenshots"}, Attachments: []interface{}{map[string]interface{}{"name": "evidence.png", "type": "image/png"}}}
+	if !s.runnerClaimRequiresVision(context.Background(), &runner.ClaimTaskResponse{}, d, "") {
+		t.Fatal("capture prohibition hid a real attached image")
+	}
+}

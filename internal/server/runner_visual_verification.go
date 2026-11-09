@@ -93,7 +93,7 @@ func (s *Server) handleRunnerVisualVerification(w http.ResponseWriter, r *http.R
 
 // Called after the registered project's exact snapshot has been validated and
 // before the model capability is issued. The model cannot supply this binding.
-var visualCaptureProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:take|capture|create|generate|buat|ambil|membuat|mengambil)\s+|(?:no|tanpa)\s+)(?:new\s+)?(?:screenshots?|tangkapan layar)\b`)
+var visualCaptureProhibited = regexp.MustCompile(`(?i)\b(?:(?:do not|don't|never|jangan|dilarang)\s+(?:take|capture|create|generate|use|buat|ambil|membuat|mengambil|gunakan|menggunakan|pakai)\s+|(?:no|without|tanpa)\s+)(?:(?:(?:browser\s+automation|(?:otomasi|otomatisasi)\s+browser)\s+(?:or|and|atau|dan)\s+))?(?:new\s+)?(?:screenshots?|tangkapan layar)\b`)
 
 // Reading an attached image remains allowed; an explicit browser prohibition
 // prevents the native recipe from launching browser automation on the owner's behalf.
@@ -132,6 +132,7 @@ var ambiguousDisplayScope = regexp.MustCompile(`(?i)\btampilan\b`)
 
 func hasOriginalVisualScope(text string) bool {
 	text = visualMutationProhibition.ReplaceAllString(text, "")
+	text = visualCaptureProhibited.ReplaceAllString(text, "")
 	for _, line := range strings.Split(text, "\n") {
 		// "Tampilan output --help" describes terminal text, not a request for
 		// browser screenshots. Keep explicit UI/layout and web requirements.

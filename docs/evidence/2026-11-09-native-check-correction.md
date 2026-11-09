@@ -348,3 +348,17 @@ not evidence of universal automatic cache deletion. Native ext4/ZFS accounting
 records source and byte semantics. No Fural production configuration was probed;
 these findings must not be presented as measured production savings or as a
 reason to add a Fural dependency to Cuan.
+
+The same fresh task automatically started attempt
+`att_d5470bf99f98d16fcea8112a7efcee4e` after cache recovery. Its actual runner
+log at 19:41:47 (+08) still announced frontend dependency preparation for the
+backend task. The capture-recipe guard did not fix the separate generic vision
+classifier: it matched the word screenshot inside `jangan gunakan otomasi
+browser atau screenshot`. The shared negative-capture vocabulary now recognizes
+that compound prohibition, and both original-scope and generic image-requirement
+classification strip it before interpreting positive screenshot requirements.
+Actual image attachments and later positive image-inspection requirements remain
+eligible. Targeted server tests cover both developer and live-inspection claims,
+the real Indonesian constraints, English variants and positive/attachment cases.
+The already-started attempt retains its historical classification; no restart or
+manual completion was used to make it appear corrected.
