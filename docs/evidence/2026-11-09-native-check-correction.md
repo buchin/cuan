@@ -647,3 +647,34 @@ that behavior. Existing exact-source/private-workspace runner regression passes.
 Native corrective dev completed source 469f1a93 in 7m3s including 34.179s native
 checks; the queued follow-up original-scope correction is running as
 att_1762ec8bc1f13ceeac29e6a66052052b. No forced Done or extra task was created.
+
+Verifier-role correction ac68234a15002e7c8916ee47e7ad60e312667081 deployed
+13:35:42Z–13:38:58Z, 196.1 seconds, exact healthy production SHA, 38 migrations,
+exit 0 and unchanged source. Do not infer a verifier already started during this
+rollout consumed the new prompt.
+
+Independent checks of pushed corrected source 469f1a93: immutable Git reads
+confirmed copying replaces writable hardlinks, but warm matching still checks
+only package-lock.json and returns before git check-ignore. Two direct
+counterexamples ran the exact dependency_reuse.go and inspection_dependencies.go
+in temporary package fixtures (only diagnostic-output helpers stubbed; no npm
+calls or network required):
+- TestWarmMustRetainIgnoredOutputGuard: a Git repository with node_modules not
+  ignored and a matching marker was incorrectly accepted; FAIL.
+- TestWarmMustValidateChangedManifest: after changing package.json dependencies
+  while preserving package-lock and marker, setup incorrectly returned success;
+  FAIL.
+Both finished in 0.023s. Temporary fixture source retained at
+/tmp/cuan-reuse-behavior-proof-469f1a93; original task checkout untouched.
+Native independent verifier att_d554bca3ccbc4130929a04fab178aaa0 is currently
+running on 469f1a93. These concrete original-scope gaps remain unaccepted.
+
+The two counterexamples were delivered once using official task steer to the
+confirmed-running native verifier att_d554bca3ccbc4130929a04fab178aaa0.
+CLI returned delivered with no fallback; terminal diagnostics contain the
+injected text. This is an explicit operator intervention and PTY delivery
+observation, not proof of provider consumption or untouched autonomous review.
+No write/deploy authority was added; verifier was asked to independently evaluate
+the observed original-scope defects and report to PM. Maintenance status also
+confirms the existing storage job is enabled and last succeeded at 21:37:45 +08;
+this status alone does not establish reclaimed byte counts.
