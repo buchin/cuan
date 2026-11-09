@@ -13,7 +13,22 @@ notification and explicit integration test. There is no visitor email dispatch
 path. This establishes the missing application capability; it does not assert a
 provider rejection. No customer message or configuration was changed.
 
-## Local correction and checks
+## Production recheck after the latest public reply
+
+On9November after release00bf7e90006902032757efafc8fc1685175836d3, official
+`cuan chat messages` returned65 messages in this room. All three public owner
+replies (52fd7c70-5ed1-4307-b535-82e64c331012,
+496a1879-d0b8-4e94-9ef4-44a8fac4c254, and the newest
+a4da6008-2535-48d1-9143-bafa71bd5d1f at10:55:55+08) have no email receipt.
+The delivered receipt belongs to incoming visitor message
+ec199c1c-5cff-49d9-ad8e-d1073ae7b227 with recipient_type=operator.
+Resend settings remain enabled/valid with both API key and webhook configured.
+Current source still contains only admin idle and explicit test send callsites;
+there is no customer public-reply dispatch. This is an application capability
+gap, not demonstrated provider rejection or proof of customer inbox delivery.
+No customer mail was sent or resent during this recheck.
+
+## Local correction and checks (idle reminders)
 
 Read successful-send history before sending; stop on database read failures.
 Preserve existing cooldown and attach a stable provider idempotency header.

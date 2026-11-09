@@ -113,6 +113,10 @@ lockfile checks. The older root is not deleted wholesale. A2026-11-09 production
 preview found zero eligible dependencies there; adding coverage does not claim
 source-checkout reclamation. Retained Git/source copies still need a separate
 reconstructible-source lifecycle while preserving reports and unique work.
+Release00bf7e90006902032757efafc8fc1685175836d3 passed exact-SHA production
+health. Installed systemd commands include both roots, and the oneshot worker
+finished successfully at2026-11-09T11:03:36+08. This validates deployment and worker
+completion, not a measured byte reduction from legacy snapshot dependencies.
 
 Backend release binaries compile sequentially (server, migrate, runner). Each
 `go build` shares completed cache entries with the next; Cuan no longer creates
