@@ -486,3 +486,24 @@ or registered visual capture. This is fresh evidence for the negative-screenshot
 classification fix in the actual recovery path, not final DoD acceptance or proof
 of a completed workspace optimization. The recovery remains read-only, without
 push/deploy authority.
+
+The recovery saved a real review report at 20:29:57 (+08), including delivered
+artifact `13bc90da-1387-448c-aceb-68a9f08f1749` (`verification_report.md`).
+It explicitly left four of six criteria incomplete: no completed dependency
+analysis, reuse implementation, targeted reuse tests or final verified delivery
+was produced by the timed-out developer. Isolation and original prohibitions
+were reported satisfied. Its native agent stage returned after 258,763 ms, then
+the runner started project verification. This is a truthful negative assessment,
+not a task success or evidence that the developer optimization exists.
+
+Actual recovery logs also show arbitrary typewriter-animated progress sentences
+still displacing factual output despite the fixed short generic-status filter.
+The collector now groups only spinner rows with explicit cursor-up redraws whose
+clean text is prefix-related, retaining the most complete original row and
+flushing it when the sentence/output changes or execution ends. Ordinary output,
+commands and repeated errors remain distinct. Quota recognition still observes
+each original input frame before diagnostic grouping; live PTY bytes are unchanged.
+New tests replay 100 complete typewriter cycles across byte-split transports,
+require complete progress text and distinct factual errors, and preserve changed
+sentences and immediate quota detection. All `TestPTYDiagnostics` checks pass.
+This refinement is not yet deployed or credited with production savings.

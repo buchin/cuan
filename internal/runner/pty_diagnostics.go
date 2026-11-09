@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -13,12 +14,16 @@ const maxPTYDiagnosticFragment = 16 * 1024
 // split phrases/ANSI frames instead of rescanning 16 KiB on every spinner redraw.
 const maxPTYQuotaOverlap = 256
 
+var ptyCursorUp = regexp.MustCompile("\x1b\\[[0-9]*A")
+
 // PTY transport frames are arbitrary bytes, not complete lines. This collector
 // only affects persisted diagnostic logs; terminal viewers receive original bytes.
 type ptyDiagnosticCollector struct {
 	pending     string
 	lastSpinner string
 	quotaWindow string
+	redrawText  string
+	redrawRaw   string
 }
 
 func (c *ptyDiagnosticCollector) Feed(chunk []byte) ([]string, string) {
@@ -65,17 +70,54 @@ func (c *ptyDiagnosticCollector) Feed(chunk []byte) ([]string, string) {
 func (c *ptyDiagnosticCollector) Flush() []string {
 	line := c.keep(c.pending)
 	c.pending = ""
+	if redraw := c.flushRedraw(); redraw != "" {
+		if line != "" {
+			line += "\n"
+		}
+		line += redraw
+	}
 	if line == "" {
 		return nil
 	}
 	return []string{line}
 }
+
+func (c *ptyDiagnosticCollector) flushRedraw() string {
+	raw := c.redrawRaw
+	c.redrawText, c.redrawRaw = "", ""
+	return raw
+}
+
 func (c *ptyDiagnosticCollector) keep(raw string) string {
 	clean := task.CleanTerminalStatusLine(raw)
 	if clean == "" {
 		return ""
 	}
 	spinner := strings.IndexFunc(raw, func(r rune) bool { return r >= 0x2800 && r <= 0x28ff }) >= 0
+	// AGY animates arbitrary progress sentences with cursor-up redraws, not
+	// just fixed "Reading" labels. Retain the most complete version of a
+	// prefix-related redraw group. Ordinary output, repeated facts and changes
+	// of sentence flush it unchanged. Viewers still receive all original bytes.
+	if spinner && ptyCursorUp.MatchString(raw) {
+		if c.redrawText == "" || strings.HasPrefix(clean, c.redrawText) || strings.HasPrefix(c.redrawText, clean) {
+			if len(clean) >= len(c.redrawText) {
+				c.redrawText, c.redrawRaw = clean, raw
+			}
+			return ""
+		}
+		previous := c.flushRedraw()
+		c.redrawText, c.redrawRaw = clean, raw
+		return previous
+	}
+	previous := c.flushRedraw()
+	line := c.keepStatus(raw, clean, spinner)
+	if previous != "" && line != "" {
+		return previous + "\n" + line
+	}
+	return previous + line
+}
+
+func (c *ptyDiagnosticCollector) keepStatus(raw, clean string, spinner bool) string {
 	key := strings.ToLower(strings.TrimRight(clean, ". …"))
 	if spinner && key != "" {
 		// Real AGY redraws include one-, two- and three-letter prefixes.

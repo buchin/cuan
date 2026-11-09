@@ -144,3 +144,45 @@ func TestPTYDiagnosticsShortRedrawsAcrossTransportFramesPreserveEvidence(t *test
 		}
 	}
 }
+
+func TestPTYDiagnosticsRetainsCompleteAnimatedProgressAndRealOutput(t *testing.T) {
+	full := "Analyzing workspace setup reveals repeated dependency installation"
+	input := ""
+	for cycle := 0; cycle < 100; cycle++ {
+		for length := 1; length <= len(full); length++ {
+			input += "\x1b[3A⣷ \x1b[94m" + full[:length] + "\x1b[m\r"
+		}
+	}
+	input += "Ran npm test\nERROR: rejected\nERROR: rejected\n"
+	for _, width := range []int{1, 73, len(input)} {
+		var c ptyDiagnosticCollector
+		var output []string
+		for at := 0; at < len(input); at += width {
+			lines, _ := c.Feed([]byte(input[at:min(at+width, len(input))]))
+			output = append(output, lines...)
+		}
+		output = append(output, c.Flush()...)
+		text := strings.Join(output, "\n")
+		if strings.Count(text, full) != 1 || strings.Count(text, "Ran npm test") != 1 || strings.Count(text, "ERROR: rejected") != 2 || strings.Count(text, "\n") != 3 {
+			t.Fatalf("width %d lost diagnostics or retained animation: %q", width, text)
+		}
+	}
+}
+
+func TestPTYDiagnosticsFlushesDistinctAnimatedStatementsAndQuota(t *testing.T) {
+	var c ptyDiagnosticCollector
+	first := "\x1b[3A⣷ Checking source commit\r"
+	second := "\x1b[3A⣷ Testing dependency reuse\r"
+	lines, _ := c.Feed([]byte(first + second))
+	lines = append(lines, c.Flush()...)
+	text := strings.Join(lines, "\n")
+	if !strings.Contains(text, "Checking source commit") || !strings.Contains(text, "Testing dependency reuse") {
+		t.Fatal("distinct progress statements lost", text)
+	}
+	if _, quota := c.Feed([]byte("\x1b[3A⣷ Resource has been exhausted\r")); !strings.Contains(quota, "Resource has been exhausted") {
+		t.Fatal("buffering delayed quota detection")
+	}
+	if !strings.Contains(strings.Join(c.Flush(), "\n"), "Resource has been exhausted") {
+		t.Fatal("quota diagnostic lost on final flush")
+	}
+}
