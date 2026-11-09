@@ -612,7 +612,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					}
 					if !req.LiveDeploymentConfirmed || !task.VerifiedDeployment(activities, att, req.CommitSHA, now) {
 						status = task.AttemptStatusFailed
-						att.ErrorMessage = "Kepatuhan auto_deploy: verified production deployment receipt is required for the exact task, attempt and commit; commit/push and report claims alone do not satisfy acceptance"
+						att.ErrorMessage = task.PublicationReceiptRequiredMessage
 					}
 				}
 			} else {

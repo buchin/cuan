@@ -10,11 +10,20 @@ import (
 
 const PublicationVerificationUnavailableMessage = "Kepatuhan auto_deploy: production publication could not be independently verified through the registered project channel. Reconcile the existing live revision; do not repeat deployment solely because a receipt is missing. Report text is not deployment evidence."
 
+const PublicationReceiptRequiredMessage = "Kepatuhan auto_deploy: verified production deployment receipt is required for the exact task, attempt and commit; commit/push and report claims alone do not satisfy acceptance"
+
+// Both native completion paths retain a failed attempt when publication proof
+// is missing. Recognizing that stage never establishes execution or source proof;
+// the caller must still validate the runner, checks, checkpoint and saved review.
+func publicationEvidenceMissing(message string) bool {
+	return message == PublicationVerificationUnavailableMessage || message == PublicationReceiptRequiredMessage
+}
+
 // IsPublicationReconciliationOutcome permits one existing current-outcome
 // inspection, not implementation or deployment. Preserve the failed source:
 // independent tests and a clean result commit do not prove publication.
 func IsPublicationReconciliationOutcome(t *Task, a *TaskAttempt, activities []*TaskActivity) bool {
-	if t == nil || a == nil || a.TaskID != t.ID || !fullObjectID(t.CommitSHA) || !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") || (t.ExecutionCategory != "" && t.ExecutionCategory != ExecutionCategoryCode) || a.Status != AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != PublicationVerificationUnavailableMessage || a.RunnerID == "" || a.CancelRequested || a.CanceledAt != nil || a.CreatedAt.IsZero() || a.StartedAt == nil || a.FinishedAt == nil || a.StartedAt.Before(a.CreatedAt) || a.FinishedAt.Before(*a.StartedAt) || a.FinishedAt.After(time.Now()) {
+	if t == nil || a == nil || a.TaskID != t.ID || !fullObjectID(t.CommitSHA) || !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") || (t.ExecutionCategory != "" && t.ExecutionCategory != ExecutionCategoryCode) || a.Status != AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || !publicationEvidenceMissing(a.ErrorMessage) || a.RunnerID == "" || a.CancelRequested || a.CanceledAt != nil || a.CreatedAt.IsZero() || a.StartedAt == nil || a.FinishedAt == nil || a.StartedAt.Before(a.CreatedAt) || a.FinishedAt.Before(*a.StartedAt) || a.FinishedAt.After(time.Now()) {
 		return false
 	}
 	limits := executionpolicy.FromInstructions(t.Instructions)

@@ -12,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-func unpublishedSourceVerificationFixture(t *testing.T) (*Server, *task.TaskDetailResponse, db.InboxRequest, inboxReviewEvaluation) {
+func unpublishedSourceVerificationFixture(t *testing.T, failure ...string) (*Server, *task.TaskDetailResponse, db.InboxRequest, inboxReviewEvaluation) {
 	t.Helper()
 	s, d := managerFixture(t)
 	ctx := context.Background()
@@ -26,6 +26,9 @@ func unpublishedSourceVerificationFixture(t *testing.T) (*Server, *task.TaskDeta
 	}
 	started, finished := now, now
 	source := &task.TaskAttempt{ID: "unpublished-source", AttemptNumber: 2, TaskID: d.ID, RunnerID: "runner", Status: task.AttemptStatusFailed, ExitCode: new(int), ErrorMessage: task.PublicationVerificationUnavailableMessage, CreatedAt: started, StartedAt: &started, FinishedAt: &finished}
+	if len(failure) > 0 {
+		source.ErrorMessage = failure[0]
+	}
 	if err := store.CreateAttempt(ctx, source); err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +54,26 @@ func unpublishedSourceVerificationFixture(t *testing.T) (*Server, *task.TaskDeta
 		t.Fatal("publication failure became execution success or blocked tested source")
 	}
 	return s, d, q, decision
+}
+
+func TestNativeMissingReceiptSourceRetainsIndependentVerificationHandoff(t *testing.T) {
+	s, d, q, decision := unpublishedSourceVerificationFixture(t, task.PublicationReceiptRequiredMessage)
+	ctx := context.Background()
+	if notice, ok := s.startVerificationFollowup(ctx, q, d, decision); !ok {
+		t.Fatal("native receipt-only failure stranded saved source verification", notice)
+	}
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
+	if err != nil || launch == nil {
+		t.Fatal("missing independent source launch", err)
+	}
+	proof, err := task.VerificationIntentForLaunch(&d.Task, launch)
+	if err != nil || proof == nil || proof.SourceAttemptID != d.LatestAttempt.ID || proof.SourceCommit != d.CommitSHA || !proof.IsolatedWorkspace {
+		t.Fatal("source identity or isolation changed", err, proof)
+	}
+	old, _ := s.taskSvc.Store().GetAttempt(ctx, d.LatestAttempt.ID)
+	if old.Status != task.AttemptStatusFailed || old.ErrorMessage != task.PublicationReceiptRequiredMessage {
+		t.Fatal("source verification admission rewrote failure history")
+	}
 }
 
 func TestTestedUnpublishedSourceGetsExactReadOnlyVerifier(t *testing.T) {
