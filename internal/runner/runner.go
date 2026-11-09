@@ -930,6 +930,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		}
 		prompt += "\nSaved project environment is available through inherited process variables. Use the variables needed for the approved work without printing their values or copying them into reports.\n"
 	}
+	var releaseGoBuildCache func()
 	if err == nil && r.cfg.WorkspacesDir != "" {
 		var buildEnv map[string]string
 		buildEnv, err = managedGoBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "go-build-runtime"), claim.OwnerID)
@@ -938,7 +939,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			if leaseErr != nil {
 				err = fmt.Errorf("acquire Go build cache lease: %w", leaseErr)
 			} else if lease != nil {
-				defer releaseBuildCacheLease(lease, buildEnv["GOCACHE"])
+				var once sync.Once
+				releaseGoBuildCache = func() {
+					once.Do(func() {
+						if relErr := releaseBuildCacheLease(lease, buildEnv["GOCACHE"]); relErr != nil {
+							log.Printf("[Runner %s] Release Go build cache lease: %v", r.cfg.RunnerID, relErr)
+						}
+					})
+				}
+				defer releaseGoBuildCache()
 			}
 		}
 		for key, value := range buildEnv {
@@ -953,6 +962,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			prompt += "\n\nGo build caches are managed independently of the AI account HOME and retained across this owner's routes. Use the inherited Go environment; do not search account profiles or redirect builds to another user's caches. The repository still selects its required Go toolchain. Save actual check output and a factual checkpoint before the execution deadline.\n"
 		}
 	}
+	var releaseNPMBuildCache func()
 	managedNPMCache := ""
 	if err == nil && r.cfg.WorkspacesDir != "" && env["NPM_CONFIG_CACHE"] == "" && env["npm_config_cache"] == "" {
 		npmEnv, npmErr := managedNPMBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "npm-build-runtime"), claim.OwnerID)
@@ -963,8 +973,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			lease, leaseErr := acquireBuildCacheLease(ctx, cache)
 			if leaseErr != nil {
 				err = fmt.Errorf("acquire npm download cache lease: %w", leaseErr)
-			} else {
-				defer lease.Close()
+			} else if lease != nil {
+				var once sync.Once
+				releaseNPMBuildCache = func() {
+					once.Do(func() {
+						_ = lease.Close()
+					})
+				}
+				defer releaseNPMBuildCache()
 				env["NPM_CONFIG_CACHE"] = cache
 				prompt += "\nThe inherited NPM_CONFIG_CACHE belongs to this task owner and survives AI account changes. Use that cache rather than redirecting downloads into an AI profile HOME or another owner's paths. This cache setting does not change registry authentication or authorize publication.\n"
 			}
@@ -1384,6 +1400,15 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	r.streamLogLine(diagnosticCtx, att.ID, "system", fmt.Sprintf("Attempt %s selesai: %s (exit: %d, durasi: %v, peak RSS: %d bytes).",
 		att.ID, compReq.Status, compReq.ExitCode, time.Since(startTime).Round(time.Millisecond), compReq.PeakRSSBytes))
 	cancelDiagnostic()
+
+	// Cleanly release active build cache leases and persist metadata durable to disk
+	// before publishing completion to the server.
+	if releaseGoBuildCache != nil {
+		releaseGoBuildCache()
+	}
+	if releaseNPMBuildCache != nil {
+		releaseNPMBuildCache()
+	}
 
 	// Persist before the network handoff; a failed or lost response must not
 	// discard native results or cause another agent execution.

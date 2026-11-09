@@ -3,10 +3,12 @@ package runner
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Authentication/configuration stay in the prepared release HOME. Only generated
@@ -36,10 +38,15 @@ func prepareNativeReleaseBuildCaches(ctx context.Context, execution *NativeRelea
 		cache string
 	}
 	leases := []heldLease{}
+	var closeOnce sync.Once
 	closeAll = func() {
-		for _, item := range leases {
-			_ = releaseBuildCacheLease(item.file, item.cache)
-		}
+		closeOnce.Do(func() {
+			for _, item := range leases {
+				if relErr := releaseBuildCacheLease(item.file, item.cache); relErr != nil {
+					log.Printf("Native release build cache lease release failed (%s): %v", item.cache, relErr)
+				}
+			}
+		})
 	}
 	for _, cache := range []string{goEnv["GOCACHE"], npmEnv["NPM_CONFIG_CACHE"]} {
 		lease, err := acquireBuildCacheLease(ctx, cache)

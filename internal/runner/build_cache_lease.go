@@ -82,13 +82,19 @@ func releaseBuildCacheLeaseTime(f *os.File, cache string, at time.Time) error {
 		"last_used_at": at.Unix(),
 	})
 	if err != nil {
-		return nil
+		return err
 	}
-	if _, err := f.Seek(0, 0); err == nil {
-		if err := f.Truncate(0); err == nil {
-			_, _ = f.Write(data)
-			_ = f.Sync()
-		}
+	if _, err := f.Seek(0, 0); err != nil {
+		return err
+	}
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		return err
 	}
 	return nil
 }
