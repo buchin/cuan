@@ -15,7 +15,7 @@ func TestStandaloneArtifactWorkspaceDoesNotRequireOrModifyRepository(t *testing.
 		t.Fatal(err)
 	}
 	p := &ProjectResponse{LocalPath: source, RepoURL: "file://" + source}
-	scope := "Pekerjaan mandiri: buat berkas hasil.txt. Tidak mengubah repositori. Jangan deploy."
+	scope := "Pekerjaan mandiri: buat berkas hasil.txt. Jangan membuka atau mengubah repositori aplikasi. Jangan deploy."
 	first, err := svc.TaskExecutionWorkspace(context.Background(), "first", scope, p)
 	if err != nil || first == source {
 		t.Fatal("artifact required source checkout", first, err)

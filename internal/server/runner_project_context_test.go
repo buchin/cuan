@@ -75,7 +75,7 @@ func TestStandaloneArtifactClaimUsesPrivateOutputWithoutProjectSecrets(t *testin
 	store := task.NewMemoryStore()
 	s.taskSvc = task.NewService(store, s.projectSvc)
 	s.runnerSvc = runner.NewService(runner.NewMemoryStore(store), store, s.projectSvc)
-	scope := "Create a standalone file for download. Do not modify the repository. Do not deploy."
+	scope := "Buat berkas mandiri cleanup-workflow.md dengan tiga poin fakta. Jangan membuka atau mengubah repositori aplikasi. Jangan push atau deploy."
 	created, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{Title: "Create result.txt", ProjectID: p.ID, Instructions: scope, AssignedAgent: "agent_lifecycle"})
 	if err != nil {
 		t.Fatal(err)

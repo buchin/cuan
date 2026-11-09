@@ -11,6 +11,11 @@ func TestStandaloneArtifactWorkRequiresExplicitScope(t *testing.T) {
 		{"Create a standalone file for download. Do not modify the repository. Do not deploy.", true},
 		{"Pengujian alur kerja mandiri dalam dua task/sesi terpisah. Membuat berkas angka.json dan melampirkannya sebagai artefak unduhan. Zero repository mutation (tidak mengubah kode, file repositori, atau konfigurasi), zero deployment (tidak membuat project baru, branch, commit, push, PR, deploy, atau mengirim pesan keluar).", true},
 		{"Buat berkas angka.json di lingkungan kerja sesi mandiri. Zero repository mutation: Tidak mengubah berkas kode aplikasi, konfigurasi repositori, branch, git push, maupun PR. Tidak memicu build/deployment. Eksekusi mandiri berurutan.", true},
+		{"Buat berkas mandiri cleanup-workflow.md. Jangan membuka atau mengubah repositori aplikasi. Jangan push atau deploy.", true},
+		{"Create a standalone file for download. Do not open or modify the repository. Do not deploy.", true},
+		{"Create a standalone file. Do not read and edit the repository. Do not deploy.", true},
+		{"Create a standalone file in the repository. Do not open production. Edit the local repository. Do not deploy.", false},
+
 		{"Add a file download component to the repository. Do not deploy.", false},
 		{"Standalone audit: inspect the repository and attach a report. Do not deploy.", false},
 		{"Create a standalone file. Do not change the repository. Deploy the result.", false},
