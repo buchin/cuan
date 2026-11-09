@@ -30,3 +30,26 @@ Official execution readback changed deny_deploy to false without rewriting the
 original task. The already-running worker survived both supervisor deployments.
 Root also sent one bounded steering message during prolonged developer exploration;
 this run is not an untouched autonomous workflow proof.
+
+## Rollout and remaining saved-decision admission
+
+Release 55d2886ab3a7d5f10c42f32b683ecea0cf305012 completed
+16:28:59Z–16:32:08Z (189.33s), exit 0, exact healthy SHA and unchanged source.
+The native diagnostic now recognizes retained source eligibility, but no source
+verifier was admitted. Latest persisted PM verification decisions omitted the
+optional manager action/reason fields. Generic implementation continuation
+requires those fields and therefore also stranded this read-only evidence run.
+
+The existing manager-handoff recovery now recognizes a saved verification
+assessment for a natively tested publication-only failure before the generic
+implementation-continuation gate. Its original owner authorization, current
+review snapshot, ownership-policy input, native source/check/report evidence,
+independent-review requirement and unique exact-source launch still apply.
+wait, needs_owner, needs_input and cancellation remain excluded. No ordinary
+implementation or publication is admitted through this path.
+
+The actual missing-optional-fields fixture reproduced the stranded decision.
+Targeted integration tests now cover successful recovery plus wait, owner input,
+missing input and cancellation, with source failure history preserved. Existing
+manager-recovery and unpublished-source launch contracts pass (1.462s after
+compilation). This second admission correction still needs production observation.

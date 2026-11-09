@@ -13,6 +13,14 @@ import (
 )
 
 func unpublishedSourceVerificationFixture(t *testing.T, failure ...string) (*Server, *task.TaskDetailResponse, db.InboxRequest, inboxReviewEvaluation) {
+	message := task.PublicationVerificationUnavailableMessage
+	if len(failure) > 0 {
+		message = failure[0]
+	}
+	return unpublishedSourceVerificationDecisionFixture(t, message, nil)
+}
+
+func unpublishedSourceVerificationDecisionFixture(t *testing.T, failure string, assessment *inboxReviewEvaluation) (*Server, *task.TaskDetailResponse, db.InboxRequest, inboxReviewEvaluation) {
 	t.Helper()
 	s, d := managerFixture(t)
 	ctx := context.Background()
@@ -26,9 +34,7 @@ func unpublishedSourceVerificationFixture(t *testing.T, failure ...string) (*Ser
 	}
 	started, finished := now, now
 	source := &task.TaskAttempt{ID: "unpublished-source", AttemptNumber: 2, TaskID: d.ID, RunnerID: "runner", Status: task.AttemptStatusFailed, ExitCode: new(int), ErrorMessage: task.PublicationVerificationUnavailableMessage, CreatedAt: started, StartedAt: &started, FinishedAt: &finished}
-	if len(failure) > 0 {
-		source.ErrorMessage = failure[0]
-	}
+	source.ErrorMessage = failure
 	if err := store.CreateAttempt(ctx, source); err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +53,9 @@ func unpublishedSourceVerificationFixture(t *testing.T, failure ...string) (*Ser
 	requests := reviewRequests(t, s, d.SourceRoomID)
 	q := requests[len(requests)-1]
 	decision := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Verify the tested source before publication", Explanation: "Independent source verification remains", Revision: "Check original criteria against the exact saved source without publication", ManagerAction: "continue", ManagerReason: "Source checks passed; independent source verification remains"}
+	if assessment != nil {
+		decision = *assessment
+	}
 	if _, err := s.saveReviewAssessment(ctx, d, q, decision); err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +82,50 @@ func TestNativeMissingReceiptSourceRetainsIndependentVerificationHandoff(t *test
 	old, _ := s.taskSvc.Store().GetAttempt(ctx, d.LatestAttempt.ID)
 	if old.Status != task.AttemptStatusFailed || old.ErrorMessage != task.PublicationReceiptRequiredMessage {
 		t.Fatal("source verification admission rewrote failure history")
+	}
+}
+
+func TestReceiptOnlyFailureSavedVerificationRecoversWithoutOptionalManagerFields(t *testing.T) {
+	for _, scenario := range []string{"valid", "wait", "needs_owner", "needs_input", "cancelled"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			decision := inboxReviewEvaluation{Decision: "revise", RemainingWork: "verification", Finding: "Independent source verification remains", Explanation: "Inspect the retained source", Revision: "Verify the retained source against original criteria"}
+			if scenario == "wait" || scenario == "needs_owner" {
+				decision.ManagerAction = scenario
+			}
+			if scenario == "needs_input" {
+				decision.RequestedOutcome = scenario
+			}
+			s, d, q, _ := unpublishedSourceVerificationDecisionFixture(t, task.PublicationReceiptRequiredMessage, &decision)
+			repo := s.projectStudioRepo.(db.InboxRequestRepository)
+			q.State = "completed"
+			if err := repo.FinishInboxRequest(ctx, q, nil); err != nil {
+				t.Fatal(err)
+			}
+			requests, _ := repo.ListInboxRequests(ctx, d.SourceRoomID)
+			var origin db.InboxRequest
+			for _, r := range requests {
+				if r.MessageID == d.SourceMessageID {
+					origin = r
+				}
+			}
+			d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+			if scenario == "cancelled" {
+				row, _ := s.taskSvc.Store().GetTask(ctx, d.ID)
+				row.Status = "cancelled"
+				if err := s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
+					t.Fatal(err)
+				}
+				d, _ = s.taskSvc.GetTaskDetail(ctx, d.ID)
+			}
+			if recovered := s.recoverManagerVerificationHandoff(ctx, d, origin, requests); recovered != (scenario == "valid") {
+				t.Fatalf("incorrect source verification recovery=%v for %s", recovered, scenario)
+			}
+			old, _ := s.taskSvc.Store().GetAttempt(ctx, d.LatestAttempt.ID)
+			if old.Status != task.AttemptStatusFailed || old.ErrorMessage != task.PublicationReceiptRequiredMessage {
+				t.Fatal("recovery rewrote failed source history")
+			}
+		})
 	}
 }
 

@@ -85,6 +85,21 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 				return s.queueManagerAssessment(ctx, q, d)
 			}
 		}
+		// A native receipt-only failure has already retained a tested checkpoint
+		// and a saved verification decision. Its independent, read-only handoff
+		// does not need optional metadata authorizing another implementation run.
+		if saved.RemainingWork == "verification" && saved.RequestedOutcome != "needs_input" && saved.ManagerAction != "wait" && saved.ManagerAction != "needs_owner" &&
+			task.IsPublicationReconciliationOutcome(&d.Task, d.LatestAttempt, d.Activities) && s.independentCodeReviewMissing(ctx, d) {
+			message, messageErr := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+			if messageErr != nil || message == nil || !strings.Contains(message.Content, inboxOwnershipPolicy) || s.inboxReviewedTask(ctx, q) == nil {
+				continue
+			}
+			if _, scheduled := s.startVerificationFollowup(ctx, q, d, saved); scheduled {
+				s.publishInbox(d.SourceRoomID)
+				return true
+			}
+			return false
+		}
 		if !s.managerContinuationAllowed(ctx, q, d, saved.Revision) {
 			continue
 		}
