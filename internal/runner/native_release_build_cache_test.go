@@ -85,3 +85,13 @@ func TestNativeReleaseReusesOwnerBuildCachesUnderMaintenanceLease(t *testing.T) 
 		t.Fatal("missing cache owner accepted")
 	}
 }
+
+func TestNativeReleaseBuildCachesDoNotSupplyMissingExecutionEnvironment(t *testing.T) {
+	execution := &NativeReleaseExecution{Workspace: &project.PreparedNativeReleaseWorkspace{Path: t.TempDir()}}
+	for _, workspaces := range []string{"", filepath.Join(t.TempDir(), "workspaces")} {
+		if _, cleanup, err := prepareNativeReleaseBuildCaches(context.Background(), execution, workspaces, "owner"); err == nil {
+			cleanup()
+			t.Fatal("cache defaults replaced missing prepared environment")
+		}
+	}
+}

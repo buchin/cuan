@@ -13,7 +13,7 @@ import (
 // compiler/download caches reuse the existing owner lifecycle and maintenance lease.
 func prepareNativeReleaseBuildCaches(ctx context.Context, execution *NativeReleaseExecution, workspaces, owner string) ([]string, func(), error) {
 	closeAll := func() {}
-	if execution == nil || execution.Workspace == nil {
+	if execution == nil || execution.Workspace == nil || execution.Environment == nil {
 		return nil, closeAll, errors.New("native release workspace missing")
 	}
 	if workspaces == "" {
