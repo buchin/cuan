@@ -71,3 +71,28 @@ negative cases. Existing owner-context and launch-persistence regressions pass.
 Compilation initially exceeded local memory; the same targeted tests passed
 using `GOGC=30 GOMAXPROCS=2 go test -p 1` without relaxing assertions.
 Production timing improvement remains unproven pending a fresh benchmark.
+
+## First post-change production attempt: routing regression found
+
+Release `617efaf52fc6b53b9a4c29b462e2178c9e34d3f2` passed exact-SHA
+health with38 migrations at2026-11-09T04:52:46Z. Fresh room
+`221dde65-c85c-4cb7-97d8-aec7c4743633`, request
+`1b0af4d5-15b5-4218-879a-5c2463d2f869`, repeated the original five-line
+file request. Initial PM completed in128 seconds and created task
+`msg_bab71131-021e-48d1-99a1-b57d626ea879`.
+
+The generated scope explicitly said “Dilarang membuka atau mengubah repositori
+aplikasi”. Artifact classification recognized `jangan` but omitted `dilarang`
+from its no-repository-change expression. The task incorrectly entered the code
+lane and prepared an application checkout. Root requested cancellation to stop
+that scope violation; official task readback confirms attempt
+`att_8166a3507e0bd3aad0de5741d49c1373` canceled at12:57:48.430476+08,
+exit130. This is an interrupted diagnostic benchmark, not autonomous success,
+not evidence of faster handoff and not accepted work. History is preserved.
+
+The shared artifact classifier now recognizes the explicit `dilarang` form.
+Targeted execution-policy tests preserve the negative case where only opening
+production is forbidden but local repository edits remain requested. A task-lane
+regression uses the actual generated scope and asserts ops. Both packages pass.
+This fixes the deterministic routing cause rather than asking the PM to use a
+specific synonym or manually changing the existing task's lane/status.

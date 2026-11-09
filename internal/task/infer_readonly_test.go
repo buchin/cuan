@@ -26,3 +26,10 @@ func TestInferStandaloneDownloadDoesNotRequireCodingRepository(t *testing.T) {
 		t.Fatal("schema migration escaped exclusive lane", got)
 	}
 }
+
+func TestInferStandaloneFileWithDilarangRepositoryScope(t *testing.T) {
+	scope := "Cuan managed delegation v1.\n### Problem Statement & Scope\nBuat file standalone `cleanup-workflow.md` secara mandiri di ruang artifact privat sesuai instruksi eksplisit pengguna.\n\n### Batasan & Larangan Ketat\n- Dilarang membuka atau mengubah repositori aplikasi.\n- Dilarang melakukan clone, build, tes aplikasi, browser automation, SSH, akses database, menghubungi customer, git push, atau deploy.\n- Wajib bekerja secara eksklusif di ruang artifact privat."
+	if got := InferExecutionCategory("Buat dan verifikasi file cleanup-workflow.md", scope); got != ExecutionCategoryOps {
+		t.Fatal("explicit standalone scope routed to application repository", got)
+	}
+}
