@@ -437,3 +437,30 @@ AGY installations. Existing staging pruning requires a matching verified
 installed counterpart; it must not be relaxed merely to erase unknown or unique
 files. No provider conversation, brain, credential, backup or staging directory
 was deleted during this investigation.
+
+## Development backup retention prepared, not applied
+
+The native activation path writes one private PostgreSQL custom dump per commit,
+but did not apply the separate `backup.sh` timestamped-archive retention policy.
+Production had 816 recognized native dumps. An initial conservative 30-latest /
+14-day proposal was reduced after the Owner clarified this is a development
+installation: retain only the three newest dumps plus current/previous IDs.
+The simplified preview nominated 813 dumps / 5,077,295,104 allocated bytes,
+retained three and ignored 12 unknown/nonqualifying entries. Nothing was deleted.
+
+The latest release dump `e6d58a226310fa481673e9cf8368731875c6c630.dump` was
+restored using the maintained isolated restore-probe script into a fresh private
+PostgreSQL instance under ubuntu. It produced 49 public tables. No TCP listener,
+Cuan application process, email job or production database connection was used;
+the temporary instance was stopped and its copied data removed. This is an
+actual restore drill, not merely a successful `pg_restore --list`.
+
+The prepared pruner defaults to preview. Apply serializes with activation,
+requires known current/previous links, private single-link regular custom dumps,
+validates the two newest restore-point formats and every candidate before any
+deletion, and rechecks each removed file's identity. Unknown files/directories,
+links, public files and malformed-header data remain untouched. Four retention
+tests passed. Existing maintenance integration is explicitly opt-in through
+`--backup-keep`; it persists the installation setting and does not enable deletion
+for fresh installations by default. All five installer tests passed. Approval
+for irreversible deletion remains pending; no scheduled backup apply is enabled.

@@ -14,6 +14,26 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class MaintenanceInstall(unittest.TestCase):
+    def test_backup_retention_is_opt_in_and_survives_later_installs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            source.mkdir()
+            for name in module.TOOLS:
+                (source / name).write_text('# fixture')
+            base, home, units = root / 'app', root / 'home', root / 'units'
+            module.install(base, home, units, source)
+            unit = units / 'cuan-runtime-cache-maintenance.service'
+            self.assertNotIn('/prune-native-database-backups.py --base', unit.read_text())
+            module.install(base, home, units, source, backup_keep=3)
+            self.assertIn('--keep 3 --apply', unit.read_text())
+            module.install(base, home, units, source)
+            self.assertIn('--keep 3 --apply', unit.read_text())
+            config = base / 'maintenance/native-backup-keep'
+            config.chmod(0o666)
+            with self.assertRaises(ValueError):
+                module.install(base, home, units, source)
+
     def test_payload_manifest_can_be_read_without_root_or_installation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

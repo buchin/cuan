@@ -50,6 +50,49 @@ larger volume or dedicated server when real persistent data, rather than retaine
 artifacts, requires it. Backup retention needs its own restore-tested policy;
 this cleanup intentionally did not delete existing backups.
 
+### Native database backup retention (prepared; application requires approval)
+
+Native activation writes `backups/<commit>.dump`; the separate `backup.sh`
+retention for timestamped SQL archives does not cover these files. Preview with
+`python3 scripts/prune-native-database-backups.py --base /opt/cuan` on the VPS as
+the backup owner. The tool defaults to no deletion. A reviewed `--apply` keeps
+three newest private native dumps plus the current/previous release dumps.
+This is the deliberately small policy for this development installation;
+there are no daily-history buckets. `--keep N` permits another explicit policy.
+Current/previous release targets must be valid. Unknown files, directories,
+symlinks, hardlinks, public files and files without a native dump header are kept.
+
+The tool holds the native activation lock. Before removal, PostgreSQL must list
+the two newest backups and every eligible dump successfully, then each removed
+file's identity is rechecked. It never connects to a database or restores SQL.
+This listing is format validation, not a full recovery test.
+
+For a full isolated recovery drill, run
+`python3 scripts/verify-native-backup-restore.py --backup /opt/cuan/backups/FULL_SHA.dump`
+as root on the native VPS. It restores into a fresh temporary PostgreSQL instance
+under the unprivileged service user, with no TCP listener and a private Unix
+socket. It does not start Cuan, run email jobs, or use production connection
+credentials. It checks that public tables exist, stops its temporary instance,
+and removes the temporary data. This proves dump restoration, not complete app
+behavior after a disaster. The PostgreSQL binary directory and service user
+can be selected explicitly for another native installation.
+
+On November 9 the newest release backup restored successfully with 49 public
+tables. The simplified development-policy preview nominated 813 files /
+5,077,295,104 allocated bytes, retained three dumps and ignored 12 other entries.
+No deletion or scheduled apply
+was performed at this observation. These counts may change before approval.
+Focused checks: `python3 scripts/test-prune-native-database-backups.py`.
+
+After approval, the native maintenance installer can explicitly enable this
+policy with `--backup-keep 3`. It persists the count in a private native
+installation configuration; later ordinary deployments preserve that setting.
+New installations leave backup deletion disabled unless explicitly configured.
+The existing maintenance scheduler/event trigger runs the pinned retention tool,
+without adding another scheduler or requiring users to operate backup scripts.
+Check `python3 scripts/test-runtime-cache-maintenance.py` for enablement and
+upgrade-preservation coverage.
+
 ### Task terminal diagnostics
 
 Task attempt output is a rolling diagnostic buffer: at most 1,000 recent complete

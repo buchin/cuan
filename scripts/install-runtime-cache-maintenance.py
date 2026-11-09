@@ -9,11 +9,12 @@ import subprocess
 import tempfile
 import pwd
 import re
+import stat
 
-TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py', 'compact-verification-source.py')
+TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py', 'compact-verification-source.py', 'prune-native-database-backups.py')
 
 
-def install(base, service_home, unit_dir, source):
+def install(base, service_home, unit_dir, source, backup_keep=None):
     for path in (base, service_home, unit_dir):
         if not path.is_absolute() or any(c not in '/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-. ' for c in str(path)) or ' ' in str(path):
             raise ValueError('Maintenance paths must be absolute simple paths')
@@ -42,6 +43,29 @@ def install(base, service_home, unit_dir, source):
             if temporary.exists():
                 shutil.rmtree(temporary)
     unit_dir.mkdir(parents=True, exist_ok=True)
+    retention = base / 'maintenance/native-backup-keep'
+    if backup_keep is not None:
+        if backup_keep < 2:
+            raise ValueError('Retain at least two native backups')
+        descriptor, temporary = tempfile.mkstemp(prefix='.backup-keep-', dir=retention.parent)
+        try:
+            with os.fdopen(descriptor, 'w') as handle:
+                handle.write(str(backup_keep) + '\n')
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, retention)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    elif os.path.lexists(retention):
+        info = retention.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or
+                info.st_nlink != 1 or info.st_mode & 0o077 or info.st_size > 32):
+            raise ValueError('Native backup retention configuration differs')
+        raw = retention.read_text().strip()
+        if not re.fullmatch('[0-9]+', raw) or int(raw) < 2:
+            raise ValueError('Invalid native backup retention count')
+        backup_keep = int(raw)
     command = f'/usr/bin/python3 {target}/prune-runtime-build-cache.py'
     service = f'''[Unit]
 Description=Cuan idle caches and accepted verifier source maintenance
@@ -62,6 +86,8 @@ ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapsho
 ExecStart=/usr/bin/python3 {target}/compact-verification-source.py --snapshots {base}/data/projects/verification-snapshots --apply
 ExecStart=/usr/bin/python3 {target}/compact-verification-source.py --snapshots {base}/data/workspaces/verification --apply
 '''
+    if backup_keep is not None:
+        service += f'ExecStart=/usr/bin/python3 {target}/prune-native-database-backups.py --base {base} --keep {backup_keep} --apply\n'
     timer = '''[Unit]
 Description=Recheck idle Cuan caches after task execution
 
@@ -112,6 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--base', type=Path, default=Path('/opt/cuan'))
     parser.add_argument('--service-home', type=Path)
     parser.add_argument('--print-tools', action='store_true', help='List required payload filenames without installing anything')
+    parser.add_argument('--backup-keep', type=int, help='Explicitly enable and persist native backup retention; keep current/previous plus N newest (at least 2)')
     args = parser.parse_args()
     if args.print_tools:
         print('\n'.join(TOOLS))
@@ -120,7 +147,7 @@ if __name__ == '__main__':
         parser.error('--service-home is required for installation')
     if os.geteuid() != 0:
         parser.error('Run through native deployment as root')
-    install(args.base, args.service_home, Path('/etc/systemd/system'), Path(__file__).resolve().parent)
+    install(args.base, args.service_home, Path('/etc/systemd/system'), Path(__file__).resolve().parent, args.backup_keep)
     install_trigger_access(args.service_home)
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'enable', '--now', 'cuan-runtime-cache-maintenance.timer'], check=True)
