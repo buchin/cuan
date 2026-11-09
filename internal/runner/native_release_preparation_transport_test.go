@@ -42,3 +42,20 @@ func TestNativePreparationTransportRetainsOnlyKnownFailureCodes(t *testing.T) {
 		})
 	}
 }
+
+func TestNativePreparationServiceUnavailableStage(t *testing.T) {
+	for _, code := range []string{"publication_config", "runtime_paths", "runtime_permissions", "npm_config", "ssh_runtime", "context_changed", "remote_target", "canonical_preparation"} {
+		t.Run(code, func(t *testing.T) {
+			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				json.NewEncoder(w).Encode(map[string]string{"code": "native_preparation_" + code, "error": "credential-must-not-leak"})
+			}))
+			defer api.Close()
+			r := NewRunner(&config.Config{RunnerID: "fixture", RunnerToken: "fixture", RunnerServerURL: api.URL}, nil, api.Client())
+			prepared, failure := r.requestNativeReleasePreparation(context.Background(), ClaimTaskResponse{Task: &task.Task{ID: "task"}, Attempt: &task.TaskAttempt{ID: "attempt"}, NativeRelease: &task.NativeReleaseIntent{}})
+			if prepared != nil || failure != "Native release preparation failed at "+code+"; no release process started" {
+				t.Fatalf("lost bounded native stage: %q", failure)
+			}
+		})
+	}
+}

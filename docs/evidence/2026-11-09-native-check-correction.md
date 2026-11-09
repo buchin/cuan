@@ -586,3 +586,43 @@ detached socket bridge. Missing/foreign/rejected receipt tests pass. The complet
 terminal package and targeted detached-steering, heartbeat and final-report-stop
 runner regressions pass. This fixes transport semantics, not an AI-consumption
 receipt or proof of autonomous task completion. Production rollout is pending.
+
+### Independent counterexample after dependency-reuse verifier pass
+
+Production release of root commit `2bdd54c8995e44dd4f495db9c06d1e9948f80218`
+finished 2026-11-09 13:14:55Z after 198.1 seconds with exact health and 38
+migrations. This does not publish native task source `fe821357daa5ea8d2bcd7a4b9475f25632d8117b`.
+
+Native verifier `att_f6c79b2e890788f9015ed8fdd0a0f7e4` succeeded at
+21:18:36 +08 and accepted isolation based on existing tests. Root independently
+read dependency_reuse.go from that exact Git commit through registered SSH and
+ran its unchanged functions in a temporary Go package. Counterexample:
+create dev/dependency.js containing `original`; call seedWarmDirectory(dev,
+verifier, "fingerprint"); os.WriteFile verifier/dependency.js with
+`verifier-write`; read dev/dependency.js. TestSeedMustNotMutateDeveloper FAILED
+in 0.008s: developer content became `verifier-write`. The os.Link fast path
+shares writable inodes. Existing symlink tests do not establish isolation.
+No application source, real dependency tree or task workspace was changed by
+this fixture. The verifier pass is therefore insufficient for the original DoD.
+
+Native release attempts 5 and 6 both failed before any model/release execution:
+`Native release workspace preparation is unavailable; no model or release
+execution was started`. This is a separate preparation failure, not proof of a
+production deployment failure. Correction evidence was sent once to the original
+room through official CLI; CLI timed out but room read confirms saved message
+`a2d31ae7-6ea2-4e6f-9765-8bfef2f493a3`, request
+`038281e7-d9e0-41b5-a9dc-405cb672e22a` queued. No resend, manual Done or
+publication of the rejected optimization. Corrective dev and independent
+verification remain pending; no claim of end-to-end speedup or autonomous Done.
+
+Preparation diagnosis follow-up: several preflight/runtime error responses had no
+machine-readable code, so the runner collapsed them into the same generic
+unavailable message. Added bounded native stage codes for those existing branches
+and recognition on both 409 and 503; raw server/provider text is never copied.
+Runner transport tests pass, including all newly named 503 stages. The real
+server missing-publication-config fixture passes with the exact code assertion.
+Initial server compilation was killed by memory pressure; retry with GOGC=20,
+GOMAXPROCS=2 and -p 1 passed. This diagnoses future failures; it does not establish
+the lost historical preparation cause or fix it by assumption.
+Native corrective developer `att_dea6ef01e90f6b80a1dcc907308bf6f9` is now running
+on the original task; official logs confirm it is examining the hardlink issue.

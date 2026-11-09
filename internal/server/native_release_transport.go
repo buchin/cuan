@@ -34,22 +34,22 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	attemptID := chi.URLParam(r, "id")
 	d, _, err := s.authorizedNativeReleaseAttempt(r.Context(), input.TaskID, attemptID, input.RunnerID)
 	if err != nil {
-		respondJSONError(w, 409, "Native release authorization is no longer active")
+		respondNativePreparationFailure(w, 409, "authorization", "Native release authorization is no longer active")
 		return
 	}
 	if s.projectSvc == nil {
-		respondJSONError(w, 503, "Saved release project unavailable")
+		respondNativePreparationFailure(w, 503, "project_context", "Saved release project unavailable")
 		return
 	}
 	p, err := s.projectSvc.TaskContext(r.Context(), d.ProjectID, d.Instructions)
 	if err != nil || p == nil || p.IsArchived {
-		respondJSONError(w, 409, "Saved native project context unavailable")
+		respondNativePreparationFailure(w, 409, "project_context", "Saved native project context unavailable")
 		return
 	}
 	selectedEnvironment := project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment)
 	sshConfig, configErr := publication.FromEnvironment(selectedEnvironment)
 	if configErr != nil {
-		respondJSONError(w, 503, "Saved release verification and SSH host trust must be configured before native publication")
+		respondNativePreparationFailure(w, 503, "publication_config", "Saved release verification and SSH host trust must be configured before native publication")
 		return
 	}
 	prepared, err := s.ensureNativeReleasePreparation(r.Context(), d.ID, attemptID, input.RunnerID)
@@ -77,12 +77,12 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 			respondJSON(w, 409, map[string]string{"error": failure.Error(), "code": code})
 			return
 		}
-		respondJSONError(w, 409, "Native release source publication or preparation could not be verified")
+		respondNativePreparationFailure(w, 409, "source_preparation", "Native release source publication or preparation could not be verified")
 		return
 	}
 	saved, err := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &d.Task, attemptID)
 	if err != nil || saved == nil {
-		respondJSONError(w, 409, "Canonical native preparation unavailable")
+		respondNativePreparationFailure(w, 409, "canonical_preparation", "Canonical native preparation unavailable")
 		return
 	}
 	environment := selectedEnvironment
@@ -90,19 +90,19 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	// regardless of ambient host HOME or an old project execution path.
 	root, err := os.OpenRoot(prepared.Path)
 	if err != nil {
-		respondJSONError(w, 503, "Private native runtime unavailable")
+		respondNativePreparationFailure(w, 503, "runtime_paths", "Private native runtime unavailable")
 		return
 	}
 	defer root.Close()
 	paths := []string{".git/cuan-native-runtime", ".git/cuan-native-runtime/home", ".git/cuan-native-runtime/cache", ".git/cuan-native-runtime/config", ".git/cuan-native-runtime/data", ".git/cuan-native-runtime/tmp"}
 	for _, path := range paths {
 		if err := root.Mkdir(path, 0700); err != nil && !os.IsExist(err) {
-			respondJSONError(w, 503, "Private native runtime unavailable")
+			respondNativePreparationFailure(w, 503, "runtime_paths", "Private native runtime unavailable")
 			return
 		}
 		info, err := root.Lstat(path)
 		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
-			respondJSONError(w, 503, "Private native runtime changed")
+			respondNativePreparationFailure(w, 503, "runtime_permissions", "Private native runtime changed")
 			return
 		}
 	}
@@ -117,7 +117,7 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	environment["NPM_CONFIG_CACHE"] = filepath.Join(base, "cache", "npm")
 	npmrc := ".git/cuan-native-runtime/config/npmrc"
 	if err := writeNativeRuntimeFile(root, npmrc, []byte{}, 0600); err != nil {
-		respondJSONError(w, 503, "Private npm configuration unavailable")
+		respondNativePreparationFailure(w, 503, "npm_config", "Private npm configuration unavailable")
 		return
 	}
 	environment["NPM_CONFIG_USERCONFIG"] = filepath.Join(base, "config", "npmrc")
@@ -130,7 +130,7 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	}
 	sshBin, sshErr := prepareNativeReleaseSSH(r.Context(), root, prepared.Path, sshConfig)
 	if sshErr != nil {
-		respondJSONError(w, 503, "Private SSH runtime and saved host trust could not be prepared")
+		respondNativePreparationFailure(w, 503, "ssh_runtime", "Private SSH runtime and saved host trust could not be prepared")
 		return
 	}
 	environment["PATH"] = sshBin + string(os.PathListSeparator) + environment["PATH"]
@@ -141,17 +141,17 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 	// returning any owner execution environment to the authenticated runner.
 	fresh, _, err := s.authorizedNativeReleaseAttempt(r.Context(), d.ID, attemptID, input.RunnerID)
 	if err != nil || fresh.ProjectID != d.ProjectID || fresh.Instructions != d.Instructions {
-		respondJSONError(w, 409, "Native release scope changed during preparation")
+		respondNativePreparationFailure(w, 409, "context_changed", "Native release scope changed during preparation")
 		return
 	}
 	currentProject, projectErr := s.projectSvc.TaskContext(r.Context(), fresh.ProjectID, fresh.Instructions)
 	currentPreparation, preparationErr := task.NativeReleasePreparationForAttempt(r.Context(), s.taskSvc.Store(), &fresh.Task, attemptID)
 	if projectErr != nil || currentProject == nil || currentProject.IsArchived || currentProject.RepoURL != p.RepoURL || currentProject.LocalPath != p.LocalPath || currentProject.DefaultBranch != p.DefaultBranch || string(currentProject.Metadata) != string(p.Metadata) || preparationErr != nil || currentPreparation == nil || *currentPreparation != *saved {
-		respondJSONError(w, 409, "Native release project or preparation changed")
+		respondNativePreparationFailure(w, 409, "context_changed", "Native release project or preparation changed")
 		return
 	}
 	if err := s.projectSvc.CheckNativeReleaseTarget(r.Context(), d.ProjectID, d.Instructions, saved.Repository, saved.TargetBranch, saved.TargetCommit); err != nil {
-		respondJSONError(w, 409, "Prepared release no longer matches its remote branch")
+		respondNativePreparationFailure(w, 409, "remote_target", "Prepared release no longer matches its remote branch")
 		return
 	}
 	// These are execution context from native remote observation, not task
@@ -170,4 +170,10 @@ func (s *Server) handleRunnerNativeReleasePreparation(w http.ResponseWriter, r *
 
 	w.Header().Set("Cache-Control", "no-store")
 	respondJSON(w, http.StatusOK, runner.NativeReleaseExecution{Workspace: prepared, Environment: selected})
+}
+
+// Only static native stage names cross this boundary. Do not include provider
+// stderr, paths, environment values or credentials in preparation diagnostics.
+func respondNativePreparationFailure(w http.ResponseWriter, status int, stage, message string) {
+	respondJSON(w, status, map[string]string{"error": message, "code": "native_preparation_" + stage})
 }
