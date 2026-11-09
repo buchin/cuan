@@ -696,3 +696,50 @@ qualifiers, unconditional bans and original-task restrictions remain binding;
 verification intent is still forcibly read-only/no-push/no-deploy. Targeted
 executionpolicy/task tests and real server independent-source/owner-scope
 regressions pass. This does not waive the rejected source's implementation gaps.
+
+## Dev-to-verifier dependency reuse optimization
+
+Analysis of the runner lifecycle identified repeated dependency installation
+overhead between the developer workspace (`PrepareTaskWorkspace`) and the
+independent verifier snapshot (`PrepareVerificationSnapshot`). Specifically,
+npm frontend dependency preparation (`prepareInspectionDependencies`) runs
+`npm ci --ignore-scripts --prefer-offline` from scratch, unpacking archives into
+`node_modules` and taking approximately 34.5 seconds (observed at 19:41:47.952
+through 19:42:22.497 in attempt `att_d5470bf99f98d16fcea8112a7efcee4e`).
+Because `PrepareVerificationSnapshot` creates a clean clone of the committed
+source tree, untracked directories (`node_modules`) are excluded, forcing the
+subsequent verifier session to repeat the full extraction even when the
+underlying `package.json` and `package-lock.json` are completely unchanged.
+
+The smallest proven-useful optimization has been implemented in the runner
+lifecycle:
+1. Lockfile and manifest fingerprinting: `prepareInspectionDependencies` computes the
+   SHA-256 digest of both `package.json` and `package-lock.json`, recording
+   `.cuan-lock-fingerprint` within the verified `node_modules`. If the directory
+   exists as a regular directory and its fingerprint matches both manifest and lockfile,
+   and `git check-ignore` confirms `node_modules/` is ignored by the repository,
+   `npm ci` is safely skipped.
+2. Verified snapshot seeding: upon preparing the verifier snapshot in
+   `runner.go`, `seedWarmDependencies` inspects the originating task workspace.
+   Before attempting warm seeding, it validates that `git check-ignore` ignores
+   `node_modules/` in the target repository. If the source `node_modules` holds a
+   verified fingerprint matching the target's committed manifest and lockfile,
+   dependencies are independently copied into the snapshot (`copyRegularFile` in
+   `copyDirectoryIndependent`). Hardlinks across workspaces are strictly forbidden
+   so that mutations or writes in the verifier snapshot cannot alter files in the
+   developer workspace.
+3. Invalidation: if `package.json` or `package-lock.json` was altered in the commit,
+   the fingerprint is missing/tampered, or `node_modules` is not ignored, seeding
+   does not occur and the runner executes a clean `npm ci`.
+4. Isolation & security: the snapshot remains an independent directory under its
+   own lease (`AcquireVerificationLease`). Symlinks across workspaces and shared
+   directories remain strictly rejected by `check-ignore` and directory mode
+   checks. Files use independent inodes, avoiding shared writable hardlinks.
+   No duplicate global cache mechanisms or whole-workspace reuses are
+   introduced.
+
+Targeted tests (`TestDependencyReuse*`, `TestWarmMustRetainIgnoredOutputGuard`,
+`TestWarmMustValidateChangedManifest`) prove warm reuse in the same workspace,
+warm seeding from dev to verifier snapshot, invalidation on manifest and lockfile change,
+guard enforcement against unignored node_modules, rejection of shared symlinks,
+and full workspace mutation isolation (`TestDependencyReuseIsolationTargetModificationDoesNotAffectSource`).
