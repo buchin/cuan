@@ -766,16 +766,18 @@ func TestRunner_MultiLaneQueue_Concurrency(t *testing.T) {
 }
 
 type blockingMockAdapter struct {
-	executingCode chan struct{}
-	executingOps  chan struct{}
-	releaseCode   chan struct{}
-	releaseOps    chan struct{}
+	executingCode  chan struct{}
+	executingOps   chan struct{}
+	releaseCode    chan struct{}
+	releaseOps     chan struct{}
+	codeWorkingDir string
 }
 
 func (b *blockingMockAdapter) Name() string             { return "agy" }
 func (b *blockingMockAdapter) Version() (string, error) { return "1.0.0", nil }
 func (b *blockingMockAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
 	if req.TaskID == "task_code_d" {
+		b.codeWorkingDir = req.WorkingDir
 		close(b.executingCode)
 		select {
 		case <-b.releaseCode:
@@ -870,11 +872,18 @@ func TestRunner_Daemon_ParallelLanesExecution(t *testing.T) {
 		RunnerID:        "daemon_test_runner",
 		RunnerServerURL: ts.URL,
 		RunnerInterval:  100 * time.Millisecond,
+		WorkspacesDir:   filepath.Join(t.TempDir(), "workspaces"),
 	}
 	r := NewRunner(cfg, adapter, ts.Client())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	t.Cleanup(func() {
+		cancel()
+		if !r.WaitForInFlight(3 * time.Second) {
+			t.Error("fixture runner did not stop before temporary workspace cleanup")
+		}
+	})
 
 	// 1. First poll: Code lane available, claims code task
 	r.pollAndExecute(ctx)
@@ -883,6 +892,12 @@ func TestRunner_Daemon_ParallelLanesExecution(t *testing.T) {
 		t.Log("✓ Daemon started Code Task in background goroutine")
 	case <-time.After(3 * time.Second):
 		t.Fatal("Timeout waiting for code task to start")
+	}
+	if !strings.HasPrefix(adapter.codeWorkingDir, cfg.WorkspacesDir+string(filepath.Separator)) {
+		t.Fatal("daemon fixture generated its checkout outside the temporary workspace", adapter.codeWorkingDir)
+	}
+	if _, err := os.Stat(filepath.Join(adapter.codeWorkingDir, ".git")); err != nil {
+		t.Fatal("fixture did not use a real isolated checkout", err)
 	}
 
 	// 2. Second poll: While Code task is RUNNING, Ops lane is free -> claims ops task concurrently!

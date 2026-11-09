@@ -103,3 +103,21 @@ attributed to source compaction. The lifecycle is installed and verified through
 fixtures/production retention scans; substantial source reclamation remains
 unproven until real snapshots qualify. Retained Git object growth and unknown
 generated runtime data still require further work.
+
+## Runner fixture pollution root cause
+
+The publication benchmark snapshot's ignored `internal/runner/data/` contains
+the `task_code_d` fixture checkout. The same output exists locally.
+`TestRunner_Daemon_ParallelLanesExecution` omitted `WorkspacesDir`, so the
+workspace manager used its relative `data/workspaces` default inside the package.
+These unknown files correctly prevented accepted-source cleanup.
+
+The test now uses `t.TempDir()` and waits for its in-flight runner work before
+temporary-directory cleanup. It asserts the actual code checkout is beneath the
+configured temporary root and contains `.git`, retaining the two-lane concurrency
+assertions. The targeted test passed. A compiled test binary also passed when
+executed from a new empty directory, with an explicit check that no relative
+`data` directory was created. Both temporary binary and empty directory were
+removed. Historical fixture directories were preserved; no cleanup whitelist or
+acceptance rule was relaxed. This prevents new fixture pollution, not proof of
+production reclamation or a repair of all unknown historical outputs.
