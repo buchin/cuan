@@ -54,6 +54,9 @@ func (c *Client) PrepareReleaseWorkspace(ctx context.Context, source, destinatio
 		if err := validate(destination); err != nil {
 			return "", err
 		}
+		if err := c.completeReleaseCommitHistory(ctx, source, destination, targetCommit); err != nil {
+			return "", err
+		}
 		return destination, nil
 	} else if !os.IsNotExist(err) {
 		return "", err
@@ -80,6 +83,9 @@ func (c *Client) PrepareReleaseWorkspace(ctx context.Context, source, destinatio
 	}
 	raw, _ := json.Marshal(binding)
 	if err := os.WriteFile(filepath.Join(prepared, ".git", "cuan-release-workspace.json"), raw, 0600); err != nil {
+		return "", err
+	}
+	if err := c.completeReleaseCommitHistory(ctx, source, prepared, targetCommit); err != nil {
 		return "", err
 	}
 	if err := validate(prepared); err != nil {
