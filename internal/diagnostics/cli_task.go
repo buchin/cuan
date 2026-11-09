@@ -164,6 +164,26 @@ func runTaskList(ctx context.Context, args []string, out, errOut io.Writer) int 
 		return 1
 	}
 
+	effectiveLimit := *limitFlag
+	if effectiveLimit <= 0 {
+		effectiveLimit = 20
+	} else if effectiveLimit > 100 {
+		effectiveLimit = 100
+	}
+
+	if resMap, ok := res.(map[string]any); ok {
+		if rawTasks, ok := resMap["tasks"].([]map[string]any); ok && len(rawTasks) > effectiveLimit {
+			resMap["tasks"] = rawTasks[:effectiveLimit]
+			resMap["total"] = len(resMap["tasks"].([]map[string]any))
+		} else if rawTasks, ok := resMap["tasks"].([]TaskSummary); ok && len(rawTasks) > effectiveLimit {
+			resMap["tasks"] = rawTasks[:effectiveLimit]
+			resMap["total"] = len(resMap["tasks"].([]TaskSummary))
+		} else if rawTasks, ok := resMap["tasks"].([]any); ok && len(rawTasks) > effectiveLimit {
+			resMap["tasks"] = rawTasks[:effectiveLimit]
+			resMap["total"] = len(resMap["tasks"].([]any))
+		}
+	}
+
 	if *jsonFlag {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
@@ -185,8 +205,8 @@ func runTaskList(ctx context.Context, args []string, out, errOut io.Writer) int 
 		}
 	}
 
-	if *limitFlag > 0 && len(tasks) > *limitFlag {
-		tasks = tasks[:*limitFlag]
+	if effectiveLimit > 0 && len(tasks) > effectiveLimit {
+		tasks = tasks[:effectiveLimit]
 	}
 
 	fmt.Fprintf(out, "Found %d task(s):\n\n", len(tasks))

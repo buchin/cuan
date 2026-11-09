@@ -184,6 +184,12 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		tasks = []*task.TaskItemResponse{}
 	}
 
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 && len(tasks) > limit {
+			tasks = tasks[:limit]
+		}
+	}
+
 	if err := s.projectTaskReviewFindings(r.Context(), tasks); err != nil {
 		respondJSONError(w, 503, "Could not read task review findings")
 		return

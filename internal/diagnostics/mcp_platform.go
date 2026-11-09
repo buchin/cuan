@@ -192,8 +192,10 @@ type TaskSummary struct {
 
 // ListTasks lists tasks with optional project and status filters.
 func ListTasks(ctx context.Context, projectID, status string, limit int) (any, error) {
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 20
+	} else if limit > 100 {
+		limit = 100
 	}
 	// A configured Owner endpoint is authoritative. Do not replace a remote
 	// failure with local database contents or a fabricated empty task board.
@@ -201,6 +203,9 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 		tasks, err := client.ListTasks(ctx, projectID, status, limit)
 		if err != nil {
 			return nil, fmt.Errorf("Cuan connection unavailable; task list could not be confirmed")
+		}
+		if limit > 0 && len(tasks) > limit {
+			tasks = tasks[:limit]
 		}
 		for _, item := range tasks {
 			redactTaskDiagnostic(item)
@@ -264,6 +269,9 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 	}
 	if tasks == nil {
 		tasks = []TaskSummary{}
+	}
+	if limit > 0 && len(tasks) > limit {
+		tasks = tasks[:limit]
 	}
 
 	return map[string]any{
