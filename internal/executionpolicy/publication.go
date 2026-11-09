@@ -15,6 +15,11 @@ type PublicationPolicy struct {
 // A semicolon starts a separate scope clause, just like a sentence boundary.
 // Do not let "tidak melakukan copy; ... native deploy" prohibit publication.
 var publicationProhibition = regexp.MustCompile(`(?i)\b(?:jangan|dilarang|tanpa|tidak|do not|don't|must not|never|no)\b[^;\n.!?]{0,400}`)
+
+// An explicit subsequent imperative starts a new clause. In particular,
+// "tidak menyalin ... lalu lakukan deployment" does not prohibit deployment.
+// Any prohibition before the transition is still evaluated independently.
+var publicationClauseTransition = regexp.MustCompile(`(?i)\b(?:(?:lalu|kemudian)\s+(?:lakukan|jalankan)|then\s+(?:perform|execute|run))\b`)
 var repositoryTarget = regexp.MustCompile(`(?i)\b(?:repo|repository|repositori|git|kode|code)\b`)
 var pushAction = regexp.MustCompile(`(?i)\b(?:push|publishing|publish)\b`)
 var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspection|investigasi|pemeriksaan)\s+(?:read[ -]only|baca[ -]saja)\b|\bread[ -]only\s+(?:audit|investigation|inspection)\b|\b(?:repository|repositori|repo)\s+(?:is |must remain |harus tetap )?read[ -]only\b|^\s*(?:scope|batasan)\s*:\s*read[ -]only\b)`)
@@ -36,7 +41,8 @@ func FromInstructions(instructions string) PublicationPolicy {
 	if policy.ReadOnlyRepository {
 		policy.DenyPush, policy.DenyDeploy = true, true
 	}
-	for _, clause := range publicationProhibition.FindAllString(instructions, -1) {
+	clauses := publicationClauseTransition.ReplaceAllString(instructions, "\n$0")
+	for _, clause := range publicationProhibition.FindAllString(clauses, -1) {
 		policy.DenyPush = policy.DenyPush || pushAction.MatchString(clause)
 		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !((inspectBehaviorLimit.MatchString(clause) || publicationEvidenceLimit.MatchString(clause)) && managedPublicationRequested(instructions)))
 	}

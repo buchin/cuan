@@ -15,6 +15,16 @@ func TestBackendVerifierOriginalAuthorizationRetainsNativePublication(t *testing
 	}
 }
 
+func TestBackendVerifierSavedCorrectionRetainsNativePublication(t *testing.T) {
+	raw, err := os.ReadFile("testdata/backend_verifier_correction_revision.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := FromInstructions(string(raw)); got.ReadOnlyRepository || got.DenyPush || got.DenyDeploy {
+		t.Fatalf("saved correction incorrectly prohibited publication: %+v", got)
+	}
+}
+
 func TestTaskPublicationPolicyRestrictsOnly(t *testing.T) {
 	for _, c := range []struct {
 		text         string
@@ -93,6 +103,11 @@ func TestPublicationEvidenceCautionIsNotBlanketDeploymentBan(t *testing.T) {
 		{"DoD: tests membuktikan backend tidak melakukan copy, kebutuhan frontend tetap dipenuhi, dan lease gagal tidak memutasi snapshot; immutable source dan invalidasi fingerprint tetap terjaga; verifier independen memeriksa DoD asli; native deploy dan exact health untuk perubahan kode.", false},
 		{"Do not push; deploy the verified correction to production.", false},
 		{"Do not push; do not deploy. Deploy production.", true},
+		{"Rekonsiliasi perubahan dengan baseline, jalankan verifikasi independen untuk memastikan verifier backend tidak menyalin node_modules dan verifikasi frontend tetap lengkap, lalu lakukan deployment native dan pemeriksaan health check pada rilis baru.", false},
+		{"Do not copy node_modules, then perform deployment through the approved release.", false},
+		{"Jangan deploy, lalu lakukan pemeriksaan health. Deploy native.", true},
+		{"Do not deploy, then execute health checks. Deploy production.", true},
+		{"Jangan ubah kode, push, deploy, lalu lakukan pemeriksaan hasil.", true},
 		{"Jangan mengulang broad suite atau deploy hanya demi bukti bila bukti native yang sah sudah ada.", true},
 		{"Jangan deploy. Jangan mengulang deploy hanya demi bukti. Deploy native setelah verifikasi.", true},
 		{"Jangan mengulang broad suite atau deploy hanya demi bukti atau mengubah produksi. Deploy native setelah verifikasi.", true},

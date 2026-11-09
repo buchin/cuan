@@ -41,3 +41,22 @@ a semicolon does not implicitly prohibit a separately requested deployment.
 All executionpolicy tests and targeted attempt-boundary tests pass. This second
 correction still requires production rollout and readback before claiming the
 original task's publication path is restored.
+
+## Subsequent imperative is a separate clause
+
+The PM's corrective revision for the same task included "verifier backend tidak
+menyalin node_modules dan verifikasi frontend tetap lengkap, lalu lakukan
+deployment native ...". The native diagnostic again showed deny_deploy=true.
+A negated copy operation consumed the subsequent positive publication imperative.
+The parser now treats explicit "lalu/kemudian lakukan/jalankan" and "then
+perform/execute/run" transitions as clause boundaries. An earlier publication
+ban remains binding. Both the complete saved corrective revision and compact
+English/Indonesian clause fixtures pass, alongside explicit ban/list regressions.
+
+Developer attempt att_d4482fcf6715cd4181953146ec198615 retained clean checkpoint
+cfb95cd729541f6e0100d8ff5f684447554e0b98 but failed the required ancestry check:
+it did not contain pinned baseline 8869c6ff47dcb7d3fbb4dbe2cd95a83322eafdd7.
+Root's factual steering arrived too late; the adapter recorded a follow-up after
+termination. PM automatically admitted attempt att_ca1022be1721c7694e5d284918b85e89
+for reconciliation. Neither this retained source nor that admission proves a
+complete result. The clause-boundary correction still needs rollout/readback.
