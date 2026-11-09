@@ -555,3 +555,34 @@ send, retry, manual status update or additional steering was used for this
 handoff. Prior source timeout and successful negative inspection remain intact.
 This proves recovery of the stranded decision, not completion of the still-
 running dependency optimization or fully autonomous readiness.
+
+## Steering transport could acknowledge a write without PTY delivery
+
+Fural's AGY seed uses a text write followed by CR Enter after 120 ms. Cuan's
+interactive and detached steering paths sent LF; its terminal split a trailing
+keypress after only 25 ms. These are distinct keys in a raw TUI, so this was a
+concrete mismatch, not proof of how a particular old model turn behaved.
+
+A new real raw-PTY test then reproduced another failure even with CR: the
+socket-only sender closed immediately after writing, while the bridge first
+wrote retained scrollback. A peer close could terminate that history write
+before the bridge read stdin. Existing socket tests checked only that the
+sender returned no error and did not establish delivery. Thus an earlier
+`delivered` acknowledgement is not evidence that the provider received the
+checkpoint request; the actual contribution to the original timeout is unknown.
+
+Steering now sends CR in all three paths. The shared terminal input writer uses
+a separate Enter write after 120 ms. Socket steering sends a framed stdin
+request with a random correlation ID, drains the history stream and waits for
+the matching acknowledgement after the full PTY input write. It rejects failed,
+missing or foreign acknowledgements and never resends automatically on uncertain
+observation. Old detached workers may receive the framed input but cannot issue
+this acknowledgement; keep that uncertainty visible until those sessions end.
+
+The real Linux PTY fixture uses noncanonical input with CR/LF translation
+disabled, accepts only CR as submit, and verifies exact multibyte/multiline input
+including leading whitespace and literal JSON-shaped text through the actual
+detached socket bridge. Missing/foreign/rejected receipt tests pass. The complete
+terminal package and targeted detached-steering, heartbeat and final-report-stop
+runner regressions pass. This fixes transport semantics, not an AI-consumption
+receipt or proof of autonomous task completion. Production rollout is pending.

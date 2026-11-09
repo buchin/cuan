@@ -420,10 +420,10 @@ func (r *Runner) SteerAttempt(attemptID, prompt string) error {
 
 	// For detached worker processes, forward steering prompt via Unix domain socket bridge
 	if terminal.SocketExists(attemptID) {
-		return terminal.SendSocketInput(attemptID, prompt+"\n")
+		return terminal.SendSocketInput(attemptID, prompt+"\r")
 	}
 	if act.attempt != nil && terminal.SocketExists(act.attempt.TaskID) {
-		return terminal.SendSocketInput(act.attempt.TaskID, prompt+"\n")
+		return terminal.SendSocketInput(act.attempt.TaskID, prompt+"\r")
 	}
 
 	return errors.New("agent adapter does not support interactive steering")
@@ -1602,7 +1602,7 @@ func (r *Runner) executeWithPTY(
 
 	// Register steering function
 	steerFunc := func(steerPrompt string) error {
-		_, wErr := sess.WriteInput("steer", []byte(steerPrompt+"\n"))
+		_, wErr := sess.WriteInput("steer", []byte(steerPrompt+"\r"))
 		return wErr
 	}
 

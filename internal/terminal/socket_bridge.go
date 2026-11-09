@@ -2,6 +2,8 @@ package terminal
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -232,7 +234,15 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 							}
 						case "stdin", "input":
 							if msg.Data != "" {
-								_, _ = sb.session.WriteInput(subID, []byte(msg.Data))
+								written, writeErr := sb.session.WriteInput(subID, []byte(msg.Data))
+								if msg.RequestID != "" && len(msg.RequestID) <= 128 {
+									mode := "accepted"
+									if writeErr != nil || written != len(msg.Data) {
+										mode = "failed"
+									}
+									ack, _ := json.Marshal(TerminalMessage{Type: "stdin_ack", Mode: mode, RequestID: msg.RequestID})
+									_, _ = conn.Write(append(ack, '\n'))
+								}
 							}
 						case "ping":
 							_, _ = conn.Write([]byte("{\"type\":\"pong\"}\n"))
@@ -282,7 +292,9 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 	<-done
 }
 
-// SendSocketInput connects to the Unix domain socket for a task or attempt and delivers raw input bytes.
+// SendSocketInput confirms delivery to the PTY, not merely a socket write.
+// Keep reading the initial history while awaiting this request's acknowledgement.
+// An observation failure is uncertain delivery; never automatically resend it.
 func SendSocketInput(taskOrAttemptID, input string) error {
 	sockPath := SocketPath(taskOrAttemptID)
 	conn, err := net.DialTimeout("unix", sockPath, 2*time.Second)
@@ -290,9 +302,41 @@ func SendSocketInput(taskOrAttemptID, input string) error {
 		return fmt.Errorf("dial terminal socket %s: %w", sockPath, err)
 	}
 	defer conn.Close()
-
-	if _, err := conn.Write([]byte(input)); err != nil {
+	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		return err
+	}
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return err
+	}
+	id := hex.EncodeToString(nonce[:])
+	payload, err := json.Marshal(TerminalMessage{Type: "stdin", Data: input, RequestID: id})
+	if err != nil {
+		return err
+	}
+	if _, err := conn.Write(append(payload, '\n')); err != nil {
 		return fmt.Errorf("write to terminal socket %s: %w", sockPath, err)
 	}
-	return nil
+	accepted, _ := json.Marshal(TerminalMessage{Type: "stdin_ack", Mode: "accepted", RequestID: id})
+	failed, _ := json.Marshal(TerminalMessage{Type: "stdin_ack", Mode: "failed", RequestID: id})
+	var tail []byte
+	buffer := make([]byte, 4096)
+	for {
+		count, readErr := conn.Read(buffer)
+		if count > 0 {
+			tail = append(tail, buffer[:count]...)
+			if bytes.Contains(tail, accepted) {
+				return nil
+			}
+			if bytes.Contains(tail, failed) {
+				return fmt.Errorf("terminal input was rejected by the PTY")
+			}
+			if len(tail) > 8192 {
+				tail = tail[len(tail)-8192:]
+			}
+		}
+		if readErr != nil {
+			return fmt.Errorf("terminal input delivery was not acknowledged; inspect the current session before retrying: %w", readErr)
+		}
+	}
 }

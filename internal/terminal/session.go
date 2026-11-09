@@ -210,7 +210,7 @@ func (s *Session) WriteInput(subID string, data []byte) (int, error) {
 		if err != nil {
 			return n1, err
 		}
-		time.Sleep(25 * time.Millisecond)
+		time.Sleep(120 * time.Millisecond)
 		n2, err := s.pty.Write(data[len(data)-1:])
 		return n1 + n2, err
 	}

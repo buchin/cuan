@@ -29,15 +29,16 @@ const (
 
 // TerminalMessage represents control payloads exchanged over the WebSocket connection.
 type TerminalMessage struct {
-	Type     string `json:"type"`              // "resize", "stdin", "input", "mode", "ping", "pong", "connected", "error", "status"
-	Cols     uint16 `json:"cols,omitempty"`    // for "resize"
-	Rows     uint16 `json:"rows,omitempty"`    // for "resize"
-	Data     string `json:"data,omitempty"`    // for "stdin" / "input"
-	Mode     string `json:"mode,omitempty"`    // for "mode" ("watch" | "interactive")
-	Message  string `json:"message,omitempty"` // for "error" or info
-	TaskID   string `json:"task_id,omitempty"`
-	Session  string `json:"session_id,omitempty"`
-	Sequence uint64 `json:"sequence,omitempty"`
+	Type      string `json:"type"`              // "resize", "stdin", "input", "mode", "ping", "pong", "connected", "error", "status"
+	Cols      uint16 `json:"cols,omitempty"`    // for "resize"
+	Rows      uint16 `json:"rows,omitempty"`    // for "resize"
+	Data      string `json:"data,omitempty"`    // for "stdin" / "input"
+	Mode      string `json:"mode,omitempty"`    // for "mode" ("watch" | "interactive")
+	Message   string `json:"message,omitempty"` // for "error" or info
+	TaskID    string `json:"task_id,omitempty"`
+	Session   string `json:"session_id,omitempty"`
+	Sequence  uint64 `json:"sequence,omitempty"`
+	RequestID string `json:"request_id,omitempty"` // private socket input acknowledgement
 }
 
 // HandlerConfig provides dependencies for the terminal WebSocket handler.

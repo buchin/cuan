@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"os"
 	"path/filepath"
@@ -9,6 +10,48 @@ import (
 	"testing"
 	"time"
 )
+
+func TestSocketInputRequiresMatchingDeliveryAcknowledgement(t *testing.T) {
+	for _, scenario := range []string{"no acknowledgement", "wrong request", "rejected"} {
+		t.Run(scenario, func(t *testing.T) {
+			id := strings.ReplaceAll(t.Name(), "/", "-")
+			path := SocketPath(id)
+			listener, err := net.Listen("unix", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			defer os.Remove(path)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				connection, err := listener.Accept()
+				if err != nil {
+					return
+				}
+				defer connection.Close()
+				_ = connection.SetDeadline(time.Now().Add(2 * time.Second))
+				var request TerminalMessage
+				if json.NewDecoder(connection).Decode(&request) != nil {
+					return
+				}
+				// A socket accepting bytes is not evidence of a PTY write.
+				if scenario == "no acknowledgement" {
+					return
+				}
+				ack := TerminalMessage{Type: "stdin_ack", RequestID: request.RequestID, Mode: "failed"}
+				if scenario == "wrong request" {
+					ack.RequestID, ack.Mode = "another-input", "accepted"
+				}
+				_ = json.NewEncoder(connection).Encode(ack)
+			}()
+			if err := SendSocketInput(id, "approved instruction\r"); err == nil {
+				t.Fatal("socket write was incorrectly reported as delivered")
+			}
+			<-done
+		})
+	}
+}
 
 func TestSocketBridge_LifecycleAndStreaming(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "cuan-bridge-test-*")

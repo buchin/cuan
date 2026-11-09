@@ -93,6 +93,15 @@ bound agent through its task tool, or by the user; an exit code alone does not f
 
 ## Sessions and terminal
 
+Programmatic steering uses the terminal's Enter key (`CR`) after the pasted
+prompt. The socket sender drains initial history and waits for a matching
+acknowledgement that the bridge wrote the full input into the PTY. That receipt
+does not prove the AI has consumed or acted on the instruction. An interrupted
+connection or an older worker without acknowledgement support is uncertain
+delivery: inspect the existing task/session before retrying; do not blindly
+resend a potentially consequential instruction. Live terminal bytes and ordinary
+keyboard input remain separate from diagnostic-log filtering.
+
 **Detail** lists durable attempts, status, timestamps, exit code, and errors.
 Opening a session navigates to `/tasks/{taskId}/sessions/{attemptId}`. Each session
 has its own shareable/reloadable page with the terminal and that attempt's recorded
