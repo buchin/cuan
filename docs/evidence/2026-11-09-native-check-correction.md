@@ -362,3 +362,26 @@ eligible. Targeted server tests cover both developer and live-inspection claims,
 the real Indonesian constraints, English variants and positive/attachment cases.
 The already-started attempt retains its historical classification; no restart or
 manual completion was used to make it appear corrected.
+
+The official release of the second classifier fix,
+`6ac7bf385883f9be6fd52b90ce68cecf9032cd3d`, completed November 9 at
+11:47:29 UTC. Release duration was 187.5 seconds, exit zero, source unchanged,
+38 migrations, and production health matched that exact commit. Readback then
+showed the same developer attempt still running with a renewed lease; deployment
+did not require restarting or resending this task. Final acceptance remains
+unproven.
+
+Saved log timestamps bound irrelevant frontend preparation to 19:41:47.952
+through the agent-start stage at 19:42:22.497 (+08), approximately 34.5 seconds.
+This is observed preparation overhead, not a measured future speedup and not
+evidence that every npm installation takes that time.
+
+Further comparison found that Cuan already installs AGY once under the service
+user's `.local` prefix (`scripts/setup-agent-runtime.py`), verifies its downloaded
+binary against the provider manifest (`scripts/install-antigravity.py`), and
+selects separate account homes through `AntigravityProfileEnvironment`.
+Consequently Fural's managed per-member CLI deduplication is not evidence that
+Cuan needs another binary cache: no equivalent per-account CLI duplication has
+been established. Prioritize the measured workspace/dependency paths rather than
+adding that mechanism speculatively. Account-specific credentials/configuration
+must remain separate from shared executable installations.
