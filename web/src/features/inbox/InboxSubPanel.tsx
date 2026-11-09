@@ -14,7 +14,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Bot, User, Archive, CheckCheck, Plus, AlertCircle } from 'lucide-react'
+import { Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
@@ -133,7 +133,16 @@ export function ConversationItem({
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const reviewTasks = Number(contact.review_tasks) || 0
   const failedTasks = Number(contact.failed_tasks) || 0
-  const progress = { total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0), done: contact.done_tasks, canceled: contact.canceled_tasks, active: activeTasks, queued: contact.queued_tasks, review: reviewTasks, blocked: contact.failed_tasks }
+  const doneTasks = typeof contact.done_tasks === 'number' ? contact.done_tasks : Number(contact.done_tasks) || 0
+  const progress = {
+    total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0),
+    done: doneTasks,
+    canceled: contact.canceled_tasks,
+    active: activeTasks,
+    queued: typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0,
+    review: reviewTasks,
+    blocked: failedTasks,
+  }
   const showProgress = !!taskProgressModel(progress)
   const hasActiveWork = activeTasks > 0
   const isAgentConnectionIssue =
@@ -234,29 +243,6 @@ export function ConversationItem({
           <p className="text-sm text-muted-foreground dark:text-zinc-400 line-clamp-1 leading-normal">
             {conversationPreview(contact.last_message, contact, t)}
           </p>
-
-          {(hasActiveWork || reviewTasks > 0 || failedTasks > 0) && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
-              {failedTasks > 0 && (
-                <span data-testid="task-badge-attention" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <AlertCircle aria-hidden="true" className="h-3 w-3 text-[color:var(--status-warning)]" />
-                  <span>{t('{{count}} work paused').replace('{{count}}', String(failedTasks))}</span>
-                </span>
-              )}
-              {hasActiveWork && (
-                <span
-                  data-testid="task-badge-active"
-                  aria-label={`${activeTasks} active tasks`}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
-                >
-                  <StatusDot status="working" size="xs" pulse />
-                  <span data-testid="task-count-badge">{activeTasks} {t('bekerja')}</span>
-                </span>
-              )}
-              {reviewTasks > 0 && <span data-testid="task-badge-review" className="text-xs text-muted-foreground">{reviewTasks} {t('meninjau hasil')}</span>}
-
-            </div>
-          )}
 
           {isAgentConnectionIssue && (
             <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">

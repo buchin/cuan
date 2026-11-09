@@ -39,10 +39,18 @@ export function TaskProgress({ className, ...counts }: TaskProgressCounts & { cl
   useEffect(()=>{if(!model)close()},[!!model])
   if (!model) return null
   const format=new Intl.NumberFormat(language)
-  const label=t('{{done}} of {{total}} tasks completed').replace('{{done}}',format.format(model.done)).replace('{{total}}',format.format(model.total))
-    +(model.canceled>0?' · '+t('{{count}} canceled').replace('{{count}}',format.format(model.canceled)):'')
+  const label=model.complete
+    ? (model.mixed ? t('All remaining work completed') : t('All tasks completed'))
+    : model.total === 1 && model.active > 0
+    ? t('Task in progress')
+    : model.done > 0
+    ? t('{{done}} of {{total}} tasks completed').replace('{{done}}',format.format(model.done)).replace('{{total}}',format.format(model.total))
+      +(model.canceled>0?' · '+t('{{count}} canceled').replace('{{count}}',format.format(model.canceled)):'')
+    : t('{{count}} tasks in progress').replace('{{count}}',format.format(model.active || model.total))
   const angle=model.fraction*Math.PI*2,x=8+4.5*Math.sin(angle),y=8-4.5*Math.cos(angle)
   const leave=()=>{if(!pinned){clear();timer.current=setTimeout(()=>close(),150)}}
+  const isPulsing = !model.complete && (model.active > 0)
+  const isSingle = model.total === 1 && !model.complete
   return <>
     <button ref={trigger} type="button" data-task-progress-trigger data-task-progress={model.mixed?'complete-with-cancellations':model.complete?'complete':'partial'}
       aria-label={label} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?id:undefined}
@@ -52,10 +60,20 @@ export function TaskProgress({ className, ...counts }: TaskProgressCounts & { cl
       onMouseEnter={()=>{if(matchMedia('(hover: hover) and (pointer: fine)').matches){clear();setOpen(true)}}} onMouseLeave={leave}
       onClick={event=>{event.preventDefault();event.stopPropagation();clear();if(open&&pinned)close();else{setPinned(true);setOpen(true)}}}>
       <span aria-hidden="true" className="inline-flex h-4 w-4">
-        {model.complete&&!model.mixed?<CheckCircle2 className="h-full w-full" strokeWidth={1.75}/>:<svg viewBox="0 0 16 16" className="h-full w-full">
-          <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.65"/>
-          {model.mixed?<circle cx="8" cy="8" r="4.5" fill="currentColor"/>:<path d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${model.fraction>0.5?1:0} 1 ${x} ${y} Z`} fill="currentColor"/>}
-        </svg>}
+        {model.complete&&!model.mixed?(
+          <CheckCircle2 className="h-full w-full" strokeWidth={1.75}/>
+        ):isSingle?(
+          <svg viewBox="0 0 16 16" className={cn("h-full w-full", isPulsing && "task-pulse-subtle animate-pulse")}>
+            <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-80"/>
+          </svg>
+        ):(
+          <svg viewBox="0 0 16 16" className={cn("h-full w-full", isPulsing && "task-pulse-subtle animate-pulse")}>
+            <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.65"/>
+            {model.mixed?<circle cx="8" cy="8" r="4.5" fill="currentColor"/>:model.fraction>0?(
+              <path d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${model.fraction>0.5?1:0} 1 ${x} ${y} Z`} fill="currentColor"/>
+            ):null}
+          </svg>
+        )}
       </span>
     </button>
     {open&&createPortal(<div ref={panel} id={id} role="dialog" aria-label={t('Task progress')} tabIndex={-1}

@@ -521,3 +521,27 @@ body:has(.task-terminal-container),
 .nav-action[data-nav-tone]:not([aria-current="page"]) svg,
 .bottom-navigation [data-nav-tone]:not([aria-current="page"]) svg { color: oklch(var(--muted-foreground)); opacity: 1; }
 .nav-action[data-nav-tone][aria-current="page"] { color: var(--nav-icon-color); }
+
+/* Dynamic task progress indicator subtle pulse (Things 3 & Zero Cognitive Fatigue) */
+@keyframes task-subtle-pulse {
+  0%, 100% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+}
+
+.task-pulse-subtle {
+  animation: task-subtle-pulse 2.2s ease-in-out infinite;
+  transform-origin: 8px 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-pulse-subtle {
+    animation: none;
+  }
+}
+
