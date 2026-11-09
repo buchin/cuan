@@ -32,5 +32,23 @@ worker serialization; provider acceptance followed by receipt persistence failur
 and identical retry; expiry; changed API connection; changed contact address.
 These establish application behavior under fixtures, not real customer delivery.
 
-Deployment and production scheduler observation remain pending at this entry.
-The historical target room is deliberately not used to send a test or replay mail.
+## Deployment and production observation
+
+The first release attempt0a3e2cb598e71682f87252d74dc8b2bf01728550 stopped at its
+local activation test: readiness still expected37 migrations. It did not activate
+the email change. Commitf9dc2845550e6b8bd34e6eb88a2696faa5b21cec updates readiness
+and the supported rollback schema-count choice to38; all26 activation tests pass.
+The subsequent official release passed exact-SHA health with38 migrations at
+2026-11-09T03:23:16Z.
+
+Authenticated official MCP `list_scheduled_jobs` observed `visitor_reply_email`
+enabled and success, last_run_at2026-11-09T11:22:42.328349046+08. This proves the
+real scheduler can run the installed worker against the migrated schema; it does
+not establish that a real recipient received an email. No live test email was
+requested or sent by root. The historical target room remains65 messages with
+its same three public owner replies and no new email receipts, as expected from
+future-insert-only admission. It was not used to replay historical customer mail.
+
+The user explicitly selected unread-after-five-minutes while deployment ran.
+Live provider delivery remains unproven until a newly authorized public reply
+qualifies and its signed delivery receipt is observed.

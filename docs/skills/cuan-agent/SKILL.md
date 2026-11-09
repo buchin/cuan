@@ -861,6 +861,16 @@ changed releases, known containment and forbidden scope remain excluded.
 
 ## Installed storage maintenance
 
+Customer public-reply email uses the existing configured Resend connection.
+Only new public operator text replies to a connected CRM contact qualify, after
+five minutes without confirmed visitor reading. Whispers, drafts and approval
+decisions remain private. Do not infer a destination from addresses mentioned in
+chat or claim customer delivery from an operator notification receipt. Inspect
+`cuan chat messages ROOM --json`: `email_delivery.recipient_type=visitor` is the
+customer path; `sent` means provider acceptance, `delivered` requires a signed
+provider event. Existing public replies are never backfilled by enabling this
+feature. Do not send or replay a customer message merely to test email delivery.
+
 Standalone artifact acceptance now requires a separate native verification
 attempt. A developer's harness subagent is not that attempt. Cuan reuses the
 existing manager verification continuation: the verifier receives owner-scoped
