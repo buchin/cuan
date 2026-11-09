@@ -70,3 +70,18 @@ func TestEvidenceCautionCannotRelaxOriginalPublicationBan(t *testing.T) {
 		t.Fatalf("verifier boundary relaxed: %+v", got)
 	}
 }
+
+func TestIndonesianRepeatEvidenceCautionRetainsAttemptBoundaries(t *testing.T) {
+	item := &Task{ExecutionCategory: ExecutionCategoryCode, Instructions: "Native deploy dan exact health check pada rilis baru. Jangan mengulang broad suite atau deploy hanya demi bukti bila bukti native yang sah sudah ada."}
+	launch := &TaskLaunch{Revision: "Continue original approved work."}
+	if got := launchPublicationPolicy(item, launch, false); got.ReadOnlyRepository || got.DenyPush || got.DenyDeploy {
+		t.Fatalf("repeat-effect caution blocked approved release: %+v", got)
+	}
+	if got := launchPublicationPolicy(item, launch, true); !got.ReadOnlyRepository || !got.DenyPush || !got.DenyDeploy {
+		t.Fatalf("source verifier lost independent read-only scope: %+v", got)
+	}
+	launch.Revision = "Do not deploy. Inspect the existing result only."
+	if got := launchPublicationPolicy(item, launch, false); !got.DenyDeploy {
+		t.Fatalf("original authorization overrode this attempt's explicit ban: %+v", got)
+	}
+}

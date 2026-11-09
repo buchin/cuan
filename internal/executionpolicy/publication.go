@@ -26,7 +26,7 @@ var inspectBehaviorLimit = regexp.MustCompile("(?i)^\\s*(?:jangan\\s+(?:jalankan
 // These bounded cautions prohibit an unverified/repeated effect, not all
 // publication. Recognize them only alongside a separate positive publication
 // request. Original bans, read-only scope and unknown qualifiers still win.
-var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat deployment solely to obtain evidence|jangan (?:lakukan|melakukan) deploy (?:buta|secara buta)(?: atau menandai task selesai sebelum ada bukti valid)?)\s*$`)
+var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat deployment solely to obtain evidence|jangan (?:lakukan|melakukan) deploy (?:buta|secara buta)(?: atau menandai task selesai sebelum ada bukti valid)?|jangan mengulang (?:broad suite atau )?deploy hanya demi bukti(?: bila bukti native yang sah sudah ada)?)\s*$`)
 
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
