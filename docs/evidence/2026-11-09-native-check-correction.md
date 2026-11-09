@@ -538,3 +538,42 @@ actual separate developer attempt and assert it retains the original deployment
 limits without typed inspection/verifier intent. Original timeout history remains
 failed. Targeted legacy recovery, changed/canceled-source and manager-handoff
 checks pass. Production recovery remains to be observed after release.
+
+## Dev-to-verifier dependency reuse optimization
+
+Analysis of the runner lifecycle identified repeated dependency installation
+overhead between the developer workspace (`PrepareTaskWorkspace`) and the
+independent verifier snapshot (`PrepareVerificationSnapshot`). Specifically,
+npm frontend dependency preparation (`prepareInspectionDependencies`) runs
+`npm ci --ignore-scripts --prefer-offline` from scratch, unpacking archives into
+`node_modules` and taking approximately 34.5 seconds (observed at 19:41:47.952
+through 19:42:22.497 in attempt `att_d5470bf99f98d16fcea8112a7efcee4e`).
+Because `PrepareVerificationSnapshot` creates a clean clone of the committed
+source tree, untracked directories (`node_modules`) are excluded, forcing the
+subsequent verifier session to repeat the full extraction even when the
+underlying `package-lock.json` is completely unchanged.
+
+The smallest proven-useful optimization has been implemented in the runner
+lifecycle:
+1. Lockfile fingerprinting: `prepareInspectionDependencies` computes the
+   SHA-256 digest of `package-lock.json` and records `.cuan-lock-fingerprint`
+   within the verified `node_modules`. If the directory exists as a regular
+   directory and its fingerprint matches the current lockfile, `npm ci` is
+   safely skipped.
+2. Verified snapshot seeding: upon preparing the verifier snapshot in
+   `runner.go`, `seedWarmDependencies` inspects the originating task workspace.
+   If its `node_modules` holds a verified fingerprint matching the snapshot's
+   committed lockfile, dependencies are linked/copied into the snapshot.
+3. Invalidation: if `package-lock.json` was altered in the commit or the
+   fingerprint is missing/tampered, seeding does not occur and the runner
+   executes a clean `npm ci`.
+4. Isolation & security: the snapshot remains an independent directory under its
+   own lease (`AcquireVerificationLease`). Symlinks across workspaces and shared
+   directories remain strictly rejected by `check-ignore` and directory mode
+   checks. No duplicate global cache mechanisms or whole-workspace reuses are
+   introduced.
+
+Targeted tests (`TestDependencyReuse*`) prove warm reuse in the same workspace,
+warm seeding from dev to verifier snapshot, invalidation on lockfile change,
+and rejection of shared symlinks.
+

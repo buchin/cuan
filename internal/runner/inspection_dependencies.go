@@ -58,8 +58,14 @@ func prepareInspectionDependencies(parent context.Context, root string, managedC
 		if err != nil || !manifest.Mode().IsRegular() {
 			return fmt.Errorf("verification dependency manifest must be a regular file")
 		}
-		if modules, err := os.Lstat(filepath.Join(directory, "node_modules")); err == nil && !modules.IsDir() {
-			return fmt.Errorf("verification dependencies must not use shared links")
+		lockFingerprint := dependencyLockFingerprint(raw)
+		if modules, err := os.Lstat(filepath.Join(directory, "node_modules")); err == nil {
+			if !modules.IsDir() {
+				return fmt.Errorf("verification dependencies must not use shared links")
+			}
+			if checkLockfileWarm(directory, "node_modules", lockFingerprint) {
+				continue
+			}
 		}
 		ignored := exec.CommandContext(parent, "git", "-C", directory, "check-ignore", "--quiet", "--", "node_modules/")
 		if ignored.Run() != nil {
@@ -85,6 +91,9 @@ func prepareInspectionDependencies(parent context.Context, root string, managedC
 		_ = os.RemoveAll(privateHome)
 		if err != nil {
 			return fmt.Errorf("%s: %s", InspectionDependencyFailurePrefix, nativeReleaseDiagnostic(output.String(), nil))
+		}
+		if recErr := recordLockfileFingerprint(directory, "node_modules", lockFingerprint); recErr != nil {
+			return fmt.Errorf("record dependency fingerprint: %w", recErr)
 		}
 	}
 	return nil

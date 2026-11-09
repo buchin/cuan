@@ -797,7 +797,12 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			if r.gitClient == nil {
 				err = fmt.Errorf("verification snapshot client is unavailable")
 			} else {
-				workingDir, err = r.gitClient.PrepareVerificationSnapshot(ctx, workingDir, git.VerificationWorkspacePath(base, t.ID, claim.Verification.SourceCommit), claim.Verification.SourceCommit, claim.Verification.SourceCommit)
+				sourceDir := workingDir
+				targetDir := git.VerificationWorkspacePath(base, t.ID, claim.Verification.SourceCommit)
+				workingDir, err = r.gitClient.PrepareVerificationSnapshot(ctx, sourceDir, targetDir, claim.Verification.SourceCommit, claim.Verification.SourceCommit)
+				if err == nil {
+					seedWarmDependencies(sourceDir, workingDir)
+				}
 			}
 			if err == nil {
 				lease, leaseErr := git.AcquireVerificationLease(ctx, workingDir)
@@ -1020,6 +1025,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		}
 	}
 	if err == nil && claim.LiveInspection != nil && ((claim.LiveInspection.Purpose == task.CurrentOutcomeInspection && claim.RequiresVision) || claim.VisualRecipe != nil) {
+		base := r.cfg.WorkspacesDir
+		if base == "" {
+			base = filepath.Join("data", "workspaces")
+		}
+		devWorkspace := filepath.Join(base, t.ID)
+		if devWorkspace != workingDir {
+			seedWarmDependencies(devWorkspace, workingDir)
+		}
 		r.streamLogLine(ctx, att.ID, "system", "Preparing locked frontend dependencies in the private inspection snapshot.")
 		err = prepareInspectionDependencies(ctx, workingDir, managedNPMCache)
 		if err == nil {
