@@ -83,8 +83,8 @@ https://cuan.dojo.cc/inbox/b70ed3d8-ac6c-4d1f-8f62-fa1e6ec8c53a
 Request `c76ece0d-2e63-475c-91cb-f7712d198d9d` completed using supplied public
 sources; no task was created. It confirms the new operator recovery policy is
 present, but this request did not time out and does not prove automatic recovery
-in production. The answer remains too long and presents an older disk statistic
-as current without its observation time. Treat current-state grounding and
+in production. The answer remains too long and mentions disk usage without an explicit
+observation time; this trace alone does not establish that the value was stale. Treat current-state grounding and
 brevity as unresolved quality gaps. CLI observation was interrupted after30s;
 the accepted request was inspected, not sent again.
 
@@ -262,3 +262,31 @@ execution. The replacement removes only the two files created by the operation,
 then removes their empty directory. No credentials were printed.
 
 Corrective release and fresh production browser acceptance remain to be observed.
+
+## Corrective production browser acceptance
+
+Release `3be3c62ccac5508ec7b1a9271e2ce15a86914cc9` passed exact-SHA health at
+2026-11-09T08:48:27Z. The already installed official runtime was reused.
+Same room, new read-only request after the software correction:
+`a6cb5eb9-30da-40d4-9b8d-3cfd315fc6b6`.
+Created08:49:37.999949Z, completed08:50:41.085549Z (~63.1s).
+Actual `cuan-inspect/browser_fetch` executed08:50:07.726580Z–08:50:10.066810Z
+(~2.4s) and returned page text. No HTTP fallback, task creation, login or
+application mutation occurred. The reply was one sentence grounded in page
+marketing text; its50ms/10x figures are upstream claims, not our measurements.
+The failed original request is preserved as failed browser evidence even though
+that conversation turn completed honestly via HTTP fallback.
+
+Provider process duration was51.1s, including30.6s after browser completion.
+An unnecessary sensitive-file read failed before browser use (reference/content
+withheld). Neither model latency nor the full PM/dev/verifier objective is solved
+by this browser acceptance.
+
+Freshness-audit correction: source inspection confirms `getServerTelemetry`
+actually calls `getSystemResources` per project-context preparation. Earlier
+wording that its disk value was necessarily old was unsupported. The snapshot
+lacks an explicit observation timestamp; captured request evidence does not prove
+that the quoted value was stale. Further concrete grounding issues to address:
+`Live Deployment Environment` unconditionally says database=connected, and
+`getServerTelemetry` also labels a nil DB handle connected. These are code-level
+grounding gaps, not evidence that the real production database was disconnected.

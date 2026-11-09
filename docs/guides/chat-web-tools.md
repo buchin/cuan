@@ -97,8 +97,9 @@ opts into private networking; production calls never supply that option.
 
 Local native CLI/MCP use is verified. A disconnected network-namespace fixture verifies a real public-address302
 redirect to a private service, both through navigation and script fetch. The
-private service receives no requests and a public control page succeeds. Actual
-production enablement and provider-to-browser observations remain unverified.
+private service receives no requests and a public control page succeeds. Production Antigravity chat invoked browser_fetch successfully on release
+`3be3c62ccac5508ec7b1a9271e2ce15a86914cc9`. The observed tool call took about2.4s,
+while the full turn took63.1s; model latency remains unresolved.
 The current provider filesystem wiring is the existing Antigravity chat path;
 other harnesses must expose the MCP capability before advertising it.
 
