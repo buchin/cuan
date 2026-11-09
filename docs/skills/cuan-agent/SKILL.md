@@ -858,3 +858,19 @@ preserves that exact revision. Correction policy v6 permits one fresh bounded
 assessment of affected older reviews through the existing deterministic review
 queue, retaining prior failures and all acceptance gates. Missing owner input,
 changed releases, known containment and forbidden scope remain excluded.
+
+## Installed storage maintenance
+
+`cuan maintenance status` reads the actual registered storage-maintenance job
+through the configured Owner connection. `cuan maintenance run` requests only
+that existing job; it never accepts a path, shell command or alternative job ID.
+A trigger acknowledgement is not completion: poll status until `success` or
+`failed`, using `last_run_at` to distinguish an older execution. Disabled/missing
+jobs are unavailable, not successful cleanup. Bound task workers cannot use this
+Owner operation. Native workflow events and periodic schedules normally request
+maintenance automatically; the command supports diagnosis and explicit recovery.
+
+MCP `list_scheduled_jobs` now returns the actual authenticated scheduler state,
+including enabled/last status/run times. Connection/API failure is an error; the
+old fabricated list of always-active services has been removed. A successful scan
+may reclaim zero bytes when candidates are active, protected or already clean.

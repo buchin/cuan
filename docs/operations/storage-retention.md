@@ -179,3 +179,18 @@ Targeted checks cover completion-event scheduling, burst coalescing, periodic
 recovery, the existing storage floor, exact worker permission and failed rule
 validation preserving the previous rule. Application lifecycle pruning and cache
 cleanup remain distinct from task acceptance or permission to rerun a release.
+
+Native releasebae44cd33f61f6ca12bfcaa2466adfa88e633540 passed exact-SHA production
+health with37 migrations. The new installed job was observed enabled/idle through
+`cuan maintenance status`, requested through the official CLI, observed running,
+and then success with`last_run_at=2026-11-09T10:06:44.699991726+08:00`.
+Official MCP returned the same actual job state. This proves the scheduler-to-worker
+production path. Event coalescing/completion wiring is covered by isolated tests;
+it is not claimed as a fresh native production completion-event demonstration.
+
+The diagnostic tooling had supplied a static always-active scheduler list. It now
+reads the authenticated registered job API and propagates unavailable state as an
+error. The maintenance CLI acknowledges only the fixed server job request and
+checks enabled/existing state before requesting; it does not claim scan completion
+or arbitrary byte savings. Client tests cover actual failed status, API failures,
+disabled/missing jobs and an unconfirmed trigger receipt without automatic replay.

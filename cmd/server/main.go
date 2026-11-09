@@ -29,6 +29,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "maintenance" {
+		os.Exit(diagnostics.RunMaintenanceCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "taste" {
 		os.Exit(diagnostics.RunTasteCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
@@ -420,6 +423,7 @@ Usage:
   cuan chat <subcommand> [flags]
   cuan task <subcommand> [flags]
   cuan account <list|usage|models|model|fallback|verify> [arguments]
+  cuan maintenance <status|run>
   cuan taste <show|config|add>
   cuan integration github show
   cuan integration resend <show|set|validate>

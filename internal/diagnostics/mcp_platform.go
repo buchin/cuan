@@ -752,49 +752,15 @@ func GetContact(ctx context.Context, contactID string) (any, error) {
 
 // ListScheduledJobs returns scheduled background jobs and recurring automations.
 func ListScheduledJobs(ctx context.Context) (any, error) {
-	jobs := []map[string]any{
-		{
-			"name":        "inbox_dispatcher",
-			"description": "Orchestrates visitor messages, agent assignment and queue failover",
-			"interval":    "continuous",
-			"status":      "active",
-		},
-		{
-			"name":        "notification_dispatcher",
-			"description": "Processes outbound chat notifications, webhooks and alerts",
-			"interval":    "continuous",
-			"status":      "active",
-		},
-		{
-			"name":        "workspace_retention",
-			"description": "Prunes expired task worktrees, temporary mounts and cached diffs",
-			"interval":    "hourly",
-			"status":      "active",
-		},
-		{
-			"name":        "github_recovery",
-			"description": "Reconciles diverged git branches, unpushed commits and repository sync",
-			"interval":    "every 10m",
-			"status":      "active",
-		},
-		{
-			"name":        "health_poller",
-			"description": "Monitors remote worker heartbeats, daemon availability and resource limits",
-			"interval":    "every 30s",
-			"status":      "active",
-		},
-		{
-			"name":        "dns_poller",
-			"description": "Verifies custom domains, TLS certificates and Caddy reverse proxy routing",
-			"interval":    "every 5m",
-			"status":      "active",
-		},
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		return nil, fmt.Errorf("Connect Cuan to inspect actual scheduler state")
 	}
-
-	return map[string]any{
-		"jobs":  jobs,
-		"total": len(jobs),
-	}, nil
+	jobs, err := client.ScheduledJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"jobs": jobs, "total": len(jobs)}, nil
 }
 
 // GetSystemSettings returns platform telemetry, version, active agents, and environment.
