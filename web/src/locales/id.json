@@ -1701,6 +1701,8 @@
   "Close task progress": "Tutup progres tugas",
   "All remaining work completed": "Semua pekerjaan tersisa selesai",
   "All tasks completed": "Semua tugas selesai",
+  "Task in progress": "Tugas sedang berjalan",
+  "{{count}} tasks in progress": "{{count}} tugas sedang berjalan",
   "Canceled tasks are excluded from progress.": "Tugas yang dibatalkan tidak masuk perhitungan progres.",
   "{{count}} canceled": "{{count}} dibatalkan",
   "Remaining": "Belum selesai",

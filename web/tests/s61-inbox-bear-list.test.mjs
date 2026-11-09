@@ -138,15 +138,14 @@ test('4. Requirement 4: ConversationItem 3-Tier Apple Mail & Bear Inset List Arc
     'Tier 1 must format time with tabular-nums at the right side'
   )
 
-  // Tier 2: Clean typography Subject/Title & Status-by-Exception active task indicator
+  // Tier 2: Clean typography Subject/Title & right-slot TaskProgress indicator
   assert.ok(
-    subPanelContent.includes('data-testid="task-count-badge"') &&
-      subPanelContent.includes('data-testid="task-badge-active"'),
-    'Tier 2 must maintain active task indicator with data-testid="task-count-badge"'
+    subPanelContent.includes('<TaskProgress {...progress} />'),
+    'Tier 2 right slot must integrate TaskProgress indicator'
   )
   assert.ok(
-    subPanelContent.includes('<StatusDot status="working"'),
-    'Tier 2 must render StatusDot working state for active background tasks'
+    !subPanelContent.includes('data-testid="task-badge-active"'),
+    'Tier 2 must eliminate noisy text badge under message snippet'
   )
 
   // Tier 3: 1-line snippet in muted zinc-400

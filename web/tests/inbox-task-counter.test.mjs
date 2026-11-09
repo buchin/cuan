@@ -64,46 +64,47 @@ test('1. ChatContact & InboxThreadItem interfaces define task counters including
   )
 })
 
-test('2. S59-T6: InboxSubPanel eliminates 4-badge stack in favor of subtle StatusDot (Status-by-Exception)', () => {
+test('2. S59-T6: InboxSubPanel eliminates noisy badge stack; Things 3 dynamic indicator in right slot', () => {
   // Elimination of noisy multi-badge stack per thread row
   assert.ok(
     !subPanelSource.includes('data-testid="task-badge-queued"'),
-    'InboxSubPanel must eliminate queued task badge in favor of single StatusDot'
+    'InboxSubPanel must eliminate queued task badge'
   )
   assert.ok(
     !subPanelSource.includes('data-testid="task-badge-done"'),
-    'InboxSubPanel must eliminate done task badge in favor of single StatusDot'
+    'InboxSubPanel must eliminate done task badge'
   )
   assert.ok(
     !subPanelSource.includes('data-testid="task-badge-failed"'),
-    'InboxSubPanel must eliminate failed task badge in favor of single StatusDot'
+    'InboxSubPanel must eliminate failed task badge'
+  )
+  assert.ok(
+    !subPanelSource.includes('data-testid="task-badge-active"'),
+    'InboxSubPanel eliminates bottom task badge under message snippet for airy layout'
   )
 
-  // Subtle StatusDot micro-indicator for active work
+  // Dynamic right-slot indicator with TaskProgress
   assert.ok(
-    subPanelSource.includes('data-testid="task-count-badge"'),
-    'InboxSubPanel must maintain task-count-badge container'
+    subPanelSource.includes('<TaskProgress {...progress} />'),
+    'InboxSubPanel must render TaskProgress in right slot'
   )
   assert.ok(
-    subPanelSource.includes('data-testid="task-badge-active"'),
-    'InboxSubPanel must render active task indicator with testid task-badge-active'
-  )
-  assert.ok(
-    subPanelSource.includes('<StatusDot status="working"'),
-    'InboxSubPanel must render StatusDot with status="working" for active agent work'
+    subPanelSource.includes('taskProgressModel(progress)'),
+    'InboxSubPanel computes task progress model'
   )
 })
 
-test('3. S59-T6: Active work micro-indicator retains accessible attributes', () => {
+test('3. S59-T6: Right slot task progress indicator retains accessible attributes and subtle pulse', () => {
+  const taskProgressPath = path.join(__dirname, '../src/components/ui/TaskProgress.tsx')
+  const taskProgressSource = fs.readFileSync(taskProgressPath, 'utf8')
   assert.ok(
-    subPanelSource.includes('aria-label={`${activeTasks} active tasks`}'),
-    'Active task micro-indicator must include accessible aria-label'
+    taskProgressSource.includes('aria-label={label}'),
+    'TaskProgress indicator must include accessible aria-label'
   )
   assert.ok(
-    subPanelSource.includes('pulse'),
-    'Active StatusDot micro-indicator must pulse while agent is working'
+    taskProgressSource.includes('pulse'),
+    'TaskProgress indicator must pulse while task is active'
   )
-
 })
 
 test('4. InboxView synchronizes activeContact task counts and triggers refresh on task creation', () => {
