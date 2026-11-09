@@ -626,3 +626,11 @@ GOMAXPROCS=2 and -p 1 passed. This diagnoses future failures; it does not establ
 the lost historical preparation cause or fix it by assumption.
 Native corrective developer `att_dea6ef01e90f6b80a1dcc907308bf6f9` is now running
 on the original task; official logs confirm it is examining the hardlink issue.
+
+Diagnosis release `5ca49aa0fe86ac2fe32cc59001e771c867e5a04a` was pushed
+and deployed through official `cuan release run`; exact production health matched,
+38 migrations, exit 0, source unchanged. Started 13:28:14Z, finished 13:31:32Z,
+198.2 seconds. Full initial native preparation scenario group subsequently passed
+(16.998s), covering approved merge/reuse, conflict, revoked/wrong source, missing
+publication configuration/runtime/access and live-observation cases. Corrective
+dev remained running after deploy; no forced acceptance or restart was requested.
