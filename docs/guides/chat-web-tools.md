@@ -71,3 +71,15 @@ The native test first verifies default private-network rejection. Only its
 synthetic local JavaScript fixture uses a test-only private-network opt-in;
 production calls never supply that option. Full rendering, screenshots and login
 sessions are outside this anonymous text-inspection adapter.
+
+The process adapter now requires `Runtime.Sandbox` (Bubblewrap). It mounts only
+OS libraries/executables, certificate/DNS files, the selected engine and the
+call's temporary HOME. Host profiles, application data and lock file are hidden;
+`/proc` is empty. Missing sandbox support is an error, never an unsandboxed
+fallback. `Loader`/`LibraryDir` can select an explicit Cuan-managed compatibility
+bundle on musl hosts; these are application configuration, not tool inputs.
+
+The native test on a musl host also accepts explicit
+`CUAN_TEST_OBSCURA_LOADER` and `CUAN_TEST_OBSCURA_LIBRARIES`. It exercises real
+Bubblewrap, script-originated private HTTP/file rejection and JavaScript output.
+These tests do not establish redirect coverage or a ready production integration.

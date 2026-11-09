@@ -131,3 +131,35 @@ was reached, then a test-only local opt-in observed `CUAN_JS_RENDERED` after scr
 execution. This does not prove cross-subresource policy or filesystem isolation.
 The package is deliberately not advertised to the chat until the installer,
 sandbox/lock mounting and full network/lifecycle integration are verified.
+
+## Mandatory browser filesystem boundary
+
+`Runtime.Fetch` now requires a filesystem sandbox and never falls back to
+unsandboxed execution. Bubblewrap exposes only OS executables/libraries,
+certificate/DNS files, the selected engine and a writable disposable HOME.
+Provider profiles, host HOME, application data and the shared lease file stay
+outside the browser namespace. OS directories and engine are read-only; `/proc`
+is empty. Private PID/IPC/UTS namespaces and a new session remain enabled.
+An explicitly application-managed loader/library bundle supports the musl test
+host without any Fural-managed files or ambient LD_LIBRARY_PATH.
+
+Real bubblewrap tests passed: host sentinel unreadable/unchanged, Owner token
+absent, private-network opt-in forced off, `/proc/self/environ` absent and writes
+to `/usr/bin` denied. Engine absence/sandbox absence do not trigger a fallback.
+
+Official v0.2.6 additionally passed inside that boundary: direct local navigation
+rejected, a controlled local HTML script could not fetch a local HTTP endpoint or
+read a host-private file, and a separate test-only local-network opt-in rendered
+the synthetic JavaScript output. The script probes use a local HTML fixture
+without lifting network restrictions; public tool inputs cannot request local
+files, arbitrary evaluation scripts or private-network opt-ins.
+
+The engine source at v0.2.6 explicitly opts the CLI fetch context into local file
+access (`set_allow_file_access(true)`). This confirms why environment isolation
+alone was insufficient and a separate filesystem boundary is mandatory. A blank
+page was initially unsuitable for the DOM-dump probe; tests now use a complete
+controlled HTML document and require explicit ACCESS_BLOCKED markers.
+
+Remaining: redirect/network-path coverage, pinned installer, mounting the shared
+lease and runtime through the outer provider sandbox, MCP registration, and
+production observations. The feature is not yet exposed or deployed.

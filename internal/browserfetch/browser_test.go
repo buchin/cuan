@@ -19,7 +19,23 @@ func fixtureRuntime(t *testing.T, script string) Runtime {
 	if err := os.WriteFile(binary, []byte("#!/bin/sh\n"+script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	return Runtime{Binary: binary, LockFile: filepath.Join(root, "browser.lock")}
+	sandbox := filepath.Join(root, "sandbox-stub")
+	// Lifecycle fixtures bypass namespaces; real namespace tests are separate.
+	stub := `#!/bin/sh
+engine=''
+while [ "$#" -gt 0 ]; do
+ case "$1" in
+ --ro-bind) [ "$3" != /cuan-obscura ] || engine="$2"; shift 3 ;;
+ --) shift; shift; exec "$engine" "$@" ;;
+ *) shift ;;
+ esac
+done
+exit 99
+`
+	if err := os.WriteFile(sandbox, []byte(stub), 0700); err != nil {
+		t.Fatal(err)
+	}
+	return Runtime{Binary: binary, LockFile: filepath.Join(root, "browser.lock"), Sandbox: sandbox}
 }
 
 func TestBrowserInspectionIsolatesEnvironmentAndCleansStorage(t *testing.T) {

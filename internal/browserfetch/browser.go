@@ -26,6 +26,10 @@ var ErrBusy = errors.New("browser inspection is busy; use HTTP retrieval or retr
 type Runtime struct {
 	Binary   string
 	LockFile string
+	Sandbox  string
+	// Optional application-managed glibc compatibility runtime for musl hosts.
+	Loader     string
+	LibraryDir string
 }
 type Result struct {
 	URL       string `json:"url"`
@@ -92,7 +96,11 @@ func (r Runtime) fetch(ctx context.Context, rawURL string, timeout time.Duration
 	defer os.RemoveAll(home)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, r.Binary, "fetch", rawURL, "--dump", "text", "--timeout", "10", "--storage-dir", filepath.Join(home, "storage"))
+	binary, args, err := r.sandboxCommand(home, []string{"fetch", rawURL, "--dump", "text", "--timeout", "10", "--storage-dir", "/home/browser/storage"})
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = home
 	cmd.Env = []string{"HOME=" + home, "XDG_CACHE_HOME=" + filepath.Join(home, "cache"), "XDG_CONFIG_HOME=" + filepath.Join(home, "config"), "TMPDIR=" + home, "PATH=/usr/bin:/bin", "LANG=C.UTF-8", "OBSCURA_ALLOW_PRIVATE_NETWORK=0"}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
