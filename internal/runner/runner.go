@@ -794,15 +794,12 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		}
 		workingDir = filepath.Join(base, t.ID)
 		if claim.Verification.IsolatedWorkspace {
+			sourceDir := workingDir
 			if r.gitClient == nil {
 				err = fmt.Errorf("verification snapshot client is unavailable")
 			} else {
-				sourceDir := workingDir
 				targetDir := git.VerificationWorkspacePath(base, t.ID, claim.Verification.SourceCommit)
 				workingDir, err = r.gitClient.PrepareVerificationSnapshot(ctx, sourceDir, targetDir, claim.Verification.SourceCommit, claim.Verification.SourceCommit)
-				if err == nil {
-					seedWarmDependencies(sourceDir, workingDir)
-				}
 			}
 			if err == nil {
 				lease, leaseErr := git.AcquireVerificationLease(ctx, workingDir)
@@ -810,6 +807,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					err = fmt.Errorf("verification snapshot lease unavailable: %w", leaseErr)
 				} else {
 					defer lease.Close()
+					if verificationFrontendDependenciesRequired(&claim, workingDir) {
+						seedWarmDependencies(sourceDir, workingDir)
+						if prepErr := prepareInspectionDependencies(ctx, workingDir); prepErr != nil {
+							err = prepErr
+						} else if r.gitClient != nil {
+							err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.Verification.SourceCommit, claim.Verification.SourceCommit)
+						}
+					}
 				}
 			}
 		} else {
