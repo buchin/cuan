@@ -69,3 +69,25 @@ new revision, retaining original source 469f1a93 and read-only/no-push/no-deploy
 scope. No manual retry/status edit/new room triggered this revalidation. Its
 result remains pending; the two dependency-reuse implementation defects are
 still unaccepted, so this is recovery evidence rather than verified Done.
+
+## Successful revalidation still needs a developer handoff
+
+Revalidation att_345246a22acc5f76bb790b417643dd47 succeeded at 22:10:20 +08,
+including fresh native project checks (86.719s). It correctly reported that the
+reuse optimization was absent from the running source. PM assessment
+497251a5-dbf5-499e-a461-ed803f217d10 chose implementation/continue with concrete
+manifest, ignored-output and independent-copy requirements. Yet no developer
+started: managerContinuationAllowed rejected every current-outcome inspection
+except the old no-commit timeout recovery. A retained source commit stranded the
+otherwise valid saved PM decision.
+
+The existing correction admission now also handles a successful, source-bound
+current-outcome inspection. It validates the native live receipt, unchanged
+repository, current release, current final report, original source identity and
+unchanged owner restrictions, then returns only the saved PM correction to a
+separate developer. The inspection never becomes writable. Existing manager
+repetition/cancellation/deduplication and later independent acceptance still apply.
+A real native receipt/launch fixture reproduces the stranded correction before
+this change and now reaches a separate queued developer launch. Missing report
+or native receipt, foreign owner, changed source/release and cancellation remain
+rejected. Legacy local-recovery, saved-manager and invalid-source regressions pass.
