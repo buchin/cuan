@@ -438,7 +438,7 @@ installed counterpart; it must not be relaxed merely to erase unknown or unique
 files. No provider conversation, brain, credential, backup or staging directory
 was deleted during this investigation.
 
-## Development backup retention prepared, not applied
+## Development backup retention and actual capacity recovery
 
 The native activation path writes one private PostgreSQL custom dump per commit,
 but did not apply the separate `backup.sh` timestamped-archive retention policy.
@@ -462,5 +462,27 @@ deletion, and rechecks each removed file's identity. Unknown files/directories,
 links, public files and malformed-header data remain untouched. Four retention
 tests passed. Existing maintenance integration is explicitly opt-in through
 `--backup-keep`; it persists the installation setting and does not enable deletion
-for fresh installations by default. All five installer tests passed. Approval
-for irreversible deletion remains pending; no scheduled backup apply is enabled.
+for fresh installations by default. All five installer tests passed.
+
+The Owner subsequently approved cleanup and enablement explicitly with `Gas`.
+The maintained installer was applied with `--backup-keep 3` using the registered
+project SSH connection and pinned host identity. No application restart was
+needed. The root-owned persistent configuration contains count 3, and the
+existing maintenance unit references pinned tool set
+`46484aa29081da0e40db84577affeef75566ee5458cc048e095abbb49bca96a4`.
+
+Official `cuan maintenance run` started the registered job at 20:24:21 (+08).
+It completed successfully at 20:25:35, logging 813 eligible and 813 removed,
+5,077,295,104 allocated bytes nominated, three retained and 12 ignored. Available
+filesystem bytes reached 6,530,834,432. There are four `*.dump` filenames at the
+top level because the unknown/nonqualifying entry is deliberately retained;
+do not conflate a suffix count with the three validated native restore points.
+
+The same queued read-only recovery automatically started
+`att_67e95b8cef9a603ef79075092b129b33` at 20:25:39, targeting running commit
+`e6d58a226310fa481673e9cf8368731875c6c630`. Its original failed attempt remains
+failed. Initial logs proceed to agent start without frontend dependency setup
+or registered visual capture. This is fresh evidence for the negative-screenshot
+classification fix in the actual recovery path, not final DoD acceptance or proof
+of a completed workspace optimization. The recovery remains read-only, without
+push/deploy authority.

@@ -50,7 +50,7 @@ larger volume or dedicated server when real persistent data, rather than retaine
 artifacts, requires it. Backup retention needs its own restore-tested policy;
 this cleanup intentionally did not delete existing backups.
 
-### Native database backup retention (prepared; application requires approval)
+### Native database backup retention
 
 Native activation writes `backups/<commit>.dump`; the separate `backup.sh`
 retention for timestamped SQL archives does not cover these files. Preview with
@@ -80,11 +80,14 @@ can be selected explicitly for another native installation.
 On November 9 the newest release backup restored successfully with 49 public
 tables. The simplified development-policy preview nominated 813 files /
 5,077,295,104 allocated bytes, retained three dumps and ignored 12 other entries.
-No deletion or scheduled apply
-was performed at this observation. These counts may change before approval.
+After explicit Owner approval, the existing maintenance job removed those 813
+dumps, retained the three qualifying restore points and preserved the 12 other
+entries. Available filesystem bytes reached 6,530,834,432 and the same queued
+task resumed automatically. This is capacity recovery, not evidence that all
+workspace growth or task execution failures are resolved.
 Focused checks: `python3 scripts/test-prune-native-database-backups.py`.
 
-After approval, the native maintenance installer can explicitly enable this
+The native maintenance installer explicitly enables this
 policy with `--backup-keep 3`. It persists the count in a private native
 installation configuration; later ordinary deployments preserve that setting.
 New installations leave backup deletion disabled unless explicitly configured.
