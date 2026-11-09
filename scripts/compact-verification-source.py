@@ -66,12 +66,20 @@ def candidate(root, now, minimum):
         return None, 0, 'unproven'
     accepted = receipt(metadata / 'cuan-verification-accepted.json', owner)
     binding = receipt(metadata / 'cuan-verification.json', owner)
-    if accepted.get('policy') != 'retained-git-source-v1' or not accepted.get('task_id'):
+    if accepted.get('policy') != 'retained-git-source-v1' or not isinstance(accepted.get('task_id'), str) or not accepted['task_id']:
         return None, 0, 'unaccepted'
+    if not isinstance(binding.get('source'), str) or not os.path.isabs(binding['source']):
+        return None, 0, 'unproven'
     for name in ('source_commit', 'target_commit'):
         if not re.fullmatch('[a-f0-9]{40}', binding.get(name, '')) or accepted.get(name) != binding[name]:
             return None, 0, 'unproven'
-    accepted_at = datetime.datetime.fromisoformat(accepted['accepted_at'].replace('Z', '+00:00'))
+    if not isinstance(accepted.get('accepted_at'), str):
+        return None, 0, 'unproven'
+    timestamp = accepted['accepted_at'].replace('Z', '+00:00')
+    # Go uses RFC3339Nano, including trimmed fractions. Python3.10 on native
+    # Ubuntu hosts needs a microsecond fraction; retention tolerates truncation.
+    timestamp = re.sub(r'\.(\d+)(?=[+-]\d\d:\d\d$)', lambda match: '.' + (match[1] + '000000')[:6], timestamp)
+    accepted_at = datetime.datetime.fromisoformat(timestamp)
     if accepted_at.tzinfo is None or now - max(accepted_at.timestamp(), root.stat().st_mtime) < minimum:
         return None, 0, 'warm'
     if cache.git(root, 'rev-parse', 'HEAD').decode().strip() != binding['target_commit']:
