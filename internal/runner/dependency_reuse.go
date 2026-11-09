@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,10 +14,14 @@ import (
 
 const dependencyLockFingerprintFilename = ".cuan-lock-fingerprint"
 
-// dependencyLockFingerprint returns the hex-encoded SHA-256 digest of the lockfile.
-func dependencyLockFingerprint(raw []byte) string {
-	digest := sha256.Sum256(raw)
-	return hex.EncodeToString(digest[:])
+// dependencyLockFingerprint returns the hex-encoded SHA-256 digest of the lockfile and manifest.
+func dependencyLockFingerprint(parts ...[]byte) string {
+	h := sha256.New()
+	for _, p := range parts {
+		h.Write(p)
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // checkLockfileWarm returns true if the dependency directory (e.g. node_modules or vendor)
@@ -60,7 +65,23 @@ func seedWarmDependencies(source, target string) {
 	}
 	// 1. Seed npm dependencies for known roots (".", "web")
 	for _, relative := range []string{".", "web"} {
-		targetLockPath := filepath.Join(target, relative, "package-lock.json")
+		targetDir := filepath.Join(target, relative)
+		ignored := exec.Command("git", "-C", targetDir, "check-ignore", "--quiet", "--", "node_modules/")
+		if ignored.Run() != nil {
+			continue // Target repository must ignore node_modules in git
+		}
+
+		targetManifestPath := filepath.Join(targetDir, "package.json")
+		targetManifestInfo, err := os.Lstat(targetManifestPath)
+		if err != nil || !targetManifestInfo.Mode().IsRegular() || targetManifestInfo.Size() > 8<<20 {
+			continue
+		}
+		targetManifestRaw, err := os.ReadFile(targetManifestPath)
+		if err != nil {
+			continue
+		}
+
+		targetLockPath := filepath.Join(targetDir, "package-lock.json")
 		targetInfo, err := os.Lstat(targetLockPath)
 		if err != nil || !targetInfo.Mode().IsRegular() || targetInfo.Size() > 8<<20 {
 			continue
@@ -69,9 +90,9 @@ func seedWarmDependencies(source, target string) {
 		if err != nil {
 			continue
 		}
-		targetFingerprint := dependencyLockFingerprint(targetRaw)
+		targetFingerprint := dependencyLockFingerprint(targetManifestRaw, targetRaw)
 
-		targetModules := filepath.Join(target, relative, "node_modules")
+		targetModules := filepath.Join(targetDir, "node_modules")
 		if info, err := os.Lstat(targetModules); err == nil && info.IsDir() {
 			continue // Already present in target
 		}
@@ -85,7 +106,7 @@ func seedWarmDependencies(source, target string) {
 		sourceFingerprintPath := filepath.Join(sourceModules, dependencyLockFingerprintFilename)
 		sourceFingerprintData, err := os.ReadFile(sourceFingerprintPath)
 		if err != nil || strings.TrimSpace(string(sourceFingerprintData)) != targetFingerprint {
-			continue // Lockfile does not match or source is unverified
+			continue // Manifest or lockfile does not match or source is unverified
 		}
 
 		_ = seedWarmDirectory(sourceModules, targetModules, targetFingerprint)

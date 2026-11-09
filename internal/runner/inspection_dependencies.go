@@ -54,22 +54,32 @@ func prepareInspectionDependencies(parent context.Context, root string, managedC
 		if err != nil || resolved != filepath.Clean(directory) {
 			return fmt.Errorf("verification dependency directory must be private")
 		}
-		manifest, err := os.Lstat(filepath.Join(directory, "package.json"))
-		if err != nil || !manifest.Mode().IsRegular() {
+		manifestPath := filepath.Join(directory, "package.json")
+		manifest, err := os.Lstat(manifestPath)
+		if err != nil || !manifest.Mode().IsRegular() || manifest.Size() > 8<<20 {
 			return fmt.Errorf("verification dependency manifest must be a regular file")
 		}
-		lockFingerprint := dependencyLockFingerprint(raw)
-		if modules, err := os.Lstat(filepath.Join(directory, "node_modules")); err == nil {
-			if !modules.IsDir() {
-				return fmt.Errorf("verification dependencies must not use shared links")
-			}
-			if checkLockfileWarm(directory, "node_modules", lockFingerprint) {
-				continue
-			}
+		manifestRaw, err := os.ReadFile(manifestPath)
+		if err != nil {
+			return fmt.Errorf("verification dependency manifest must be readable")
+		}
+		var manifestParsed map[string]any
+		if json.Unmarshal(manifestRaw, &manifestParsed) != nil {
+			return fmt.Errorf("verification dependency manifest must be valid json")
+		}
+		modules, modulesErr := os.Lstat(filepath.Join(directory, "node_modules"))
+		if modulesErr == nil && !modules.IsDir() {
+			return fmt.Errorf("verification dependencies must not use shared links")
 		}
 		ignored := exec.CommandContext(parent, "git", "-C", directory, "check-ignore", "--quiet", "--", "node_modules/")
 		if ignored.Run() != nil {
 			return fmt.Errorf("verification dependency output must be ignored by the repository")
+		}
+		lockFingerprint := dependencyLockFingerprint(manifestRaw, raw)
+		if modulesErr == nil && modules.IsDir() {
+			if checkLockfileWarm(directory, "node_modules", lockFingerprint) {
+				continue
+			}
 		}
 		privateHome, err := os.MkdirTemp("", "cuan-verification-npm-")
 		if err != nil {

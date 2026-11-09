@@ -319,17 +319,24 @@ func TestDependencyReuseIsolationTargetModificationDoesNotAffectSource(t *testin
 		}
 	}
 
+	for _, dir := range []string{devWorkspace, verifierSnapshot} {
+		if out, err := exec.Command("git", "init", dir).CombinedOutput(); err != nil {
+			t.Fatal(err, string(out))
+		}
+	}
+
 	lockContent := `{"name":"isolation-fixture","version":"1.0.0","lockfileVersion":3,"packages":{}}`
-	write(filepath.Join(devWorkspace, "package.json"), `{"name":"root","version":"1.0.0"}`)
+	manifestContent := `{"name":"root","version":"1.0.0"}`
+	write(filepath.Join(devWorkspace, "package.json"), manifestContent)
 	write(filepath.Join(devWorkspace, "package-lock.json"), lockContent)
 	write(filepath.Join(devWorkspace, ".gitignore"), "node_modules/\n")
 
-	write(filepath.Join(verifierSnapshot, "package.json"), `{"name":"root","version":"1.0.0"}`)
+	write(filepath.Join(verifierSnapshot, "package.json"), manifestContent)
 	write(filepath.Join(verifierSnapshot, "package-lock.json"), lockContent)
 	write(filepath.Join(verifierSnapshot, ".gitignore"), "node_modules/\n")
 
 	// Set up source node_modules in devWorkspace with a fingerprint
-	digest := dependencyLockFingerprint([]byte(lockContent))
+	digest := dependencyLockFingerprint([]byte(manifestContent), []byte(lockContent))
 	write(filepath.Join(devWorkspace, "node_modules", dependencyLockFingerprintFilename), digest)
 	devOriginalContent := "original dev package content"
 	write(filepath.Join(devWorkspace, "node_modules", "pkg", "index.js"), devOriginalContent)
@@ -394,5 +401,117 @@ func TestDependencyReuseIsolationTargetModificationDoesNotAffectSource(t *testin
 
 	if _, err := os.Stat(filepath.Join(devWorkspace, "node_modules", "pkg", "verifier_created.txt")); !os.IsNotExist(err) {
 		t.Fatalf("verifier-created file leaked into dev workspace!")
+	}
+}
+
+func TestSeedMustNotMutateDeveloper(t *testing.T) {
+	TestDependencyReuseIsolationTargetModificationDoesNotAffectSource(t)
+}
+
+func TestWarmMustRetainIgnoredOutputGuard(t *testing.T) {
+	dir := t.TempDir()
+	// Init git repo WITHOUT .gitignore
+	cmd := exec.Command("git", "init", dir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v (%s)", err, string(out))
+	}
+
+	lockContent := `{"name":"counterexample","version":"1.0.0","lockfileVersion":3,"packages":{}}`
+	manifestContent := `{"name":"counterexample","version":"1.0.0"}`
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(manifestContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(lockContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create node_modules with warm fingerprint
+	digest := dependencyLockFingerprint([]byte(manifestContent), []byte(lockContent))
+	modDir := filepath.Join(dir, "node_modules")
+	if err := os.MkdirAll(modDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, dependencyLockFingerprintFilename), []byte(digest), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// node_modules is NOT ignored by git!
+	err := prepareInspectionDependencies(context.Background(), dir)
+	if err == nil {
+		t.Fatalf("FAIL: expected error because node_modules is not ignored by git, but got nil (guard bypassed by warm check)")
+	}
+
+	// Also verify seedWarmDependencies will not seed when target does not ignore node_modules
+	devDir := t.TempDir()
+	if out, err := exec.Command("git", "init", devDir).CombinedOutput(); err != nil {
+		t.Fatal(err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(devDir, "package.json"), []byte(manifestContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(devDir, "package-lock.json"), []byte(lockContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(devDir, ".gitignore"), []byte("node_modules/\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	devModDir := filepath.Join(devDir, "node_modules")
+	if err := os.MkdirAll(devModDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(devModDir, dependencyLockFingerprintFilename), []byte(digest), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	targetNoIgnore := t.TempDir()
+	if out, err := exec.Command("git", "init", targetNoIgnore).CombinedOutput(); err != nil {
+		t.Fatal(err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(targetNoIgnore, "package.json"), []byte(manifestContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(targetNoIgnore, "package-lock.json"), []byte(lockContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// targetNoIgnore has NO .gitignore
+	seedWarmDependencies(devDir, targetNoIgnore)
+	if _, err := os.Stat(filepath.Join(targetNoIgnore, "node_modules")); !os.IsNotExist(err) {
+		t.Fatalf("expected node_modules NOT to be seeded when target repository does not ignore node_modules in git")
+	}
+}
+
+func TestWarmMustValidateChangedManifest(t *testing.T) {
+	dir := t.TempDir()
+	cmd := exec.Command("git", "init", dir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v (%s)", err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("node_modules/\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	lockContent := `{"name":"counterexample","version":"1.0.0","lockfileVersion":3,"packages":{}}`
+	// Manifest has a dependency not in lockfile packages
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"counterexample","version":"1.0.0","dependencies":{"foo":"1.0.0"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(lockContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Warm fingerprint saved only from lockContent or older manifest
+	digest := dependencyLockFingerprint([]byte(lockContent))
+	modDir := filepath.Join(dir, "node_modules")
+	if err := os.MkdirAll(modDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, dependencyLockFingerprintFilename), []byte(digest), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Manifest has "foo":"1.0.0" which is not reflected in fingerprint
+	err := prepareInspectionDependencies(context.Background(), dir)
+	if err == nil {
+		t.Fatalf("FAIL: expected invalidation because package.json dependencies changed relative to lockfile/fingerprint, but got nil")
 	}
 }
