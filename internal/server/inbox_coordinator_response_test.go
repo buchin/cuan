@@ -403,23 +403,15 @@ func TestCoordinatorInstructionDoesNotForceMeetingDocumentsForLayoutAdvice(t *te
 	}
 }
 
-func TestCoordinatorInstructionFullPlatformMCP(t *testing.T) {
-	for _, required := range []string{
-		"scrum master",
-		"all agents in inbox",
-		"platform mcp",
-		"list_projects",
-		"list_tasks",
-		"update_task_status",
-		"list_inbox_conversations",
-		"create_inbox_conversation",
-		"send_inbox_message",
-		"list_contacts",
-		"list_scheduled_jobs",
-		"get_system_settings",
-	} {
-		if !strings.Contains(strings.ToLower(inboxCoordinatorInstruction), required) {
-			t.Fatalf("inboxCoordinatorInstruction missing required platform MCP directive %q", required)
+func TestCoordinatorInstructionUsesOnlyActuallyExposedCapabilities(t *testing.T) {
+	for _, required := range []string{"Only tools actually exposed", "validated application actions", "Never request an Owner API token", "scope", "verification"} {
+		if !strings.Contains(inboxCoordinatorInstruction, required) {
+			t.Fatalf("missing capability or acceptance boundary %q", required)
+		}
+	}
+	for _, obsolete := range []string{"Cuan Platform Modules (Full MCP)", "all agents in inbox", "* Database & Logs: inspect_database_query"} {
+		if strings.Contains(inboxCoordinatorInstruction, obsolete) {
+			t.Fatalf("advertised unavailable platform capability %q", obsolete)
 		}
 	}
 }

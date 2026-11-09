@@ -78,6 +78,12 @@ func GetReviewPromptAdditions(dirs ...string) string {
 	return "=== MANDATORY REPOSITORY GUIDANCE (AGENTS.md) ===\n" + GetAgentsGuidance(dirs...) + "\n\n" + AutonomousOwnership
 }
 
+// The canonical coordinator policy already owns planning and approval semantics.
+// Preserve repository constraints without injecting a second sprint workflow.
+func GetCoordinatorPromptAdditions(dirs ...string) string {
+	return GetReviewPromptAdditions(dirs...)
+}
+
 // GetRunnerPromptAdditions formats the combined AGENTS.md guidance and Scrum Rules
 // specifically structured for the Runner Agent (acting as Development Team).
 func GetRunnerPromptAdditions(dirs ...string) string {

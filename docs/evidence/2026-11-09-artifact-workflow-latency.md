@@ -321,3 +321,40 @@ all five lines/newline and SHA256
 Copies: `/home/dev/artifacts/cuan-snapshot-preparation/`. Without an explicit
 maintenance trigger in this run, the existing job records success at
 14:21:17.057839576+08 after verifier completion. No reclaimed-byte claim.
+
+## Canonical initial coordinator policy
+
+Source audit explains the79646-byte initial prompt: the coordinator instruction
+contains37770 bytes including shared conversation style, another14951-byte
+workflow is appended separately, and generic5376-byte sprint rules are injected
+again alongside repository guidance and ownership. The overlapping workflow also
+contains obsolete account/agent reassignment and mandatory-approval language.
+
+Coordinator behavior now has one embedded source in
+`internal/workflow/coordinator.md`; native reply/action schema and decoding stay
+in Go. The prior coordinator body was moved rather than rewritten wholesale
+(prior raw body SHA256
+`4d12ac7ca0a8860997a645f4bd0080bfdc36b0779744c2cda804f2e6252fb86f`).
+Two intentional corrections remove an advertised full platform-MCP catalogue
+that the chat runtime does not expose, and stop promising blanket provider-HOME
+or Owner-credential access to workers. Existing public research, discovery,
+customer-draft privacy, exact action shapes/limits, project boundaries,
+authorization, cancellation, evidence and delivery rules remain.
+
+Unique recovery/sprint facts are retained in the canonical policy, including
+saved-route observations, no automatic-continuation promise without a native
+receipt, and independent acceptance. Its current38104 bytes include style.
+The separate14951-byte workflow and repeated generic sprint procedure no longer
+enter the native prompt. Repository AGENTS, frozen project context, ownership,
+member Taste, original messages and actual tool permission enforcement remain.
+Runner guidance and acceptance gates are unchanged.
+
+A native CLI fixture captures the actual emitted prompt and verifies one policy,
+one conversation-style block, original owner context, exact action schema,
+configured identity and bound repository rules. Its measured input is43395 bytes
+with110 bytes of original context. This fixture is not production latency.
+Coordinator action/advisory/authorization, read-only CLI, snapshot, artifact and
+trace regressions pass. The obsolete full-platform-catalogue source assertion is
+replaced with an assertion that capability claims match exposed runtime tools;
+the existing runtime permission tests remain. Fresh production quality and
+prompt-size evidence are still required after rollout.
