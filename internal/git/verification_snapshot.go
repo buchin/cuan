@@ -313,10 +313,11 @@ func (c *Client) CommitContained(parent context.Context, root, source, target st
 	}
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
-	for _, sha := range []string{source, target} {
-		if _, err := c.snapshotGit(ctx, root, "cat-file", "-e", sha+"^{commit}"); err != nil {
-			return false, ErrVerificationCommitUnavailable
-		}
+	if _, err := c.snapshotGit(ctx, root, "cat-file", "-e", target+"^{commit}"); err != nil {
+		return false, ErrVerificationCommitUnavailable
+	}
+	if _, err := c.snapshotGit(ctx, root, "cat-file", "-e", source+"^{commit}"); err != nil {
+		return c.completeTargetContains(ctx, root, source, target)
 	}
 	_, err := c.snapshotGit(ctx, root, "merge-base", "--is-ancestor", source, target)
 	if err == nil {
@@ -324,7 +325,7 @@ func (c *Client) CommitContained(parent context.Context, root, source, target st
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && exit.ExitCode() == 1 {
-		return false, nil
+		return c.completeTargetContains(ctx, root, source, target)
 	}
 	return false, errors.New("publication ancestry could not be verified")
 }

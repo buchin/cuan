@@ -12,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxPublicationReviewPolicy = "Production publication review policy: v3"
+const inboxPublicationReviewPolicy = "Production publication review policy: v4"
 
 type reviewPublication struct {
 	Required              bool   `json:"required"`
@@ -135,6 +135,23 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 		}
 	}
 	observation := s.inboxReviewPublication(ctx, d)
+	// A completed source-bound inspection must not be scheduled as another
+	// inspection of itself when the PM identifies remaining publication. Its
+	// historical receipt can admit separate reconciliation under original scope;
+	// it does not grant writes to the snapshot or establish feature absence.
+	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.RequestedOutcome != "needs_input" &&
+		(decision.ManagerAction == "continue" || decision.ManagerAction == "replan") && decision.ManagerReason != "" &&
+		observation != nil && observation.Required && observation.ResultCommitContained != nil && !*observation.ResultCommitContained &&
+		(!observation.Verified || observation.Provenance == "verified_current_project_snapshot") {
+		inspection, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		approved, _ := s.inboxApprovedTaskScope(ctx, d)
+		if err == nil && inspection != nil && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy &&
+			s.inspectedSourceCorrectionAllowed(ctx, db.InboxRequest{OwnerID: inspection.OwnerID, RoomID: inspection.RoomID}, d) {
+			decision.RemainingWork, decision.RequestedOutcome, decision.SourceReview = "implementation", "unfinished", "not_checked"
+			decision.Revision = "Native publication reconciliation: the retained source " + d.CommitSHA + " has completed a source-bound read-only inspection; the current registered release does not contain that commit. This is not proof that the feature is absent or permission to replay effects. Reconcile the retained source, equivalent changes and saved publication effects in the private developer workspace. Complete only remaining original work and publication through the native release pipeline; preserve unrelated work, original scope and independent verification. Reviewer instruction: " + decision.Revision
+			return decision
+		}
+	}
 	if observation == nil || !observation.Required || observation.Verified {
 		return decision
 	}
