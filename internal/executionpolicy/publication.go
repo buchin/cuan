@@ -23,6 +23,11 @@ var deployAction = regexp.MustCompile(`(?i)\b(?:deploy|deployment|deploying)\b`)
 // required, and any other task-wide prohibition still wins.
 var inspectBehaviorLimit = regexp.MustCompile("(?i)^\\s*(?:jangan\\s+(?:jalankan|menjalankan)|do not\\s+(?:run|execute))\\s+(?:(?:tool|tools)\\s+(?:atau|or)\\s+)?(?:script\\s+)?deploy\\s+(?:saat|ketika|during)\\s+(?:`?inspect`?|(?:the\\s+)?inspect\\s+command)\\s*$")
 
+// These bounded cautions prohibit an unverified/repeated effect, not all
+// publication. Recognize them only alongside a separate positive publication
+// request. Original bans, read-only scope and unknown qualifiers still win.
+var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat deployment solely to obtain evidence|jangan (?:lakukan|melakukan) deploy (?:buta|secara buta)(?: atau menandai task selesai sebelum ada bukti valid)?)\s*$`)
+
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
@@ -31,7 +36,7 @@ func FromInstructions(instructions string) PublicationPolicy {
 	}
 	for _, clause := range publicationProhibition.FindAllString(instructions, -1) {
 		policy.DenyPush = policy.DenyPush || pushAction.MatchString(clause)
-		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !(inspectBehaviorLimit.MatchString(clause) && managedPublicationRequested(instructions)))
+		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !((inspectBehaviorLimit.MatchString(clause) || publicationEvidenceLimit.MatchString(clause)) && managedPublicationRequested(instructions)))
 	}
 	if policy.DenyDeploy && standaloneArtifactShape(instructions) {
 		policy.DenyPush = true

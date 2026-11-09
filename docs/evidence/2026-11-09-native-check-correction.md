@@ -678,3 +678,21 @@ No write/deploy authority was added; verifier was asked to independently evaluat
 the observed original-scope defects and report to PM. Maintenance status also
 confirms the existing storage job is enabled and last succeeded at 21:37:45 +08;
 this status alone does not establish reclaimed byte counts.
+
+Native verifier att_d554bca3ccbc4130929a04fab178aaa0 independently reproduced
+both warm-reuse counterexamples, reported criteria 2/3/4 incomplete and publication
+pending, and completed successfully at 21:44:27 +08. Successful verifier execution
+is not feature acceptance. Report artifact 1cb8e14a-8092-4c87-abf6-4c6a315d7a58.
+
+A separate policy fault surfaced in the official handoff diagnostic:
+owner_deployment_prohibited despite original task publication approval. The saved
+owner correction contains `jangan lakukan deploy buta atau menandai task selesai
+sebelum ada bukti valid`, alongside a separate explicit native-deploy request.
+The prohibition parser treated this bounded caution as a blanket prohibition.
+Three regression cases failed before correction. Added bounded recognition of
+that caution and the generated English `Do not repeat deployment solely to
+obtain evidence` only with a separate positive publication request. Other/unknown
+qualifiers, unconditional bans and original-task restrictions remain binding;
+verification intent is still forcibly read-only/no-push/no-deploy. Targeted
+executionpolicy/task tests and real server independent-source/owner-scope
+regressions pass. This does not waive the rejected source's implementation gaps.

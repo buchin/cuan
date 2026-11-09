@@ -66,3 +66,25 @@ func TestApprovedInspectImplementationKeepsPublicationRequest(t *testing.T) {
 		t.Fatalf("product command behavior became task publication prohibition: %+v", got)
 	}
 }
+
+func TestPublicationEvidenceCautionIsNotBlanketDeploymentBan(t *testing.T) {
+	for _, c := range []struct {
+		text string
+		deny bool
+	}{
+		{"Do not repeat deployment solely to obtain evidence. Reconcile saved effects, then deploy the verified correction to production.", false},
+		{"Jangan lakukan deploy buta atau menandai task selesai sebelum ada bukti valid. Lakukan verifikasi independen, lalu deploy native dan health check.", false},
+		{"Jangan lakukan deploy buta. Deploy native setelah verifikasi.", false},
+		{"Do not repeat deployment solely to obtain evidence.", true},
+		{"Jangan lakukan deploy buta.", true},
+		{"Do not deploy. Do not repeat deployment solely to obtain evidence. Deploy production.", true},
+		{"Jangan deploy. Jangan lakukan deploy buta. Deploy production.", true},
+		{"Jangan lakukan deploy buta atau deploy production. Deploy production.", true},
+		{"Do not repeat deployment solely to obtain evidence or change production. Deploy production.", true},
+		{"Do not deploy unless authorized. Deploy production.", true},
+	} {
+		if got := FromInstructions(c.text); got.DenyDeploy != c.deny {
+			t.Errorf("%q: %+v", c.text, got)
+		}
+	}
+}
