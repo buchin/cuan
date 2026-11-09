@@ -32,6 +32,18 @@ func (r *Runner) runNativeReleaseAttempt(ctx context.Context, claim ClaimTaskRes
 		cancel()
 	}
 	if claim.NativeReleaseExecution != nil {
+		environment, closeCaches, cacheErr := prepareNativeReleaseBuildCaches(ctx, claim.NativeReleaseExecution, r.cfg.WorkspacesDir, claim.OwnerID)
+		if cacheErr != nil {
+			req.ErrorMessage = "Managed release build cache preparation failed; no release process started"
+			claim.NativeReleaseExecution = nil
+		} else {
+			defer closeCaches()
+			execution := *claim.NativeReleaseExecution
+			execution.Environment = environment
+			claim.NativeReleaseExecution = &execution
+		}
+	}
+	if claim.NativeReleaseExecution != nil {
 		executeCtx, cancel := context.WithDeadline(ctx, task.AttemptDeadline(claim.Task, claim.Attempt))
 		result, err := r.executeNativeReleaseOnce(executeCtx, claim)
 		if errors.Is(err, errNativeReleaseActive) {

@@ -119,3 +119,17 @@ runtime7.2GiB and PostgreSQL231MiB. An idle host Go cache was cleaned through
 `go clean -cache`, recovering approximately1.3GiB. This is immediate headroom,
 not proof that retention/capacity is sufficient indefinitely. Preserve task
 sources and evidence; continue measuring growth and validating native delivery.
+
+Native runner publication now prepares compiler/download caches through the same
+owner-scoped Go/npm cache helpers as ordinary workers. It holds their shared
+maintenance leases for execution and completion. Release HOME, npm configuration,
+project values and temporary workspace remain private to the prepared checkout;
+only regenerable cache locations change. Other owners do not share these paths.
+The actual selected environment participates in the existing native process
+journal binding before a script can start. This does not authorize replay of an
+unknown prior process or make old failed attempts successful.
+
+Verification: `go test ./internal/runner -run
+'TestNativeRelease|TestManagedGoBuild' -count=1`. Regression checks stable owner
+cache selection, preserved preparation/configuration, distinct owners, and real
+exclusive maintenance-lock rejection while the native shared lease is active.
