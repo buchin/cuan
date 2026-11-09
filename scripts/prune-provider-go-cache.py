@@ -10,6 +10,9 @@ import re
 import shutil
 import stat
 import time
+import subprocess
+
+GO_BINARY = "/usr/bin/go"
 
 ACCOUNT = re.compile(r"acct_[0-9a-f]{32}")
 VERSION = r"v0\.0\.1-go[0-9]+\.[0-9]+\.[0-9]+(?:[a-z]+[0-9]+)?\.linux-(?:amd64|arm64)"
@@ -120,12 +123,13 @@ def remove_toolchain(path):
     shutil.rmtree(path)
 
 
-def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_uses):
+def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_uses, all_modules=False):
     if min_age_hours < 1 or not private_directory(accounts):
         raise ValueError('Use a real accounts directory and retain at least one hour')
     now = time.time() if now is None else now
     result = {'eligible': 0, 'removed': 0, 'busy_accounts': 0,
-              'download_eligible': 0, 'download_removed': 0, 'download_bytes_removed': 0}
+              'download_eligible': 0, 'download_removed': 0, 'download_bytes_removed': 0,
+              'module_caches_eligible': 0, 'module_caches_removed': 0}
     for account in sorted(accounts.iterdir()):
         if not ACCOUNT.fullmatch(account.name) or not private_directory(account):
             continue
@@ -139,6 +143,20 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
                 if not private_directory(relative):
                     break
             else:
+                if all_modules:
+                    # Explicit migration cleanup only: generated modules, not CLI
+                    # credentials/history. The account lease spans the official
+                    # Go cleaner; no model can start using this legacy cache.
+                    if now-relative.stat().st_mtime < min_age_hours*3600 or in_use(relative):
+                        continue
+                    result['module_caches_eligible'] += 1
+                    if apply:
+                        subprocess.run([GO_BINARY, 'clean', '-modcache'], cwd='/',
+                                       env={'PATH': os.defpath, 'GOENV': 'off', 'GOTOOLCHAIN': 'local',
+                                            'HOME': str(account / 'home'), 'GOMODCACHE': str(relative)},
+                                       check=True, capture_output=True, timeout=60)
+                        result['module_caches_removed'] += 1
+                    continue
                 distributions = relative / 'golang.org'
                 for toolchain in distributions.iterdir() if private_directory(distributions) else []:
                     if not TOOLCHAIN.fullmatch(toolchain.name) or not private_directory(toolchain):
@@ -161,10 +179,11 @@ def main():
     parser.add_argument('--accounts', required=True, type=Path)
     parser.add_argument('--min-age-hours', default=24, type=float)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--all-modules', action='store_true', help='Explicitly clean old idle legacy Go module caches with official Go; preserve account credentials/history')
     args = parser.parse_args()
     try:
-        print(json.dumps(prune(args.accounts.absolute(), apply=args.apply, min_age_hours=args.min_age_hours)))
-    except (ValueError, OSError) as exc:
+        print(json.dumps(prune(args.accounts.absolute(), apply=args.apply, min_age_hours=args.min_age_hours, all_modules=args.all_modules)))
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
         parser.exit(1, f'Cache maintenance failed ({type(exc).__name__}); account data preserved.\n')
 
 

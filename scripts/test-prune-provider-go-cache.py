@@ -3,6 +3,7 @@ import fcntl
 import importlib.util
 from pathlib import Path
 import tempfile
+import shutil
 import os
 from unittest import mock
 import unittest
@@ -190,6 +191,29 @@ class CachePruneTest(unittest.TestCase):
                 finally:
                     if held is not None:
                         held.close()
+
+    def test_official_module_cleanup_keeps_credentials_and_busy_accounts(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            account, toolchain, credentials = self.fixture(root)
+            cache = account / 'home/go/pkg/mod'
+            now = cache.stat().st_mtime + 25 * 3600
+            with (account / '.execution.lock').open('r+b') as held:
+                fcntl.flock(held, fcntl.LOCK_SH)
+                result = module.prune(root, apply=True, now=now, in_use=lambda _: False, all_modules=True)
+                self.assertEqual(result['module_caches_removed'], 0)
+                self.assertTrue(toolchain.exists())
+            result = module.prune(root, apply=True, now=now, in_use=lambda _: True, all_modules=True)
+            self.assertEqual(result['module_caches_removed'], 0)
+            result = module.prune(root, apply=False, now=now, in_use=lambda _: False, all_modules=True)
+            self.assertEqual(result['module_caches_eligible'], 1)
+            self.assertTrue(toolchain.exists())
+            with mock.patch.object(module, 'GO_BINARY', shutil.which('go')):
+                result = module.prune(root, apply=True, now=now, in_use=lambda _: False, all_modules=True)
+            self.assertEqual(result['module_caches_removed'], 1)
+            self.assertFalse(cache.exists())
+            self.assertEqual(credentials.read_text(), 'private fixture')
+            self.assertTrue((account / '.execution.lock').exists())
 
 
 if __name__ == '__main__':
