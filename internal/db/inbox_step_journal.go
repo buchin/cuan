@@ -27,7 +27,7 @@ func compactInboxSteps(steps []InboxStep) []InboxStep {
 				keep[i] = true
 				finished++
 			}
-		case "execution_returned", "provider", "recovery_safe", "recovery_policy", "runtime_permission_denied", "trace_history_incomplete":
+		case "execution_timeout_returned", "execution_returned", "provider", "recovery_safe", "recovery_policy", "runtime_permission_denied", "trace_history_incomplete":
 			if _, ok := latest[s.Kind]; !ok {
 				latest[s.Kind] = i
 				keep[i] = true

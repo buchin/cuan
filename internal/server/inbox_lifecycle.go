@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -260,7 +261,14 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		}
 	}
 	step("accepted", "Message received.")
-	step("recovery_policy", "safe-reply-v1")
+	recoveryPolicy := "safe-reply-v1"
+	// Opt in only new authenticated operator turns, never visitor or retry turns.
+	if len(q.Steps) == 0 || (q.Steps[0].Kind != "retry" && q.Steps[0].Kind != "retry_auto" && q.Steps[0].Kind != "retry_reconcile") {
+		if source, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID); err == nil && source != nil && source.RoomID == q.RoomID && source.AuthorType == "user" && source.AuthorID == "operator_user" && q.OwnerID != "" {
+			recoveryPolicy = "safe-reply-timeout-reconcile-v2"
+		}
+	}
+	step("recovery_policy", recoveryPolicy)
 	q.State = "completed"
 	q.SafeError = ""
 	var topicTitle string
@@ -503,6 +511,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	step("persistence", "Saving the final conversation state.")
 	if ctx.Err() != nil {
 		q.State = "interrupted"
+		q.ExecutionTimedOut = errors.Is(ctx.Err(), context.DeadlineExceeded) && !s.inboxStopping.Load()
 		q.SafeError = "The process was interrupted or timed out. The provider's result is unknown. The request was not rerun."
 		reply = nil
 	}

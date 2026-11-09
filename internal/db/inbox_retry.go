@@ -91,8 +91,9 @@ func InboxRetryID(source string) string {
 }
 
 // Automatic recovery is opt-in per newly started turn and consumes at most one
-// extra attempt. Old failures, later user turns, cancellations and unknown tool
-// outcomes are never replayed by a deployment or a dispatcher restart.
+// extra attempt. Unknown effects require a fresh reconciliation with explicit
+// timeout-return evidence; they are never replayed. Legacy failures, later user
+// turns and cancellations remain excluded.
 func InboxAutomaticRecoveryCandidate(requests []InboxRequest, now time.Time) *InboxRequest {
 	var latest *InboxRequest
 	counts := map[string]int{}
@@ -106,16 +107,29 @@ func InboxAutomaticRecoveryCandidate(requests []InboxRequest, now time.Time) *In
 			latest = q
 		}
 	}
-	if latest == nil || latest.OwnerID == "" || latest.AgentID == "" || counts[latest.MessageID] != 1 || InboxRecoveryAction(*latest) != "try_again" {
+	if latest == nil || latest.OwnerID == "" || latest.AgentID == "" || counts[latest.MessageID] != 1 || (InboxRecoveryAction(*latest) != "try_again" && latest.State != "interrupted") {
 		return nil
 	}
 	policy, proof := false, false
+	reconcilePolicy := false
+	var returned time.Time
 	var finished time.Time
 	for _, step := range latest.Steps {
-		if step.Kind == "recovery_policy" && step.Text == "safe-reply-v1" {
+		if step.Kind == "trace_history_incomplete" || step.Kind == "runtime_permission_denied" {
+			return nil
+		}
+		if step.Kind == "recovery_policy" && step.Text == "safe-reply-timeout-reconcile-v2" {
+			reconcilePolicy = true
+		}
+		if step.Kind == "execution_timeout_returned" {
+			returned = step.At
+		}
+
+		if step.Kind == "recovery_policy" && (step.Text == "safe-reply-v1" || step.Text == "safe-reply-timeout-reconcile-v2") {
 			policy = true
 		}
 		if step.Kind == "provider" {
+			returned = time.Time{}
 			proof = false
 		}
 		if step.Kind == "recovery_safe" {
@@ -124,6 +138,11 @@ func InboxAutomaticRecoveryCandidate(requests []InboxRequest, now time.Time) *In
 		if step.Kind == "finished" {
 			finished = step.At
 		}
+	}
+	if latest.State == "interrupted" {
+		policy = reconcilePolicy
+		proof = !returned.IsZero()
+		finished = returned
 	}
 	elapsed := now.Sub(finished)
 	if !policy || !proof || finished.IsZero() || elapsed < 2*time.Second || elapsed > 2*time.Minute {
@@ -189,10 +208,11 @@ func (r *MemoryProjectStudioRepository) retryInboxRequest(ctx context.Context, r
 		if candidate == nil || candidate.RequestID != source {
 			return q, false, ErrInboxRetryUnavailable
 		}
-		child.Steps[0].Kind = "retry_auto"
-		child.Steps[0].Text = "Recovering this reply automatically from the saved message."
-		if InboxRecoveryAction(q) != "try_again" {
-			return q, false, ErrInboxRetryUnavailable
+		// Keep reconciliation as the first marker: dispatch uses it to forbid
+		// replaying the previous response or mounting execution tools.
+		if !InboxRetryNeedsReconciliation(child) {
+			child.Steps[0].Kind = "retry_auto"
+			child.Steps[0].Text = "Recovering this reply automatically from the saved message."
 		}
 	} else {
 		if !manualInboxRetryAllowed(q) {
@@ -277,10 +297,11 @@ func (r *SQLProjectStudioRepository) retryInboxRequest(ctx context.Context, room
 		if latest != source || siblings != 1 {
 			return q, false, ErrInboxRetryUnavailable
 		}
-		child.Steps[0].Kind = "retry_auto"
-		child.Steps[0].Text = "Recovering this reply automatically from the saved message."
-		if InboxRecoveryAction(q) != "try_again" {
-			return q, false, ErrInboxRetryUnavailable
+		// Keep reconciliation as the first marker: dispatch uses it to forbid
+		// replaying the previous response or mounting execution tools.
+		if !InboxRetryNeedsReconciliation(child) {
+			child.Steps[0].Kind = "retry_auto"
+			child.Steps[0].Text = "Recovering this reply automatically from the saved message."
 		}
 	} else {
 		if !manualInboxRetryAllowed(q) {

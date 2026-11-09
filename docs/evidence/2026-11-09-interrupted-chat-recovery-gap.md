@@ -67,3 +67,33 @@ GOGC=30 GOMAXPROCS=2 go test -p 1 ./internal/db \
 The disposable PostgreSQL tunnel on localhost:15432 was unavailable during this
 check. SQL runtime parity and native production recovery remain unverified;
 this change has not been deployed.
+
+## Bounded automatic reconciliation implementation
+
+New operator-authored turns use `safe-reply-timeout-reconcile-v2`; visitors,
+legacy requests and retry turns do not gain timeout recovery authority.
+Finalization records `execution_timeout_returned` only when the executor reports
+its deadline expired after processing returned. Both ordinary finalization and
+history-expired rows retain the receipt. Recovery requires that fresh receipt,
+policy, no later provider start, complete trace, no permission denial, no newer
+turn, no active request and no sibling. The automatic child preserves its initial
+`retry_reconcile` marker and shares the existing deterministic manual retry ID.
+Discovery finds recent interrupted requests after restart. Deadline inspection
+now preserves cancellation instead of rewriting it as an unknown interruption.
+
+Verification:
+- Memory DB policy matrix: legacy/missing/generic/stale/too-recent receipt,
+  incomplete history, permission denial, cancellation, busy/newer/sibling turns,
+  restarted provider, idempotency and cancellation across deadline inspection.
+- Native server fixture: provider process deliberately exceeds deadline, then
+  dispatcher creates one tool-free reconciliation and completes it. Exactly one
+  original user message and one recovered reply; no manual retry request.
+- Disposable PostgreSQL `TestInboxRetryPostgres` passed with all migrations in a
+  private test schema: lost-return evidence, late reply rejection, timeout receipt,
+  restart discovery, automatic child and shared manual identity. No production
+  application data was mutated.
+- Targeted server lifecycle/reconciliation/direct-retry tests passed.
+
+These checks prove deterministic recovery mechanics, not production latency or
+remote provider reliability. Deployment and a real production workflow remain
+required before claiming this gap is resolved in production.

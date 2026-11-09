@@ -910,3 +910,13 @@ MCP `list_scheduled_jobs` now returns the actual authenticated scheduler state,
 including enabled/last status/run times. Connection/API failure is an error; the
 old fabricated list of always-active services has been removed. A successful scan
 may reclaim zero bytes when candidates are active, protected or already clean.
+
+New authenticated operator chat turns opt into one automatic timeout
+reconciliation. Native finalization must record that the executor actually
+returned after its deadline; an expired request row alone is insufficient.
+Legacy interruptions, visitor turns, cancellations, incomplete traces, newer
+turns, active requests and an existing child remain excluded. Automatic and
+manual retry share one deterministic child and retain `retry_reconcile` as its
+first marker. The child reads current saved state and cannot replay old provider
+actions. This is a bounded recovery attempt, not guaranteed provider availability
+or evidence of successful work. Original interrupted history remains intact.

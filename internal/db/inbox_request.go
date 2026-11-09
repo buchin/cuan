@@ -14,19 +14,21 @@ var ErrInboxQueueFull = errors.New("inbox queue full")
 var ErrInboxRequestConflict = errors.New("request key already belongs to different content")
 
 type InboxRequest struct {
-	OwnerID     string      `json:"-"`
-	AgentID     string      `json:"agent_id,omitempty"`
-	RoomID      string      `json:"room_id"`
-	RequestID   string      `json:"request_id"`
-	PayloadHash string      `json:"-"`
-	MessageID   string      `json:"message_id"`
-	ReplyID     string      `json:"reply_id"`
-	State       string      `json:"state"`
-	SafeError   string      `json:"safe_error,omitempty"`
-	CreatedAt   time.Time   `json:"created_at"`
-	Deadline    time.Time   `json:"deadline"`
-	StartedAt   *time.Time  `json:"started_at,omitempty"`
-	Steps       []InboxStep `json:"steps,omitempty"`
+	// Set only by the executor after its deadline has expired and processing returned.
+	ExecutionTimedOut bool        `json:"-"`
+	OwnerID           string      `json:"-"`
+	AgentID           string      `json:"agent_id,omitempty"`
+	RoomID            string      `json:"room_id"`
+	RequestID         string      `json:"request_id"`
+	PayloadHash       string      `json:"-"`
+	MessageID         string      `json:"message_id"`
+	ReplyID           string      `json:"reply_id"`
+	State             string      `json:"state"`
+	SafeError         string      `json:"safe_error,omitempty"`
+	CreatedAt         time.Time   `json:"created_at"`
+	Deadline          time.Time   `json:"deadline"`
+	StartedAt         *time.Time  `json:"started_at,omitempty"`
+	Steps             []InboxStep `json:"steps,omitempty"`
 }
 
 type InboxStep struct {
@@ -123,11 +125,23 @@ func (r *SQLProjectStudioRepository) FinishInboxRequest(ctx context.Context, q I
 	// It is not proof of success or permission to repeat external effects.
 	if finalState == "interrupted" {
 		if !inboxHasExecutionReturn(steps) {
-			if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, "execution_returned", "The original executor returned after interruption; external outcomes remain unverified."); err != nil {
+			if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, inboxExecutionReturnKind(q), "The original executor returned after interruption; external outcomes remain unverified."); err != nil {
 				return err
 			}
 		}
 		return tx.Commit()
+	}
+	if q.State == "interrupted" && q.ExecutionTimedOut && finalState != "cancelling" && !inboxHasExecutionReturn(steps) {
+		if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, inboxExecutionReturnKind(q), "The original executor returned after interruption; external outcomes remain unverified."); err != nil {
+			return err
+		}
+		// Reload the projection so finalization cannot overwrite the new receipt.
+		if err = tx.QueryRowContext(ctx, `SELECT steps FROM inbox_requests WHERE room_id=$1 AND request_id=$2`, q.RoomID, q.RequestID).Scan(&raw); err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &steps); err != nil {
+			return err
+		}
 	}
 	if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, "finished", "Reply processing ended."); err != nil {
 		return err
@@ -150,7 +164,7 @@ func (r *SQLProjectStudioRepository) FinishInboxRequest(ctx context.Context, q I
 }
 
 func (r *SQLProjectStudioRepository) ListInboxRequests(ctx context.Context, room string) ([]InboxRequest, error) {
-	_, err := r.db.ExecContext(ctx, `UPDATE inbox_requests SET state='interrupted',safe_error=$2 WHERE room_id=$1 AND state IN ('running','cancelling') AND deadline < NOW()`, room, interruptedInbox)
+	_, err := r.db.ExecContext(ctx, `UPDATE inbox_requests SET state=CASE WHEN state='cancelling' THEN 'cancelled' ELSE 'interrupted' END,safe_error=CASE WHEN state='cancelling' THEN safe_error ELSE $2 END WHERE room_id=$1 AND state IN ('running','cancelling') AND deadline < NOW()`, room, interruptedInbox)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +218,7 @@ func (r *MemoryProjectStudioRepository) FinishInboxRequest(ctx context.Context, 
 	key := q.RoomID + q.RequestID
 	if old, ok := r.requests[key]; ok && old.State == "interrupted" {
 		if !inboxHasExecutionReturn(old.Steps) {
-			r.recordInboxStep(key, &old, "execution_returned", "The original executor returned after interruption; external outcomes remain unverified.")
+			r.recordInboxStep(key, &old, inboxExecutionReturnKind(q), "The original executor returned after interruption; external outcomes remain unverified.")
 			r.requests[key] = old
 		}
 		return nil
@@ -216,6 +230,9 @@ func (r *MemoryProjectStudioRepository) FinishInboxRequest(ctx context.Context, 
 			m = nil
 		}
 		q.Steps = append([]InboxStep(nil), old.Steps...)
+		if q.State == "interrupted" && q.ExecutionTimedOut && !inboxHasExecutionReturn(q.Steps) {
+			r.recordInboxStep(key, &q, inboxExecutionReturnKind(q), "The original executor returned after interruption; external outcomes remain unverified.")
+		}
 		r.recordInboxStep(key, &q, "finished", "Reply processing ended.")
 		q.StartedAt = old.StartedAt
 		r.requests[key] = q
@@ -234,8 +251,12 @@ func (r *MemoryProjectStudioRepository) ListInboxRequests(ctx context.Context, r
 			continue
 		}
 		if (q.State == "running" || q.State == "cancelling") && time.Now().After(q.Deadline) {
-			q.State = "interrupted"
-			q.SafeError = interruptedInbox
+			if q.State == "cancelling" {
+				q.State = "cancelled"
+			} else {
+				q.State = "interrupted"
+				q.SafeError = interruptedInbox
+			}
 			r.requests[key] = q
 		}
 		q.Steps = compactInboxSteps(append([]InboxStep(nil), q.Steps...))
@@ -368,9 +389,16 @@ func (r *MemoryProjectStudioRepository) CancelInboxRequest(ctx context.Context, 
 // This receipt records a returned executor, not a verified business outcome.
 func inboxHasExecutionReturn(steps []InboxStep) bool {
 	for _, step := range steps {
-		if step.Kind == "execution_returned" {
+		if step.Kind == "execution_returned" || step.Kind == "execution_timeout_returned" {
 			return true
 		}
 	}
 	return false
+}
+
+func inboxExecutionReturnKind(q InboxRequest) string {
+	if q.ExecutionTimedOut {
+		return "execution_timeout_returned"
+	}
+	return "execution_returned"
 }

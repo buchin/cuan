@@ -14,8 +14,8 @@ type InboxDispatchRepository interface {
 
 func (r *SQLProjectStudioRepository) ListInboxDispatchRooms(ctx context.Context, now time.Time) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT room_id::text FROM inbox_requests
- WHERE state IN ('queued','running','cancelling') OR (state='failed' AND EXISTS (
- SELECT 1 FROM jsonb_array_elements(steps) step WHERE step->>'kind'='finished' AND (step->>'at')::timestamptz >= $1))
+ WHERE state IN ('queued','running','cancelling') OR (state IN ('failed','interrupted') AND EXISTS (
+ SELECT 1 FROM jsonb_array_elements(steps) step WHERE step->>'kind' IN ('finished','execution_timeout_returned') AND (step->>'at')::timestamptz >= $1))
  GROUP BY room_id ORDER BY min(created_at),room_id`, now.Add(-2*time.Minute))
 	if err != nil {
 		return nil, err
@@ -37,9 +37,9 @@ func (r *MemoryProjectStudioRepository) ListInboxDispatchRooms(_ context.Context
 	oldest := map[string]time.Time{}
 	for _, q := range r.requests {
 		eligible := q.State == "queued" || q.State == "running" || q.State == "cancelling"
-		if q.State == "failed" {
+		if q.State == "failed" || q.State == "interrupted" {
 			for _, step := range q.Steps {
-				if step.Kind == "finished" && !step.At.Before(now.Add(-2*time.Minute)) {
+				if (step.Kind == "finished" || step.Kind == "execution_timeout_returned") && !step.At.Before(now.Add(-2*time.Minute)) {
 					eligible = true
 				}
 			}

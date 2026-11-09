@@ -67,6 +67,80 @@ func TestInboxRetryPostgres(t *testing.T) {
 	if e = repo.CreateRoom(ctx, &db.ProjectRoom{ID: room, ProjectID: "default", Title: "Lifecycle SQL fixture", CreatedAt: now, UpdatedAt: now}); e != nil {
 		t.Fatal(e)
 	}
+	t.Run("expired executor return preserves unknown outcome", func(t *testing.T) {
+		returnRoom := db.GenerateUUID()
+		if err := repo.CreateRoom(ctx, &db.ProjectRoom{ID: returnRoom, ProjectID: "default", Title: "Expired execution", CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		q := db.InboxRequest{RoomID: returnRoom, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: "owner_fixture", AgentID: "agent_fixture", PayloadHash: "expired", State: "running", CreatedAt: now.Add(-time.Minute), Deadline: now.Add(-time.Second)}
+		if _, _, err := repo.AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: returnRoom, AuthorType: "user", AuthorID: "fixture", AuthorName: "Fixture", Content: "original", CreatedAt: q.CreatedAt}); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := repo.ListInboxRequests(ctx, returnRoom)
+		if err != nil || len(rows) != 1 || rows[0].State != "interrupted" || len(rows[0].Steps) != 0 {
+			t.Fatal("deadline fabricated return receipt", rows, err)
+		}
+		safeError := rows[0].SafeError
+		q.State = "completed"
+		late := &db.ProjectMessage{ID: q.ReplyID, RoomID: returnRoom, AuthorType: "agent", AuthorID: "fixture", AuthorName: "Fixture", Content: "late", CreatedAt: now}
+		for i := 0; i < 2; i++ {
+			if err := repo.FinishInboxRequest(ctx, q, late); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err = repo.ListInboxRequests(ctx, returnRoom)
+		if err != nil || len(rows) != 1 || rows[0].State != "interrupted" || rows[0].SafeError != safeError || len(rows[0].Steps) != 1 || rows[0].Steps[0].Kind != "execution_returned" {
+			t.Fatal("lost outcome or duplicate return receipt", rows, err)
+		}
+		messages, err := repo.ListMessagesByRoomID(ctx, returnRoom)
+		if err != nil || len(messages) != 1 {
+			t.Fatal("accepted late reply", messages, err)
+		}
+		if db.InboxAutomaticRecoveryCandidate(rows, time.Now()) != nil {
+			t.Fatal("return receipt authorized replay")
+		}
+	})
+	t.Run("timeout automatically reconciles once", func(t *testing.T) {
+		timeoutRoom := db.GenerateUUID()
+		if err := repo.CreateRoom(ctx, &db.ProjectRoom{ID: timeoutRoom, ProjectID: "default", Title: "Timeout reconciliation", CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		q := db.InboxRequest{RoomID: timeoutRoom, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: "owner_fixture", AgentID: "agent_fixture", PayloadHash: "timeout", State: "running", CreatedAt: now, Deadline: now.Add(time.Hour)}
+		if _, _, err := repo.AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: timeoutRoom, AuthorType: "user", AuthorID: "operator_user", AuthorName: "Fixture", Content: "original", CreatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.AppendInboxStep(ctx, timeoutRoom, q.RequestID, "recovery_policy", "safe-reply-timeout-reconcile-v2"); err != nil {
+			t.Fatal(err)
+		}
+		q.State = "interrupted"
+		q.ExecutionTimedOut = true
+		if err := repo.FinishInboxRequest(ctx, q, nil); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := repo.ListInboxRequests(ctx, timeoutRoom)
+		if err != nil || len(rows) != 1 || db.InboxAutomaticRecoveryCandidate(rows, time.Now().Add(3*time.Second)) == nil {
+			t.Fatal("timeout proof not retained", rows, err)
+		}
+		rooms, err := repo.ListInboxDispatchRooms(ctx, time.Now())
+		found := false
+		for _, id := range rooms {
+			if id == timeoutRoom {
+				found = true
+			}
+		}
+		if err != nil || !found {
+			t.Fatal("restart discovery lost timeout", err)
+		}
+		time.Sleep(2100 * time.Millisecond)
+		child, fresh, err := repo.AutoRetryInboxRequest(ctx, timeoutRoom, q.RequestID, q.OwnerID)
+		if err != nil || !fresh || !db.InboxRetryNeedsReconciliation(child) {
+			t.Fatal("lost automatic reconciliation", child, fresh, err)
+		}
+		manual, created, err := repo.RetryInboxRequest(ctx, timeoutRoom, q.RequestID, q.OwnerID)
+		if err != nil || created || manual.RequestID != child.RequestID {
+			t.Fatal("manual retry duplicated child", manual, err)
+		}
+	})
 	accept := func(offset time.Duration) db.InboxRequest {
 		q := db.InboxRequest{RoomID: room, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID(), ReplyID: db.GenerateUUID(), OwnerID: "owner_fixture", AgentID: "agent_fixture", PayloadHash: "same", State: "queued", CreatedAt: now.Add(offset), Deadline: now.Add(time.Hour)}
 		if _, fresh, e := repo.AcceptInboxRequest(ctx, q, &db.ProjectMessage{ID: q.MessageID, RoomID: room, AuthorType: "user", AuthorID: "fixture", AuthorName: "Fixture", Content: "fixture", CreatedAt: q.CreatedAt}); e != nil || !fresh {
