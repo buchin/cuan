@@ -182,7 +182,7 @@ func (s *Server) accountOutcomeIndependentlyVerified(ctx context.Context, d *tas
 		return false
 	}
 	dedicated := launch.RequestID == savedEvidenceRecoveryRequestID(d) && strings.Contains(launch.Revision, "Operational account outcome inspection:")
-	if !dedicated && (!task.IsAccountOutcome(&d.Task) || !managerAccountObservationGrant(d, launch)) {
+	if !dedicated && (!task.IsAccountOutcome(&d.Task) || !managerVerificationObservationGrant(d, launch)) {
 		return false
 	}
 	origin, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, *launch, d)
@@ -219,7 +219,7 @@ func (s *Server) accountOutcomeReviewContext(ctx context.Context, d *task.TaskDe
 // Admission already checked the assessment's then-current evidence digest. Here
 // validate that exact immutable grant against its predecessor, not today's
 // changed report digest. A new report cannot retroactively authorize itself.
-func managerAccountObservationGrant(d *task.TaskDetailResponse, launch *task.TaskLaunch) bool {
+func managerVerificationObservationGrant(d *task.TaskDetailResponse, launch *task.TaskLaunch) bool {
 	if d == nil || d.LatestAttempt == nil || launch == nil || launch.RoomID != d.SourceRoomID || launch.ProjectID != d.ProjectID || launch.AgentID != d.AssignedAgent {
 		return false
 	}

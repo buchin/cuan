@@ -406,6 +406,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requireVisualReview(ctx, d, decision)
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
+	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
 	decision.SourceReview = sourceReview
 	decision = requireNativePrerequisiteReview(d, decision)
 	if d.Status != task.TaskStatusDone {
@@ -427,6 +428,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requireVisualReview(ctx, d, decision)
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
+	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
 	if decision.Decision == "pass" {
 		if _, _, guidanceErr := project.TaskReviewGuidance(d.Instructions); guidanceErr != nil {
 			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}

@@ -346,11 +346,11 @@ func TestManagerAccountObservationRequiresExactPredecessorGrant(t *testing.T) {
 	raw, _ := json.Marshal(reviewAssessmentRecord{RequestID: launch.RequestID, InstructionsHash: launch.InstructionsHash, EvidenceDigest: strings.Repeat("a", 64), Assessment: assessment})
 	event := &task.TaskActivity{TaskID: d.ID, AttemptID: &parent.ID, Author: "coordinator", ActivityType: reviewAssessmentActivity, CreatedAt: finished.Add(time.Second), Message: string(raw)}
 	d.Activities = []*task.TaskActivity{event}
-	if !managerAccountObservationGrant(d, launch) {
+	if !managerVerificationObservationGrant(d, launch) {
 		t.Fatal("exact admitted verifier was rejected")
 	}
 	launch.Revision = "Binding approved continuation:\nOriginal owner constraints\n\nAutomatic correction feedback:\n" + launch.Revision
-	if !managerAccountObservationGrant(d, launch) {
+	if !managerVerificationObservationGrant(d, launch) {
 		t.Fatal("inherited constraints lost verifier grant")
 	}
 	for _, mode := range []string{"self report", "foreign request", "changed instructions", "unwrapped feedback", "cancelled predecessor", "foreign room", "future assessment", "later predecessor"} {
@@ -382,7 +382,7 @@ func TestManagerAccountObservationRequiresExactPredecessorGrant(t *testing.T) {
 				later.CreatedAt = finished
 				dd.Attempts = append(dd.Attempts, &later)
 			}
-			if managerAccountObservationGrant(&dd, &ll) {
+			if managerVerificationObservationGrant(&dd, &ll) {
 				t.Fatal("invalid verifier grant accepted")
 			}
 		})

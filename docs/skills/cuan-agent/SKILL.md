@@ -861,6 +861,15 @@ changed releases, known containment and forbidden scope remain excluded.
 
 ## Installed storage maintenance
 
+Standalone artifact acceptance now requires a separate native verification
+attempt. A developer's harness subagent is not that attempt. Cuan reuses the
+existing manager verification continuation: the verifier receives owner-scoped
+delivery paths, sizes and SHA256, reads the actual files, preserves originals,
+and reports concrete observations with downloadable artifacts. Native unchanged
+directory evidence and the saved predecessor assessment bind acceptance; no
+application checkout, project tests or publication are required for file work.
+Already accepted history is preserved rather than silently reopened.
+
 `cuan maintenance status` reads the actual registered storage-maintenance job
 through the configured Owner connection. `cuan maintenance run` requests only
 that existing job; it never accepts a path, shell command or alternative job ID.
