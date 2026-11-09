@@ -158,14 +158,16 @@ It does not accept tasks or infer acceptance from an old directory name. PM
 acceptance also requests this same coalescing maintenance job. Both verifier
 roots participate; no additional service or loop is introduced.
 
-After48 hours from acceptance and the last materialization, the pinned worker
-may release a clean accepted snapshot's tracked working files through Git sparse
-checkout. Complete independent Git objects, native receipts, source identities
+After 48 hours from acceptance (or creation/modification for unaccepted snapshots
+such as failed or canceled tasks) and the last materialization, the pinned worker
+may release a clean snapshot's tracked working files through Git sparse
+checkout without requiring fabricated acceptance receipts. Complete independent
+Git objects, native receipts, source identities
 and the persistent lease inode remain. Unknown/untracked reports, changed source,
 custom ignored files, dependency trees, active leases/process readers, submodules
 and shared files preserve the snapshot. The native generated MCP defaults are
-recognized by hashes recorded after validation, not by ignoring whole folders.
-Each pass is bounded to three transitions and20 seconds per root.
+recognized positively by exact byte-for-byte matching, not by ignoring whole folders.
+Each pass is bounded to three transitions and 20 seconds per root.
 
 The durable cold marker is synced before changing the tree. Native snapshot
 preparation and runner lease acquisition restore exact source from retained local

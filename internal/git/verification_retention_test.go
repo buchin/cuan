@@ -120,3 +120,154 @@ func TestAcceptedSnapshotReceiptRejectsUniqueSourceAndWrongIdentity(t *testing.T
 		})
 	}
 }
+
+func TestUnacceptedCleanSnapshotCompactorAndNativeLeaseRestoreRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	source, _, original, live, run := snapshotFixture(t)
+	root := VerificationWorkspacePath(t.TempDir(), "unaccepted-fixture", live)
+	client := NewClient()
+	if _, err := client.PrepareVerificationSnapshot(ctx, source, root, original, live); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".git", "info", "exclude"), []byte(".agents/\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, ".agents"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".agents", "mcp_config.json"), agent.GeneratedWorkspaceMCPConfig(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Note: MarkVerificationSnapshotAccepted is intentionally NOT called.
+	old := time.Now().Add(-72 * time.Hour)
+	if err := os.Chtimes(root, old, old); err != nil {
+		t.Fatal(err)
+	}
+	objects := run(root, "count-objects", "-v")
+	proc := t.TempDir()
+	script := os.Getenv("CUAN_TEST_SNAPSHOT_COMPACTOR")
+	if script == "" {
+		script, _ = filepath.Abs("../../scripts/compact-verification-source.py")
+	}
+	code := `import importlib.util,json,sys;from pathlib import Path
+spec=importlib.util.spec_from_file_location('compactor',sys.argv[1]);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+print(json.dumps(module.compact(Path(sys.argv[2]),apply=True,proc=Path(sys.argv[3]))))`
+	output, err := exec.Command("python3", "-c", code, script, filepath.Dir(root), proc).CombinedOutput()
+	if err != nil {
+		t.Fatal(err, string(output))
+	}
+	var result struct {
+		Compacted []string `json:"compacted"`
+		Bytes     int64    `json:"reclaimed_materialized_bytes"`
+		Failed    int      `json:"failed"`
+	}
+	if json.Unmarshal(output, &result) != nil || len(result.Compacted) != 1 || result.Bytes <= 0 || result.Failed != 0 {
+		t.Fatal("unaccepted clean snapshot did not compact", string(output))
+	}
+	if _, err = os.Stat(filepath.Join(root, "feature.txt")); !os.IsNotExist(err) {
+		t.Fatal("materialization was not released", err)
+	}
+	if run(root, "show", "HEAD:feature.txt") != "LIVE_RESULT" {
+		t.Fatal("source objects were removed")
+	}
+	// No fake acceptance receipt was created
+	if _, err = os.Stat(filepath.Join(root, ".git", "cuan-verification-accepted.json")); !os.IsNotExist(err) {
+		t.Fatal("acceptance receipt was forged", err)
+	}
+	// Simulate an interrupted restoration that already wrote one exact file
+	if err = os.WriteFile(filepath.Join(root, "feature.txt"), []byte("LIVE_RESULT"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Retained Git objects must be sufficient after disposable source is gone
+	if err = os.RemoveAll(source); err != nil {
+		t.Fatal(err)
+	}
+	lease, err := AcquireVerificationLease(ctx, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close()
+	if err = client.VerifySnapshotCommit(ctx, root, original, live); err != nil {
+		t.Fatal(err)
+	}
+	if objects != run(root, "count-objects", "-v") {
+		t.Fatal("objects changed after restore")
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".agents", "mcp_config.json"))
+	if err != nil || string(data) != string(agent.GeneratedWorkspaceMCPConfig()) {
+		t.Fatal("generated defaults changed", err)
+	}
+	data, err = os.ReadFile(filepath.Join(root, "feature.txt"))
+	if err != nil || string(data) != "LIVE_RESULT" {
+		t.Fatal("feature.txt not restored correctly", err)
+	}
+	if _, err = os.Lstat(filepath.Join(root, ".git", verificationColdMarker)); !os.IsNotExist(err) {
+		t.Fatal("cold marker remains after restoration", err)
+	}
+}
+
+func TestUnacceptedSnapshotProtectsCustomConfigAndDirtySource(t *testing.T) {
+	for _, mode := range []string{"custom config", "dirty source", "warm", "extra ignored dir"} {
+		t.Run(mode, func(t *testing.T) {
+			source, _, original, live, _ := snapshotFixture(t)
+			root := VerificationWorkspacePath(t.TempDir(), "unaccepted-fixture-"+mode, live)
+			client := NewClient()
+			if _, err := client.PrepareVerificationSnapshot(context.Background(), source, root, original, live); err != nil {
+				t.Fatal(err)
+			}
+			if mode == "custom config" {
+				if err := os.WriteFile(filepath.Join(root, ".git", "info", "exclude"), []byte(".agents/\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(filepath.Join(root, ".agents"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, ".agents", "mcp_config.json"), []byte("{\"mcpServers\": {\"custom\": {}}}\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			} else if mode == "dirty source" {
+				if err := os.WriteFile(filepath.Join(root, "feature.txt"), []byte("DIRTY_WORK"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			} else if mode == "extra ignored dir" {
+				if err := os.WriteFile(filepath.Join(root, ".git", "info", "exclude"), []byte("internal/runner/data/\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.MkdirAll(filepath.Join(root, "internal", "runner", "data"), 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "internal", "runner", "data", "custom.db"), []byte("data"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode != "warm" {
+				old := time.Now().Add(-72 * time.Hour)
+				if err := os.Chtimes(root, old, old); err != nil {
+					t.Fatal(err)
+				}
+			}
+			proc := t.TempDir()
+			script := os.Getenv("CUAN_TEST_SNAPSHOT_COMPACTOR")
+			if script == "" {
+				script, _ = filepath.Abs("../../scripts/compact-verification-source.py")
+			}
+			code := `import importlib.util,json,sys;from pathlib import Path
+spec=importlib.util.spec_from_file_location('compactor',sys.argv[1]);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+print(json.dumps(module.compact(Path(sys.argv[2]),apply=True,proc=Path(sys.argv[3]))))`
+			output, err := exec.Command("python3", "-c", code, script, filepath.Dir(root), proc).CombinedOutput()
+			if err != nil {
+				t.Fatal(err, string(output))
+			}
+			var result struct {
+				Compacted []string `json:"compacted"`
+				Bytes     int64    `json:"reclaimed_materialized_bytes"`
+			}
+			if json.Unmarshal(output, &result) != nil || len(result.Compacted) != 0 || result.Bytes != 0 {
+				t.Fatalf("dangerous snapshot in mode %s was compacted: %s", mode, string(output))
+			}
+			if _, err := os.Stat(filepath.Join(root, ".git", verificationColdMarker)); !os.IsNotExist(err) {
+				t.Fatalf("dangerous snapshot in mode %s received cold marker", mode)
+			}
+		})
+	}
+}
