@@ -96,3 +96,50 @@ production is forbidden but local repository edits remain requested. A task-lane
 regression uses the actual generated scope and asserts ops. Both packages pass.
 This fixes the deterministic routing cause rather than asking the PM to use a
 specific synonym or manually changing the existing task's lane/status.
+
+## Fresh native production completion
+
+Release `c0eab376f84044035585a582b7c97b438d210eb2` passed exact-SHA health
+with38 migrations at2026-11-09T05:02:23Z. Fresh room
+`79a57af2-6c80-4e7a-91df-e5a281e6e53a` received the same original request
+`716feb7b-fd86-49a5-91db-06f745f5d612`. Task
+`msg_8832ed4a-9219-4068-bf24-662ea8250f04` reached native Done at
+13:09:31.985382+08 with exactly two attempts, no manual retry, task status
+acceptance, steering or workspace mutation.
+
+| Segment | Seconds | Boundary (+08) |
+| --- | ---: | --- |
+| Initial PM | 101.1 | 13:02:42.275–13:04:23.394 |
+| Dev admission | 4.0 | 13:04:23.346–13:04:27.309 |
+| Dev execution | 114.0 | 13:04:27.309–13:06:21.353 |
+| Mandatory verifier handoff | 1.3 | 13:06:21.447–13:06:22.779 |
+| Verifier execution | 100.8 | 13:06:27.304–13:08:08.075 |
+| Final semantic PM review | 83.9 | 13:08:08.175–13:09:32.029 |
+
+Developer `att_d2e954db9ee36cc5e458af16cc3a1572` and verifier
+`att_4af812671e784cdd201a3d28ad9e4ca3` both use ops artifact workspace,
+without Git checkout. The verifier's native execution scope is read-only,
+deny push/deploy. Its runner unchanged-directory receipt and current final
+report remain present. Handoff request `5fa4d38a-2d03-45c3-aaa2-f37ba04f2c8b`
+records `verification_handoff` and no provider/runtime/model stage. Final request
+`da1c9169-8047-4f1a-a312-9369d93ea46b` does perform semantic provider review
+before accepting all criteria. No third execution was needed.
+
+Officially downloaded file attachment `a3b65d38-5d4c-48cf-a81b-12071fb35ac8`
+is170 bytes and matches expected SHA256
+`b903747b2d3c581e6a87b03e0bc310dfcd337daf503375bfc15102ac3b8f3d50`.
+Root read the file and1264-byte verifier report attachment
+`0d6752b3-86f3-41c0-a2bf-3c41e3c576a9`; actual contents match the requested
+five lines and final newline. Downloaded copies are under
+`/home/dev/artifacts/cuan-direct-verifier-v2/`.
+
+Compared with the earlier run, the handoff review fell from88.3 to1.3 seconds.
+Dev completion to Done fell from246.4 to190.6 seconds (about23 percent).
+However, incoming request to Done is409.7 seconds versus405.6 previously:
+slower initial/final model responses and execution offset the saved handoff.
+Do not claim improved end-to-end latency or general reliability from one run.
+The next bottleneck remains initial/final model latency, not runner admission.
+
+Without an explicit maintenance trigger in this benchmark, the registered job
+reports success at13:08:19.929733213+08 after verifier completion. This proves
+event-driven maintenance ran, not that any particular storage bytes were freed.
