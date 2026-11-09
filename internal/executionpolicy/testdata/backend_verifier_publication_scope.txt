@@ -1,0 +1,23 @@
+Cuan managed delegation v1.
+Approved scope digest: 3a6747b78766e81b8e9dde3b5a431f69c51c098a7a79a15036b3aa81a00e37bd
+Masalah:
+internal/runner/runner.go memanggil seedWarmDependencies pada setiap isolated source-verifier sebelum AcquireVerificationLease, meskipun verifikasi backend murni tidak membutuhkan node_modules frontend.
+
+Scope & Kebutuhan Implementasi:
+1. Buktikan jalur sebelum/sesudah: periksa apakah terjadi penyalinan node_modules yang tidak perlu pada verifier backend.
+2. Terapkan perbaikan terkecil pada internal/runner/runner.go agar verifier backend tidak menyalin node_modules yang tidak dibutuhkan.
+3. Pastikan verifikasi yang memerlukan frontend tetap mendapatkan dependensi lengkap sesuai manifest dan lockfile (jangan mengandalkan RequiresVision saja jika target pemeriksaan terdaftar masih membutuhkan frontend).
+4. Jika reuse/snapshot dilakukan, pastikan mutasi snapshot hanya dieksekusi setelah lease eksklusif didapatkan (AcquireVerificationLease); kegagalan akuisisi lease tidak boleh memutasi snapshot.
+5. Pertahankan immutable source dan invalidasi fingerprint.
+6. Buat targeted behavioral tests untuk membuktikan backend tidak menyalin node_modules, kebutuhan frontend tetap terpenuhi, dan kegagalan lease tidak memutasi snapshot.
+7. Verifikasi independen terhadap seluruh kriteria DoD asli.
+8. Native deploy dan exact health check pada rilis baru.
+
+Batasan:
+- 1 task backend terfokus, tanpa modifikasi UI, browser screenshot, atau email.
+- Pertahankan source checkpoint dan bukti konkret tanpa mengklaim speedup tanpa pengukuran nyata.
+
+Approval message: d0843350-b9f0-4682-b326-c0adaa2498e8
+User authorization: Kerjakan satu task backend Cuan lewat alur PM -> dev -> verifier -> done. Otorisasi implementasi dan deploy native sudah diberikan, tidak perlu approval ulang keputusan teknis rutin. Masalah nyata: internal/runner/runner.go memanggil seedWarmDependencies pada setiap isolated source-verifier sebelum AcquireVerificationLease, meskipun pekerjaan backend tidak memerlukan frontend. Telusuri kebutuhan sebenarnya dan buktikan apakah terjadi copy yang tidak perlu; terapkan perbaikan terkecil agar verifier backend tidak menyalin node_modules yang tidak dibutuhkan, sementara verifikasi yang memang memerlukan frontend tetap mendapat dependency sesuai manifest+lock. Jika reuse dilakukan, pastikan mutasi snapshot hanya setelah lease eksklusif didapat. Jangan mengandalkan RequiresVision saja jika target pemeriksaan terdaftar masih membutuhkan frontend. DoD: bukti jalur sebelum/sesudah; targeted behavioral tests membuktikan backend tidak melakukan copy, kebutuhan frontend tetap dipenuhi, dan lease gagal tidak memutasi snapshot; immutable source dan invalidasi fingerprint tetap terjaga; verifier independen memeriksa DoD asli; native deploy dan exact health untuk perubahan kode. Jika tidak ada waste nyata, laporkan bukti konkret tanpa mengarang optimasi. Gunakan satu task saja, scope tetap kecil; jangan ubah UI, jangan browser/screenshot, jangan kirim email, jangan hapus history atau sumber unik, jangan tambah scheduler/library atau artefak tidak relevan. Pertahankan source checkpoint dan bukti. Jangan mengulang broad suite atau deploy hanya demi bukti bila bukti native yang sah sudah ada. Komunikasi ringkas, jangan mengklaim speedup tanpa pengukuran.
+Conversation: 753c1a1d-dfaa-4904-a018-03c493e81473
+Report actual progress and verification evidence. Stay within this scope.
