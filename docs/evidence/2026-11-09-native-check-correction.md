@@ -634,3 +634,16 @@ and deployed through official `cuan release run`; exact production health matche
 (16.998s), covering approved merge/reuse, conflict, revoked/wrong source, missing
 publication configuration/runtime/access and live-observation cases. Corrective
 dev remained running after deploy; no forced acceptance or restart was requested.
+
+Verifier instruction correction: the real false-positive isolation review showed
+that the generic existing instruction (developer claims are not proof) was not
+sufficient. The native verifier role now explicitly inspects what passing tests
+cover and uses the smallest relevant counterexample when a material guarantee is
+uncovered, with fixtures outside the protected checkout. Isolation is explained
+as observing independence under mutation rather than different paths. It forbids
+a duplicate full suite or unrelated checks. This is a prompt correction, not a
+claim of proven model compliance; the next independent review must establish
+that behavior. Existing exact-source/private-workspace runner regression passes.
+Native corrective dev completed source 469f1a93 in 7m3s including 34.179s native
+checks; the queued follow-up original-scope correction is running as
+att_1762ec8bc1f13ceeac29e6a66052052b. No forced Done or extra task was created.
