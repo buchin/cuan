@@ -61,10 +61,15 @@ func TestDeploymentCancellationDoesNotProhibitPublication(t *testing.T) {
 		{"Jangan membatalkan deploy dan jangan deploy perubahan baru.", true},
 		{"Scope: read-only repository. Do not cancel deployment.", true},
 		{"Tanpa deploy. Jangan batalkan deploy yang berjalan.", true},
+		{"Do not cancel deployment or deploy a new revision.", true},
+		{"Jangan batalkan deploy yang berjalan atau deploy perubahan baru.", true},
 	} {
 		if got := FromInstructions(tc.text); got.DenyDeploy != tc.deny {
 			t.Errorf("%q: %+v", tc.text, got)
 		}
+	}
+	if got := FromInstructions("Do not cancel deployment or push a new branch."); !got.DenyPush || got.DenyDeploy {
+		t.Fatalf("coordinated push restriction was lost: %+v", got)
 	}
 }
 

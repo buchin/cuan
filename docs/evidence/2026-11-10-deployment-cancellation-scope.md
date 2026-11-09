@@ -9,8 +9,11 @@ incorrectly reported `deny_deploy=true`. The prohibition matcher associated
 `tanpa` with the later noun `deploy`, ignoring that the prohibited action was
 cancellation.
 
-The policy now removes only bounded Indonesian/English cancellation cautions
-before evaluating publication prohibitions. This grants no publication authority;
+The policy recognizes bounded Indonesian/English cancellation cautions and
+renames only their deployment noun before evaluating publication prohibitions.
+It preserves the negation so coordinated restrictions such as "do not cancel
+deployment or deploy a new revision" still prohibit the second action.
+This grants no publication authority;
 original task restrictions are still combined independently. Separate no-deploy,
 read-only and following deployment prohibitions remain covered by regressions.
 

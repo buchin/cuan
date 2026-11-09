@@ -29,10 +29,10 @@ var pushAction = regexp.MustCompile(`(?i)\b(?:push|publishing|publish)\b`)
 var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspection|investigasi|pemeriksaan)\s+(?:read[ -]only|baca[ -]saja)\b|\bread[ -]only\s+(?:audit|investigation|inspection)\b|\b(?:repository|repositori|repo)\s+(?:is |must remain |harus tetap )?read[ -]only\b|^\s*(?:scope|batasan)\s*:\s*read[ -]only\b)`)
 var deployAction = regexp.MustCompile(`(?i)\b(?:deploy|deployment|deploying)\b`)
 
-// Negating cancellation is not a deployment prohibition. Remove only this
-// bounded action; leave any following push/deploy ban available to the parser.
+// Negating cancellation is not a deployment prohibition. Rename only its
+// deployment noun; retain the negation for coordinated push/deploy prohibitions.
 // This does not grant publication authority or relax an independent scope.
-var deploymentCancellationCaution = regexp.MustCompile(`(?i)\b(?:tanpa\s+membatalkan|jangan\s+(?:membatalkan|batalkan)|do not\s+cancel|don't\s+cancel)\s+(?:deploy|deployment)\b`)
+var deploymentCancellationCaution = regexp.MustCompile(`(?i)\b((?:tanpa\s+membatalkan|jangan\s+(?:membatalkan|batalkan)|do not\s+cancel|don't\s+cancel))\s+(?:deploy|deployment)\b`)
 
 // A prohibition explicitly limited to the inspect command describes product
 // behavior. It cannot grant publication: a separate positive task request is
@@ -47,7 +47,7 @@ var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat depl
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
-	instructions = deploymentCancellationCaution.ReplaceAllString(instructions, "")
+	instructions = deploymentCancellationCaution.ReplaceAllString(instructions, "${1} release")
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
 	if policy.ReadOnlyRepository {
 		policy.DenyPush, policy.DenyDeploy = true, true
