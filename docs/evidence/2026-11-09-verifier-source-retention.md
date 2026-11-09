@@ -121,3 +121,8 @@ executed from a new empty directory, with an explicit check that no relative
 removed. Historical fixture directories were preserved; no cleanup whitelist or
 acceptance rule was relaxed. This prevents new fixture pollution, not proof of
 production reclamation or a repair of all unknown historical outputs.
+
+Release `091de6d7c170e60fb06a03a5c7d61c90aa7dc335` completed at
+2026-11-09T04:42:44Z with exact-SHA production health,38 migrations and
+unchanged release source. Future verifier snapshots of this release include
+the isolated fixture. Historical unknown output remains preserved.
