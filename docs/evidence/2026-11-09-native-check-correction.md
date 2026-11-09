@@ -405,3 +405,35 @@ frames, requiring one generic status plus the concrete command and two distinct
 identical errors. All `TestPTYDiagnostics` tests passed, including split quota,
 UTF-8, unterminated-output and specific-work preservation cases. Production
 savings remain unmeasured until a new execution uses the updated runner.
+
+The PTY filter release `e6d58a226310fa481673e9cf8368731875c6c630` completed
+November 9 at 12:06:20 UTC in 202.4 seconds, exit zero and source unchanged.
+Production health matched the exact commit, with 38 migrations. The still-active
+developer attempt was not restarted; its old diagnostic behavior is historical,
+not a production test of the newly released filter.
+
+The fresh dependency task did not achieve its requested result. Attempt
+`att_d5470bf99f98d16fcea8112a7efcee4e` timed out at 20:06:38 (+08), exit 124,
+with no saved agent progress/final report. Its native agent stage lasted
+1,455,846 ms. One Owner steering intervention had requested a factual checkpoint
+and a narrower decisive check, preserving scope and the permitted no-change
+finding. Delivery was acknowledged and logged, but no checkpoint followed. This
+cannot be described as an autonomous success or a completed optimization.
+
+Existing native reconciliation automatically queued a read-only
+`current_outcome_inspection` launch
+`launch_67e95b8cef9a603ef79075092b129b339deed167ab72a6c9dec2feba9e1f5bf8`.
+It has not started because storage is again below admission capacity. The failed
+attempt remains failed; no manual task acceptance was applied. Source inspection
+confirmed persisted encrypted task grants already exist, so absent reports alone
+do not prove deployment lost the worker's capability.
+
+Further allocated-byte observations found roughly 5.58 GB in provider profiles.
+One large profile held about 1.09 GB in provider history/brain/log data and
+469.5 MB in `.local/share/cuan-releases`; three profile staging roots together
+held about 1.006 GB. No profile had a `.local/bin` Cuan executable in the sampled
+case, and these were release-build/staging outputs, not evidence of duplicated
+AGY installations. Existing staging pruning requires a matching verified
+installed counterpart; it must not be relaxed merely to erase unknown or unique
+files. No provider conversation, brain, credential, backup or staging directory
+was deleted during this investigation.
