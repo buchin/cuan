@@ -28,8 +28,9 @@ These are source/object copies, not removable npm caches. Most of the sampled
 snapshot's footprint remains after dependency cleanup.
 
 `runTaskWorkspaceGC` in`internal/server/gc.go` targets
-`ProjectsDir/task-workspaces` only. Its age/count targets do not cover
-`WorkspacesDir` or either verifier location. Existing pruning deliberately protects
+`ProjectsDir/task-workspaces` only. The runner separately sweeps `WorkspacesDir`
+at startup and after executions (`internal/runner/runner.go`); neither of these
+workspace sweep routes expires the two verifier roots. Existing pruning deliberately protects
 active leases, dirty/ignored work and commits beyond remote-tracking refs; do
 not bypass that protection with a directory-age deletion.
 
@@ -80,3 +81,21 @@ Five executable release-gate regressions pass, including failure/no-publication
 and ordered start/end assertions. It is pushed to dev; successful native use and
 production activation remain pending. No task workspace/snapshot/history was
 removed during this investigation.
+
+
+## Follow-up lifecycle correction
+
+Live read-only status on the current task workspace showed ignored `.agents/`,
+`.gemini/` and `internal/runner/data/`. The generic retention check rejects every
+ignored entry, including MCP defaults Cuan itself creates. The runner does sweep
+current workspaces, so missing invocation alone is not their demonstrated cause.
+
+The corrected workspace retention permits only exact default Cuan MCP config
+contents at `.agents/mcp_config.json` and `.gemini/config/mcp_config.json`.
+Extra files/directories, custom config and other ignored paths remain protected.
+All original clean-source, published-commit and execution-lock conditions remain.
+Actual generator-to-pruner regressions reclaim a published fixture with only
+these defaults, while edited config, saved reports, extra directories and other
+ignored data remain intact. Existing unpublished/dirty/stash retention tests pass.
+No production workspace was deleted to establish these fixture results. Test
+runtime data and verifier snapshot lifecycle still require separate handling.

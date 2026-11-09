@@ -437,3 +437,10 @@ func EnsureWorkspaceMCPConfig(workspaceDir string) error {
 	}
 	return nil
 }
+
+// GeneratedWorkspaceMCPConfig is the reconstructible default Cuan writes in a
+// fresh workspace. Additional provider/user configuration is never disposable.
+func GeneratedWorkspaceMCPConfig() []byte {
+	data, _ := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{"cuan-inspect": map[string]any{"command": "cuan", "args": []string{"mcp"}}}}, "", "  ")
+	return append(data, '\n')
+}

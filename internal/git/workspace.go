@@ -602,7 +602,8 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 }
 
 // Age/count alone never prove saved work is disposable. Keep unknown repos,
-// tracked/untracked/ignored files, conflicts, stashes and unpublished commits.
+// tracked/untracked/ignored files (except exact regenerable Cuan MCP defaults),
+// conflicts, stashes and unpublished commits.
 // Hold the same execution lock throughout inspection and deletion; never unlink
 // its inode while another worker may be waiting to acquire it.
 func (c *Client) pruneRecreatableWorkspace(ctx context.Context, dir, lockPath string) bool {
@@ -616,7 +617,7 @@ func (c *Client) pruneRecreatableWorkspace(ctx context.Context, dir, lockPath st
 	}
 	defer lock.Close()
 	status, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "status", "--porcelain", "--untracked-files=normal", "--ignored=matching").Output()
-	if err != nil || len(bytes.TrimSpace(status)) != 0 {
+	if err != nil || !reconstructibleWorkspaceStatus(dir, status) {
 		return false
 	}
 	local, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "rev-list", "--max-count=1", "--all", "HEAD", "--not", "--remotes").Output()

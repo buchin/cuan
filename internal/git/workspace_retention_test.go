@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"github.com/buchin/cuan/internal/agent"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -146,6 +147,58 @@ func TestPruningPreservesUnverifiedWorkDespiteAgeAndQuota(t *testing.T) {
 			if kind == "stash" && !strings.Contains(retentionGit(t, dir, "stash", "list"), "stashed") { // Check actual stored diff, not its generated title.
 				if !strings.Contains(retentionGit(t, dir, "stash", "show", "-p"), "stashed result") {
 					t.Fatal("stash lost")
+				}
+			}
+		})
+	}
+}
+
+func TestPruningReclaimsOnlyExactGeneratedWorkspaceConfiguration(t *testing.T) {
+	for _, scenario := range []string{"generated", "edited-config", "extra-report", "extra-empty-directory", "other-ignored-data"} {
+		t.Run(scenario, func(t *testing.T) {
+			base := filepath.Join(t.TempDir(), "base")
+			createTestBaseRepo(t, base)
+			os.WriteFile(filepath.Join(base, ".gitignore"), []byte(".agents/\n.gemini/\nlocal-data/\n"), 0600)
+			retentionGit(t, base, "add", ".gitignore")
+			retentionGit(t, base, "commit", "-m", "Ignore generated configuration")
+			workspaces := t.TempDir()
+			workspace := filepath.Join(workspaces, "old-task")
+			if out, err := exec.Command("git", "clone", base, workspace).CombinedOutput(); err != nil {
+				t.Fatal(string(out))
+			}
+			if err := agent.EnsureWorkspaceMCPConfig(workspace); err != nil {
+				t.Fatal(err)
+			}
+			switch scenario {
+			case "edited-config":
+				os.WriteFile(filepath.Join(workspace, ".agents", "mcp_config.json"), []byte("custom configuration"), 0600)
+			case "extra-report":
+				os.WriteFile(filepath.Join(workspace, ".gemini", "findings.md"), []byte("preserve findings"), 0600)
+			case "extra-empty-directory":
+				os.Mkdir(filepath.Join(workspace, ".agents", "saved"), 0700)
+			case "other-ignored-data":
+				os.Mkdir(filepath.Join(workspace, "local-data"), 0700)
+				os.WriteFile(filepath.Join(workspace, "local-data", "report.txt"), []byte("retain"), 0600)
+			}
+			old := time.Now().Add(-48 * time.Hour)
+			os.Chtimes(workspace, old, old)
+			count, err := NewClient().PruneStaleWorkspaces(workspaces, time.Hour, "", 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "generated" {
+				if count != 1 {
+					t.Fatal("Cuan's generated defaults prevented reclaim", count)
+				}
+				if _, err := os.Stat(workspace); !os.IsNotExist(err) {
+					t.Fatal("published disposable workspace retained")
+				}
+			} else {
+				if count != 0 {
+					t.Fatal("unique data deleted", scenario)
+				}
+				if _, err := os.Stat(workspace); err != nil {
+					t.Fatal("saved workspace lost", err)
 				}
 			}
 		})
