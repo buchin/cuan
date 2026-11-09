@@ -43,3 +43,24 @@ fields/types from constraints using fixed labels, without recording private
 candidate contents. Coordinator, formatting/recovery and diagnostics tests pass.
 These tests reproduce the class of failure; they do not recover the missing raw
 production field or demonstrate successful native publication yet.
+
+## Post-repair native run
+
+Release `f36e91b46da9a588ea759d9fe27b2105fc62b3ff` passed exact-SHA
+production health with 37 migrations. The first room retained zero tasks and its
+completed invalid-delegation reply. Root started a fresh run with the identical
+original request, preserving that failed history rather than resetting it.
+
+- New room: `892ac17e-b3c7-4adf-96a8-c9dc4d6bc164`
+- Request: `c6d56a5f-6369-4c73-9382-2d326f29c211`
+- Task: `msg_326c5110-4e5f-49a3-a19c-4b0f4491764e`
+- First developer: `att_c0cde12ca73960004c80af4d2d5e4669`
+
+The provider's first response validated without a format-repair stage (89.7s).
+PM created exactly one code task bound to Cuan; its developer started at
+`2026-11-09T08:27:56.649+08:00`. Original scope permits push/deployment.
+A native `managed_release_claim` is recorded for the attempt, establishing the
+managed source handoff path, not a claim of completed verification/publication.
+Developer logs identify the ignored API limit and direct JSON forwarding; work
+remains in progress. The root observer has not changed its task state/source,
+steered it or manually published its feature. Final release and Done are unproven.
