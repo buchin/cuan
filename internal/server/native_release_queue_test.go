@@ -34,6 +34,9 @@ import (
 func TestNativeReleaseQueueDoesNotUseAICapacity(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "ready")
 }
+func TestNativePreparationFailureRecoversSameReviewedSourceWithoutPM(t *testing.T) {
+	nativeReleaseQueueContract(t, nil, "preparation recovery")
+}
 func TestNativeReleaseHTTPClaimDoesNotGrantModelExecution(t *testing.T) {
 	nativeReleaseQueueContract(t, nil, "http")
 }
@@ -387,6 +390,32 @@ func nativeReleaseQueueContract(t *testing.T, database *sql.DB, scenario string)
 	must(err)
 	if !claim.Claimed || claim.NativeRelease == nil || claim.NativeRelease.SourceCommit != p.SourceCommit || capacityCalls.Load() != 0 {
 		t.Fatal("native claim lost source or depended on AI capacity")
+	}
+	if scenario == "preparation recovery" {
+		s.runnerSvc.SetEventBus(runner.NewEventBus())
+		_, err := s.runnerSvc.Complete(ctx, claim.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: claim.Attempt.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.NativeReleasePreparationUnavailableMessage})
+		must(err)
+		failed, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		if !s.recoverNativeReleaseHandoff(ctx, failed, []db.InboxRequest{q}) {
+			t.Fatal("preparation failure did not resume the same native release")
+		}
+		recovered, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(item.ID, task.NativeReleasePreparationRecoveryRequestID(item.ID, p.SourceCommit)))
+		must(err)
+		proof, err := task.NativeReleaseIntentForLaunch(&recovered.Task, job)
+		must(err)
+		if proof == nil || proof.PreparationRecoveryAttemptID != claim.Attempt.ID || proof.SourceReviewAttemptID != p.SourceReviewAttemptID || proof.SourceCommit != p.SourceCommit || len(recovered.Attempts) != 4 || recovered.LatestAttempt.Status != task.AttemptStatusQueued || capacityCalls.Load() != 0 {
+			t.Fatal("recovery lost source/authority, consumed model capacity or failed admission", proof, recovered.LatestAttempt)
+		}
+		s.recoverNativeReleaseHandoff(ctx, failed, []db.InboxRequest{q})
+		repeated, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		must(err)
+		if len(repeated.Attempts) != 4 || repeated.Status == task.TaskStatusDone {
+			t.Fatal("recovery duplicated work or accepted the task")
+		}
+		return
 	}
 	if strings.HasPrefix(scenario, "initial") {
 		verifyInitialNativePreparation(t, s, token, item, claim, p, preparedTarget, scenario)

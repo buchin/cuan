@@ -188,6 +188,24 @@ func verifyInitialNativePreparation(t *testing.T, s *Server, token string, item 
 		if response.Code != expectedCode || merges != 0 || gets != 0 {
 			t.Fatal("invalid initial source reached merge")
 		}
+		stage := map[string]string{"initial missing tool": "runtime", "initial wrong source": "source_identity", "initial no access": "source_push"}[scenario]
+		if stage != "" {
+			code := "native_preparation_" + stage
+			if !strings.Contains(response.Body.String(), code) {
+				t.Fatal("preparation lost the concrete failure stage", response.Body.String())
+			}
+			detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+			must(err)
+			found := false
+			for _, event := range detail.Activities {
+				if event.ID == "native-release-preparation-failure:"+claim.Attempt.ID && event.Author == "cuan-native-release" && strings.Contains(event.Message, code) {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("preparation diagnostic was not persisted")
+			}
+		}
 		data, _ := os.ReadFile(calls)
 		if len(data) != 0 {
 			t.Fatal("invalid source reached remote push")

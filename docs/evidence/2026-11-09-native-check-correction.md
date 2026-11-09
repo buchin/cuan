@@ -176,3 +176,29 @@ any future recovery policy. Existing failed launch history must not be reset;
 the retained verified source still needs bounded native preparation recovery
 and live deployment evidence. Preparation diagnostics also need a concrete
 stage code rather than the current generic error.
+
+## Bounded native preparation continuation
+
+The recovery intent binds the failed preparation attempt explicitly alongside
+the unchanged source/reviewer/owner/repository/branch/manifest identities. It is
+admitted only for the native failed completion stating that no model or release
+process started, with complete exit/timing metadata and no cancellation. The
+original source and independent approval are revalidated. A deterministic child
+key permits one continuation per source, never another recovery of that child.
+The ordinary claimed-launch/predecessor checks still admit the new attempt;
+the failed predecessor is never reopened. A newly observed successful
+publication instead goes to inspection and cannot trigger another deployment.
+
+Core tests cover source/owner tampering, cancellation, unknown exit, process-stage
+failure, typed recovery admission, preservation of failed history and rejection
+of a retry chain. The server queue test drives a real native failed completion
+and durable continuation, proving the original source/review stay bound, no PM
+capacity is consumed and repeated scans create no extra attempt. Existing native
+source, publication and claimed-launch tests remain required.
+
+Preparation now persists a bounded native failure-stage code and source identity
+without Git/SSH stderr or environment values. The runner retains only recognized
+codes in its completion; merge-conflict classification is unchanged. Native
+tests verify runtime/source-identity/source-push stage records and reject
+unrecognized/secret-bearing transport diagnostics. This improves future
+diagnosis; it does not invent a stage for the already generic failed attempt.

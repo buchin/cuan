@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/buchin/cuan/internal/task"
 )
@@ -24,8 +25,17 @@ func (r *Runner) requestNativeReleasePreparation(ctx context.Context, claim Clai
 			Code string `json:"code"`
 		}
 		decoder := json.NewDecoder(io.LimitReader(response.Body, 2048))
-		if response.StatusCode == http.StatusConflict && decoder.Decode(&failure) == nil && decoder.Decode(new(any)) == io.EOF && failure.Code == "source_merge_conflict" {
-			return nil, task.NativeReleaseMergeConflictMessage
+		if response.StatusCode == http.StatusConflict && decoder.Decode(&failure) == nil && decoder.Decode(new(any)) == io.EOF {
+			if failure.Code == "source_merge_conflict" {
+				return nil, task.NativeReleaseMergeConflictMessage
+			}
+			stage := strings.TrimPrefix(failure.Code, "native_preparation_")
+			switch stage {
+			case "authorization", "saved_preparation", "source_workspace", "project_context", "source_lease", "source_identity", "release_manifest", "runtime", "source_push", "merge", "release_workspace":
+				if failure.Code == "native_preparation_"+stage {
+					return nil, "Native release preparation failed at " + stage + "; no release process started"
+				}
+			}
 		}
 		return nil, ""
 	}

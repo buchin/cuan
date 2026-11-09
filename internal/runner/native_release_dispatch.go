@@ -21,7 +21,7 @@ func (r *Runner) runNativeReleaseAttempt(ctx context.Context, claim ClaimTaskRes
 	if claim.Attempt == nil || claim.Task == nil {
 		return
 	}
-	req := CompleteAttemptRequest{RunnerID: r.cfg.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Native release workspace preparation is unavailable; no model or release execution was started"}
+	req := CompleteAttemptRequest{RunnerID: r.cfg.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.NativeReleasePreparationUnavailableMessage}
 	if claim.NativeReleaseExecution == nil {
 		preparationCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 		var failure string

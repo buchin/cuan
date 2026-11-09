@@ -13,6 +13,7 @@ import (
 
 const NativeReleaseIntentMarker = "Cuan native-release intent v1: "
 const ActivityNativeReleaseHandoff = "native_release_handoff"
+const NativeReleasePreparationUnavailableMessage = "Native release workspace preparation is unavailable; no model or release execution was started"
 const NativeReleaseMergeConflictMessage = "Native release source has confirmed merge conflicts with the current release branch. Reconcile the approved source against the latest branch in a developer session, preserve unrelated work and release gates, rerun required checks and independent source review, then publish only the new reviewed source. The release script was not started."
 
 // NativeReleaseHandoff is produced by completion validation, never by agent
@@ -32,21 +33,33 @@ type NativeReleaseHandoff struct {
 // NativeReleaseIntent binds one durable release stage to a verified source
 // handoff. Parsing this value grants neither original authorization nor access.
 type NativeReleaseIntent struct {
-	SourceReviewAttemptID  string `json:"source_review_attempt_id,omitempty"`
-	SourceAttemptID        string `json:"source_attempt_id"`
-	SourceCommit           string `json:"source_commit"`
-	SourceVerificationHash string `json:"source_verification_hash"`
-	InstructionsHash       string `json:"instructions_hash"`
-	OwnerID                string `json:"owner_id"`
-	RoomID                 string `json:"room_id"`
-	SourceRequestID        string `json:"source_request_id"`
-	Repository             string `json:"repository"`
-	TargetBranch           string `json:"target_branch"`
-	ManifestHash           string `json:"manifest_hash"`
+	PreparationRecoveryAttemptID string `json:"preparation_recovery_attempt_id,omitempty"`
+	SourceReviewAttemptID        string `json:"source_review_attempt_id,omitempty"`
+	SourceAttemptID              string `json:"source_attempt_id"`
+	SourceCommit                 string `json:"source_commit"`
+	SourceVerificationHash       string `json:"source_verification_hash"`
+	InstructionsHash             string `json:"instructions_hash"`
+	OwnerID                      string `json:"owner_id"`
+	RoomID                       string `json:"room_id"`
+	SourceRequestID              string `json:"source_request_id"`
+	Repository                   string `json:"repository"`
+	TargetBranch                 string `json:"target_branch"`
+	ManifestHash                 string `json:"manifest_hash"`
 }
 
 func NativeReleaseRequestID(taskID, source string) string {
 	return verificationRequestID("native-release:v2:", taskID, source)
+}
+
+func NativeReleasePreparationRecoveryRequestID(taskID, source string) string {
+	return verificationRequestID("native-release-preparation-recovery:v1:", taskID, source)
+}
+
+func (p *NativeReleaseIntent) PredecessorAttemptID() string {
+	if p.PreparationRecoveryAttemptID != "" {
+		return p.PreparationRecoveryAttemptID
+	}
+	return p.SourceReviewAttemptID
 }
 
 func NativeReleaseIntentForLaunch(t *Task, j *TaskLaunch) (*NativeReleaseIntent, error) {
@@ -74,7 +87,11 @@ func NativeReleaseIntentForLaunch(t *Task, j *TaskLaunch) (*NativeReleaseIntent,
 		return nil, ErrInvalidTaskInput
 	}
 	legacyRequest := verificationRequestID("native-release:v1:", t.ID, p.SourceCommit)
-	if j.RequestID != NativeReleaseRequestID(t.ID, p.SourceCommit) && !(p.SourceReviewAttemptID == "" && j.RequestID == legacyRequest) {
+	expectedRequest := NativeReleaseRequestID(t.ID, p.SourceCommit)
+	if p.PreparationRecoveryAttemptID != "" {
+		expectedRequest = NativeReleasePreparationRecoveryRequestID(t.ID, p.SourceCommit)
+	}
+	if j.RequestID != expectedRequest && !(p.PreparationRecoveryAttemptID == "" && p.SourceReviewAttemptID == "" && j.RequestID == legacyRequest) {
 		return nil, ErrInvalidTaskInput
 	}
 	return &p, nil
@@ -156,6 +173,11 @@ func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 	if requireLatest && p.SourceReviewAttemptID == "" {
 		return ErrInvalidTaskInput
 	}
+	if p.PreparationRecoveryAttemptID != "" {
+		if err := validateNativePreparationRecovery(ctx, store, t, p); err != nil {
+			return err
+		}
+	}
 	if p.SourceReviewAttemptID != "" {
 		review, err := NativeSourceReviewForAttempt(ctx, store, t, p.SourceReviewAttemptID)
 		if err != nil || review == nil || review.SourceAttemptID != p.SourceAttemptID || review.SourceCommit != p.SourceCommit || review.InstructionsHash != p.InstructionsHash {
@@ -178,11 +200,16 @@ func validateNativeReleaseSource(ctx context.Context, store Store, t *Task, p *N
 		return ErrInvalidTaskInput
 	}
 	if requireLatest && latest.ID != p.SourceReviewAttemptID {
-		if latest.CancelRequested || latest.CanceledAt != nil || (latest.Status != AttemptStatusQueued && latest.Status != AttemptStatusRunning) {
+		preparationPredecessor := p.PreparationRecoveryAttemptID != "" && latest.ID == p.PreparationRecoveryAttemptID
+		if latest.CancelRequested || latest.CanceledAt != nil || (!preparationPredecessor && latest.Status != AttemptStatusQueued && latest.Status != AttemptStatusRunning) {
 			return ErrRequestConflict
 		}
 		current, err := NativeReleaseIntentForAttempt(ctx, store, t, latest.ID)
-		if err != nil || current == nil || *current != *p {
+		comparison := *p
+		if preparationPredecessor {
+			comparison.PreparationRecoveryAttemptID = ""
+		}
+		if err != nil || current == nil || *current != comparison {
 			return ErrRequestConflict
 		}
 	}

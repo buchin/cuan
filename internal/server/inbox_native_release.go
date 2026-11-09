@@ -18,6 +18,9 @@ func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDe
 	if d == nil || d.LatestAttempt == nil || (d.Status != task.TaskStatusReview && d.Status != task.TaskStatusBlocked) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && d.LatestAttempt.Status != task.AttemptStatusFailed) || s.projectSvc == nil {
 		return false
 	}
+	if s.recoverNativePreparationFailure(ctx, d, requests) {
+		return true
+	}
 	source := d.LatestAttempt
 	reviewID := ""
 	if inspection, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, source.ID); err != nil {
@@ -107,6 +110,35 @@ func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDe
 		}
 		parsed, err := task.NativeReleaseIntentForLaunch(&d.Task, saved)
 		return err == nil && parsed != nil && *parsed == proof && (saved.State == "queued" || saved.State == "claimed" || saved.State == "started")
+	}
+	return false
+}
+
+func (s *Server) recoverNativePreparationFailure(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
+	proof, err := task.NativePreparationRecoveryIntent(ctx, s.taskSvc.Store(), &d.Task)
+	if err != nil || proof == nil {
+		return false
+	}
+	// A later observed publication requires inspection, not another deployment.
+	if observed := s.inboxReviewPublication(ctx, d); observed != nil && observed.Verified {
+		return false
+	}
+	for _, origin := range requests {
+		if origin.RequestID != proof.SourceRequestID || origin.MessageID != d.SourceMessageID || origin.OwnerID != proof.OwnerID || origin.RoomID != proof.RoomID || !s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) {
+			continue
+		}
+		requestID := task.NativeReleasePreparationRecoveryRequestID(d.ID, proof.SourceCommit)
+		if prior, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID)); err == nil && prior != nil {
+			return prior.State == "queued" || prior.State == "claimed" || prior.State == "started"
+		}
+		raw, _ := json.Marshal(proof)
+		s.startAuthorizedLaunch(ctx, origin, d, requestID, origin.RequestID, task.NativeReleaseIntentMarker+string(raw))
+		saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID))
+		if err != nil || saved == nil {
+			return false
+		}
+		parsed, err := task.NativeReleaseIntentForLaunch(&d.Task, saved)
+		return err == nil && parsed != nil && *parsed == *proof && (saved.State == "queued" || saved.State == "claimed" || saved.State == "started")
 	}
 	return false
 }
