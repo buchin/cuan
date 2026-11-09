@@ -78,7 +78,7 @@ func TestInspectionReportingLeavesTimeForNativeChecks(t *testing.T) {
 			adapter := &reportingBudgetAdapter{readOnlyAuditAdapter: delegate}
 			adapter.execute = func(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
 				phase, ok := ctx.Deadline()
-				if !ok || !phase.Before(overall) || overall.Sub(phase) < 400*time.Millisecond {
+				if !ok || !phase.Before(overall) || overall.Sub(phase) < 1200*time.Millisecond {
 					t.Fatal("native verification time was not protected")
 				}
 				if !strings.Contains(req.Prompt, "Inspection reporting deadline:") || !strings.Contains(req.Prompt, overall.UTC().Format(time.RFC3339Nano)) {

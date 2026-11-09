@@ -18,7 +18,20 @@ func testInspectionInfrastructureRecovery(t *testing.T, s *Server, origin db.Inb
 	oldID := claim.Attempt.ID
 	previous := *claim.LiveInspection
 	failure := "Could not save task status before starting."
-	if strings.HasPrefix(mode, "launch") {
+	if mode == "project deadline" {
+		failure = task.InspectionProjectVerificationDeadline
+		for _, event := range []*task.TaskActivity{
+			{ID: "deadline-report", TaskID: d.ID, AttemptID: &oldID, ActivityType: "agent_report", Author: d.AssignedAgent, NewStatus: task.TaskStatusReview, CreatedAt: time.Now()},
+			{ID: "deadline-kind", TaskID: d.ID, AttemptID: &oldID, ActivityType: "agent_result_kind", Author: d.AssignedAgent, NewStatus: "implementation", CreatedAt: time.Now()},
+		} {
+			if err := store.CreateActivity(ctx, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := service.Complete(ctx, oldID, runner.CompleteAttemptRequest{RunnerID: claim.Attempt.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 0, ErrorMessage: failure, TestSummary: "Project verification: test.sh --fast (exit -1)\nok config", RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("b", 64)}}); err != nil {
+			t.Fatal(err)
+		}
+	} else if strings.HasPrefix(mode, "launch") {
 		if _, err := s.taskSvc.UpdateAttemptStatus(ctx, oldID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusFailed, ErrorMessage: failure}); err != nil {
 			t.Fatal(err)
 		}

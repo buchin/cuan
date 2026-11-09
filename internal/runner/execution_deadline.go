@@ -9,11 +9,17 @@ import (
 
 // Independent checks need time after the agent exits. This partitions the
 // existing execution window; neither preparation nor model routing can extend it.
-func inspectionReportingDeadline(overall, now time.Time, reserveLimit time.Duration) time.Time {
+func inspectionReportingDeadline(overall, now time.Time, reserveLimit time.Duration, projectChecks bool) time.Time {
 	if reserveLimit <= 0 || !overall.After(now) {
 		return overall
 	}
 	reserve := overall.Sub(now) / 5
+	if projectChecks {
+		// Full native project checks can consume their five-minute command
+		// budget. Share the remaining window equally, capped by that budget,
+		// rather than giving model investigation four times as much time.
+		reserve = overall.Sub(now) / 2
+	}
 	if reserve > reserveLimit {
 		reserve = reserveLimit
 	}

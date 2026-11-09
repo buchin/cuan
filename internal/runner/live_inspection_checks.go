@@ -27,7 +27,7 @@ func verifyLiveInspectionChecks(ctx context.Context, root, targets string, polic
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		result.Passed = false
-		result.Error = "Live result inspection deadline expired during independent project verification; checks are incomplete"
+		result.Error = task.InspectionProjectVerificationDeadline
 	}
 	return result, evidence
 }

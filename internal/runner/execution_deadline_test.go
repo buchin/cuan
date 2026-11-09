@@ -44,21 +44,23 @@ func TestClaimDeadlineMatchesVerificationExecutionAndReaper(t *testing.T) {
 func TestInspectionReportingBudgetPreservesOriginalDeadline(t *testing.T) {
 	now := time.Now().UTC()
 	for _, tc := range []struct {
-		name         string
-		remaining    time.Duration
-		reserveLimit time.Duration
-		reserve      time.Duration
+		name          string
+		remaining     time.Duration
+		reserveLimit  time.Duration
+		reserve       time.Duration
+		projectChecks bool
 	}{
-		{"ordinary", 45 * time.Minute, 0, 0},
-		{"inspection", 10 * time.Minute, 2 * time.Minute, 2 * time.Minute},
-		{"source verification", 10 * time.Minute, 30 * time.Second, 30 * time.Second},
-		{"preparation already consumed time", 5 * time.Minute, 2 * time.Minute, time.Minute},
-		{"short remaining window", time.Second, 2 * time.Minute, 200 * time.Millisecond},
-		{"expired", -time.Second, 2 * time.Minute, 0},
+		{"ordinary", 45 * time.Minute, 0, 0, false},
+		{"live inspection", 10 * time.Minute, projectVerifierTimeout, 5 * time.Minute, true},
+		{"source verification", 10 * time.Minute, 30 * time.Second, 30 * time.Second, false},
+		{"preparation already consumed time", 5 * time.Minute, projectVerifierTimeout, 150 * time.Second, true},
+		{"long inspection remains capped", 20 * time.Minute, projectVerifierTimeout, 5 * time.Minute, true},
+		{"short remaining window", time.Second, projectVerifierTimeout, 500 * time.Millisecond, true},
+		{"expired", -time.Second, projectVerifierTimeout, 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			overall := now.Add(tc.remaining)
-			got := inspectionReportingDeadline(overall, now, tc.reserveLimit)
+			got := inspectionReportingDeadline(overall, now, tc.reserveLimit, tc.projectChecks)
 			if !got.Equal(overall.Add(-tc.reserve)) || got.After(overall) {
 				t.Fatalf("unexpected reporting deadline %v", got)
 			}

@@ -1083,9 +1083,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if err == nil && (claim.Verification != nil || claim.LiveInspection != nil) {
 		reserveLimit := 30 * time.Second
 		if claim.LiveInspection != nil {
-			reserveLimit = 2 * time.Minute
+			reserveLimit = projectVerifierTimeout
 		}
-		reportingDeadline := inspectionReportingDeadline(deadline, time.Now(), reserveLimit)
+		reportingDeadline := inspectionReportingDeadline(deadline, time.Now(), reserveLimit, claim.LiveInspection != nil)
 		var cancelReporting context.CancelFunc
 		agentCtx, cancelReporting = context.WithDeadline(ctx, reportingDeadline)
 		defer cancelReporting()

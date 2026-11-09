@@ -16,6 +16,7 @@ import (
 )
 
 const projectVerifierOutputLimit = 12000
+const projectVerifierTimeout = 5 * time.Minute
 
 type projectVerifierBuildEnvironmentKey struct{}
 
@@ -82,7 +83,7 @@ func runProjectVerifierCommand(parent context.Context, root, command string, arg
 }
 
 func runProjectVerifierCommandEnvironment(parent context.Context, root string, environment []string, command string, args ...string) verificationResult {
-	ctx, cancel := context.WithTimeout(parent, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, projectVerifierTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = root

@@ -38,7 +38,7 @@ func TestLocalOnlyFailureDoesNotInspectUnrelatedRelease(t *testing.T) {
 }
 
 func TestInspectionInfrastructureRecovery(t *testing.T) {
-	for _, mode := range []string{"launch", "setup"} {
+	for _, mode := range []string{"launch", "setup", "project deadline"} {
 		t.Run(mode, func(t *testing.T) {
 			s, origin, d := phaseLineageSetup(t)
 			liveInspectionContract(t, s, origin, d, "current outcome unpublished valid infrastructure "+mode, nil)
