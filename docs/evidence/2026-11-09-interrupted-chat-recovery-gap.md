@@ -110,3 +110,13 @@ binary omission, no ambient credentials, mutable-method rejection and internal
 network rejection. Targeted diagnostics/MCP/webfetch and runtime tests passed.
 The built native CLI's actual MCP HEAD call to https://example.com/ returned200
 with headers and no body. Browser integration remains separate and unenabled.
+
+HTTP follow-up deployed as `8c88e817328201e870aea37f4ad2e28cc1bb2c64`, exact-SHA
+health passed at2026-11-09T07:27:40Z. Actual production chat:
+https://cuan.dojo.cc/inbox/6797bacd-5b06-46f6-85eb-4c7cc6731c31
+Request `f5504db8-bbf0-4cfc-87f0-82b88c316333` invoked
+`cuan-inspect/http_request` with HEAD, received200 in about0.2s and answered in
+one sentence. No tasks or browser were used. Total request time was42.5s,
+including context/model preparation and31.3s provider process. An unnecessary
+failed sensitive-file read also occurred (contents withheld). This proves actual
+HTTP tool use, not resolved latency or production timeout recovery.

@@ -87,3 +87,30 @@ in production. The answer remains too long and presents an older disk statistic
 as current without its observation time. Treat current-state grounding and
 brevity as unresolved quality gaps. CLI observation was interrupted after30s;
 the accepted request was inspected, not sent again.
+
+## Independent Obscura engine probe (sandbox, not production)
+
+Downloaded official release v0.2.6 `obscura-x86_64-linux-no-render.tar.gz`.
+GitHub asset digest and downloaded SHA256 both:
+`f1188c1a3b1ef70d56d594beebbb34b693ff89c280fa073820ad019ed555a02c`.
+The43,559,951-byte archive contains a~32MiB main binary and~30MiB worker.
+Artifacts: `/home/dev/artifacts/cuan-obscura-evaluation/v0.2.6/`.
+
+The native release failed directly on this musl sandbox (`mallopt`/`__res_init`
+missing). It ran with the independently retained Cuan UI glibc loader/libraries;
+the ambient `/usr/local/bin/obscura` wrapper was not used because it points into
+Fural-managed assets and is not a Cuan product dependency.
+
+With an empty environment and isolated HOME:
+- One public static fetch completed in0.13s with17,408KiB maximum RSS.
+- One local synthetic page changed its DOM using setTimeout; the returned text
+  was `CUAN_JS_RENDERED`. With an explicit1s settle wait it completed in1.03s,
+  also17,408KiB maximum RSS.
+- Default navigation to the local fixture was rejected before reaching the
+  HTTP server. Only the synthetic JS test explicitly enabled private networking.
+
+These are small sandbox observations, not production or complex-site benchmarks.
+No screenshots/full rendering, interactive login, concurrent loads, subresource
+SSRF behavior or long-lived memory retention were verified. The engine is not yet
+integrated into chat. A pinned managed runtime, session/lifetime/concurrency
+controls, complete destination tests and actual production use remain necessary.
