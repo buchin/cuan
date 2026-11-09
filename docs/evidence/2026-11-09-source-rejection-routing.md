@@ -110,3 +110,15 @@ changes the running revision before replaying the saved PM handoff: current-resu
 evidence is rejected, yet a separate developer launch is recovered. Original
 scope and verifier boundaries, negative provenance cases and live-inspection
 lifecycle tests all pass.
+
+9eed212c164d1875f3dfc1ea46c1321a94274c1c deployed via official CLI
+14:25:18Z–14:28:27Z (188.9 seconds), exact healthy SHA, 38 migrations, exit 0,
+source unchanged. The existing saved PM implementation decision automatically
+admitted developer att_9b5d3cab3c4dd5227a29b07876ac8786 at 22:27 +08 during
+activation. Official task execution confirms original writable/no-publication-ban
+scope; canonical managed_release_claim binds this attempt to buchin/cuan dev,
+so remote publication remains owned by the native verified release pipeline.
+Logs confirm the developer is reading dependency_reuse.go and
+inspection_dependencies.go. No manual retry, task status edit, duplicate room or
+new owner instruction caused this continuation. Manifest/ignored-output repairs,
+new independent verification and eventual native release remain pending.
