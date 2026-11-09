@@ -58,6 +58,7 @@ ExecStart={command} --runtime {base}/data/npm-build-runtime --kind npm --legacy-
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/release-workspaces --under-storage-pressure --apply
 ExecStart=/usr/bin/python3 {target}/prune-native-release-caches.py --workspaces {base}/data/projects/release-workspaces --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/verification-snapshots --under-storage-pressure --apply
+ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/workspaces/verification --under-storage-pressure --apply
 '''
     timer = '''[Unit]
 Description=Recheck idle Cuan caches after task execution

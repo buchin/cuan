@@ -106,6 +106,14 @@ for those failures, separate from the verified full-disk deployment incident.
 
 ### Bound release compilation peak
 
+Native cache maintenance scans both independent-verifier generations:
+`data/projects/verification-snapshots` and `data/workspaces/verification`.
+Both use the same lease/process-reader, source identity, ignored dependency and
+lockfile checks. The older root is not deleted wholesale. A2026-11-09 production
+preview found zero eligible dependencies there; adding coverage does not claim
+source-checkout reclamation. Retained Git/source copies still need a separate
+reconstructible-source lifecycle while preserving reports and unique work.
+
 Backend release binaries compile sequentially (server, migrate, runner). Each
 `go build` shares completed cache entries with the next; Cuan no longer creates
 three simultaneous temporary dependency graphs on the production filesystem.
