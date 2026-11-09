@@ -65,3 +65,41 @@ native source/live acceptance and scheduler/event regressions pass.
 
 Automatic compactor deployment and production eligibility/reclamation observation
 are still pending at this entry. Fixtures are not attributed as production savings.
+
+## Deployment and native-host observation
+
+The first rolloutf6f9ded8 stopped before activation: its remote payload list did
+not include the new compactor required by the installer. The maintained release
+script now derives local/remote payloads from the installer's read-only manifest
+instead of duplicating tool names. Release-fixture SCP checks require every
+transferred file to exist and assert coverage of the actual installer manifest.
+The compactor tests are included in the release preflight. All five executable
+release-build gate tests and four installer tests pass.
+
+Release730958c534bb1f34b835823c34faa202b97fb89a then passed exact-SHA health
+with38 migrations at2026-11-09T04:28:15Z. Both compactor commands are installed
+in the existing oneshot unit, using pinned tool directory
+a300b7072f5fe4c99dbea20dca2992ab88e38b58d078ddbe648871c170f855e3.
+
+Root explicitly requested `cuan maintenance run` for diagnosis; do not attribute
+this invocation as a new autonomous task-completion event. Actual scheduler
+status recorded success at12:28:59.359699483+08. Native acceptance metadata was
+created for eight source-verifier snapshots. The worker retained those eight as
+warm,17 other legacy snapshots as unaccepted/missing and40 project snapshots as
+unaccepted/missing. No production snapshot compacted and reclaimed materialized
+bytes remained zero. Server logs identify nine accepted task snapshots protected
+by unique/unknown files, including the native publication benchmark. Investigate
+those files' provenance before removing them; do not broaden the whitelist.
+
+A compiled isolated Git fixture executed on the VPS as root against the exact
+installed pinned compactor, and its cross-language compact/restore round trip
+passed in0.21s. It used its own temporary trees and an explicit empty fixture
+process directory; the separate OS tests cover actual process readers, while
+the production worker above used real `/proc`. The uploaded binary was removed.
+No production task workspace or failed history was edited for this fixture.
+
+The host had3.9GB available after deployment. This is an observation, not bytes
+attributed to source compaction. The lifecycle is installed and verified through
+fixtures/production retention scans; substantial source reclamation remains
+unproven until real snapshots qualify. Retained Git object growth and unknown
+generated runtime data still require further work.

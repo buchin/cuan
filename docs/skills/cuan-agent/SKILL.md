@@ -861,6 +861,15 @@ changed releases, known containment and forbidden scope remain excluded.
 
 ## Installed storage maintenance
 
+Storage maintenance also records accepted native verifier snapshots for deferred
+source-copy retention. After48 hours, only clean accepted materializations can
+become cold; complete independent Git objects, receipts and the lease remain.
+Native lease/preparation restores source before inspection. Do not shorten this
+deadline, forge acceptance metadata, delete Git objects or whitelist unknown
+ignored directories to manufacture reclaimed bytes. A successful job may retain
+everything as warm, active, unique or unaccepted. Inspect actual counts before
+claiming production savings.
+
 Ordinary Owner MCP `list_contacts` / `get_contact` read the configured Cuan API,
 not a local database. `get_contact` accepts an exact conversation/session ID;
 do not infer the contact from a display alias or email mentioned in chat. Notes

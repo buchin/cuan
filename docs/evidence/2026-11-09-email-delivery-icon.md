@@ -17,4 +17,9 @@ natural message hierarchy, compact metadata and preserved composer space.
 Screenshots and checks are outside tracked source at
 `/home/dev/artifacts/cuan-email-icon/{light,dark}-{390,1440}.png` and `checks.json`.
 The fixture's connection notice is simulated transport state, not evidence of a
-production outage. No email was sent for this visual check. Deployment pending.
+production outage. No email was sent for this visual check.
+
+Release730958c534bb1f34b835823c34faa202b97fb89a passed exact-SHA production
+health with38 migrations at2026-11-09T04:28:15Z. The same existing customer
+message67094169-3e6e-4590-86a0-9fdcbbf970a6 still has visitor/delivered state
+after activation; no resend was used to verify the presentation.
