@@ -11,7 +11,10 @@ import (
 
 func documentationFixture(t *testing.T) string {
 	t.Helper()
-	root := t.TempDir()
+	root := filepath.Join(t.TempDir(), "workspaces", "repo")
+	if err := os.MkdirAll(root, 0700); err != nil {
+		t.Fatal(err)
+	}
 	git := func(args ...string) {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = root

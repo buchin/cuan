@@ -116,12 +116,23 @@ func (s *Session) Subscribe(subID string, clientMode Mode) (*Subscriber, []byte,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.closed {
-		return nil, nil, ErrSessionClosed
-	}
-
 	if clientMode == "" {
 		clientMode = s.defaultMode
+	}
+
+	if s.closed {
+		if clientMode == ModeWatch {
+			sub := &Subscriber{
+				ID:        subID,
+				Mode:      clientMode,
+				SendChan:  make(chan []byte, 256),
+				CloseChan: make(chan struct{}),
+			}
+			close(sub.CloseChan)
+			history := s.historyBuffer.Bytes()
+			return sub, history, nil
+		}
+		return nil, nil, ErrSessionClosed
 	}
 
 	sub := &Subscriber{

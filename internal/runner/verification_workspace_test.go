@@ -45,6 +45,13 @@ func TestSupplementalVerifierUsesPrivateExactCommitWorkspace(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&completion); err != nil {
 				t.Error(err)
 			}
+			json.NewEncoder(w).Encode(map[string]any{
+				"id":        "verifier",
+				"task_id":   filepath.Base(source),
+				"runner_id": "fixture",
+				"status":    task.AttemptStatusSucceeded,
+			})
+			return
 		}
 		w.Write([]byte(`{}`))
 	}))
