@@ -361,6 +361,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 		}
 	}
 	b.WriteString(s.formatProjectRunnerLiveState(ctx, selected.ID))
+	telem := s.getServerTelemetry(ctx, selected.LocalPath)
 	rel := "development"
 	if s.cfg != nil {
 		for _, relPath := range []string{"/opt/cuan/current/release.json", filepath.Join(selected.LocalPath, "release.json")} {
@@ -374,9 +375,12 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				}
 			}
 		}
-		fmt.Fprintf(&b, "Live Deployment Environment: env=%s, active_release=%s, database=connected\n", s.cfg.Environment, rel)
+		dbStatus := "disconnected"
+		if telem.DatabaseStatus == "connected" {
+			dbStatus = "connected"
+		}
+		fmt.Fprintf(&b, "Live Deployment Environment: env=%s, active_release=%s, database=%s\n", s.cfg.Environment, rel, dbStatus)
 	}
-	telem := s.getServerTelemetry(ctx, selected.LocalPath)
 	b.WriteString(telem.Summary())
 	dir := selected.LocalPath
 	if dir == "" {
