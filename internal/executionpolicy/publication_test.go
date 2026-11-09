@@ -47,6 +47,27 @@ func TestTaskPublicationPolicyRestrictsOnly(t *testing.T) {
 	}
 }
 
+func TestDeploymentCancellationDoesNotProhibitPublication(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		deny bool
+	}{
+		{"Rekonsiliasi rilis: biarkan native publisher yang saat ini berjalan menyelesaikan rekonsiliasi efek tersimpan tanpa membatalkan deploy demi bukti semata. Lanjutkan verifikasi independen terhadap perbaikan ini pada task yang sama sebelum menandai Done.", false},
+		{"Jangan batalkan deploy yang berjalan.", false},
+		{"Do not cancel deployment to obtain evidence.", false},
+		{"Don't cancel deployment. Do not deploy the correction.", true},
+		{"Tanpa membatalkan deploy; jangan deploy perubahan ini.", true},
+		{"Jangan deploy atau membatalkan deploy.", true},
+		{"Jangan membatalkan deploy dan jangan deploy perubahan baru.", true},
+		{"Scope: read-only repository. Do not cancel deployment.", true},
+		{"Tanpa deploy. Jangan batalkan deploy yang berjalan.", true},
+	} {
+		if got := FromInstructions(tc.text); got.DenyDeploy != tc.deny {
+			t.Errorf("%q: %+v", tc.text, got)
+		}
+	}
+}
+
 func TestReadOnlyRepositoryScopeOverridesAutomaticCorrection(t *testing.T) {
 	text := "Binding approved continuation:\nLanjutkan audit read-only pada repositori dan live deployment tanpa perubahan kode, konfigurasi, push, atau deploy:\nLaporkan bukti.\n\nAutomatic correction feedback:\nPerbaiki scripts/test.sh dan jalankan test."
 	p := FromInstructions(text)
