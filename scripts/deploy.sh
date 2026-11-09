@@ -178,40 +178,19 @@ release_repository="$(python3 scripts/release-repository.py)"
 release_linker_flags="-X github.com/buchin/cuan/internal/config.GitCommit=$release_sha -X github.com/buchin/cuan/internal/config.SourceRepository=$release_repository"
 mkdir -p "$release_dir/bin" "$release_dir/web"
 echo '::cuan-release-stage::build'
-echo "==> Compiling Go backend binaries in parallel for $release_sha..."
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-server" ./cmd/server &
-pid_server=$!
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-migrate" ./cmd/migrate &
-pid_migrate=$!
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-runner" ./cmd/runner &
-pid_runner=$!
-status_server=0
-status_migrate=0
-status_runner=0
-
-wait "$pid_server" || status_server=$?
-wait "$pid_migrate" || status_migrate=$?
-wait "$pid_runner" || status_runner=$?
-
-if [[ "$status_server" -ne 0 || "$status_migrate" -ne 0 || "$status_runner" -ne 0 ]]; then
-  echo "❌ ERROR: Backend binary compilation failed:" >&2
-  if [[ "$status_server" -ne 0 ]]; then
-    echo "  - cuan-server build failed with exit code $status_server." >&2
-  fi
-  if [[ "$status_migrate" -ne 0 ]]; then
-    echo "  - cuan-migrate build failed with exit code $status_migrate." >&2
-  fi
-  if [[ "$status_runner" -ne 0 ]]; then
-    echo "  - cuan-runner build failed with exit code $status_runner." >&2
-  fi
-  if [[ "$status_server" -ne 0 ]]; then
-    exit "$status_server"
-  elif [[ "$status_migrate" -ne 0 ]]; then
-    exit "$status_migrate"
+echo "==> Compiling Go backend binaries with shared cache reuse for $release_sha..."
+# Each concurrent go build creates its own temporary dependency graph. On the
+# production host that multiplied peak disk use and exhausted the filesystem.
+# Serial builds reuse Go's completed cache entries and stop at the first failure.
+for component in server migrate runner; do
+  if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-$component" "./cmd/$component"; then
+    :
   else
-    exit "$status_runner"
+    build_status=$?
+    echo "ERROR: cuan-$component build failed with exit code $build_status." >&2
+    exit "$build_status"
   fi
-fi
+done
 echo "✓ Backend binaries compiled successfully."
 if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
   npm run build --prefix web

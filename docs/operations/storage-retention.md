@@ -103,3 +103,19 @@ It does not stop existing attempts or replace runner-host monitoring. Historical
 exit-code-2 attempts have no final agent report, but their retained terminal logs
 do not prove the exact provider exit cause; disk pressure remains a hypothesis
 for those failures, separate from the verified full-disk deployment incident.
+
+### Bound release compilation peak
+
+Backend release binaries compile sequentially (server, migrate, runner). Each
+`go build` shares completed cache entries with the next; Cuan no longer creates
+three simultaneous temporary dependency graphs on the production filesystem.
+A component failure stops before starting the remaining components or publishing
+artifacts. The existing exact-source, test and activation gates remain required.
+
+On2026-11-09 native release dca6eee1 failed with `no space left on device` while
+three Go builds ran concurrently. The host had1.5GiB free after failure; observed
+sizes included developer workspaces13GiB, verifier snapshots7.2GiB, provider
+runtime7.2GiB and PostgreSQL231MiB. An idle host Go cache was cleaned through
+`go clean -cache`, recovering approximately1.3GiB. This is immediate headroom,
+not proof that retention/capacity is sufficient indefinitely. Preserve task
+sources and evidence; continue measuring growth and validating native delivery.

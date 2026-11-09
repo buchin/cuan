@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for parallel build gate and child process cleanup in scripts/deploy.sh."""
+"""Regression tests for bounded build gate and child process cleanup in scripts/deploy.sh."""
 import os
 from pathlib import Path
 import shutil
@@ -116,6 +116,7 @@ done
 
 if [[ -n "${BUILD_TRACK_DIR:-}" ]]; then
   echo "$$ $target" >> "${BUILD_TRACK_DIR}/started_pids.txt"
+  echo "start $target" >> "${BUILD_TRACK_DIR}/events.txt"
 fi
 
 cfg_exit="${STUB_DIR:-.}/${target}.exit"
@@ -138,6 +139,7 @@ if [[ "$exit_code" -eq 0 && -n "$out" ]]; then
   echo "dummy-$target" > "$out"
 fi
 
+if [[ -n "${BUILD_TRACK_DIR:-}" ]]; then echo "end $target" >> "${BUILD_TRACK_DIR}/events.txt"; fi
 exit "$exit_code"
 """)
         stub_go.chmod(0o755)
@@ -303,6 +305,8 @@ exit 0
         self.assertEqual(result.returncode, 0, f"Deploy must succeed when all builds succeed: {result.stderr}")
         self.assertIn("✓ Backend binaries compiled successfully.", result.stdout)
 
+        self.assertEqual((self.track_dir / "events.txt").read_text().splitlines(), ["start server", "end server", "start migrate", "end migrate", "start runner", "end runner"])
+
         # Artifact publication must have succeeded
         release_dir = self._get_release_dir()
         self.assertTrue((release_dir / "release.json").exists(), "release.json must be created on success")
@@ -314,8 +318,8 @@ exit 0
         # Children must be reaped
         self._assert_no_lingering_children()
 
-    def test_parallel_execution_and_clean_child_reaping(self):
-        # When one build fails early, peer processes running concurrently still complete cleanly
+    def test_failed_build_stops_before_allocating_peer_builds(self):
+        # A failed build must not allocate temporary graphs for later components.
         result = self._run_deploy(
             server_cfg={"exit": 9, "sleep": 0.01},
             migrate_cfg={"exit": 0, "sleep": 0.08},
@@ -324,12 +328,12 @@ exit 0
         self.assertEqual(result.returncode, 9)
         self.assertIn("cuan-server", result.stderr)
 
-        # Verify all 3 components were indeed launched
+        # Verify later components were never launched
         pids = self._get_tracked_pids()
         targets = [target for _, target in pids]
         self.assertIn("server", targets)
-        self.assertIn("migrate", targets)
-        self.assertIn("runner", targets)
+        self.assertNotIn("migrate", targets)
+        self.assertNotIn("runner", targets)
 
         # All processes must be terminated and reaped
         self._assert_no_lingering_children()
