@@ -49,3 +49,14 @@ three legacy source-contract tests still required the removed per-attempt timer
 and literal Updated header. Their duration assertions now require the shared
 creation/Done contract without per-attempt reset. Typecheck and all463 frontend
 tests pass. Browser runtime assertions remain in place; no failing gate was waived.
+
+Release `f1c1e47395c05f906584bcb405009c2ab55e1a80` passed exact-SHA production
+health with38 migrations at2026-11-09T05:31:26Z. Read-only official CLI checks
+confirmed both detail and batched list expose the native completion time for
+task `msg_8832ed4a-9219-4068-bf24-662ea8250f04`:
+created13:04:23.220706+08, completed13:09:31.985382+08. Completion exactly
+matches its saved Done transition, giving308.765 seconds from task creation.
+Initial PM discussion before creation is deliberately excluded. Two older Done
+tasks also expose their matching completion events through the actual SQL-backed
+list. No production task was edited merely to test timer freezing; that behavior
+is covered by the isolated lifecycle and browser-clock tests above.
