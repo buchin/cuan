@@ -52,3 +52,26 @@ future-insert-only admission. It was not used to replay historical customer mail
 The user explicitly selected unread-after-five-minutes while deployment ran.
 Live provider delivery remains unproven until a newly authorized public reply
 qualifies and its signed delivery receipt is observed.
+
+## First real customer delivery
+
+The user explicitly reported sending a new public reply in the same conversation.
+Official CLI observed message67094169-3e6e-4590-86a0-9fdcbbf970a6 at
+2026-11-09T11:28:35.580779+08, with no confirmed visitor read. The scheduler's
+11:33:32 scan preceded the five-minute threshold by three seconds, so absence
+of an email then was expected. Its next observed scan at11:34:32.329305455+08
+succeeded. The same exact message then had `email_delivery`:
+`{"recipient_type":"visitor","status":"delivered"}`.
+
+This is actual application/provider-receipt evidence for delivery to the connected
+customer's mail server, not the old operator notification or a fixture result.
+It does not establish inbox placement or that the customer read the email.
+Root did not create/send/replay the message; the user initiated the public reply.
+Earlier historical replies were not used as test sends.
+
+An unrelated tooling gap surfaced while checking the connected contact: ordinary
+MCP `get_contact` still attempted local database access and returned
+`database_offline` despite the configured Owner API connection. No missing-contact
+conclusion or destination address claim was made from that response. Its Owner
+transport needs repair separately; the real visitor delivery above is independently
+visible through the authenticated conversation API.
