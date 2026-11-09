@@ -91,3 +91,22 @@ A real native receipt/launch fixture reproduces the stranded correction before
 this change and now reaches a separate queued developer launch. Missing report
 or native receipt, foreign owner, changed source/release and cancellation remain
 rejected. Legacy local-recovery, saved-manager and invalid-source regressions pass.
+
+147a021463b167af3da8d0018ee4507acda64ef8 deployed 14:19:03Z–14:22:17Z,
+193.5 seconds, exact healthy SHA, 38 migrations, exit 0 and unchanged source.
+Task remained stopped: deploying the coordinator fix itself changed the running
+release away from the inspection target. Requiring current-release equality for
+a separate developer review erased the saved correction after every deployment.
+
+Historical inspection provenance is now separated from current-result evidence.
+The existing acceptance context still requires exact current-release equality.
+Only the source-correction path can use an authenticated historical native
+receipt, retaining source/owner/scope/report/checks and requiring the same
+registered current repository. The separate developer must reconcile current
+baseline; historical evidence never certifies today's production. Publication
+classification preserves this bound source rejection too, instead of rewriting
+its saved implementation decision to another inspection. The real fixture now
+changes the running revision before replaying the saved PM handoff: current-result
+evidence is rejected, yet a separate developer launch is recovered. Original
+scope and verifier boundaries, negative provenance cases and live-inspection
+lifecycle tests all pass.

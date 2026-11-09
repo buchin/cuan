@@ -56,7 +56,11 @@ func (s *Server) localSourceCorrectionAllowed(ctx context.Context, q db.InboxReq
 // developer under the original scope, using the existing admission path.
 func (s *Server) inspectedSourceCorrectionAllowed(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse) bool {
 	intent, err := task.ValidateLiveInspection(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || intent == nil || intent.Purpose != task.CurrentOutcomeInspection || intent.OwnerID != q.OwnerID || intent.RoomID != d.SourceRoomID || intent.SourceCommit != d.CommitSHA || intent.SourceCommit == "" || d.LatestAttempt.Status != task.AttemptStatusSucceeded || inboxReportEvidence(d).Provenance != "current_attempt_report" || s.liveInspectionReviewContext(ctx, d) == nil {
+	if err != nil || intent == nil || intent.Purpose != task.CurrentOutcomeInspection || intent.OwnerID != q.OwnerID || intent.RoomID != d.SourceRoomID || intent.SourceCommit != d.CommitSHA || intent.SourceCommit == "" || d.LatestAttempt.Status != task.AttemptStatusSucceeded || inboxReportEvidence(d).Provenance != "current_attempt_report" || s.liveInspectionEvidence(ctx, d, false) == nil {
+		return false
+	}
+	current := s.runningProjectRelease(ctx, d)
+	if current == nil || current.Repository != intent.Repository {
 		return false
 	}
 	source, err := s.taskSvc.Store().GetAttempt(ctx, intent.SourceAttemptID)
