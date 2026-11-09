@@ -77,7 +77,13 @@ func (c *ptyDiagnosticCollector) keep(raw string) string {
 	}
 	spinner := strings.IndexFunc(raw, func(r rune) bool { return r >= 0x2800 && r <= 0x28ff }) >= 0
 	key := strings.ToLower(strings.TrimRight(clean, ". …"))
-	if spinner && len(key) >= 4 {
+	if spinner && key != "" {
+		// Real AGY redraws include one-, two- and three-letter prefixes.
+		// Prefer the current state for ambiguous prefixes such as "R";
+		// otherwise they reset deduplication on every animation cycle.
+		if c.lastSpinner != "" && strings.HasPrefix(c.lastSpinner, key) {
+			key = c.lastSpinner
+		}
 		for _, status := range []string{"running command", "reading", "reading file", "thinking", "working", "managing tasks"} {
 			if strings.HasPrefix(status, key) {
 				key = status

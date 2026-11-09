@@ -104,7 +104,7 @@ func TestPTYDiagnosticsCollapsesPartialStatusRedrawsButKeepsSpecificWork(t *test
 	var lines []string
 	for _, status := range []string{"Running command", "Reading file", "Managing tasks"} {
 		for cycle := 0; cycle < 1000; cycle++ {
-			for length := 4; length <= len(status); length++ {
+			for length := 1; length <= len(status); length++ {
 				out, _ := c.Feed([]byte("\r⣯  " + status[:length] + "\b\b\r"))
 				lines = append(lines, out...)
 			}
@@ -119,5 +119,28 @@ func TestPTYDiagnosticsCollapsesPartialStatusRedrawsButKeepsSpecificWork(t *test
 	}
 	if !strings.Contains(lines[3], "permission denied") || lines[7] != "ERROR: failed" || lines[8] != "ERROR: failed" {
 		t.Fatalf("specific evidence lost: %q", lines)
+	}
+}
+
+func TestPTYDiagnosticsShortRedrawsAcrossTransportFramesPreserveEvidence(t *testing.T) {
+	input := "\r⣾ \x1b[94mRunning command\x1b[m\r"
+	for i := 0; i < 20; i++ {
+		for _, status := range []string{"R", "Ru", "Run", "Runn", "Running command"} {
+			input += "\x1b[3A⣷ \x1b[94m" + status + "\x1b[m\r"
+		}
+	}
+	input += "⣯ Running command npm test\nERROR: test failed\nERROR: test failed\n"
+	for _, width := range []int{1, 7, 64, len(input)} {
+		var c ptyDiagnosticCollector
+		var lines []string
+		for at := 0; at < len(input); at += width {
+			end := min(at+width, len(input))
+			out, _ := c.Feed([]byte(input[at:end]))
+			lines = append(lines, out...)
+		}
+		lines = append(lines, c.Flush()...)
+		if len(lines) != 4 || !strings.Contains(lines[1], "npm test") || lines[2] != "ERROR: test failed" || lines[3] != lines[2] {
+			t.Fatalf("width %d: cosmetic redraws or lost factual evidence: %q", width, lines)
+		}
 	}
 }

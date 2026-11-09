@@ -385,3 +385,23 @@ Cuan needs another binary cache: no equivalent per-account CLI duplication has
 been established. Prioritize the measured workspace/dependency paths rather than
 adding that mechanism speculatively. Account-specific credentials/configuration
 must remain separate from shared executable installations.
+
+## Persisted terminal animation overhead
+
+The running developer attempt also exposed a narrower bug in the existing
+`ptyDiagnosticCollector`: its recognized-status prefix normalization required
+at least four characters. Actual retained records contain animated `R`, `Ru`
+and `Run` prefixes, so each short frame reset the deduplication state and
+permitted the next frame to be stored again. This is diagnostic-log overhead,
+not evidence that the model repeatedly executed the displayed command.
+
+Normalization now accepts nonempty prefixes of the same known generic statuses,
+preferring the current status when a prefix is ambiguous. It does not broaden
+suppression to arbitrary thought text, commands or errors. Original terminal
+bytes still go to terminal viewers; only persisted diagnostic records change.
+The existing 1,000-cycle test now starts prefixes at one character; a new replay
+uses actual ANSI redraw shape across 1/7/64-byte and whole-input transport
+frames, requiring one generic status plus the concrete command and two distinct
+identical errors. All `TestPTYDiagnostics` tests passed, including split quota,
+UTF-8, unterminated-output and specific-work preservation cases. Production
+savings remain unmeasured until a new execution uses the updated runner.
