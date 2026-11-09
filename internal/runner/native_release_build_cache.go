@@ -31,10 +31,14 @@ func prepareNativeReleaseBuildCaches(ctx context.Context, execution *NativeRelea
 	if err != nil {
 		return nil, closeAll, err
 	}
-	leases := []*os.File{}
+	type heldLease struct {
+		file  *os.File
+		cache string
+	}
+	leases := []heldLease{}
 	closeAll = func() {
-		for _, lease := range leases {
-			_ = lease.Close()
+		for _, item := range leases {
+			_ = releaseBuildCacheLease(item.file, item.cache)
 		}
 	}
 	for _, cache := range []string{goEnv["GOCACHE"], npmEnv["NPM_CONFIG_CACHE"]} {
@@ -44,7 +48,7 @@ func prepareNativeReleaseBuildCaches(ctx context.Context, execution *NativeRelea
 			return nil, func() {}, err
 		}
 		if lease != nil {
-			leases = append(leases, lease)
+			leases = append(leases, heldLease{file: lease, cache: cache})
 		}
 	}
 	selected := map[string]string{}

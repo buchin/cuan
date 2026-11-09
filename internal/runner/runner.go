@@ -938,7 +938,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			if leaseErr != nil {
 				err = fmt.Errorf("acquire Go build cache lease: %w", leaseErr)
 			} else if lease != nil {
-				defer lease.Close()
+				defer releaseBuildCacheLease(lease, buildEnv["GOCACHE"])
 			}
 		}
 		for key, value := range buildEnv {

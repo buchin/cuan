@@ -197,13 +197,49 @@ managed build caches, stopping when 4 GiB is available. The 2 GiB execution
 admission floor stays unchanged. This is headroom management, not proof that an
 arbitrarily large build fits.
 
+### Warmth protection and pressure regimes
+
+To prevent premature eviction of warm Go build caches between workflow stages
+(developer -> verifier -> publisher):
+- **Moderate Pressure (2 GiB <= free space < 3 GiB)**: Idle Go build caches are
+  protected and kept warm for at least 15 minutes since the end of the last
+  native execution (including native verification). Caches idle for 15 minutes
+  or longer are eligible for cleanup.
+- **Critical Pressure (free space < 2 GiB)**: When free space drops below the
+  execution admission floor (2 GiB), idle regenerable Go caches may be cleaned
+  even if recently used, enabling space recovery for pending tasks. Active
+  leases and unclear readers remain protected.
+- **Lease and Reader Protection**: Active shared leases (`fcntl.flock`) and
+  unclear reader processes (discovered via `/proc` links, descriptors, or
+  environment) are strictly protected under both moderate and critical pressure.
+- **Healthy Disks (free space >= 3 GiB)**: Healthy filesystems skip cache
+  cleaning entirely, preserving all warm caches.
+
 The runner holds a shared `.build-cache.lock` for its complete Go execution,
-including native verification and reporting. Maintenance must acquire that same
-persistent inode exclusively and also checks live process environments, command
-arguments, executable/cwd and descriptors for older readers. Unknown readers,
-missing legacy gates, linked paths, foreign-owned gates, non-Go directories and
-separate filesystems are skipped. A task waiting for maintenance retains its
-original execution deadline. Parallel executions can hold shared leases.
+including native verification and reporting, in developer, verifier, and
+publisher workflows. Upon execution release, completion metadata (`last_used_at`)
+is recorded. Maintenance must acquire that same persistent inode exclusively and
+also checks live process environments, command arguments, executable/cwd and
+descriptors for older readers. Unknown readers, missing legacy gates, linked
+paths, foreign-owned gates, non-Go directories and separate filesystems are
+skipped without mutation. A task waiting for maintenance retains its original
+execution deadline. Parallel executions can hold shared leases.
+
+### Metadata security and legacy cache handling
+
+- **Filesystem Security**: Validation strictly checks regular file mode, single
+  hardlink (`st_nlink == 1`), non-symlink paths (`O_NOFOLLOW`), and owner UID
+  matching before reading or mutating metadata. Foreign files, symlinks, or
+  hardlinked gates are skipped without mutation.
+- **Legacy and Corrupted Caches**: Legacy gates without metadata fall back to
+  gate file modification timestamps. Invalid timestamps (future dates, non-numeric
+  values, or corrupt JSON) are safely handled and treated as eligible under
+  pressure rather than locking caches indefinitely.
+- **Preserved Assets**: Only regenerable compiler build artifacts in `go-build`
+  are cleared through `/usr/bin/go clean -cache`, executed as the directory owner
+  with `GOENV=off` and `GOTOOLCHAIN=local`. Module sources (`go/pkg/mod`),
+  toolchains, credentials, git repositories, workspace checkpoints, task history,
+  and unrelated npm/Composer caches remain untouched.
 
 Eligible idle caches are cleared through `/usr/bin/go clean -cache`, running as
 the directory owner with a minimal environment, GOENV disabled and automatic
