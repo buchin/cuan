@@ -144,6 +144,11 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 		if !info.IsDir() {
 			return "", errors.New("saved verification snapshot is not an owned directory")
 		}
+		lease, err := AcquireVerificationLease(ctx, destination)
+		if err != nil {
+			return "", err
+		}
+		defer lease.Close()
 		if err := c.validateVerificationSnapshot(ctx, destination, binding); err != nil {
 			return "", err
 		}
@@ -247,6 +252,13 @@ func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, 
 
 // VerifySnapshotCommit checks actual code/ancestry without repairing the clone.
 func (c *Client) VerifySnapshotCommit(ctx context.Context, root, sourceCommit, targetCommit string) error {
+	if _, err := os.Lstat(filepath.Join(root, ".git", verificationColdMarker)); !os.IsNotExist(err) {
+		return errors.New("verification snapshot is cold; acquire its lease to restore the exact source before inspection")
+	}
+	return c.verifySnapshotCommitState(ctx, root, sourceCommit, targetCommit)
+}
+
+func (c *Client) verifySnapshotCommitState(ctx context.Context, root, sourceCommit, targetCommit string) error {
 	bad := errors.New("verification snapshot commit, ancestry or clean state was not verified")
 	if !snapshotObjectID.MatchString(sourceCommit) || !snapshotObjectID.MatchString(targetCommit) {
 		return bad

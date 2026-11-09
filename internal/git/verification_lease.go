@@ -40,6 +40,10 @@ func AcquireVerificationLease(ctx context.Context, root string) (*os.File, error
 		}
 		err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if err == nil {
+			if err := NewClient().restoreColdVerificationSnapshot(ctx, root); err != nil {
+				file.Close()
+				return nil, err
+			}
 			return file, nil
 		}
 		if !errors.Is(err, syscall.EWOULDBLOCK) && !errors.Is(err, syscall.EAGAIN) {
