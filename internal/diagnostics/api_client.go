@@ -488,8 +488,10 @@ func (c *CuanClient) ListConversations(ctx context.Context, projectID string, li
 
 // ListTasks queries tasks from the Cuan API.
 func (c *CuanClient) ListTasks(ctx context.Context, projectID, status string, limit int) ([]map[string]any, error) {
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 {
 		limit = 20
+	} else if limit > 100 {
+		limit = 100
 	}
 
 	endpoint := fmt.Sprintf("/api/v1/tasks?limit=%d", limit)
@@ -520,6 +522,9 @@ func (c *CuanClient) ListTasks(ctx context.Context, projectID, status string, li
 
 	if data.Tasks == nil {
 		data.Tasks = []map[string]any{}
+	}
+	if limit > 0 && len(data.Tasks) > limit {
+		data.Tasks = data.Tasks[:limit]
 	}
 	return data.Tasks, nil
 }

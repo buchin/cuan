@@ -47,4 +47,18 @@ func TestTaskBoardAPIIsBoundedAndKeepsLegacyList(t *testing.T) {
 	if len(rows) != 7 {
 		t.Fatal("legacy list changed")
 	}
+
+	limitOne := read("/api/v1/tasks?limit=1")
+	json.Unmarshal(limitOne["tasks"], &rows)
+	json.Unmarshal(limitOne["total"], &total)
+	if len(rows) != 1 || total != 1 {
+		t.Fatalf("expected 1 task with limit 1, got %d (total %d)", len(rows), total)
+	}
+
+	limitTwo := read("/api/v1/tasks?limit=2")
+	json.Unmarshal(limitTwo["tasks"], &rows)
+	json.Unmarshal(limitTwo["total"], &total)
+	if len(rows) != 2 || total != 2 {
+		t.Fatalf("expected 2 tasks with limit 2, got %d (total %d)", len(rows), total)
+	}
 }
