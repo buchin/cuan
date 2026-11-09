@@ -115,6 +115,9 @@ func TestColdVerificationPreservesUnknownFilesAndInvalidBindings(t *testing.T) {
 
 func TestColdVerificationPreparationRestoresSavedSnapshot(t *testing.T) {
 	source, root, original, live, _ := coldSnapshotFixture(t)
+	if err := os.RemoveAll(source); err != nil {
+		t.Fatal(err)
+	}
 	path, err := NewClient().PrepareVerificationSnapshot(context.Background(), source, root, original, live)
 	if err != nil || path != root {
 		t.Fatal("existing project inspection path did not restore", err)

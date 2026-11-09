@@ -112,6 +112,33 @@ func TestProjectVerificationSnapshotUsesOwnedConnectionAndPreservesWork(t *testi
 			if data, err := os.ReadFile(calls); err != nil || string(data) != "fetch\n" {
 				t.Fatal("snapshot duplicated the fetch", err)
 			}
+			if !denied {
+				binding, e := os.ReadFile(filepath.Join(path, ".git", "cuan-verification.json"))
+				if e != nil {
+					t.Fatal(e)
+				}
+				if e = os.WriteFile(filepath.Join(path, ".git", "cuan-verification-cold.json"), binding, 0600); e != nil {
+					t.Fatal(e)
+				}
+				run(path, "sparse-checkout", "set", "--no-cone", "!*")
+				// Retain the fixture's unique cache work elsewhere, making its old
+				// disposable path unavailable. No repository connection remains.
+				if e = os.Rename(cache, cache+"-retained"); e != nil {
+					t.Fatal(e)
+				}
+				if restored, e := service.VerificationSnapshot(context.Background(), "fixture", "task", original, live); e != nil || restored != path {
+					t.Fatal("project inspection depended on disposable cache", e)
+				}
+				if data, e := os.ReadFile(filepath.Join(path, "feature.txt")); e != nil || string(data) != "LIVE_RESULT" {
+					t.Fatal("project inspection failed to restore exact source", e)
+				}
+				if data, e := os.ReadFile(filepath.Join(cache+"-retained", "README.md")); e != nil || string(data) != "KEEP_PENDING" {
+					t.Fatal("disposable-cache move lost unique fixture work", e)
+				}
+				if data, e := os.ReadFile(calls); e != nil || string(data) != "fetch\n" {
+					t.Fatal("restoration contacted unavailable connection", e)
+				}
+			}
 		})
 	}
 }

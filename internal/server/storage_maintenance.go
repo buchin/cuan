@@ -24,7 +24,7 @@ func (s *Server) registerStorageMaintenance() {
 }
 
 func (s *Server) registerStorageMaintenanceHandler(enabled bool, handler scheduler.HandlerFunc) {
-	_ = s.scheduler.Register(&scheduler.Job{ID: storageMaintenanceJob, Name: "Storage maintenance", Description: "Reclaim idle generated caches while preserving active work and saved results", ScheduleType: scheduler.ScheduleInterval, Interval: 15 * time.Minute, Timeout: 200 * time.Second, Enabled: enabled, Handler: handler})
+	_ = s.scheduler.Register(&scheduler.Job{ID: storageMaintenanceJob, Name: "Storage maintenance", Description: "Reclaim idle generated caches while preserving active work and saved results", ScheduleType: scheduler.ScheduleInterval, Interval: 15 * time.Minute, Timeout: 220 * time.Second, Enabled: enabled, Handler: func(ctx context.Context) error { s.markAcceptedVerificationSnapshots(ctx); return handler(ctx) }})
 	bus := runner.GlobalEventBus
 	if s.runnerSvc != nil && s.runnerSvc.EventBus() != nil {
 		bus = s.runnerSvc.EventBus()

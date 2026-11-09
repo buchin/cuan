@@ -21,8 +21,10 @@ func (s *Service) VerificationSnapshot(ctx context.Context, projectID, taskID, s
 	if err != nil || p == nil || p.RepoURL == "" || p.LocalPath == "" {
 		return "", errors.New("verification project repository is unavailable")
 	}
-	digest := sha256.Sum256([]byte(projectID + "\x00" + taskID + "\x00" + sourceCommit + "\x00" + targetCommit))
-	destination := filepath.Join(s.baseDir, "verification-snapshots", hex.EncodeToString(digest[:]))
+	destination, err := s.VerificationSnapshotPath(projectID, taskID, sourceCommit, targetCommit)
+	if err != nil {
+		return "", err
+	}
 	path, err := s.gitClient.PrepareVerificationSnapshot(ctx, p.LocalPath, destination, sourceCommit, targetCommit)
 	if !errors.Is(err, git.ErrVerificationCommitUnavailable) {
 		return path, err
@@ -31,6 +33,16 @@ func (s *Service) VerificationSnapshot(ctx context.Context, projectID, taskID, s
 		return "", err
 	}
 	return s.gitClient.PrepareVerificationSnapshot(ctx, p.LocalPath, destination, sourceCommit, targetCommit)
+}
+
+// Location is derived only from native project/task/revision identities. It
+// neither creates a checkout nor needs access to the disposable source cache.
+func (s *Service) VerificationSnapshotPath(projectID, taskID, source, target string) (string, error) {
+	if projectID == "" || taskID == "" || source == "" || target == "" {
+		return "", errors.New("snapshot identity unavailable")
+	}
+	digest := sha256.Sum256([]byte(projectID + "\x00" + taskID + "\x00" + source + "\x00" + target))
+	return filepath.Abs(filepath.Join(s.baseDir, "verification-snapshots", hex.EncodeToString(digest[:])))
 }
 
 func (s *Service) VerificationPathsChanged(ctx context.Context, projectID, taskID, source, target string, paths []string) (bool, error) {

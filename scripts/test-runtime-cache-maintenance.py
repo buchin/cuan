@@ -27,9 +27,10 @@ class MaintenanceInstall(unittest.TestCase):
             self.assertIn('--kind npm --legacy-accounts ' + str(home), service)
             self.assertIn('--kind composer --apply', service)
             self.assertNotIn('/usr/local/bin/cuan-disk-guard', service)
-            self.assertEqual(service.count('ExecStart='), 7)
+            self.assertEqual(service.count('ExecStart='), 9)
             for snapshots in ('data/projects/verification-snapshots', 'data/workspaces/verification'):
                 self.assertIn('--snapshots ' + str(base / snapshots) + ' --under-storage-pressure --apply', service)
+                self.assertIn('/compact-verification-source.py --snapshots ' + str(base / snapshots) + ' --apply', service)
             self.assertIn('--under-storage-pressure --apply', service)
             self.assertIn('OnUnitInactiveSec=2min', (units / 'cuan-runtime-cache-maintenance.timer').read_text())
             (source / module.TOOLS[0]).write_text('# legacy overwrite')

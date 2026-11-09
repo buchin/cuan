@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install pinned cache-only maintenance, independent of task deployment helpers."""
+"""Install pinned storage maintenance, preserving active work and retained source."""
 import argparse
 import hashlib
 import os
@@ -10,7 +10,7 @@ import tempfile
 import pwd
 import re
 
-TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py')
+TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py', 'compact-verification-source.py')
 
 
 def install(base, service_home, unit_dir, source):
@@ -44,7 +44,7 @@ def install(base, service_home, unit_dir, source):
     unit_dir.mkdir(parents=True, exist_ok=True)
     command = f'/usr/bin/python3 {target}/prune-runtime-build-cache.py'
     service = f'''[Unit]
-Description=Cuan idle build cache maintenance under storage pressure
+Description=Cuan idle caches and accepted verifier source maintenance
 
 [Service]
 Type=oneshot
@@ -59,6 +59,8 @@ ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapsho
 ExecStart=/usr/bin/python3 {target}/prune-native-release-caches.py --workspaces {base}/data/projects/release-workspaces --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/verification-snapshots --under-storage-pressure --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/workspaces/verification --under-storage-pressure --apply
+ExecStart=/usr/bin/python3 {target}/compact-verification-source.py --snapshots {base}/data/projects/verification-snapshots --apply
+ExecStart=/usr/bin/python3 {target}/compact-verification-source.py --snapshots {base}/data/workspaces/verification --apply
 '''
     timer = '''[Unit]
 Description=Recheck idle Cuan caches after task execution

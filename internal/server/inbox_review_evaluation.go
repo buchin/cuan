@@ -511,6 +511,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				}
 			}
 			_ = s.taskSvc.FinishTaskLaunches(ctx, d.ID, "stopped")
+			s.requestStorageMaintenance()
 			if d.SourceRoomID != "" {
 				s.publishInbox(d.SourceRoomID)
 			}

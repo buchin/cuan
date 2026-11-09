@@ -96,19 +96,25 @@ func snapshotDestination(source, destination string) (string, error) {
 
 // PrepareVerificationSnapshot creates a separate detached local clone. It never
 // checks out, resets, cleans, commits or changes refs/files in the source repo.
-// The caller selects a separate owned audit directory. Existing destinations
-// are validated, never repaired or replaced.
-// Source commits must already be present; credentialed fetching belongs to the
-// project's normal repository connection, outside this local snapshot operation.
+// The caller selects a separate owned audit directory. Existing snapshots are
+// validated, with recognized cold materialization restored under their lease;
+// unknown changes are never repaired or replaced. Initial creation needs local
+// source commits; a retained snapshot can outlive its disposable source cache.
+// Credentialed fetching belongs to the project's normal repository connection.
 func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destination, sourceCommit, targetCommit string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if !snapshotObjectID.MatchString(sourceCommit) || !snapshotObjectID.MatchString(targetCommit) || source == "" || destination == "" {
 		return "", errors.New("verification snapshot requires exact source and target commits")
 	}
+	requestedSource := source
 	source, err := filepath.EvalSymlinks(source)
-	if err != nil {
+	sourceMissing := os.IsNotExist(err)
+	if err != nil && !sourceMissing {
 		return "", errors.New("verification source repository is unavailable")
+	}
+	if sourceMissing {
+		source = requestedSource
 	}
 	source, err = filepath.Abs(source)
 	if err != nil {
@@ -128,17 +134,6 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
-	for _, commit := range []string{sourceCommit, targetCommit} {
-		if _, err := c.snapshotGit(ctx, source, "cat-file", "-e", commit+"^{commit}"); err != nil {
-			if ctx.Err() != nil {
-				return "", ctx.Err()
-			}
-			return "", ErrVerificationCommitUnavailable
-		}
-	}
-	if _, err := c.snapshotGit(ctx, source, "merge-base", "--is-ancestor", sourceCommit, targetCommit); err != nil {
-		return "", errors.New("verification target does not contain the task source commit")
-	}
 	binding := verificationSnapshotBinding{Source: source, SourceCommit: sourceCommit, TargetCommit: targetCommit}
 	if info, err := os.Lstat(destination); err == nil {
 		if !info.IsDir() {
@@ -155,6 +150,22 @@ func (c *Client) PrepareVerificationSnapshot(ctx context.Context, source, destin
 		return destination, nil
 	} else if !os.IsNotExist(err) {
 		return "", err
+	}
+	// A saved snapshot owns its objects and can outlive the disposable source.
+	// Only initial creation needs the source cache and its ancestry checks.
+	if sourceMissing {
+		return "", errors.New("verification source repository is unavailable")
+	}
+	for _, commit := range []string{sourceCommit, targetCommit} {
+		if _, err := c.snapshotGit(ctx, source, "cat-file", "-e", commit+"^{commit}"); err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			return "", ErrVerificationCommitUnavailable
+		}
+	}
+	if _, err := c.snapshotGit(ctx, source, "merge-base", "--is-ancestor", sourceCommit, targetCommit); err != nil {
+		return "", errors.New("verification target does not contain the task source commit")
 	}
 	parent := filepath.Dir(destination)
 	if err := os.MkdirAll(parent, 0700); err != nil {
@@ -254,6 +265,9 @@ func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, 
 func (c *Client) VerifySnapshotCommit(ctx context.Context, root, sourceCommit, targetCommit string) error {
 	if _, err := os.Lstat(filepath.Join(root, ".git", verificationColdMarker)); !os.IsNotExist(err) {
 		return errors.New("verification snapshot is cold; acquire its lease to restore the exact source before inspection")
+	}
+	if sparse, err := c.snapshotGit(ctx, root, "config", "--bool", "--get", "core.sparseCheckout"); err == nil && strings.TrimSpace(string(sparse)) == "true" {
+		return errors.New("verification snapshot is not fully materialized; native inspection cannot use a sparse source tree")
 	}
 	return c.verifySnapshotCommitState(ctx, root, sourceCommit, targetCommit)
 }

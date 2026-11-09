@@ -38,3 +38,30 @@ which passed exact-SHA health with38 migrations at2026-11-09T03:43:41Z. This
 establishes the required compatibility release before a later compactor rollout;
 automatic source compaction is still not enabled and no production byte saving
 is attributed to this prerequisite.
+
+## Accepted-source maintenance integration
+
+The next change records exact native acceptance before the existing installed
+worker runs. Current successful typed source/live verifier snapshots of Done
+tasks receive a durable acceptance binding. Pending review receives no grant;
+existing native release acceptance fixtures verify that transition and confirm
+task status, attempts and original source remain unchanged.
+
+The same pinned oneshot worker now scans both roots for accepted, clean, idle
+materializations older than48 hours. It keeps complete Git objects and receipts,
+checks real process readers plus the existing lease, and preserves unknown files.
+The native generated config whitelist is validated once by Go and rechecked by
+hash and exact directory contents before the Python worker changes files. The
+cold marker and metadata directory are synced before sparse checkout.
+
+A real cross-language fixture calls native Go acceptance annotation, the maintained
+Python compactor, then Go lease restoration after deleting the disposable source.
+It verifies positive materialized-block reclamation, exact source bytes, generated
+defaults, unchanged object counts and the same lease inode. Interrupted restoration
+with one exact existing source file recovers; unique replacements remain protected.
+Separate real-Git/OS tests cover preview/no mutation, warm and unaccepted retention,
+dirty/unknown evidence, active flock and an actual child-process reader. Existing
+native source/live acceptance and scheduler/event regressions pass.
+
+Automatic compactor deployment and production eligibility/reclamation observation
+are still pending at this entry. Fixtures are not attributed as production savings.

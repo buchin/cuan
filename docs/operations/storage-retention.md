@@ -104,19 +104,57 @@ exit-code-2 attempts have no final agent report, but their retained terminal log
 do not prove the exact provider exit cause; disk pressure remains a hypothesis
 for those failures, separate from the verified full-disk deployment incident.
 
-### Bound release compilation peak
+### Accepted verifier source copies
+
+The existing storage job records acceptance for the current successful native
+source/live verifier of a Done task, with its exact task/source/target binding.
+It does not accept tasks or infer acceptance from an old directory name. PM
+acceptance also requests this same coalescing maintenance job. Both verifier
+roots participate; no additional service or loop is introduced.
+
+After48 hours from acceptance and the last materialization, the pinned worker
+may release a clean accepted snapshot's tracked working files through Git sparse
+checkout. Complete independent Git objects, native receipts, source identities
+and the persistent lease inode remain. Unknown/untracked reports, changed source,
+custom ignored files, dependency trees, active leases/process readers, submodules
+and shared files preserve the snapshot. The native generated MCP defaults are
+recognized by hashes recorded after validation, not by ignoring whole folders.
+Each pass is bounded to three transitions and20 seconds per root.
+
+The durable cold marker is synced before changing the tree. Native snapshot
+preparation and runner lease acquisition restore exact source from retained local
+objects before inspection, including after the disposable source cache disappears.
+Unique writes hidden by Git skip-worktree are preserved; an interrupted transition
+can resume when its existing files exactly match the retained source. A sparse
+tree cannot pass native source verification as a full checkout. No reset, clean,
+source fetch, object deletion or task-history rewrite is part of this lifecycle.
+
+The immediately preceding production release includes restoration support before
+compaction is enabled. An arbitrarily older binary without that support cannot
+inspect cold snapshots directly. Retained objects remain available for native
+restoration; avoid selecting a pre-support runtime for those inspections.
+
+`reclaimed_materialized_bytes` reports removed file blocks, not an indefinite
+storage-capacity guarantee or removal of retained Git history. Warm, failed,
+unaccepted and unknown historical work may continue to occupy space. No existing
+retention deadline is shortened merely because the filesystem is under pressure.
+
+### Verifier dependency roots
 
 Native cache maintenance scans both independent-verifier generations:
 `data/projects/verification-snapshots` and `data/workspaces/verification`.
 Both use the same lease/process-reader, source identity, ignored dependency and
 lockfile checks. The older root is not deleted wholesale. A2026-11-09 production
 preview found zero eligible dependencies there; adding coverage does not claim
-source-checkout reclamation. Retained Git/source copies still need a separate
-reconstructible-source lifecycle while preserving reports and unique work.
+source-checkout reclamation. That cache-only correction did not reclaim tracked
+source; the accepted-source lifecycle above addresses materialized copies while
+preserving reports and unique work.
 Release00bf7e90006902032757efafc8fc1685175836d3 passed exact-SHA production
 health. Installed systemd commands include both roots, and the oneshot worker
 finished successfully at2026-11-09T11:03:36+08. This validates deployment and worker
 completion, not a measured byte reduction from legacy snapshot dependencies.
+
+### Bound release compilation peak
 
 Backend release binaries compile sequentially (server, migrate, runner). Each
 `go build` shares completed cache entries with the next; Cuan no longer creates

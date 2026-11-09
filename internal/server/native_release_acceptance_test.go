@@ -186,6 +186,11 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 		}
 		return
 	}
+	s.markAcceptedVerificationSnapshots(ctx)
+	retentionReceipt := filepath.Join(snapshot, ".git", "cuan-verification-accepted.json")
+	if _, err := os.Stat(retentionReceipt); !os.IsNotExist(err) {
+		t.Fatal("unaccepted verifier snapshot received retention grant", err)
+	}
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"pass","finding":"Delivered fixture content verified.","explanation":"Exact delivered content checked","remaining_work":"none","revision":""}`)
 	accepted, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
@@ -198,5 +203,22 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	}
 	if accepted.CommitSHA != proof.SourceCommit {
 		t.Fatal("acceptance replaced original developer source")
+	}
+	s.markAcceptedVerificationSnapshots(ctx)
+	grant, err := os.ReadFile(retentionReceipt)
+	must(err)
+	var receipt struct {
+		TaskID string `json:"task_id"`
+		Source string `json:"source_commit"`
+		Target string `json:"target_commit"`
+	}
+	must(json.Unmarshal(grant, &receipt))
+	if receipt.TaskID != accepted.ID || receipt.Source != proof.SourceCommit || receipt.Target != proof.TargetCommit {
+		t.Fatal("retention grant lost native source identity", receipt)
+	}
+	after, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	must(err)
+	if after.Status != task.TaskStatusDone || len(after.Attempts) != len(accepted.Attempts) {
+		t.Fatal("retention changed acceptance or attempts")
 	}
 }

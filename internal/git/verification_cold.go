@@ -2,8 +2,10 @@ package git
 
 import (
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -54,9 +56,9 @@ func (c *Client) restoreColdVerificationSnapshot(ctx context.Context, root strin
 		return bad
 	}
 	if strings.TrimSpace(string(sparse)) == "true" {
-		// A fully cold tree contains no tracked files. Never overwrite a file
-		// someone added while the tree was cold, even if skip-worktree hides it
-		// from git status. Unknown ignored files were rejected above too.
+		// Only exact tracked source may already be present after an interrupted
+		// transition. Preserve unique writes hidden by skip-worktree as well as
+		// the unknown ignored files rejected above.
 		err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -78,6 +80,9 @@ func (c *Client) restoreColdVerificationSnapshot(ctx context.Context, root strin
 				return nil
 			}
 			if filepath.ToSlash(rel) == ".gemini/config/mcp_config.json" && reconstructibleWorkspaceStatus(root, []byte("!! .gemini/")) {
+				return nil
+			}
+			if c.coldTrackedFileMatches(ctx, root, rel, entry) {
 				return nil
 			}
 			return bad
@@ -103,4 +108,41 @@ func (c *Client) restoreColdVerificationSnapshot(ctx context.Context, root strin
 		return bad
 	}
 	return nil
+}
+
+// An interrupted cold/restore transition may leave some exact source files
+// present. Distinguish those from unique writes hidden by skip-worktree rather
+// than either blocking forever or overwriting them blindly.
+func (c *Client) coldTrackedFileMatches(ctx context.Context, root, relative string, entry fs.DirEntry) bool {
+	data, err := c.snapshotGit(ctx, root, "ls-files", "--stage", "-z", "--", filepath.ToSlash(relative))
+	if err != nil {
+		return false
+	}
+	parts := strings.Split(string(data), "\x00")
+	if len(parts) != 2 || parts[1] != "" {
+		return false
+	}
+	header, path, ok := strings.Cut(parts[0], "\t")
+	fields := strings.Fields(header)
+	if !ok || path != filepath.ToSlash(relative) || len(fields) != 3 || fields[2] != "0" || !snapshotObjectID.MatchString(fields[1]) {
+		return false
+	}
+	info, err := entry.Info()
+	if err != nil {
+		return false
+	}
+	if fields[0] == "120000" && info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(filepath.Join(root, relative))
+		if err != nil {
+			return false
+		}
+		digest := sha1.New()
+		fmt.Fprintf(digest, "blob %d\x00%s", len(target), target)
+		return fmt.Sprintf("%x", digest.Sum(nil)) == fields[1]
+	}
+	if !info.Mode().IsRegular() || (fields[0] != "100644" && fields[0] != "100755") || (info.Mode().Perm()&0111 != 0) != (fields[0] == "100755") {
+		return false
+	}
+	actual, err := c.snapshotGit(ctx, root, "hash-object", "--no-filters", "--", filepath.ToSlash(relative))
+	return err == nil && strings.TrimSpace(string(actual)) == fields[1]
 }
