@@ -262,3 +262,34 @@ cover the actual production sentence, backend variants, positive visual duties
 and browser restrictions. The old captures remain historical; no source/evidence
 is deleted to hide the waste. A fresh production workflow must prove this scope
 fix and the other corrections before claiming autonomous readiness.
+
+## Scope guard release and fresh lean-workflow observation
+
+The official `cuan release run` deployed
+`c373cde26a127a1ee38db5ef1305445b1469a9e5` from `dev` on November 9.
+The retained CLI result records 11:24:07–11:27:25 UTC, exit zero,
+unchanged source, 38 applied migrations and production `/healthz` healthy
+with that exact commit. This proves delivery of the scope guard, not its
+effectiveness in a fresh verifier execution.
+
+Fresh room `7dda3de9-a7fe-4cab-b0eb-3aa6cca87a40` requests one actual
+backend/tooling task to identify and reduce repeated dev/verifier dependency
+setup. Original constraints explicitly prohibit UI changes, browser automation,
+screenshots, emails and history/source/evidence deletion. It requires immutable
+source identity, independent verification and native publication if code changes.
+The request explicitly permits a factual no-change finding if no useful safe
+optimization exists; it does not require manufacturing a cache implementation.
+
+The send command reached its local observation timeout, but official room
+readback confirmed saved request `05ea3319-aa82-4742-8883-f71ba9cca5d1`
+running with runtime session `b710d407-c08f-4a5d-96fc-aac9de468c55`.
+No duplicate send or retry was issued. The analysis trace records 86,736 prompt
+bytes and 41,587 context bytes. These are not token counts, cost estimates or
+proof of the cause of latency. At this observation there is no delegated task
+or completed provider response; the fresh end-to-end proof remains pending.
+
+Code inspection also confirms DoD assessment already uses an LLM evaluator
+(`inboxReviewEvaluationInstruction`) with native attempt/source/publication
+evidence gates. An external judge would need to improve or replace that
+assessment, rather than add an otherwise identical review stage. No new judge
+dependency or acceptance bypass was introduced.
