@@ -7,11 +7,11 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-// A mistaken legacy production inspection must not strand unfinished local
-// implementation. This permits only a new developer attempt under the saved PM
+// An outcome inspection must not strand unfinished original implementation.
+// This permits only a new developer attempt under the saved PM
 // decision; it never grants writes in the inspection snapshot or accepts work.
 func (s *Server) localSourceCorrectionAllowed(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse, revision string) bool {
-	if d == nil || d.LatestAttempt == nil || d.ExecutionCategory != task.ExecutionCategoryCode || d.CommitSHA != "" || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt.Status != task.AttemptStatusFailed || d.LatestAttempt.FinishedAt == nil || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || q.RoomID != d.SourceRoomID || s.inboxReviewedTask(ctx, q) == nil {
+	if d == nil || d.LatestAttempt == nil || d.ExecutionCategory != task.ExecutionCategoryCode || d.CommitSHA != "" || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt.FinishedAt == nil || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || q.RoomID != d.SourceRoomID || s.inboxReviewedTask(ctx, q) == nil {
 		return false
 	}
 	saved, ok := reviewAssessment(d, q.RequestID)
@@ -27,9 +27,23 @@ func (s *Server) localSourceCorrectionAllowed(ctx context.Context, q db.InboxReq
 		return false
 	}
 	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, source.ID)
-	if err != nil || limits.ReadOnlyRepository || !limits.DenyDeploy {
+	if err != nil || limits.ReadOnlyRepository {
 		return false
 	}
 	approved, _ := s.inboxApprovedTaskScope(ctx, d)
-	return approved != nil && !approved.ReadOnlyRepository && approved.DenyDeploy
+	if approved == nil || approved.ReadOnlyRepository || approved.DenyDeploy != limits.DenyDeploy || approved.DenyPush != limits.DenyPush {
+		return false
+	}
+	if d.LatestAttempt.Status == task.AttemptStatusFailed {
+		// Preserve the bounded legacy local-only recovery.
+		return approved.DenyDeploy
+	}
+	// A successful independent inspection can truthfully report that the
+	// timed-out developer never implemented the original task. Return that
+	// gap to a separate developer; never grant writes to this snapshot.
+	_, unchanged, scopeErr := s.inboxReviewRepositoryScope(ctx, d)
+	return d.LatestAttempt.Status == task.AttemptStatusSucceeded &&
+		inboxReviewExecutionSucceeded(d) && task.ProjectChecksPassed(d) &&
+		inboxReportEvidence(d).Provenance == "current_attempt_report" &&
+		scopeErr == nil && unchanged
 }

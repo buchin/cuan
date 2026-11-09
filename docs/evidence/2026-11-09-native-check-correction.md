@@ -507,3 +507,34 @@ New tests replay 100 complete typewriter cycles across byte-split transports,
 require complete progress text and distinct factual errors, and preserve changed
 sentences and immediate quota detection. All `TestPTYDiagnostics` checks pass.
 This refinement is not yet deployed or credited with production savings.
+
+## Negative inspection decision did not reach the developer
+
+Recovery `att_67e95b8cef9a603ef79075092b129b33` completed successfully at
+20:33:53 (+08), exit zero. PM request `bd7f230f-4d15-4224-a460-ada4d203d740`
+saved `decision=revise`, `remaining_work=implementation`,
+`requested_outcome=unfinished`, and `manager_action=continue` at 20:35:24.
+Thus the model did choose continuation; the application handoff stranded it.
+
+`localSourceCorrectionAllowed` admitted only a failed legacy inspection after a
+timed-out developer with deployment prohibited. It rejected a successful
+read-only inspection that correctly found the implementation still absent, and
+also rejected the original task's existing deploy permission. The typed-inspection
+guard then blocked ordinary execution and displayed only the unmet outcome.
+
+The same bounded correction path now admits a successful negative inspection
+only with current native passing project checks, current final report and
+unchanged-repository evidence. It still requires a source-less current-outcome
+inspection tied to this task's timed-out, uncanceled original execution, matching
+saved PM implementation decision, exact revision, owner/room/instruction lineage
+and matching original publication restrictions. The new developer uses original
+scope; the completed verifier remains read-only. Legacy failed local-only
+recovery remains supported. No acceptance or source verification is waived.
+
+Tests exercise both originally allowed and prohibited deployment, missing native
+checks/report/unchanged evidence, running/canceled inspection and changed revision.
+They recover the saved decision twice, verify one queued continuation, claim the
+actual separate developer attempt and assert it retains the original deployment
+limits without typed inspection/verifier intent. Original timeout history remains
+failed. Targeted legacy recovery, changed/canceled-source and manager-handoff
+checks pass. Production recovery remains to be observed after release.
