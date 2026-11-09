@@ -30,6 +30,19 @@ func inboxResponseDiagnostic(raw string) string {
 	if isExplicitChoicePrompt(reply) {
 		return "Response format: choice options missing or invalid."
 	}
+	var action struct {
+		Kind    string          `json:"kind"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if json.Unmarshal(fields["action"], &action) == nil && action.Kind == "delegation" {
+		var payload inboxDelegation
+		if strictCoordinatorJSON(action.Payload, &payload) != nil {
+			return "Response format: delegation payload fields or types rejected."
+		}
+		if _, delegation, err := parseInboxDelegation("```cuan-delegate\n" + string(action.Payload) + "\n```"); err != nil || delegation == nil {
+			return "Response format: delegation payload constraints rejected."
+		}
+	}
 	return "Response format: action payload or response contract rejected."
 }
 

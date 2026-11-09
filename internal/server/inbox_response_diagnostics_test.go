@@ -12,6 +12,8 @@ func TestInboxResponseDiagnosticNeverIncludesCandidateData(t *testing.T) {
 		{`{"reply":"PRIVATE_CANDIDATE","topic_title":"","action":null,"extra":"PRIVATE_CANDIDATE"}`, "unexpected envelope"},
 		{coordinatorJSON("PRIVATE_CANDIDATE. Silakan pilih di bawah ini.", "", nil), "choice options"},
 		{coordinatorJSON("PRIVATE_CANDIDATE", "approval", map[string]string{"title": "PRIVATE_CANDIDATE"}), "action payload"},
+		{coordinatorJSON("PRIVATE_CANDIDATE", "delegation", map[string]string{"acceptance_criteria": "PRIVATE_CANDIDATE"}), "delegation payload fields or types"},
+		{coordinatorJSON("PRIVATE_CANDIDATE", "delegation", inboxDelegation{Title: "PRIVATE_CANDIDATE"}), "delegation payload constraints"},
 	} {
 		out := inboxResponseDiagnostic(c.raw)
 		if !strings.Contains(out, c.want) || strings.Contains(out, "PRIVATE_CANDIDATE") {
