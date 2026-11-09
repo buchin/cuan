@@ -131,3 +131,16 @@ stage context and shared npm-download preparation. The already active legacy
 ordinary execution is preserved rather than being retroactively labeled an
 independent verifier. No production source-verifier transition is credited until
 the actual typed launch and source binding are observed.
+
+At 18:18:26 (+08), task telemetry entered native verifier
+`att_cf7169eb686500ecef880fd4d05b5e5b`, bound to developer attempt
+`att_c444b37073ae3bbd1840651025f86d65` and exact source
+`712d56e004d3767671dd64939836ad57d0972e89`. Official `task execution`
+confirmed `intent_kind=verification`, read-only repository and denied push/deploy.
+The agent stage began at 18:18:33, about seven seconds after runner start.
+This transition used the existing validated native developer handoff and its
+synthetic source-review assessment `ef0ce011-36d1-4889-aa3c-66058d8c99e8`;
+it is not evidence of a model Inbox request or of the generic handoff path being
+exercised. Verification remains active and no independent pass, publication or
+Done is credited yet. The short observed preparation also means cloning/setup
+cannot explain the earlier multi-minute PM/role-routing delays in this task.
