@@ -943,11 +943,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			prompt += "\n\nGo build caches are managed independently of the AI account HOME and retained across this owner's routes. Use the inherited Go environment; do not search account profiles or redirect builds to another user's caches. The repository still selects its required Go toolchain. Save actual check output and a factual checkpoint before the execution deadline.\n"
 		}
 	}
+	managedNPMCache := ""
 	if err == nil && r.cfg.WorkspacesDir != "" && env["NPM_CONFIG_CACHE"] == "" && env["npm_config_cache"] == "" {
 		npmEnv, npmErr := managedNPMBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "npm-build-runtime"), claim.OwnerID)
 		if npmErr != nil {
 			err = npmErr
 		} else if cache := npmEnv["NPM_CONFIG_CACHE"]; cache != "" {
+			managedNPMCache = cache
 			lease, leaseErr := acquireBuildCacheLease(ctx, cache)
 			if leaseErr != nil {
 				err = fmt.Errorf("acquire npm download cache lease: %w", leaseErr)
@@ -982,7 +984,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	verificationRuntimeFingerprint := ""
 	if err == nil && !policy.ReadOnlyRepository && developerFrontendDependenciesRequired(&claim, ws != nil) {
 		r.streamLogLine(ctx, att.ID, "system", "Preparing locked frontend dependencies in the private development workspace.")
-		if setupErr := prepareInspectionDependencies(ctx, workingDir); setupErr != nil {
+		if setupErr := prepareInspectionDependencies(ctx, workingDir, managedNPMCache); setupErr != nil {
 			r.streamLogLine(ctx, att.ID, "system", "Automatic frontend dependency preparation is incomplete: "+setupErr.Error())
 			prompt += "\nAutomatic frontend preparation did not complete. Inspect this workspace's dependency manifests and the saved setup diagnostic before choosing a project-specific preparation step. Do not borrow node_modules from another workspace or infer that dependencies are installed.\n"
 		} else {
@@ -1019,7 +1021,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	}
 	if err == nil && claim.LiveInspection != nil && ((claim.LiveInspection.Purpose == task.CurrentOutcomeInspection && claim.RequiresVision) || claim.VisualRecipe != nil) {
 		r.streamLogLine(ctx, att.ID, "system", "Preparing locked frontend dependencies in the private inspection snapshot.")
-		err = prepareInspectionDependencies(ctx, workingDir)
+		err = prepareInspectionDependencies(ctx, workingDir, managedNPMCache)
 		if err == nil {
 			err = r.gitClient.VerifySnapshotCommit(ctx, workingDir, claim.LiveInspection.SnapshotSourceCommit(), claim.LiveInspection.TargetCommit)
 		}

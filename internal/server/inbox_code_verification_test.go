@@ -12,7 +12,7 @@ import (
 )
 
 func TestCodePassRequiresSeparateVerifier(t *testing.T) {
-	for _, scenario := range []string{"missing source checks", "first successful implementation", "independent criterion pending", "pass with independent criterion pending"} {
+	for _, scenario := range []string{"missing source checks", "first successful implementation", "independent criterion pending", "pass with independent criterion pending", "unclassified revision", "native handoff"} {
 		ready := scenario != "missing source checks"
 		t.Run(scenario, func(t *testing.T) {
 			s, d, q := stalledReviewFixture(t, "completed")
@@ -48,6 +48,16 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 			raw := `{"decision":"pass","finding":"Code ready","explanation":"Passed","remaining_work":"none","revision":""}`
 			if scenario == "independent criterion pending" {
 				raw = `{"decision":"revise","finding":"Independent evidence pending","explanation":"Needs verification","remaining_work":"verification","revision":"Independently inspect the exact source commit and verify original criteria without implementation changes."}`
+			}
+			if scenario == "unclassified revision" {
+				raw = `{"decision":"revise","explanation":"Source tests passed; independent verification pending","revision":"Verify the exact source before native release."}`
+			}
+			if scenario == "native handoff" {
+				var routed bool
+				raw, routed = s.inboxCodeVerificationHandoff(ctx, q)
+				if !routed {
+					t.Fatal("ready source still needs preliminary model inference")
+				}
 			}
 			if ready {
 				s.taskSvc = task.NewService(reviewLaunchFailureStore{Store: store, LaunchStore: store.(task.LaunchStore), failure: errors.New("temporary storage outage")}, s.projectSvc)

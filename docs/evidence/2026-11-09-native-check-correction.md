@@ -91,3 +91,36 @@ Direct inspection of the delivered native `inbox-390.png` confirmed it shows the
 chat/composer, not the requested Inbox list indicator. Its existence therefore
 cannot prove mobile alignment of the indicator. Preserve this negative finding
 when assessing the task rather than treating a generic capture as visual DoD.
+
+## Role routing and repeated preparation
+
+Developer attempt `att_50ac926908cecd2779da1e162aafb8ef` completed with native
+checks passing on source `6485a9dd36f2f01a9b6bc1f2234590e6e21490df`.
+PM request `796c30aa-8bf9-4cea-ac07-f1f64158dc4d` requested independent checking
+but retained only decision/explanation/revision, with no `remaining_work`.
+The legacy unclassified revision path started ordinary writable attempt
+`att_c444b37073ae3bbd1840651025f86d65` instead of a typed verifier. This is
+another routing failure, not evidence that a verifier ran. A steering message
+was delivered to preserve source, avoid reimplementation/deployment and report
+only actual findings; native independence remains outstanding.
+
+Ready tested developer commits now use the existing deterministic handoff
+pattern to request mandatory independent verification before provider inference.
+The existing source-verifier admission still checks original authority, native
+source evidence and launch identity. An unclassified revision on a tested
+implementation also defaults to read-only inspection instead of writable
+execution, excluding explicit source rejection and owner/external decisions.
+Regression tests exercise the real saved assessment/launch path and prove exact
+source identity, one verifier launch and no acceptance without independent work.
+
+Setup inspection found that npm preparation ignored the managed owner cache
+already leased by the runner and created/deleted a new download cache every time.
+It now accepts only the internally selected managed cache from that lease;
+private installer HOME/configuration and separate node_modules remain unchanged.
+The native npm offline fixture installs a real integrity-locked tarball into two
+separate workspaces from one warm cache, checks the source lock is unchanged and
+proves lifecycle scripts did not run. This removes repeat downloads; it does not
+claim that all installation/materialization cost or this Go task's latency is
+eliminated. Git snapshots already reuse retained directories and bounded local
+history; Go caches already persist across these roles. No shared mutable Git
+checkout or node_modules symlink was introduced.

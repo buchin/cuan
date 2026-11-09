@@ -374,6 +374,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								if snapshot == "" {
 									output = s.inboxStaleReviewOutcome(ctx, q)
 									snapshotReview = false
+								} else if handoff, ready := s.inboxCodeVerificationHandoff(ctx, q); ready {
+									step("source_verification_handoff", "Routing the tested developer commit to independent verification.")
+									output = handoff
 								} else if handoff, ready := s.inboxNativeCheckHandoff(ctx, q); ready {
 									step("native_check_correction", "Routing the recorded test failure to developer correction without another model decision.")
 									output = handoff

@@ -2,10 +2,32 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
+
+// Ready developer output has one next stage: independent inspection. Preserve
+// the native source checks/identity instead of asking a model to choose a role.
+func (s *Server) inboxCodeVerificationHandoff(ctx context.Context, q db.InboxRequest) (string, bool) {
+	d := s.inboxReviewedTask(ctx, q)
+	if d == nil || d.ResultKind != "implementation" || !releaseObjectID.MatchString(d.CommitSHA) || !task.ProjectChecksPassed(d) || !inboxReviewExecutionSucceeded(d) || inboxReportEvidence(d).Provenance != "current_attempt_report" || !s.independentCodeReviewMissing(ctx, d) || db.InboxRetryNeedsReconciliation(q) || isCustomerReplyDelivery(q, d) {
+		return "", false
+	}
+	if changed, err := s.inboxReviewOwnerContextChanged(ctx, q); changed || err != nil {
+		return "", false
+	}
+	live, liveErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	verification, verificationErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+	if liveErr != nil || verificationErr != nil || live != nil || verification != nil {
+		return "", false
+	}
+	decision := s.requireIndependentCodeReview(ctx, d, inboxReviewEvaluation{Decision: "pass"})
+	raw, err := json.Marshal(decision)
+	return string(raw), err == nil && decision.Decision == "revise" && decision.RemainingWork == "verification"
+}
 
 const inboxIndependentCodeReviewPolicy = "Independent code execution review: v3"
 
@@ -20,7 +42,10 @@ func (s *Server) requireIndependentCodeReview(ctx context.Context, d *task.TaskD
 	// its author just to claim independent verification. Exact-source native
 	// admission still checks the result; only the verifier can establish gaps.
 	accountMissing := d != nil && task.IsAccountOutcome(&d.Task) && !s.accountOutcomeIndependentlyVerified(ctx, d)
-	if assessment.Decision != "pass" || !inboxReviewExecutionSucceeded(d) || (!accountMissing && !s.independentCodeReviewMissing(ctx, d)) {
+	// An unclassified revision must never silently become another writable dev
+	// attempt. For a natively tested source, inspect it before deciding a fix.
+	unclassified := assessment.Decision == "revise" && assessment.RemainingWork == "" && assessment.SourceReview != "revise" && assessment.RequestedOutcome != "needs_input" && assessment.ManagerAction != "wait" && assessment.ManagerAction != "needs_owner" && d != nil && d.ResultKind == "implementation" && task.ProjectChecksPassed(d)
+	if (assessment.Decision != "pass" && !unclassified) || !inboxReviewExecutionSucceeded(d) || (!accountMissing && !s.independentCodeReviewMissing(ctx, d)) {
 		return assessment
 	}
 	if accountMissing {

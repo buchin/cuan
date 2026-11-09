@@ -18,7 +18,7 @@ const InspectionDependencyFailurePrefix = task.InspectionDependencyFailurePrefix
 // Prepare only known frontend roots in an owned private workspace. npm
 // receives no task capability, provider credentials, user npm config or scripts.
 // Source identity is revalidated by the caller after preparation.
-func prepareInspectionDependencies(parent context.Context, root string) error {
+func prepareInspectionDependencies(parent context.Context, root string, managedCache ...string) error {
 	for _, relative := range []string{".", "web"} {
 		directory := filepath.Join(root, relative)
 		lock := filepath.Join(directory, "package-lock.json")
@@ -70,9 +70,13 @@ func prepareInspectionDependencies(parent context.Context, root string) error {
 			return fmt.Errorf("prepare private dependency environment: %w", err)
 		}
 		ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
-		cmd := exec.CommandContext(ctx, "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--userconfig", filepath.Join(privateHome, "user.npmrc"), "--globalconfig", filepath.Join(privateHome, "global.npmrc"))
+		cache := filepath.Join(privateHome, "cache")
+		if len(managedCache) > 0 && managedCache[0] != "" {
+			cache = managedCache[0]
+		}
+		cmd := exec.CommandContext(ctx, "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--prefer-offline", "--userconfig", filepath.Join(privateHome, "user.npmrc"), "--globalconfig", filepath.Join(privateHome, "global.npmrc"))
 		cmd.Dir = directory
-		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + privateHome, "CI=true", "NPM_CONFIG_CACHE=" + filepath.Join(privateHome, "cache")}
+		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + privateHome, "CI=true", "NPM_CONFIG_CACHE=" + cache}
 		var output verifierOutputTail
 		cmd.Stdout = &output
 		cmd.Stderr = &output

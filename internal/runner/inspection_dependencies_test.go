@@ -1,7 +1,13 @@
 package runner
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha512"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -74,5 +80,74 @@ func TestInspectionDependenciesUsePrivateLockedSetup(t *testing.T) {
 				t.Fatal("unsafe layout launched installer")
 			}
 		})
+	}
+}
+
+func TestInspectionDependenciesInstallFromWarmCacheWithoutNetworkOrScripts(t *testing.T) {
+	npm, err := exec.LookPath("npm")
+	if err != nil {
+		t.Skip("npm is required for the real offline cache fixture")
+	}
+	cache := filepath.Join(t.TempDir(), "npm-cache")
+	var archive bytes.Buffer
+	zipped := gzip.NewWriter(&archive)
+	packed := tar.NewWriter(zipped)
+	manifest := []byte(`{"name":"cuan-offline-fixture","version":"1.0.0","scripts":{"postinstall":"touch ../forbidden-lifecycle"}}`)
+	if err := packed.WriteHeader(&tar.Header{Name: "package/package.json", Mode: 0600, Size: int64(len(manifest))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := packed.Write(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := packed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := zipped.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tarball := filepath.Join(t.TempDir(), "fixture.tgz")
+	if err := os.WriteFile(tarball, archive.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	seed := exec.Command(npm, "cache", "add", tarball, "--cache", cache, "--ignore-scripts")
+	seed.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + t.TempDir()}
+	if out, err := seed.CombinedOutput(); err != nil {
+		t.Fatal(err, string(out))
+	}
+	bin := t.TempDir()
+	// Force the actual npm installer offline: success cannot depend on a request
+	// to the deliberately nonexistent package URL or on an ambient user cache.
+	wrapper := "#!/bin/sh\nexec '" + strings.ReplaceAll(npm, "'", "'\\''") + "' --offline \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "npm"), []byte(wrapper), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	digest := sha512.Sum512(archive.Bytes())
+	lock, _ := json.Marshal(map[string]any{"name": "offline-project", "version": "1.0.0", "lockfileVersion": 3, "packages": map[string]any{
+		"":                                  map[string]any{"name": "offline-project", "version": "1.0.0", "dependencies": map[string]string{"cuan-offline-fixture": "1.0.0"}},
+		"node_modules/cuan-offline-fixture": map[string]any{"version": "1.0.0", "resolved": "https://registry.npmjs.org/cuan-offline-fixture/-/cuan-offline-fixture-1.0.0.tgz", "integrity": "sha512-" + base64.StdEncoding.EncodeToString(digest[:]), "hasInstallScript": true},
+	}})
+	for range 2 { // Developer and verifier have separate outputs, one download cache.
+		root := t.TempDir()
+		if out, err := exec.Command("git", "init", root).CombinedOutput(); err != nil {
+			t.Fatal(err, string(out))
+		}
+		for name, data := range map[string][]byte{"package.json": []byte(`{"name":"offline-project","version":"1.0.0","dependencies":{"cuan-offline-fixture":"1.0.0"}}`), "package-lock.json": lock, ".gitignore": []byte("node_modules/\n")} {
+			if err := os.WriteFile(filepath.Join(root, name), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prepareInspectionDependencies(context.Background(), root, cache); err != nil {
+			t.Fatal(err)
+		}
+		if data, err := os.ReadFile(filepath.Join(root, "node_modules/cuan-offline-fixture/package.json")); err != nil || !bytes.Equal(data, manifest) {
+			t.Fatal("warm cache did not produce the locked package", err)
+		}
+		if data, err := os.ReadFile(filepath.Join(root, "package-lock.json")); err != nil || !bytes.Equal(data, lock) {
+			t.Fatal("installation changed the source lock", err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "node_modules/forbidden-lifecycle")); !os.IsNotExist(err) {
+			t.Fatal("installer executed dependency lifecycle scripts")
+		}
 	}
 }
