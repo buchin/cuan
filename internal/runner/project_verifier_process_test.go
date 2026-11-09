@@ -12,6 +12,35 @@ import (
 	"time"
 )
 
+func TestProjectVerifierReusesOnlyExecutionBuildSettings(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "scripts/test.sh"), []byte("#!/bin/sh\nset -eu\ntest -z \"${CUAN_VERIFIER_PROJECT_SECRET:-}\"\ntest \"$GOENV\" = off\nprintf x >> \"$GOCACHE/checks\"\nprintf '%s\\n' \"$GOCACHE\" \"$GOMODCACHE\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOCACHE", filepath.Join(t.TempDir(), "wrong-ambient-cache"))
+	t.Setenv("CUAN_VERIFIER_PROJECT_SECRET", "")
+	for _, owner := range []string{"owner-a", "owner-b"} {
+		cache := t.TempDir()
+		settings := map[string]string{"GOCACHE": cache, "GOMODCACHE": filepath.Join(cache, "modules"), "GOENV": "off", "CUAN_VERIFIER_PROJECT_SECRET": "must-not-inherit"}
+		ctx := withProjectVerifierBuildEnvironment(context.Background(), settings)
+		// A later mutation of the model's environment must not change the checks.
+		settings["GOCACHE"] = "/unavailable-mutated-cache"
+		for i := 0; i < 2; i++ {
+			got := runProjectVerification(ctx, root)
+			if !got.Passed || !strings.Contains(got.Summary, cache+"\n"+filepath.Join(cache, "modules")) {
+				t.Fatalf("%s native checks lost execution cache: %+v", owner, got)
+			}
+		}
+		raw, err := os.ReadFile(filepath.Join(cache, "checks"))
+		if err != nil || string(raw) != "xx" {
+			t.Fatalf("%s did not reuse its cache: %q, %v", owner, raw, err)
+		}
+	}
+}
+
 func TestProjectVerifierDeadlineStopsDescendantHoldingOutput(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {

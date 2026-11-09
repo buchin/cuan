@@ -17,6 +17,39 @@ import (
 
 const projectVerifierOutputLimit = 12000
 
+type projectVerifierBuildEnvironmentKey struct{}
+
+// Native checks must reuse the build caches already leased for this execution,
+// rather than falling back to the supervisor's unrelated HOME. Carry only build
+// settings: task/provider credentials and project secrets are not inherited here.
+func withProjectVerifierBuildEnvironment(ctx context.Context, settings map[string]string) context.Context {
+	build := make(map[string]string)
+	for _, key := range []string{"GOPATH", "GOMODCACHE", "GOCACHE", "GOENV", "GOTOOLCHAIN", "NPM_CONFIG_CACHE", "COMPOSER_CACHE_DIR"} {
+		if value := settings[key]; value != "" {
+			build[key] = value
+		}
+	}
+	return context.WithValue(ctx, projectVerifierBuildEnvironmentKey{}, build)
+}
+
+func projectVerifierBuildEnvironment(ctx context.Context) []string {
+	build, _ := ctx.Value(projectVerifierBuildEnvironmentKey{}).(map[string]string)
+	if len(build) == 0 {
+		return nil
+	}
+	environment := make([]string, 0, len(os.Environ())+len(build))
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if _, replaced := build[key]; !replaced {
+			environment = append(environment, entry)
+		}
+	}
+	for key, value := range build {
+		environment = append(environment, key+"="+value)
+	}
+	return environment
+}
+
 // Keep the diagnostic tail bounded while a verifier is running, including
 // simultaneous stdout/stderr. A noisy child cannot grow the runner's heap.
 type verifierOutputTail struct {
@@ -45,7 +78,7 @@ func (b *verifierOutputTail) Write(p []byte) (int, error) {
 func (b *verifierOutputTail) String() string { b.mu.Lock(); defer b.mu.Unlock(); return string(b.data) }
 
 func runProjectVerifierCommand(parent context.Context, root, command string, args ...string) verificationResult {
-	return runProjectVerifierCommandEnvironment(parent, root, nil, command, args...)
+	return runProjectVerifierCommandEnvironment(parent, root, projectVerifierBuildEnvironment(parent), command, args...)
 }
 
 func runProjectVerifierCommandEnvironment(parent context.Context, root string, environment []string, command string, args ...string) verificationResult {
