@@ -45,3 +45,25 @@ GOGC=30 GOMAXPROCS=2 go test -p 1 ./internal/db \
 
 This records the confirmed root cause and implementation gates. It does not
 change runtime policy or claim the automatic reconciliation fix is deployed.
+
+## Executor-return evidence repair
+
+Further inspection found that `ListInboxRequests` can expire a running row before
+its executor returns. Previously `FinishInboxRequest` then ignored that row,
+losing evidence that processing actually returned. SQL and memory finalization
+now retain one `execution_returned` observation on an already interrupted row.
+The interrupted state, unknown-outcome error and original messages are preserved;
+a late reply is discarded. The observation survives snapshot compaction. It does
+not itself authorize automatic recovery or establish successful external effects.
+
+Targeted DB tests passed, including expiry-before-return, duplicate finalization,
+no late reply, no automatic retry from the receipt alone, and trace compaction:
+
+```sh
+GOGC=30 GOMAXPROCS=2 go test -p 1 ./internal/db \
+  -run 'Test(ExpiredInbox|ExecutionReturn|Inbox)' -count=1
+```
+
+The disposable PostgreSQL tunnel on localhost:15432 was unavailable during this
+check. SQL runtime parity and native production recovery remain unverified;
+this change has not been deployed.

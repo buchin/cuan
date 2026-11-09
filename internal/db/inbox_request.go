@@ -107,7 +107,7 @@ func (r *SQLProjectStudioRepository) FinishInboxRequest(ctx context.Context, q I
 	var finalState string
 	var raw []byte
 	var archived int
-	err = tx.QueryRowContext(ctx, `SELECT state,steps,COALESCE((SELECT MAX(seq) FROM inbox_request_steps s WHERE s.room_id=q.room_id AND s.request_id=q.request_id),0) FROM inbox_requests q WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued','cancelling') FOR UPDATE`, q.RoomID, q.RequestID).Scan(&finalState, &raw, &archived)
+	err = tx.QueryRowContext(ctx, `SELECT state,steps,COALESCE((SELECT MAX(seq) FROM inbox_request_steps s WHERE s.room_id=q.room_id AND s.request_id=q.request_id),0) FROM inbox_requests q WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued','cancelling','interrupted') FOR UPDATE`, q.RoomID, q.RequestID).Scan(&finalState, &raw, &archived)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -117,6 +117,17 @@ func (r *SQLProjectStudioRepository) FinishInboxRequest(ctx context.Context, q I
 	var steps []InboxStep
 	if err = json.Unmarshal(raw, &steps); err != nil {
 		return err
+	}
+	// A history read can expire the row before the executor returns. Preserve
+	// that unknown outcome, but retain the later executor-return observation.
+	// It is not proof of success or permission to repeat external effects.
+	if finalState == "interrupted" {
+		if !inboxHasExecutionReturn(steps) {
+			if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, "execution_returned", "The original executor returned after interruption; external outcomes remain unverified."); err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
 	}
 	if err = recordInboxStepTx(ctx, tx, q.RoomID, q.RequestID, steps, archived, "finished", "Reply processing ended."); err != nil {
 		return err
@@ -191,6 +202,13 @@ func (r *MemoryProjectStudioRepository) FinishInboxRequest(ctx context.Context, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	key := q.RoomID + q.RequestID
+	if old, ok := r.requests[key]; ok && old.State == "interrupted" {
+		if !inboxHasExecutionReturn(old.Steps) {
+			r.recordInboxStep(key, &old, "execution_returned", "The original executor returned after interruption; external outcomes remain unverified.")
+			r.requests[key] = old
+		}
+		return nil
+	}
 	if old, ok := r.requests[key]; ok && (old.State == "running" || old.State == "queued" || old.State == "cancelling") {
 		if old.State == "cancelling" {
 			q.State = "cancelled"
@@ -345,4 +363,14 @@ func (r *MemoryProjectStudioRepository) CancelInboxRequest(ctx context.Context, 
 	q.SafeError = "Cancelled. Your message is saved. Provider actions that already occurred cannot be undone."
 	r.requests[key] = q
 	return true, nil
+}
+
+// This receipt records a returned executor, not a verified business outcome.
+func inboxHasExecutionReturn(steps []InboxStep) bool {
+	for _, step := range steps {
+		if step.Kind == "execution_returned" {
+			return true
+		}
+	}
+	return false
 }
