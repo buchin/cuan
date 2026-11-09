@@ -26,7 +26,7 @@ func (r *Runner) requestNativeReleasePreparation(ctx context.Context, claim Clai
 		}
 		decoder := json.NewDecoder(io.LimitReader(response.Body, 2048))
 		if (response.StatusCode == http.StatusConflict || response.StatusCode == http.StatusServiceUnavailable) && decoder.Decode(&failure) == nil && decoder.Decode(new(any)) == io.EOF {
-			if failure.Code == "source_merge_conflict" {
+			if response.StatusCode == http.StatusConflict && failure.Code == "source_merge_conflict" {
 				return nil, task.NativeReleaseMergeConflictMessage
 			}
 			stage := strings.TrimPrefix(failure.Code, "native_preparation_")

@@ -347,3 +347,41 @@ func TestVerificationSnapshotConcurrentPublicationPreservesWinner(t *testing.T) 
 		})
 	}
 }
+
+func TestFailedGoAssertionRevalidationRecognizesPackageImplementationRepair(t *testing.T) {
+	source, _, _, _, run := snapshotFixture(t)
+	for _, name := range []string{"internal/runner/repair_test.go", "internal/runner/repair.go", "internal/runner/README.md", "internal/other/repair.go", "internal/runner/nested/repair.go"} {
+		full := filepath.Join(source, name)
+		if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("initial\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run(source, "add", "internal")
+	run(source, "commit", "-m", "Assertion package fixture")
+	client := NewClient()
+	for _, c := range []struct {
+		file string
+		want bool
+	}{
+		{"internal/runner/README.md", false},
+		{"internal/other/repair.go", false},
+		{"internal/runner/nested/repair.go", false},
+		{"internal/runner/repair.go", true},
+		{"internal/runner/repair_test.go", true},
+	} {
+		old := run(source, "rev-parse", "HEAD")
+		if err := os.WriteFile(filepath.Join(source, c.file), []byte("changed\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		run(source, "add", c.file)
+		run(source, "commit", "-m", "Relevant change fixture")
+		target := run(source, "rev-parse", "HEAD")
+		changed, err := client.CommittedPathsChanged(context.Background(), source, old, target, []string{"internal/runner/repair_test.go"})
+		if err != nil || changed != c.want {
+			t.Errorf("%s: got changed=%v err=%v want=%v", c.file, changed, err, c.want)
+		}
+	}
+}

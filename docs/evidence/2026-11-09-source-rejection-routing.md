@@ -32,3 +32,31 @@ production SHA, 38 migrations and unchanged source. That deployment corrects
 bounded publication cautions; it does not publish the rejected dependency code.
 The existing current-outcome inspection remains active; no task was canceled,
 replayed or manually accepted to conceal this routing mistake.
+
+## Production routing release and regression found by native checks
+
+99e3b7344ee00b824a4a20a176b96d3fd01cb9b5 deployed through official CLI
+13:54:21Z–13:57:40Z, 199.0 seconds, exit 0, exact healthy SHA and 38 migrations.
+The unnecessary inspection had already failed its native runner tests at
+21:54:48 +08 on ae88801b. Its report retained the two dependency-reuse defects.
+Native tests caught a regression introduced by root's diagnostic transport change:
+HTTP 503 carrying source_merge_conflict was classified like a genuine HTTP 409
+conflict. Correction restores the explicit 409 requirement, retaining bounded 503
+stage diagnostics. Existing TestNativePreparationFailureAcceptsOnlyTypedConflict
+now passes, all native-preparation tests pass, and the complete runner package
+passes (39.328s). Failed history is preserved; this was root's regression.
+
+## Revalidate implementation repairs without changing assertions
+
+The failed native assertion names native_release_preparation_failure_test.go,
+whereas its actual repair changes native_release_preparation_transport.go. The
+existing relevant-change check required the named test itself to change, so the
+real repair could not trigger the already-authorized single revalidation.
+A real Git regression reproduced that false negative. Both server preflight and
+snapshot validation now recognize changed sibling production Go files in the
+named test's exact package. Documentation, other packages and nested packages
+remain insufficient. No dependency graph, new scheduler, extra allowance or
+forced success was added. Original literal-path/identity checks and unchanged
+snapshot requirements remain. Git behavioral tests, server live-inspection,
+source-verifier handoff and revalidation lifecycle groups pass; targeted runner
+live-inspection and preparation groups pass after the Git change.
