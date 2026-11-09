@@ -40,6 +40,23 @@ These checks do not establish production recovery or task completion. The same
 retained telemetry task must still correct its source, pass independent checking,
 publish and produce live evidence without manually forcing its status.
 
+## Lean follow-through
+
+Production review `8b7dbada-9ed5-4de0-a7dc-d18fe53a0f9d` spent 191.2 seconds
+in its provider process merely to request the already-known test correction.
+The corrected publication guard classified implementation, but its embedded
+6000-byte diagnostic plus instructions exceeded the delegation contract and
+admission returned `Invalid delegation`. The task remained blocked; this is
+not successful recovery.
+
+Native check correction now keeps a short failure-tail excerpt and refers to the
+complete immutable native record through the existing bound task tools. A long-log
+regression goes through the real review parser and existing correction queue,
+including duplicate application. The lifecycle selects this deterministic
+handoff before provider inference. It never accepts the source, changes scope,
+resets correction budgets or bypasses native launch admission. Unknown outcomes
+and independent verifier findings still need their ordinary assessment.
+
 ## Separate visual coverage finding
 
 Room `a86b4638-8afc-4fea-a542-d07d52880488` received Mermaid and terminal

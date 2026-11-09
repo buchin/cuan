@@ -3,13 +3,32 @@ package server
 import (
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/buchin/cuan/internal/task"
 )
 
 const inboxPrerequisiteReviewPolicy = "Native prerequisite review: v1"
 
-const inboxProjectCheckFailurePolicy = "Native project check correction: v1"
+const inboxProjectCheckFailurePolicy = "Native project check correction: v2"
+
+// Keep the failure tail rather than successful setup chatter. Full output stays
+// in the native record and is available through the bound task tools.
+func nativeCheckDiagnostic(summary string) string {
+	const limit = 2400
+	if len(summary) <= limit {
+		return summary
+	}
+	lines := strings.SplitN(summary, "\n", 2)
+	tail := summary
+	if len(tail) > 1800 {
+		tail = tail[len(tail)-1800:]
+		for len(tail) > 0 && !utf8.RuneStart(tail[0]) {
+			tail = tail[1:]
+		}
+	}
+	return truncateProjectText(lines[0], 200) + "\n[Earlier output retained in runner_verification; showing failure tail]\n" + tail
+}
 
 // Only a native, current developer completion can establish a source-test gap.
 // Inspection failures retain their separate read-only recovery boundaries.

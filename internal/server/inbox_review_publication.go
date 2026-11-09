@@ -100,10 +100,7 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 		decision.ManagerAction, decision.ManagerReason = "replan", "Repair the recorded native project check failure before independent verification or publication."
 		decision.Finding = "Pengujian otomatis gagal; Cuan perlu memperbaikinya sebelum melanjutkan."
 		decision.Explanation = decision.Finding
-		const prefix = "Native project checks failed on the current developer attempt. "
-		if !strings.HasPrefix(decision.Revision, prefix) {
-			decision.Revision = prefix + "Inspect the saved runner diagnostic and retained source, reproduce the concrete failing check, and correct its root cause within the original authorized scope. Preserve unrelated work and failed history. Do not waive checks, repeat investigation or deployment, or start an independent source verifier before the registered checks pass. Submit the corrected exact source for separate verification; original publication and acceptance requirements remain. Native diagnostic: " + truncateProjectText(failure, 6000)
-		}
+		decision.Revision = "Native project checks failed on the current developer attempt. Read the full current runner_verification record with the bound task tools and inspect the retained source. Reproduce the failing check and correct its root cause within the original authorized scope. Preserve unrelated work and failed history. Do not waive checks, repeat investigation or deployment, or start an independent source verifier before the registered checks pass. Submit the corrected exact source for separate verification; original publication and acceptance requirements remain. Native diagnostic: " + nativeCheckDiagnostic(failure)
 		return decision
 	}
 	// Source-stage approval keeps the task unfinished. Native publication
