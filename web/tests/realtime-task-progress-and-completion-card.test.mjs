@@ -57,9 +57,11 @@ test('2. Self-Contained TaskCard: handles queued, running pulse & duration timer
   assert.ok(taskCardSource.includes('taskAgentPending(currentTask)'), 'TaskCard must use the shared ownership projection')
   assert.ok(taskCardSource.includes('<StatusDot'), 'TaskCard must share the reduced-motion-aware indicator')
 
-  // Verify live duration timer with Clock icon and testid
-  assert.ok(taskCardSource.includes('data-testid="task-card-live-timer"'), 'TaskCard must render live timer with data-testid')
-  assert.ok(taskCardSource.includes('formatDuration'), 'TaskCard must format duration using formatDuration')
+  // Shared lifecycle duration must retain queue and verification time.
+  assert.ok(taskCardSource.includes('<TaskDuration task={currentTask}'), 'TaskCard must use shared lifecycle duration')
+  const duration = fs.readFileSync(path.resolve(__dirname, '../src/features/tasks/TaskDuration.tsx'), 'utf8')
+  assert.ok(duration.includes('task.created_at') && duration.includes('task.completed_at'), 'Duration must bind task creation and native completion')
+  assert.ok(!duration.includes('latest_attempt?.started_at'), 'Verifier handoff must not reset duration')
 
   // Verify seamless transition to TaskCompletionCard
   assert.ok(taskCardSource.includes('<TaskCompletionCard'), 'TaskCard must render TaskCompletionCard when finished/review')

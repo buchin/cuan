@@ -43,3 +43,9 @@ and evaluated. Quiet muted text fits the existing rows/header without another
 badge, progress bar or counter. Desktop header/data column alignment was checked
 and corrected during visual inspection. The simulated Inbox connecting notice
 belongs to the isolated fixture, not an observed production outage.
+
+The first release attempt (`d84074a8`) stopped in preflight before activation:
+three legacy source-contract tests still required the removed per-attempt timer
+and literal Updated header. Their duration assertions now require the shared
+creation/Done contract without per-attempt reset. Typecheck and all463 frontend
+tests pass. Browser runtime assertions remain in place; no failing gate was waived.

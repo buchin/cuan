@@ -78,7 +78,7 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
     'TaskBoardView must render Faceted Filter buttons for Status and Priority'
   )
 
-  // Verify Data Table Header Columns: Checkbox, Task, Title, Status, Priority, Updated, Actions
+  // Verify Data Table Header Columns: Checkbox, Task, Title, Status, Priority, Time, Actions
   assert.ok(
     taskBoardSource.includes('Select all tasks'),
     'TaskBoardView table header must include Select all tasks checkbox'
@@ -89,7 +89,7 @@ test('2. S70-T2: Shadcn Tasks Data Table Layout & Faceted Toolbar', () => {
     taskBoardSource.includes('<span>Status</span>') &&
     taskBoardSource.includes('<span>Priority</span>') &&
     !taskBoardSource.includes('<span>Agent</span>') &&
-    taskBoardSource.includes('<span>Updated</span>'),
+    taskBoardSource.includes("language === 'id' ? 'Waktu' : 'Time'"),
     'TaskBoardView table header must include all standard data columns'
   )
 

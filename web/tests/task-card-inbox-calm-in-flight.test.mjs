@@ -41,6 +41,6 @@ test('3. TaskCard: Calm Design and Progressive Disclosure adherence', () => {
   // TaskCard must provide clean working states without visual clutter
   assert.ok(taskCardSrc.includes('data-card="task-card"'), 'TaskCard must have data-card attribute')
   assert.ok(taskCardSrc.includes('isWorking'), 'TaskCard must handle working state cleanly')
-  assert.ok(taskCardSrc.includes('data-testid="task-card-live-timer"'), 'TaskCard must include live duration timer')
+  assert.ok(taskCardSrc.includes('<TaskDuration task={currentTask}'), 'TaskCard must use shared calm lifecycle duration')
   assert.ok(taskCardSrc.includes('handleOpenTerminal'), 'TaskCard must provide terminal drawer integration')
 })
