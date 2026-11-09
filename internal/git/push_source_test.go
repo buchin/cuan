@@ -11,7 +11,7 @@ import (
 )
 
 func TestImmutableSourcePushUsesSavedAccessAndReconcilesRemote(t *testing.T) {
-	for _, scenario := range []string{"new", "already pushed", "head moved during observation", "denied observation", "dirty", "wrong source", "wrong repo", "missing access", "protected branch"} {
+	for _, scenario := range []string{"new", "already pushed", "head moved during observation", "denied observation", "dirty", "wrong source", "wrong repo", "missing access", "protected branch", "rebased source", "already published immutable source", "conflicting immutable source", "concurrent immutable source"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			local, remote := filepath.Join(root, "local"), filepath.Join(root, "remote.git")
@@ -42,6 +42,17 @@ func TestImmutableSourcePushUsesSavedAccessAndReconcilesRemote(t *testing.T) {
 			if scenario == "already pushed" {
 				run("-C", local, "push", remote, source+":refs/heads/task/source")
 			}
+			immutable := "refs/heads/cuan/verified-source/" + source
+			diverged := scenario == "rebased source" || strings.Contains(scenario, "immutable source")
+			if diverged {
+				run("-C", local, "push", remote, later+":refs/heads/task/source")
+			}
+			if scenario == "already published immutable source" {
+				run("-C", local, "push", remote, source+":"+immutable)
+			}
+			if scenario == "conflicting immutable source" {
+				run("-C", local, "push", remote, later+":"+immutable)
+			}
 			calls := filepath.Join(root, "calls")
 			wrapper := filepath.Join(root, "git-wrapper")
 			quote := func(value string) string { raw, _ := json.Marshal(value); return string(raw) }
@@ -51,6 +62,9 @@ func TestImmutableSourcePushUsesSavedAccessAndReconcilesRemote(t *testing.T) {
 			}
 			if scenario == "head moved during observation" {
 				script += " if 'ls-remote' in a:subprocess.run([" + quote(realGit) + ",'-C'," + quote(local) + ",'update-ref','refs/heads/task/source'," + quote(later) + "],check=True)\n"
+			}
+			if scenario == "concurrent immutable source" {
+				script += " if 'push' in a:subprocess.run([" + quote(realGit) + ",'--git-dir'," + quote(remote) + ",'update-ref'," + quote(immutable) + "," + quote(later) + "],check=True)\n"
 			}
 			script += " a=[" + quote(remote) + " if x=='https://github.com/owner/repo.git' else x for x in a]\nos.execv(" + quote(realGit) + ",['git']+a)\n"
 			if err := os.WriteFile(wrapper, []byte(script), 0700); err != nil {
@@ -79,6 +93,23 @@ func TestImmutableSourcePushUsesSavedAccessAndReconcilesRemote(t *testing.T) {
 			result, err := client.PushExecutionSource(context.Background(), local, repoURL, branch, "dev", expected, token)
 			valid := scenario == "new" || scenario == "already pushed" || scenario == "head moved during observation"
 			data, _ := os.ReadFile(calls)
+			if diverged {
+				if run("--git-dir", remote, "rev-parse", "refs/heads/task/source") != later {
+					t.Fatal("rebased publication overwrote retained task history")
+				}
+				conflict := scenario == "conflicting immutable source" || scenario == "concurrent immutable source"
+				if conflict {
+					if err == nil || result != "" || run("--git-dir", remote, "rev-parse", immutable) != later {
+						t.Fatal("immutable source conflict or concurrent writer was overwritten", err)
+					}
+				} else if err != nil || result != source || run("--git-dir", remote, "rev-parse", immutable) != source {
+					t.Fatal("reviewed rebased source was not published", err)
+				}
+				if scenario == "already published immutable source" && strings.Contains(string(data), "push") {
+					t.Fatal("reconciliation repeated an existing immutable push")
+				}
+				return
+			}
 			if valid {
 				wantCalls := "observe\npush\n"
 				if scenario == "already pushed" {

@@ -144,3 +144,35 @@ it is not evidence of a model Inbox request or of the generic handoff path being
 exercised. Verification remains active and no independent pass, publication or
 Done is credited yet. The short observed preparation also means cloning/setup
 cannot explain the earlier multi-minute PM/role-routing delays in this task.
+
+## Independent pass and publication blocker
+
+Verifier `att_cf7169eb686500ecef880fd4d05b5e5b` finished successfully at
+18:25:38 (+08), preserving source `712d56e004d3767671dd64939836ad57d0972e89`.
+Its delivered report records 14 targeted telemetry/context tests (3.81 seconds),
+the project fast suite and build, including nil/success/failure DB status,
+snapshot consistency and RFC3339 observation time. Source approval was saved,
+and native release attempt `att_21259371d216591d560facde755d0116` started
+automatically at 18:26:31. It failed two seconds later before model/release
+execution with generic preparation-unavailable output and no diagnostic logs.
+The feature is not deployed or Done.
+
+Remote observation showed `dev` at `ce52b096` and the task branch still at older
+source `6485a9dd`. The reviewed source had been rebased to `712d56e0`. Native
+source push only attempted a regular push to that existing task branch, which
+cannot publish rebased history. A bare-repository regression reproduces this
+failure mode. Production's generic preparation error does not establish which
+preparation step failed, so this is a confirmed publication gap, not proof that
+all causes of that production attempt have been resolved.
+
+When the task branch already points elsewhere, source publication now preserves
+it and uses `refs/heads/cuan/verified-source/FULL_SHA`. Existing matching refs are
+read/reused; mismatched refs fail. Creation uses an empty-expected-value lease,
+so a concurrent writer is preserved. No task/default branch is force-updated.
+Bare Git tests cover rebased, already published, conflicting and concurrent
+references; project access/protected-branch tests and the existing full native
+initial-preparation contract passed. This change is committed separately from
+any future recovery policy. Existing failed launch history must not be reset;
+the retained verified source still needs bounded native preparation recovery
+and live deployment evidence. Preparation diagnostics also need a concrete
+stage code rather than the current generic error.
