@@ -225,6 +225,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if formatRepair {
 		system = inboxFormatRepairPrompt(formatCandidate, analysisRecovery || reconcileRetry, reconcileRetry && !analysisRecovery)
 	} else {
+		reviewInstruction := ""
+		if snapshotReview {
+			// Select from the native JSON before member Taste adds prose around it.
+			reviewInstruction = inboxReviewInstruction(prompt)
+		}
 		brandTaste := s.formatBrandTastePrompt(ctx)
 		if brandTaste != "" && !strings.Contains(prompt, brandTaste) {
 			prompt = brandTaste + "\n\n" + prompt
@@ -243,7 +248,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
 		}
 		if snapshotReview {
-			system = inboxReviewEvaluationInstruction + "\n\n" + inboxPhaseReviewInstruction + "\n\n" + inboxReviewChangesInstruction + "\n\n" + cuanPrompt.GetReviewPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
+			system = reviewInstruction + "\n\n" + inboxPhaseReviewInstruction + "\n\n" + inboxReviewChangesInstruction + "\n\n" + cuanPrompt.GetReviewPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
 			if ctx.Value(inboxCustomerReplyKey{}) == true {
 				system = customerReplyDeliveryInstruction + "\n\nResponse schema:\n" + inboxReviewEvaluationSchema + "\n\nAccepted result data:\n" + prompt
 			}

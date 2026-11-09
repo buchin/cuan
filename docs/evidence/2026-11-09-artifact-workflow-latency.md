@@ -143,3 +143,25 @@ The next bottleneck remains initial/final model latency, not runner admission.
 Without an explicit maintenance trigger in this benchmark, the registered job
 reports success at13:08:19.929733213+08 after verifier completion. This proves
 event-driven maintenance ran, not that any particular storage bytes were freed.
+
+## Review policy context selection
+
+The next optimization preserves policy text verbatim while omitting definitions
+of optional native observations that the actual snapshot does not contain.
+The complete review instruction is27060 bytes; a snapshot with no optional native
+observations selects18108 bytes (8952 fewer). Actual reduction depends on the
+saved context; these are policy bytes, not model tokens or a measured latency win.
+
+Outcome, original criteria, report/runner provenance, correction ownership,
+execution authority, file delivery and acceptance paragraphs remain unchanged.
+Present observations, including unavailable/failed observations, retain their
+definitions. Malformed/nonobject snapshots retain the full contract. No evidence
+field, owner follow-up, project guidance, schema or native acceptance gate is
+removed. Selection happens before member Taste adds prose around the JSON so
+preferences remain injected without breaking native context parsing.
+
+Targeted tests compare retained paragraphs verbatim, prove full equivalence with
+all native observation types present, conservative fallback, independent-artifact
+routing and read-only/publication acceptance regressions. Source compaction alone
+does not prove faster or equally good model judgments; fresh native production
+completion remains required after rollout.
