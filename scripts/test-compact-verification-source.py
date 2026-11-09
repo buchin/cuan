@@ -59,13 +59,52 @@ class SourceCompactorTest(unittest.TestCase):
             self.git(root, 'sparse-checkout', 'disable')
             self.assertEqual((root / 'report.md').read_text(), 'saved evidence')
 
+    def test_unaccepted_clean_old_snapshot_with_default_mcp_config_is_compacted_and_restores(self):
+        with tempfile.TemporaryDirectory() as directory:
+            snapshots, root, gate, proc = self.fixture(Path(directory))
+            grant = root / '.git/cuan-verification-accepted.json'
+            grant.unlink()
+            (root / '.git/info/exclude').write_bytes(b'.agents/\n')
+            (root / '.agents').mkdir(exist_ok=True)
+            (root / '.agents/mcp_config.json').write_bytes(compactor.DEFAULT_CONFIG)
+            old = time.time() - 72 * 3600
+            os.utime(root, (old, old))
+            before = gate.stat()
+            objects = self.git(root, 'count-objects', '-v')
+
+            preview = compactor.compact(snapshots, proc=proc)
+            self.assertEqual(preview['eligible'], [root.name])
+            self.assertEqual(preview['compacted'], [])
+            self.assertTrue((root / 'report.md').exists())
+
+            report = compactor.compact(snapshots, apply=True, proc=proc)
+            self.assertEqual(report['compacted'], [root.name])
+            self.assertGreater(report['reclaimed_materialized_bytes'], 0)
+            self.assertFalse((root / 'report.md').exists())
+            self.assertTrue((root / '.git/cuan-verification-cold.json').exists())
+            self.assertFalse(grant.exists())
+            self.assertEqual((root / '.agents/mcp_config.json').read_bytes(), compactor.DEFAULT_CONFIG)
+            self.assertEqual(self.git(root, 'show', 'HEAD:report.md'), b'saved evidence')
+            self.assertEqual(self.git(root, 'count-objects', '-v'), objects)
+            self.assertEqual(before.st_ino, gate.stat().st_ino)
+
+            self.git(root, 'sparse-checkout', 'disable')
+            self.assertEqual((root / 'report.md').read_text(), 'saved evidence')
+            self.assertEqual((root / '.agents/mcp_config.json').read_bytes(), compactor.DEFAULT_CONFIG)
+
     def test_unaccepted_warm_changed_or_unique_work_is_kept(self):
-        for mode in ('unaccepted', 'warm', 'changed', 'unique report', 'ignored unknown', 'wrong binding'):
+        for mode in ('unaccepted warm', 'unaccepted custom config', 'warm', 'changed', 'unique report', 'ignored unknown', 'wrong binding'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 snapshots, root, _, proc = self.fixture(Path(directory))
                 grant = root / '.git/cuan-verification-accepted.json'
-                if mode == 'unaccepted':
+                if mode == 'unaccepted warm':
                     grant.unlink()
+                    os.utime(root, None)
+                elif mode == 'unaccepted custom config':
+                    grant.unlink()
+                    (root / '.git/info/exclude').write_bytes(b'.agents/\n')
+                    (root / '.agents').mkdir(exist_ok=True)
+                    (root / '.agents/mcp_config.json').write_text('{"mcpServers": {"custom": {}}}')
                 elif mode == 'warm':
                     os.utime(root, None)
                 elif mode == 'changed':
@@ -79,7 +118,7 @@ class SourceCompactorTest(unittest.TestCase):
                     data = json.loads(grant.read_text())
                     data['target_commit'] = 'b' * 40
                     grant.write_text(json.dumps(data))
-                if mode not in ('warm',):
+                if mode not in ('warm', 'unaccepted warm'):
                     old = time.time() - 72 * 3600
                     os.utime(root, (old, old))
                 report = compactor.compact(snapshots, apply=True, proc=proc)

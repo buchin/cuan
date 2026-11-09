@@ -18,6 +18,25 @@ cache = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cache)
 
 
+DEFAULT_CONFIG = (
+    b'{\n'
+    b'  "mcpServers": {\n'
+    b'    "cuan-inspect": {\n'
+    b'      "args": [\n'
+    b'        "mcp"\n'
+    b'      ],\n'
+    b'      "command": "cuan"\n'
+    b'    }\n'
+    b'  }\n'
+    b'}\n'
+)
+DEFAULT_CONFIG_SHA256 = hashlib.sha256(DEFAULT_CONFIG).hexdigest()
+ALLOWED_CONFIGS = {
+    '.agents': '.agents/mcp_config.json',
+    '.gemini': '.gemini/config/mcp_config.json',
+}
+
+
 def receipt(path, owner):
     info = path.lstat()
     if not stat.S_ISREG(info.st_mode) or info.st_size > 4096 or info.st_uid != owner or info.st_nlink != 1:
@@ -29,10 +48,24 @@ def receipt(path, owner):
 
 
 def generated_defaults(root, accepted, status):
-    configs = accepted.get('generated_configs')
-    allowed = {'.agents/mcp_config.json', '.gemini/config/mcp_config.json'}
-    if not isinstance(configs, dict) or not set(configs).issubset(allowed):
-        return False
+    if accepted is not None:
+        configs = accepted.get('generated_configs')
+        if not isinstance(configs, dict) or not set(configs).issubset(set(ALLOWED_CONFIGS.values())):
+            return False
+        for name, digest in configs.items():
+            if digest != DEFAULT_CONFIG_SHA256:
+                return False
+    else:
+        lines = [line.strip() for line in status.splitlines() if line.strip()]
+        configs = {}
+        for line in lines:
+            if not line.startswith(b'!! ') or not line.endswith(b'/'):
+                return False
+            name = line[3:-1].decode('utf-8', errors='replace')
+            if name not in ALLOWED_CONFIGS:
+                return False
+            configs[ALLOWED_CONFIGS[name]] = DEFAULT_CONFIG_SHA256
+
     parents = set()
     for name, digest in configs.items():
         if not isinstance(digest, str) or not re.fullmatch('[a-f0-9]{64}', digest):
@@ -64,24 +97,41 @@ def candidate(root, now, minimum):
     owner = root.stat().st_uid
     if metadata.stat().st_uid != owner or os.path.lexists(metadata / 'objects/info/alternates'):
         return None, 0, 'unproven'
-    accepted = receipt(metadata / 'cuan-verification-accepted.json', owner)
-    binding = receipt(metadata / 'cuan-verification.json', owner)
-    if accepted.get('policy') != 'retained-git-source-v1' or not isinstance(accepted.get('task_id'), str) or not accepted['task_id']:
-        return None, 0, 'unaccepted'
+    binding_path = metadata / 'cuan-verification.json'
+    if not os.path.lexists(binding_path):
+        return None, 0, 'unproven'
+    binding = receipt(binding_path, owner)
     if not isinstance(binding.get('source'), str) or not os.path.isabs(binding['source']):
         return None, 0, 'unproven'
     for name in ('source_commit', 'target_commit'):
-        if not re.fullmatch('[a-f0-9]{40}', binding.get(name, '')) or accepted.get(name) != binding[name]:
+        if not re.fullmatch('[a-f0-9]{40}', binding.get(name, '')):
             return None, 0, 'unproven'
-    if not isinstance(accepted.get('accepted_at'), str):
-        return None, 0, 'unproven'
-    timestamp = accepted['accepted_at'].replace('Z', '+00:00')
-    # Go uses RFC3339Nano, including trimmed fractions. Python3.10 on native
-    # Ubuntu hosts needs a microsecond fraction; retention tolerates truncation.
-    timestamp = re.sub(r'\.(\d+)(?=[+-]\d\d:\d\d$)', lambda match: '.' + (match[1] + '000000')[:6], timestamp)
-    accepted_at = datetime.datetime.fromisoformat(timestamp)
-    if accepted_at.tzinfo is None or now - max(accepted_at.timestamp(), root.stat().st_mtime) < minimum:
-        return None, 0, 'warm'
+
+    accepted_path = metadata / 'cuan-verification-accepted.json'
+    accepted = None
+    if os.path.lexists(accepted_path):
+        accepted = receipt(accepted_path, owner)
+        if accepted.get('policy') != 'retained-git-source-v1' or not isinstance(accepted.get('task_id'), str) or not accepted['task_id']:
+            return None, 0, 'unaccepted'
+        for name in ('source_commit', 'target_commit'):
+            if accepted.get(name) != binding[name]:
+                return None, 0, 'unproven'
+        if not isinstance(accepted.get('accepted_at'), str):
+            return None, 0, 'unproven'
+        timestamp = accepted['accepted_at'].replace('Z', '+00:00')
+        # Go uses RFC3339Nano, including trimmed fractions. Python3.10 on native
+        # Ubuntu hosts needs a microsecond fraction; retention tolerates truncation.
+        timestamp = re.sub(r'\.(\d+)(?=[+-]\d\d:\d\d$)', lambda match: '.' + (match[1] + '000000')[:6], timestamp)
+        try:
+            accepted_at = datetime.datetime.fromisoformat(timestamp)
+        except ValueError:
+            return None, 0, 'unproven'
+        if accepted_at.tzinfo is None or now - max(accepted_at.timestamp(), root.stat().st_mtime) < minimum:
+            return None, 0, 'warm'
+    else:
+        if now - root.stat().st_mtime < minimum:
+            return None, 0, 'warm'
+
     if cache.git(root, 'rev-parse', 'HEAD').decode().strip() != binding['target_commit']:
         return None, 0, 'changed'
     cache.git(root, 'merge-base', '--is-ancestor', binding['source_commit'], binding['target_commit'])
@@ -117,9 +167,15 @@ def compact(snapshots, apply=False, minimum=48 * 3600, now=None, proc=Path('/pro
         if root.is_symlink() or not root.is_dir() or not re.fullmatch('[a-f0-9]{64}', root.name):
             continue
         try:
-            gate = root / '.git/cuan-verification.lock'
-            fd = os.open(gate, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+            metadata = root / '.git'
+            if metadata.is_symlink() or not metadata.is_dir():
+                continue
+            gate = metadata / 'cuan-verification.lock'
+            fd = os.open(gate, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
             with os.fdopen(fd, 'r+b'):
+                if os.geteuid() == 0:
+                    identity = root.stat()
+                    os.fchown(fd, identity.st_uid, identity.st_gid)
                 info = os.fstat(fd)
                 if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != root.stat().st_uid:
                     continue
