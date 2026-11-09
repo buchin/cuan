@@ -97,3 +97,19 @@ reviewer's concrete findings stay in the revision for inspection; they are not
 waived. This allows the independently authorized read-only current-outcome path
 before another implementation or uncertain deployment is attempted. An existing
 wrapped revision cannot bypass that ordering by retaining an old classification.
+
+## Retained source after baseline reconciliation
+
+A rebased native task checkpoint can differ from the existing remote task branch.
+A confirmed non-fast-forward rejection uses the existing immutable source push
+protocol to save the exact clean checkpoint at `cuan/verified-source/<SHA>`.
+The original remote task branch remains unchanged; Cuan neither force-pushes it
+nor creates a PR against its older source. The task retains its logical task
+branch and exact result commit. Normal branch updates keep their existing flow.
+
+This fallback uses only the saved project GitHub connection. Dirty/changed
+checkpoints, conflicting immutable refs and unavailable access remain failures;
+repository rules still apply. Unknown push outcomes do not authorize this path.
+Saving a Git source is separate from independent verification, deployment and
+acceptance. Repeated observation of the same immutable source does not establish
+that any of those later stages completed.

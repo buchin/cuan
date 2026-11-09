@@ -36,6 +36,17 @@ func (s *Service) PushNativeTaskBranch(ctx context.Context, taskID, projectID, i
 		return "", nil, ErrGitHubConnectionRequired
 	}
 	commit, err := s.gitClient.PushExecutionBranch(ctx, workspace, p.RepoURL, branch, p.DefaultBranch, token)
+	if errors.Is(err, git.ErrRemoteBranchDiverged) {
+		// Baseline reconciliation may rebase a retained checkpoint. Save its
+		// exact source with the existing immutable-ref protocol; never overwrite
+		// the old task branch or create a PR referring to that older source.
+		source, sourceErr := s.gitClient.GetLatestCommitSHA(ctx, workspace)
+		if sourceErr != nil {
+			return "", nil, sourceErr
+		}
+		commit, sourceErr = s.gitClient.PushExecutionSource(ctx, workspace, p.RepoURL, branch, p.DefaultBranch, source, token)
+		return commit, nil, sourceErr
+	}
 	if err != nil || !publish {
 		return commit, nil, err
 	}

@@ -78,6 +78,8 @@ func (c *Client) pushExactBranch(ctx context.Context, path, repoURL, branch, tok
 
 // Never expose Git output: remote URLs and credential-helper failures may carry
 // secrets. Stable categories let the coordinator choose a concrete recovery.
+var ErrRemoteBranchDiverged = errors.New("GitHub push was not confirmed: remote branch has diverged; compare existing commits and preserve both histories; do not force push. Local commits are preserved")
+
 func classifyPushFailure(ctx context.Context, output []byte) error {
 	text := strings.ToLower(string(output))
 	reason := "unknown remote outcome; inspect the remote branch before retrying"
@@ -85,7 +87,7 @@ func classifyPushFailure(ctx context.Context, output []byte) error {
 	case ctx.Err() != nil:
 		reason = "request interrupted; inspect the remote branch before retrying"
 	case strings.Contains(text, "non-fast-forward"), strings.Contains(text, "fetch first"):
-		reason = "remote branch has diverged; compare existing commits and preserve both histories; do not force push"
+		return ErrRemoteBranchDiverged
 	case strings.Contains(text, "protected branch"), strings.Contains(text, "repository rule"), strings.Contains(text, "gh013"), strings.Contains(text, "gh006"):
 		reason = "repository policy rejected the update; inspect the registered repository rules"
 	case strings.Contains(text, "authentication failed"), strings.Contains(text, "permission to"), strings.Contains(text, "could not read username"), strings.Contains(text, "repository not found"), strings.Contains(text, "returned error: 403"), strings.Contains(text, "returned error: 401"):

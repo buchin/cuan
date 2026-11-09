@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +39,9 @@ func TestPushFailurePreservesRecoveryCategoryWithoutRemoteSecrets(t *testing.T) 
 		{"unexpected remote response", "unknown remote outcome"},
 	} {
 		err := classifyPushFailure(context.Background(), []byte(test.output+" https://SECRET_TOKEN@github.com/private/repo"))
+		if errors.Is(err, ErrRemoteBranchDiverged) != strings.Contains(test.output, "non-fast-forward") {
+			t.Fatal("unrelated push failure admitted divergence reconciliation", err)
+		}
 		if !strings.Contains(err.Error(), test.want) || strings.Contains(err.Error(), "SECRET_TOKEN") || strings.Contains(err.Error(), "private/repo") {
 			t.Fatal("missing recovery category or exposed remote output", err)
 		}
