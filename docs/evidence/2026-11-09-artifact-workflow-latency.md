@@ -47,3 +47,27 @@ cooldown or prove a new request can run. No routing settings were changed.
 Current production inspection found zero doing tasks. The registered storage
 maintenance job is enabled; its post-restart status is idle with a next scheduled
 run, not evidence of a fresh successful cleanup or reclaimed bytes.
+
+## Direct mandatory-verification routing
+
+Implemented `inboxArtifactVerificationHandoff` in the existing Inbox lifecycle.
+For a bound current review, a successful standalone-file developer attempt with
+a current final report and available owner-scoped deliverables supplies the
+existing verification-only assessment directly, before provider inference.
+The normal `applyInboxReviewEvaluation` path still saves and applies the
+assessment, checks owner context/cancellation, and admits the existing deduplicated
+read-only launch. No new queue, acceptance path or workflow service was added.
+
+Native verifier results remain on ordinary semantic PM review, including when
+their unchanged-directory proof is absent. Progress/blocked/missing reports,
+failed/stopped executions, unavailable files, ordinary operations and stale
+requests do not use the shortcut. Changed owner context defers to normal review.
+The shortcut cannot emit pass or establish that any original criterion is met.
+
+Targeted tests cover ready routing through the real saved-assessment/native
+launch path, repeated application without duplicate execution, native verifier
+completion returning to semantic review, and incomplete/stopped/unavailable/stale
+negative cases. Existing owner-context and launch-persistence regressions pass.
+Compilation initially exceeded local memory; the same targeted tests passed
+using `GOGC=30 GOMAXPROCS=2 go test -p 1` without relaxing assertions.
+Production timing improvement remains unproven pending a fresh benchmark.

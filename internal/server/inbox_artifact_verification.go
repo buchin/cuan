@@ -2,11 +2,48 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
+
+// Route ready developer files to mandatory inspection without asking a model
+// whether independent inspection is necessary. This is never an acceptance.
+// Verifier results and missing inputs still require ordinary semantic review.
+func (s *Server) inboxArtifactVerificationHandoff(ctx context.Context, q db.InboxRequest) (string, bool) {
+	d := s.inboxReviewedTask(ctx, q)
+	if d == nil || d.Status != task.TaskStatusReview || d.LatestAttempt == nil || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || isCustomerReplyDelivery(q, d) || !inboxReviewExecutionSucceeded(d) || inboxReportEvidence(d).Provenance != "current_attempt_report" {
+		return "", false
+	}
+	if changed, err := s.inboxReviewOwnerContextChanged(ctx, q); changed || err != nil {
+		return "", false
+	}
+	var report *task.TaskActivity
+	for _, a := range d.Activities {
+		if a != nil && a.TaskID == d.ID && a.AttemptID != nil && *a.AttemptID == d.LatestAttempt.ID && a.ActivityType == "agent_report" && (report == nil || a.CreatedAt.After(report.CreatedAt) || (a.CreatedAt.Equal(report.CreatedAt) && a.ID > report.ID)) {
+			report = a
+		}
+	}
+	if report == nil || (report.NewStatus != task.TaskStatusReview && report.NewStatus != task.TaskStatusDone) {
+		return "", false
+	}
+	store, ok := s.taskSvc.Store().(task.AttemptLaunchStore)
+	if !ok {
+		return "", false
+	}
+	launch, err := store.LaunchForAttempt(ctx, d.LatestAttempt.ID)
+	if err != nil || (launch != nil && managerVerificationObservationGrant(d, launch)) {
+		return "", false
+	}
+	decision := s.requireIndependentArtifactReview(ctx, q, d, inboxReviewEvaluation{Decision: "pass"})
+	if decision.Decision != "revise" || decision.RemainingWork != "verification" || decision.ManagerAction != "continue" {
+		return "", false
+	}
+	raw, err := json.Marshal(decision)
+	return string(raw), err == nil
+}
 
 // A harness subagent is still part of the developer attempt. File work uses
 // the existing manager verification continuation, with no source checkout.

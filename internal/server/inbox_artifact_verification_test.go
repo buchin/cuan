@@ -37,6 +37,15 @@ func TestStandaloneArtifactReviewQueuesOneReadOnlyContinuation(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(inboxReviewEvaluation{Decision: "pass", RequestedOutcome: "completed", RemainingWork: "none", Finding: "File ready", Explanation: "Developer subagent checked the file"})
+	handoff, ready := s.inboxArtifactVerificationHandoff(ctx, q)
+	if !ready {
+		t.Fatal("ready developer artifact still requires preliminary inference")
+	}
+	var routing inboxReviewEvaluation
+	if err := json.Unmarshal([]byte(handoff), &routing); err != nil || routing.Decision != "revise" || routing.RemainingWork != "verification" {
+		t.Fatal("handoff is not verification-only", handoff, err)
+	}
+	raw = []byte(handoff)
 	for range 2 {
 		out := s.applyInboxReviewEvaluation(ctx, q, string(raw))
 		current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
@@ -74,6 +83,20 @@ func TestStandaloneArtifactReviewQueuesOneReadOnlyContinuation(t *testing.T) {
 	current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
 	if !s.artifactIndependentlyVerified(ctx, current) {
 		t.Fatal("native verifier not recognized")
+	}
+	key := "task-review:" + attempt.ID
+	verifierReview := q
+	verifierReview.RequestID = delegationMessageID(key)
+	verifierReview.MessageID = delegationMessageID(key + ":input")
+	verifierReview.ReplyID = delegationMessageID(key + ":reply")
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, verifierReview, &db.ProjectMessage{ID: verifierReview.MessageID, RoomID: q.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: "Review /tasks/" + d.ID, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if s.inboxReviewedTask(ctx, verifierReview) == nil {
+		t.Fatal("verifier review fixture is not bound")
+	}
+	if raw, ready := s.inboxArtifactVerificationHandoff(ctx, verifierReview); ready || raw != "" {
+		t.Fatal("verifier result skipped final semantic review", raw)
 	}
 	pass := inboxReviewEvaluation{Decision: "pass", RequestedOutcome: "completed"}
 	if got := s.requireIndependentArtifactReview(ctx, q, current, pass); got != pass {
@@ -124,6 +147,66 @@ func TestStandaloneArtifactPassRequiresNativeVerification(t *testing.T) {
 				if s.artifactIndependentlyVerified(context.Background(), d) {
 					t.Fatal("developer has no native verifier grant")
 				}
+			}
+		})
+	}
+}
+
+func TestArtifactHandoffKeepsIncompleteAndStoppedWorkInSemanticReview(t *testing.T) {
+	for _, mode := range []string{"ready", "progress", "blocked", "no report", "failed", "cancel requested", "cancelled", "done", "missing file", "ordinary work", "stale request"} {
+		t.Run(mode, func(t *testing.T) {
+			attemptStatus := string(task.AttemptStatusSucceeded)
+			if mode == "failed" {
+				attemptStatus = string(task.AttemptStatusFailed)
+			}
+			s, d, q := stalledReviewFixture(t, "queued", attemptStatus)
+			ctx := context.Background()
+			d.ExecutionCategory = task.ExecutionCategoryOps
+			d.Instructions += "\nCreate a standalone file. Do not modify the repository. Do not deploy."
+			switch mode {
+			case "ordinary work":
+				d.Instructions = "Compare findings"
+			case "failed":
+				d.LatestAttempt.Status = task.AttemptStatusFailed
+			case "cancel requested":
+				d.LatestAttempt.CancelRequested = true
+			case "cancelled":
+				d.Status = "cancelled"
+			case "done":
+				d.Status = task.TaskStatusDone
+			case "stale request":
+				q.RequestID = db.GenerateUUID()
+			}
+			if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.taskSvc.Store().UpdateAttempt(ctx, d.LatestAttempt); err != nil {
+				t.Fatal(err)
+			}
+			status := task.TaskStatusReview
+			if mode == "progress" {
+				status = "progress"
+			} else if mode == "blocked" {
+				status = task.TaskStatusBlocked
+			}
+			if mode != "no report" {
+				if err := s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: "handoff-report", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: "agent_report", NewStatus: status, Message: "File prepared", CreatedAt: time.Now()}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode != "missing file" {
+				file := preparedTaskArtifact{attachment: conversationAttachment{ID: db.GenerateUUID(), Name: "result.md", Type: "text/markdown", Size: 3}, data: []byte("ok\n")}
+				if err := s.publishTaskArtifacts(ctx, d, q.OwnerID, []preparedTaskArtifact{file}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			raw, ready := s.inboxArtifactVerificationHandoff(ctx, q)
+			if ready != (mode == "ready") || (!ready && raw != "") {
+				t.Fatalf("unexpected routing: ready=%v raw=%s", ready, raw)
+			}
+			current, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+			if current.Status != d.Status || len(current.Attempts) != 1 {
+				t.Fatal("routing changed task or execution")
 			}
 		})
 	}

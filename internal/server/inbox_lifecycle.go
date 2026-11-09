@@ -371,6 +371,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								if snapshot == "" {
 									output = s.inboxStaleReviewOutcome(ctx, q)
 									snapshotReview = false
+								} else if handoff, ready := s.inboxArtifactVerificationHandoff(ctx, q); ready {
+									step("verification_handoff", "Routing delivered files to independent verification.")
+									output = handoff
 								}
 							}
 							if output == "" {
