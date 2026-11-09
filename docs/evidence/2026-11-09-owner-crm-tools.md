@@ -32,5 +32,10 @@ tests also pass. The official local CLI was rebuilt from maintained source.
 Authenticated production MCP then resolved room60fdacfc-5584-4968-9000-61e6213d6192
 to contact49a12715-f8a6-4b3a-9019-b73838ed3889 at2026-11-09T03:39:19Z with
 source=configured_owner_api, memories_loaded=true and memory_has_more=false.
-No CRM record, customer message or external account was changed. Server/runtime
-rollout of this CLI correction remains pending at this entry.
+No CRM record, customer message or external account was changed.
+
+The official releaseb0d4f0d94ce361a493cb2924b7e86163f2cf91c2 completed at
+2026-11-09T03:43:41Z with exact-SHA production health and38 migrations. Repeating
+the same official MCP read after activation resolves the same contact and notes
+state. The user's new public message67094169-3e6e-4590-86a0-9fdcbbf970a6 still has
+its persisted visitor/delivered receipt after this deployment; no replay was used.

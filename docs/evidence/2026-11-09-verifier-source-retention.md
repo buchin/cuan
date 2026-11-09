@@ -32,3 +32,9 @@ No production snapshot is cold yet. Accepted-task admission, minimum retention,
 maintenance process-reader checks and automatic compaction still need wiring and
 production evidence. This prerequisite alone reclaims zero production bytes and
 does not solve retained failed/unknown workspace growth.
+
+Restoration support is deployed in productionb0d4f0d94ce361a493cb2924b7e86163f2cf91c2,
+which passed exact-SHA health with38 migrations at2026-11-09T03:43:41Z. This
+establishes the required compatibility release before a later compactor rollout;
+automatic source compaction is still not enabled and no production byte saving
+is attributed to this prerequisite.
