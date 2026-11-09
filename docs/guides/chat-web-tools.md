@@ -36,3 +36,38 @@ by adding the HTTP tool or by mentioning a browser in the prompt.
 TinyFish can be an optional remote provider for owners who prefer managed
 infrastructure. Wigolo offers a larger search/research stack; it is not required
 for ordinary HTTP retrieval. See the primary-source comparison evidence.
+
+## Browser process adapter (integration in progress)
+
+`internal/browserfetch` provides the per-inspection execution lifecycle. Trusted
+application configuration supplies an absolute browser executable and shared lock
+file; tool input cannot select a binary or add command flags. One cross-process
+file lock limits active inspection. Each call uses a fresh temporary HOME,
+config/cache/storage directories and an explicit minimal environment, with private
+network opt-in disabled. Calls have a15s outer deadline, a10s engine timeout,
+a64KiB text limit and bounded diagnostic capture. Cancellation kills the process
+group and removes temporary files. A busy slot returns an explicit error rather
+than launching another process.
+
+This package is not yet exposed in the chat MCP catalogue. Before exposure,
+complete the pinned-runtime installer, sandbox filesystem boundary, shared lock
+mount across isolated provider processes, complete redirect/subresource network
+checks, cancellation tests through MCP, and actual production use. A browser
+executable alone is not evidence these integration requirements are satisfied.
+
+Unit tests:
+
+```sh
+go test ./internal/browserfetch
+```
+
+Explicit native engine test (no downloads or ambient browser profile):
+
+```sh
+CUAN_TEST_OBSCURA=/absolute/path/to/official-engine go test ./internal/browserfetch
+```
+
+The native test first verifies default private-network rejection. Only its
+synthetic local JavaScript fixture uses a test-only private-network opt-in;
+production calls never supply that option. Full rendering, screenshots and login
+sessions are outside this anonymous text-inspection adapter.

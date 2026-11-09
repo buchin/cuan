@@ -114,3 +114,20 @@ No screenshots/full rendering, interactive login, concurrent loads, subresource
 SSRF behavior or long-lived memory retention were verified. The engine is not yet
 integrated into chat. A pinned managed runtime, session/lifetime/concurrency
 controls, complete destination tests and actual production use remain necessary.
+
+## Browser process lifecycle implementation
+
+`internal/browserfetch` now implements the real per-call process adapter, not yet
+MCP exposure. Tests prove minimal environment/no ambient Owner token or proxy,
+unique HOME/cache removal, shared-file slot exclusion/release,64KiB output cap,
+URL scheme/embedded-credential rejection, lock-symlink rejection and deadline
+cancellation of a child process with cleanup. A cap test caught and fixed an
+`io.Copy` optimization bypass caused by embedding bytes.Buffer; the bounded
+writer now contains its buffer privately and does not expose ReadFrom.
+
+Explicit native v0.2.6 test passed with the independently retained Cuan glibc
+loader wrapper: default local navigation was rejected before the fixture server
+was reached, then a test-only local opt-in observed `CUAN_JS_RENDERED` after script
+execution. This does not prove cross-subresource policy or filesystem isolation.
+The package is deliberately not advertised to the chat until the installer,
+sandbox/lock mounting and full network/lifecycle integration are verified.
