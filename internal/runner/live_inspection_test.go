@@ -106,6 +106,19 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			defer api.Close()
 			delegate := &readOnlyAuditAdapter{mutate: scenario == "changed source", inspectionCommit: live, expectGoEnvironment: true, t: t}
 			var adapter agent.Adapter = delegate
+			if scenario == "delivered release" || scenario == "current outcome unpublished" {
+				adapter = &reportingBudgetAdapter{readOnlyAuditAdapter: delegate, execute: func(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+					stage := "Native inspection stage: post-publication verification."
+					if scenario == "delivered release" {
+						if !strings.Contains(req.Prompt, stage) || !strings.Contains(req.Prompt, "source "+original+" is contained in snapshot "+live) {
+							t.Error("published verifier lost native stage/source identity")
+						}
+					} else if strings.Contains(req.Prompt, stage) {
+						t.Error("unpublished-source inspection was told publication is complete")
+					}
+					return delegate.Execute(ctx, req)
+				}}
+			}
 			artifacts := t.TempDir()
 			if strings.HasPrefix(scenario, "native ") {
 				adapter = &reportingBudgetAdapter{readOnlyAuditAdapter: delegate, execute: func(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {

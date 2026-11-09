@@ -74,3 +74,20 @@ which always captures that broad set. Its component manifest does not include
 `InboxSubPanel` or `TaskProgress`. Those generic captures alone do not establish
 the requested indicator's visual correctness. This backend correction does not
 claim to repair that coverage/attachment selection gap.
+
+The post-publication verifier report also left deployment incomplete solely
+because its role forbade deploying, despite identifying the published containing
+snapshot. The runner now gives this role a point-by-point DoD checklist mandate
+and exposes its actual native post-publication stage, source/target containment,
+repository and observation time after snapshot checks pass. It explicitly
+distinguishes that identity evidence from feature correctness and remote health.
+Current-outcome inspection of an unpublished source never gets this declaration.
+Existing real snapshot tests cover both cases, failed checks, source mutation,
+native image transport/tampering and unavailable evidence. No acceptance gate is
+relaxed. Already delivered native screenshots are no longer offered for redundant
+reattachment. This does not yet fix the registered visual recipe's coverage.
+
+Direct inspection of the delivered native `inbox-390.png` confirmed it shows the
+chat/composer, not the requested Inbox list indicator. Its existence therefore
+cannot prove mobile alignment of the indicator. Preserve this negative finding
+when assessing the task rather than treating a generic capture as visual DoD.
