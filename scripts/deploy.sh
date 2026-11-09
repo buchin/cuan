@@ -107,6 +107,7 @@ python3 scripts/test-cuan-disk-guard.py
 python3 scripts/test-prune-release-artifacts.py
 python3 scripts/test-prune-provider-go-cache.py
 python3 scripts/test-prune-verification-dependencies.py
+python3 scripts/test-compact-verification-source.py
 python3 scripts/test-prune-native-release-caches.py
 python3 scripts/test-prune-runtime-build-cache.py
 python3 scripts/test-runtime-cache-maintenance.py
@@ -214,9 +215,17 @@ checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for 
 (root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1,'inbox_worker':1}})+'\n')
 PY
 
+mapfile -t maintenance_tool_names < <(python3 scripts/install-runtime-cache-maintenance.py --print-tools)
+[[ "${#maintenance_tool_names[@]}" -gt 0 ]] || { echo 'Maintenance payload manifest unavailable' >&2; exit 1; }
+maintenance_tool_paths=()
+for maintenance_tool_name in "${maintenance_tool_names[@]}"; do
+  [[ -f "scripts/$maintenance_tool_name" ]] || { echo "Maintenance payload is missing $maintenance_tool_name" >&2; exit 1; }
+  maintenance_tool_paths+=("scripts/$maintenance_tool_name")
+done
+
 if [[ "$is_local" == 1 ]]; then
   sudo -n mkdir -p /opt/cuan/maintenance
-  sudo -n install -m 755 scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-build-cache.py scripts/prune-native-release-caches.py /opt/cuan/maintenance/
+  sudo -n install -m 755 scripts/prune-release-artifacts.py "${maintenance_tool_paths[@]}" /opt/cuan/maintenance/
   # Native release HOME is an isolated build home, not the host service profile.
   maintenance_service_home="$(getent passwd "${DOJO_TERMAPI_VPS_USERNAME:-$(id -un)}" | cut -d: -f6)"
   [[ -n "$maintenance_service_home" ]] || { echo 'Service home unavailable for maintenance installation' >&2; exit 1; }
@@ -243,7 +252,7 @@ if [[ "$is_local" == 1 ]]; then
 else
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
-  sshpass -e scp -q scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-build-cache.py scripts/prune-native-release-caches.py scripts/install-runtime-cache-maintenance.py scripts/cuan-disk-guard.sh "$release_host:.local/share/cuan-s25/"
+  sshpass -e scp -q scripts/prune-release-artifacts.py "${maintenance_tool_paths[@]}" scripts/install-runtime-cache-maintenance.py scripts/cuan-disk-guard.sh "$release_host:.local/share/cuan-s25/"
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/maintenance && sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-release-artifacts.py /opt/cuan/maintenance/prune-release-artifacts.py && if [ -L /opt/cuan/current ] && [ -L /opt/cuan/previous ]; then sudo -n python3 /opt/cuan/maintenance/prune-release-artifacts.py --staging /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases --apply; fi"
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-verification-dependencies.py /opt/cuan/maintenance/prune-verification-dependencies.py"
   sshpass -e ssh "$release_host" "sudo -n install -m 755 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/prune-native-release-caches.py /opt/cuan/maintenance/prune-native-release-caches.py"

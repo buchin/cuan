@@ -63,6 +63,13 @@ class ReleaseBuildGateTests(unittest.TestCase):
 
         shutil.copy(DEPLOY_SCRIPT, self.repo / "scripts" / "deploy.sh")
         shutil.copy(ROOT / "scripts" / "release-repository.py", self.repo / "scripts" / "release-repository.py")
+        installer = ROOT / 'scripts' / 'install-runtime-cache-maintenance.py'
+        shutil.copy(installer, self.repo / 'scripts' / installer.name)
+        self.maintenance_tools = subprocess.check_output([sys.executable, str(installer), '--print-tools'], text=True).splitlines()
+        for name in self.maintenance_tools:
+            shutil.copy(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
+        for name in ('prune-release-artifacts.py', 'activate-release.py', 'verify-authorized-release.py', 'cuan-disk-guard.sh'):
+            shutil.copy(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
 
         # Stubs for preflight checks so deploy.sh preflight stage succeeds without network or host dependencies
         for check_script in [
@@ -73,6 +80,7 @@ class ReleaseBuildGateTests(unittest.TestCase):
             "test-prune-release-artifacts.py",
             "test-prune-provider-go-cache.py",
             "test-prune-verification-dependencies.py",
+            "test-compact-verification-source.py",
             "test-prune-native-release-caches.py",
             "test-prune-runtime-build-cache.py",
             "test-runtime-cache-maintenance.py",
@@ -152,6 +160,14 @@ exit "$exit_code"
         # Stub sshpass: simulates remote deploy & health check without network
         stub_sshpass = self.tools / "sshpass"
         stub_sshpass.write_text(r"""#!/usr/bin/env bash
+if [[ " $* " == *" scp "* ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == scripts/* ]]; then
+      [[ -f "$arg" ]] || exit 66
+      echo "$arg" >> "$BUILD_TRACK_DIR/maintenance_transfers.txt"
+    fi
+  done
+fi
 for arg in "$@"; do
   if [[ "$arg" == *"curl"* ]]; then
     echo "{\"status\": \"healthy\", \"commit_sha\": \"${SYNC_TEST_HEAD:-}\"}"
@@ -314,6 +330,9 @@ exit 0
         self.assertTrue((release_dir / "bin" / "cuan-server").exists())
         self.assertTrue((release_dir / "bin" / "cuan-migrate").exists())
         self.assertTrue((release_dir / "bin" / "cuan-runner").exists())
+        transferred = (self.track_dir / 'maintenance_transfers.txt').read_text().splitlines()
+        self.assertTrue(set('scripts/' + name for name in self.maintenance_tools).issubset(transferred),
+                        'Remote payload must contain every tool declared by the actual installer')
 
         # Children must be reaped
         self._assert_no_lingering_children()

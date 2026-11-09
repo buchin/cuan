@@ -6,12 +6,22 @@ import unittest
 from unittest import mock
 from types import SimpleNamespace
 import os
+import subprocess
+import sys
 
 spec = importlib.util.spec_from_file_location('maintenance_install', Path(__file__).with_name('install-runtime-cache-maintenance.py'))
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 class MaintenanceInstall(unittest.TestCase):
+    def test_payload_manifest_can_be_read_without_root_or_installation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = Path(__file__).with_name('install-runtime-cache-maintenance.py').resolve()
+            result = subprocess.run([sys.executable, str(script), '--print-tools'], cwd=root, capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), list(module.TOOLS))
+            self.assertEqual(list(root.iterdir()), [])
+
     def test_installed_units_keep_original_tools_after_legacy_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

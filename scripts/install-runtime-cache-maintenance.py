@@ -110,8 +110,14 @@ def install_trigger_access(service_home, sudoers_dir=Path('/etc/sudoers.d')):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', type=Path, default=Path('/opt/cuan'))
-    parser.add_argument('--service-home', type=Path, required=True)
+    parser.add_argument('--service-home', type=Path)
+    parser.add_argument('--print-tools', action='store_true', help='List required payload filenames without installing anything')
     args = parser.parse_args()
+    if args.print_tools:
+        print('\n'.join(TOOLS))
+        parser.exit()
+    if args.service_home is None:
+        parser.error('--service-home is required for installation')
     if os.geteuid() != 0:
         parser.error('Run through native deployment as root')
     install(args.base, args.service_home, Path('/etc/systemd/system'), Path(__file__).resolve().parent)
