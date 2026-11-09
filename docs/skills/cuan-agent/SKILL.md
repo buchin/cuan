@@ -927,3 +927,10 @@ for endpoint inspection; prefer `web_fetch` for readable articles. It inherits t
 same public DNS/redirect policy, no ambient credentials/proxies, and no arbitrary
 shell, request body, custom headers or mutable methods. Authenticated operations
 remain connected integration actions. See [chat web tools](../../guides/chat-web-tools.md).
+
+Optional `browser_fetch {url}` uses an application-selected verified Obscura
+runtime for anonymous JavaScript-rendered text when HTTP is insufficient. It
+accepts no executable, script, flags or login state; it reports requested URL and
+text, not inferred HTTP status/final redirect identity. Installer and capability
+contracts are in [chat web tools](../../guides/chat-web-tools.md). A local browser
+installation/version check alone is not proof that production chat exposes it.

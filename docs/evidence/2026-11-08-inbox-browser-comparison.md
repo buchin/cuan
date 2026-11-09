@@ -163,3 +163,58 @@ controlled HTML document and require explicit ACCESS_BLOCKED markers.
 Remaining: redirect/network-path coverage, pinned installer, mounting the shared
 lease and runtime through the outer provider sandbox, MCP registration, and
 production observations. The feature is not yet exposed or deployed.
+
+## Pinned installer and optional MCP wiring
+
+The installer now pins official v0.2.6 no-render archives (AMD64 and ARM64),
+verifies archive SHA256 before extraction, copies only the regular main engine,
+preserves modified installations, reuses valid files, creates one stable lease
+inode and removes temporary archives. Optional compatibility paths are explicit
+Cuan configuration. It drops to the selected service user before installation.
+Seven deterministic installer tests and existing native setup tests passed.
+Actual AMD64 installation from the previously verified official archive and
+subsequent --check passed in this sandbox; no provider login was used.
+
+Size correction: prior32MiB/~30MiB figures were filesystem allocated blocks,
+not logical executable sizes. The installed main binary is60,001,360 bytes
+(~57.2MiB), SHA256
+`d49930c7160beaa58cd0e681d36cf63b9a964bb2ef29a02657851ca468488d38`.
+Filesystem compression/deduplication/allocation is not a portable storage budget.
+
+`browser_fetch` is now an optional MCP tool. A private application-selected
+manifest must match the actual engine hash; absent/changed runtime is hidden and
+cannot fall back to an ambient browser. The tool accepts only url. Native CLI/MCP
+with the installed official engine successfully returned2,951 characters from
+https://obscura.sh/ inside the browser namespace; local HTTP navigation remained
+an error. This is a functional smoke observation, not a latency benchmark.
+
+Chat wiring now projects only engine/sandbox/optional compatibility files and a
+rebased manifest, binding the original shared lease inode. Tests prove no full
+service runtime directory is mounted and provider environment cannot override
+selection. HTTP remains available if the optional runtime is invalid. The
+installer is included in the checksummed release payload; it is not automatically
+executed by ordinary deployment. Release payload/checksum tests passed.
+
+V8 is configured with128MiB old space/4MiB semi space and the3s script setting,
+with the existing15s process deadline. This is not a hard OS memory bound.
+The cancellation observation test now allows bounded signal-delivery time;
+an immediate /proc read could observe a child between SIGKILL and exit.
+
+Targeted MCP, browser lifecycle/manifest, server sandbox/runtime and timeout
+reconciliation tests passed. Production rollout and full redirect coverage are
+still pending; do not infer those from local native success.
+
+## Actual redirect boundary verified before rollout
+
+Public httpbingo/httpbin fixtures returned403 before the intended redirect and
+were not counted as passing tests. The replacement native test creates a separate
+user/network namespace, adds8.8.8.8 only to its isolated loopback, and serves a
+known public-address control/302 redirect without any route to the real internet.
+No Google address or production application is contacted by that fixture.
+
+The independent HTTP inspector observes exact302 and the intended private
+Location. Official Obscura reads the same-origin public control. Both top-level
+navigation and script-originated fetch through the redirect fail before the
+private listener; it receives zero requests. The test passed using the installed
+manifest and mandatory browser filesystem sandbox, with no private-network opt-in.
+Native fixture completes in about0.4s here; this is not a production latency claim.

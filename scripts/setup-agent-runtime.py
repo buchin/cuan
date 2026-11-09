@@ -14,6 +14,7 @@ def main():
     parser.add_argument('--user', required=True, help='Linux account running the Cuan service')
     parser.add_argument('--check', action='store_true', help='Verify only; do not install or change host policy')
     parser.add_argument('--browser', action='store_true', help='Include browser setup/readiness for screenshot tasks')
+    parser.add_argument('--chat-browser', action='store_true', help='Include optional lightweight anonymous chat browser runtime')
     args = parser.parse_args()
     if sys.platform != 'linux':
         parser.error('Native Linux is required')
@@ -68,6 +69,11 @@ def main():
         result = subprocess.run(as_user(command), capture_output=True, text=True, timeout=20)
         if result.returncode or not result.stdout.strip():
             raise RuntimeError('AI CLI could not start inside the sandbox. Check CLI compatibility and host namespace policy')
+        if args.chat_browser:
+            command = [sys.executable, str(scripts/'setup-chat-browser-runtime.py'), '--user', args.user]
+            if args.check:
+                command += ['--check']
+            subprocess.run(command, check=True, timeout=180)
         if args.browser:
             browser_args = ['--check'] if args.check else ['--install-deps']
             subprocess.run([sys.executable, str(scripts/'setup-browser-runtime.py'), '--user', args.user, *browser_args], check=True, timeout=600)

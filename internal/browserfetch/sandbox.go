@@ -60,7 +60,7 @@ func (r Runtime) sandboxCommand(home string, engineArgs []string) (string, []str
 		args = append(args, "--ro-bind", loader, "/cuan-loader", "--ro-bind", library, "/cuan-libs")
 		command = []string{"/cuan-loader", "--library-path", "/cuan-libs", "/cuan-obscura"}
 	}
-	for _, entry := range [][2]string{{"HOME", "/home/browser"}, {"XDG_CACHE_HOME", "/home/browser/cache"}, {"XDG_CONFIG_HOME", "/home/browser/config"}, {"TMPDIR", "/tmp"}, {"PATH", "/usr/bin:/bin"}, {"LANG", "C.UTF-8"}, {"OBSCURA_ALLOW_PRIVATE_NETWORK", "0"}} {
+	for _, entry := range [][2]string{{"HOME", "/home/browser"}, {"XDG_CACHE_HOME", "/home/browser/cache"}, {"XDG_CONFIG_HOME", "/home/browser/config"}, {"TMPDIR", "/tmp"}, {"PATH", "/usr/bin:/bin"}, {"LANG", "C.UTF-8"}, {"OBSCURA_ALLOW_PRIVATE_NETWORK", "0"}, {"OBSCURA_SCRIPT_DEADLINE_MS", "3000"}} {
 		args = append(args, "--setenv", entry[0], entry[1])
 	}
 	args = append(args, "--chdir", "/home/browser", "--")

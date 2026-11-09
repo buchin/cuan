@@ -45,6 +45,8 @@ func TestBrowserInspectionIsolatesEnvironmentAndCleansStorage(t *testing.T) {
 	r := fixtureRuntime(t, `[ -z "$CUAN_AUTH_TOKEN" ] || exit 81
 [ -z "$HTTP_PROXY" ] || exit 82
 [ "$OBSCURA_ALLOW_PRIVATE_NETWORK" = 0 ] || exit 83
+[ "$1" = --v8-flags ] && [ "$2" = "--max-old-space-size=128 --max-semi-space-size=4 --optimize-for-size" ] || exit 85
+shift 2
 [ "$1" = fetch ] && [ "$2" = 'https://example.invalid/?q=literal;echo' ] || exit 84
 printf '%s' "$HOME"
 mkdir -p "$HOME/cache"
@@ -101,14 +103,29 @@ func TestBrowserInspectionDeadlineKillsChildAndReleasesSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	pid, _ := strconv.Atoi(string(raw))
-	// A killed child can remain a zombie until its parent/init reaps it. It must
-	// not remain in a running/sleeping state after cancellation.
-	if stat, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat")); err == nil {
-		parts := strings.Split(string(stat), ") ")
-		if len(parts) != 2 || !strings.HasPrefix(parts[1], "Z ") {
-			t.Fatal("child still executing", string(stat))
+	// Signal delivery is asynchronous. A killed child can remain a zombie
+	// until init reaps it; observe the terminal state within a bounded window.
+	stopped := false
+	end := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(end) {
+		stat, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+		if os.IsNotExist(err) {
+			stopped = true
+			break
 		}
+		if err == nil {
+			parts := strings.Split(string(stat), ") ")
+			if len(parts) == 2 && strings.HasPrefix(parts[1], "Z ") {
+				stopped = true
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	if !stopped {
+		t.Fatal("child still executing after cancellation")
+	}
+
 	home, err := os.ReadFile(homeFile)
 	if err != nil {
 		t.Fatal(err)

@@ -205,6 +205,10 @@ fi
 cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
 cp README.md "$release_dir/"
+# Optional runtime installers travel with the verified release; they are not
+# executed during ordinary deployment or bundled into provider profiles.
+mkdir -p "$release_dir/runtime-tools"
+cp scripts/setup-chat-browser-runtime.py "$release_dir/runtime-tools/"
 # Cryptographic commit-parent graph for activation, independent of a stale host
 # repository cache. Only commit objects are packed; no source blobs or secrets.
 git --no-replace-objects rev-list HEAD | git --no-replace-objects pack-objects --stdout > "$release_dir/source-commits.pack"

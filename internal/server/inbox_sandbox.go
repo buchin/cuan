@@ -147,6 +147,11 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 	if err != nil {
 		return nil, err
 	}
+	browserMounts, err := prepareInboxBrowserMounts(home, mcpFile)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, browserMounts...)
 	mcpTargets := []string{
 		filepath.Join(home, ".gemini", "config", "mcp_config.json"),
 		filepath.Join(home, ".gemini", "antigravity-cli", "mcp_config.json"),
@@ -184,7 +189,7 @@ func sandboxInboxCommand(binary string, args, env []string, home, workspace stri
 	}
 	for _, entry := range env {
 		key, value, ok := strings.Cut(entry, "=")
-		if ok && key != "TMPDIR" && key != "LD_LIBRARY_PATH" {
+		if ok && key != "TMPDIR" && key != "LD_LIBRARY_PATH" && key != "CUAN_CHAT_BROWSER_MANIFEST" {
 			mounts = append(mounts, "--setenv", key, value)
 		}
 	}

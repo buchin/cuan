@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Regression tests for bounded build gate and child process cleanup in scripts/deploy.sh."""
 import os
+import json
+import hashlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -68,7 +70,7 @@ class ReleaseBuildGateTests(unittest.TestCase):
         self.maintenance_tools = subprocess.check_output([sys.executable, str(installer), '--print-tools'], text=True).splitlines()
         for name in self.maintenance_tools:
             shutil.copy(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
-        for name in ('prune-release-artifacts.py', 'activate-release.py', 'verify-authorized-release.py', 'cuan-disk-guard.sh'):
+        for name in ('prune-release-artifacts.py', 'activate-release.py', 'verify-authorized-release.py', 'cuan-disk-guard.sh', 'setup-chat-browser-runtime.py'):
             shutil.copy(ROOT / 'scripts' / name, self.repo / 'scripts' / name)
 
         # Stubs for preflight checks so deploy.sh preflight stage succeeds without network or host dependencies
@@ -333,6 +335,12 @@ exit 0
         transferred = (self.track_dir / 'maintenance_transfers.txt').read_text().splitlines()
         self.assertTrue(set('scripts/' + name for name in self.maintenance_tools).issubset(transferred),
                         'Remote payload must contain every tool declared by the actual installer')
+
+        browser_installer = release_dir / 'runtime-tools/setup-chat-browser-runtime.py'
+        self.assertEqual(browser_installer.read_bytes(), (ROOT / 'scripts/setup-chat-browser-runtime.py').read_bytes())
+        manifest = json.loads((release_dir / 'release.json').read_text())
+        self.assertEqual(manifest['sha256']['runtime-tools/setup-chat-browser-runtime.py'],
+                         hashlib.sha256(browser_installer.read_bytes()).hexdigest())
 
         # Children must be reaped
         self._assert_no_lingering_children()

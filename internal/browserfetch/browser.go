@@ -24,12 +24,12 @@ var ErrBusy = errors.New("browser inspection is busy; use HTTP retrieval or retr
 // Runtime is selected by trusted Cuan configuration, never tool arguments.
 // LockFile is shared across MCP processes to limit concurrent browser execution.
 type Runtime struct {
-	Binary   string
-	LockFile string
-	Sandbox  string
+	Binary   string `json:"binary"`
+	LockFile string `json:"lock_file"`
+	Sandbox  string `json:"sandbox"`
 	// Optional application-managed glibc compatibility runtime for musl hosts.
-	Loader     string
-	LibraryDir string
+	Loader     string `json:"loader"`
+	LibraryDir string `json:"library_dir"`
 }
 type Result struct {
 	URL       string `json:"url"`
@@ -96,7 +96,7 @@ func (r Runtime) fetch(ctx context.Context, rawURL string, timeout time.Duration
 	defer os.RemoveAll(home)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	binary, args, err := r.sandboxCommand(home, []string{"fetch", rawURL, "--dump", "text", "--timeout", "10", "--storage-dir", "/home/browser/storage"})
+	binary, args, err := r.sandboxCommand(home, []string{"--v8-flags", "--max-old-space-size=128 --max-semi-space-size=4 --optimize-for-size", "fetch", rawURL, "--dump", "text", "--timeout", "10", "--storage-dir", "/home/browser/storage"})
 	if err != nil {
 		return nil, err
 	}
