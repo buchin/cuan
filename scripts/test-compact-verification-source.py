@@ -7,11 +7,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 def load(name, filename):
     spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
@@ -143,6 +145,49 @@ class SourceCompactorTest(unittest.TestCase):
                 child.wait(timeout=5)
                 child.stdout.close()
             self.assertEqual(compactor.compact(snapshots, apply=True, proc=proc)['compacted'], [root.name])
+
+    def test_existing_foreign_hardlink_with_setgid_is_rejected_without_mutation_under_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            snapshots, root, gate, proc = self.fixture(Path(directory))
+            gate.unlink()
+            outside = Path(directory) / 'outside_sensitive_file'
+            outside.write_bytes(b'sensitive payload')
+            os.chmod(outside, 0o2755)
+            os.link(outside, gate)
+
+            before = outside.stat()
+            self.assertEqual(stat.S_IMODE(before.st_mode), 0o2755)
+            self.assertEqual(before.st_nlink, 2)
+
+            with mock.patch('os.geteuid', return_value=0), \
+                 mock.patch('os.fchown') as mock_fchown, \
+                 mock.patch('os.fchmod', create=True) as mock_fchmod:
+                report = compactor.compact(snapshots, apply=True, proc=proc)
+
+            mock_fchown.assert_not_called()
+            mock_fchmod.assert_not_called()
+            self.assertEqual(report['compacted'], [])
+            self.assertTrue((root / 'report.md').exists())
+
+            after = outside.stat()
+            self.assertEqual(stat.S_IMODE(after.st_mode), 0o2755)
+            self.assertEqual(after.st_uid, before.st_uid)
+            self.assertEqual(after.st_gid, before.st_gid)
+            self.assertEqual(after.st_size, before.st_size)
+            self.assertEqual(after.st_ino, before.st_ino)
+
+    def test_missing_gate_creates_new_exclusive_lease_and_compacts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            snapshots, root, gate, proc = self.fixture(Path(directory))
+            gate.unlink()
+            self.assertFalse(gate.exists())
+
+            report = compactor.compact(snapshots, apply=True, proc=proc)
+            self.assertEqual(report['compacted'], [root.name])
+            self.assertTrue(gate.exists())
+            info = gate.stat()
+            self.assertEqual(stat.S_IMODE(info.st_mode), 0o600)
+            self.assertEqual(info.st_nlink, 1)
 
 if __name__ == '__main__':
     unittest.main()

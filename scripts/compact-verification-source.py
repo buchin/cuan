@@ -170,14 +170,30 @@ def compact(snapshots, apply=False, minimum=48 * 3600, now=None, proc=Path('/pro
             metadata = root / '.git'
             if metadata.is_symlink() or not metadata.is_dir():
                 continue
+            identity = root.stat()
             gate = metadata / 'cuan-verification.lock'
-            fd = os.open(gate, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+            if gate.is_symlink():
+                continue
+            created = False
+            try:
+                fd = os.open(gate, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+            except FileNotFoundError:
+                try:
+                    fd = os.open(gate, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o600)
+                    created = True
+                except FileExistsError:
+                    fd = os.open(gate, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
             with os.fdopen(fd, 'r+b'):
-                if os.geteuid() == 0:
-                    identity = root.stat()
-                    os.fchown(fd, identity.st_uid, identity.st_gid)
                 info = os.fstat(fd)
-                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != root.stat().st_uid:
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    continue
+                if created:
+                    if os.geteuid() == 0:
+                        os.fchown(fd, identity.st_uid, identity.st_gid)
+                        info = os.fstat(fd)
+                elif info.st_uid != identity.st_uid or (info.st_mode & 0o6000) != 0:
+                    continue
+                if info.st_uid != identity.st_uid:
                     continue
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 if cache.referenced(root, proc):
