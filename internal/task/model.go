@@ -143,6 +143,7 @@ type LogRecord struct {
 
 // TaskItemResponse is returned in task listings.
 type TaskItemResponse struct {
+	CompletedAt          *time.Time  `json:"completed_at,omitempty"`
 	ExecutionReviewState string      `json:"-"`
 	ReviewFinding        string      `json:"review_finding,omitempty"`
 	ReviewAction         string      `json:"review_action,omitempty"`
@@ -158,6 +159,7 @@ type TaskItemResponse struct {
 
 // TaskDetailResponse contains full detail including history and attempts.
 type TaskDetailResponse struct {
+	CompletedAt          *time.Time  `json:"completed_at,omitempty"`
 	ExecutionReviewState string      `json:"-"`
 	ReviewFinding        string      `json:"review_finding,omitempty"`
 	ReviewAction         string      `json:"review_action,omitempty"`

@@ -322,6 +322,7 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 
 	executionReview := s.executionReviewState(ctx, t, latestAttempt)
 	return &TaskDetailResponse{
+		CompletedAt:          completionTime(t, activities),
 		ExecutionReviewState: executionReview,
 		ReviewState:          executionReview,
 		ResultKind:           resultKindForAttempt(classifyResult(activities), latestAttempt),
@@ -341,6 +342,18 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 	tasks, err := s.store.ListTasks(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
+	}
+	completed := map[string]time.Time{}
+	if reader, ok := s.store.(completionTimeReader); ok {
+		ids := make([]string, 0, len(tasks))
+		for _, t := range tasks {
+			if t.Status == TaskStatusDone {
+				ids = append(ids, t.ID)
+			}
+		}
+		if times, err := reader.CompletionTimes(ctx, ids); err == nil {
+			completed = times
+		}
 	}
 
 	classifications := map[string]ResultClassification{}
@@ -433,6 +446,7 @@ func (s *Service) ListTasks(ctx context.Context, filter TaskFilter) ([]*TaskItem
 			executionReview = executionReviewState(t, latestAttempt, boundLaunches[latestAttempt.ID])
 		}
 		items = append(items, &TaskItemResponse{
+			CompletedAt:          validCompletionTime(t, completed[t.ID]),
 			ExecutionReviewState: executionReview,
 			ReviewState:          executionReview,
 			ResultKind:           resultKindForAttempt(classifications[t.ID], latestAttempt),

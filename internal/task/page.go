@@ -101,6 +101,9 @@ func (s *Service) ListTaskPage(ctx context.Context, o PageOptions) (*TaskPage, e
 				launchState = item.Launch.State
 			}
 			item.Status = EffectiveStatus(item.Status, attemptState, launchState)
+			if item.Status != TaskStatusDone {
+				item.CompletedAt = nil
+			}
 			item.Instructions = taskPagePreview(project.TaskScopeInstructions(item.Instructions))
 			item.Summary = taskPagePreview(item.Summary)
 			item.CompleteNote = taskPagePreview(item.CompleteNote)

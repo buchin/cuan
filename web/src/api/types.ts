@@ -107,6 +107,8 @@ export interface TaskDetail extends Task {
   attachments?: Attachment[]
 }
 export interface Task {
+  /** Native Done transition; independent of subsequent edits. Absent when unknown. */
+  completed_at?: string
   review_state?: 'queued' | 'running'
   review_finding?: string
   review_action?: 'continue' | 'replan' | 'wait' | 'needs_owner'
