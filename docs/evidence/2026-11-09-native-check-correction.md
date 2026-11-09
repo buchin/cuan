@@ -293,3 +293,58 @@ Code inspection also confirms DoD assessment already uses an LLM evaluator
 evidence gates. An external judge would need to improve or replace that
 assessment, rather than add an otherwise identical review stage. No new judge
 dependency or acceptance bypass was introduced.
+
+## Storage recurrence during the fresh task
+
+The PM completed request `05ea3319-aa82-4742-8883-f71ba9cca5d1` without
+format repair and created task `msg_6fb49fb4-6247-4b21-880e-e230a0cd2759`.
+Acceptance-to-final persistence took approximately 98 seconds; provider process
+time was 84 seconds. The task remained queued before any worker attempt because
+available production storage was below the native 2 GiB admission floor.
+An official maintenance trigger completed successfully, but did not recover
+sufficient bytes. Success of the maintenance job is not proof of capacity.
+
+Production allocated-byte observations, in decimal GB, found `/opt/cuan` about
+43.0 GB, including data 36.8 GB, backups 5.7 GB and releases 0.40 GB.
+The data/projects traversal reported about 21.6 GB, including verification
+snapshots 8.23 GB, task workspaces 7.38 GB and release workspaces 3.05 GB.
+These are point-in-time directory observations, not additive independent
+reclaimable estimates: pack files can have hardlinks across roots. The whole
+filesystem scan took about 143 seconds, further supporting asynchronous bounded
+inventory rather than recursive scans on interactive/admission request paths.
+
+One old task repository had 44 packs, 4,555 loose objects and about 1.07 GB of
+Git metadata. Under its existing exclusive task execution lock, native Git GC
+with pruning and both reflog-expiration classes disabled reduced that directory
+to about 93 MB. Before/after SHA256 of sorted unique Git object IDs remained
+`fdfe7acb7b68b495f51d1edcd8eaa88e6f1c5ceb594c09e1e6cf5f0e72f62531`;
+the show-ref hash also remained identical. However filesystem available bytes
+did not improve: observed pack link counts of 3 and 7 explain why one-directory
+repacking cannot be credited as equivalent physical reclamation. Do not repeat
+mass GC on that assumption; it can materialize additional private packs.
+
+The unmanaged service-user Go build cache was separately identified at
+488,951,808 allocated bytes. No open readers were returned by the scoped lsof
+inspection. Official `go clean -cache`, as ubuntu with an isolated environment
+and that exact GOCACHE, reduced it to 12,288 bytes. Filesystem available bytes
+then rose from 1,778,290,688 to 2,265,710,592. This is a one-time OS cache
+recovery, not proof that native maintenance covers legacy caches or that the
+autonomous workflow is reliable. Backups, unique sources and history were kept.
+
+## Fural source comparison (read-only)
+
+Local Fural source inspected on November 9 demonstrates reusable registered
+member/repository workspaces (`service/service_workspaces.go`), a node-wide
+cache for exact pinned platform-managed CLI payloads with ready markers and
+restricted hardlink destinations (`sandbox/harness_cli_node_cache.go`),
+Statfs-based interactive usage with asynchronous tree-size snapshots
+(`service/system_usage.go`), and at most two concurrent recursive scans
+(`sandboxnode/executor_disk_admission.go`).
+Its scoped ephemeral sampler cleanup defaults to ten minutes and is called at
+runtime startup (`sessionruntime/home_sample_cleanup.go` and
+`cmd/session_runtime/main.go`). Rebuildable-path exclusion in
+`sandboxnode/storage_move_rebuildable.go` is an explicit storage-move option,
+not evidence of universal automatic cache deletion. Native ext4/ZFS accounting
+records source and byte semantics. No Fural production configuration was probed;
+these findings must not be presented as measured production savings or as a
+reason to add a Fural dependency to Cuan.
