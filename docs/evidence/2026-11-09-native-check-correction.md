@@ -563,17 +563,22 @@ lifecycle:
 2. Verified snapshot seeding: upon preparing the verifier snapshot in
    `runner.go`, `seedWarmDependencies` inspects the originating task workspace.
    If its `node_modules` holds a verified fingerprint matching the snapshot's
-   committed lockfile, dependencies are linked/copied into the snapshot.
+   committed lockfile, dependencies are independently copied into the snapshot
+   (`copyRegularFile` in `copyDirectoryIndependent`). Hardlinks across workspaces
+   are strictly forbidden so that mutations or writes in the verifier snapshot
+   cannot alter files in the developer workspace.
 3. Invalidation: if `package-lock.json` was altered in the commit or the
    fingerprint is missing/tampered, seeding does not occur and the runner
    executes a clean `npm ci`.
 4. Isolation & security: the snapshot remains an independent directory under its
    own lease (`AcquireVerificationLease`). Symlinks across workspaces and shared
    directories remain strictly rejected by `check-ignore` and directory mode
-   checks. No duplicate global cache mechanisms or whole-workspace reuses are
+   checks. Files use independent inodes, avoiding shared writable hardlinks.
+   No duplicate global cache mechanisms or whole-workspace reuses are
    introduced.
 
 Targeted tests (`TestDependencyReuse*`) prove warm reuse in the same workspace,
 warm seeding from dev to verifier snapshot, invalidation on lockfile change,
-and rejection of shared symlinks.
+rejection of shared symlinks, and full workspace mutation isolation
+(`TestDependencyReuseIsolationTargetModificationDoesNotAffectSource`).
 

@@ -177,6 +177,20 @@ echo 'built' > node_modules/web-pkg/index.js
 		t.Fatalf("verifier node_modules must be an independent directory, not a symlink")
 	}
 
+	// Verify independent inodes: seeded files must not be hardlinked to dev workspace
+	devFile := filepath.Join(devWorkspace, "web", "node_modules", "web-pkg", "index.js")
+	devStat, err := os.Stat(devFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetStat, err := os.Stat(targetPkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(devStat, targetStat) {
+		t.Fatalf("expected independent files with distinct inodes, but os.SameFile was true (shared hardlink)")
+	}
+
 	// Step 3: Verifier runs prepareInspectionDependencies
 	// Installer should NOT run because dependencies were warm-seeded and match the lockfile!
 	if err := prepareInspectionDependencies(context.Background(), verifierSnapshot); err != nil {
@@ -288,5 +302,97 @@ func TestDependencyReuseIsolationRejectsSymlinks(t *testing.T) {
 	err := prepareInspectionDependencies(context.Background(), root)
 	if err == nil || !strings.Contains(err.Error(), "must not use shared links") {
 		t.Fatalf("expected shared links rejection error, got: %v", err)
+	}
+}
+
+func TestDependencyReuseIsolationTargetModificationDoesNotAffectSource(t *testing.T) {
+	devWorkspace := t.TempDir()
+	verifierSnapshot := t.TempDir()
+
+	write := func(p, s string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(s), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	lockContent := `{"name":"isolation-fixture","version":"1.0.0","lockfileVersion":3,"packages":{}}`
+	write(filepath.Join(devWorkspace, "package.json"), `{"name":"root","version":"1.0.0"}`)
+	write(filepath.Join(devWorkspace, "package-lock.json"), lockContent)
+	write(filepath.Join(devWorkspace, ".gitignore"), "node_modules/\n")
+
+	write(filepath.Join(verifierSnapshot, "package.json"), `{"name":"root","version":"1.0.0"}`)
+	write(filepath.Join(verifierSnapshot, "package-lock.json"), lockContent)
+	write(filepath.Join(verifierSnapshot, ".gitignore"), "node_modules/\n")
+
+	// Set up source node_modules in devWorkspace with a fingerprint
+	digest := dependencyLockFingerprint([]byte(lockContent))
+	write(filepath.Join(devWorkspace, "node_modules", dependencyLockFingerprintFilename), digest)
+	devOriginalContent := "original dev package content"
+	write(filepath.Join(devWorkspace, "node_modules", "pkg", "index.js"), devOriginalContent)
+	write(filepath.Join(devWorkspace, "node_modules", "pkg", "data.json"), `{"version": 1}`)
+	write(filepath.Join(devWorkspace, "node_modules", "pkg", "extra.txt"), "extra file in dev")
+
+	// Seed dependencies from dev to verifier snapshot
+	seedWarmDependencies(devWorkspace, verifierSnapshot)
+
+	targetFile := filepath.Join(verifierSnapshot, "node_modules", "pkg", "index.js")
+	targetData, err := os.ReadFile(targetFile)
+	if err != nil || string(targetData) != devOriginalContent {
+		t.Fatalf("expected seeded file in target, got %q (err: %v)", string(targetData), err)
+	}
+
+	// Verify that the files do not share the same inode (no hardlink)
+	devStat, err := os.Stat(filepath.Join(devWorkspace, "node_modules", "pkg", "index.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetStat, err := os.Stat(targetFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(devStat, targetStat) {
+		t.Fatalf("files must not share the same inode (os.SameFile is true)")
+	}
+
+	// Now mutate the target workspace as an independent verifier might do:
+	// 1. Overwrite index.js
+	if err := os.WriteFile(targetFile, []byte("mutated by verifier session"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// 2. Overwrite data.json
+	if err := os.WriteFile(filepath.Join(verifierSnapshot, "node_modules", "pkg", "data.json"), []byte(`{"version": 2, "corrupted": true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// 3. Delete extra.txt in verifier
+	if err := os.Remove(filepath.Join(verifierSnapshot, "node_modules", "pkg", "extra.txt")); err != nil {
+		t.Fatal(err)
+	}
+	// 4. Add new file in verifier
+	if err := os.WriteFile(filepath.Join(verifierSnapshot, "node_modules", "pkg", "verifier_created.txt"), []byte("verifier only"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify devWorkspace remains completely pristine and unmodified
+	devData, err := os.ReadFile(filepath.Join(devWorkspace, "node_modules", "pkg", "index.js"))
+	if err != nil || string(devData) != devOriginalContent {
+		t.Fatalf("dev workspace index.js was affected by target mutation! got %q, expected %q", string(devData), devOriginalContent)
+	}
+
+	devJson, err := os.ReadFile(filepath.Join(devWorkspace, "node_modules", "pkg", "data.json"))
+	if err != nil || string(devJson) != `{"version": 1}` {
+		t.Fatalf("dev workspace data.json was affected by target mutation! got %q", string(devJson))
+	}
+
+	devExtra, err := os.ReadFile(filepath.Join(devWorkspace, "node_modules", "pkg", "extra.txt"))
+	if err != nil || string(devExtra) != "extra file in dev" {
+		t.Fatalf("dev workspace extra.txt was affected by target deletion! err: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(devWorkspace, "node_modules", "pkg", "verifier_created.txt")); !os.IsNotExist(err) {
+		t.Fatalf("verifier-created file leaked into dev workspace!")
 	}
 }

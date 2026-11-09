@@ -92,7 +92,7 @@ func seedWarmDependencies(source, target string) {
 	}
 }
 
-// seedWarmDirectory copies/links a warm dependency tree into target atomically.
+// seedWarmDirectory copies a warm dependency tree into target atomically.
 func seedWarmDirectory(src, dst, fingerprint string) error {
 	parent := filepath.Dir(dst)
 	if err := os.MkdirAll(parent, 0700); err != nil {
@@ -100,7 +100,7 @@ func seedWarmDirectory(src, dst, fingerprint string) error {
 	}
 	tmpDst := filepath.Join(parent, fmt.Sprintf(".cuan-warm-%s-%d", filepath.Base(dst), time.Now().UnixNano()))
 	_ = os.RemoveAll(tmpDst)
-	if err := linkOrCopyDirectory(src, tmpDst); err != nil {
+	if err := copyDirectoryIndependent(src, tmpDst); err != nil {
 		_ = os.RemoveAll(tmpDst)
 		return err
 	}
@@ -116,8 +116,10 @@ func seedWarmDirectory(src, dst, fingerprint string) error {
 	return nil
 }
 
-// linkOrCopyDirectory copies/links the directory tree from src to dst.
-func linkOrCopyDirectory(src, dst string) error {
+// copyDirectoryIndependent copies the directory tree from src to dst ensuring independent
+// inodes so that writes or mutations in dst do not affect src. Hardlinks are strictly avoided
+// to ensure complete isolation between dev and verifier workspaces.
+func copyDirectoryIndependent(src, dst string) error {
 	srcInfo, err := os.Lstat(src)
 	if err != nil || !srcInfo.IsDir() {
 		return fmt.Errorf("source must be an available directory")
@@ -139,7 +141,7 @@ func linkOrCopyDirectory(src, dst string) error {
 		dstPath := filepath.Join(dst, rel)
 		mode := info.Mode()
 		if mode.IsDir() {
-			return os.MkdirAll(dstPath, 0700)
+			return os.MkdirAll(dstPath, mode.Perm()|0700)
 		}
 		if mode&os.ModeSymlink != 0 {
 			target, err := os.Readlink(srcPath)
@@ -158,13 +160,15 @@ func linkOrCopyDirectory(src, dst string) error {
 		}
 		if mode.IsRegular() {
 			_ = os.Remove(dstPath)
-			if err := os.Link(srcPath, dstPath); err == nil {
-				return nil
-			}
 			return copyRegularFile(srcPath, dstPath, mode.Perm())
 		}
 		return nil
 	})
+}
+
+// linkOrCopyDirectory is retained for compatibility, delegating to copyDirectoryIndependent.
+func linkOrCopyDirectory(src, dst string) error {
+	return copyDirectoryIndependent(src, dst)
 }
 
 func copyRegularFile(src, dst string, perm os.FileMode) error {
