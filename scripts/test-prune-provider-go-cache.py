@@ -25,6 +25,9 @@ class CachePruneTest(unittest.TestCase):
         credentials = account / 'home/.gemini/credentials.json'
         credentials.parent.mkdir()
         credentials.write_text('private fixture')
+        telemetry = account / 'home/.config/go/telemetry'
+        telemetry.mkdir(parents=True)
+        (telemetry / 'mode').write_text('off\n')
         return account, toolchain, credentials
 
     def test_only_old_idle_toolchains_are_deleted(self):
