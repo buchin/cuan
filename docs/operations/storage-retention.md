@@ -133,3 +133,26 @@ Verification: `go test ./internal/runner -run
 'TestNativeRelease|TestManagedGoBuild' -count=1`. Regression checks stable owner
 cache selection, preserved preparation/configuration, distinct owners, and real
 exclusive maintenance-lock rejection while the native shared lease is active.
+
+### Legacy provider module migration cleanup
+
+For profiles migrated to owner-managed build caches, the existing provider cache
+maintenance tool now accepts explicit `--all-modules`. It uses official
+`go clean -modcache` only for old, idle legacy profile module directories while
+holding the provider account's exclusive execution lease. Active profiles and
+paths referenced by processes are retained. Default maintenance behavior remains
+limited to its previous toolchain/archive policy; full legacy module cleanup is
+an explicit migration operation, not recurring deletion of warm owner caches.
+
+`python3 scripts/test-prune-provider-go-cache.py` passes ten tests, including a
+real offline Go module-cache cleanup and preservation of account credentials,
+account lock inode, busy accounts and process-referenced caches.
+
+On9November the reviewed script was transferred to a standalone temporary
+maintenance path and its SHA-256 matched the local source
+`0a52090d193fe19a56715c294f21f9423ea9c002d34aaab2bc64e71f0d4a8134`.
+Preview identified six eligible legacy module caches. Explicit apply removed all
+six, increasing observed free space from1.3GB to3.3GB during the native build.
+Source/workspaces, credentials, provider histories and active native caches were
+not deleted. This is an infrastructure intervention in the native benchmark,
+not evidence that Cuan performed storage recovery autonomously.
