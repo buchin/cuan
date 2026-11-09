@@ -592,10 +592,9 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	if req.ExecutionCategory != nil {
 		cat := NormalizeExecutionCategory(*req.ExecutionCategory)
 		if cat != "" {
-			t.ExecutionCategory = cat
+			t.ExecutionCategory = scopeConstrainedCategory(t.Title, t.Instructions, cat)
 		}
 	}
-	t.ExecutionCategory = scopeConstrainedCategory(t.Title, t.Instructions, t.ExecutionCategory)
 	if req.BranchName != nil {
 		t.BranchName = strings.TrimSpace(*req.BranchName)
 	}
