@@ -38,3 +38,17 @@ func TestArtifactCategoryConstraintPreservesRepositoryAndMigrationWork(t *testin
 		}
 	}
 }
+
+func TestOrdinaryArtifactReportDoesNotRecategorizeLegacyExecution(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	legacy := &Task{ID: "legacy-code-fixture", Title: "Standalone file", Status: TaskStatusDoing, ExecutionCategory: ExecutionCategoryCode, Instructions: "Create a standalone file. Do not modify the repository. Do not deploy."}
+	if err := store.CreateTask(ctx, legacy); err != nil {
+		t.Fatal(err)
+	}
+	summary := "Existing result retained"
+	updated, err := NewService(store, nil).UpdateTask(ctx, legacy.ID, "worker", UpdateTaskRequest{Summary: &summary})
+	if err != nil || updated.ExecutionCategory != ExecutionCategoryCode {
+		t.Fatal("ordinary report changed a historical execution workspace contract", updated, err)
+	}
+}
