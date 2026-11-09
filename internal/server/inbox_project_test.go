@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/project"
@@ -176,6 +179,12 @@ func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
 	if !strings.Contains(snapshot, "Live Deployment Environment: env=staging") {
 		t.Fatalf("missing live deployment environment in snapshot: %s", snapshot)
 	}
+	if !strings.Contains(snapshot, "database=disconnected") {
+		t.Fatalf("expected database=disconnected in snapshot when s.db is nil: %s", snapshot)
+	}
+	if strings.Contains(snapshot, "database=connected") {
+		t.Fatalf("unexpected database=connected in snapshot when s.db is nil: %s", snapshot)
+	}
 	if !strings.Contains(snapshot, "Server Infrastructure & Host Telemetry:") || !strings.Contains(snapshot, "- Host Disk:") {
 		t.Fatalf("missing server infrastructure telemetry in snapshot: %s", snapshot)
 	}
@@ -184,6 +193,102 @@ func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(snapshot, "Project auto_deploy setting: true") {
 		t.Fatalf("missing auto_deploy setting in snapshot: %s", snapshot)
+	}
+}
+
+func TestInboxProjectContext_DatabaseStatusConsistency(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	_ = os.Mkdir(repo, 0700)
+	c := exec.Command("git", "-C", repo, "init", "-q")
+	_ = c.Run()
+	_ = os.WriteFile(filepath.Join(repo, "README.md"), []byte("# Consistency Test\n"), 0600)
+	_ = exec.Command("git", "-C", repo, "add", "README.md").Run()
+	_ = exec.Command("git", "-C", repo, "-c", "user.name=test", "-c", "user.email=test@test.local", "commit", "-m", "init").Run()
+
+	s, _ := setupTestChatServer(t)
+	s.cfg.Environment = "staging"
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", root)
+	_ = store.CreateProject(ctx, &project.Project{ID: "p_cons", Name: "Consistency Project", LocalPath: repo})
+
+	room := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room, ProjectID: "p_cons", Title: "Consistency Room", Topic: "discussion"})
+	msg := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: "Consistency test", CreatedAt: time.Now()}
+	s.projectStudioRepo.CreateMessage(ctx, &msg)
+	q := db.InboxRequest{RoomID: room, MessageID: msg.ID}
+
+	// 1. Condition: DB handle is nil
+	s.db = nil
+	telemNil := s.getServerTelemetry(ctx, repo)
+	if telemNil.DatabaseStatus == "connected" {
+		t.Fatalf("telemetry must not report connected when db is nil")
+	}
+	if telemNil.DatabaseStatus != "disconnected" {
+		t.Fatalf("expected telemetry database_status 'disconnected', got %s", telemNil.DatabaseStatus)
+	}
+
+	_, snapshotNil := s.inboxProjectContext(ctx, q)
+	if strings.Contains(snapshotNil, "database=connected") {
+		t.Fatalf("snapshot must not contain database=connected when db is nil: %s", snapshotNil)
+	}
+	if !strings.Contains(snapshotNil, "database=disconnected") {
+		t.Fatalf("snapshot must contain database=disconnected when db is nil: %s", snapshotNil)
+	}
+	if !strings.Contains(snapshotNil, "- Database: disconnected") {
+		t.Fatalf("snapshot telemetry must report - Database: disconnected when db is nil: %s", snapshotNil)
+	}
+	if strings.Contains(snapshotNil, "- Database: connected") {
+		t.Fatalf("snapshot telemetry must not report - Database: connected when db is nil: %s", snapshotNil)
+	}
+
+	// 2. Condition: DB is connected
+	sqlDB, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open sqlite in-memory db: %v", err)
+	}
+	s.db = sqlDB
+
+	telemConn := s.getServerTelemetry(ctx, repo)
+	if telemConn.DatabaseStatus != "connected" {
+		t.Fatalf("expected telemetry database_status 'connected', got %s", telemConn.DatabaseStatus)
+	}
+
+	_, snapshotConn := s.inboxProjectContext(ctx, q)
+	if !strings.Contains(snapshotConn, "database=connected") {
+		t.Fatalf("snapshot must contain database=connected when db is connected: %s", snapshotConn)
+	}
+	if strings.Contains(snapshotConn, "database=disconnected") {
+		t.Fatalf("snapshot must not contain database=disconnected when db is connected: %s", snapshotConn)
+	}
+	if !strings.Contains(snapshotConn, "- Database: connected") {
+		t.Fatalf("snapshot telemetry must report - Database: connected when db is connected: %s", snapshotConn)
+	}
+
+	// 3. Condition: DB ping fails (e.g. database connection closed / failed)
+	_ = sqlDB.Close()
+
+	telemFail := s.getServerTelemetry(ctx, repo)
+	if telemFail.DatabaseStatus == "connected" {
+		t.Fatalf("telemetry must not report connected when db ping fails")
+	}
+	if !strings.HasPrefix(telemFail.DatabaseStatus, "disconnected: ") {
+		t.Fatalf("expected telemetry database_status starting with 'disconnected: ', got %s", telemFail.DatabaseStatus)
+	}
+
+	_, snapshotFail := s.inboxProjectContext(ctx, q)
+	if strings.Contains(snapshotFail, "database=connected") {
+		t.Fatalf("snapshot must not contain database=connected when db ping fails: %s", snapshotFail)
+	}
+	if !strings.Contains(snapshotFail, "database=disconnected") {
+		t.Fatalf("snapshot must contain database=disconnected when db ping fails: %s", snapshotFail)
+	}
+	if !strings.Contains(snapshotFail, "- Database: disconnected: ") {
+		t.Fatalf("snapshot telemetry must report - Database: disconnected: <err> when db ping fails: %s", snapshotFail)
+	}
+	if strings.Contains(snapshotFail, "- Database: connected") {
+		t.Fatalf("snapshot telemetry must not report - Database: connected when db ping fails: %s", snapshotFail)
 	}
 }
 

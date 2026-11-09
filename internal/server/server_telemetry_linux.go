@@ -8,10 +8,12 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 func getSystemResources(checkPath string) ServerTelemetry {
 	var t ServerTelemetry
+	t.ObservedAt = time.Now().UTC()
 
 	// Disk Telemetry
 	diskTarget := checkPath

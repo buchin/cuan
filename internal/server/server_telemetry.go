@@ -10,6 +10,7 @@ import (
 // ServerTelemetry contains host and infrastructure health metrics injected
 // into the Scrum Master context snapshot to detect resource blockers early.
 type ServerTelemetry struct {
+	ObservedAt        time.Time  `json:"observed_at"`
 	DiskTotalBytes    uint64     `json:"disk_total_bytes"`
 	DiskFreeBytes     uint64     `json:"disk_free_bytes"`
 	DiskUsedBytes     uint64     `json:"disk_used_bytes"`
@@ -29,6 +30,9 @@ type ServerTelemetry struct {
 func (t ServerTelemetry) Summary() string {
 	var b strings.Builder
 	b.WriteString("Server Infrastructure & Host Telemetry:\n")
+	if !t.ObservedAt.IsZero() {
+		fmt.Fprintf(&b, "- Observed At: %s\n", t.ObservedAt.UTC().Format(time.RFC3339))
+	}
 
 	// Disk
 	diskStatus := "HEALTHY"
@@ -74,6 +78,9 @@ func (t ServerTelemetry) Summary() string {
 
 func (s *Server) getServerTelemetry(ctx context.Context, checkPath string) ServerTelemetry {
 	t := getSystemResources(checkPath)
+	if t.ObservedAt.IsZero() {
+		t.ObservedAt = time.Now().UTC()
+	}
 
 	if s != nil && s.db != nil {
 		start := time.Now()
@@ -86,7 +93,7 @@ func (s *Server) getServerTelemetry(ctx context.Context, checkPath string) Serve
 			t.DatabaseLatencyMs = time.Since(start).Milliseconds()
 		}
 	} else {
-		t.DatabaseStatus = "connected"
+		t.DatabaseStatus = "disconnected"
 	}
 
 	return t
