@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -22,6 +23,7 @@ var (
 // so that interface constraints do not falsely trigger frontend scope in backend tasks, nor block
 // legitimate frontend verification tasks that carry modification restrictions.
 func hasFrontendVerificationScope(text string) bool {
+	text = executionpolicy.WithoutVisualExclusions(text)
 	clean := visualMutationProhibition.ReplaceAllString(text, "")
 	clean = visualCaptureProhibition.ReplaceAllString(clean, "")
 	clean = browserAutomationRegex.ReplaceAllString(clean, "")

@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/project"
 	"image/png"
 	"net/http"
@@ -104,7 +105,7 @@ func (s *Server) bindRunnerVisualRecipe(ctx context.Context, claim *runner.Claim
 		return nil
 	}
 	scope := project.TaskScopeInstructions(claim.Task.Instructions) + "\n" + strings.Join(revision, "\n")
-	if visualCaptureProhibited.MatchString(scope) || browserAutomationProhibited.MatchString(scope) {
+	if executionpolicy.ExcludesVisualCapture(scope) || visualCaptureProhibited.MatchString(scope) || browserAutomationProhibited.MatchString(scope) {
 		return nil
 	}
 	recipe, err := runner.VisualRecipeAt(snapshot, claim.LiveInspection.TargetCommit)
@@ -131,6 +132,7 @@ var webOutputScope = regexp.MustCompile(`(?i)\b(?:halaman|page|browser|web|compo
 var ambiguousDisplayScope = regexp.MustCompile(`(?i)\btampilan\b`)
 
 func hasOriginalVisualScope(text string) bool {
+	text = executionpolicy.WithoutVisualExclusions(text)
 	text = visualMutationProhibition.ReplaceAllString(text, "")
 	text = visualCaptureProhibited.ReplaceAllString(text, "")
 	for _, line := range strings.Split(text, "\n") {

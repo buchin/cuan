@@ -1236,6 +1236,7 @@ func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail 
 		}
 		// A ban on producing screenshots is not a request for image tools or
 		// frontend setup. Keep later positive requirements and attachments.
+		text = executionpolicy.WithoutVisualExclusions(text)
 		text = visualCaptureProhibited.ReplaceAllString(text, "")
 		lower := strings.ToLower(text)
 		if strings.Contains(lower, "screenshot") || strings.Contains(lower, "tangkapan layar") {
