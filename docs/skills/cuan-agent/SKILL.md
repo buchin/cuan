@@ -920,3 +920,10 @@ manual retry share one deterministic child and retain `retry_reconcile` as its
 first marker. The child reads current saved state and cannot replay old provider
 actions. This is a bounded recovery attempt, not guaranteed provider availability
 or evidence of successful work. Original interrupted history remains intact.
+
+Public chat MCP also exposes `http_request {url, method?}` for anonymous GET/HEAD
+status, selected headers and bounded raw text/JSON (64KiB). Prefer it over a browser
+for endpoint inspection; prefer `web_fetch` for readable articles. It inherits the
+same public DNS/redirect policy, no ambient credentials/proxies, and no arbitrary
+shell, request body, custom headers or mutable methods. Authenticated operations
+remain connected integration actions. See [chat web tools](../../guides/chat-web-tools.md).

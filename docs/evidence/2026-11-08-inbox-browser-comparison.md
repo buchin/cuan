@@ -61,3 +61,29 @@ Remaining quality gaps: the answer was longer than requested, used unqualified
 upstream memory/binary-size figures, overstated certainty about disk impact and
 licensing safety, and appended an unrequested integration-task offer. Do not
 claim these quality requirements solved from the instruction change alone.
+
+## 2026-11-09 current-source check and production chat
+
+Primary sources were fetched again through official `cuan mcp --public-web`:
+Obscura and Wigolo upstream READMEs, and https://www.tinyfish.ai/.
+Obscura still claims ~70MiB binary/30MB RAM (not a Cuan measurement). Its README
+now explicitly documents private-network blocking by default and an MCP server.
+Wigolo still documents Node20+ and about1.5GB setup disk, with local browser/model
+downloads. TinyFish describes hosted serverless browser infrastructure; current
+homepage lists TinyBrowser at$0.002/minute and TinyAgent at$0.016/step. Prices and
+product claims are observations of the vendor page, not billing guarantees.
+
+Recommended direction: existing HTTP retrieval first, optional on-demand Obscura
+adapter for dynamic pages, and optional remote provider. No browser engine was
+installed or enabled as a side effect of this comparison.
+
+Production release `4cc9243a3dd5cefc203536d743c335bf2a3209fe` passed exact-SHA
+health checks. Research room:
+https://cuan.dojo.cc/inbox/b70ed3d8-ac6c-4d1f-8f62-fa1e6ec8c53a
+Request `c76ece0d-2e63-475c-91cb-f7712d198d9d` completed using supplied public
+sources; no task was created. It confirms the new operator recovery policy is
+present, but this request did not time out and does not prove automatic recovery
+in production. The answer remains too long and presents an older disk statistic
+as current without its observation time. Treat current-state grounding and
+brevity as unresolved quality gaps. CLI observation was interrupted after30s;
+the accepted request was inspected, not sent again.

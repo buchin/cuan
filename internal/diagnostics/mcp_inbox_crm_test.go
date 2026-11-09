@@ -37,11 +37,11 @@ func TestInboxCRMMCPUsesOnlyRequestSnapshot(t *testing.T) {
 		} `json:"result"`
 	}
 	json.Unmarshal([]byte(lines[0]), &tools)
-	if len(tools.Result.Tools) != 3 {
+	if len(tools.Result.Tools) != 4 {
 		t.Fatal("unexpected tools", lines[0])
 	}
 	for _, tool := range tools.Result.Tools {
-		if tool.Name != "web_fetch" && tool.Name != "list_contacts" && tool.Name != "get_contact" {
+		if tool.Name != "http_request" && tool.Name != "web_fetch" && tool.Name != "list_contacts" && tool.Name != "get_contact" {
 			t.Fatal("ambient tool exposed", tool.Name)
 		}
 	}

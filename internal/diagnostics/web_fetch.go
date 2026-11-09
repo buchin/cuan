@@ -21,3 +21,8 @@ func WebFetch(ctx context.Context, rawURL string) (*WebFetchResult, error) {
 func WebFetchWithOptions(ctx context.Context, rawURL string, opts WebFetchOptions) (*WebFetchResult, error) {
 	return webfetch.FetchWithOptions(ctx, rawURL, opts)
 }
+
+// PublicHTTPRequest retains the same public destination policy as WebFetch.
+func PublicHTTPRequest(ctx context.Context, method, rawURL string) (*webfetch.HTTPResult, error) {
+	return webfetch.Request(ctx, method, rawURL)
+}

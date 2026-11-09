@@ -97,3 +97,16 @@ Verification:
 These checks prove deterministic recovery mechanics, not production latency or
 remote provider reliability. Deployment and a real production workflow remain
 required before claiming this gap is resolved in production.
+
+Deployment: release `4cc9243a3dd5cefc203536d743c335bf2a3209fe` completed
+2026-11-09T07:17:30Z; production health matched its exact SHA,38 migrations.
+A subsequent ordinary production research request completed with the new policy.
+No real production timeout has yet exercised the automatic recovery child.
+
+Separate HTTP-tool follow-up: `http_request` adds public GET/HEAD inspection to
+both public-web and per-turn CRM MCP discovery/dispatch and chat runtime
+classification. Meaningful tests cover non-2xx status preservation,HEAD,body cap,
+binary omission, no ambient credentials, mutable-method rejection and internal
+network rejection. Targeted diagnostics/MCP/webfetch and runtime tests passed.
+The built native CLI's actual MCP HEAD call to https://example.com/ returned200
+with headers and no body. Browser integration remains separate and unenabled.

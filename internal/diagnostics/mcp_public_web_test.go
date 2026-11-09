@@ -49,8 +49,13 @@ func TestPublicWebMCPDiscoveryAndDispatchBoundary(t *testing.T) {
 	if err := json.Unmarshal([]byte(lines[0]), &discovered); err != nil {
 		t.Fatal(err)
 	}
-	if len(discovered.Result.Tools) != 1 || discovered.Result.Tools[0].Name != "web_fetch" {
+	if len(discovered.Result.Tools) != 2 {
 		t.Fatal("unexpected public tools", lines[0])
+	}
+	for _, tool := range discovered.Result.Tools {
+		if tool.Name != "web_fetch" && tool.Name != "http_request" {
+			t.Fatal("ambient tool exposed", tool.Name)
+		}
 	}
 	for _, line := range lines[1:3] {
 		var response jsonRPCResponse
@@ -65,5 +70,24 @@ func TestPublicWebMCPDiscoveryAndDispatchBoundary(t *testing.T) {
 	// policy. It must reject a local-file URL without exposing file contents.
 	if !strings.Contains(lines[3], `"isError":true`) || strings.Contains(lines[3], "root:x:") {
 		t.Fatal("public fetch did not retain URL policy", lines[3])
+	}
+}
+
+func TestPublicHTTPMCPRejectsPrivateTargetsAndMutations(t *testing.T) {
+	input := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"http_request","arguments":{"url":"http://127.0.0.1:1"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"http_request","arguments":{"url":"https://example.com","method":"POST"}}}
+`)
+	var out, stderr bytes.Buffer
+	if RunPublicWebMCP(input, &out, &stderr) != 0 {
+		t.Fatal(stderr.String())
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatal(out.String())
+	}
+	for _, line := range lines {
+		if !strings.Contains(line, `"isError":true`) {
+			t.Fatal("HTTP boundary bypassed", line)
+		}
 	}
 }

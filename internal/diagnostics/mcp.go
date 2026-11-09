@@ -490,6 +490,11 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "http_request",
+		Description: "Inspect a public HTTP(S) endpoint with anonymous GET or HEAD. Returns real status, selected headers and up to 64 KiB of raw text/JSON without starting a browser. No shell, custom headers, credentials or mutations.",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{"url": map[string]any{"type": "string"}, "method": map[string]any{"type": "string", "enum": []string{"GET", "HEAD"}}}, "required": []string{"url"}, "additionalProperties": false},
+	},
+	{
 		Name:        "web_fetch",
 		Description: "Fetch and extract clean readable text content and title from a public web page URL (cleans ads, navigation, headers, scripts).",
 		InputSchema: map[string]any{
@@ -541,7 +546,7 @@ func handlePublicWebMCPRequest(req jsonRPCRequest, out io.Writer) {
 	if req.Method == "tools/list" {
 		tools := []mcpToolDefinition{}
 		for _, tool := range nativeMCPTools {
-			if tool.Name == "web_fetch" {
+			if tool.Name == "web_fetch" || tool.Name == "http_request" {
 				tools = append(tools, tool)
 			}
 		}
@@ -552,7 +557,7 @@ func handlePublicWebMCPRequest(req jsonRPCRequest, out io.Writer) {
 		var params struct {
 			Name string `json:"name"`
 		}
-		if json.Unmarshal(req.Params, &params) != nil || params.Name != "web_fetch" {
+		if json.Unmarshal(req.Params, &params) != nil || (params.Name != "web_fetch" && params.Name != "http_request") {
 			sendResponse(out, jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32601, Message: "Tool unavailable in public web chat mode"}})
 			return
 		}
@@ -816,6 +821,10 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				timeout = int(rawTimeout)
 			}
 			toolResult, toolErr = ProbeEndpointHealth(ctx, rawURL, timeout)
+		case "http_request":
+			rawURL, _ := callParams.Arguments["url"].(string)
+			method, _ := callParams.Arguments["method"].(string)
+			toolResult, toolErr = PublicHTTPRequest(ctx, method, rawURL)
 		case "web_fetch":
 			rawURL, _ := callParams.Arguments["url"].(string)
 			toolResult, toolErr = WebFetch(ctx, rawURL)

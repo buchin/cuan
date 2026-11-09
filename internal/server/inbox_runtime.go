@@ -69,7 +69,7 @@ func isSafeInboxTool(tool string) bool {
 	switch clean {
 	case "read_file", "view_file", "view_file_outline", "view_code_item", "list_dir", "grep_search", "find_by_name", "finish",
 		"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches", "inspect_system_health", "inspect_typecheck",
-		"search_web", "web_fetch",
+		"search_web", "web_fetch", "http_request",
 		"list_projects", "get_project", "get_github_connection", "list_tasks", "get_task", "create_task_draft",
 		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
 		"list_scheduled_jobs", "get_system_settings",
@@ -95,7 +95,7 @@ func isInspectionTool(tool string) bool {
 		"inspect_git_status", "inspect_git_log", "inspect_git_diff", "inspect_git_branches",
 		"inspect_system_health", "inspect_typecheck",
 		"inspect_database_query", "inspect_database_schema", "inspect_app_logs",
-		"search_web", "web_fetch", "call_mcp_tool",
+		"search_web", "web_fetch", "http_request", "call_mcp_tool",
 		"list_projects", "get_project", "list_tasks", "get_task",
 		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
 		"list_scheduled_jobs", "get_system_settings", "list_apps", "list_skills":
@@ -435,11 +435,11 @@ func (s *inboxRuntimeStream) retainPublicWebResult(index int, tool string) {
 	if parts["Output"] == "" || parts["Error"] != "" {
 		return
 	}
-	allowed := tool == "search_web" || tool == "web_fetch"
+	allowed := tool == "search_web" || tool == "web_fetch" || tool == "http_request"
 	if tool == "call_mcp_tool" {
 		var input struct{ ServerName, ToolName string }
 		if json.Unmarshal([]byte(parts["Input"]), &input) == nil {
-			allowed = (input.ServerName == "cuan-inspect" || input.ServerName == "cuan-platform-mcp") && input.ToolName == "web_fetch"
+			allowed = (input.ServerName == "cuan-inspect" || input.ServerName == "cuan-platform-mcp") && (input.ToolName == "web_fetch" || input.ToolName == "http_request")
 		}
 	}
 	if !allowed {
