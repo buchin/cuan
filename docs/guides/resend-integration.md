@@ -61,8 +61,32 @@ conversation action and flat message rows. They do not identify Cuan as a shop.
 Email preview verification uses isolated content at390px and1440px; it does not
 send messages or prove rendering in every email client.
 
-Public chat replies currently persist in the Inbox and visitor chat transport.
-Resend is wired for admin reminders and explicit integration tests, not an
-outgoing visitor-reply email queue. Enabling Resend alone does not email public
-replies to customers. Operator notification receipts must never be presented as
-customer email delivery. Historical public replies are not automatically resent.
+## Customer reply email
+
+New public operator text replies to a connected CRM customer enter a durable
+email outbox. The existing scheduler checks every minute and sends after five
+minutes if the visitor has not confirmed reading that message. Resend must be
+enabled. The recipient comes from that room's connected contact, never an email
+address extracted from conversation text. Changed/deleted contact destinations,
+whispers, approval decisions, regeneration requests and agent drafts are not
+mailed. Attachment-only replies currently remain in chat; attachments are not
+included in these plain-text emails.
+
+Migration38 only queues future message inserts. Historical public replies are
+not automatically resent. Disabling Resend skips pending delivery when checked;
+re-enabling does not replay those skipped messages. Email contains the public
+reply text only, without internal transcripts or owner-only Inbox links.
+
+The exact sending payload is saved before contacting Resend. Concurrent workers
+serialize each message, and retries preserve the same provider idempotency key.
+Receipt and outbox completion are committed together. Retries stop before the
+[provider's24-hour idempotency window](https://resend.com/docs/dashboard/emails/idempotency-keys)
+expires or if the sending API connection changes; they never manufacture a new
+key to replay an uncertain old send. Failed sends retry every five minutes within
+that window. This is bounded duplicate protection, not indefinite exactly-once
+delivery. The scheduler reports unconfirmed sends as failures.
+
+Accepted sends link the message to a visitor email receipt. Signed Resend events
+then update sent/delivered/bounced/etc using the existing receipt path. Operator
+notification receipts must never be presented as customer email delivery. A
+provider acceptance is not proof of inbox placement or reading.

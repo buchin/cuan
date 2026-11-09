@@ -463,6 +463,7 @@ func (s *Server) handleCreateInboxMessage(w http.ResponseWriter, r *http.Request
 		ID:         db.GenerateUUID(),
 		RoomID:     roomID,
 		AuthorType: authorType,
+		AuthorID:   "operator_user",
 		AuthorName: authorName,
 		Content:    content,
 		CreatedAt:  now,

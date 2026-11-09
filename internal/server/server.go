@@ -674,6 +674,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		}))
 	}
 	s.registerStorageMaintenance()
+	s.registerVisitorReplyEmail()
 	s.InitScrumEngine(context.Background())
 	s.configureSharedGitHubAccess()
 	s.routes()

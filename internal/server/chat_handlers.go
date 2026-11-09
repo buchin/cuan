@@ -1892,15 +1892,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		mention := extractMentionHandle(m.Content)
 		isInternal := false
 		if isCustomer {
-			if m.AuthorType == "user" && m.AuthorID == "operator_user" && (decodeInboxPlanDecision(m.Content) != nil || regenerateID != "") {
-				isInternal = true
-			} else if mention != "" {
-				isInternal = true
-			} else if m.AuthorType == "system" {
-				isInternal = true
-			} else if m.AuthorType == "agent" && m.AuthorID != "operator_user" {
-				isInternal = true
-			}
+			isInternal = customerMessageInternal(&m)
 		}
 		messageContent := m.Content
 		replyDraft := ""
