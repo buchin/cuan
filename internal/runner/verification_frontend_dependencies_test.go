@@ -188,6 +188,72 @@ func TestFrontendVerifierRetainsDependenciesWithoutRequiresVision(t *testing.T) 
 	}
 }
 
+// TestFrontendVerifierRetainsDependenciesWithUIProhibitionConstraint verifies that frontend
+// verification preserves dependencies even when instructions contain interface modification restrictions
+// (e.g. "Do not modify UI", "tanpa modifikasi antarmuka").
+func TestFrontendVerifierRetainsDependenciesWithUIProhibitionConstraint(t *testing.T) {
+	ctx := context.Background()
+	source, commit, manifest, lock := setupWarmFrontendSource(t)
+
+	var completion CompleteAttemptRequest
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/report" {
+			w.Write([]byte(`{"summary":"Frontend verified","complete_note":"Checks passed","activities":[{"attempt_id":"verifier","activity_type":"agent_report","new_status":"review"}]}`))
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/complete") {
+			_ = json.NewDecoder(r.Body).Decode(&completion)
+			json.NewEncoder(w).Encode(task.TaskAttempt{ID: "verifier", TaskID: filepath.Base(source), RunnerID: "fixture", Status: task.AttemptStatusSucceeded})
+			return
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer api.Close()
+
+	called := false
+	adapter := &reportingBudgetAdapter{readOnlyAuditAdapter: &readOnlyAuditAdapter{t: t}, execute: func(_ context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+		called = true
+		targetModules := filepath.Join(req.WorkingDir, "node_modules")
+		pkgFile := filepath.Join(targetModules, "fixture-pkg", "index.js")
+		if data, err := os.ReadFile(pkgFile); err != nil || string(data) != "export const v = 1;" {
+			t.Fatalf("expected frontend dependencies to be present in verifier snapshot, got: %v (data: %s)", err, string(data))
+		}
+		expectedDigest := dependencyLockFingerprint([]byte(manifest), []byte(lock))
+		if !checkLockfileWarm(req.WorkingDir, "node_modules", expectedDigest) {
+			t.Fatalf("expected valid lock fingerprint in verifier snapshot")
+		}
+		return &agent.ExecutionResult{Status: "SUCCEEDED", ExitCode: 0}, nil
+	}}
+	worker := NewRunner(&config.Config{RunnerID: "fixture", RunnerWorkerRegistryDir: t.TempDir(), RunnerServerURL: api.URL, WorkspacesDir: filepath.Dir(source)}, adapter, api.Client())
+
+	// Task has frontend scope, but instructions explicitly include UI modification prohibition
+	claim := ClaimTaskResponse{
+		Task: &task.Task{
+			ID:                filepath.Base(source),
+			Title:             "Frontend component verification",
+			Instructions:      "Run the existing frontend regression tests. Do not modify UI.",
+			ExecutionCategory: task.ExecutionCategoryCode,
+		},
+		Attempt:           &task.TaskAttempt{ID: "verifier", TaskID: filepath.Base(source), CreatedAt: time.Now()},
+		Verification:      &task.VerificationIntent{IsolatedWorkspace: true, SourceCommit: commit},
+		RequiresVision:    false, // Must not rely solely on RequiresVision!
+		PublicationLimits: executionpolicy.PublicationPolicy{ReadOnlyRepository: true, DenyPush: true, DenyDeploy: true},
+		TaskAgent:         &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"},
+	}
+	worker.runAttempt(ctx, claim)
+
+	if !called || completion.Status != task.AttemptStatusSucceeded {
+		t.Fatalf("frontend verification did not succeed: called=%t status=%s err=%s", called, completion.Status, completion.ErrorMessage)
+	}
+
+	snapshotDir := cuangit.VerificationWorkspacePath(filepath.Dir(source), filepath.Base(source), commit)
+	targetModules := filepath.Join(snapshotDir, "node_modules")
+	if _, err := os.Stat(filepath.Join(targetModules, "fixture-pkg", "index.js")); err != nil {
+		t.Fatalf("frontend verifier snapshot missing node_modules: %v", err)
+	}
+}
+
 // TestLeaseFailureDoesNotMutateVerificationSnapshot verifies that failing to acquire
 // the exclusive verification lease ensures the snapshot is never mutated.
 func TestLeaseFailureDoesNotMutateVerificationSnapshot(t *testing.T) {
@@ -260,5 +326,135 @@ func TestLeaseFailureDoesNotMutateVerificationSnapshot(t *testing.T) {
 	// CRITICAL: Verify that the snapshot was NOT mutated by seedWarmDependencies!
 	if _, err := os.Stat(targetModules); !os.IsNotExist(err) {
 		t.Fatalf("CRITICAL: snapshot was mutated despite verification lease failure; node_modules exists!")
+	}
+}
+
+func TestVerificationFrontendDependenciesRequiredTable(t *testing.T) {
+	tests := []struct {
+		name     string
+		claim    ClaimTaskResponse
+		expected bool
+	}{
+		{
+			name: "pure backend with prohibition in instructions",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				Task: &task.Task{
+					Title:        "Backend runner optimization",
+					Instructions: "1 task backend terfokus, tanpa modifikasi UI, browser screenshot, atau email.",
+					DoDChecklist: []task.DoDItem{
+						{Text: "1 task backend terfokus, tanpa modifikasi UI, browser screenshot, atau email."},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "pure backend with English modification prohibition",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				Task: &task.Task{
+					Title:        "Database index optimization",
+					Instructions: "Optimize queries. Do not modify UI or components.",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "CLI task with ambiguous tampilan in command output",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				Task: &task.Task{
+					Title:        "Update CLI help",
+					Instructions: "Perbaiki tampilan output --help pada terminal",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "frontend verification with UI modification prohibition in instructions",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				Task: &task.Task{
+					Title:        "Frontend component verification",
+					Instructions: "Run the existing frontend regression tests. Do not modify UI.",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "frontend verification in title",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				Task: &task.Task{
+					Title:        "Verify web frontend styling and components",
+					Instructions: "Run tests without modifying UI.",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "frontend verification in DoD checklist",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				Task: &task.Task{
+					Title:        "Run regression checks",
+					Instructions: "Do not touch UI.",
+					DoDChecklist: []task.DoDItem{
+						{Text: "Verifikasi frontend visual components berjalan sukses"},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "requires vision flag true",
+			claim: ClaimTaskResponse{
+				Verification:   &task.VerificationIntent{IsolatedWorkspace: true},
+				RequiresVision: true,
+			},
+			expected: true,
+		},
+		{
+			name: "registered visual recipe",
+			claim: ClaimTaskResponse{
+				Verification: &task.VerificationIntent{IsolatedWorkspace: true},
+				VisualRecipe: &task.VisualRecipe{Script: task.VisualVerificationScript, ScriptHash: strings.Repeat("a", 64), SourceCommit: strings.Repeat("b", 40)},
+			},
+			expected: true,
+		},
+		{
+			name: "pure PHP backend with PHPUnitTargets skips frontend dependencies",
+			claim: ClaimTaskResponse{
+				Verification:   &task.VerificationIntent{IsolatedWorkspace: true},
+				PHPUnitTargets: "tests/Feature/SmokeTest.php",
+				Task: &task.Task{
+					Title:        "Run PHPUnit smoke tests",
+					Instructions: "Execute tests/Feature/SmokeTest.php and verify backend assertions",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "frontend verification retains dependencies despite PHPUnitTargets",
+			claim: ClaimTaskResponse{
+				Verification:   &task.VerificationIntent{IsolatedWorkspace: true},
+				PHPUnitTargets: "tests/Feature/SmokeTest.php",
+				Task: &task.Task{
+					Title:        "Verify frontend regression",
+					Instructions: "Run existing frontend tests. Do not modify UI.",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := verificationFrontendDependenciesRequired(&tc.claim, "")
+			if actual != tc.expected {
+				t.Fatalf("expected verificationFrontendDependenciesRequired to be %t, got %t", tc.expected, actual)
+			}
+		})
 	}
 }
