@@ -433,28 +433,13 @@ func (s *Server) handleTestResendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	testHTML := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<body style="font-family:sans-serif;padding:24px;background:#f8fafc;color:#1e293b;">
-  <div style="max-width:540px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;border:1px solid #e2e8f0;">
-    <h2 style="color:#0f172a;margin-top:0;">✅ Pengujian Integrasi Resend Berhasil!</h2>
-    <p>Halo,</p>
-    <p>Ini adalah email konfirmasi pengujian dari platform <strong>Cuan</strong>. Integrasi Resend Anda telah aktif dan siap digunakan untuk mengirimkan transkrip notifikasi obrolan saat Live Chat idle.</p>
-    <div style="background:#f1f5f9;border-left:4px solid #0284c7;padding:12px;margin:16px 0;font-size:14px;">
-      <strong>Waktu Uji Coba:</strong> %s WIB<br>
-      <strong>Pengirim:</strong> %s
-    </div>
-    <p style="font-size:12px;color:#94a3b8;margin-bottom:0;">Cuan · Otomasi Toko Online</p>
-  </div>
-</body>
-</html>`, time.Now().UTC().Format("02 Jan 2006 15:04"), fromHeader)
-
-	testText := fmt.Sprintf("Pengujian Integrasi Resend Berhasil!\n\nEmail ini membuktikan bahwa konfigurasi Resend di Cuan telah aktif dan siap mengirimkan notifikasi chat idle.\nWaktu: %s", time.Now().UTC().Format("15:04 WIB"))
+	testHTML := `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f7f7f5;color:#292a2d;font-family:Geist,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"><div style="max-width:600px;margin:0 auto;padding:40px 24px"><p style="font-size:16px;font-weight:600;margin:0 0 32px">Cuan</p><h1 style="font-size:24px;line-height:1.3;font-weight:600;margin:0 0 12px">Email pengujian Cuan</h1><p style="font-size:15px;line-height:1.6;color:#62646a;margin:0">Jika email ini sampai di kotak masuk Anda, konfigurasi pengiriman email Cuan berhasil digunakan.</p><p style="font-size:12px;line-height:1.6;color:#707278;margin:32px 0 0">Email ini dikirim karena Anda menjalankan pengujian integrasi.</p></div></body></html>`
+	testText := "Email pengujian Cuan\n\nJika email ini sampai di kotak masuk Anda, konfigurasi pengiriman email Cuan berhasil digunakan.\n\nEmail ini dikirim karena Anda menjalankan pengujian integrasi."
 
 	resp, err := client.SendEmail(r.Context(), resend.EmailRequest{
 		From:    fromHeader,
 		To:      []string{recipient},
-		Subject: "✅ [Cuan] Uji Coba Integrasi Email Resend Berhasil",
+		Subject: "Email pengujian Cuan",
 		HTML:    testHTML,
 		Text:    testText,
 	})

@@ -44,3 +44,25 @@ own Resend webhook at `/api/webhooks/resend`; configure email sent, delivered,
 delayed, failed, bounced, complained and suppressed events. Import its signing
 secret with `--webhook-secret-from-env NAME`. Chat read status remains separate
 from email delivery, and email open tracking is not enabled.
+
+## Unread conversation reminders
+
+Admin reminders consult persisted `resend_email_logs` before sending. Restarting
+or deploying does not reset successful-send history: an unchanged customer
+message is not mailed again, and new reminders retain a five-minute cooldown.
+If history cannot be read, sending stops rather than assuming nothing was sent.
+The Resend request also supplies a stable idempotency key for the conversation
+and latest customer message. Provider idempotency has a bounded retention window;
+it is additional protection, not an indefinite exactly-once delivery guarantee.
+The database remains the retained successful-send history.
+
+Notification templates use Cuan branding, neutral typography, a single quiet
+conversation action and flat message rows. They do not identify Cuan as a shop.
+Email preview verification uses isolated content at390px and1440px; it does not
+send messages or prove rendering in every email client.
+
+Public chat replies currently persist in the Inbox and visitor chat transport.
+Resend is wired for admin reminders and explicit integration tests, not an
+outgoing visitor-reply email queue. Enabling Resend alone does not email public
+replies to customers. Operator notification receipts must never be presented as
+customer email delivery. Historical public replies are not automatically resent.

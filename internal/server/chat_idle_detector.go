@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -200,6 +201,18 @@ func (s *Server) TriggerRoomIdleNotification(ctx context.Context, roomID string)
 		return false, nil
 	}
 
+	// Persisted sends survive deployments and are shared by server processes.
+	// Read failures must not turn into permission to replay an old notification.
+	if s.db != nil {
+		var sentAt sql.NullTime
+		if err := s.db.QueryRowContext(ctx, `SELECT sent_at FROM resend_email_logs WHERE room_id=$1 AND status='sent' ORDER BY sent_at DESC LIMIT 1`, roomID).Scan(&sentAt); err != nil && err != sql.ErrNoRows {
+			return false, fmt.Errorf("read idle notification history: %w", err)
+		}
+		if sentAt.Valid && (!latestCustomerMsg.CreatedAt.After(sentAt.Time) || time.Since(sentAt.Time) < 5*time.Minute) {
+			return false, nil
+		}
+	}
+
 	// 4. Anti-inbox bombing cooldown check (minimum 5 minutes between notifications per room)
 	chatIdleDetectorMu.RLock()
 	lastNotif, hasNotif := chatIdleHistory[roomID]
@@ -242,7 +255,7 @@ func (s *Server) TriggerRoomIdleNotification(ctx context.Context, roomID string)
 		}
 	}
 
-	storeName := "Toko Cuan"
+	storeName := "Cuan"
 
 	baseDomain := "cuan.dojo.cc"
 	if s.cfg != nil && s.cfg.BaseDomain != "" {
@@ -288,13 +301,14 @@ func (s *Server) TriggerRoomIdleNotification(ctx context.Context, roomID string)
 		return false, fmt.Errorf("initialize resend client: %w", err)
 	}
 
-	subject := fmt.Sprintf("🔔 [Live Chat] Pesan Belum Terbaca dari %s (%d pesan, idle >%d menit)", customerName, len(items), thresholdMinutes)
+	subject := fmt.Sprintf("Pesan belum dibaca dari %s · %d pesan", customerName, len(items))
 	resp, err := client.SendEmail(ctx, resend.EmailRequest{
-		From:    fromHeader,
-		To:      []string{recipient},
-		Subject: subject,
-		HTML:    htmlBody,
-		Text:    textBody,
+		IdempotencyKey: "cuan-idle/" + roomID + "/" + latestCustomerMsg.ID,
+		From:           fromHeader,
+		To:             []string{recipient},
+		Subject:        subject,
+		HTML:           htmlBody,
+		Text:           textBody,
 	})
 	if err != nil {
 		return false, fmt.Errorf("send idle email via resend: %w", err)

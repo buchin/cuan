@@ -58,6 +58,7 @@ func TestClient_ValidateAPIKey(t *testing.T) {
 func TestClient_SendEmail(t *testing.T) {
 	t.Run("successful email send", func(t *testing.T) {
 		var receivedReq EmailRequest
+		var key string
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/emails" {
 				t.Fatalf("unexpected path: %s", r.URL.Path)
@@ -66,6 +67,7 @@ func TestClient_SendEmail(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
+			key = r.Header.Get("Idempotency-Key")
 			_ = json.NewDecoder(r.Body).Decode(&receivedReq)
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"id":"email_msg_123456789"}`))
@@ -74,14 +76,18 @@ func TestClient_SendEmail(t *testing.T) {
 
 		c := NewClient("re_test_key", WithBaseURL(ts.URL))
 		resp, err := c.SendEmail(context.Background(), EmailRequest{
-			From:    "Cuan Support <support@cuan.id>",
-			To:      []string{"owner@tokocuan.com"},
-			Subject: "Notifikasi Live Chat",
-			HTML:    "<p>Halo ada pesan baru</p>",
-			Text:    "Halo ada pesan baru",
+			IdempotencyKey: "cuan-idle/room/message",
+			From:           "Cuan Support <support@cuan.id>",
+			To:             []string{"owner@tokocuan.com"},
+			Subject:        "Notifikasi Live Chat",
+			HTML:           "<p>Halo ada pesan baru</p>",
+			Text:           "Halo ada pesan baru",
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+		if key != "cuan-idle/room/message" {
+			t.Fatalf("missing idempotency key: %q", key)
 		}
 		if resp.ID != "email_msg_123456789" {
 			t.Fatalf("expected id email_msg_123456789, got %s", resp.ID)

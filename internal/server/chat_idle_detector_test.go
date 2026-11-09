@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	_ "modernc.org/sqlite"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -196,7 +198,7 @@ func TestResendTestEmailEndpoint(t *testing.T) {
 	if sent[0].To[0] != "admin@cuan.store" {
 		t.Errorf("expected recipient admin@cuan.store, got %s", sent[0].To[0])
 	}
-	if !strings.Contains(sent[0].Subject, "Uji Coba Integrasi Email Resend") {
+	if !strings.Contains(sent[0].Subject, "Email pengujian Cuan") {
 		t.Errorf("expected subject to contain test message, got %s", sent[0].Subject)
 	}
 }
@@ -292,12 +294,46 @@ func TestChatIdleDetectionFlow(t *testing.T) {
 	if sentEmails[0].To[0] != "operator@cuan.store" {
 		t.Errorf("expected recipient operator@cuan.store, got %s", sentEmails[0].To[0])
 	}
-	if !strings.Contains(sentEmails[0].Subject, "Pesan Belum Terbaca dari Budi") {
+	if !strings.Contains(sentEmails[0].Subject, "Pesan belum dibaca dari Budi") {
 		t.Errorf("subject expected to mention customer name Budi: %s", sentEmails[0].Subject)
 	}
 	if !strings.Contains(sentEmails[0].HTML, "Tolong dibalas ya min") {
 		t.Errorf("HTML transcript expected to include unread message body")
 	}
+
+	// A restart loses the memory cache; the persisted send must still suppress replay.
+	database, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	_, err = database.Exec(`CREATE TABLE resend_email_logs(room_id TEXT, status TEXT, sent_at TIMESTAMP)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = database.Exec(`INSERT INTO resend_email_logs VALUES(?, 'sent', ?)`, roomID2, now.Add(-6*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.db = database
+	chatIdleDetectorMu.Lock()
+	delete(chatIdleHistory, roomID2)
+	chatIdleDetectorMu.Unlock()
+	if replayed, err := srv.TriggerRoomIdleNotification(context.Background(), roomID2); err != nil || replayed {
+		t.Fatalf("persisted same-message notification replayed after restart: sent=%v err=%v", replayed, err)
+	}
+	if len(mock.getSentEmails()) != 1 {
+		t.Fatal("restart sent duplicate email")
+	}
+	// Database errors must fail closed, rather than replaying historical email.
+	_, _ = database.Exec(`DROP TABLE resend_email_logs`)
+	if sent, err := srv.TriggerRoomIdleNotification(context.Background(), roomID2); err == nil || sent {
+		t.Fatal("missing durable history must not permit sending")
+	}
+	srv.db = nil
+	chatIdleDetectorMu.Lock()
+	chatIdleHistory[roomID2] = chatIdleNotificationRecord{MessageID: "fixture", NotifiedAt: time.Now()}
+	chatIdleDetectorMu.Unlock()
 
 	// 3. Immediately trigger again -> Anti-inbox bombing cooldown should prevent 2nd email
 	sent3, err := srv.TriggerRoomIdleNotification(context.Background(), roomID2)

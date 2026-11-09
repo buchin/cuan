@@ -19,12 +19,12 @@ const (
 )
 
 var (
-	ErrEmptyAPIKey      = errors.New("resend: API key cannot be empty")
-	ErrInvalidAPIKey    = errors.New("resend: invalid API key or unauthorized")
-	ErrEmptySender      = errors.New("resend: sender (from) email cannot be empty")
-	ErrEmptyRecipients  = errors.New("resend: recipient (to) email list cannot be empty")
-	ErrEmptySubject     = errors.New("resend: email subject cannot be empty")
-	ErrEmptyContent     = errors.New("resend: email html or text content cannot be empty")
+	ErrEmptyAPIKey     = errors.New("resend: API key cannot be empty")
+	ErrInvalidAPIKey   = errors.New("resend: invalid API key or unauthorized")
+	ErrEmptySender     = errors.New("resend: sender (from) email cannot be empty")
+	ErrEmptyRecipients = errors.New("resend: recipient (to) email list cannot be empty")
+	ErrEmptySubject    = errors.New("resend: email subject cannot be empty")
+	ErrEmptyContent    = errors.New("resend: email html or text content cannot be empty")
 )
 
 // Client defines the interface for interacting with Resend email API.
@@ -76,12 +76,13 @@ func NewClient(apiKey string, opts ...ClientOption) *HTTPClient {
 
 // EmailRequest represents a payload for sending an email via Resend.
 type EmailRequest struct {
-	From    string   `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	HTML    string   `json:"html,omitempty"`
-	Text    string   `json:"text,omitempty"`
-	ReplyTo string   `json:"reply_to,omitempty"`
+	IdempotencyKey string   `json:"-"`
+	From           string   `json:"from"`
+	To             []string `json:"to"`
+	Subject        string   `json:"subject"`
+	HTML           string   `json:"html,omitempty"`
+	Text           string   `json:"text,omitempty"`
+	ReplyTo        string   `json:"reply_to,omitempty"`
 }
 
 // EmailResponse represents the response from Resend's send email endpoint.
@@ -167,6 +168,9 @@ func (c *HTTPClient) SendEmail(ctx context.Context, req EmailRequest) (*EmailRes
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", "Cuan-Platform/1.0")
+	if req.IdempotencyKey != "" {
+		httpReq.Header.Set("Idempotency-Key", req.IdempotencyKey)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -204,102 +208,38 @@ type ChatMessageItem struct {
 
 // ChatIdleTemplateParams contains data required to generate an idle transcript email.
 type ChatIdleTemplateParams struct {
-	StoreName     string
-	CustomerName  string
-	CustomerEmail string
-	RoomID        string
+	StoreName       string
+	CustomerName    string
+	CustomerEmail   string
+	RoomID          string
 	ConversationURL string
-	IdleMinutes   int
-	Messages      []ChatMessageItem
+	IdleMinutes     int
+	Messages        []ChatMessageItem
 }
 
 // BuildChatIdleTranscriptHTML generates an email HTML notification with responsive design.
 func BuildChatIdleTranscriptHTML(params ChatIdleTemplateParams) string {
-	store := params.StoreName
-	if store == "" {
-		store = "Toko Cuan"
+	brand := params.StoreName
+	if brand == "" {
+		brand = "Cuan"
 	}
 	customer := params.CustomerName
 	if customer == "" {
-		customer = "Pelanggan"
+		customer = "Pengunjung"
 	}
-	convoURL := params.ConversationURL
-	if convoURL == "" {
-		convoURL = "/inbox/" + params.RoomID
-	}
-
 	var sb strings.Builder
-	sb.WriteString(`<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pesan Baru Belum Terbaca - ` + html.EscapeString(store) + `</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 24px; line-height: 1.5; }
-    .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .header { background: #0f172a; padding: 24px; text-align: left; }
-    .header h1 { margin: 0; color: #ffffff; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-    .header p { margin: 4px 0 0; color: #94a3b8; font-size: 13px; }
-    .content { padding: 24px; }
-    .badge { display: inline-block; padding: 4px 10px; background: #fef3c7; color: #92400e; border-radius: 9999px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
-    .lead { font-size: 15px; margin: 0 0 16px; color: #334155; }
-    .message-box { background: #f1f5f9; border-left: 4px solid #0284c7; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; }
-    .msg-header { font-size: 12px; color: #64748b; margin-bottom: 6px; display: flex; justify-content: space-between; }
-    .msg-author { font-weight: 600; color: #0f172a; }
-    .msg-body { font-size: 14px; color: #1e293b; white-space: pre-wrap; word-break: break-word; }
-    .cta-container { text-align: center; margin: 28px 0 16px; }
-    .btn { display: inline-block; background: #0284c7; color: #ffffff !important; padding: 12px 28px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(2,132,199,0.25); }
-    .footer { padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #94a3b8; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>` + html.EscapeString(store) + ` · Live Chat Cuan</h1>
-      <p>Notifikasi Pesan Belum Terbaca (Chat Idle)</p>
-    </div>
-    <div class="content">
-      <div class="badge">🔔 Menunggu Respon &gt; ` + fmt.Sprintf("%d", params.IdleMinutes) + ` menit</div>
-      <p class="lead">Halo, ada pesan baru dari <strong>` + html.EscapeString(customer) + `</strong>`)
-
+	sb.WriteString(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pesan belum dibaca</title></head><body style="margin:0;background:#f7f7f5;color:#292a2d;font-family:Geist,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"><table role="presentation" style="width:100%;border-collapse:collapse"><tr><td style="padding:40px 24px"><table role="presentation" style="width:100%;max-width:600px;margin:0 auto;border-collapse:collapse"><tr><td style="font-size:16px;font-weight:600;padding-bottom:32px">` + html.EscapeString(brand) + `</td></tr><tr><td><h1 style="font-size:24px;line-height:1.3;font-weight:600;margin:0 0 12px">Ada pesan belum dibaca</h1><p style="font-size:15px;line-height:1.6;margin:0 0 28px;color:#62646a">` + html.EscapeString(customer) + ` mengirim pesan yang belum dibuka selama ` + fmt.Sprint(params.IdleMinutes) + ` menit.</p>`)
 	if params.CustomerEmail != "" {
-		sb.WriteString(` (<a href="mailto:` + html.EscapeString(params.CustomerEmail) + `" style="color:#0284c7;text-decoration:none;">` + html.EscapeString(params.CustomerEmail) + `</a>)`)
+		sb.WriteString(`<p style="font-size:13px;color:#62646a;margin:0 0 24px">` + html.EscapeString(params.CustomerEmail) + `</p>`)
 	}
-	sb.WriteString(` yang belum sempat Anda buka di Live Chat.</p>`)
-
 	for _, msg := range params.Messages {
 		author := msg.SenderName
 		if author == "" {
 			author = customer
 		}
-		timeStr := ""
-		if !msg.SentAt.IsZero() {
-			timeStr = msg.SentAt.Format("15:04 WIB")
-		}
-		sb.WriteString(`
-      <div class="message-box">
-        <div class="msg-header">
-          <span class="msg-author">` + html.EscapeString(author) + `</span>
-          <span>` + html.EscapeString(timeStr) + `</span>
-        </div>
-        <div class="msg-body">` + html.EscapeString(msg.Content) + `</div>
-      </div>`)
+		sb.WriteString(`<div style="padding:16px 0;border-top:1px solid #e3e3df"><p style="font-size:13px;font-weight:600;margin:0 0 8px">` + html.EscapeString(author) + `</p><div style="font-size:15px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere">` + html.EscapeString(msg.Content) + `</div></div>`)
 	}
-
-	sb.WriteString(`
-      <div class="cta-container">
-        <a href="` + html.EscapeString(convoURL) + `" class="btn">Balas Percakapan di Cuan →</a>
-      </div>
-    </div>
-    <div class="footer">
-      Email ini dikirim otomatis oleh integrasi Resend Cuan karena percakapan tidak aktif selama lebih dari ` + fmt.Sprintf("%d", params.IdleMinutes) + ` menit.<br>
-      Toko Online Cuan · Mengotomasi Penjualan &amp; Layanan Pelanggan
-    </div>
-  </div>
-</body>
-</html>`)
-
+	sb.WriteString(`<p style="margin:28px 0 32px"><a href="` + html.EscapeString(params.ConversationURL) + `" style="display:inline-block;padding:12px 20px;background:#e5e8ec;color:#303b4a;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;line-height:20px">Buka percakapan</a></p><p style="font-size:12px;line-height:1.6;color:#707278;margin:0">Notifikasi otomatis dari Cuan untuk percakapan yang belum dibaca.</p></td></tr></table></td></tr></table></body></html>`)
 	return sb.String()
 }
 
@@ -307,11 +247,11 @@ func BuildChatIdleTranscriptHTML(params ChatIdleTemplateParams) string {
 func BuildChatIdleTranscriptText(params ChatIdleTemplateParams) string {
 	store := params.StoreName
 	if store == "" {
-		store = "Toko Cuan"
+		store = "Cuan"
 	}
 	customer := params.CustomerName
 	if customer == "" {
-		customer = "Pelanggan"
+		customer = "Pengunjung"
 	}
 
 	var sb strings.Builder
