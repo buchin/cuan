@@ -622,132 +622,14 @@ type ContactSummary struct {
 	UpdatedAt   string   `json:"updated_at"`
 }
 
-// ListContacts lists CRM contacts and customer profiles.
+// ListContacts reads the configured installation, never an ambient host database.
 func ListContacts(ctx context.Context, query, product string, limit int) (any, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 20
-	}
-	db := getPlatformDB()
-	if db == nil {
-		return map[string]any{
-			"contacts": []ContactSummary{},
-			"total":    0,
-			"status":   "database_offline",
-		}, nil
-	}
-
-	sqlQuery := "SELECT id, product, guest_uuid, session_uuid, name, email, tags, created_at, updated_at FROM crm_contacts WHERE 1=1"
-	args := []any{}
-	argIdx := 1
-
-	if product != "" {
-		sqlQuery += fmt.Sprintf(" AND product = $%d", argIdx)
-		args = append(args, product)
-		argIdx++
-	}
-	if query != "" {
-		sqlQuery += fmt.Sprintf(" AND (name ILIKE $%d OR email ILIKE $%d OR guest_uuid ILIKE $%d)", argIdx, argIdx, argIdx)
-		args = append(args, "%"+query+"%")
-		argIdx++
-	}
-	sqlQuery += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argIdx)
-	args = append(args, limit)
-
-	rows, err := db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query contacts: %w", err)
-	}
-	defer rows.Close()
-
-	var contacts []ContactSummary
-	for rows.Next() {
-		var c ContactSummary
-		var tagsRaw []byte
-		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&c.ID, &c.Product, &c.GuestUUID, &c.SessionUUID, &c.Name, &c.Email, &tagsRaw, &createdAt, &updatedAt); err != nil {
-			return nil, err
-		}
-		if len(tagsRaw) > 0 {
-			_ = json.Unmarshal(tagsRaw, &c.Tags)
-		}
-		c.CreatedAt = createdAt.Format(time.RFC3339)
-		c.UpdatedAt = updatedAt.Format(time.RFC3339)
-		contacts = append(contacts, c)
-	}
-	if contacts == nil {
-		contacts = []ContactSummary{}
-	}
-
-	return map[string]any{
-		"contacts": contacts,
-		"total":    len(contacts),
-	}, nil
+	return ownerContactList(ctx, query, product, limit)
 }
 
-// GetContact returns customer contact details and relationship memory notes.
+// GetContact resolves a contact or conversation identity through the Owner API.
 func GetContact(ctx context.Context, contactID string) (any, error) {
-	contactID = strings.TrimSpace(contactID)
-	if contactID == "" {
-		return nil, fmt.Errorf("contact_id is required")
-	}
-	db := getPlatformDB()
-	if db == nil {
-		return map[string]any{
-			"id":     contactID,
-			"status": "database_offline",
-		}, nil
-	}
-
-	var c ContactSummary
-	var tagsRaw []byte
-	var createdAt, updatedAt time.Time
-	err := db.QueryRowContext(ctx,
-		"SELECT id, product, guest_uuid, session_uuid, name, email, tags, created_at, updated_at FROM crm_contacts WHERE id::text = $1 OR guest_uuid = $1 LIMIT 1",
-		contactID,
-	).Scan(&c.ID, &c.Product, &c.GuestUUID, &c.SessionUUID, &c.Name, &c.Email, &tagsRaw, &createdAt, &updatedAt)
-	if err == sql.ErrNoRows {
-		return map[string]any{
-			"error":      "contact_not_found",
-			"contact_id": contactID,
-		}, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("get contact: %w", err)
-	}
-
-	if len(tagsRaw) > 0 {
-		_ = json.Unmarshal(tagsRaw, &c.Tags)
-	}
-	c.CreatedAt = createdAt.Format(time.RFC3339)
-	c.UpdatedAt = updatedAt.Format(time.RFC3339)
-
-	// Fetch relationship memory notes
-	rows, _ := db.QueryContext(ctx, "SELECT id, kind, body, recorded_by, created_at FROM contact_memory WHERE contact_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC", c.ID)
-	var memories []map[string]any
-	if rows != nil {
-		defer rows.Close()
-		for rows.Next() {
-			var memID, kind, body, recordedBy string
-			var memCreated time.Time
-			if err := rows.Scan(&memID, &kind, &body, &recordedBy, &memCreated); err == nil {
-				memories = append(memories, map[string]any{
-					"id":          memID,
-					"kind":        kind,
-					"body":        body,
-					"recorded_by": recordedBy,
-					"created_at":  memCreated.Format(time.RFC3339),
-				})
-			}
-		}
-	}
-	if memories == nil {
-		memories = []map[string]any{}
-	}
-
-	return map[string]any{
-		"contact":  c,
-		"memories": memories,
-	}, nil
+	return ownerContactDetail(ctx, contactID)
 }
 
 // ListScheduledJobs returns scheduled background jobs and recurring automations.

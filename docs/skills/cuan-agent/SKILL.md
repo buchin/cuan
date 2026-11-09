@@ -861,6 +861,14 @@ changed releases, known containment and forbidden scope remain excluded.
 
 ## Installed storage maintenance
 
+Ordinary Owner MCP `list_contacts` / `get_contact` read the configured Cuan API,
+not a local database. `get_contact` accepts an exact conversation/session ID;
+do not infer the contact from a display alias or email mentioned in chat. Notes
+declare whether loaded and whether older pages remain. API failure is not proof
+that a contact or its notes do not exist. Chat's per-turn private CRM snapshot
+retains its own scope and observation time; bound tasks do not inherit Owner
+credentials through these tools.
+
 Customer public-reply email uses the existing configured Resend connection.
 Only new public operator text replies to a connected CRM contact qualify, after
 five minutes without confirmed visitor reading. Whispers, drafts and approval
