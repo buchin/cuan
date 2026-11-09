@@ -46,5 +46,26 @@ Commands:
 
 `GOGC=20 GOMAXPROCS=2 go test -p 1 ./internal/server -run '^TestInspectionInfrastructureRecovery$' -count=1`
 
-This is another root correction; successful autonomous recovery still needs
-production evidence. No UI, scheduler or additional recovery allowance was added.
+## Production recovery outcome
+
+Release `675be07ad11b08d9e4425c47aac88605234be3da` completed with exact-SHA
+healthy `/healthz` at `2026-11-09T22:05:52.253155599Z`; runner active and undrained.
+The existing recovery automatically admitted attempt
+`att_8fd72e99843a36c77dc6b2570f37fd05` against that exact running target while
+preserving source `fe8c0cc2...` and its independent verifier. `/proc/PID/exe`
+confirmed the detached worker used the corrected release binary.
+
+The model returned its saved report after 236.965 seconds, before its reporting
+deadline. Native project verification passed after 201.615 seconds. Total attempt
+duration was 440.556 seconds; source, original scope and failed history remained
+intact. These are different attempts/revisions, not a controlled cache benchmark.
+
+PM request `706dbf79-2d4a-48ec-a89a-2902431d28f5` completed with
+`decision=pass`, `requested_outcome=completed`, `remaining_work=none`. The
+coordinator changed task `msg_b82e3c7d-138b-4914-bb84-4084c8b8b9cc` from review
+to Done at `2026-11-10T06:13:12.291802+08:00`, with five of five criteria complete.
+No operator retried that recovery, edited its acceptance or changed its task status.
+
+The overall retention task still involved earlier root code fixes and a manual
+publication recovery; it is not an untouched end-to-end autonomy benchmark.
+No UI, scheduler or additional recovery allowance was added.
