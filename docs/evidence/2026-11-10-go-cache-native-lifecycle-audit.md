@@ -56,3 +56,28 @@ and retain native scope/ownership and cache-pressure invariants. No acceptance
 record is being fabricated or existing failed history removed. Publication of a
 healthy binary and passing helper tests alone are not completion evidence for
 the missing runtime effect.
+
+## Completion boundary resolution and verified caller lifecycle
+
+Regression reproduction confirmed that both `runAttempt` and `runNativeReleaseAttempt`
+deferred cache lease release until after `deliverCompletion` published terminal
+status to the server. Consequently, when the completion request arrived at the server,
+`.build-cache.lock` remained zero bytes and still held by `flock`. Immediate process
+termination or cancellation upon reaching terminal state permanently discarded the
+deferred lease persistence.
+
+The correction reorders the lifecycle:
+1. Active build cache leases (`releaseGoBuildCache`, `releaseNPMBuildCache`, `closeCaches`)
+   are explicitly released, flushed, and synced to disk before calling `deliverCompletion`.
+2. Deferred cleanup functions remain registered with `sync.Once` as an idempotent safety net
+   for early errors, cancellations, or panics.
+3. `releaseBuildCacheLeaseTime` verifies file properties and returns write/sync errors
+   durably rather than silently ignoring partial truncate states, while preserving foreign
+   and hardlinked files unmutated.
+4. If lease release encounters an error, accurate native log observability is recorded
+   without failing already successful execution results or altering execution deadlines.
+5. End-to-end caller regression tests (`internal/runner/go_build_cache_lifecycle_regression_test.go`)
+   verify that both developer (`runAttempt`) and publisher (`runNativeReleaseAttempt`)
+   guarantee `.build-cache.lock` contains valid JSON metadata with `last_used_at` and
+   has released its lock before `/complete` is handled by the server.
+
