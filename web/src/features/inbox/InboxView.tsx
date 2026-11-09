@@ -49,6 +49,7 @@ import {
   User,
   Check,
   CheckCheck,
+  MailCheck,
   Play,
   CheckSquare,
   Sparkles,
@@ -1580,10 +1581,14 @@ export function InboxView({
                   : !!msg.attachment_url && isImageAttachment({ name: msg.attachment_name || '', type: msg.attachment_type })
                 const imageBubble = onlyImages && !msg.approval_title && !msg.action_card && !msg.product && !msg.receipt_extraction && !msg.prompt_choices
                 const imageOnly = imageBubble && !hasSpeech && !msg.email_delivery
+                const emailStatusLabel = msg.email_delivery ? t(({ sent: 'Email sent', delivered: 'Email delivered', delivery_delayed: 'Email delayed', bounced: 'Email bounced', failed: 'Email failed', complained: 'Email reported', suppressed: 'Email suppressed' } as Record<string, string>)[msg.email_delivery.status] || 'Email status unavailable') : ''
+                const emailDescription = msg.email_delivery ? `${emailStatusLabel} · ${t(msg.email_delivery.recipient_type === 'operator' ? 'Email notification to your team; independent of chat read status' : 'Email delivery to customer; independent of chat read status')}` : ''
                 const metadata = (
                   <span className="wa-message-meta">
-                    {msg.email_delivery && !msg.is_internal && <span title={t(msg.email_delivery.recipient_type === 'operator' ? 'Email notification to your team; independent of chat read status' : 'Email delivery to customer; independent of chat read status')}>
-                      {msg.email_delivery.recipient_type === 'operator' ? t('Team') + ' · ' : ''}{t(({ sent: 'Email sent', delivered: 'Email delivered', delivery_delayed: 'Email delayed', bounced: 'Email bounced', failed: 'Email failed', complained: 'Email reported', suppressed: 'Email suppressed' } as Record<string, string>)[msg.email_delivery.status] || 'Email status unavailable')}
+                    {msg.email_delivery && !msg.is_internal && <span className="inline-flex items-center" title={emailDescription} role={msg.email_delivery.status === 'delivered' ? 'img' : undefined} aria-label={msg.email_delivery.status === 'delivered' ? emailDescription : undefined}>
+                      {msg.email_delivery.status === 'delivered'
+                        ? <MailCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                        : <>{msg.email_delivery.recipient_type === 'operator' ? t('Team') + ' · ' : ''}{emailStatusLabel}</>}
                     </span>}
                     <time dateTime={msg.created_at}>
                       {formatMessageTime(msg.created_at)}

@@ -473,6 +473,12 @@ task attachments reuse it. Close controls retain a minimum 44px touch target.
 
 ### 7.14. Chat readability
 
+Successful email delivery uses one muted14px MailCheck icon beside message time,
+without a repeated delivered label or extra footer height. Its title and accessible
+name distinguish customer email from team notification and from chat read status.
+Exceptional email states retain concise readable labels. Private messages do not
+show public email delivery indicators.
+
 Inbox is a conversation, not a meeting or status report. The shared
 `prompt.ConversationStyle` guides coordinator replies and result-review messages.
 Adapt depth to the current question and known context instead of enforcing a
