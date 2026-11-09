@@ -7,6 +7,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import pwd
+import re
 
 TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py')
 
@@ -82,6 +84,26 @@ WantedBy=timers.target
     return target
 
 
+def install_trigger_access(service_home, sudoers_dir=Path('/etc/sudoers.d')):
+    # The app can request one fixed worker, never a command supplied by an agent.
+    username = pwd.getpwuid(service_home.stat().st_uid).pw_name
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]*[$]?', username):
+        raise ValueError('Unsupported native service user')
+    if service_home.stat().st_uid == 0:
+        return
+    sudoers_dir.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix='.cuan-storage-', dir=sudoers_dir)
+    try:
+        with os.fdopen(descriptor, 'w') as handle:
+            handle.write(f'{username} ALL=(root) NOPASSWD: /usr/bin/systemctl start cuan-runtime-cache-maintenance.service\n')
+        os.chmod(temporary, 0o440)
+        subprocess.run(['/usr/sbin/visudo', '-cf', temporary], check=True, capture_output=True)
+        os.replace(temporary, sudoers_dir / 'cuan-storage-maintenance')
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', type=Path, default=Path('/opt/cuan'))
@@ -90,5 +112,6 @@ if __name__ == '__main__':
     if os.geteuid() != 0:
         parser.error('Run through native deployment as root')
     install(args.base, args.service_home, Path('/etc/systemd/system'), Path(__file__).resolve().parent)
+    install_trigger_access(args.service_home)
     subprocess.run(['systemctl', 'daemon-reload'], check=True)
     subprocess.run(['systemctl', 'enable', '--now', 'cuan-runtime-cache-maintenance.timer'], check=True)

@@ -761,6 +761,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				storagePath = s.cfg.WorkspacesDir
 			}
 			if taskStorageCritical(getSystemResources(storagePath)) {
+				s.requestStorageMaintenance()
 				respondJSON(w, 503, map[string]string{"code": "execution_storage", "error": "Server storage is temporarily full. Saved work will continue after space is available."})
 				return
 			}

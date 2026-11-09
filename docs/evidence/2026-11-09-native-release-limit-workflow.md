@@ -115,3 +115,18 @@ operation and is not claimed to be in that production binary. Sources, reports,
 credentials and provider histories were retained. Full snapshot/history lifecycle,
 a measured storage reserve, repeated-review overhead and a fresh low-intervention
 benchmark still need work. One successful release does not complete the broad goal.
+
+## Native Done confirmed
+
+Final independent live inspectionatt_dc8cdd627ee7b57f34878dd9a35c34d9 succeeded.
+At2026-11-09T09:53:39.280893+08:00 the coordinator saved a passing completed outcome
+and accepted the original task asDone. Its final report binds the retained task
+commitdca6eee1 to active release70aa072a, passing source tests, production health
+and CLI/MCP limit/filter checks. No root status update was used.
+
+Elapsed from original request08:26:12.625 to coordinator acceptance09:53:39.280 is
+about87m27s, with seven execution attempts including one failed native publication.
+It proves native publication and acceptance can complete after recovery; it does
+not meet the low-intervention/efficiency goal. Root infrastructure interventions
+above remain part of the result. This is not proof of an unassisted fresh run,
+complete storage lifecycle, or completion of the broad Cuan objective.

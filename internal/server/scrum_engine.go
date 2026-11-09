@@ -31,6 +31,7 @@ func (s *Server) onRunnerAttemptCompleted(ctx context.Context, att *task.TaskAtt
 	if att == nil || att.TaskID == "" {
 		return
 	}
+	s.requestStorageMaintenance()
 	exitCode := 0
 	if att.ExitCode != nil {
 		exitCode = *att.ExitCode

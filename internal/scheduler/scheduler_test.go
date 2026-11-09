@@ -156,3 +156,33 @@ func TestCalculateNextRun_DailyAndWeekly(t *testing.T) {
 		t.Errorf("expected weekly Wednesday 2026-10-28 09:00, got %v", nextWeekly)
 	}
 }
+
+func TestEventRequestsCoalesceWithoutPostponingDueWork(t *testing.T) {
+	s := New()
+	calls := 0
+	if err := s.Register(&Job{ID: "maintenance", Enabled: true, ScheduleType: ScheduleInterval, Interval: time.Hour, Handler: func(context.Context) error { calls++; return nil }}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Request("maintenance", time.Second); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := s.GetJob("maintenance")
+	for i := 0; i < 100; i++ {
+		if err := s.Request("maintenance", time.Minute); err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, _ := s.GetJob("maintenance")
+	if !after.NextRunAt.Equal(*first.NextRunAt) || calls != 0 {
+		t.Fatal("request burst postponed work or executed inline")
+	}
+	if err := s.Trigger(context.Background(), "maintenance"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatal("coalesced job did not run once", calls)
+	}
+	if err := s.Request("missing", 0); err == nil {
+		t.Fatal("missing job accepted")
+	}
+}

@@ -156,3 +156,26 @@ six, increasing observed free space from1.3GB to3.3GB during the native build.
 Source/workspaces, credentials, provider histories and active native caches were
 not deleted. This is an infrastructure intervention in the native benchmark,
 not evidence that Cuan performed storage recovery autonomously.
+
+### Reuse application schedules and completion events
+
+Native installations register the existing scheduler's `storage_maintenance` job
+with a15-minute interval. Attempt-completion events (including failed attempts)
+and HTTP completion acknowledgement request the same job; blocked admission at
+the existing storage floor also requests it. Requests advance its next run by up
+to10seconds and coalesce, without starting separate cleanup goroutines. The fixed
+installed oneshot remains the single worker and retains its OS timer as a fallback.
+Resource leases and installed pinned-tool protections are unchanged.
+
+The native installer validates an exact sudo rule allowing the host service user
+to start only `cuan-runtime-cache-maintenance.service`. No caller-supplied command,
+path or shell is involved. Hosts without that native unit register the job disabled;
+this is an optional native-host maintenance bridge, not a vendor or platform
+requirement for Cuan. Local deployment resolves the real service user's home from
+the registered SSH user instead of passing the isolated native build HOME as the
+legacy account directory. Secrets remain outside scheduler job arguments/results.
+
+Targeted checks cover completion-event scheduling, burst coalescing, periodic
+recovery, the existing storage floor, exact worker permission and failed rule
+validation preserving the previous rule. Application lifecycle pruning and cache
+cleanup remain distinct from task acceptance or permission to rerun a release.

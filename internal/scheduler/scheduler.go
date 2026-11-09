@@ -131,6 +131,28 @@ func (s *Scheduler) Trigger(ctx context.Context, jobID string) error {
 	return s.executeJob(ctx, job)
 }
 
+// Request advances an enabled job's next run without starting another worker.
+// Bursts retain the earliest requested run; an active job already owns execution.
+func (s *Scheduler) Request(jobID string, delay time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, exists := s.jobs[jobID]
+	if !exists {
+		return fmt.Errorf("job %q not found", jobID)
+	}
+	if !job.Enabled || job.LastStatus == StatusRunning {
+		return nil
+	}
+	if delay < 0 {
+		delay = 0
+	}
+	requested := time.Now().Add(delay)
+	if job.NextRunAt == nil || requested.Before(*job.NextRunAt) {
+		job.NextRunAt = &requested
+	}
+	return nil
+}
+
 // ListJobs returns a snapshot of all registered jobs.
 func (s *Scheduler) ListJobs() []*Job {
 	s.mu.RLock()

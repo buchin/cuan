@@ -217,7 +217,10 @@ PY
 if [[ "$is_local" == 1 ]]; then
   sudo -n mkdir -p /opt/cuan/maintenance
   sudo -n install -m 755 scripts/prune-release-artifacts.py scripts/prune-provider-go-cache.py scripts/prune-verification-dependencies.py scripts/prune-runtime-build-cache.py scripts/prune-native-release-caches.py /opt/cuan/maintenance/
-  sudo -n python3 scripts/install-runtime-cache-maintenance.py --service-home "$HOME"
+  # Native release HOME is an isolated build home, not the host service profile.
+  maintenance_service_home="$(getent passwd "${DOJO_TERMAPI_VPS_USERNAME:-$(id -un)}" | cut -d: -f6)"
+  [[ -n "$maintenance_service_home" ]] || { echo 'Service home unavailable for maintenance installation' >&2; exit 1; }
+  sudo -n python3 scripts/install-runtime-cache-maintenance.py --service-home "$maintenance_service_home"
   sudo -n install -m 755 scripts/cuan-disk-guard.sh /usr/local/bin/cuan-disk-guard.sh
   if [[ -f /etc/cron.hourly/cuan-disk-guard ]]; then
     sudo -n install -m 755 scripts/cuan-disk-guard.sh /etc/cron.hourly/cuan-disk-guard

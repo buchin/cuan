@@ -3,6 +3,9 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
+from types import SimpleNamespace
+import os
 
 spec = importlib.util.spec_from_file_location('maintenance_install', Path(__file__).with_name('install-runtime-cache-maintenance.py'))
 module = importlib.util.module_from_spec(spec)
@@ -50,6 +53,22 @@ class MaintenanceInstall(unittest.TestCase):
             (source / module.TOOLS[0]).symlink_to(source / module.TOOLS[1])
             with self.assertRaises(ValueError):
                 module.install(root / 'app', root / 'home', root / 'units', source)
+
+    def test_trigger_permission_allows_only_the_fixed_worker_and_preserves_prior_on_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home, rules = Path(directory) / 'home', Path(directory) / 'sudoers'
+            home.mkdir()
+            with mock.patch.object(module.pwd, 'getpwuid', return_value=SimpleNamespace(pw_name='cuan_service')), mock.patch.object(module.subprocess, 'run') as validate:
+                module.install_trigger_access(SimpleNamespace(stat=lambda: SimpleNamespace(st_uid=1000)), rules)
+                rule = rules / 'cuan-storage-maintenance'
+                expected = 'cuan_service ALL=(root) NOPASSWD: /usr/bin/systemctl start cuan-runtime-cache-maintenance.service\n'
+                self.assertEqual(rule.read_text(), expected)
+                self.assertEqual(rule.stat().st_mode & 0o777, 0o440)
+                self.assertEqual(validate.call_args.args[0][:2], ['/usr/sbin/visudo', '-cf'])
+                validate.side_effect = module.subprocess.CalledProcessError(1, 'visudo')
+                with self.assertRaises(module.subprocess.CalledProcessError):
+                    module.install_trigger_access(SimpleNamespace(stat=lambda: SimpleNamespace(st_uid=1000)), rules)
+                self.assertEqual(rule.read_text(), expected)
 
 if __name__ == '__main__':
     unittest.main()
