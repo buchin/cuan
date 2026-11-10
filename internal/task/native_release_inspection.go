@@ -12,7 +12,7 @@ func validateNativeReleaseInspectionSource(ctx context.Context, store Store, t *
 	if proof.PreviousAttemptID != "" && proof.RevalidationKind == EvidenceRevalidation && proof.ReviewRequestID != "" && len(proof.ReviewPaths) == 0 {
 		return validateOutcomeRevalidation(ctx, store, t, proof)
 	}
-	if proof.SourceVerifierAttemptID != "" || proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.ObservedAt.IsZero() || proof.ObservedAt.After(time.Now().Add(5*time.Second)) {
+	if proof.PreparationLaunchID != "" || proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0 || proof.ObservedAt.IsZero() || proof.ObservedAt.After(time.Now().Add(5*time.Second)) {
 		return ErrInvalidTaskInput
 	}
 	delivery, err := NativeReleaseDeliveryForAttempt(ctx, store, t, proof.SourceAttemptID)
@@ -39,6 +39,19 @@ func validateNativeReleaseInspectionSource(ctx context.Context, store Store, t *
 	stage, err := store.GetAttempt(ctx, proof.SourceAttemptID)
 	if err != nil || stage == nil || stage.FinishedAt == nil || proof.ObservedAt.Before(*stage.FinishedAt) {
 		return ErrInvalidTaskInput
+	}
+	if proof.SourceVerifierAttemptID != "" {
+		review, err := NativeSourceReviewForAttempt(ctx, store, t, proof.SourceVerifierAttemptID)
+		if err != nil || review == nil || review.SourceCommit != proof.SourceCommit || review.InstructionsHash != proof.InstructionsHash || review.SourceAttemptID != delivery.SourceAttemptID {
+			return ErrInvalidTaskInput
+		}
+		if intent.SourceReviewAttemptID != "" && intent.SourceReviewAttemptID != proof.SourceVerifierAttemptID {
+			return ErrInvalidTaskInput
+		}
+		verifierAttempt, err := store.GetAttempt(ctx, proof.SourceVerifierAttemptID)
+		if err != nil || verifierAttempt == nil || verifierAttempt.FinishedAt == nil || proof.ObservedAt.Before(*verifierAttempt.FinishedAt) || verifierAttempt.CancelRequested || verifierAttempt.CanceledAt != nil {
+			return ErrInvalidTaskInput
+		}
 	}
 	return nil
 }

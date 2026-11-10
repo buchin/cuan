@@ -250,6 +250,13 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 	if proof.CapacityRecoveryAttemptID != "" {
 		revision += "\nCapacity continuation: the previous inspection stopped because no allowed AI route was available. Its failure and any uncertain partial work remain historical. Inspect retained reports and effects before repeating checks. Complete only the original read-only inspection; do not rerun implementation, publication or external writes, assume that the old provider did no work, or waive any original requirement."
 	}
+	if proof.Purpose == task.NativeReleaseInspection {
+		if proof.SourceVerifierAttemptID != "" {
+			revision += "\nAuthenticated source evidence: source " + proof.SourceCommit + " has been independently verified by native-authenticated source review (" + proof.SourceVerifierAttemptID + "). Validated source evidence with matching lineage can be reused: do not re-investigate identical source diffs or duplicate passing caller regression suites already verified on that source. The native runner automatically executes registered project checks after your final report; do not repeat registered runner suites. Focus verification on deployed runtime behavior, acceptance gaps, and requirements that could not be verified on source alone. Every original acceptance criterion must still be independently evaluated and reported. If source has changed, merge changed relevant behavior, receipt is missing/invalid/canceled/foreign, or an original requirement specifies live runtime verification, execute the required check."
+		} else {
+			revision += "\nFull audit required: native-authenticated source review evidence is unavailable or invalid for this inspection. Inspect the implementation source, run necessary verification checks, and verify all original requirements and runtime behaviors."
+		}
+	}
 	revision += "\nFor visual evidence, prefer the repository's existing real-component/browser verification scripts before writing a new harness or guessing exports from minified release bundles. Never substitute manually authored HTML/DOM, recreated component markup or direct library-only rendering for screenshots of the actual application components. Report any failed capture honestly and leave the corresponding criteria incomplete. Reserve time within the same execution deadline for the runner's independent project checks."
 	revision += "\nVerification ownership: inspect behavior and original acceptance criteria; the native runner owns the registered project check suite after your final report. Do not duplicate that suite or repeatedly poll unrelated processes. Run an additional targeted check only when it supplies acceptance evidence the registered suite does not cover, and explain that gap. Report runner-owned checks as pending, never as passed before their receipt exists. If your own check stalls, stop only the exact process group you started and preserve its failure evidence. Never use killall, broad pkill patterns, or stop shared services/processes to free resources. Report a resource blocker instead. These instructions do not provide operating-system isolation."
 	if proof.ReportingRecoveryAttemptID != "" {
@@ -326,6 +333,10 @@ func (s *Server) liveInspectionEvidence(ctx context.Context, d *task.TaskDetailR
 			} else {
 				result["source_commit"] = proof.SourceCommit
 				result["source_ancestry_verified"] = true
+				if proof.SourceVerifierAttemptID != "" {
+					result["source_verifier_attempt_id"] = proof.SourceVerifierAttemptID
+					result["source_review_authenticated"] = true
+				}
 			}
 			return result
 		}

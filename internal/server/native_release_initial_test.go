@@ -362,6 +362,34 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	if parsed == nil || parsed.Purpose != task.NativeReleaseInspection || parsed.SourceAttemptID != claim.Attempt.ID || parsed.SourceCommit != intent.SourceCommit || parsed.TargetCommit != target || parsed.SourceRequestID != intent.SourceRequestID {
 		t.Fatal("scheduled inspection lost original source/approval")
 	}
+	if intent.SourceReviewAttemptID != "" {
+		if parsed.SourceVerifierAttemptID != intent.SourceReviewAttemptID {
+			t.Fatalf("expected SourceVerifierAttemptID=%s, got=%s", intent.SourceReviewAttemptID, parsed.SourceVerifierAttemptID)
+		}
+		for _, requiredSnippet := range []string{
+			"Authenticated source evidence: source " + intent.SourceCommit,
+			"Validated source evidence with matching lineage can be reused",
+			"The native runner automatically executes registered project checks after your final report; do not repeat registered runner suites",
+			"Focus verification on deployed runtime behavior, acceptance gaps",
+		} {
+			if !strings.Contains(saved.Revision, requiredSnippet) {
+				t.Fatalf("saved.Revision missing %q: %s", requiredSnippet, saved.Revision)
+			}
+		}
+	} else {
+		if parsed.SourceVerifierAttemptID != "" {
+			t.Fatalf("expected empty SourceVerifierAttemptID, got=%s", parsed.SourceVerifierAttemptID)
+		}
+		if !strings.Contains(saved.Revision, "Full audit required: native-authenticated source review evidence is unavailable or invalid for this inspection") {
+			t.Fatalf("saved.Revision missing full audit notice: %s", saved.Revision)
+		}
+	}
+	if scenario == "initial verify" || scenario == "initial verify evidence" {
+		gaps := task.AcceptanceGaps(&detail.Task)
+		if len(gaps) == 0 {
+			t.Fatal("expected unfulfilled runtime criteria in AcceptanceGaps")
+		}
+	}
 	if saved.State != "queued" && saved.State != "claimed" && saved.State != "started" {
 		t.Fatal("native verifier was not durably queued", saved.State, saved.SafeError)
 	}

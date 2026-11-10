@@ -129,9 +129,9 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 					t.Fatal("historical delivery reader reopened a finished release stage")
 				}
 				if scenario == "valid" {
-					proof := LiveInspectionIntent{Purpose: NativeReleaseInspection, SourceAttemptID: att.ID, SourceCommit: intent.SourceCommit, TargetCommit: target, Repository: intent.Repository, OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, InstructionsHash: intent.InstructionsHash, ObservedAt: now}
+					proof := LiveInspectionIntent{Purpose: NativeReleaseInspection, SourceAttemptID: att.ID, SourceCommit: intent.SourceCommit, TargetCommit: target, Repository: intent.Repository, OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, InstructionsHash: intent.InstructionsHash, ObservedAt: now, SourceVerifierAttemptID: intent.SourceReviewAttemptID}
 					must(ValidateLiveInspectionSource(ctx, store, item, &proof))
-					for _, change := range []string{"target", "owner", "request", "source attempt", "recovery", "old observation"} {
+					for _, change := range []string{"target", "owner", "request", "source attempt", "recovery", "old observation", "wrong verifier", "changed source verifier"} {
 						forged := proof
 						switch change {
 						case "target":
@@ -146,16 +146,34 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 							forged.PreviousAttemptID = "other"
 						case "old observation":
 							forged.ObservedAt = started
+						case "wrong verifier":
+							forged.SourceVerifierAttemptID = "other"
+						case "changed source verifier":
+							forged.SourceCommit = strings.Repeat("f", 40)
 						}
 						if ValidateLiveInspectionSource(ctx, store, item, &forged) == nil {
 							t.Fatalf("native verifier accepted changed %s", change)
 						}
 					}
+					revAtt, err := store.GetAttempt(ctx, intent.SourceReviewAttemptID)
+					must(err)
+					revAtt.CancelRequested = true
+					must(store.UpdateAttempt(ctx, revAtt))
+					if ValidateLiveInspectionSource(ctx, store, item, &proof) == nil {
+						t.Fatal("native verifier accepted canceled source review")
+					}
+					revAtt.CancelRequested = false
+					must(store.UpdateAttempt(ctx, revAtt))
+
+					fallbackProof := proof
+					fallbackProof.SourceVerifierAttemptID = ""
+					must(ValidateLiveInspectionSource(ctx, store, item, &fallbackProof))
+
 					raw, _ := json.Marshal(proof)
 					j := TaskLaunch{TaskID: item.ID, ProjectID: item.ProjectID, RequestID: proof.RequestID(item.ID), OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, AgentID: item.AssignedAgent, InstructionsHash: intent.InstructionsHash, Revision: "Scope: read-only repository. Do not push. Do not deploy.\n" + LiveInspectionMarker + string(raw), CreatedAt: now, AvailableAt: now, ExpiresAt: now.Add(time.Hour)}
 					parsed, err := LiveInspectionForLaunch(item, &j)
 					must(err)
-					if parsed == nil || parsed.SourceAttemptID != proof.SourceAttemptID || parsed.TargetCommit != proof.TargetCommit || parsed.Purpose != proof.Purpose {
+					if parsed == nil || parsed.SourceAttemptID != proof.SourceAttemptID || parsed.TargetCommit != proof.TargetCommit || parsed.Purpose != proof.Purpose || parsed.SourceVerifierAttemptID != intent.SourceReviewAttemptID {
 						t.Fatal("delivered-source inspection launch lost binding")
 					}
 					saved, err := svc.SaveLaunch(ctx, j)
@@ -169,7 +187,7 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 					must(err)
 					bound, err := ValidateLiveInspection(ctx, store, item, verifier.ID)
 					must(err)
-					if bound == nil || bound.TargetCommit != target || bound.SourceCommit != intent.SourceCommit {
+					if bound == nil || bound.TargetCommit != target || bound.SourceCommit != intent.SourceCommit || bound.SourceVerifierAttemptID != intent.SourceReviewAttemptID {
 						t.Fatal("verifier source/target changed")
 					}
 					limits, err := AttemptPublicationPolicy(ctx, store, item, verifier.ID)
