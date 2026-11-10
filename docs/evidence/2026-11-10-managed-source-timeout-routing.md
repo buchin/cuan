@@ -744,3 +744,28 @@ pass. Actual production outcome remains pending publication and observation.
 
 Owner execution diagnostics share the same read-only planner and expose bounded
 native_check_* gate codes instead of the prior generic inspection-purpose failure.
+
+Production23b05860 is healthy at schema39;471 frontend tests passed during
+publication. Without a new owner message or a manual Resume/Retry, native recovery
+saved launch8697d46aeceecb6c48638c90a67f4053a318c868b94714c61dc12c09c3b75afd
+at16:20:03 +08. It waited behind another actually running project task, then
+created original-task attempt11, att_8697d46aeceecb6c48638c90a67f4053, claimed by
+runner-01 at16:25:48 +08. Its read-only source, original authorization and DoD are
+retained. This proves automatic queue/admission, not final accepted verification.
+
+Attempt11 completed successfully at16:29:35 +08 without owner intervention.
+Native system logs record agent157306ms, registered independent project checks
+68205ms (passed), and total session226609ms. PM request
+372ae20e-634b-403a-ac1f-3100779effce then accepted the original task as Done.
+The original source identity, independent source verifier and DoD remain intact.
+This is actual automatic production admission, verification and acceptance after
+the recipe correction; no attempt/status/budget was manually reset or accepted.
+
+Reporting limitation remains: the worker repeated its unsupported approximately
+60s claim, and the saved PM explanation repeated a roughly-one-minute claim even
+though current native measurements were supplied. Those prose claims are not
+measurement evidence and must not be used as a speedup result. Actual measured
+session time is226609ms, not60s; native checks did run and passed. The historical
+failed attempt's native checks had timed out, so a numeric speedup comparison
+against that incomplete check is invalid. Later presentation/provenance work must
+keep these native facts distinct from model prose instead of crediting estimates.
