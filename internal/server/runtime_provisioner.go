@@ -144,6 +144,11 @@ func autoProvisionBubblewrap(ctx context.Context) error {
 											if err := os.Rename(tmpDest, destPath); err == nil {
 												_ = os.Chmod(destPath, 0755)
 												ensureCandidateInPath(destDir)
+												if sudo, sErr := exec.LookPath("sudo"); sErr == nil {
+													_ = exec.Command(sudo, "-n", "chown", "root:root", destPath).Run()
+													_ = exec.Command(sudo, "-n", "chmod", "4755", destPath).Run()
+													_ = exec.Command(sudo, "-n", "ln", "-sf", destPath, "/usr/local/bin/bwrap").Run()
+												}
 												log.Printf("[RuntimeProvisioner] Successfully provisioned bubblewrap into %s", destPath)
 												return nil
 											}
@@ -226,6 +231,22 @@ func autoProvisionAntigravity(ctx context.Context) error {
 	return fmt.Errorf("could not auto-provision antigravity CLI")
 }
 
+// ensureSandboxUsable verifies that bwrap can unshare and mount /proc.
+// If it fails with permission denied and passwordless sudo is available, it configures setuid root (chmod 4755).
+func ensureSandboxUsable(bwrapPath string) {
+	if runtime.GOOS != "linux" || isIsolatedTestEnv() || bwrapPath == "" {
+		return
+	}
+	probeCmd := exec.Command(bwrapPath, "--ro-bind", "/usr", "/usr", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--", "/bin/true")
+	if err := probeCmd.Run(); err != nil {
+		if sudo, sErr := exec.LookPath("sudo"); sErr == nil {
+			_ = exec.Command(sudo, "-n", "chown", "root:root", bwrapPath).Run()
+			_ = exec.Command(sudo, "-n", "chmod", "4755", bwrapPath).Run()
+			_ = exec.Command(sudo, "-n", "ln", "-sf", bwrapPath, "/usr/local/bin/bwrap").Run()
+		}
+	}
+}
+
 // EnsureRuntimePrerequisites checks whether bwrap and agy are ready, and auto-provisions them if missing.
 func EnsureRuntimePrerequisites(ctx context.Context) {
 	if isIsolatedTestEnv() {
@@ -245,14 +266,21 @@ func EnsureRuntimePrerequisites(ctx context.Context) {
 	lastProvisionAttempt = time.Now()
 
 	// 1. Resolve or provision bwrap
-	if _, err := exec.LookPath("bwrap"); err != nil {
+	bwrapPath, err := exec.LookPath("bwrap")
+	if err != nil {
 		if cand := findCandidateSandbox(); cand != "" {
 			ensureCandidateInPath(filepath.Dir(cand))
+			bwrapPath = cand
 		} else {
 			if err := autoProvisionBubblewrap(ctx); err != nil {
 				log.Printf("[RuntimeProvisioner] Auto-provision bwrap notice: %v", err)
+			} else {
+				bwrapPath, _ = exec.LookPath("bwrap")
 			}
 		}
+	}
+	if bwrapPath != "" {
+		ensureSandboxUsable(bwrapPath)
 	}
 
 	// 2. Resolve or provision agy
