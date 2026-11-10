@@ -74,16 +74,25 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 		}
 		projectID := "default"
 		if s.projectSvc != nil {
-			if req.ProjectID != "" {
+			if req.ProjectID != "" && !strings.EqualFold(req.ProjectID, "default") {
 				if p, err := s.projectSvc.Get(r.Context(), req.ProjectID); err == nil && p != nil && !p.IsArchived {
 					projectID = p.ID
 				}
 			} else {
-				// If no project specified, check if "default" is active.
-				// If unavailable, use only a sole active project. Ambiguous
-				// conversations remain unbound for Inbox discovery.
-				if p, err := s.projectSvc.Get(r.Context(), "default"); err != nil || p == nil || p.IsArchived {
-					if projects, err := s.projectSvc.List(r.Context()); err == nil {
+				// If no project specified or "default" requested, check if "default" is active.
+				// If unavailable, use the active primary project (e.g. cuan or single active repo).
+				if p, err := s.projectSvc.Get(r.Context(), "default"); err == nil && p != nil && !p.IsArchived {
+					projectID = p.ID
+				} else if projects, err := s.projectSvc.List(r.Context()); err == nil {
+					// 1. Look for active project named "cuan" or with local path containing default
+					for _, p := range projects {
+						if !p.IsArchived && (strings.EqualFold(p.Name, "cuan") || strings.Contains(p.LocalPath, "/default")) {
+							projectID = p.ID
+							break
+						}
+					}
+					// 2. If not found, look for single active non-default project
+					if projectID == "default" {
 						candidate := ""
 						for _, p := range projects {
 							if !p.IsArchived && !strings.EqualFold(p.ID, "default") {

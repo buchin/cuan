@@ -114,7 +114,7 @@ func getChatToolBudget() int {
 			return n
 		}
 	}
-	return 12 // Chat resolves context; deep investigation belongs in a scoped task.
+	return 2 // Chat resolves context; deep investigation belongs in a scoped task.
 }
 
 func getChatInspectionBatchFactor() int {
@@ -264,6 +264,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	if coordinator {
 		system += "\nCuan platform state is supplied by the backend in this request context. Account/workspace MCP servers are unavailable in chat. Use the supplied task/room/project evidence and validated coordinator actions; never ask for an Owner API token or attempt to configure a global Cuan connection. Missing snapshot evidence is uncertainty, not proof of absence.\n"
+		if workspace == "" && !directCoordinator && !snapshotReview {
+			system += "\nNo project repository workspace is mounted for filesystem tools in this turn. DO NOT call file reading or search tools (read_file, grep_search). Answer directly from the conversation context, registered project metadata, and supplied images/attachments.\n"
+		}
 	}
 	if toolFreeReview {
 		system += "\nThis is a tool-free evaluation of the supplied snapshot. All necessary saved guidance and evidence are already included as data. Do not read AGENTS.md, files, repositories, account sessions, MCP tools or search sources to initialize this stage. Return only the evaluation JSON; the native finish/format-response operation is the only allowed provider tool. Missing facts must be reported as gaps for the coordinator, not investigated in this review turn.\n"
@@ -500,15 +503,21 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if snapshotReview {
 			maxTools = len(attachmentPaths) + 1
 		}
+		noWorkspace := executionWorkspace == "" && workspace == ""
+		disallowFileTools := noWorkspace && !snapshotReview && len(attachmentPaths) == 0
 		if coordinator && !directCoordinator {
-			maxTools = getChatToolBudget()
+			if disallowFileTools {
+				maxTools = 0
+			} else {
+				maxTools = getChatToolBudget()
+			}
 		}
 		runtime = &inboxRuntimeStream{
 			step:                  step,
 			maxToolCalls:          maxTools,
 			adaptiveBatching:      !snapshotReview,
 			inspectionBatchFactor: getChatInspectionBatchFactor(),
-			disallowTools:         directCoordinator || formatRepair || (snapshotReview && len(attachmentPaths) == 0),
+			disallowTools:         directCoordinator || formatRepair || (snapshotReview && len(attachmentPaths) == 0) || disallowFileTools,
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()

@@ -176,6 +176,14 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 						}
 					}
 				}
+				if selected == nil && room != nil && strings.EqualFold(room.ProjectID, "default") {
+					for _, p := range active {
+						if strings.EqualFold(p.Name, "cuan") || strings.Contains(p.LocalPath, "/default") {
+							selected = p
+							break
+						}
+					}
+				}
 				if selected == nil {
 					var withRepo []*project.ProjectResponse
 					for _, p := range active {

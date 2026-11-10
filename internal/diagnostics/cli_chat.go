@@ -145,7 +145,7 @@ func runChatSend(ctx context.Context, args []string, out, errOut io.Writer) int 
 	fs := flag.NewFlagSet("chat send", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	waitFlag := fs.Bool("wait", true, "Wait and stream/print the assistant's reply")
-	timeoutFlag := fs.Int("timeout", 45, "Max seconds to wait for assistant reply")
+	timeoutFlag := fs.Int("timeout", 60, "Max seconds to wait for assistant reply")
 	jsonFlag := fs.Bool("json", false, "Output in JSON format")
 
 	if err := fs.Parse(extra); err != nil {
