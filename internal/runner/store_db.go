@@ -27,7 +27,9 @@ func (s *DBStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *RunnerInf
 		info.CreatedAt = now
 	}
 	info.UpdatedAt = now
-	info.LastHeartbeatAt = now
+	if info.LastHeartbeatAt.IsZero() {
+		info.LastHeartbeatAt = now
+	}
 	if info.Status == "" {
 		info.Status = StatusIdle
 	}

@@ -41,9 +41,20 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
+if [[ -f "$ROOT_DIR/.env" ]]; then
+  echo "==> Loading environment from $ROOT_DIR/.env..."
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT_DIR/.env"
+  set +a
+fi
+
 echo "==> Starting Cuan development environment ($MODE)..."
 
 if [[ "$MODE" == "both" || "$MODE" == "server" ]]; then
+  echo "==> Building cuan-runner..."
+  mkdir -p "$ROOT_DIR/bin"
+  go -C "$ROOT_DIR" build -o "$ROOT_DIR/bin/cuan-runner" ./cmd/runner
   echo "==> Starting Go API server on :${PORT:-8080}..."
   go -C "$ROOT_DIR" run ./cmd/server &
 fi

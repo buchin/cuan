@@ -219,6 +219,8 @@ func ResolveRunnerBinary(cfg *config.Config) string {
 		"/opt/cuan/current/bin/cuan-runner",
 		"/opt/cuan/bin/cuan-runner",
 		"bin/cuan-runner",
+		"/data/home/cuan/bin/cuan-runner",
+		"/app/cuan-runner",
 	} {
 		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
 			return cand
@@ -226,7 +228,17 @@ func ResolveRunnerBinary(cfg *config.Config) string {
 	}
 
 	if execPath, err := os.Executable(); err == nil {
-		return execPath
+		if filepath.Base(execPath) == "cuan-runner" {
+			return execPath
+		}
+		cand := filepath.Join(filepath.Dir(execPath), "cuan-runner")
+		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
+			return cand
+		}
+	}
+
+	if looked, err := exec.LookPath("cuan-runner"); err == nil {
+		return looked
 	}
 
 	return "cuan-runner"

@@ -68,6 +68,11 @@ func (s *RunnerService) EventBus() *EventBus {
 	return s.eventBus
 }
 
+// Store returns the underlying runner store.
+func (s *RunnerService) Store() Store {
+	return s.store
+}
+
 // ValidateTaskTransition checks if a task status transition is permitted by the state machine.
 func (s *RunnerService) ValidateTaskTransition(fromStatus, toStatus string) error {
 	fromState, err := taskfsm.FromCuanTaskStatus(fromStatus)

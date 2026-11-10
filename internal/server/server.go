@@ -59,6 +59,7 @@ type Server struct {
 	projectSvc                  *project.Service
 	taskSvc                     *task.Service
 	runnerSvc                   *runner.RunnerService
+	runnerSupervisor            *RunnerSupervisor
 	sponsorshipSvc              *sponsorship.Service
 	deployerDriver              deployer.DeployDriver
 	serverRepo                  cuanDB.ServerRepository
@@ -707,8 +708,34 @@ func (s *Server) reconcileStartupState(ctx context.Context) {
 	if err := s.ReconcileZombies(ctx); err != nil {
 		log.Printf("[Startup] ReconcileZombies error: %v", err)
 	}
+	if err := s.ReconcileStaleRunners(ctx); err != nil {
+		log.Printf("[Startup] ReconcileStaleRunners error: %v", err)
+	}
 	s.deliverInboxTaskUpdates(ctx)
 	s.kickTaskLaunches()
+}
+
+// StartRunnerSupervisor launches the background task worker auto-supervisor daemon.
+func (s *Server) StartRunnerSupervisor(ctx context.Context) {
+	if s.runnerSupervisor == nil {
+		s.runnerSupervisor = NewRunnerSupervisor(s)
+	}
+	s.runnerSupervisor.Start(ctx)
+}
+
+// ReconcileStaleRunners resets runners left in 'busy' status due to unexpected server/runner crash
+// or DB snapshot restore where the worker process is no longer heartbeating.
+func (s *Server) ReconcileStaleRunners(ctx context.Context) error {
+	if s.db == nil {
+		return nil
+	}
+	cutoff := time.Now().UTC().Add(-2 * time.Minute)
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE runners 
+		SET status = 'idle', current_task_id = NULL, current_attempt_id = NULL, updated_at = NOW()
+		WHERE status = 'busy' AND (last_heartbeat_at IS NULL OR last_heartbeat_at < $1)
+	`, cutoff)
+	return err
 }
 
 // PrepareGracefulShutdown broadcasts restart notifications to active terminal sessions
