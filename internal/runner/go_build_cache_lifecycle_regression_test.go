@@ -23,18 +23,35 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-type mockCompletionSimpleAdapter struct{}
+type mockCompletionSimpleAdapter struct {
+	scratch string
+	failure bool
+}
 
 func (a *mockCompletionSimpleAdapter) Name() string             { return "mock" }
 func (a *mockCompletionSimpleAdapter) Version() (string, error) { return "1.0", nil }
 func (a *mockCompletionSimpleAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
-	return &agent.ExecutionResult{
-		Status:   "SUCCEEDED",
-		ExitCode: 0,
-	}, nil
+	a.scratch = req.Env["GOTMPDIR"]
+	if a.scratch == "" {
+		return nil, fmt.Errorf("managed compiler scratch missing")
+	}
+	if err := os.WriteFile(filepath.Join(a.scratch, "compiler-object"), []byte("regenerable compiler work"), 0600); err != nil {
+		return nil, err
+	}
+	if a.failure {
+		return nil, context.DeadlineExceeded
+	}
+	return &agent.ExecutionResult{Status: "SUCCEEDED", ExitCode: 0}, nil
 }
 
 func TestRunAttemptReleasesGoBuildCacheMetadataBeforeCompletionHandled(t *testing.T) {
+	for _, failure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("execution_failure_%v", failure), func(t *testing.T) { testRunAttemptBuildResourcesReleased(t, failure, false) })
+	}
+	t.Run("explicit_scratch_preserved", func(t *testing.T) { testRunAttemptBuildResourcesReleased(t, false, true) })
+}
+
+func testRunAttemptBuildResourcesReleased(t *testing.T, failure, custom bool) {
 	tempDir := t.TempDir()
 	workspacesDir := filepath.Join(tempDir, "workspaces")
 	if err := os.MkdirAll(workspacesDir, 0700); err != nil {
@@ -56,6 +73,8 @@ func TestRunAttemptReleasesGoBuildCacheMetadataBeforeCompletionHandled(t *testin
 	var gateContentAtCompletion []byte
 	var gateFlockErrAtCompletion error
 	var completionReceived bool
+	adapter := &mockCompletionSimpleAdapter{failure: failure}
+	var scratchErrAtCompletion error
 
 	ctx, cancelWorker := context.WithCancel(context.Background())
 	defer cancelWorker()
@@ -66,6 +85,7 @@ func TestRunAttemptReleasesGoBuildCacheMetadataBeforeCompletionHandled(t *testin
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/complete"):
 			completionReceived = true
+			_, scratchErrAtCompletion = os.Stat(adapter.scratch)
 			gateContentAtCompletion, _ = os.ReadFile(gatePath)
 			if fd, err := syscall.Open(gatePath, syscall.O_RDWR, 0600); err == nil {
 				gateFlockErrAtCompletion = syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB)
@@ -89,7 +109,7 @@ func TestRunAttemptReleasesGoBuildCacheMetadataBeforeCompletionHandled(t *testin
 		RunnerServerURL:         api.URL,
 		RunnerWorkerRegistryDir: t.TempDir(),
 		WorkspacesDir:           workspacesDir,
-	}, &mockCompletionSimpleAdapter{}, api.Client())
+	}, adapter, api.Client())
 
 	now := time.Now().UTC()
 	claim := ClaimTaskResponse{
@@ -110,6 +130,11 @@ func TestRunAttemptReleasesGoBuildCacheMetadataBeforeCompletionHandled(t *testin
 		},
 	}
 
+	customPath := ""
+	if custom {
+		customPath = t.TempDir()
+		claim.Environment = "GOTMPDIR=" + customPath + "\n"
+	}
 	worker.runAttempt(ctx, claim)
 
 	mu.Lock()
@@ -117,6 +142,13 @@ func TestRunAttemptReleasesGoBuildCacheMetadataBeforeCompletionHandled(t *testin
 
 	if !completionReceived {
 		t.Fatal("completion endpoint was not called")
+	}
+	if custom {
+		if adapter.scratch != customPath || scratchErrAtCompletion != nil {
+			t.Fatal("explicit scratch was replaced or removed", scratchErrAtCompletion)
+		}
+	} else if adapter.scratch == "" || !os.IsNotExist(scratchErrAtCompletion) {
+		t.Fatalf("compiler scratch survived completion: %v", scratchErrAtCompletion)
 	}
 	if len(gateContentAtCompletion) == 0 {
 		t.Fatalf("gate %s was zero bytes when completion was received by server; deferred release did not persist metadata before completion handoff", gatePath)

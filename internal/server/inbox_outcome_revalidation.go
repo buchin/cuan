@@ -13,11 +13,15 @@ import (
 // One read-only revalidation may inspect a newly changed rejected result. It is
 // not another implementation attempt and is never granted for a deploy alone.
 func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && len(task.FailedCheckRevalidationPaths(d)) == 0) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || d.LatestAttempt.FinishedAt == nil || s.projectSvc == nil || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
+	if d == nil || (d.Status != task.TaskStatusBlocked && d.Status != task.TaskStatusReview) || d.LatestAttempt == nil || (d.LatestAttempt.Status != task.AttemptStatusSucceeded && len(task.FailedCheckRevalidationPaths(d)) == 0 && !task.InspectionReportingFailure(d.LatestAttempt, d.Activities)) || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || d.LatestAttempt.FinishedAt == nil || s.projectSvc == nil || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
 		return false
 	}
 	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil || previous == nil || (previous.Purpose != task.CurrentOutcomeInspection && previous.Purpose != task.NativeReleaseInspection) || previous.PreviousAttemptID != "" {
+		return false
+	}
+	reportingReplan := task.InspectionReportingFailure(d.LatestAttempt, d.Activities)
+	if reportingReplan && (previous.Purpose != task.NativeReleaseInspection || previous.ReportingRecoveryAttemptID == "") {
 		return false
 	}
 	assessment, found := reviewAssessment(d, "")
@@ -25,7 +29,7 @@ func (s *Server) recoverChangedOutcomeInspection(ctx context.Context, d *task.Ta
 		return false
 	}
 	evidenceRequest, _ := task.OutcomeEvidenceReview(&d.Task, d.LatestAttempt, d.Activities, "")
-	evidence := evidenceRequest != "" && assessment.RemainingWork == "verification"
+	evidence := evidenceRequest != "" && (assessment.RemainingWork == "verification" || (reportingReplan && assessment.RemainingWork == "publication"))
 	request, paths := task.OutcomeRevalidationReview(&d.Task, d.LatestAttempt, d.Activities, "")
 	if evidence {
 		request, paths = evidenceRequest, nil

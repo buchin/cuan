@@ -310,7 +310,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	s.cfg.Environment = "production"
 	s.cfg.SourceRepository = intent.Repository
 	s.cfg.CommitSHA = target
-	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify evidence"
+	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify abort" && scenario != "initial verify evidence"
 	switch scenario {
 	case "initial verify changed release":
 		s.cfg.CommitSHA = strings.Repeat("f", 40)
@@ -406,14 +406,14 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	if len(after.Attempts) != before {
 		t.Fatal("reconstructed review duplicated independent verifier")
 	}
-	if scenario == "initial verify stale" {
-		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed)
+	if scenario == "initial verify stale" || scenario == "initial verify abort" {
+		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify abort")
 		return
 	}
 	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify evidence")
 }
 
-func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent) {
+func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent, aborted bool) {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -439,7 +439,19 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 	if !claimed.Claimed || claimed.LiveInspection == nil {
 		t.Fatal("fixture verifier not claimed")
 	}
-	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.StaleInspectionReleaseMessage})
+	completion := runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.StaleInspectionReleaseMessage}
+	if aborted {
+		for _, event := range []*task.TaskActivity{
+			{ID: "native-abort-report", TaskID: item.ID, AttemptID: &claimed.Attempt.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview},
+			{ID: "native-abort-kind", TaskID: item.ID, AttemptID: &claimed.Attempt.ID, ActivityType: "agent_result_kind", NewStatus: "implementation"},
+		} {
+			must(s.taskSvc.Store().CreateActivity(ctx, event))
+		}
+		completion.ExitCode, completion.ErrorMessage = 0, "Live result inspection project checks did not pass"
+		completion.TestSummary = "Project verification: test.sh --fast (exit -1)\nok config"
+		completion.RepositoryVerification = &runner.RepositoryVerification{Baseline: strings.Repeat("b", 64), Final: strings.Repeat("b", 64)}
+	}
+	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, completion)
 	must(err)
 	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
 	p, err := s.projectSvc.Get(ctx, item.ProjectID)
@@ -452,11 +464,13 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 		}
 		return strings.TrimSpace(string(out))
 	}
-	run("checkout", "--detach", proof.TargetCommit)
-	must(os.WriteFile(filepath.Join(p.LocalPath, "later-release.txt"), []byte("unrelated release"), 0600))
-	run("add", "later-release.txt")
-	run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Later release retains delivered source")
-	s.cfg.CommitSHA = run("rev-parse", "HEAD")
+	if !aborted {
+		run("checkout", "--detach", proof.TargetCommit)
+		must(os.WriteFile(filepath.Join(p.LocalPath, "later-release.txt"), []byte("unrelated release"), 0600))
+		run("add", "later-release.txt")
+		run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Later release retains delivered source")
+		s.cfg.CommitSHA = run("rev-parse", "HEAD")
+	}
 	failed, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
 	// Hold dispatch in its real project lane until this test explicitly claims.
@@ -562,5 +576,104 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 	must(err)
 	if s.recoverNativeReleaseVerification(ctx, terminal, origins) {
 		t.Fatal("second reporting timeout renewed retry allowance")
+	}
+	if aborted {
+		verifyNativeReportingManagerReplan(t, s, terminal, origins)
+	}
+}
+
+func verifyNativeReportingManagerReplan(t *testing.T, s *Server, terminal *task.TaskDetailResponse, origins []db.InboxRequest) {
+	t.Helper()
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var origin db.InboxRequest
+	for _, q := range origins {
+		if q.MessageID == terminal.SourceMessageID {
+			origin = q
+			break
+		}
+	}
+	if origin.OwnerID == "" {
+		t.Fatal("missing original owner")
+	}
+	review := origin
+	review.RequestID = db.GenerateUUID()
+	assessment := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "publication", Explanation: "Publication succeeded; remaining outcome needs verification.", Revision: "Use authenticated source evidence, inspect remaining runtime outcome, and save the final report.", ManagerAction: "replan", ManagerReason: "The bounded automatic reporting recovery did not finish."}
+	_, err := s.saveReviewAssessment(ctx, terminal, review, assessment)
+	must(err)
+	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
+	current, err := s.taskSvc.GetTaskDetail(ctx, terminal.ID)
+	must(err)
+	blocker := &task.Task{ID: "pm-replan-lane-blocker", ProjectID: current.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}
+	must(s.taskSvc.Store().CreateTask(ctx, blocker))
+	before := len(current.Attempts)
+	s.queueInboxTaskReview(ctx, current)
+	s.queueInboxTaskReview(ctx, current)
+	job, err := s.taskSvc.LatestLaunch(ctx, current.ID)
+	must(err)
+	proof, err := task.LiveInspectionForLaunch(&current.Task, job)
+	must(err)
+	if job == nil || job.State != "queued" || proof == nil || proof.RevalidationKind != task.EvidenceRevalidation || proof.PreviousAttemptID != current.LatestAttempt.ID || proof.ReviewRequestID != review.RequestID || proof.ReportingRecoveryAttemptID != "" || proof.VerifierRecoveryAttemptID != "" {
+		t.Fatal("PM replan did not preserve its separate bounded identity", job, proof)
+	}
+	must(task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &current.Task, proof))
+	after, err := s.taskSvc.GetTaskDetail(ctx, current.ID)
+	must(err)
+	if len(after.Attempts) != before || after.Status == task.TaskStatusDone {
+		t.Fatal("PM plan duplicated execution or accepted incomplete work")
+	}
+	for _, change := range []string{"owner", "source", "review", "paths"} {
+		altered := *proof
+		switch change {
+		case "owner":
+			altered.OwnerID = "foreign"
+		case "source":
+			altered.SourceCommit = strings.Repeat("f", 40)
+		case "review":
+			altered.ReviewRequestID = "foreign"
+		case "paths":
+			altered.ReviewPaths = []string{"internal/task/other.go"}
+		}
+		if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &current.Task, &altered) == nil {
+			t.Fatal("PM replan widened original authority", change)
+		}
+	}
+	must(s.taskSvc.Store().DeleteTask(ctx, blocker.ID))
+	reservation, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "pm-replan-dispatcher", job.ID)
+	must(err)
+	if reservation == nil {
+		t.Fatal("PM replan not claimable")
+	}
+	_, err = s.taskSvc.CreateAttempt(ctx, current.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: current.LatestAttempt.ID, InitializeQueuedTask: true, PreserveQueuedReport: true})
+	must(err)
+	claimed, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "stale-verifier", SupportedAgents: []string{job.AgentID}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true, SupportsEvidenceRevalidation: true, SupportsLiveInspectionRecovery: true}, time.Minute)
+	must(err)
+	if !claimed.Claimed || claimed.LiveInspection == nil || !claimed.PublicationLimits.ReadOnlyRepository || !claimed.PublicationLimits.DenyPush || !claimed.PublicationLimits.DenyDeploy || claimed.AutoDeploy {
+		t.Fatal("PM replan lost read-only scope")
+	}
+	hash := strings.Repeat("b", 64)
+	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 124, ErrorMessage: task.InspectionReportingTimeout, RepositoryVerification: &runner.RepositoryVerification{Baseline: hash, Final: hash}})
+	must(err)
+	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
+	stopped, err := s.taskSvc.GetTaskDetail(ctx, current.ID)
+	must(err)
+	review.RequestID = db.GenerateUUID()
+	_, err = s.saveReviewAssessment(ctx, stopped, review, assessment)
+	must(err)
+	stopped, err = s.taskSvc.GetTaskDetail(ctx, current.ID)
+	must(err)
+	if s.recoverNativeReleaseVerification(ctx, stopped, origins) {
+		t.Fatal("PM replan renewed automatic or evidence recovery")
+	}
+	s.queueInboxTaskReview(ctx, stopped)
+	last, err := s.taskSvc.LatestLaunch(ctx, current.ID)
+	must(err)
+	if last.ID != job.ID {
+		t.Fatal("second PM replan renewed execution allowance")
 	}
 }

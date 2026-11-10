@@ -11,7 +11,7 @@ import (
 // Delivered native work enters the existing independent read-only inspection
 // lane. Successful release process/health never replace original DoD review.
 func (s *Server) recoverNativeReleaseVerification(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
-	if d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusSucceeded && (d.Status == task.TaskStatusBlocked || d.Status == task.TaskStatusReview) {
+	if d != nil && d.LatestAttempt != nil && (d.LatestAttempt.Status == task.AttemptStatusSucceeded || task.InspectionReportingFailure(d.LatestAttempt, d.Activities)) && (d.Status == task.TaskStatusBlocked || d.Status == task.TaskStatusReview) {
 		if previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && previous != nil && previous.Purpose == task.NativeReleaseInspection {
 			for _, origin := range requests {
 				if origin.RequestID == previous.SourceRequestID && origin.OwnerID == previous.OwnerID && origin.RoomID == previous.RoomID && s.reviewSnapshotRecoveryAuthorized(ctx, d, origin) && s.recoverChangedOutcomeInspection(ctx, d, origin) {
@@ -25,7 +25,7 @@ func (s *Server) recoverNativeReleaseVerification(ctx context.Context, d *task.T
 		if s.recoverNativeInspectionReporting(ctx, d, requests) {
 			return true
 		}
-		return s.recoverStaleNativeReleaseInspection(ctx, d, requests)
+		return s.recoverNativeReleaseVerifier(ctx, d, requests)
 	}
 	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded || d.Status != task.TaskStatusReview || s.projectSvc == nil {
 		return false
@@ -97,8 +97,8 @@ func (s *Server) recoverNativeInspectionReporting(ctx context.Context, d *task.T
 	return false
 }
 
-func (s *Server) recoverStaleNativeReleaseInspection(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
-	if s.projectSvc == nil || (d.Status != task.TaskStatusReview && d.Status != task.TaskStatusBlocked) || d.LatestAttempt.ErrorMessage != task.StaleInspectionReleaseMessage {
+func (s *Server) recoverNativeReleaseVerifier(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {
+	if s.projectSvc == nil || (d.Status != task.TaskStatusReview && d.Status != task.TaskStatusBlocked) || (d.LatestAttempt.ErrorMessage != task.StaleInspectionReleaseMessage && !task.InspectionInfrastructureFailure(d.LatestAttempt, d.Activities)) {
 		return false
 	}
 	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
@@ -106,7 +106,7 @@ func (s *Server) recoverStaleNativeReleaseInspection(ctx context.Context, d *tas
 		return false
 	}
 	observed := s.runningProjectRelease(ctx, d)
-	if observed == nil || observed.Commit == previous.TargetCommit || observed.Repository != previous.Repository {
+	if observed == nil || observed.Repository != previous.Repository {
 		return false
 	}
 	// A newer release must contain the delivered target as well as its original

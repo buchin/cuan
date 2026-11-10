@@ -931,6 +931,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		prompt += "\nSaved project environment is available through inherited process variables. Use the variables needed for the approved work without printing their values or copying them into reports.\n"
 	}
 	var releaseGoBuildCache func()
+	var releaseGoBuildScratch func()
 	if err == nil && r.cfg.WorkspacesDir != "" {
 		var buildEnv map[string]string
 		buildEnv, err = managedGoBuildEnvironment(workingDir, filepath.Join(filepath.Dir(filepath.Clean(r.cfg.WorkspacesDir)), "go-build-runtime"), claim.OwnerID)
@@ -956,6 +957,22 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			}
 			if env[key] == "" {
 				env[key] = value
+			}
+		}
+		if err == nil && len(buildEnv) > 0 && env["GOTMPDIR"] == "" {
+			var scratch string
+			scratch, err = os.MkdirTemp("", "cuan-agent-go-")
+			if err == nil {
+				env["GOTMPDIR"] = scratch
+				var once sync.Once
+				releaseGoBuildScratch = func() {
+					once.Do(func() {
+						if cleanupErr := os.RemoveAll(scratch); cleanupErr != nil {
+							log.Printf("[Runner %s] Remove Go compiler scratch: %v", r.cfg.RunnerID, cleanupErr)
+						}
+					})
+				}
+				defer releaseGoBuildScratch()
 			}
 		}
 		if len(buildEnv) > 0 {
@@ -1403,6 +1420,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 
 	// Cleanly release active build cache leases and persist metadata durable to disk
 	// before publishing completion to the server.
+	if releaseGoBuildScratch != nil {
+		releaseGoBuildScratch()
+	}
 	if releaseGoBuildCache != nil {
 		releaseGoBuildCache()
 	}

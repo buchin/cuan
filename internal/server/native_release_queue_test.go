@@ -59,7 +59,7 @@ func TestNativeReleaseEvidenceCompletionUsesExistingReadOnlyAllowance(t *testing
 }
 
 func TestInitialNativeReleasePreparationPublishesApprovedSource(t *testing.T) {
-	for _, scenario := range []string{"initial merge", "initial merge conflict", "initial verify", "initial verify stale", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial missing verifier", "initial missing tool", "initial wrong source", "initial revoked"} {
+	for _, scenario := range []string{"initial merge", "initial merge conflict", "initial verify", "initial verify stale", "initial verify abort", "initial verify changed release", "initial verify archived", "initial verify revoked", "initial contained", "initial no access", "initial missing verifier", "initial missing tool", "initial wrong source", "initial revoked"} {
 		t.Run(scenario, func(t *testing.T) { nativeReleaseQueueContract(t, nil, scenario) })
 	}
 }
