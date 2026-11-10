@@ -568,9 +568,6 @@ func GetInboxMessages(ctx context.Context, roomID string, limit int) (any, error
 	if roomID == "" {
 		return nil, fmt.Errorf("room_id is required")
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 30
-	}
 	if client := GetCuanClient(); client != nil && client.IsConfigured() {
 		return client.GetConversationSnapshot(ctx, roomID, limit)
 	}
@@ -579,9 +576,16 @@ func GetInboxMessages(ctx context.Context, roomID string, limit int) (any, error
 		return nil, fmt.Errorf("configure the Cuan API to read conversation state")
 	}
 
+	dbLimit := limit
+	if dbLimit <= 0 {
+		dbLimit = 100
+	} else if dbLimit > 500 {
+		dbLimit = 500
+	}
+
 	rows, err := db.QueryContext(ctx,
 		"SELECT id, room_id, author_type, author_name, content, created_at FROM (SELECT id, room_id, author_type, author_name, content, created_at FROM project_messages WHERE room_id::text = $1 ORDER BY created_at DESC LIMIT $2) AS sub ORDER BY created_at ASC",
-		roomID, limit,
+		roomID, dbLimit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query messages: %w", err)

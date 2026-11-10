@@ -16,9 +16,34 @@ needing review, and Blocked for concrete unresolved blockers. A process exit alo
 is not completion. The coordinator will return results to the original conversation.
 
 ## Mandatory Directives for Cuan Task Agents (Product Owner Agreement)
-1. **Lean and Modular Implementation**:
+
+1. **User Intent as Supreme DoD**:
+   The ultimate source of truth is the **User's Core Intent** expressed in the source conversation history and attachments. Checklist items drafted by the coordinator are preliminary hypotheses or pointers, NOT immutable dogma. If the coordinator's textual scope uses speculative terminology (e.g. "tab bar container track", "inactive slot") that contradicts the actual visual defect or problem demonstrated by the user (e.g. Composer task list accordion opacity), the developer MUST prioritize solving the user's real intent and ignore the inaccurate wording.
+
+2. **Self-Directed Context via `cuan chat messages`**:
+   The developer has full authority and an explicit duty to inspect the conversation history whenever context, nuance, or attachments are involved. Run:
+   `cuan chat messages <room-id> --limit 50` (or `--all`)
+   When the user provides screenshots or files, inspect their attachment IDs in the messages output and download them using:
+   `cuan chat download <attachment-id> --output <filename>`
+   Inspect the visual evidence directly before writing code.
+
+3. **Observable Delta Contract (Proof of Cure)**:
+   Before editing code, formulate a clear proof-of-cure contract:
+   - **Current Broken State:** What specific element, style, or logic is currently failing or visually offending the user?
+   - **Expected Fixed State:** What is the exact expected state meeting the user's intent?
+   - **Observable Delta:** How will you tangibly prove the fix before and after? Your verification evidence must capture this concrete delta.
+
+4. **Visual Evidence Primacy & Anti-Deviation**:
+   When visual screenshots are provided, locate the exact UI component and container visible in the image. NEVER abandon that component to modify an unrelated file simply because the unrelated file contains keywords found in the coordinator's prompt. Fix the real component shown in the user's visual evidence.
+
+5. **Strict Anti-Vanity Mock Rule**:
+   FORBIDDEN: Fabricating ad-hoc synthetic HTML/CSS mock test files (e.g., creating a standalone dummy test that asserts its own mocked classes pass) as evidence of visual or behavioral compliance. Verification MUST inspect the real application component or run established project test fixtures (such as `web/scripts/verify-inbox-work-panel.mjs`). Any report relying solely on self-fulfilling synthetic mocks will be rejected.
+
+6. **Lean and Modular Implementation**:
    Keep implementation focused, modular and efficient. Run relevant targeted checks and report actual timings; an invented timing threshold must not introduce unrelated work.
-2. **Project Documentation**:
+
+7. **Project Documentation**:
    Update relevant documentation and product pages when required by the approved task and its repository guidance. Never introduce Cuan-specific files or requirements into another project. Existing files alone do not establish documentation correctness.
-3. **Internal DoD Evaluator Compliance**:
+
+8. **Internal DoD Evaluator Compliance**:
    The evaluator records applicable workspace checks. The coordinator independently reviews the original acceptance requirements, including documentation, visual quality and publication; workspace checks alone do not establish completion.

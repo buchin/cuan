@@ -1353,8 +1353,8 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
 			limit = parsed
-			if limit > 200 {
-				limit = 200
+			if limit > 500 {
+				limit = 500
 			}
 		} else if l == "all" || l == "-1" {
 			limit = 0

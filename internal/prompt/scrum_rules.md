@@ -41,6 +41,7 @@ Sprint dilarang masuk `running` sebelum scope disetujui PO.
 
 ## 7. Evaluasi DoD
 SM evaluasi bukti vs DoD setelah AgentSession melapor:
+- **Hakikat DoD:** Definisi Done hakiki adalah terwujudnya Intensi Pengguna (User Intent) yang terekam dalam obrolan percakapan dan lampiran visual/file. Checklist tekstual adalah hipotesis awal; bukti kelulusan WAJIB berupa Observable Delta nyata pada komponen/sistem riil (bukan mock test sintetis buatan agent sendiri).
 - **Lulus:** nyatakan selesai & JALANKAN task BERIKUTNYA (WAJIB).
 - **Belum lulus (agent-fixable):** perbarui arahan & lanjutkan AgentSession.
 - **Tidak agent-fixable:** catat blocker, dampak, bukti & opsi di dokumen sprint untuk Sprint Review.

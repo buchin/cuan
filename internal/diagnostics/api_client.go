@@ -404,11 +404,18 @@ func (c *CuanClient) GetConversationSnapshot(ctx context.Context, roomID string,
 	if roomID == "" {
 		return nil, fmt.Errorf("room_id is required")
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 30
-	}
 
-	endpoint := fmt.Sprintf("/api/v1/chat/conversations/%s/messages?limit=%d", url.PathEscape(roomID), limit)
+	var endpoint string
+	if limit < 0 {
+		endpoint = fmt.Sprintf("/api/v1/chat/conversations/%s/messages?limit=all", url.PathEscape(roomID))
+	} else {
+		if limit == 0 {
+			limit = 50
+		} else if limit > 500 {
+			limit = 500
+		}
+		endpoint = fmt.Sprintf("/api/v1/chat/conversations/%s/messages?limit=%d", url.PathEscape(roomID), limit)
+	}
 	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("get conversation messages: %w", err)

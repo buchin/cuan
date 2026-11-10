@@ -55,9 +55,14 @@ Sends message, triggers the agent worker asynchronously, and waits for the strea
 cuan chat list --limit 10
 ```
 
-### 4. Read Message History
+### 4. Read Message History & Attachments
 ```bash
-cuan chat messages <room-id> --limit 20
+# Read recent messages or complete conversation history
+cuan chat messages <room-id> --limit 50
+cuan chat messages <room-id> --all
+
+# Download image or file attachment referenced in messages
+cuan chat download <attachment-id> --output filename.png
 ```
 
 ## Task Board Operations

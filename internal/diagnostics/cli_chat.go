@@ -57,7 +57,7 @@ Usage:
   cuan chat new [--title "New conversation"] [--project default] [--agent <id>] [--json]
   cuan chat send <room-id> "<message>" [--wait] [--timeout 30] [--json]
   cuan chat list [--project default] [--limit 20] [--json]
-  cuan chat messages <room-id> [--limit 30] [--json]
+  cuan chat messages <room-id> [--limit 50] [--all] [--json]
   cuan chat trace <room-id> <request-id> [--after-seq 0] [--limit 100]
   cuan chat retry <room-id> <request-id>
   cuan chat download <attachment-id> --output PATH
@@ -254,14 +254,15 @@ func runChatList(ctx context.Context, args []string, out, errOut io.Writer) int 
 
 func runChatMessages(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "Usage: cuan chat messages <room-id> [--limit 30] [--json]")
+		fmt.Fprintln(errOut, "Usage: cuan chat messages <room-id> [--limit 50] [--all] [--json]")
 		return 2
 	}
 
 	roomID := args[0]
 	fs := flag.NewFlagSet("chat messages", flag.ContinueOnError)
 	fs.SetOutput(errOut)
-	limitFlag := fs.Int("limit", 30, "Maximum messages to retrieve")
+	limitFlag := fs.Int("limit", 50, "Maximum messages to retrieve")
+	allFlag := fs.Bool("all", false, "Retrieve complete message history without limit")
 	jsonFlag := fs.Bool("json", false, "Output in JSON format")
 
 	if err := fs.Parse(args[1:]); err != nil {
@@ -271,7 +272,12 @@ func runChatMessages(ctx context.Context, args []string, out, errOut io.Writer) 
 		return 2
 	}
 
-	res, err := GetInboxMessages(ctx, roomID, *limitFlag)
+	reqLimit := *limitFlag
+	if *allFlag {
+		reqLimit = -1
+	}
+
+	res, err := GetInboxMessages(ctx, roomID, reqLimit)
 	if err != nil {
 		fmt.Fprintf(errOut, "Error retrieving messages: %v\n", err)
 		return 1
@@ -301,6 +307,7 @@ func runChatMessages(ctx context.Context, args []string, out, errOut io.Writer) 
 	fmt.Fprintf(out, "Conversation history for room %s (%d messages):\n\n", roomID, len(rawMsgs))
 	for _, raw := range rawMsgs {
 		var author, content, timeStr string
+		var attachmentLines []string
 		if m, ok := raw.(map[string]any); ok {
 			author, _ = m["author_name"].(string)
 			if author == "" {
@@ -311,6 +318,16 @@ func runChatMessages(ctx context.Context, args []string, out, errOut io.Writer) 
 				content, _ = m["message"].(string)
 			}
 			timeStr, _ = m["created_at"].(string)
+			if atts, ok := m["attachments"].([]any); ok && len(atts) > 0 {
+				for _, a := range atts {
+					if am, ok := a.(map[string]any); ok {
+						name, _ := am["name"].(string)
+						id, _ := am["id"].(string)
+						typ, _ := am["type"].(string)
+						attachmentLines = append(attachmentLines, fmt.Sprintf("  [Attachment: %s (id: %s, type: %s)] -> Download: cuan chat download %s --output %s", name, id, typ, id, name))
+					}
+				}
+			}
 		} else if im, ok := raw.(InboxMessage); ok {
 			author = im.AuthorName
 			if author == "" {
@@ -319,7 +336,11 @@ func runChatMessages(ctx context.Context, args []string, out, errOut io.Writer) 
 			content = im.Content
 			timeStr = im.CreatedAt
 		}
-		fmt.Fprintf(out, "--- [%s] at %s ---\n%s\n\n", author, timeStr, content)
+		fmt.Fprintf(out, "--- [%s] at %s ---\n%s\n", author, timeStr, content)
+		for _, line := range attachmentLines {
+			fmt.Fprintln(out, line)
+		}
+		fmt.Fprintln(out)
 	}
 	if requests, ok := resMap["requests"].([]map[string]any); ok {
 		for _, request := range requests {
