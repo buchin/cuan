@@ -854,3 +854,15 @@ and47847ms registered project checks. This identifies that attempt's dominant
 cost as the agent session, not native checks; it is not evidence of a speedup.
 An OS observation during this session found15GB available disk and about2.3GB
 available RAM. It does not establish resource availability throughout the run.
+
+Production continuation completed: independent live inspection5b99e2c6 succeeded
+at18:02:46+08 with native project checks passing (54440ms); its agent stage
+was191363ms and the full attempt was353922ms, including preparation/visuals.
+Saved PM assessment6d676e42-3559-4d33-ae12-8a695e6287f6 passed the original
+criteria at18:05:39, and the original task became Done automatically. The room
+received the final result at the same time. The waiting source verifierf96bf3fd
+for the other task started at18:05:42, after acceptance released the project
+turn. This observes an actual inspection -> PM -> Done handoff without another
+worker cutting in, plus automatic stale-release reconciliation. It does not yet
+prove an entire new developer -> verifier -> publisher -> final inspection chain
+under this release; that wider continuity remains to be observed.
