@@ -103,7 +103,7 @@ export function NotificationsNavigation() {
   return (
     <nav
       aria-label={t('Notification filters')}
-      className="flex shrink-0 items-center gap-4 border-b border-border bg-background px-4 md:px-6"
+      className="flex shrink-0 items-center gap-4 border-b border-border bg-transparent px-4 md:px-6"
     >
       {[
         { id: 'all', label: 'All', to: '/notifications' },
@@ -116,7 +116,7 @@ export function NotificationsNavigation() {
           replace
           aria-current={filter === item.id ? 'page' : undefined}
           className={
-            'inline-flex min-h-11 items-center gap-2 border-b-2 px-1 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ' +
+            'inline-flex min-h-11 items-center gap-2 border-b-2 px-1 text-sm bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ' +
             (filter === item.id
               ? 'border-primary font-semibold text-primary'
               : 'border-transparent text-muted-foreground hover:text-foreground')

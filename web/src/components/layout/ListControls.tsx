@@ -14,7 +14,7 @@ export const ListSearch = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
 ListSearch.displayName = 'ListSearch'
 
 export function ListTabs({ className, children, onKeyDown, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div data-list-tabs role="tablist" className={cn('flex min-w-0 shrink-0 items-center gap-4 overflow-x-auto border-b border-border/40 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
+  return <div data-list-tabs role="tablist" className={cn('flex min-w-0 shrink-0 items-center gap-4 overflow-x-auto border-b border-border/40 bg-transparent [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', className)}
     onKeyDown={event => {
       onKeyDown?.(event)
       if (event.defaultPrevented || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -29,7 +29,7 @@ export function ListTabs({ className, children, onKeyDown, ...props }: HTMLAttri
 
 export function ListTab({ selected, count, children, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { selected: boolean; count?: number }) {
   return <button type="button" role="tab" aria-selected={selected} aria-pressed={selected} tabIndex={selected ? 0 : -1}
-    className={cn('inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 border-b-2 px-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', selected ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground', className)} {...props}>
+    className={cn('inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 border-b-2 px-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring bg-transparent', selected ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground', className)} {...props}>
     {children}{count !== undefined && <span className="text-xs font-normal tabular-nums text-muted-foreground">{count}</span>}
   </button>
 }
