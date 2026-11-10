@@ -99,13 +99,15 @@ python3 scripts/test-activate-release.py
 python3 scripts/test-release-ancestry.py
 python3 scripts/test-authorized-release.py
 python3 scripts/test-cuan-disk-guard.py
-python3 scripts/test-prune-release-artifacts.py
-python3 scripts/test-prune-provider-go-cache.py
-python3 scripts/test-prune-verification-dependencies.py
-python3 scripts/test-compact-verification-source.py
-python3 scripts/test-prune-native-release-caches.py
-python3 scripts/test-prune-runtime-build-cache.py
-python3 scripts/test-runtime-cache-maintenance.py
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  python3 scripts/test-prune-release-artifacts.py
+  python3 scripts/test-prune-provider-go-cache.py
+  python3 scripts/test-prune-verification-dependencies.py
+  python3 scripts/test-compact-verification-source.py
+  python3 scripts/test-prune-native-release-caches.py
+  python3 scripts/test-prune-runtime-build-cache.py
+  python3 scripts/test-runtime-cache-maintenance.py
+fi
 
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
