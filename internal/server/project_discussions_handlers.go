@@ -310,7 +310,9 @@ func (s *Server) handleUpdateProjectRoom(w http.ResponseWriter, r *http.Request)
 	}
 
 	room.Title = title
-	room.Topic = strings.TrimSpace(payload.Topic)
+	if strings.TrimSpace(payload.Topic) != "" {
+		room.Topic = strings.TrimSpace(payload.Topic)
+	}
 
 	if err := s.projectStudioRepo.UpdateRoom(r.Context(), room); err != nil {
 		if errors.Is(err, db.ErrRoomNotFound) {
@@ -321,9 +323,13 @@ func (s *Server) handleUpdateProjectRoom(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	owner := s.accountOwner(w, r)
+	s.markRoomTitleManual(owner, room.ID, title)
+
 	if s.roomEventBroker != nil {
 		s.roomEventBroker.Broadcast(room.ID, "room.updated", room.ToDTO())
 	}
+	s.publishInbox(room.ID)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"room": room.ToDTO(),

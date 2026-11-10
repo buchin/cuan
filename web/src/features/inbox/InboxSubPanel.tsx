@@ -14,7 +14,7 @@ import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ChatContact } from '../../api/chat'
+import { ChatContact, chatApi } from '../../api/chat'
 import { Bot, User, CheckCircle2, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
@@ -181,6 +181,24 @@ export function ConversationItem({
       actions={[
         { label: 'Open conversation', run: openContact },
         { label: unread ? 'Mark as read' : 'Mark as unread', disabled: !archive.loaded, run: () => archive.markRead(id, unread > 0) },
+        {
+          label: 'Rename conversation',
+          run: async () => {
+            const newTitle = window.prompt(t('Rename conversation'), contact.name)
+            if (newTitle && newTitle.trim() && newTitle.trim() !== contact.name) {
+              try {
+                await chatApi.updateTitle(contact.conversation_id || contact.id, newTitle.trim())
+                window.dispatchEvent(
+                  new CustomEvent('cuan-conversation-updated', {
+                    detail: { roomId: contact.conversation_id || contact.id, title: newTitle.trim() },
+                  }),
+                )
+              } catch (e) {
+                console.error('Failed to rename conversation:', e)
+              }
+            }
+          },
+        },
         { label: 'Copy link', run: () => copyItemLink('/inbox/' + encodeURIComponent(id)) },
         archiveAction,
       ]}

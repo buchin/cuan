@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/campaign"
@@ -54,10 +56,22 @@ func (s *Server) TaskService() *task.Service {
 	return s.taskSvc
 }
 
+func (s *Server) wireTaskService(svc *task.Service) {
+	if svc == nil {
+		return
+	}
+	svc.OnTaskCreated(func(ctx context.Context, t *task.Task) {
+		if t != nil && t.SourceRoomID != "" {
+			_, _ = s.syncRoomTitleOnTaskCreated(ctx, t.SourceRoomID, t.Title)
+		}
+	})
+}
+
 func (s *Server) SetTaskService(svc *task.Service) {
 	s.taskSvc = svc
 	if svc != nil {
 		svc.SetExtensionRegistry(s.extensions)
+		s.wireTaskService(svc)
 	}
 }
 
