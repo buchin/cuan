@@ -194,3 +194,31 @@ PM review at09:21:11.917 chose replan/implementation and automatically launched
 `att_46bc2577b421832671399f8416045850` at09:21:14.756. That review preceded
 publication of the corrected PM wording. The third attempt is active, not
 verified, with the original criteria and independent verification still required.
+
+## Valid developer handoff after baseline reconciliation
+
+Third developer attempt produced clean checkpoint
+`4a6a8591df05be44d20897e2dac5a7a131179247` and a final review report, but failed
+the native pinned-baseline ancestry check before registered tests. This was not
+a verifier rejection or absent implementation. PM automatically requested only
+baseline reconciliation, preserving original criteria and work.
+
+Fourth developer `att_4e2976f682882b06a89139e649f6b0af` reconciled against
+`564859b8a05e7aab342b17372c512e628f0f0b1c`, producing clean checkpoint
+`3cb570d34e288918974b94b0585b64ea7244924c`. It succeeded at
+09:55:28.010 +08; registered native project checks passed in58.938 seconds.
+Independent review and production outcome remain pending, not waived.
+
+Its exact-source verifier was storage-blocked. Automatic maintenance cleared the
+idle managed Go cache, leaving2,140,942,336 available bytes, approximately6.24MiB
+below the unchanged2GiB floor. Root confirmed no Go build process was active,
+then used Go's official cleaner for the separate idle default build cache at
+`/home/ubuntu/.cache/go-build`. That cache fell from250,048KiB to12KiB;
+available space became2,395,947,008 bytes. No modules, source, Git objects,
+logs or receipts were removed. This is another explicit infrastructure recovery,
+not an untouched autonomous benchmark.
+
+The same queued exact-source verifier
+`att_0cc53b38923b40b35a1f6038ca5e71cb` started automatically at
+09:59:02.764 +08 with read-only/deny push/deploy scope, preserving the developer
+source and existing launch identity. No task retry or acceptance was fabricated.
