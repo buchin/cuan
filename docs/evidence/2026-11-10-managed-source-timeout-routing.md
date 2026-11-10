@@ -363,3 +363,21 @@ invalid fixtures stay rejected, labels omit sentinel private data and each repai
 prompt receives the actual category. Targeted diagnostic, delegation, choice and
 review format-repair tests pass. A future native trace must establish which
 category the real failed workflow produces; these fixtures alone do not prove it.
+
+Contract diagnostics release `055d0ce6739ed08b378d22c63ebdfd771a7488a4`
+completed healthy at11:23:54.670 +08, exact-SHA match, runner restarted/undrained.
+Official retry of the failed continuation created the deterministic child
+`52832ab5-872b-01ba-f9c4-d2aaa0b5aa05`. Trace confirmed native retry_reconcile,
+then a live provider process; it ended at11:26:31.948 with signal9 after124.1s,
+without a final result or saved application action. It therefore did not exercise
+the new rejection categories; do not misreport an observed payload error.
+
+Code inspection also found a concrete remaining schema mismatch in that retry
+path: its prompt defines closed reconciliation payload fields, but the actual
+provider `--json-schema` still used a free-form object. A real CLI-boundary fixture
+now requires the typed payload in the actual schema argument. Against the old
+transport, valid answer and reconciliation cases fail; sharing the existing
+closed reconciliation schema makes both pass. Tools, unrelated actions and
+unscoped delegation stay rejected. This fixes the inconsistent contract without
+changing permissions or extending inference budgets. Retry/scope/format targeted
+tests pass locally. Runtime improvement for this correction remains unproven.

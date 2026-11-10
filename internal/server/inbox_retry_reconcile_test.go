@@ -36,7 +36,15 @@ func TestInboxReconciliationRejectsToolsAndUnscopedActions(t *testing.T) {
 			if scenario == "tool" {
 				prefix = `{"event":"step_update","step_update":{"step_index":1,"step_type":"tool","state":"DONE","tool_name":"run_command"}}` + "\n"
 			}
-			script := "#!/bin/sh\nfor arg in \"$@\"; do [ \"$arg\" != \"--add-dir\" ] || exit 25; done\ncat <<'RESULT'\n" + prefix + string(result) + "\nRESULT\n"
+			schemaCheck := `previous=""
+for arg in "$@"; do
+ if [ "$previous" = "--json-schema" ]; then
+  case "$arg" in *'"payload":{"type":"object","properties":'*) ;; *) exit 26;; esac
+ fi
+ previous="$arg"
+done
+`
+			script := "#!/bin/sh\n" + schemaCheck + "for arg in \"$@\"; do [ \"$arg\" != \"--add-dir\" ] || exit 25; done\ncat <<'RESULT'\n" + prefix + string(result) + "\nRESULT\n"
 			if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}
