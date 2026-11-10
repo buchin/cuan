@@ -33,3 +33,14 @@ func TestInboxReconciliationFormatRepairCannotBroadenActions(t *testing.T) {
 		t.Fatal("explicit reconciliation delegation rejected", err)
 	}
 }
+
+func TestInboxFormatRepairReceivesSpecificNativeRejection(t *testing.T) {
+	candidate := coordinatorJSON("Continue existing work", "task_reopen", map[string]string{"id": "existing-task"})
+	if _, err := decodeInboxCoordinatorResponse(candidate); err == nil {
+		t.Fatal("unsupported payload accepted")
+	}
+	prompt := inboxFormatRepairPrompt(candidate, false)
+	if !strings.Contains(prompt, "Native rejection diagnostic") || !strings.Contains(prompt, "task reopen payload fields or types rejected") {
+		t.Fatal("repair lacks the actual native rejection category")
+	}
+}

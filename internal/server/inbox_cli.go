@@ -281,7 +281,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			decision, err := parseInboxReviewEvaluation(reply)
 			if err != nil {
 				if step != nil {
-					step("response_contract", "The review JSON did not satisfy the task review contract; no assessment was applied.")
+					step("response_contract", inboxReviewResponseDiagnostic(reply))
 				}
 				return "", "The task review response could not be validated. Saved evidence remains unaccepted."
 			}

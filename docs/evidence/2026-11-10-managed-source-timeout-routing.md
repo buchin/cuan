@@ -344,3 +344,22 @@ repair then timed out after44.1s at11:14:27.984. No new accepted PM assessment o
 replacement task execution was observed. This is a separate concrete blocker in
 coordinator response generation/validation; repeatedly resending the request would
 not establish recovery. Original task remains incomplete.
+
+## Coordinator rejection diagnostics (pending runtime observation)
+
+The failed PM continuation exposed a trace gap: action rejection collapsed to
+`action payload or response contract rejected`, while snapshot reviews only said
+the review contract failed. The rejected candidate is not retained in the public
+trace, so these records do not establish its exact invalid field. Do not claim a
+specific payload bug from that generic label.
+
+Add fixed rejection categories for unsupported action kinds, missing payload,
+task-reopen field/type or identity errors, reply/title transport limits, embedded
+markers/local URLs, and common review decision/continuation conflicts. Feed the
+same category into candidate-only format repair. No provider values, candidate
+findings, paths or customer data are added to trace. Native decoding, action
+permissions, original scope and acceptance guards remain unchanged. Tests confirm
+invalid fixtures stay rejected, labels omit sentinel private data and each repair
+prompt receives the actual category. Targeted diagnostic, delegation, choice and
+review format-repair tests pass. A future native trace must establish which
+category the real failed workflow produces; these fixtures alone do not prove it.

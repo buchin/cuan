@@ -8,6 +8,10 @@ import (
 func TestInboxResponseDiagnosticNeverIncludesCandidateData(t *testing.T) {
 	for _, c := range []struct{ raw, want string }{
 		{`not-json PRIVATE_CANDIDATE`, "invalid or ambiguous"},
+		{coordinatorJSON("PRIVATE_CANDIDATE", "PRIVATE_CANDIDATE", map[string]string{"data": "PRIVATE_CANDIDATE"}), "unsupported action kind"},
+		{coordinatorJSON("PRIVATE_CANDIDATE", "task_reopen", map[string]string{"id": "PRIVATE_CANDIDATE"}), "task reopen payload fields or types"},
+		{coordinatorJSON("PRIVATE_CANDIDATE", "task_reopen", map[string]string{"reason": "PRIVATE_CANDIDATE"}), "task reopen identity missing"},
+		{coordinatorJSON("file://PRIVATE_CANDIDATE", "", nil), "local file URL"},
 		{`{"reply":"PRIVATE_CANDIDATE"}`, "required envelope field"},
 		{`{"reply":"PRIVATE_CANDIDATE","topic_title":"","action":null,"extra":"PRIVATE_CANDIDATE"}`, "unexpected envelope"},
 		{coordinatorJSON("PRIVATE_CANDIDATE. Silakan pilih di bawah ini.", "", nil), "choice options"},
@@ -15,6 +19,9 @@ func TestInboxResponseDiagnosticNeverIncludesCandidateData(t *testing.T) {
 		{coordinatorJSON("PRIVATE_CANDIDATE", "delegation", map[string]string{"acceptance_criteria": "PRIVATE_CANDIDATE"}), "delegation payload fields or types"},
 		{coordinatorJSON("PRIVATE_CANDIDATE", "delegation", inboxDelegation{Title: "PRIVATE_CANDIDATE"}), "delegation payload constraints"},
 	} {
+		if _, err := decodeInboxCoordinatorResponse(c.raw); err == nil {
+			t.Fatal("diagnostic fixture must remain rejected")
+		}
 		out := inboxResponseDiagnostic(c.raw)
 		if !strings.Contains(out, c.want) || strings.Contains(out, "PRIVATE_CANDIDATE") {
 			t.Fatal("unhelpful or private diagnostic", out)
@@ -33,6 +40,26 @@ func TestInboxReconciliationDiagnosticIdentifiesContractWithoutValues(t *testing
 		diagnostic := inboxReconciliationResponseDiagnostic(item.raw)
 		if !strings.Contains(diagnostic, item.want) || strings.Contains(diagnostic, "PRIVATE_DATA") {
 			t.Fatal(diagnostic)
+		}
+	}
+}
+
+func TestReviewContractDiagnosticPreservesRejectionAndPrivacy(t *testing.T) {
+	for _, item := range []struct{ raw, category string }{
+		{`{"source_review":"pass","decision":"revise","remaining_work":"verification","explanation":"PRIVATE_DATA","revision":"PRIVATE_DATA"}`, "publication classification"},
+		{`{"decision":"blocked","manager_action":"continue","explanation":"PRIVATE_DATA"}`, "continuation conflicts"},
+		{`{"decision":"revise","explanation":"PRIVATE_DATA"}`, "revision missing"},
+		{`{"decision":"pass","explanation":"PRIVATE_DATA","revision":"PRIVATE_DATA"}`, "revision conflicts"},
+	} {
+		if _, err := parseInboxReviewEvaluation(item.raw); err == nil {
+			t.Fatal("invalid review fixture accepted")
+		}
+		diagnostic := inboxReviewResponseDiagnostic(item.raw)
+		if !strings.Contains(diagnostic, item.category) || strings.Contains(diagnostic, "PRIVATE_DATA") {
+			t.Fatal("unhelpful or private diagnostic", diagnostic)
+		}
+		if !strings.Contains(inboxReviewFormatRepairPrompt(item.raw), diagnostic) {
+			t.Fatal("review repair lost native rejection category")
 		}
 	}
 }

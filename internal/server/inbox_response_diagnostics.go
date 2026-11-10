@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"strings"
 )
 
 // Classify transport failures without persisting provider content, file paths,
@@ -33,6 +34,34 @@ func inboxResponseDiagnostic(raw string) string {
 	var action struct {
 		Kind    string          `json:"kind"`
 		Payload json.RawMessage `json:"payload"`
+	}
+	if string(fields["action"]) == "null" && strings.TrimSpace(reply) == "" {
+		return "Response format: empty reply without action."
+	}
+	if len(reply) > 18000 || len([]rune(title)) > 72 {
+		return "Response format: reply or title exceeds transport limit."
+	}
+	if strings.Contains(reply, "```cuan-") || strings.Contains(strings.ToLower(reply), "file://") {
+		return "Response format: embedded action marker or local file URL in reply."
+	}
+	if json.Unmarshal(fields["action"], &action) == nil && string(fields["action"]) != "null" {
+		switch action.Kind {
+		case "approval", "delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply":
+		default:
+			return "Response format: unsupported action kind."
+		}
+		if len(action.Payload) == 0 || string(action.Payload) == "null" {
+			return "Response format: action payload missing."
+		}
+		if action.Kind == "task_reopen" {
+			var payload inboxTaskReopenAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: task reopen payload fields or types rejected."
+			}
+			if strings.TrimSpace(payload.TaskID) == "" {
+				return "Response format: task reopen identity missing."
+			}
+		}
 	}
 	if json.Unmarshal(fields["action"], &action) == nil && action.Kind == "delegation" {
 		var payload inboxDelegation
@@ -78,4 +107,25 @@ func inboxReconciliationResponseDiagnostic(raw string) string {
 		return "Retry contract: unsupported project creation or save action."
 	}
 	return "Retry contract: task payload or response constraints rejected."
+}
+
+// Review labels identify contract conflicts without recording findings or values.
+func inboxReviewResponseDiagnostic(raw string) string {
+	var result inboxReviewEvaluation
+	if json.Unmarshal([]byte(raw), &result) != nil {
+		return "Review format: invalid JSON object or field types."
+	}
+	if result.SourceReview == "pass" && result.Decision != "pass" && result.RemainingWork != "publication" {
+		return "Review format: source pass with unfinished outcome requires publication classification."
+	}
+	if (result.ManagerAction == "continue" || result.ManagerAction == "replan") && (result.Decision != "revise" || result.RemainingWork == "external" || result.RequestedOutcome == "needs_input") {
+		return "Review format: continuation conflicts with decision or owner prerequisite."
+	}
+	if result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" {
+		return "Review format: revision missing for revise decision."
+	}
+	if result.Decision != "revise" && result.Revision != "" {
+		return "Review format: revision conflicts with decision."
+	}
+	return "Review format: fields or decision constraints rejected."
 }
