@@ -33,7 +33,7 @@ func reviewAssessment(d *task.TaskDetailResponse, requestID string) (inboxReview
 			continue
 		}
 		var record reviewAssessmentRecord
-		if json.Unmarshal([]byte(a.Message), &record) != nil || (requestID != "" && record.RequestID != requestID) || record.InstructionsHash != task.LaunchInstructionsHash(d.Instructions) || record.EvidenceDigest != inboxReviewEvidenceDigest(d) {
+		if json.Unmarshal([]byte(a.Message), &record) != nil || (requestID != "" && record.RequestID != requestID) || record.InstructionsHash != task.LaunchInstructionsHash(d.Instructions) || !inboxReviewEvidenceDigestMatches(d, record.EvidenceDigest) {
 			continue
 		}
 		raw, _ := json.Marshal(record.Assessment)

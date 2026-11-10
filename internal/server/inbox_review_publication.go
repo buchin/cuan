@@ -13,6 +13,16 @@ import (
 )
 
 const inboxPublicationReviewPolicy = "Production publication review policy: v7"
+const previousPublicationReviewPolicy = "Production publication review policy: v6"
+
+// v7 adds only managed-source admission repair. A policy label change alone
+// must not spend another model review on unrelated unchanged v6 evidence.
+func publicationReviewNeedsRefresh(previous string, missingAdmission bool) bool {
+	if strings.Contains(previous, inboxPublicationReviewPolicy) {
+		return false
+	}
+	return !strings.Contains(previous, previousPublicationReviewPolicy) || missingAdmission
+}
 
 type reviewPublication struct {
 	Required              bool   `json:"required"`

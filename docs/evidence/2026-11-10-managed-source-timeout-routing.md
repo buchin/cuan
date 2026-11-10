@@ -970,3 +970,28 @@ branch. Official execution inspection confirms original publication scope is
 unrestricted. No owner message, attempt reset or manual status change was used.
 This proves automatic repair admission and restoration of native source-stage
 ownership, not completion of that execution, publication or acceptance.
+
+## Follow-up: avoid policy-only re-review of unrelated evidence
+
+The global publication policyv7 label also invalidated unchangedv6 snapshots on
+two unrelated legacy tasks. Task42700bd6 received three reviews at19:03:20,
+19:04:30 and19:07:34+08 with the same evidence digest, latest execution and
+remaining verification finding; task3f170f8f received another review at19:04:16.
+These were model assessments, not new worker completions or evidence improvements.
+
+Versionv6 snapshot hashes remain recognizable only when every hashed evidence
+field still matches the current snapshot. Changed findings/checklist evidence
+invalidate both hashes. Publication policy refresh fromv6 is now limited to the
+native missing-admission condition; older pre-v6 migration rules remain intact.
+Current native scope, cancellation, source/acceptance gates still apply when a
+saved assessment is used. This preserves history and deduplication; it does not
+accept a legacy task, restore a canceled execution or reset attempt limits.
+Regression tests exercise saved-assessment lookup across the policy-only change,
+actual evidence invalidation, scoped refresh, and existing source/publication/
+manager contracts (server4.773s). Release inclusion remains to be verified.
+
+Meanwhile developer004d4792 completed with native checks passing (54698ms) and
+agent stage875309ms. It recorded an actual native_release_handoff for source
+8af6cb8af1155302e8e2a39f89fa1afb167f463f. Independent verifierf8719cb4 started
+at19:19:27+08. This advances the observed workflow beyond admission to a real
+developer handoff and verifier execution; publication and Done remain unproven.

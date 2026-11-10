@@ -802,7 +802,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				} else if recoverSnapshot && legacyReviewProviderFailed(q) && !strings.Contains(previous.Content, inboxReviewProviderPolicy) {
 					key += ":provider-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
-				} else if observation := s.inboxReviewPublication(ctx, detail); recoverSnapshot && observation != nil && observation.Required && !observation.Verified && !strings.Contains(previous.Content, inboxPublicationReviewPolicy) {
+				} else if observation := s.inboxReviewPublication(ctx, detail); recoverSnapshot && observation != nil && observation.Required && !observation.Verified && !strings.Contains(previous.Content, inboxPublicationReviewPolicy) && publicationReviewNeedsRefresh(previous.Content, s.missingManagedSourceAdmission(ctx, detail)) {
 					key += ":publication-assessment:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else if recoverSnapshot && isReconciliationOperation(detail) && !strings.Contains(previous.Content, inboxOperationalReviewPolicy) {

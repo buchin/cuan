@@ -894,9 +894,17 @@ func (s *Server) inboxAutoDelegationPrompt(ctx context.Context, q db.InboxReques
 
 // Evidence revisions, unlike task status or timestamps, justify one new review.
 func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
+	return inboxReviewEvidenceDigestForPublicationPolicy(d, inboxPublicationReviewPolicy)
+}
+
+func inboxReviewEvidenceDigestMatches(d *task.TaskDetailResponse, digest string) bool {
+	return digest == inboxReviewEvidenceDigest(d) || digest == inboxReviewEvidenceDigestForPublicationPolicy(d, previousPublicationReviewPolicy)
+}
+
+func inboxReviewEvidenceDigestForPublicationPolicy(d *task.TaskDetailResponse, publicationPolicy string) string {
 	parts := []any{"owner-continuation-budget-v2", d.Summary, d.CompleteNote, d.DoDChecklist, d.TestSummary}
 	if d.ExecutionCategory == task.ExecutionCategoryCode {
-		parts = append(parts, inboxIndependentCodeReviewPolicy, inboxPublicationReviewPolicy)
+		parts = append(parts, inboxIndependentCodeReviewPolicy, publicationPolicy)
 	}
 	if nativePHPPrerequisiteFailure(d) != "" {
 		parts = append(parts, inboxPrerequisiteReviewPolicy)
@@ -936,7 +944,7 @@ func inboxReviewEvidenceChanged(d *task.TaskDetailResponse, previous string) boo
 	const marker = "Review evidence digest: "
 	if i := strings.Index(previous, marker); i >= 0 {
 		saved := strings.Fields(previous[i+len(marker):])
-		return len(saved) > 0 && saved[0] != inboxReviewEvidenceDigest(d)
+		return len(saved) > 0 && !inboxReviewEvidenceDigestMatches(d, saved[0])
 	}
 	// Legacy reviews persisted the bounded report directly, without a digest.
 	return strings.TrimSpace(d.CompleteNote) != "" && !strings.Contains(previous, truncateProjectText(d.CompleteNote, 6000))
