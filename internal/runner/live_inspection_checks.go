@@ -20,6 +20,9 @@ func verifyLiveInspectionChecks(ctx context.Context, root, targets string, polic
 	if !checks.Passed || !task.PassingProjectCheckSummary(checks.Summary) {
 		result.Passed = false
 		result.Error = "Live result inspection project checks did not pass"
+		if checks.Error == "Project verification timed out after 5 minutes" {
+			result.Error = task.InspectionProjectVerificationTimeout
+		}
 	}
 	if !boundary.Passed {
 		result.Passed = false

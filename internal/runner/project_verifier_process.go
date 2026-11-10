@@ -85,6 +85,17 @@ func runProjectVerifierCommand(parent context.Context, root, command string, arg
 func runProjectVerifierCommandEnvironment(parent context.Context, root string, environment []string, command string, args ...string) verificationResult {
 	ctx, cancel := context.WithTimeout(parent, projectVerifierTimeout)
 	defer cancel()
+	// Go leaves its work directory behind when the compiler tree is killed.
+	// Own that scratch space per command; keep shared build/module caches intact.
+	buildScratch, err := os.MkdirTemp("", "cuan-native-build-")
+	if err != nil {
+		return verificationResult{Error: "Project verifier temporary directory could not be prepared"}
+	}
+	defer os.RemoveAll(buildScratch)
+	if environment == nil {
+		environment = os.Environ()
+	}
+	environment = append(append([]string(nil), environment...), "GOTMPDIR="+buildScratch)
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = root
 	cmd.Env = environment
@@ -101,7 +112,7 @@ func runProjectVerifierCommandEnvironment(parent context.Context, root string, e
 	var output verifierOutputTail
 	cmd.Stdout = &output
 	cmd.Stderr = &output
-	err := cmd.Run()
+	err = cmd.Run()
 	// Also clean up descendants left behind by an exited verifier script.
 	if cmd.Process != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
@@ -128,7 +139,7 @@ func runProjectVerifierCommandEnvironment(parent context.Context, root string, e
 		case cmd.ProcessState == nil:
 			reason = "Project verifier could not start"
 		}
-		return verificationResult{Summary: summary, Error: reason}
+		return verificationResult{Summary: summary + "\nNative verifier result: " + reason, Error: reason}
 	}
 	return verificationResult{Passed: true, Summary: summary}
 }

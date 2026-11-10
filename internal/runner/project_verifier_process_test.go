@@ -67,6 +67,9 @@ func TestProjectVerifierDeadlineStopsDescendantHoldingOutput(t *testing.T) {
 		if got.Passed || got.Error != "Project verification stopped at the task deadline" {
 			t.Fatal("timed-out verifier reported an incorrect outcome", got)
 		}
+		if !strings.Contains(got.Summary, "Native verifier result: Project verification stopped at the task deadline") {
+			t.Fatal("native diagnostic lost timeout reason", got)
+		}
 		if strings.Contains(got.Summary, "exit 0") {
 			t.Fatal("failed verifier claimed exit 0")
 		}
@@ -175,4 +178,49 @@ func TestProjectVerifierDeadlineStopsDetachedBrowserStyleChild(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("detached browser-style child survived verifier deadline")
+}
+
+func TestProjectVerifierCleansCompilerScratchAfterExitAndTimeout(t *testing.T) {
+	for _, mode := range []string{"success", "failure", "timeout"} {
+		t.Run(mode, func(t *testing.T) {
+			root := t.TempDir()
+			record := filepath.Join(root, "scratch-path")
+			t.Setenv("CUAN_FIXTURE_SCRATCH_RECORD", record)
+			cache := t.TempDir()
+			preserved := filepath.Join(cache, "cached-object")
+			if err := os.WriteFile(preserved, []byte("retained cache"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			script := filepath.Join(root, "verify.sh")
+			body := "#!/bin/sh\nset -eu\nprintf '%s' \"$GOTMPDIR\" > \"$CUAN_FIXTURE_SCRATCH_RECORD\"\nmkdir \"$GOTMPDIR/go-build123\"\nprintf compiler-output > \"$GOTMPDIR/go-build123/object\"\n"
+			if mode == "failure" {
+				body += "exit 1\n"
+			} else if mode == "timeout" {
+				body += "sleep 30\n"
+			}
+			if err := os.WriteFile(script, []byte(body), 0700); err != nil {
+				t.Fatal(err)
+			}
+			ctx := withProjectVerifierBuildEnvironment(context.Background(), map[string]string{"GOCACHE": cache})
+			if mode == "timeout" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, 200*time.Millisecond)
+				defer cancel()
+			}
+			result := runProjectVerifierCommand(ctx, root, script)
+			if result.Passed != (mode == "success") {
+				t.Fatal("incorrect check outcome", result)
+			}
+			raw, err := os.ReadFile(record)
+			if err != nil || len(raw) == 0 {
+				t.Fatal("compiler scratch was not exercised", err)
+			}
+			if _, err := os.Stat(string(raw)); !os.IsNotExist(err) {
+				t.Fatal("compiler scratch survived command completion", err)
+			}
+			if raw, err := os.ReadFile(preserved); err != nil || string(raw) != "retained cache" {
+				t.Fatal("shared cache was changed", err)
+			}
+		})
+	}
 }

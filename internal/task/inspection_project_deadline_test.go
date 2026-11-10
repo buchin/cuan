@@ -7,7 +7,7 @@ import (
 )
 
 func TestInspectionProjectDeadlineRequiresNativeIncompleteChecks(t *testing.T) {
-	for _, mode := range []string{"valid", "unchanged", "cancelled", "running", "missing finish", "nonzero provider exit", "different failure", "missing report", "blocked report", "missing kind", "missing checks", "foreign runner", "wrong record", "assertion failure", "successful checks", "missing boundary", "changed boundary"} {
+	for _, mode := range []string{"valid", "command timeout", "command timeout with assertion", "command timeout cancelled", "unchanged", "cancelled", "running", "missing finish", "nonzero provider exit", "different failure", "missing report", "blocked report", "missing kind", "missing checks", "foreign runner", "wrong record", "assertion failure", "successful checks", "missing boundary", "changed boundary"} {
 		t.Run(mode, func(t *testing.T) {
 			start, end := time.Now().Add(-time.Minute), time.Now()
 			exit := 0
@@ -19,6 +19,12 @@ func TestInspectionProjectDeadlineRequiresNativeIncompleteChecks(t *testing.T) {
 				{ID: "repository-observation:" + a.ID, TaskID: a.TaskID, AttemptID: &a.ID, ActivityType: "repository_scope_observed", Author: a.RunnerID, NewStatus: AttemptStatusFailed, Message: `{"baseline":"` + strings.Repeat("b", 64) + `","final":""}`},
 			}
 			switch mode {
+			case "command timeout", "command timeout with assertion", "command timeout cancelled":
+				a.ErrorMessage = InspectionProjectVerificationTimeout
+				if mode == "command timeout with assertion" {
+					events[2].Message = `{"summary":"Project verification: test.sh --fast (exit -1)\n--- FAIL: TestBehavior"}`
+				}
+				a.CancelRequested = mode == "command timeout cancelled"
 			case "unchanged":
 				events[3].Message = `{"baseline":"` + strings.Repeat("b", 64) + `","final":"` + strings.Repeat("b", 64) + `"}`
 			case "cancelled":
@@ -52,7 +58,7 @@ func TestInspectionProjectDeadlineRequiresNativeIncompleteChecks(t *testing.T) {
 			case "changed boundary":
 				events[3].Message = `{"baseline":"` + strings.Repeat("b", 64) + `","final":"` + strings.Repeat("c", 64) + `"}`
 			}
-			if got, want := InspectionInfrastructureFailure(a, events), mode == "valid" || mode == "unchanged"; got != want {
+			if got, want := InspectionInfrastructureFailure(a, events), mode == "valid" || mode == "command timeout" || mode == "unchanged"; got != want {
 				t.Fatalf("deadline infrastructure=%v want=%v", got, want)
 			}
 		})

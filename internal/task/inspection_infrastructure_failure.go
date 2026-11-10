@@ -6,13 +6,14 @@ import (
 )
 
 const InspectionDependencyFailurePrefix = "locked frontend dependency preparation failed; saved source is preserved"
+const InspectionProjectVerificationTimeout = "Live result inspection independent project verification timed out; checks are incomplete"
 const InspectionProjectVerificationDeadline = "Live result inspection deadline expired during independent project verification; checks are incomplete"
 
 // A saved report followed by native deadline exhaustion may use the existing
 // single infrastructure retry. It grants no credit for incomplete checks or the
 // unknown final repository state; the retry prepares and checks a fresh snapshot.
 func inspectionProjectVerificationDeadlineFailure(a *TaskAttempt, events []*TaskActivity) bool {
-	if a == nil || a.Status != AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || a.ErrorMessage != InspectionProjectVerificationDeadline || a.RunnerID == "" || a.StartedAt == nil || a.FinishedAt == nil || a.FinishedAt.Before(*a.StartedAt) || a.CancelRequested || a.CanceledAt != nil || !liveImplementationFinalReport(events, a.TaskID, a.ID) {
+	if a == nil || a.Status != AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 0 || (a.ErrorMessage != InspectionProjectVerificationDeadline && a.ErrorMessage != InspectionProjectVerificationTimeout) || a.RunnerID == "" || a.StartedAt == nil || a.FinishedAt == nil || a.FinishedAt.Before(*a.StartedAt) || a.CancelRequested || a.CanceledAt != nil || !liveImplementationFinalReport(events, a.TaskID, a.ID) {
 		return false
 	}
 	checks, boundary := false, false

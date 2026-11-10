@@ -275,3 +275,45 @@ versus test-execution split remains unmeasured. Preserve this failure and do not
 replace it with the model's PASS prose. Automatic maintenance was observed
 running after failure at10:48:33; the managed build cache was then12KiB. That
 post-failure observation alone does not establish deletion during active checks.
+
+## Follow-up: distinguish command timeout and bound compiler scratch
+
+Release `e9fe692f97b12ea6de2c9488f1010041cf071dca` completed healthy at
+10:54:09.848 +08, exact-SHA health matched,38 migrations, runner restarted and
+undrained. It includes the slash-list scope correction; that is not acceptance
+of the original failed task. Subsequent PM reviews failed their response contract
+and bounded format repair; no new saved acceptance assessment was observed.
+The earlier unnecessary native screenshots also became PM image inputs, adding
+avoidable review work. Do not infer that their presence makes this backend task UI.
+
+The11:00 native logrotate timer executed successfully at11:00:09 +08, establishing
+that the already configured hourly automation runs. No new scheduler was created.
+Two old, closed Go compiler work trees under `/tmp`, last modified05:53 and08:49,
+were then removed only after1h age, expected generated `bNNN` layout, no open
+readers and file identity checks. Their file sizes totaled257,057,838 bytes;
+available disk increased to2,293,084,160. These were disposable compiler scratch,
+not task sources, caches, Git objects, history or receipts.
+
+A read-only OS diagnostic of the exact failed inspection snapshot started with
+available disk above the unchanged2GiB floor, same Go settings and owner-scoped
+cache under the existing shared build-cache lease. It runs the same fast package
+set with JSON timing, bounded300s. It is diagnosis only, never a native task
+acceptance receipt. At132s only config had completed, while the process remained
+live; the full compile/test breakdown is still pending. The same fast suite on
+the local host passed, with runner18.515s (other packages cached); this is not a
+controlled speedup comparison between hosts.
+
+The native wrapper currently replaces a command's five-minute timeout with the
+same generic inspection failure as an assertion failure. The follow-up correction
+retains a distinct native timeout marker and routes it through the existing single
+infrastructure recovery. Its saved final report, runner identity, failed exit,
+read-only boundary and absence of actual assertion failures remain required.
+Cancellation or actual assertion findings cannot borrow that recovery. Native
+summary output retains the precise termination reason rather than only exit-1.
+
+The command also owns a separate `GOTMPDIR` scratch directory and removes it after
+its compiler descendants stop, on success, assertion failure and timeout. Shared
+build/module caches remain intact. Real process fixtures exercise all three exit
+paths, verify scratch removal and preserve a separate cached object. Targeted
+runner/task/server regressions and the full registered fast Go package set pass
+locally. This follow-up is not yet deployed.
