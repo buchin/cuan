@@ -16,6 +16,9 @@ func validateNativeReleaseInspectionSource(ctx context.Context, store Store, t *
 		return ErrInvalidTaskInput
 	}
 	delivery, err := NativeReleaseDeliveryForAttempt(ctx, store, t, proof.SourceAttemptID)
+	if reason, ok := err.(nativeDeliveryValidationError); ok {
+		return reason
+	}
 	if err != nil || delivery == nil {
 		return ErrInvalidTaskInput
 	}

@@ -118,3 +118,40 @@ no Go/compiler or command subprocess active. Saved terminal output had not
 advanced beyond 08:54:55. That establishes a quiet live harness, not a proven
 provider failure, completed test, or authority to restart it. Follow the same
 attempt and its native deadline; retain unknown outcomes honestly.
+
+## Diagnostic fixture reproduction and safe rejection reasons
+
+Root captured the retained diff and untracked fixture through registered read-only
+Git inspection, then applied that snapshot to an isolated local worktree based on
+`3f867886`. The worker workspace was not modified. The focused
+`TestNativeReleaseInspectionEvidenceReuseAndFullAudit` failed before checking reuse:
+publisher creation omitted `ExpectedPredecessorID`. Correcting only the local
+diagnostic copy exposed invalid delivery/setup evidence. A second brief checkpoint
+reported those concrete failures through official steering at 09:07:40 +08.
+
+A later read-only observation showed the worker's fixture changed at 09:06:03
+despite absent new terminal output. Therefore quiet saved terminal logs and a
+momentary absence of Go subprocesses did not establish a stalled worker/provider.
+Retained work changed independently of that log view. No runtime restart was
+performed based on silence.
+
+The updated captured fixture passed predecessor creation but still failed native
+delivery. Instrumentation confined to the local diagnostic copy located native
+attempt timeline validation (a backdated start precedes service-assigned creation)
+and deployment-observation validation. These failures remain failures; diagnostic
+edits in the copy are not a passing product test or acceptance evidence.
+
+Native delivery validation previously returned the same generic invalid-input
+error for these distinct boundaries. It now returns fixed reason codes for attempt
+timeline/state, receipt scope/timeline, preparation/delivery shape or absence,
+identity/timeline mismatches, activation observation and post-process observation.
+The inspection validator preserves only these safe typed reasons. No guard was
+relaxed; storage/backend errors are not exposed through the new reason channel.
+`errors.Is(err, ErrInvalidTaskInput)` remains true, and messages contain no
+source IDs, paths, task data or credentials.
+
+Existing source/preparation/live-proof cases plus a start-before-creation case
+assert both rejection and the precise reason, including propagation through the
+actual inspection validator. Targeted task tests pass. This diagnostics correction
+awaits publication and does not prove lower end-to-end latency or completion of
+the source-reuse task.

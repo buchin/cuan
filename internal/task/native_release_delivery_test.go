@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t *testing.T) {
-	for _, scenario := range []string{"valid", "accepted task", "missing delivery", "missing preparation", "missing live proof", "failed stage", "revoked source", "changed scope", "changed task source", "wrong author", "wrong target", "stale observation", "process before preparation", "unknown field"} {
+	for _, scenario := range []string{"valid", "accepted task", "missing delivery", "missing preparation", "missing live proof", "failed stage", "start before creation", "revoked source", "changed scope", "changed task source", "wrong author", "wrong target", "stale observation", "process before preparation", "unknown field"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			store, item, source, intent, launch := nativeReleaseFixture(t)
@@ -40,6 +41,10 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 			att.ExitCode = &zero
 			if scenario == "failed stage" {
 				att.Status = AttemptStatusFailed
+			}
+			if scenario == "start before creation" {
+				badStart := att.CreatedAt.Add(-time.Second)
+				att.StartedAt = &badStart
 			}
 			must(store.UpdateAttempt(ctx, att))
 			target := strings.Repeat("c", 40)
@@ -88,6 +93,33 @@ func TestCompletedNativeDeliveryRequiresOriginalSourcePreparationAndLiveProof(t 
 				must(store.CreateActivity(ctx, event))
 			}
 			result, err := NativeReleaseDeliveryForAttempt(ctx, store, item, att.ID)
+			codes := map[string]string{
+				"missing delivery":           "delivery_missing",
+				"missing preparation":        "preparation_missing",
+				"missing live proof":         "activation_observation_missing",
+				"failed stage":               "attempt_state_or_timeline_invalid",
+				"start before creation":      "attempt_state_or_timeline_invalid",
+				"wrong author":               "delivery_record_invalid",
+				"wrong target":               "preparation_identity_mismatch",
+				"stale observation":          "post_process_observation_missing",
+				"process before preparation": "delivery_identity_or_timeline_invalid",
+				"unknown field":              "delivery_record_invalid",
+			}
+			if code := codes[scenario]; code != "" {
+				var reason nativeDeliveryValidationError
+				if !errors.Is(err, ErrInvalidTaskInput) || !errors.As(err, &reason) || string(reason) != "native_delivery_"+code {
+					t.Fatalf("missing safe boundary diagnostic: %v", err)
+				}
+				if strings.Contains(err.Error(), item.ID) || strings.Contains(err.Error(), att.ID) || strings.Contains(err.Error(), intent.SourceCommit) {
+					t.Fatal("diagnostic leaked source identity")
+				}
+				proof := LiveInspectionIntent{Purpose: NativeReleaseInspection, SourceAttemptID: att.ID, SourceCommit: intent.SourceCommit, TargetCommit: target, Repository: intent.Repository, OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, InstructionsHash: intent.InstructionsHash, ObservedAt: now}
+				inspectionErr := ValidateLiveInspectionSource(ctx, store, item, &proof)
+				var inspectionReason nativeDeliveryValidationError
+				if !errors.Is(inspectionErr, ErrInvalidTaskInput) || !errors.As(inspectionErr, &inspectionReason) || inspectionReason != reason {
+					t.Fatalf("inspection erased native delivery boundary: %v", inspectionErr)
+				}
+			}
 			valid := scenario == "valid" || scenario == "accepted task"
 			if valid {
 				if err != nil || result == nil || *result != delivery || result.SourceCommit == result.TargetCommit {
