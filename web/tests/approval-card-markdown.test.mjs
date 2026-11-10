@@ -124,11 +124,13 @@ test('4. ApprovalCard supports Pending, Accepted, and Deferred visual states and
 
   // Icons
   assert.ok(cardSrc.includes('ClipboardCheck'), 'Must use ClipboardCheck for pending state')
-  assert.ok(cardSrc.includes('CheckCircle2') || cardSrc.includes('CheckCheck'), 'Must use Check icon for accepted state')
+  assert.ok(cardSrc.includes('CheckCircle2'), 'Must use CheckCircle2 icon for accepted state')
   assert.ok(cardSrc.includes('Clock3'), 'Must use Clock3 for deferred state')
 
-  // Action buttons
-  assert.ok(cardSrc.includes("t(accepted ? 'Approved' : 'Approve and start')"), 'Approve button text must be dynamic')
+  // Action buttons & footer
+  assert.ok(cardSrc.includes("t('Approve and start')"), 'Approve button text must render Approve and start when pending')
+  assert.ok(cardSrc.includes("!accepted"), 'Action buttons must only render when not accepted to prevent duplicate footer status')
+  assert.ok(!cardSrc.includes("CheckCheck"), 'ApprovalCard must eliminate duplicate CheckCheck footer status when accepted')
   assert.ok(cardSrc.includes("t('Change plan')"), 'Must render Change plan action')
   assert.ok(cardSrc.includes("t(deferred ? 'Saved for later' : 'Not now')"), 'Must render Not now / Saved for later action')
 })

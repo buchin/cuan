@@ -83,16 +83,24 @@ test('3. S60-T4: ApprovalCard calm typography & elimination of thick green card'
     'ApprovalCard must eliminate heavy emerald-500 saturated background'
   )
 
-  // Calm inline indicator ✓ Disetujui / ✓ Approved
+  // Header status indicator: clean CheckCircle2 icon + Approved text without double checkmark character
   assert.ok(
-    src.includes("{accepted ? '✓ ' : ''}"),
-    'ApprovalCard must prepend gentle checkmark ✓ for accepted status'
+    !src.includes("{accepted ? '✓ ' : ''}"),
+    'ApprovalCard header must not prepend redundant checkmark character'
+  )
+  assert.ok(
+    src.includes('CheckCircle2'),
+    'ApprovalCard accepted status must render CheckCircle2 icon'
   )
 
-  // Action button when accepted is borderless / non-neon
+  // Elimination of redundant duplicate footer status (✓✓ Approved)
   assert.ok(
-    src.includes('bg-transparent hover:bg-transparent text-emerald-600'),
-    'ApprovalCard accepted action button must be transparent, non-neon inline text'
+    !src.includes('CheckCheck'),
+    'ApprovalCard must eliminate duplicate ✓✓ footer status when accepted'
+  )
+  assert.ok(
+    src.includes('!accepted'),
+    'Action buttons should only render when not accepted'
   )
 })
 
