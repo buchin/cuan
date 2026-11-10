@@ -241,7 +241,7 @@
 /* Composer: Calm Monochromatic floating surface with ergonomic safe-area cushion and zero horizontal border cut */
 .wa-composer,
 .calm-composer {
-  background: var(--wa-bg);
+  background: transparent;
   padding: 12px 12px max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
   transition: padding-bottom 0.15s ease-out;
   border-top: none;
@@ -619,6 +619,9 @@
   color: #fff;
   background: rgb(0 0 0 / 55%);
   border-radius: 8px;
+}
+.composer-tasks {
+  background: transparent;
 }
 .composer-tasks-panel {
   max-height: min(34dvh, 280px);

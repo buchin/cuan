@@ -31,17 +31,17 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
     .sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0) || a.id.localeCompare(b.id))
   const runningTasks = ordered.filter(running)
   const defaultExpandedIds = runningTasks.length ? runningTasks.map(task => task.id) : ordered.slice(-1).map(task => task.id)
-  return <section className="composer-tasks" aria-label={t('Conversation tasks')} onKeyDown={event => {
+  return <section className="composer-tasks bg-transparent" aria-label={t('Conversation tasks')} onKeyDown={event => {
     if (event.key === 'Escape' && open) {
       event.stopPropagation()
       setOpen(false)
       trigger.current?.focus()
     }
   }}>
-    <div className="flex flex-wrap items-end justify-between gap-x-2">
+    <div className="flex flex-wrap items-end justify-between gap-x-2 bg-transparent">
     {modes}
     {tasks.length > 0 && <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined}
-      className="composer-mode-tab ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-medium hover:text-foreground"
+      className="composer-mode-tab ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-medium bg-transparent hover:text-foreground"
       onClick={() => setOpen(value => !value)}>
       <span>{t('Tasks')}</span>
       <span className="composer-tasks-count tabular-nums bg-muted px-1.5 text-[11px]">{ordered.length}</span>

@@ -2036,7 +2036,7 @@ export function InboxView({
             {/* ── Modern Composer (Bottom) ── */}
             <div
               data-inbox-composer
-              className="wa-composer shrink-0 z-20 border-t-0"
+              className="wa-composer shrink-0 z-20 border-t-0 bg-transparent"
               onPaste={(e) => {
                 if (!sending && activeContact.type === 'agent')
                   uploads.onPaste(e)
@@ -2048,7 +2048,7 @@ export function InboxView({
               }}
               onDragOver={uploads.onDragOver}
             >
-              <div className="mx-auto max-w-[75ch]">
+              <div className="mx-auto max-w-[75ch] bg-transparent">
                 <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
                 <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}
