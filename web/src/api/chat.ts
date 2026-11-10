@@ -7,6 +7,9 @@ export type { GroundingTaste }
 export type { ReceiptExtraction }
 
 export interface ChatContact {
+  resolution_observed_at?: string
+  resolved?: boolean
+  resolved_at?: string
   contact_id?: string
   agent_id?: string
   agent_name?: string

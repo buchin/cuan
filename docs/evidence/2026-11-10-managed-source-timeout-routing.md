@@ -570,3 +570,46 @@ os.SameFile. It failed before the fix and passes after it. Targeted workspace,
 resume, fresh-workspace and verification-snapshot tests pass (2.413s on this
 cached local host). This prevents future unnecessary remote clones; it neither
 retroactively reclaims old checkouts nor proves production workflow completion.
+
+## Shared conversation resolution and disposal authorization
+
+Owner approved resolved/unresolved and clarified that resolving authorizes disposal
+of repo working copies without making new archives. Durable chat files and delivered
+results remain separate from disposable version-controlled workspaces. This explicit
+Owner action is distinct from ordinary unattended retention; unresolved work keeps
+its previous clean-copy/remote/age checks.
+
+Added shared project-room resolution with migration39, message-cutoff conflict
+protection, automatic effective reopening on new activity, independent personal
+read markers, Unresolved default/filter, Resolved history, Owner header/Tasks
+footer actions and bulk resolution of completed conversations. Sidebar counts
+unresolved rooms. CLI resolve/reopen/resolve-completed use the same authenticated
+endpoint and verify receipts. Every attempt and durable launch is checked before
+resolution; cleanup rechecks under task execution ownership. Standalone artifact
+work is excluded. Existing storage maintenance runs bounded repo-copy cleanup on
+OSS installs too; privileged host-cache cleanup stays optional.
+
+Explicit resolution can force-remove the task-specific linked checkout while
+retaining its project repo/committed branch and tiny recovery receipt. Developer
+clones, independent verification snapshots and native publication source copies
+are derived from task IDs and saved native proofs, constrained to private workspace
+roots, and discarded without creating archives. Active snapshot leases, symlink
+roots, unknown/non-repo folders and project-root targets are refused. Durable
+attachments are separate stored bytes, not symlinks into deleted source copies.
+Logs report logical deleted bytes; these are not device-space savings when Git
+objects are hardlinked. Deleted-task orphans without native bindings remain a
+separate lifecycle gap, not authorized by unrelated resolutions.
+
+Targeted DB/CLI/Git/project/server checks pass, including real-Git integration:
+unresolved source is retained; explicit resolution deletes a dirty task checkout
+and runner clone; project contents and conversation history remain. Browser checks
+of the actual list/actions/ComposerTasks pass at390px and1440px, including filtering,
+bulk resolution and reopen. Screenshots inspected at both widths; filter spacing
+was corrected after inspection revealed a clipped All tab. No production savings
+are claimed before deployment and actual maintenance observation.
+
+Immediately before release preparation, native maintenance status was success and
+there were zero doing tasks. Host filesystem available bytes were2,542,100,480.
+A read-only sample of ten old workspaces found ignored entries, nonremote commits
+and invalid Git roots; this explains why age alone did not reclaim all historical
+storage. No old source was deleted during that audit.

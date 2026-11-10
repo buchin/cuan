@@ -610,3 +610,13 @@ continue: pulse requires a durable queued/running next step. Terminal task state
 cancellation, changed instructions/evidence and a newer attempt invalidate old
 ownership. User-facing copy should make the situation and required action clear,
 without naming internal policy, workflow roles, or technical prerequisites.
+
+### Conversation resolution
+
+Inbox defaults to Unresolved. All includes resolved history; the quiet checked-circle
+filter opens Resolved. Done task progress remains distinct from explicit room
+resolution. Show Resolve in the existing header and Tasks footer, with Reopen for
+resolved rooms. Sidebar counts unresolved conversations, while read receipts remain
+independent. Bulk resolve reports the eligible count and skips unfinished work.
+Resolution authorizes discarding repository working copies without a replacement
+archive; durable chat attachments, delivered results and history remain separate.

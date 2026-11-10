@@ -16,6 +16,7 @@ import (
 )
 
 type WorkspaceRetirementState struct {
+	Resolved   bool
 	Status     string
 	UpdatedAt  time.Time
 	RemoteHead string
@@ -68,7 +69,8 @@ func (s *Service) saveWorkspaceReceipt(key string, receipt workspaceReceipt) err
 }
 
 // RetireExecutionWorkspace requires an exclusive task execution lease and a fresh
-// task/remote observation under that lease. It never force-removes files or branches.
+// task/remote observation under that lease. Ordinary retention never force-removes
+// files. Explicit conversation resolution authorizes discarding the task checkout.
 func (s *Service) RetireExecutionWorkspace(ctx context.Context, taskID string, p *ProjectResponse, now time.Time, acquire func() (io.Closer, error), observe func() (WorkspaceRetirementState, error)) (WorkspaceRetentionDecision, error) {
 	if acquire == nil || observe == nil {
 		return WorkspaceRetentionDecision{}, errors.New("Execution lease and current state are required")
@@ -106,7 +108,11 @@ func (s *Service) RetireExecutionWorkspace(ctx context.Context, taskID string, p
 	if err != nil {
 		return WorkspaceRetentionDecision{}, err
 	}
-	decision, err := InspectWorkspaceRetention(ctx, verified, state.Status, state.UpdatedAt, now, false, state.RemoteHead)
+	inspect := InspectWorkspaceRetention
+	if state.Resolved {
+		inspect = InspectResolvedWorkspaceRetention
+	}
+	decision, err := inspect(ctx, verified, state.Status, state.UpdatedAt, now, false, state.RemoteHead)
 	if err != nil || !decision.Eligible {
 		return decision, err
 	}
@@ -114,7 +120,12 @@ func (s *Service) RetireExecutionWorkspace(ctx context.Context, taskID string, p
 	if err = s.saveWorkspaceReceipt(key, receipt); err != nil {
 		return decision, err
 	}
-	if exec.CommandContext(ctx, "git", "-C", source, "worktree", "remove", verified).Run() != nil {
+	removeArgs := []string{"-C", source, "worktree", "remove"}
+	if state.Resolved {
+		removeArgs = append(removeArgs, "--force")
+	}
+	removeArgs = append(removeArgs, verified)
+	if exec.CommandContext(ctx, "git", removeArgs...).Run() != nil {
 		return WorkspaceRetentionDecision{}, errors.New("Workspace retained: Git refused removal")
 	}
 	receipt.State = "retired"

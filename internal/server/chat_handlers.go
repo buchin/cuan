@@ -26,34 +26,37 @@ import (
 
 // ChatContact represents a contact in the direct messenger hub (agent or customer).
 type ChatContact struct {
-	ContactID      string    `json:"contact_id,omitempty"`
-	AgentID        string    `json:"agent_id,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	ID             string    `json:"id"`
-	Type           string    `json:"type"` // "agent" or "customer"
-	Name           string    `json:"name"`
-	Email          string    `json:"email,omitempty"`
-	Avatar         string    `json:"avatar"`
-	Status         string    `json:"status"` // "online", "idle", "offline"
-	Product        string    `json:"product,omitempty"`
-	GuestUUID      string    `json:"guest_uuid,omitempty"`
-	ConversationID string    `json:"conversation_id"`
-	UnreadCount    int       `json:"unread_count"`
-	LastMessage    string    `json:"last_message,omitempty"`
-	LastMessageAt  time.Time `json:"last_message_at,omitempty"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	HasMessages    bool      `json:"has_messages"`
-	MessageCount   int       `json:"message_count"`
-	IsOnline       bool      `json:"is_online"`
-	CurrentURL     string    `json:"current_url,omitempty"`
-	PageTitle      string    `json:"page_title,omitempty"`
-	TaskCount      int       `json:"task_count"`
-	ActiveTasks    int       `json:"active_tasks"`
-	ReviewTasks    int       `json:"review_tasks"`
-	QueuedTasks    int       `json:"queued_tasks"`
-	DoneTasks      int       `json:"done_tasks"`
-	FailedTasks    int       `json:"failed_tasks"`
-	CanceledTasks  int       `json:"canceled_tasks"`
+	ResolutionObservedAt time.Time  `json:"resolution_observed_at"`
+	Resolved             bool       `json:"resolved"`
+	ResolvedAt           *time.Time `json:"resolved_at,omitempty"`
+	ContactID            string     `json:"contact_id,omitempty"`
+	AgentID              string     `json:"agent_id,omitempty"`
+	AgentName            string     `json:"agent_name,omitempty"`
+	ID                   string     `json:"id"`
+	Type                 string     `json:"type"` // "agent" or "customer"
+	Name                 string     `json:"name"`
+	Email                string     `json:"email,omitempty"`
+	Avatar               string     `json:"avatar"`
+	Status               string     `json:"status"` // "online", "idle", "offline"
+	Product              string     `json:"product,omitempty"`
+	GuestUUID            string     `json:"guest_uuid,omitempty"`
+	ConversationID       string     `json:"conversation_id"`
+	UnreadCount          int        `json:"unread_count"`
+	LastMessage          string     `json:"last_message,omitempty"`
+	LastMessageAt        time.Time  `json:"last_message_at,omitempty"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	HasMessages          bool       `json:"has_messages"`
+	MessageCount         int        `json:"message_count"`
+	IsOnline             bool       `json:"is_online"`
+	CurrentURL           string     `json:"current_url,omitempty"`
+	PageTitle            string     `json:"page_title,omitempty"`
+	TaskCount            int        `json:"task_count"`
+	ActiveTasks          int        `json:"active_tasks"`
+	ReviewTasks          int        `json:"review_tasks"`
+	QueuedTasks          int        `json:"queued_tasks"`
+	DoneTasks            int        `json:"done_tasks"`
+	FailedTasks          int        `json:"failed_tasks"`
+	CanceledTasks        int        `json:"canceled_tasks"`
 }
 
 // AgentActionCard represents an interactive 1-click execution card in an agent bubble.
@@ -652,6 +655,14 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		respondJSONError(w, http.StatusInternalServerError, "Could not load conversation task progress. Try again.")
 		return
 	}
+	resolutionObserved := map[string]time.Time{}
+	observeResolution := func(id string, messages []db.ProjectMessage) {
+		for _, message := range messages {
+			if message.CreatedAt.After(resolutionObserved[id]) {
+				resolutionObserved[id] = message.CreatedAt
+			}
+		}
+	}
 	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int, int, int) {
 		for _, id := range ids {
 			if c, ok := counts.Rooms[id]; ok {
@@ -695,6 +706,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 						}
 						if roomID != "" {
 							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
+								observeResolution(roomID, msgs)
 								msgs = visibleInboxMessages(msgs)
 								if len(msgs) > 0 {
 									lastMsg = msgs[len(msgs)-1].Content
@@ -753,6 +765,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				at := room.UpdatedAt
 				unread := 0
 				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
+					observeResolution(room.ID, messages)
 					messages = visibleInboxMessages(messages)
 					if len(messages) > 0 {
 						last = messages[len(messages)-1].Content
@@ -814,6 +827,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 
 			if s.projectStudioRepo != nil {
 				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
+					observeResolution(sess.UUID, msgs)
 					msgs = visibleInboxMessages(msgs)
 					if len(msgs) > 0 {
 						msgCount = len(msgs)
@@ -931,6 +945,28 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		contacts = filtered
 	}
 
+	// Shared resolution is independent from each operator's read marker.
+	if s.projectStudioRepo != nil {
+		rooms, err := s.projectStudioRepo.ListAllRooms(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Could not load conversation status")
+			return
+		}
+		byID := make(map[string]db.ProjectRoom, len(rooms))
+		for _, room := range rooms {
+			byID[room.ID] = room
+		}
+		for i := range contacts {
+			room := byID[contacts[i].ConversationID]
+			contacts[i].ResolvedAt = room.ResolvedAt
+			observed := resolutionObserved[contacts[i].ConversationID]
+			if observed.IsZero() {
+				observed = contacts[i].LastMessageAt
+			}
+			contacts[i].ResolutionObservedAt = observed
+			contacts[i].Resolved = room.IsResolved(observed) && contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
+		}
+	}
 	for i := range contacts {
 		if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {
 			contacts[i].UnreadCount = 1

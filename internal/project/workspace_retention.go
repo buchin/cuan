@@ -33,6 +33,16 @@ type WorkspaceRetentionDecision struct {
 // InspectWorkspaceRetention never fetches, deletes files, or assumes ignored
 // files are disposable. A remote confirmation must be obtained separately.
 func InspectWorkspaceRetention(ctx context.Context, path, status string, updatedAt, now time.Time, active bool, confirmedRemoteHead string) (WorkspaceRetentionDecision, error) {
+	return inspectWorkspaceRetention(ctx, path, status, updatedAt, now, active, confirmedRemoteHead, false)
+}
+
+// InspectResolvedWorkspaceRetention permits an explicitly resolved conversation
+// to discard its working checkout immediately, preserving the project repository.
+func InspectResolvedWorkspaceRetention(ctx context.Context, path, status string, updatedAt, now time.Time, active bool, confirmedRemoteHead string) (WorkspaceRetentionDecision, error) {
+	return inspectWorkspaceRetention(ctx, path, status, updatedAt, now, active, confirmedRemoteHead, true)
+}
+
+func inspectWorkspaceRetention(ctx context.Context, path, status string, updatedAt, now time.Time, active bool, confirmedRemoteHead string, resolved bool) (WorkspaceRetentionDecision, error) {
 	keep := func(reason string) (WorkspaceRetentionDecision, error) {
 		return WorkspaceRetentionDecision{Reason: reason}, nil
 	}
@@ -44,7 +54,7 @@ func InspectWorkspaceRetention(ctx context.Context, path, status string, updated
 	if !isDone && !isCancelled {
 		return keep("task_not_done")
 	}
-	if isDone && (updatedAt.IsZero() || now.Sub(updatedAt) < WorkspaceRetentionPeriod()) {
+	if isDone && !resolved && (updatedAt.IsZero() || now.Sub(updatedAt) < WorkspaceRetentionPeriod()) {
 		return keep("retention_period")
 	}
 	run := func(args ...string) (string, error) {
@@ -54,6 +64,12 @@ func InspectWorkspaceRetention(ctx context.Context, path, status string, updated
 	head, err := run("rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
 		return WorkspaceRetentionDecision{}, errors.New("Could not verify workspace commit")
+	}
+	// Explicit resolution discards this task's working copy, including local edits.
+	// RetireExecutionWorkspace validates repository/branch identity and execution
+	// ownership first. Chat attachments live in their separate durable store.
+	if resolved {
+		return WorkspaceRetentionDecision{Eligible: true, Reason: "conversation_resolved", Head: head}, nil
 	}
 	// Include ignored files: generated-looking files may contain the only copy
 	// of user output, so they require a separately declared disposal policy.

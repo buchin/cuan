@@ -5,6 +5,7 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 	"io"
+	"log"
 	"time"
 )
 
@@ -44,10 +45,33 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 		count = 10
 	}
 	period := project.WorkspaceRetentionPeriod()
+	resolved := func(lookupCtx context.Context, roomID string) bool {
+		if roomID == "" || s.projectStudioRepo == nil {
+			return false
+		}
+		room, err := s.projectStudioRepo.GetRoomByID(lookupCtx, roomID)
+		if err != nil || room.ResolvedAt == nil {
+			return false
+		}
+		messages, err := s.projectStudioRepo.ListMessagesByRoomID(lookupCtx, roomID)
+		if err != nil {
+			return false
+		}
+		for _, message := range messages {
+			if message.CreatedAt.After(*room.ResolvedAt) {
+				return false
+			}
+		}
+		if reason, err := s.conversationResolutionBlocker(lookupCtx, roomID); err != nil || reason != "" {
+			return false
+		}
+		return true
+	}
+
 	for i := 0; i < count; i++ {
 		item := items[cursor%len(items)]
 		cursor++
-		if item.Status == "done" && now.Sub(item.UpdatedAt) < period {
+		if item.Status == "done" && now.Sub(item.UpdatedAt) < period && !resolved(ctx, item.SourceRoomID) {
 			continue
 		}
 		if item.ProjectID == "" {
@@ -56,23 +80,31 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 		runCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		p, err := s.projectSvc.TaskWorkspace(runCtx, item.ProjectID, item.Instructions)
 		if err == nil && p.RepoURL != "" {
-			_, _ = s.projectSvc.RetireExecutionWorkspace(runCtx, item.ID, p, now, func() (io.Closer, error) { return s.terminalManager.AcquireTaskExecutionLease(item.ID) }, func() (project.WorkspaceRetirementState, error) {
+			decision, retireErr := s.projectSvc.RetireExecutionWorkspace(runCtx, item.ID, p, now, func() (io.Closer, error) { return s.terminalManager.AcquireTaskExecutionLease(item.ID) }, func() (project.WorkspaceRetirementState, error) {
 				latest, e := s.taskSvc.GetTaskDetail(runCtx, item.ID)
 				if e != nil {
 					return project.WorkspaceRetirementState{}, e
 				}
-				state := project.WorkspaceRetirementState{Status: latest.Status, UpdatedAt: latest.UpdatedAt}
+				state := project.WorkspaceRetirementState{Status: latest.Status, UpdatedAt: latest.UpdatedAt, Resolved: resolved(runCtx, latest.SourceRoomID)}
 				if latest.Status != "done" && latest.Status != "cancelled" && latest.Status != "canceled" {
 					return state, nil
 				}
-				if latest.Status == "done" && now.Sub(latest.UpdatedAt) < period {
+				if latest.Status == "done" && now.Sub(latest.UpdatedAt) < period && !state.Resolved {
 					return state, nil
 				}
-				if latest.Status == "done" {
+				if latest.Status == "done" && !state.Resolved {
 					state.RemoteHead, e = s.projectSvc.ConfirmTaskRemoteHead(runCtx, item.ID, p)
 				}
 				return state, e
 			})
+			if retireErr != nil {
+				log.Printf("[retention] task checkout retained: %s", item.ID)
+			} else if decision.Eligible {
+				log.Printf("[retention] task checkout released: %s", item.ID)
+			}
+		}
+		if resolved(runCtx, item.SourceRoomID) {
+			s.releaseResolvedTaskCopies(runCtx, item)
 		}
 		cancel()
 	}

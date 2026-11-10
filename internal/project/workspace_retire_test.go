@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func TestRetiredWorkspaceRestoresWithoutReplayingWork(t *testing.T) {
+func TestResolvedWorkspaceRetiresAndRestoresWithoutReplayingWork(t *testing.T) {
 	ctx := context.Background()
 	source := t.TempDir()
 	run := func(args ...string) string {
@@ -36,8 +36,9 @@ func TestRetiredWorkspaceRestoresWithoutReplayingWork(t *testing.T) {
 		t.Fatal(e)
 	}
 	now := time.Now()
+	resolved := true
 	observe := func() (WorkspaceRetirementState, error) {
-		return WorkspaceRetirementState{Status: "done", UpdatedAt: now.Add(-8 * 24 * time.Hour), RemoteHead: head}, nil
+		return WorkspaceRetirementState{Status: "done", UpdatedAt: now, Resolved: resolved, RemoteHead: head}, nil
 	}
 	acquire := func() (io.Closer, error) { return os.Open(os.DevNull) }
 	if _, e = s.RetireExecutionWorkspace(ctx, "retire-task", p, now, func() (io.Closer, error) { return nil, errors.New("busy") }, observe); e == nil {
@@ -62,6 +63,7 @@ func TestRetiredWorkspaceRestoresWithoutReplayingWork(t *testing.T) {
 	if e != nil || string(data) != "delivered" {
 		t.Fatal("delivered result lost")
 	}
+	resolved = false
 	os.WriteFile(filepath.Join(restored, "pending"), []byte("new revision"), 0600)
 	d, e = s.RetireExecutionWorkspace(ctx, "retire-task", p, now, acquire, observe)
 	if e != nil || d.Eligible {

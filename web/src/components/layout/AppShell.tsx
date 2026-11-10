@@ -267,7 +267,7 @@ export function AppShell({
           {id === 'inbox' && effectiveInboxUnread > 0 && effectiveCollapsed && (
             <span
               data-testid="inbox-unread-badge-rail"
-              aria-label={`${effectiveInboxUnread} unread messages`}
+              aria-label={`${effectiveInboxUnread} ${t('unresolved conversations')}`}
               className="absolute -right-2 -top-1.5 notification-count min-w-4 rounded-full bg-primary px-1 text-[9px] font-bold font-mono leading-4 text-primary-foreground"
             >
               {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
@@ -278,7 +278,7 @@ export function AppShell({
         {id === 'inbox' && effectiveInboxUnread > 0 && !effectiveCollapsed && (
           <span
             data-testid="inbox-unread-badge-rail"
-            aria-label={`${effectiveInboxUnread} unread messages`}
+            aria-label={`${effectiveInboxUnread} ${t('unresolved conversations')}`}
             className="nav-label notification-count ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold font-mono tabular-nums text-primary-foreground"
           >
             {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
@@ -524,7 +524,7 @@ export function AppShell({
                 {effectiveInboxUnread > 0 && (
                   <span
                     data-testid="inbox-unread-badge-bottom"
-                    aria-label={`${effectiveInboxUnread} unread messages`}
+                    aria-label={`${effectiveInboxUnread} ${t('unresolved conversations')}`}
                     className="absolute -right-3 -top-2 notification-count min-w-4 rounded-full bg-primary px-1 text-[10px] font-bold font-mono leading-4 text-primary-foreground"
                   >
                     {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}

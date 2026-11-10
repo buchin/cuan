@@ -1,3 +1,4 @@
+import { completedConversation, conversationHasUnfinishedTasks, setConversationResolved } from './conversation-resolution'
 import { workConversationPreview } from './conversation-work-preview'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
@@ -6,7 +7,7 @@ import { HairlineList } from '../../components/layout/HairlineList'
 import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
+import { useArchivedItems } from '../../hooks/useArchivedItems'
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
@@ -14,7 +15,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact } from '../../api/chat'
-import { Bot, User, Archive, CheckCheck, Plus } from 'lucide-react'
+import { Bot, User, CheckCircle2, CheckCheck, Plus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
@@ -119,7 +120,6 @@ export function ConversationItem({
   now,
   agents = [],
   archive,
-  showArchived,
   onSelectContact,
   language,
 }: ConversationItemProps) {
@@ -159,10 +159,10 @@ export function ConversationItem({
     void archive.markRead(id, true, contact.last_message_at).catch(() => {})
   }
   const archiveAction = {
-    label: showArchived ? 'Restore conversation' : 'Archive conversation',
-    previewLabel: showArchived ? 'Restore' : 'Archive',
-    disabled: !archive.loaded,
-    run: () => archive.archive(id, !showArchived),
+    label: contact.resolved ? 'Reopen conversation' : 'Resolve conversation',
+    previewLabel: contact.resolved ? 'Reopen' : 'Resolve',
+    disabled: !contact.resolved && conversationHasUnfinishedTasks(contact),
+    run: async () => { await setConversationResolved(contact, !contact.resolved) },
   }
 
 
@@ -303,6 +303,8 @@ export function InboxSubPanel({
   const liveChatSettings = '/settings/integrations/live-chat?returnTo=' + encodeURIComponent(location.pathname + location.search)
   const archive = useArchivedItems('conversation')
   const [showArchived, setShowArchived] = useState(false)
+  const [unresolvedOnly, setUnresolvedOnly] = useState(true)
+  const [resolutionError, setResolutionError] = useState('')
   const clock = useConnectionClock(agents)
   const now = suppliedNow ?? clock
   const { t, language } = useLanguage()
@@ -328,24 +330,23 @@ export function InboxSubPanel({
   const onlineVisitorCount = contacts.filter((c) => c.type === 'customer' && c.is_online).length
 
   const [markingAll, setMarkingAll] = useState(false)
-  const totalUnreadCount = contacts.reduce(
-    (sum, c) => sum + archive.unreadCount(c.conversation_id || c.id, c.unread_count, c.last_message_at || c.updated_at),
-    0
-  )
-  const handleMarkAllRead = async () => {
-    if (markingAll) return
+  const resolvable = contacts.filter(contact => !contact.resolved && completedConversation(contact))
+  const handleResolveCompleted = async () => {
+    if (markingAll || !window.confirm(t('Resolve completed conversations?') + ' (' + resolvable.length + ')')) return
     setMarkingAll(true)
+    setResolutionError('')
     try {
-      await archive.markAllRead()
-    } catch {
-      // ignore
-    } finally {
-      setMarkingAll(false)
-    }
+      let failed = 0
+      for (let offset = 0; offset < resolvable.length; offset += 4) {
+        const results = await Promise.allSettled(resolvable.slice(offset, offset + 4).map(contact => setConversationResolved(contact, true)))
+        failed += results.filter(result => result.status === 'rejected').length
+      }
+      if (failed) setResolutionError(t('Some conversations could not be resolved. Review their latest activity.'))
+    } finally { setMarkingAll(false) }
   }
 
   const filteredContacts = contacts.filter((c) => {
-    if (archive.isArchived(c.conversation_id || c.id, c.last_message_at || c.updated_at) !== showArchived) return false
+    if (showArchived ? !c.resolved : unresolvedOnly && c.resolved) return false
     if (activeTab === 'all') {
       if (c.type === 'customer' && c.has_messages === false) return false
     }
@@ -400,13 +401,13 @@ export function InboxSubPanel({
               <Plus className="h-4 w-4" />
             </IconButton>
           )}
-          {totalUnreadCount > 0 && (
+          {resolvable.length > 0 && (
             <IconButton
               type="button"
               disabled={markingAll}
-              label={t('Mark all as read')}
-              title={t('Mark all as read')}
-              onClick={handleMarkAllRead}
+              label={t('Resolve completed conversations')}
+              title={t('Resolve completed conversations')}
+              onClick={handleResolveCompleted}
 
             >
               <CheckCheck className="h-4 w-4 text-primary" />
@@ -419,12 +420,15 @@ export function InboxSubPanel({
       {/* ── Search & Filter Toolbar ── */}
       <div className="px-4 pt-3 space-y-2 border-b border-border/40">
         <ListSearch aria-label={t('Search conversations')} placeholder={t('Search conversations…')} value={query} onChange={event=>handleQueryChange(event.target.value)} />
-        <ListTabs aria-label={t('Conversation filters')} className="border-b-0">
-          <ListTab selected={activeTab==='all'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('all')}}>{t('All')}</ListTab>
-          <ListTab selected={activeTab==='agents'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('agents')}}>{t('Assistant')}</ListTab>
-          <ListTab selected={activeTab==='customers'&&!showArchived} onClick={()=>{setShowArchived(false);handleTabClick('customers')}}>{t('Customers')}{onlineVisitorCount>0&&<StatusDot status="healthy" size="sm" title={onlineVisitorCount+' '+t('online')} />}</ListTab>
-          <IconButton className="ml-auto" label={t(showArchived?'Back to Inbox':'Archived conversations')} active={showArchived} aria-pressed={showArchived} onClick={()=>setShowArchived(value=>!value)}><Archive /></IconButton>
+        <div className="flex min-w-0 items-center gap-1">
+        <ListTabs aria-label={t('Conversation filters')} className="min-w-0 flex-1 gap-2 border-b-0">
+          <ListTab selected={activeTab==='all'&&!showArchived&&!unresolvedOnly} onClick={()=>{setShowArchived(false);setUnresolvedOnly(false);handleTabClick('all')}}>{t('All')}</ListTab>
+          <ListTab selected={unresolvedOnly&&!showArchived} onClick={()=>{setShowArchived(false);setUnresolvedOnly(true)}}>{t('Unresolved')}</ListTab>
+          <ListTab selected={activeTab==='agents'&&!showArchived} onClick={()=>{setShowArchived(false);setUnresolvedOnly(false);handleTabClick('agents')}}>{t('Assistant')}</ListTab>
+          <ListTab selected={activeTab==='customers'&&!showArchived} onClick={()=>{setShowArchived(false);setUnresolvedOnly(false);handleTabClick('customers')}}>{t('Customers')}{onlineVisitorCount>0&&<StatusDot status="healthy" size="sm" title={onlineVisitorCount+' '+t('online')} />}</ListTab>
         </ListTabs>
+          <IconButton className="ml-auto" label={t(showArchived?'Back to Inbox':'Resolved conversations')} active={showArchived} aria-pressed={showArchived} onClick={()=>setShowArchived(value=>!value)}><CheckCircle2 /></IconButton>
+        </div>
 
         {/* Customer Sub-Filter (Chats vs Online Visitors) */}
         {activeTab === 'customers' && !showArchived && (
@@ -481,10 +485,10 @@ export function InboxSubPanel({
                 : !query.trim() && !showArchived && activeTab === 'customers'
                 ? 'No customer conversations yet.'
                 : showArchived && !query.trim()
-                ? 'No archived conversations.'
-                : 'No matching conversations.'
+                ? 'No resolved conversations.'
+                : unresolvedOnly && !query.trim() ? 'Inbox zero. Nothing needs attention.' : 'No matching conversations.'
             )}
-            {!query.trim() && !showArchived && customerCount === 0 && activeTab !== 'agents' && (
+            {!query.trim() && !showArchived && !unresolvedOnly && customerCount === 0 && activeTab !== 'agents' && (
               <div className="mt-3 space-y-2">
                 <p>{t('Add live chat to your website to receive messages here.')}</p>
                 <Link className="action-secondary inline-flex" to={liveChatSettings}>
@@ -518,7 +522,7 @@ export function InboxSubPanel({
           </HairlineList>
         )}
       </div>
-      <ArchiveNotice state={archive} />
+      {resolutionError && <p role="alert" className="px-4 py-2 text-xs text-destructive">{resolutionError}</p>}
     </div>
   )
 }

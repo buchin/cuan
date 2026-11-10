@@ -105,33 +105,36 @@ func NormalizeTaskExecutionStatus(status string) (string, error) {
 
 // ProjectRoom represents a collaboration and discussion room bound to a project.
 type ProjectRoom struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"project_id"`
-	Title     string    `json:"title"`
-	Topic     string    `json:"topic"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string     `json:"id"`
+	ProjectID  string     `json:"project_id"`
+	Title      string     `json:"title"`
+	Topic      string     `json:"topic"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 }
 
 // ProjectRoomDTO is the public Data Transfer Object for ProjectRoom.
 type ProjectRoomDTO struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"project_id"`
-	Title     string    `json:"title"`
-	Topic     string    `json:"topic"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string     `json:"id"`
+	ProjectID  string     `json:"project_id"`
+	Title      string     `json:"title"`
+	Topic      string     `json:"topic"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
 }
 
 // ToDTO converts a ProjectRoom to its public DTO.
 func (r *ProjectRoom) ToDTO() ProjectRoomDTO {
 	return ProjectRoomDTO{
-		ID:        r.ID,
-		ProjectID: r.ProjectID,
-		Title:     r.Title,
-		Topic:     r.Topic,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		ID:         r.ID,
+		ProjectID:  r.ProjectID,
+		Title:      r.Title,
+		Topic:      r.Topic,
+		CreatedAt:  r.CreatedAt,
+		UpdatedAt:  r.UpdatedAt,
+		ResolvedAt: r.ResolvedAt,
 	}
 }
 
@@ -305,6 +308,7 @@ type ProjectStudioRepository interface {
 	ListRoomsByProjectID(ctx context.Context, projectID string) ([]ProjectRoom, error)
 	ListAllRooms(ctx context.Context) ([]ProjectRoom, error)
 	UpdateRoom(ctx context.Context, room *ProjectRoom) error
+	SetRoomResolved(ctx context.Context, id string, at *time.Time) error
 	DeleteRoom(ctx context.Context, id string) error
 
 	// Messages
@@ -392,7 +396,7 @@ func (r *SQLProjectStudioRepository) GetRoomByID(ctx context.Context, id string)
 	}
 
 	query := `
-		SELECT id, project_id, title, topic, created_at, updated_at
+		SELECT id, project_id, title, topic, created_at, updated_at, resolved_at
 		FROM project_rooms
 		WHERE id = $1
 	`
@@ -405,6 +409,7 @@ func (r *SQLProjectStudioRepository) GetRoomByID(ctx context.Context, id string)
 		&room.Topic,
 		&room.CreatedAt,
 		&room.UpdatedAt,
+		&room.ResolvedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -422,7 +427,7 @@ func (r *SQLProjectStudioRepository) ListRoomsByProjectID(ctx context.Context, p
 	}
 
 	query := `
-		SELECT id, project_id, title, topic, created_at, updated_at
+		SELECT id, project_id, title, topic, created_at, updated_at, resolved_at
 		FROM project_rooms
 		WHERE project_id = $1
 		ORDER BY created_at ASC
@@ -443,6 +448,7 @@ func (r *SQLProjectStudioRepository) ListRoomsByProjectID(ctx context.Context, p
 			&room.Topic,
 			&room.CreatedAt,
 			&room.UpdatedAt,
+			&room.ResolvedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan project room: %w", err)
 		}
@@ -457,7 +463,7 @@ func (r *SQLProjectStudioRepository) ListRoomsByProjectID(ctx context.Context, p
 // ListAllRooms lists all project rooms across all projects, ordered by updated_at desc.
 func (r *SQLProjectStudioRepository) ListAllRooms(ctx context.Context) ([]ProjectRoom, error) {
 	query := `
-		SELECT id, project_id, title, topic, created_at, updated_at
+		SELECT id, project_id, title, topic, created_at, updated_at, resolved_at
 		FROM project_rooms
 		ORDER BY updated_at DESC, created_at DESC
 	`
@@ -477,6 +483,7 @@ func (r *SQLProjectStudioRepository) ListAllRooms(ctx context.Context) ([]Projec
 			&room.Topic,
 			&room.CreatedAt,
 			&room.UpdatedAt,
+			&room.ResolvedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan project room: %w", err)
 		}
@@ -1308,6 +1315,10 @@ func cloneRoom(r *ProjectRoom) *ProjectRoom {
 		return nil
 	}
 	cp := *r
+	if r.ResolvedAt != nil {
+		at := *r.ResolvedAt
+		cp.ResolvedAt = &at
+	}
 	return &cp
 }
 

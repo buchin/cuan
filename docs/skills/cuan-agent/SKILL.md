@@ -934,3 +934,21 @@ accepts no executable, script, flags or login state; it reports requested URL an
 text, not inferred HTTP status/final redirect identity. Installer and capability
 contracts are in [chat web tools](../../guides/chat-web-tools.md). A local browser
 installation/version check alone is not proof that production chat exposes it.
+
+## Conversation resolution
+
+Owner operations `cuan chat resolve ROOM_ID`, `cuan chat reopen ROOM_ID`, and
+`cuan chat resolve-completed` use shared conversation resolution, independently
+from read receipts. Resolve-completed only selects rooms with at least one Done
+task and no unfinished tasks (canceled tasks are excluded). Each write is checked
+against fresh native work/reply state and the observed message cutoff; partial
+failures are returned without retries. Bound task workers cannot resolve rooms.
+
+Resolving explicitly authorizes discarding repository working copies, including
+local edits and generated files, without a replacement archive. Project repos,
+chat uploads, delivered attachments, history, email receipts and saved verification
+reports remain. Standalone artifact tasks are excluded. Resolution requests the
+existing maintenance scheduler; inspect `cuan maintenance status` and actual disk
+measurements before claiming savings. Orphan workspaces from deleted tasks are
+not automatically authorized by resolving unrelated conversations. See the
+[resolution guide](../../guides/conversation-resolution.md).

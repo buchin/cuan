@@ -47,11 +47,29 @@ func TestWorkspaceRetentionProtectsLocalFiles(t *testing.T) {
 	if inspect("done", old, true, head).Eligible || inspect("done", now, false, head).Eligible || inspect("done", old, false, "").Eligible {
 		t.Fatal("missing retention/ownership/remote gate")
 	}
+
+	resolved, err := InspectResolvedWorkspaceRetention(ctx, dir, "done", now, now, false, head)
+	if err != nil || !resolved.Eligible {
+		t.Fatal("explicit resolution did not release recent clean checkout", resolved, err)
+	}
+	for _, scenario := range []struct {
+		status, remote string
+		active         bool
+	}{{"doing", head, false}, {"done", head, true}} {
+		decision, err := InspectResolvedWorkspaceRetention(ctx, dir, scenario.status, now, now, scenario.active, scenario.remote)
+		if err != nil || decision.Eligible {
+			t.Fatal("resolution bypassed source/ownership checks", decision, err)
+		}
+	}
 	os.Mkdir(filepath.Join(dir, "private-output"), 0700)
 	os.WriteFile(filepath.Join(dir, "private-output", "only-copy"), []byte("keep"), 0600)
 	if inspect("done", old, false, head).Eligible {
 		t.Fatal("ignored user output treated as disposable")
 	}
+	if decision, err := InspectResolvedWorkspaceRetention(ctx, dir, "done", now, now, false, head); err != nil || !decision.Eligible {
+		t.Fatal("explicit resolution did not authorize disposing workspace output", decision, err)
+	}
+
 	os.RemoveAll(filepath.Join(dir, "private-output"))
 	os.WriteFile(filepath.Join(dir, "new.txt"), []byte("untracked"), 0600)
 	if inspect("done", old, false, head).Eligible {

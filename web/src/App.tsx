@@ -264,6 +264,11 @@ export function App() {
     } catch { setContactsError('Could not load contacts. Check your connection and try again.') }
     finally { setContactsLoading(false) }
   }, [])
+  useEffect(() => {
+    const changed = () => { void refreshContacts() }
+    window.addEventListener('cuan-conversation-resolution', changed)
+    return () => window.removeEventListener('cuan-conversation-resolution', changed)
+  }, [refreshContacts])
   const refreshAgents = useCallback(async () => {
     try {
       const agents = await agentsApi.list()
@@ -791,10 +796,7 @@ export function App() {
           projectDetail && !!headerProject
         }
         breadcrumbs={headerBreadcrumbs}
-        inboxUnread={contacts.reduce(
-          (sum, contact) => sum + Math.max(0, contact.unread_count || 0),
-          0,
-        )}
+        inboxUnread={contacts.filter(contact => !contact.resolved && contact.has_messages !== false).length}
         onSelectTab={handleSelectTab}
         newAction={
           currentTab === 'notifications' ||

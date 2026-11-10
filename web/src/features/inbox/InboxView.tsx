@@ -1,3 +1,4 @@
+import { ConversationResolutionAction } from './conversation-resolution'
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
@@ -1309,6 +1310,7 @@ export function InboxView({
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
+                <ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} compact onChanged={onContactUpdated} />
                 {activeContact.type === 'customer' && activeContact.email && (
                         <button
                           type="button"
@@ -2029,6 +2031,7 @@ export function InboxView({
                 <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}
                   tasks={linkedTasks}
+                  resolution={<ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} onChanged={onContactUpdated} />}
                   onDetails={task => handleOpenTaskDrawer(task)}
                   onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
                   modes={activeContact.type === 'customer' && (

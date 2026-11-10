@@ -56,8 +56,10 @@ func (s *Service) NativeReleaseWorkspace(ctx context.Context, req NativeReleaseW
 	if branch == "" || branch != req.TargetBranch || !settings.IsAutoDeployEnabled() || ParseEnvironment(settings.Environment)["CUAN_MANAGED_RELEASE"] != "1" {
 		return nil, errors.New("release workspace target differs from saved task")
 	}
-	digest := sha256.Sum256([]byte(req.ProjectID + "\x00" + req.TaskID + "\x00" + req.SourceCommit + "\x00" + req.TargetCommit + "\x00" + branch + "\x00" + req.ManifestHash))
-	destination := filepath.Join(s.baseDir, "release-workspaces", hex.EncodeToString(digest[:]))
+	destination, err := s.NativeReleaseWorkspacePath(req)
+	if err != nil {
+		return nil, err
+	}
 	path, err := s.gitClient.PrepareReleaseWorkspace(ctx, p.LocalPath, destination, req.SourceCommit, req.TargetCommit, branch)
 	if errors.Is(err, git.ErrVerificationCommitUnavailable) {
 		current, loadErr := s.store.GetProject(ctx, req.ProjectID)
@@ -94,4 +96,18 @@ func (s *Service) NativeReleaseWorkspace(ctx context.Context, req NativeReleaseW
 		return nil, errors.New("release descriptor differs from admitted source; no script executed")
 	}
 	return &PreparedNativeReleaseWorkspace{Path: path, SourceCommit: req.SourceCommit, TargetCommit: req.TargetCommit, Branch: branch, ManifestHash: req.ManifestHash}, nil
+}
+
+// NativeReleaseWorkspacePath derives disposable publication source storage without
+// preparing, downloading or changing a release. Running deployment payloads live
+// in separate release storage and are never returned here.
+func (s *Service) NativeReleaseWorkspacePath(req NativeReleaseWorkspaceRequest) (string, error) {
+	if req.ProjectID == "" || req.TaskID == "" || !git.IsCommitHash(req.SourceCommit) || !git.IsCommitHash(req.TargetCommit) || req.TargetBranch == "" || len(req.ManifestHash) != 64 {
+		return "", errors.New("release workspace identity unavailable")
+	}
+	if _, err := hex.DecodeString(req.ManifestHash); err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256([]byte(req.ProjectID + "\x00" + req.TaskID + "\x00" + req.SourceCommit + "\x00" + req.TargetCommit + "\x00" + req.TargetBranch + "\x00" + req.ManifestHash))
+	return filepath.Abs(filepath.Join(s.baseDir, "release-workspaces", hex.EncodeToString(digest[:])))
 }
