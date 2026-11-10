@@ -81,3 +81,47 @@ The correction reorders the lifecycle:
    guarantee `.build-cache.lock` contains valid JSON metadata with `last_used_at` and
    has released its lock before `/complete` is handled by the server.
 
+## Actual new-worker completion proof
+
+Correction task `msg_33dde10a-00c1-479d-8c63-cdb5ff2b5186` retained the
+original task's history. Source `03766ee60228c70c8c87823ca5dd831c64545d78`
+passed independent source verification and was natively published as healthy
+release `c6265f6ef1cd7a140fae487de44b64ba63c7e718` at 07:54:48 +08.
+
+The initial 39-byte lease observation at 07:54:49 alone was insufficient:
+it followed the publisher, which started before the new release. The decisive
+observation follows new-release worker `att_d10f3286f9de00fd0ad12e1810fb2c78`:
+
+- Started 07:55:36.384 +08; agent stage returned after 243.201 seconds.
+- Native `test.sh --fast` passed; completion was recorded at
+  `08:02:19.209653+08:00` with exit zero.
+- The actual owner-managed `.build-cache.lock` remained a regular 39-byte file,
+  UID 1000 and link count one, modified at `08:02:19.187360260+08:00`.
+- Its complete JSON was `{"last_used_at":1794268939,"version":1}`. The
+  persistence preceded the server's completion timestamp, and remained readable
+  after the attempt became terminal. This closes the earlier production gap.
+- PM assessment at 08:03:25.822 +08 recorded `decision=pass`,
+  `requested_outcome=completed`, `remaining_work=none`. No manual acceptance
+  or retry was used for this correction.
+
+The caller regressions establish ordering at completion handling; their fixtures
+do not establish a full successful real publication path. The real worker and
+native release observations supply the production evidence instead.
+
+## Timing and remaining waste
+
+Creation at 07:26:50.556 to PM pass at 08:03:25.822 was about 36m35s.
+Developer execution took 13m26s, independent source verification 5m41s,
+native publication about 7m14s, and live inspection 6m43s. Live inspection's
+native suite alone took about 159 seconds after the model report. Publication
+also installed/tested/built frontend assets despite backend-only changes;
+its build stage took about 237 seconds and transfer/activation about 115 seconds.
+
+This is shorter than the preceding 52m27s run but is not a controlled benchmark:
+scope and cache state differ, and the earlier run required filesystem-reserve
+intervention. Do not claim a percentage speedup. The next lean improvement should
+measure authenticated reuse of already verified source evidence and focus live
+inspection on actual deployed behavior, preserving every original criterion,
+source identity, native checks that remain necessary, and independent acceptance.
+No check has been removed by this evidence-only update.
+
