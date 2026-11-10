@@ -47,6 +47,13 @@ func (s *Server) recoverNativeReleaseVerification(ctx context.Context, d *task.T
 		return false
 	}
 	proof := &task.LiveInspectionIntent{Purpose: task.NativeReleaseInspection, SourceAttemptID: d.LatestAttempt.ID, SourceCommit: delivery.SourceCommit, TargetCommit: delivery.TargetCommit, Repository: delivery.Repository, OwnerID: intent.OwnerID, RoomID: intent.RoomID, SourceRequestID: intent.SourceRequestID, InstructionsHash: delivery.InstructionsHash, ObservedAt: observed.ObservedAt}
+	if intent.SourceReviewAttemptID != "" {
+		if review, err := task.NativeSourceReviewForAttempt(ctx, s.taskSvc.Store(), &d.Task, intent.SourceReviewAttemptID); err == nil && review != nil && review.SourceCommit == delivery.SourceCommit && review.InstructionsHash == delivery.InstructionsHash && review.SourceAttemptID == delivery.SourceAttemptID {
+			if verifierAttempt, err := s.taskSvc.Store().GetAttempt(ctx, intent.SourceReviewAttemptID); err == nil && verifierAttempt != nil && verifierAttempt.FinishedAt != nil && !observed.ObservedAt.Before(*verifierAttempt.FinishedAt) && !verifierAttempt.CancelRequested && verifierAttempt.CanceledAt == nil {
+				proof.SourceVerifierAttemptID = intent.SourceReviewAttemptID
+			}
+		}
+	}
 	if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &d.Task, proof) != nil {
 		return false
 	}
