@@ -618,7 +618,7 @@ function TaskDetailView({
       </header>
       <nav
         aria-label="Task sections"
-        className="flex shrink-0 gap-1 border-b px-3 sm:px-5"
+        className="flex shrink-0 gap-1 border-b bg-transparent px-3 sm:px-5"
       >
         {(
           [
@@ -636,7 +636,7 @@ function TaskDetailView({
             disabled={editing}
             onClick={() => setTab(item.id)}
             className={cn(
-              'min-h-11 border-b-2 px-3 text-sm',
+              'min-h-11 border-b-2 px-3 text-sm bg-transparent',
               tab === item.id
                 ? 'border-primary font-medium text-primary'
                 : 'border-transparent text-muted-foreground',

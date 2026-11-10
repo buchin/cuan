@@ -2058,7 +2058,7 @@ export function InboxView({
                   modes={activeContact.type === 'customer' && (
                   <div className="flex items-end justify-between text-xs">
                     <div className="flex min-w-0 items-center">
-                      <div role="tablist" aria-label={t('Reply mode')} className="composer-mode-tabs inline-flex" onKeyDown={event => {
+                      <div role="tablist" aria-label={t('Reply mode')} className="composer-mode-tabs inline-flex bg-transparent" onKeyDown={event => {
                         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
                         event.preventDefault()
                         const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'))

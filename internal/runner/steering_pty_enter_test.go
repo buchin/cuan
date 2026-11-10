@@ -43,6 +43,7 @@ func TestDetachedSteeringSubmitsCarriageReturnToRawPTY(t *testing.T) {
 			if value == '\r' {
 				encoded, _ := json.Marshal(string(prompt))
 				fmt.Printf("SUBMITTED:%s\n", encoded)
+				time.Sleep(100 * time.Millisecond)
 				os.Exit(0)
 			}
 			prompt = append(prompt, value)

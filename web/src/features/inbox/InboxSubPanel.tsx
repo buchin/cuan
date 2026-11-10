@@ -461,7 +461,7 @@ export function InboxSubPanel({
                 'px-2 py-0.5 rounded text-xs font-medium transition-colors flex items-center gap-1',
                 customerSubFilter === 'chats'
                   ? 'bg-secondary text-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground bg-transparent'
               )}
             >
               <span>{t('Chats')}</span>
@@ -474,7 +474,7 @@ export function InboxSubPanel({
                 'px-2 py-0.5 rounded text-xs font-medium transition-colors flex items-center gap-1',
                 customerSubFilter === 'online'
                   ? 'bg-emerald-500/15 text-emerald-400 font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground bg-transparent'
               )}
             >
               <span>{t('Online')}</span>

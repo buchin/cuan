@@ -896,13 +896,13 @@ export function TeamView({
     <div className={connectionOnly || dialogOnly ? 'contents' : 'w-full space-y-5 pb-8'}>
       <div hidden={connectionOnly || dialogOnly}>
         {/* Team View Tabs: Asisten AI vs Anggota Tim */}
-        <div className="flex border-b border-border mb-5" role="tablist" aria-label={t('Manajemen Tim')}>
+        <div className="flex border-b border-border mb-5 bg-transparent" role="tablist" aria-label={t('Manajemen Tim')}>
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === 'agents'}
             onClick={() => setActiveTab('agents')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 bg-transparent transition-colors ${
               activeTab === 'agents'
                 ? 'border-primary text-primary font-semibold'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -919,7 +919,7 @@ export function TeamView({
             role="tab"
             aria-selected={activeTab === 'members'}
             onClick={() => setActiveTab('members')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 bg-transparent transition-colors ${
               activeTab === 'members'
                 ? 'border-primary text-primary font-semibold'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
