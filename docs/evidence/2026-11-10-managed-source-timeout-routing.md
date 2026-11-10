@@ -64,3 +64,36 @@ integrity, and ordinary inspection lifecycle. All passed:
 No current task status, saved launch, source files or failed attempt was manually
 rewritten. Production publication and actual recovery behavior remain to be
 observed; local tests are not end-to-end proof.
+
+## Production routing observation
+
+Native release `269b8f86d30f40d2c880a3bb96b2818555b1b7b3` finished
+08:41:27.730 +08, exit zero, exact healthy SHA and source unchanged. Runner
+undrain/restart succeeded. The existing invalid inspection launch stopped
+automatically with its saved-work-preserved diagnostic at 08:40:03; no
+inspection attempt ran. The read-only planner then reported
+`managed_source_timeout_requires_completion` for the original failed developer.
+
+Ordinary PM review `de0beca7-8879-4130-a208-fc9149a352d6` independently selected
+`revise`, `unfinished`, `remaining_work=implementation`, `manager_action=continue`
+at 08:42:00.249. It queued existing developer continuation
+`launch_0d15a76cd7b0d4c1a2163c09b949b7767d656d2b6da916e0dcb48b086b1a463b`.
+No manual launch cancellation, task status change, retry or acceptance was used.
+This proves routing correction, not successful completion of the retained task.
+
+The PM explanation incorrectly asserted no code or tests had been written.
+Read-only OS/Git observations showed four modified source files and an untracked
+regression fixture. Missing final-report/native-check evidence cannot establish
+an empty workspace. Review instructions now explicitly preserve that distinction
+and require continuations to inspect saved edits before repeating work. Existing
+`TestReviewInstruction*` checks pass. This prompt change awaits publication.
+
+The new developer launch remained storage-blocked at about 1.96 billion available
+bytes. Registered maintenance was explicitly triggered through `cuan maintenance
+run`; it is not an untouched autonomy benchmark. Managed Go build cache was
+already almost empty (12 KiB). The host package manager's `apt-get distclean`
+removed regenerable package index cache; a subsequent observation showed
+2,291,437,568 available bytes. Maintenance was concurrent, so do not attribute the
+entire observed difference solely to that command. The admission floor and
+source retention were not changed. Confirm actual continuation startup rather
+than treating available space as proof of admission.
