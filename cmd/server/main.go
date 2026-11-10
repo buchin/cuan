@@ -311,6 +311,7 @@ func main() {
 	srv.StartNotificationDispatcher(inboxCtx)
 	srv.StartWorkspaceRetention(inboxCtx)
 	srv.StartGitHubRecovery(inboxCtx)
+	srv.StartRunnerSupervisor(inboxCtx)
 	go server.EnsureRuntimePrerequisites(inboxCtx)
 
 	addr := ":" + cfg.ServerPort

@@ -51,6 +51,7 @@ type Config struct {
 	RunnerNativeRelease       bool
 	RunnerWorkerRegistryDir   string
 	RunnerBinPath             string
+	RunnerAutoSupervise       bool
 	AuthSecret                string
 	GitAuthorName             string
 	GitAuthorEmail            string
@@ -72,7 +73,39 @@ type Config struct {
 	AppMode                   string
 }
 
+func loadEnvFiles() {
+	if os.Getenv("CUAN_ENV") == "testing" {
+		return
+	}
+	candidates := []string{".env", filepath.Join("..", ".env"), "/opt/cuan/current/.env"}
+	for _, p := range candidates {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				val := strings.TrimSpace(parts[1])
+				if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+					val = val[1 : len(val)-1]
+				}
+				if _, exists := os.LookupEnv(key); !exists {
+					_ = os.Setenv(key, val)
+				}
+			}
+		}
+		break
+	}
+}
+
 func Load() *Config {
+	loadEnvFiles()
 	sourceRepository := SourceRepository
 	if !buildRevision.MatchString(GitCommit) {
 		sourceRepository = "" // Runtime/fallback revisions are not build provenance.
@@ -173,6 +206,7 @@ func Load() *Config {
 	runnerDetachedWorkers := getEnv("CUAN_RUNNER_DETACHED_WORKERS", "true") != "false"
 	runnerWorkerRegistryDir := getEnv("CUAN_WORKER_REGISTRY_DIR", "/tmp/cuan-workers")
 	runnerBinPath := getEnv("CUAN_RUNNER_BIN", "/opt/cuan/current/bin/cuan-runner")
+	runnerAutoSupervise := getEnv("CUAN_RUNNER_AUTO_SUPERVISE", "true") != "false"
 
 	return &Config{
 		Environment:               env,
@@ -194,6 +228,7 @@ func Load() *Config {
 		RunnerNativeRelease:       getEnv("CUAN_RUNNER_NATIVE_RELEASE", "false") == "true",
 		RunnerWorkerRegistryDir:   runnerWorkerRegistryDir,
 		RunnerBinPath:             runnerBinPath,
+		RunnerAutoSupervise:       runnerAutoSupervise,
 		AuthSecret:                authSecret,
 		GitAuthorName:             gitAuthorName,
 		GitAuthorEmail:            gitAuthorEmail,

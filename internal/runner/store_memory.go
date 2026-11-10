@@ -33,7 +33,9 @@ func (m *MemoryStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *Runne
 	if !exists {
 		info.CreatedAt = now
 		info.UpdatedAt = now
-		info.LastHeartbeatAt = now
+		if info.LastHeartbeatAt.IsZero() {
+			info.LastHeartbeatAt = now
+		}
 		if info.Status == "" {
 			info.Status = StatusIdle
 		}
@@ -48,7 +50,11 @@ func (m *MemoryStore) RegisterOrUpdateHeartbeat(ctx context.Context, info *Runne
 		existing.SupportedAgents = info.SupportedAgents
 	}
 	existing.Status = info.Status
-	existing.LastHeartbeatAt = now
+	if info.LastHeartbeatAt.IsZero() {
+		existing.LastHeartbeatAt = now
+	} else {
+		existing.LastHeartbeatAt = info.LastHeartbeatAt
+	}
 	existing.CurrentTaskID = info.CurrentTaskID
 	existing.CurrentAttemptID = info.CurrentAttemptID
 	existing.CPUPercent = info.CPUPercent
