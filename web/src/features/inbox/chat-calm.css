@@ -429,22 +429,22 @@
   color: var(--wa-outgoing-meta);
 }
 
-.wa-message-bubble > .chat-markdown > p:last-child::after,
-.calm-message-bubble > .chat-markdown > p:last-child::after {
+.wa-message-bubble:not(:has(.status-report-card, [data-testid="task-completion-card"], .approval-card, [data-testid="approval-card"])) > .chat-markdown > p:last-child::after,
+.calm-message-bubble:not(:has(.status-report-card, [data-testid="task-completion-card"], .approval-card, [data-testid="approval-card"])) > .chat-markdown > p:last-child::after {
   content: '';
   display: inline-block;
   width: 56px;
   height: 1px;
 }
-.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer,
-.calm-message-bubble:has(> .chat-markdown > p:last-child) .calm-markdown-footer {
+.wa-message-bubble:not(:has(.status-report-card, [data-testid="task-completion-card"], .approval-card, [data-testid="approval-card"])):has(> .chat-markdown > p:last-child) .wa-markdown-footer,
+.calm-message-bubble:not(:has(.status-report-card, [data-testid="task-completion-card"], .approval-card, [data-testid="approval-card"])):has(> .chat-markdown > p:last-child) .calm-markdown-footer {
   position: absolute;
   right: 9px;
   bottom: 7px;
   min-height: 0;
 }
-.wa-message-bubble:has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta,
-.calm-message-bubble:has(> .chat-markdown > p:last-child) .calm-markdown-footer .calm-message-meta {
+.wa-message-bubble:not(:has(.status-report-card, [data-testid="task-completion-card"], .approval-card, [data-testid="approval-card"])):has(> .chat-markdown > p:last-child) .wa-markdown-footer .wa-message-meta,
+.calm-message-bubble:not(:has(.status-report-card, [data-testid="task-completion-card"], .approval-card, [data-testid="approval-card"])):has(> .chat-markdown > p:last-child) .calm-markdown-footer .calm-message-meta {
   float: none;
   margin: 0;
 }
@@ -453,9 +453,20 @@
 .wa-message-bubble:has(.status-report-card) .wa-markdown-footer,
 .calm-message-bubble:has(.status-report-card) .calm-markdown-footer,
 .wa-message-bubble:has([data-testid="task-completion-card"]) .wa-markdown-footer,
-.calm-message-bubble:has([data-testid="task-completion-card"]) .calm-markdown-footer {
-  position: static;
+.calm-message-bubble:has([data-testid="task-completion-card"]) .calm-markdown-footer,
+.wa-message-bubble:has(.approval-card) .wa-markdown-footer,
+.calm-message-bubble:has(.approval-card) .calm-markdown-footer,
+.wa-message-bubble:has([data-testid="approval-card"]) .wa-markdown-footer,
+.calm-message-bubble:has([data-testid="approval-card"]) .calm-markdown-footer {
+  position: static !important;
   margin-top: 4px;
+}
+.wa-message-bubble:has(.approval-card) .wa-markdown-footer .wa-message-meta,
+.calm-message-bubble:has(.approval-card) .calm-markdown-footer .calm-message-meta,
+.wa-message-bubble:has([data-testid="approval-card"]) .wa-markdown-footer .wa-message-meta,
+.calm-message-bubble:has([data-testid="approval-card"]) .calm-markdown-footer .calm-message-meta {
+  float: right;
+  margin: 4px 0 0 10px;
 }
 
 /* Prompt Choices: Pure transparent surface blending into chat canvas (Bear Notes & Things 3) */
