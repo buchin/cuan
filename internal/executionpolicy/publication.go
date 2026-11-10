@@ -17,9 +17,9 @@ type PublicationPolicy struct {
 var publicationProhibition = regexp.MustCompile(`(?i)\b(?:jangan|dilarang|tanpa|tidak|do not|don't|must not|never|no)\b[^;\n.!?]{0,400}`)
 
 // An explicit subsequent imperative starts a new clause. In particular,
-// "tidak menyalin ... lalu lakukan deployment" does not prohibit deployment.
+// "tidak tertimpa ... lalu lanjutkan deploy" does not prohibit deployment.
 // Any prohibition before the transition is still evaluated independently.
-var publicationClauseTransition = regexp.MustCompile(`(?i)\b(?:(?:lalu|kemudian)\s+(?:lakukan|jalankan)|then\s+(?:perform|execute|run))\b`)
+var publicationClauseTransition = regexp.MustCompile(`(?i)\b(?:(?:lalu|kemudian)\s+(?:lakukan|jalankan|lanjutkan)|then\s+(?:perform|execute|run|continue))\b`)
 
 // This exact native header describes a completed predecessor. It is not the
 // new attempt's scope. Keep explicit owner/attempt bans elsewhere untouched.

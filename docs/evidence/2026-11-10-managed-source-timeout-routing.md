@@ -921,3 +921,35 @@ and35939ms checks. The new verifier terminal identifies Claude Sonnet4.6,
 confirming return to the primary route after capacity became available without
 interrupting the older Gemini worker. It remains active; neither the updated
 screenshot evidence nor complete feature/publication outcome is accepted yet.
+
+## Follow-up: source admission lost through a false deployment prohibition
+
+After verifier889c45af succeeded, taskcf2f1412 remained blocked. Native diagnostics
+proved source117224a absent from running53cba34, with original publication scope
+allowed. Historical execution inspection of developerc6a5d56a showed deny_deploy
+true; its completion recorded publication_required=false and no managed-source
+admission. The exact saved correction said the manual title must "tidak tertimpa,
+lalu lanjutkan deploy live". The prohibition parser consumed that whole clause
+and incorrectly classified the later positive deployment instruction as banned.
+The regression fails before the fix. Clause boundaries now recognize Indonesian
+lanjutkan and English continue; earlier explicit deployment bans still win.
+
+Repairing parsing does not create a missing historical handoff. Publication
+policyv7 classifies a separate source-preparation correction only for a native
+independently verified source with a matching disabled-publication completion,
+no existing managed admission, current unrestricted original/source scope and a
+managed-release-enabled project, after native ancestry proves non-inclusion in
+an observed release. Existing PM admission, cancellation, repetition limits and
+launch deduplication still own execution. The developer must preserve existing
+implementation, reconcile the current baseline and obtain fresh native handoff
+and independent source review. No receipt, original approval or status is forged.
+
+The user-facing finding now names unfinished release or missing release evidence
+instead of the generic "belum bisa dipastikan". This does not claim feature
+absence solely from different/noncontained commits or promise an active release
+before admission. Real ComposerTasks screenshots inspected at390px/1440px show
+the new factual progress copy wrapping without overflow; browser checks pass.
+Server source-review/manager/publication regression tests pass, complete short
+executionpolicy/task/runner suites pass, and actual PostgreSQL workflow-turn and
+native-release matrix tests pass (20.552s). Deployment and production repair
+observation remain pending; no successful feature release is claimed.

@@ -69,7 +69,7 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 				return
 			}
 			if scenario == "implementation revision" {
-				if result.RemainingWork != "verification" || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "belum bisa dipastikan") {
+				if result.RemainingWork != "verification" || !strings.Contains(result.Revision, input.Finding) || !strings.Contains(result.Revision, input.Revision) || !strings.HasPrefix(result.Revision, "First reconcile") || strings.Contains(result.Explanation, "Deploy again") || !strings.Contains(result.Finding, "rilis") {
 					t.Fatal("implementation gap or publication reconciliation lost")
 				}
 				return
@@ -81,7 +81,7 @@ func TestPublicationReviewCannotAcceptUnpublishedResult(t *testing.T) {
 			if (result.Decision == "pass") != allowed {
 				t.Fatalf("publication gate result %+v", result)
 			}
-			if !allowed && (result.RemainingWork != "verification" || !strings.Contains(result.Finding, "belum bisa dipastikan")) {
+			if !allowed && (result.RemainingWork != "verification" || !strings.Contains(result.Finding, "rilis")) {
 				t.Fatal("publication gap was lost")
 			}
 			if d.CommitSHA != commit || d.LatestAttempt.Status != task.AttemptStatusSucceeded {

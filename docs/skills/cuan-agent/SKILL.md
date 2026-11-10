@@ -987,6 +987,17 @@ The10-minute handoff grace bounds stale internal waits; it is not an execution
 deadline, acceptance proof or authorization to bypass verification. No historical
 task gets a fabricated receipt. Native stage validation still owns all admission.
 
+A separately verified source whose native completion disabled publication and
+never acquired managed-source admission cannot borrow a historical release
+handoff. When current original/attempt scope permits publication, the registered
+project enables managed release, and native ancestry observes that source absent
+from production, PM can replan source preparation in a separate developer
+session. Preserve existing implementation and reports; reconcile the current
+baseline, then obtain a new native handoff, independent review and publication.
+This classification grants no authority, resets no budget and never accepts
+work. Explicit owner bans, cancellation, unknown ancestry, existing publication
+and already accepted work remain excluded.
+
 Public launch.kind is a presentation enum (native_release, verification or
 inspection); it contains no execution payload and grants no authority. UI uses
 Waiting to deploy/Deploying for that saved native stage rather than calling all

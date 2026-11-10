@@ -19,7 +19,7 @@ func TestContinuationPresentationDoesNotChangeExecutionScope(t *testing.T) {
 
 	body := "Hasil kerja belum terverifikasi, termasuk status rilisnya.\n\nBatas perbaikan otomatis sudah tercapai; hasil sementara dan bukti tetap tersimpan.\n\n[View work](/tasks/task)"
 	visible := presentContinuationText(body, original)
-	if strings.Contains(visible, "status rilis") || strings.Contains(visible, "Batas perbaikan otomatis") || !strings.Contains(visible, "belum bisa dipastikan sudah diterapkan") || !strings.Contains(visible, "/tasks/task") {
+	if strings.Contains(visible, "status rilis") || strings.Contains(visible, "Batas perbaikan otomatis") || !strings.Contains(visible, "Bukti pemeriksaan hasil dan rilisnya belum lengkap") || !strings.Contains(visible, "/tasks/task") {
 		t.Fatal("legacy technical footer leaked or result lost", visible)
 	}
 	if presentContinuationText(body, nil) != body {

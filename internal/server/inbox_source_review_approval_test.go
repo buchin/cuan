@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publication"
 	"strings"
 	"testing"
@@ -244,6 +245,71 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 			t.Fatal("historical source verifier was replayed")
 		}
 	})
+	t.Run("missing managed admission requires current unrestricted source", func(t *testing.T) {
+		current, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		original, proof := s.verifiedSupplementalSource(ctx, current)
+		if original == nil || proof == nil {
+			t.Fatal("missing independent source fixture")
+		}
+		p, e := s.projectSvc.Store().GetProject(ctx, d.ProjectID)
+		must(e)
+		old := p.Metadata
+		defer func() { p.Metadata = old; _ = s.projectSvc.Store().UpdateProject(ctx, p) }()
+		settings := project.SettingsFromMetadata(p.Metadata)
+		settings.AutoDeploy = new(bool)
+		*settings.AutoDeploy = true
+		settings.Environment = "CUAN_MANAGED_RELEASE=1"
+		p.Metadata, e = json.Marshal(map[string]any{"cuan_settings": settings})
+		must(e)
+		must(s.projectSvc.Store().UpdateProject(ctx, p))
+		no := false
+		record, _ := json.Marshal(task.RunnerVerificationRecord{Summary: task.AttemptVerificationEvidence(original).Current, PublicationRequired: &no, PublicationInstructionsHash: task.LaunchInstructionsHash(d.Instructions)})
+		event := &task.TaskActivity{ID: "verification:" + proof.SourceAttemptID, TaskID: d.ID, AttemptID: &proof.SourceAttemptID, Author: original.LatestAttempt.RunnerID, ActivityType: task.ActivityTypeRunnerVerification, Message: string(record), CreatedAt: *original.LatestAttempt.FinishedAt}
+		must(store.CreateActivity(ctx, event))
+		current, e = s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		if !s.missingManagedSourceAdmission(ctx, current) {
+			t.Fatal("saved disabled-publication completion did not expose missing admission")
+		}
+		for _, mode := range []string{"missing completion", "foreign completion", "owner ban", "cancelled verifier", "already accepted"} {
+			changed := *current
+			changed.Activities = nil
+			for _, activity := range current.Activities {
+				if activity.ID == event.ID && mode == "missing completion" {
+					continue
+				}
+				if activity.ID == event.ID && mode == "foreign completion" {
+					copy := *activity
+					copy.Author = "foreign-runner"
+					activity = &copy
+				}
+				changed.Activities = append(changed.Activities, activity)
+			}
+			if mode == "owner ban" {
+				changed.Instructions += "\nDo not deploy."
+			}
+			if mode == "cancelled verifier" {
+				attempt := *changed.LatestAttempt
+				attempt.CancelRequested = true
+				changed.LatestAttempt = &attempt
+			}
+			if mode == "already accepted" {
+				changed.Status = task.TaskStatusDone
+			}
+			if s.missingManagedSourceAdmission(ctx, &changed) {
+				t.Fatal("missing-admission repair accepted invalid native context", mode)
+			}
+		}
+		settings.Environment = ""
+		p.Metadata, e = json.Marshal(map[string]any{"cuan_settings": settings})
+		must(e)
+		must(s.projectSvc.Store().UpdateProject(ctx, p))
+		if s.missingManagedSourceAdmission(ctx, current) {
+			t.Fatal("unmanaged project entered native source preparation")
+		}
+	})
+
 	t.Run("separate developer correction", func(t *testing.T) {
 		d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
 		must(err)
@@ -255,7 +321,7 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		must(e)
 		p.Metadata = json.RawMessage(`{"cuan_settings":{"auto_deploy":false}}`)
 		must(s.projectSvc.Store().UpdateProject(ctx, p))
-		correction := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "implementation", Finding: "A scoped source correction remains", Explanation: "Correct the original result", Revision: "Reconcile only the identified original implementation gap against current project source; preserve unrelated work.", ManagerAction: "continue", ManagerReason: "Independent verification identified a concrete remaining gap"}
+		correction := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "implementation", Finding: "A scoped source correction remains", Explanation: "Correct the original result", Revision: "Lengkapi bukti bahwa judul manual tidak tertimpa, lalu lanjutkan deploy live sesuai cakupan yang disetujui.", ManagerAction: "continue", ManagerReason: "Independent verification identified a concrete remaining gap"}
 		if s.verifiedImplementationCorrectionAllowed(ctx, review, d, correction.Revision) {
 			t.Fatal("unsaved reviewer text authorized developer work")
 		}

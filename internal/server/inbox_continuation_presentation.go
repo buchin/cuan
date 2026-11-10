@@ -40,7 +40,7 @@ func presentContinuationText(content string, plan *inboxApprovalPlan) string {
 	}
 	// Presentation-only compatibility for the old system-generated review footer.
 	// Stored chat history and its immutable approval scope are never rewritten.
-	content = strings.ReplaceAll(content, "Hasil kerja belum terverifikasi, termasuk status rilisnya.", "Hasil perubahan belum bisa dipastikan sudah diterapkan.")
+	content = strings.ReplaceAll(content, "Hasil kerja belum terverifikasi, termasuk status rilisnya.", "Bukti pemeriksaan hasil dan rilisnya belum lengkap.")
 	lines := strings.Split(content, "\n")
 	kept := lines[:0]
 	for _, line := range lines {

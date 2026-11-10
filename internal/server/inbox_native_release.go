@@ -12,6 +12,41 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+// A completion that disabled publication before managed source admission cannot
+// acquire a historical handoff retroactively. After scope parsing is repaired,
+// a separately authorized developer can reconcile that retained source instead.
+func (s *Server) missingManagedSourceAdmission(ctx context.Context, d *task.TaskDetailResponse) bool {
+	if d == nil || d.Status == task.TaskStatusDone || d.Status == "cancelled" || d.Status == "canceled" {
+		return false
+	}
+	source, proof := s.verifiedSupplementalSource(ctx, d)
+	if source == nil || proof == nil || s.projectSvc == nil || !task.VerificationSourceChecksPassed(source) {
+		return false
+	}
+	required := task.AttemptPublicationRequired(source)
+	if required == nil || *required {
+		return false
+	}
+	approved, _ := s.inboxApprovedTaskScope(ctx, d)
+	if approved == nil || approved.ReadOnlyRepository || approved.DenyPush || approved.DenyDeploy {
+		return false
+	}
+	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, proof.SourceAttemptID)
+	if err != nil || limits.ReadOnlyRepository || limits.DenyPush || limits.DenyDeploy {
+		return false
+	}
+	admission, err := task.ManagedReleaseAdmission(&source.Task, source.LatestAttempt, source.Activities)
+	if err != nil || admission != nil {
+		return false
+	}
+	p, err := s.projectSvc.TaskContext(ctx, d.ProjectID, d.Instructions)
+	if err != nil || p == nil || p.IsArchived {
+		return false
+	}
+	settings := project.SettingsFromMetadata(p.Metadata)
+	return settings.IsAutoDeployEnabled() && project.ParseEnvironment(settings.Environment)["CUAN_MANAGED_RELEASE"] == "1"
+}
+
 // Developer handoffs enter independent verification first. Only a source-stage
 // approval can admit native publication; neither stage accepts the whole task.
 func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDetailResponse, requests []db.InboxRequest) bool {

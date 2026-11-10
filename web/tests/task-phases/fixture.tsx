@@ -12,7 +12,7 @@ import { Send } from 'lucide-react'
 import '../../src/index.css'
 import '../../src/features/inbox/chat-calm.css'
 const at='2026-11-10T08:50:00Z'
-const initial={id:'release',source_room_id:'room',title:'Rapikan indikator persetujuan',status:'queued',created_at:at,latest_attempt:{id:'verifier',status:'succeeded'},launch:{state:'queued',kind:'native_release',available_at:at}} as Task
+const initial={id:'release',source_room_id:'room',title:'Rapikan indikator persetujuan',latest_progress:'Pengujian perubahan sudah lulus, tetapi proses rilisnya belum tuntas.',status:'queued',created_at:at,latest_attempt:{id:'verifier',status:'succeeded'},launch:{state:'queued',kind:'native_release',available_at:at}} as Task
 const archive={loaded:true,unreadCount:()=>0,markRead:async()=>{},archive:async()=>{}} as unknown as ConversationItemProps['archive']
 function Fixture(){
  const [task,setTask]=useState(initial)
