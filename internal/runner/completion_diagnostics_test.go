@@ -3,8 +3,10 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -67,9 +69,16 @@ func TestRunnerFinalDiagnosticSurvivesExecutionCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	evidenceDir := t.TempDir()
-	runner := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL}, &canceledDiagnosticAdapter{cancel: cancel, t: t, evidenceDir: evidenceDir}, api.Client())
+	baseDir := t.TempDir()
+	runner := NewRunner(&config.Config{
+		RunnerID:                "fixture",
+		RunnerServerURL:         api.URL,
+		WorkspacesDir:           filepath.Join(baseDir, "workspaces"),
+		RunnerWorkerRegistryDir: filepath.Join(baseDir, "workers"),
+	}, &canceledDiagnosticAdapter{cancel: cancel, t: t, evidenceDir: evidenceDir}, api.Client())
 	now := time.Now().UTC()
-	claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: t.TempDir(), Task: &task.Task{ID: "cancel-diagnostic", Title: "Inspect", ExecutionCategory: task.ExecutionCategoryReadOnly}, Attempt: &task.TaskAttempt{ID: "attempt", TaskID: "cancel-diagnostic", AttemptNumber: 1, CreatedAt: now}}
+	attemptID := fmt.Sprintf("cancel-att-%d", time.Now().UnixNano())
+	claim := ClaimTaskResponse{Claimed: true, OwnerID: "owner", WorkingDir: t.TempDir(), Task: &task.Task{ID: "cancel-diagnostic", Title: "Inspect", ExecutionCategory: task.ExecutionCategoryReadOnly}, Attempt: &task.TaskAttempt{ID: attemptID, TaskID: "cancel-diagnostic", AttemptNumber: 1, CreatedAt: now}}
 	claim.TaskAgent = &TaskAgentCapability{API: api.URL + "/report", Token: "fixture", TaskID: claim.Task.ID, AttemptID: claim.Attempt.ID, ArtifactsDir: evidenceDir, ReportFile: evidenceDir + "/../report.json"}
 	runner.runAttempt(ctx, claim)
 	mu.Lock()
