@@ -642,3 +642,21 @@ projections now retain shared resolution/observation fields. Rendered390/1440px
 checks include taskless conversation resolution. A broader counter test exposed an
 obsolete fixture relying on ghost room creation and hidden legacy agent seeding;
 it now establishes its own single persona and actual conversation explicitly.
+
+Follow-up release1fac81fd is healthy on schema39, with all470 frontend gates and
+targeted server/CLI tests passing. Native resolve-all confirmed18 additional room
+resolutions with zero failures; the previously rejected canceled room now succeeds.
+The authoritative list contains58 entries:54 resolved,3 real conversations with
+unfinished blocked work (including the original focus task), and1 online/session
+entry without messages, which was intentionally not selected. No task was manually
+accepted, canceled or marked Done by this operation.
+
+The new maintenance pass completed successfully at14:41:51 +08. Available bytes
+were13,675,270,144 afterward versus2,356,879,360 immediately before the first bulk
+operation: net increase11,318,390,784 bytes (11.32 decimal GB), filesystem usage97%
+to82%. Measurements span ordinary scheduled maintenance and the intervening release,
+so they are net host movement rather than an isolated per-feature benchmark.
+The delivered3,993-byte attachment was downloaded again through the official CLI;
+its SHA256 exactly matched the earlier download. The main project repository still
+responds as a valid Git worktree. All user-visible history/attachment operations
+used the official Cuan CLI; no ad-hoc database or Cuan API operations were used.
