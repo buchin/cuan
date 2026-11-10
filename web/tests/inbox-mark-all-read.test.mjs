@@ -1,39 +1,37 @@
 import test from 'node:test'
 import assert from 'node:assert'
 import fs from 'node:fs'
+import ts from 'typescript'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const sharedIconSource = fs.readFileSync(new URL('../src/components/ui/IconButton.tsx', import.meta.url), 'utf8')
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const subPanelPath = path.join(__dirname, '../src/features/inbox/InboxSubPanel.tsx')
 const archivedHookPath = path.join(__dirname, '../src/hooks/useArchivedItems.tsx')
-const subPanelSource = fs.readFileSync(subPanelPath, 'utf8')
 const archivedHookSource = fs.readFileSync(archivedHookPath, 'utf8')
 
 const distDir = path.join(__dirname, '../dist/assets')
 const distJsFile = fs.readdirSync(distDir).find((f) => f.startsWith('index-') && f.endsWith('.js'))
 const distJsContent = distJsFile ? fs.readFileSync(path.join(distDir, distJsFile), 'utf8') : ''
 
-test('1. InboxSubPanel: Mark All Read button with CheckCheck icon and accessible label', () => {
-  assert.ok(
-    subPanelSource.includes('CheckCheck'),
-    'InboxSubPanel must import and render the CheckCheck icon for mark all read'
-  )
-  assert.ok(
-    subPanelSource.includes("t('Mark all as read')"),
-    'InboxSubPanel must translate Mark all as read label for internationalization'
-  )
-  assert.ok(
-    subPanelSource.includes('totalUnreadCount > 0'),
-    'Mark All Read button must only be active/rendered when there are unread items'
-  )
-  assert.ok(
-    subPanelSource.includes('<IconButton') && sharedIconSource.includes('min-h-11 min-w-11'),
-    'Mark All Read button must satisfy WCAG 44x44px minimum touch target size (min-h-11 min-w-11)'
-  )
+const policySource = fs.readFileSync(new URL('../src/features/inbox/conversation-resolution-policy.ts', import.meta.url), 'utf8')
+const policyJS = ts.transpileModule(policySource, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText
+const { completedConversation, conversationHasUnfinishedTasks } = await import('data:text/javascript;base64,' + Buffer.from(policyJS).toString('base64'))
+
+test('bulk resolution requires completed work; cancellation alone and empty rooms are excluded', () => {
+  for (const [room, eligible] of [
+    [{task_count: 0}, false],
+    [{task_count: 1, done_tasks: 1}, true],
+    [{task_count: 2, done_tasks: 1, canceled_tasks: 1}, true],
+    [{task_count: 1, canceled_tasks: 1}, false],
+    [{task_count: 2, done_tasks: 1}, false],
+    [{task_count: 1, done_tasks: 1, review_tasks: 1}, false],
+    [{task_count: 1, done_tasks: 1, active_tasks: 1}, false],
+    [{task_count: 1, done_tasks: 1, failed_tasks: 1}, false],
+  ]) assert.equal(completedConversation(room), eligible)
+  assert.equal(conversationHasUnfinishedTasks({task_count: 1, canceled_tasks: 1}), false, 'manual resolution permits canceled work')
+  assert.equal(conversationHasUnfinishedTasks({task_count: 2, done_tasks: 1}), true)
 })
 
 test('2. useArchivedItems: batch mark-all API integration and event dispatch', () => {
@@ -47,7 +45,7 @@ test('2. useArchivedItems: batch mark-all API integration and event dispatch', (
   )
   assert.ok(
     archivedHookSource.includes('cuan-item-preferences'),
-    'markAllItemPreferencesRead must dispatch cuan-item-preferences event for instant navbar state sync'
+    'markAllItemPreferencesRead must dispatch cuan-item-preferences event for instant read-marker synchronization'
   )
   assert.ok(
     archivedHookSource.includes('markAllRead:'),
