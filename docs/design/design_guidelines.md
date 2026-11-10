@@ -632,3 +632,12 @@ The primary status and pulse express ownership of unfinished approved work,
 including internal recovery and external waits. Only owner input or a terminal
 outcome ends that pulse. Actual process/terminal availability stays bound to
 native execution records; work ownership never creates a phantom terminal.
+
+### Consistent work phases and Inbox indicators
+
+Use the same shared solid StatusDot for a single Cuan-owned active task in Inbox
+and task cards, including queued execution and automated checks before any task
+has completed. Keep the pie for aggregate completion and the checked circle for
+accepted Done. Owner-only decisions stay static. Derive Waiting to deploy and
+Deploying from the saved native launch kind/state; a completed predecessor must
+not hide the queued next stage. Work ownership never creates a phantom terminal.

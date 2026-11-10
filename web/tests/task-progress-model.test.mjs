@@ -57,3 +57,16 @@ test('Inbox does not suppress a single completed task',()=>{
  const source=fs.readFileSync(new URL('../src/features/inbox/InboxSubPanel.tsx',import.meta.url),'utf8');
  assert.doesNotMatch(source,/minTasks\s*:\s*2/);
 })
+
+
+test('queued and checking work stay visible and pulsing before the first completion',()=>{
+ for(const phase of ['active','queued','review']) {
+  const model=taskProgressModel({total:1,done:0,[phase]:1})
+  assert.ok(model,phase)
+  assert.equal(model.pending,1,phase)
+ }
+ const owner=taskProgressModel({total:1,done:0,active:0,queued:0,review:0,blocked:1})
+ assert.ok(owner)
+ assert.equal(owner.pending,0)
+ assert.equal(taskProgressModel({total:1,done:1,queued:0,review:0,active:0}).pending,0)
+})

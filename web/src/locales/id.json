@@ -1759,5 +1759,7 @@
   "unresolved conversations": "percakapan belum tuntas",
   "Resolve conversations": "Tuntaskan percakapan",
   "Resolve {{count}} conversations?": "Tuntaskan {{count}} percakapan?",
-  "{{count}} conversations with unfinished work will remain in your inbox.": "{{count}} percakapan yang pekerjaannya belum selesai tetap berada di inbox."
+  "{{count}} conversations with unfinished work will remain in your inbox.": "{{count}} percakapan yang pekerjaannya belum selesai tetap berada di inbox.",
+  "Waiting to deploy": "Menunggu rilis",
+  "Deploying": "Merilis"
 }

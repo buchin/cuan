@@ -40,3 +40,12 @@ test('native provider notes stay technical, genuine owner notes remain readable'
  assert.ok(result.events.some(event=>event.id==='owner'&&event.body==='Keep the existing design'))
  assert.ok(!result.events.some(event=>event.id==='provider'))
 })
+
+
+test('release phase stays consistent in the work detail timeline',()=>{
+ const queued={...task,source_room_id:'room',status:'queued',review_state:'queued',launch:{state:'queued',kind:'native_release'}}
+ assert.equal(workTimeline(queued,false).events.at(-1).title,'Waiting to deploy')
+ assert.equal(workTimeline(queued,true).events.at(-1).title,'Menunggu rilis')
+ assert.equal(workTimeline(queued,false).events.at(-1).pulse,true)
+ assert.equal(workTimeline({...queued,status:'doing',latest_attempt:{status:'running'},launch:{state:'started',kind:'native_release'}},false).events.at(-1).title,'Deploying')
+})

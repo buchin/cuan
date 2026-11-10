@@ -796,3 +796,39 @@ Server tests read durable stages without terminal logs and confirm accepted
 review text replaces an injected worker estimate while preserving that original
 report in history. Relevant native pipeline regressions pass; complete short task
 and runner suites pass (task0.165s, runner17.103s). Publication remains pending.
+
+## Follow-up: keep a workflow's project turn across native stages
+
+Room10ee9ce6-a69b-42c5-a8bf-5b0cc800d4df demonstrated two separate defects.
+Its developer and independent verifier had finished, but native publication
+queued behind a different development task started during the PM handoff gap.
+Inbox also hid its single task indicator because done=0 and active=0, ignoring
+queued=1, while its task card displayed the generic ownership label Working.
+Publication subsequently succeeded, but the same per-attempt queue behavior can
+delay the final inspection again. No active unrelated worker was canceled.
+
+Native completion now saves a scope-bound workflow_handoff activity atomically
+with existing completion evidence. Project admission, launch claim and runner
+claim share the handoff hold. A task's own next stage is exempt; older workflows
+have precedence over newer work, while separate projects and the shared reader
+pool remain independent. The latest native receipt replaces the previous hold;
+Done, cancellation, changed scope or its matching owner-only decision release it.
+A10-minute grace prevents a dead internal handoff from locking a project forever.
+No schema, scheduler, external library or new execution permission is introduced.
+Historical attempts have no fabricated handoff record.
+
+Complete short task/runner suites pass. A disposable loopback PostgreSQL test
+uses actual native completion and DB claims to prove: an unrelated queued task
+cannot cut into the handoff gap, the same workflow's next stage can be claimed,
+and an owner-only decision releases the turn. The full existing native-release
+PostgreSQL regression matrix also passes. Native source/permission admission is
+covered by those protocol fixtures; the isolated scheduler fixture uses native
+store-created envelopes rather than pretending a bare retry has verifier authority.
+
+Launch projection now supplies only a bounded kind enum without revision or
+credentials, allowing Waiting to deploy/Deploying labels from saved native state.
+Inbox includes queued/checking work before first completion and reuses StatusDot
+for a single active task, keeping owner decisions static and Done checked.
+Real-component screenshots inspected at390px/1440px and browser assertions cover
+both release phases, visible queue/check pulses and absence of a phantom terminal.
+Publication and actual production phase-continuity observation remain pending.

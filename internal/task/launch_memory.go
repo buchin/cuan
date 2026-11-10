@@ -90,6 +90,10 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 						continue
 					}
 					if other.ProjectID == projID || containsString(other.ProjectIDs, projID) {
+						if candLane == ExecutionCategoryCode && WorkflowPrecedes(other, m.tasks[j.TaskID]) && m.workflowHandoffLocked(other, now) {
+							projectBusy = true
+							break
+						}
 						if other.Status == TaskStatusDone || other.Status == TaskStatusBlocked || other.Status == TaskStatusReview || other.Status == "failed" || other.Status == "cancelled" || other.Status == TaskStatusQueued {
 							continue
 						}

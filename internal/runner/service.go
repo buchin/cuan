@@ -937,6 +937,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			CreatedAt:    now,
 		}
 		completionActivities = append(completionActivities, act)
+		if handoff := task.NewWorkflowHandoff(t, att, now); handoff != nil {
+			completionActivities = append(completionActivities, handoff)
+		}
 		var changes *task.RunnerChangeRecord
 		if req.DiffSummary != "" && req.CommitSHA != "" {
 			changes = task.NewRunnerChangeRecord(req.CommitSHA, req.DiffSummary)

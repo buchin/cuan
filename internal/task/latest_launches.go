@@ -14,7 +14,10 @@ func (s *DBStore) LatestLaunchInfos(ctx context.Context, ids []string) (map[stri
 	if len(ids) == 0 {
 		return result, nil
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT ON (j.task_id) j.task_id,j.state,j.safe_error,j.available_at FROM task_launches j LEFT JOIN task_attempts a ON a.id=j.attempt_id AND a.task_id=j.task_id AND a.status IN ('queued','running') WHERE j.task_id=ANY($1::text[]) ORDER BY j.task_id,(a.id IS NOT NULL) DESC,j.created_at DESC,j.id DESC`, ids)
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT ON (j.task_id) j.task_id,j.state,j.safe_error,j.available_at,CASE
+ WHEN (length(j.revision)-length(replace(j.revision,$2,'')))=length($2) AND strpos(j.revision,$3)=0 AND strpos(j.revision,$4)=0 THEN 'native_release'
+ WHEN (length(j.revision)-length(replace(j.revision,$3,'')))=length($3) AND strpos(j.revision,$2)=0 AND strpos(j.revision,$4)=0 THEN 'verification'
+ WHEN (length(j.revision)-length(replace(j.revision,$4,'')))=length($4) AND strpos(j.revision,$2)=0 AND strpos(j.revision,$3)=0 THEN 'inspection' ELSE '' END FROM task_launches j LEFT JOIN task_attempts a ON a.id=j.attempt_id AND a.task_id=j.task_id AND a.status IN ('queued','running') WHERE j.task_id=ANY($1::text[]) ORDER BY j.task_id,(a.id IS NOT NULL) DESC,j.created_at DESC,j.id DESC`, ids, NativeReleaseIntentMarker, VerificationIntentMarker, LiveInspectionMarker)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +25,7 @@ func (s *DBStore) LatestLaunchInfos(ctx context.Context, ids []string) (map[stri
 	for rows.Next() {
 		var id string
 		var info LaunchInfo
-		if err := rows.Scan(&id, &info.State, &info.SafeError, &info.AvailableAt); err != nil {
+		if err := rows.Scan(&id, &info.State, &info.SafeError, &info.AvailableAt, &info.Kind); err != nil {
 			return nil, err
 		}
 		result[id] = &info
@@ -55,7 +58,7 @@ func (m *MemoryStore) LatestLaunchInfos(_ context.Context, ids []string) (map[st
 		}
 	}
 	for id, j := range latest {
-		result[id] = &LaunchInfo{State: j.State, SafeError: j.SafeError, AvailableAt: j.AvailableAt}
+		result[id] = &LaunchInfo{State: j.State, SafeError: j.SafeError, AvailableAt: j.AvailableAt, Kind: launchPresentationKind(j.Revision)}
 	}
 	return result, nil
 }

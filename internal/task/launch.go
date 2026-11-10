@@ -155,6 +155,7 @@ func (s *Service) LatestLaunch(ctx context.Context, taskID string) (*TaskLaunch,
 }
 
 type LaunchInfo struct {
+	Kind        string    `json:"kind,omitempty"`
 	State       string    `json:"state"`
 	SafeError   string    `json:"safe_error,omitempty"`
 	AvailableAt time.Time `json:"available_at"`
@@ -172,7 +173,7 @@ func (s *Service) launchInfo(ctx context.Context, taskID string) *LaunchInfo {
 	if e != nil || j == nil {
 		return nil
 	}
-	return &LaunchInfo{State: j.State, SafeError: j.SafeError, AvailableAt: j.AvailableAt}
+	return &LaunchInfo{State: j.State, SafeError: j.SafeError, AvailableAt: j.AvailableAt, Kind: launchPresentationKind(j.Revision)}
 }
 
 func LaunchInstructionsHash(text string) string {
@@ -183,4 +184,19 @@ func LaunchInstructionsHash(text string) string {
 // Validation, cancellation and authorization failures remain terminal.
 func recoverableStoppedLaunch(reason string) bool {
 	return reason == "Task is in terminal status." || reason == "Execution stopped during server restart."
+}
+
+// Presentation only: these envelopes are saved by the native handoff. This enum
+// conveys no authority, payload, credentials or claim that a process is active.
+func launchPresentationKind(revision string) string {
+	kind := ""
+	for _, item := range []struct{ marker, kind string }{{NativeReleaseIntentMarker, "native_release"}, {VerificationIntentMarker, "verification"}, {LiveInspectionMarker, "inspection"}} {
+		if strings.Contains(revision, item.marker) {
+			if kind != "" || strings.Count(revision, item.marker) != 1 {
+				return ""
+			}
+			kind = item.kind
+		}
+	}
+	return kind
 }

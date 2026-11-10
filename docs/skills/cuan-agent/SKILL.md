@@ -972,3 +972,18 @@ retry. Server and runner both verify committed recipe changes. The identity is
 bounded per original publication source, retaining prior failed checks. Inspect
 `cuan task execution TASK` for native_check_* admission diagnostics; planner
 readiness alone does not prove queued execution or completion.
+
+Managed code workflows retain their project turn briefly across completed-worker
+handoffs to PM, verifier and publisher. Native completion writes a scope-bound
+handoff receipt atomically with its check result. Own-task continuations remain
+eligible while newer code tasks wait; other projects/readers are unaffected.
+Done, cancellation, changed scope and an owner-only decision release the hold.
+The10-minute handoff grace bounds stale internal waits; it is not an execution
+deadline, acceptance proof or authorization to bypass verification. No historical
+task gets a fabricated receipt. Native stage validation still owns all admission.
+
+Public launch.kind is a presentation enum (native_release, verification or
+inspection); it contains no execution payload and grants no authority. UI uses
+Waiting to deploy/Deploying for that saved native stage rather than calling all
+owned work Working. A queued/checking conversation remains visible in Inbox even
+before the first completion; Live terminal still requires an actual runtime.

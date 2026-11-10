@@ -65,3 +65,14 @@ test('managed work stays Cuan-owned across internal recovery until owner input o
  for (const status of ['done','cancelled','canceled']) assert.equal(taskAgentPending({...work,status}),false)
  assert.equal(taskAgentPending({...work,latest_attempt:{status:'failed',cancel_requested:true}}),false)
 })
+
+
+test('release queue has its real stage while work ownership keeps pulsing',()=>{
+ const task={status:'queued',source_room_id:'room',latest_attempt:{status:'succeeded'},launch:{state:'queued',kind:'native_release'}}
+ assert.equal(workDisplayStatus(task),'Waiting to deploy')
+ assert.equal(taskAgentPending(task),true)
+ assert.equal(workDisplayStatus({...task,status:'doing',latest_attempt:{status:'running'},launch:{state:'started',kind:'native_release'}}),'Deploying')
+ assert.equal(workDisplayStatus({...task,launch:{state:'queued',kind:'verification'}}),'Waiting for checks')
+ assert.equal(workDisplayStatus({...task,launch:{state:'queued'}}),'Queued')
+ assert.equal(workDisplayStatus({...task,status:'done'}),'Completed')
+})

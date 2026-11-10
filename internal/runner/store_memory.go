@@ -220,6 +220,17 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 							}
 						}
 					}
+					if !isOtherActive && candidateLane == task.ExecutionCategoryCode && task.WorkflowPrecedes(otherTask, t) {
+						attempts, attemptErr := m.taskStore.ListAttempts(ctx, otherTask.ID)
+						events, eventErr := m.taskStore.ListActivities(ctx, otherTask.ID)
+						if attemptErr != nil {
+							return nil, nil, attemptErr
+						}
+						if eventErr != nil {
+							return nil, nil, eventErr
+						}
+						isOtherActive = task.WorkflowHandoffPending(otherTask, attempts, events, time.Now().UTC())
+					}
 					if !isOtherActive {
 						continue
 					}

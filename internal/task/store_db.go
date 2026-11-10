@@ -964,13 +964,12 @@ func (s *DBStore) IsProjectLaneActive(ctx context.Context, projectID string, lan
 		SELECT 1 FROM tasks t
 		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
 		  AND ($2 = '' OR t.id != $2)
-		  AND t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 		  AND COALESCE(t.execution_category, 'code') = $3
-		  AND (
+ AND ((t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued') AND (
 			  t.status IN ('doing', 'working')
 			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
 			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state = 'started')
-		  )
+		  )) OR ($3='code' AND ($2='' OR (t.created_at,t.id)<(SELECT created_at,id FROM tasks WHERE id=$2)) AND ` + WorkflowHandoffSQL("t") + `))
 	)`
 	err := s.db.QueryRowContext(ctx, query, projectID, excludeTaskID, normalizedLane).Scan(&laneActive)
 	return laneActive, err

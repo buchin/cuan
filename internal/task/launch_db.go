@@ -82,6 +82,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 		  AND tl.expires_at>$1
 		  AND ((tl.state='queued' AND tl.available_at<=$1) OR (tl.state='claimed' AND tl.lease_until<=$1))
 		  AND cand_task.status NOT IN ('done', 'cancelled', 'failed', 'blocked')
+ AND NOT (`+WorkflowHandoffBlocksSQL("cand_task")+`)
 		  -- 1. Migration barrier: Active migration blocks all candidate tasks
 		  AND NOT EXISTS (
 			  SELECT 1 FROM tasks mig_t

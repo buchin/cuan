@@ -114,7 +114,7 @@ export interface Task {
   review_action?: 'continue' | 'replan' | 'wait' | 'needs_owner'
   repo_url?: string
   result_kind?: 'answer' | 'implementation'
-  launch?: { state: 'queued' | 'claimed' | 'started' | 'stopped' | 'cancelled'; safe_error?: string; available_at: string }
+  launch?: { kind?: 'native_release' | 'verification' | 'inspection'; state: 'queued' | 'claimed' | 'started' | 'stopped' | 'cancelled'; safe_error?: string; available_at: string }
   latest_attempt?: TaskAttempt
   source_room_id?: string
   source_message_id?: string

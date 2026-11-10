@@ -254,6 +254,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		FROM task_attempts a
 		JOIN tasks t ON a.task_id = t.id
 		WHERE a.status = 'queued'
+ AND NOT (` + task.WorkflowHandoffBlocksSQL("t") + `)
  AND ($4 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan verification-only intent v1:%' AND l.revision LIKE '%"finalize_attempt_id":%'))
  AND ($5 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%'))
  AND ($6 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"previous_attempt_id":%'))

@@ -95,6 +95,12 @@ export function workStatus(task: Task) {
 export function workDisplayStatus(task: Task) {
   const status = workStatus(task)
   if (status === 'Completed' || status === 'Cancelled') return status
+  if (status === 'Queued') {
+    if (task.launch?.kind === 'native_release') return 'Waiting to deploy'
+    if (task.launch?.kind === 'verification' || task.launch?.kind === 'inspection') return 'Waiting for checks'
+    if (task.review_state !== 'queued') return 'Queued'
+  }
+  if (status === 'Working' && task.launch?.kind === 'native_release') return 'Deploying'
   if (task.review_state === 'running') return 'Checking result'
   if (task.review_state === 'queued') return 'Waiting for checks'
   if (task.source_room_id && task.latest_attempt) {

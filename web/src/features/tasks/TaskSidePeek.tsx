@@ -55,6 +55,7 @@ import {
   activeAttempt,
   taskAgentPending,
   workStatus,
+  workDisplayStatus,
   statusLabel,
   taskRef,
   relativeTime,
@@ -197,7 +198,7 @@ function TaskDetailView({
   const assistantName = agents.find((a) => a.id === 'agent_cuan')?.name || '@cuan'
   const hasReviewEvidence = Boolean(detail.summary?.trim() && detail.complete_note?.trim() &&
     checklist.every((item) => item.completed && 'evidence' in item && String(item.evidence || '').trim()))
-  const publicStatus = id ? ({ backlog: 'Rencana', todo: 'Siap dikerjakan', queued: 'Dalam antrean', doing: 'Dikerjakan', review: 'Perlu ditinjau', done: 'Selesai', blocked: 'Terhambat' } as Record<string, string>)[detail.status] || statusLabel(detail.status) : statusLabel(detail.status)
+
   const attemptError = detail.latest_attempt?.error_message || ''
   const timedOut = detail.latest_attempt?.status === 'failed' && (
     (detail.latest_attempt.exit_code === 124 && attemptError.startsWith('Execution timed out after adaptive timeout (')) ||
@@ -608,7 +609,7 @@ function TaskDetailView({
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
           <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border", taskStatusBadgeClass(detail.status))}>
             {detail.status === 'done' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden /> : taskAgentPending(detail) && <StatusDot status="working" size="xs" aria-hidden />}
-            {detail.review_state ? (detail.review_state === 'running' ? (id ? 'Memeriksa hasil' : 'Checking result') : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : running ? (detail.latest_attempt?.status === 'queued' ? (id ? 'Dalam antrean' : 'Queued') : (id ? 'Sedang dikerjakan' : 'Working')) : publicStatus}
+            {t(workDisplayStatus(detail))}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
             <TaskDuration task={detail} fallback={<>Updated {relativeTime(detail.updated_at)}</>} />
