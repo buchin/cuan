@@ -14,7 +14,7 @@ spec.loader.exec_module(a)
 class ReleaseAuthorization(unittest.TestCase):
     def test_legacy_helper_cannot_start_unapproved_release_and_rollback_remains_available(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
+            base = Path(directory).resolve()
             old, candidate, stale = 'a'*40, 'b'*40, 'c'*40
             for sha in (old, candidate, stale):
                 (base / 'releases' / sha).mkdir(parents=True)
@@ -46,7 +46,7 @@ class ReleaseAuthorization(unittest.TestCase):
 
     def test_missing_corrupt_linked_or_outside_policy_targets_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory)
+            base = Path(directory).resolve()
             sha = 'a'*40
             (base / 'releases' / sha).mkdir(parents=True)
             units = base / 'units'

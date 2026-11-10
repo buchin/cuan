@@ -18,7 +18,7 @@ fi
 if [[ -z "$maintenance_home" && -d "$install_dir/releases" ]]; then
   # Native releases belong to the service user. Root-owned installations must
   # provide --home explicitly; do not guess another account directory.
-  service_uid="$(stat -c %u "$install_dir/releases")"
+  service_uid="$(stat -c %u "$install_dir/releases" 2>/dev/null || stat -f %u "$install_dir/releases")"
   if [[ "$service_uid" != 0 ]]; then
     maintenance_home="$(getent passwd "$service_uid" | cut -d: -f6)"
   fi
@@ -34,7 +34,7 @@ fi
 python3 "$install_dir/maintenance/prune-release-artifacts.py" "${release_args[@]}"
 if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts" ]]; then
   accounts_dir="$maintenance_home/.local/share/cuan/accounts"
-  accounts_uid="$(stat -c %u "$accounts_dir")"
+  accounts_uid="$(stat -c %u "$accounts_dir" 2>/dev/null || stat -f %u "$accounts_dir")"
   if [[ "$(id -u)" == 0 && "$accounts_uid" != 0 ]]; then
     sudo -n -u "#$accounts_uid" python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --apply
   else

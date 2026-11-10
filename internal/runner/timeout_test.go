@@ -94,9 +94,14 @@ func TestCalculateTaskTimeout_InvestigationPruning(t *testing.T) {
 		t.Fatalf("expected 25m for code attempt 1, got %v", d)
 	}
 
-	// Readonly lane gets 5m
+	// Readonly lane gets 5m for text-only audit
 	if d := CalculateTaskTimeout("readonly", 1, "Audit logs", "inspect logs"); d != 5*time.Minute {
 		t.Fatalf("expected 5m for readonly lane, got %v", d)
+	}
+
+	// Readonly lane with visual or multimodal inspection gets 15m
+	if d := CalculateTaskTimeout("readonly", 1, "Komparasi Visual Hasil Tab Bar terhadap Gambar Acuan User", "inspeksi lampiran gambar 1000290105.jpg"); d != 15*time.Minute {
+		t.Fatalf("expected 15m for readonly visual inspection task, got %v", d)
 	}
 
 	// Code lane with analysis in prompt retains full adaptive timeout (25m) so builds/edits do not timeout

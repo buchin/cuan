@@ -8,13 +8,34 @@ import (
 )
 
 const (
-	DefaultBaseTimeout          = 25 * time.Minute // Attempt 1 (Base Run)
-	DefaultRequeueTimeout       = 35 * time.Minute // Attempt 2 (First Requeue / Gap Fixable)
-	DefaultMaxCapTimeout        = 45 * time.Minute // Attempt 3+ (Final Requeue / Max Cap)
-	DefaultInvestigationTimeout = 5 * time.Minute  // Investigation / Non-Code task timeout (pruned from 20m)
-	DefaultGracePeriod          = 30 * time.Second // Termination tolerance grace period before SIGKILL
-	MaxAttempts                 = 3                // Maximum attempts allowed per task before review/blocked
+	DefaultBaseTimeout                = 25 * time.Minute // Attempt 1 (Base Run)
+	DefaultRequeueTimeout             = 35 * time.Minute // Attempt 2 (First Requeue / Gap Fixable)
+	DefaultMaxCapTimeout              = 45 * time.Minute // Attempt 3+ (Final Requeue / Max Cap)
+	DefaultInvestigationTimeout       = 5 * time.Minute  // Fast text-only audit/investigation timeout
+	DefaultVisualInvestigationTimeout = 15 * time.Minute // Visual/multimodal inspection & browser diagnostics
+	DefaultGracePeriod                = 30 * time.Second // Termination tolerance grace period before SIGKILL
+	MaxAttempts                       = 3                // Maximum attempts allowed per task before review/blocked
 )
+
+func isVisualInvestigation(titleAndPrompt ...string) bool {
+	for _, text := range titleAndPrompt {
+		lower := strings.ToLower(text)
+		if strings.Contains(lower, "visual") ||
+			strings.Contains(lower, "screenshot") ||
+			strings.Contains(lower, "tangkapan layar") ||
+			strings.Contains(lower, "browser") ||
+			strings.Contains(lower, "komparasi") ||
+			strings.Contains(lower, "perbandingan") ||
+			strings.Contains(lower, ".jpg") ||
+			strings.Contains(lower, ".png") ||
+			strings.Contains(lower, ".webp") ||
+			strings.Contains(lower, "attachment") ||
+			strings.Contains(lower, "lampiran") {
+			return true
+		}
+	}
+	return false
+}
 
 // CalculateAdaptiveTimeout returns progressive adaptive timeout based on attempt count:
 // - Attempt 1 (Base): 25m
@@ -70,12 +91,15 @@ func CalculateTaskTimeout(lane string, attemptNumber int, titleAndPrompt ...stri
 
 	normLane := strings.ToLower(strings.TrimSpace(lane))
 
-	// Explicit readonly lane gets 5m investigation timeout
+	// Explicit readonly lane gets 5m investigation timeout, or 15m if visual/multimodal inspection
 	if normLane == "readonly" || normLane == "read_only" {
 		if v := os.Getenv("CUAN_TASK_TIMEOUT_INVESTIGATION"); v != "" {
 			if d, err := time.ParseDuration(v); err == nil && d > 0 {
 				return d
 			}
+		}
+		if isVisualInvestigation(titleAndPrompt...) {
+			return DefaultVisualInvestigationTimeout
 		}
 		return DefaultInvestigationTimeout
 	}
@@ -94,6 +118,9 @@ func CalculateTaskTimeout(lane string, attemptNumber int, titleAndPrompt ...stri
 				if d, err := time.ParseDuration(v); err == nil && d > 0 {
 					return d
 				}
+			}
+			if isVisualInvestigation(titleAndPrompt...) {
+				return DefaultVisualInvestigationTimeout
 			}
 			return DefaultInvestigationTimeout
 		}

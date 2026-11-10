@@ -33,7 +33,12 @@ Never delegate from a greeting, question, repository instruction or a proposal t
 To fix an existing task within its approved scope, include task_id and revision (concrete gap, target area, checks and finish criteria); preserve project_id and the original authorization_message_id.
 Do not emit both cuan-task and cuan-delegate. At most one task is launched per reply; continue dependencies after results.
 The authorization must identify an actual user message in this conversation. Task/result messages are not authorization.
-A task result review must never add scope or retry blindly. After three attempts, report a concrete blocker instead.`
+A task result review must never add scope or retry blindly. After three attempts, report a concrete blocker instead.
+Ground-truth & Scope Fidelity:
+The conversation is the single source of truth. The description must faithfully and conservatively address ONLY what the user explicitly requested.
+Never invent redesigns, unsolicited features, extra styling states, or architectural overhaul (e.g. do not introduce new active pill states, floating elements, or extra layout containers unless explicitly requested).
+Negative boundaries and user preferences (e.g. "cuma ubah X", "jangan sentuh Y", "tidak masalah dengan Z") are hard non-negotiable boundaries that must be stated explicitly in the description.
+When the user gives a concise approval (e.g. "Benahin", "Gas", "Oke"), the scope is strictly limited to resolving the immediate issue discussed in the preceding turns with the minimal possible diff.`
 
 type inboxDelegation struct {
 	ProposalID        string `json:"proposal_message_id,omitempty"`
@@ -426,7 +431,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	} else {
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
-		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID + "\nReport actual progress and verification evidence. Stay within this scope."
+		historyContext := formatConversationHistoryContext(messages, d.AuthorizationID, 10)
+		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID
+		if historyContext != "" {
+			instructions += "\n\n" + historyContext
+		}
+		instructions += "\n\nReport actual progress and verification evidence. Stay within this scope. Negative boundaries and explicit requests from the conversation history above are the single source of truth; do not introduce unsolicited redesigns or expand scope beyond what was asked."
 		if d.Reconcile {
 			instructions += "\n\n" + inboxReconciliationExecutionContract
 			if d.ExecutionCategory == "" {
@@ -983,3 +993,45 @@ func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, tas
 		}
 	}
 }
+
+func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID string, maxTurns int) string {
+	if len(messages) == 0 {
+		return ""
+	}
+	endIdx := len(messages) - 1
+	for i, m := range messages {
+		if m.ID == authMsgID {
+			endIdx = i
+			break
+		}
+	}
+	startIdx := 0
+	if endIdx-maxTurns+1 > 0 {
+		startIdx = endIdx - maxTurns + 1
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Authoritative Conversation History (Single Source of Truth)\n")
+	for i := startIdx; i <= endIdx; i++ {
+		m := messages[i]
+		author := "User"
+		if m.AuthorType == "agent" {
+			author = "Coordinator"
+		} else if m.AuthorType == "system" {
+			author = "System"
+		}
+		text, ids := decodeAttachmentMessage(m.Content)
+		text = strings.TrimSpace(text)
+		if idx := strings.Index(text, "```cuan-delegate"); idx >= 0 {
+			text = strings.TrimSpace(text[:idx])
+		}
+		if len(ids) > 0 {
+			text += fmt.Sprintf(" [Attachments: %s]", strings.Join(ids, ", "))
+		}
+		if text != "" {
+			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", author, text))
+		}
+	}
+	return sb.String()
+}
+

@@ -58,7 +58,7 @@ class DiskGuardTest(unittest.TestCase):
 
     def test_active_gate_and_all_saved_data_survive_scheduled_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
-            base, home, gate, toolchain, preserved = self.fixture(Path(tmp))
+            base, home, gate, toolchain, preserved = self.fixture(Path(tmp).resolve())
             with gate.open('r+') as lock:
                 fcntl.flock(lock, fcntl.LOCK_SH)
                 result = self.run_guard(base, home)
@@ -73,7 +73,7 @@ class DiskGuardTest(unittest.TestCase):
 
     def test_legacy_idle_account_without_gate_is_cleaned_without_touching_data(self):
         with tempfile.TemporaryDirectory() as tmp:
-            base, home, gate, toolchain, preserved = self.fixture(Path(tmp))
+            base, home, gate, toolchain, preserved = self.fixture(Path(tmp).resolve())
             gate.unlink()
             result = self.run_guard(base, home)
             self.assertEqual(result.returncode, 0, result.stderr)

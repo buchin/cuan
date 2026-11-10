@@ -144,7 +144,7 @@ class Gates(unittest.TestCase):
             self.assertFalse(a.restart_and_check())
     def test_switch_is_atomic_and_retains_previous_payload(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             old, new = root/'old', root/'new'
             old.mkdir(); new.mkdir()
             a.switch(root/'current', old)

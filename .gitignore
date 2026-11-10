@@ -28,6 +28,7 @@ backups/*.meta.json
 backups/*.sql
 *.log
 __pycache__/
+.commandcode/
 .DS_Store
 .idea/
 .vscode/

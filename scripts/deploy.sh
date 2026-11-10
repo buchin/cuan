@@ -200,7 +200,10 @@ checks={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for 
 (root/'release.json').write_text(json.dumps({'sha':sys.argv[2],'sha256':checks,'features':{'project_workspace_revisions':1,'task_execution_worktrees':1,'inbox_worker':1}})+'\n')
 PY
 
-mapfile -t maintenance_tool_names < <(python3 scripts/install-runtime-cache-maintenance.py --print-tools)
+maintenance_tool_names=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -n "$line" ]] && maintenance_tool_names+=("$line")
+done < <(python3 scripts/install-runtime-cache-maintenance.py --print-tools)
 [[ "${#maintenance_tool_names[@]}" -gt 0 ]] || { echo 'Maintenance payload manifest unavailable' >&2; exit 1; }
 maintenance_tool_paths=()
 for maintenance_tool_name in "${maintenance_tool_names[@]}"; do
