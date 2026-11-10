@@ -372,6 +372,14 @@ func ValidateLiveInspectionSource(ctx context.Context, store Store, t *Task, pro
 		if source == nil || source.TaskID != t.ID || source.CancelRequested || source.CanceledAt != nil {
 			return ErrInvalidTaskInput
 		}
+		activities, err := store.ListActivities(ctx, t.ID)
+		if err != nil {
+			return err
+		}
+		unfinished, err := IncompleteManagedSourceTimeout(t, source, activities)
+		if err != nil || unfinished {
+			return ErrInvalidTaskInput
+		}
 		if proof.SourceCommit != "" {
 			activities, err := store.ListActivities(ctx, t.ID)
 			if err != nil {

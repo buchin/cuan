@@ -44,3 +44,23 @@ Preserve the failed attempt, edits and diagnostic history. Prove a fresh managed
 source timeout avoids an unrelated production inspection and resumes the retained
 workspace through the approved bounded correction path. Missing/foreign claims
 must not be treated as authenticated managed ownership. This gap remains open.
+
+## Correction and targeted verification
+
+The canonical managed admission parser is now shared in the task layer; runner
+completion retains its existing current-project and publication-scope validation.
+The planner rejects a known managed source timeout without a result commit before
+observing production. `ValidateLiveInspectionSource` enforces the same boundary
+for already-saved launches, including launch admission after a server update.
+This does not directly enqueue another developer or accept an incomplete result:
+the existing PM review/correction path retains original approval and retry limits.
+
+Targeted tests exercise the planner, actual saved-source validation, malformed
+and foreign records, ordinary unknown-effect timeouts, existing admission
+integrity, and ordinary inspection lifecycle. All passed:
+
+`GOGC=20 GOMAXPROCS=2 go test -p 1 ./internal/task ./internal/runner ./internal/server -run 'TestManagedSourceTimeout|TestManagedRelease|TestCurrentOutcomeSourceRejectsLocalOnlyPublicationScope|TestLiveResultInspectionLifecycle' -count=1`
+
+No current task status, saved launch, source files or failed attempt was manually
+rewritten. Production publication and actual recovery behavior remain to be
+observed; local tests are not end-to-end proof.

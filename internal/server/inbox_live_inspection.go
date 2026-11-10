@@ -82,6 +82,15 @@ func (s *Server) planLiveResultInspection(ctx context.Context, d *task.TaskDetai
 		unpublished = found && assessment.Decision == "revise" && assessment.RemainingWork == "verification"
 	}
 	currentOutcome := unpublished || (d.CommitSHA == "" && task.IsCurrentOutcomeFailure(a) && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode))
+	if currentOutcome {
+		unfinished, err := task.IncompleteManagedSourceTimeout(&d.Task, a, d.Activities)
+		if err != nil {
+			return nil, "managed_source_admission_invalid"
+		}
+		if unfinished {
+			return nil, "managed_source_timeout_requires_completion"
+		}
+	}
 	if (a.Status != task.AttemptStatusFailed && !unpublished) || a.CancelRequested || a.CanceledAt != nil || (a.FinishedAt == nil && !task.IsUnrecordedLocalFailure(a)) {
 		return nil, "source_not_eligible"
 	}

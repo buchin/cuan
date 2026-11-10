@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"strings"
 	"time"
 
@@ -20,17 +19,7 @@ const managedReleaseClaimActivity = "managed_release_claim"
 
 // ManagedReleaseClaim freezes native publication ownership at admission. It is
 // not a release receipt and does not exempt completion from deployment checks.
-type ManagedReleaseClaim struct {
-	Version          int    `json:"version"`
-	TaskID           string `json:"task_id"`
-	ProjectID        string `json:"project_id"`
-	RoomID           string `json:"room_id"`
-	AttemptID        string `json:"attempt_id"`
-	RunnerID         string `json:"runner_id"`
-	InstructionsHash string `json:"instructions_hash"`
-	Repository       string `json:"repository"`
-	TargetBranch     string `json:"target_branch"`
-}
+type ManagedReleaseClaim = task.ManagedReleaseClaim
 
 func (s *RunnerService) bindManagedReleaseClaim(ctx context.Context, req ClaimTaskRequest, claim *ClaimTaskResponse) error {
 	if claim == nil || !claim.Claimed || claim.Task == nil || claim.Attempt == nil || !req.SupportsNativeRelease || !claim.AutoDeploy || claim.NativeRelease != nil || claim.Verification != nil || claim.LiveInspection != nil {
@@ -63,24 +52,12 @@ func (s *RunnerService) managedReleaseClaimForCompletion(ctx context.Context, t 
 	if err != nil {
 		return nil, err
 	}
-	var receipt *task.TaskActivity
-	for _, a := range activities {
-		if a == nil || a.ID != "managed-release-claim:"+att.ID {
-			continue
-		}
-		if receipt != nil {
-			return nil, errors.New("duplicate managed release admission")
-		}
-		receipt = a
+	binding, err := task.ManagedReleaseAdmission(t, att, activities)
+	if err != nil || binding == nil {
+		return binding, err
 	}
-	if receipt == nil {
-		return nil, nil
-	}
-	var binding ManagedReleaseClaim
-	decoder := json.NewDecoder(strings.NewReader(receipt.Message))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&binding) != nil || decoder.Decode(&struct{}{}) != io.EOF || binding.Version != 1 || binding.TaskID != t.ID || binding.ProjectID != t.ProjectID || binding.RoomID != t.SourceRoomID || binding.AttemptID != att.ID || binding.RunnerID != att.RunnerID || binding.InstructionsHash != task.LaunchInstructionsHash(t.Instructions) || receipt.TaskID != t.ID || receipt.AttemptID == nil || *receipt.AttemptID != att.ID || receipt.Author != att.RunnerID || receipt.ActivityType != managedReleaseClaimActivity || att.StartedAt == nil || receipt.CreatedAt.Before(*att.StartedAt) || receipt.CreatedAt.After(time.Now().UTC()) || att.CancelRequested || att.CanceledAt != nil || t.ProjectID == "" || t.SourceRoomID == "" || t.ExecutionCategory != task.ExecutionCategoryCode || s.projectFinder == nil {
-		return nil, errors.New("managed release admission no longer matches execution")
+	if s.projectFinder == nil {
+		return nil, errors.New("managed release context unavailable")
 	}
 	limits, err := task.AttemptPublicationPolicy(ctx, s.taskStore, t, att.ID)
 	if err != nil {
@@ -101,7 +78,7 @@ func (s *RunnerService) managedReleaseClaimForCompletion(ctx context.Context, t 
 	if !settings.IsAutoDeployEnabled() || project.ParseEnvironment(settings.Environment)["CUAN_MANAGED_RELEASE"] != "1" || binding.Repository != p.RepoOwner+"/"+p.RepoName || binding.TargetBranch != branch || branch == "" {
 		return nil, errors.New("managed release context differs from admission")
 	}
-	return &binding, nil
+	return binding, nil
 }
 
 // ManagedReleaseSource is native source observation, not publication evidence.
