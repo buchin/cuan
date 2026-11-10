@@ -898,3 +898,26 @@ owner intervention. The task remains unfinished. This is evidence of automatic
 correction and a working visual gate, not successful feature verification or an
 efficient screenshot workflow. Repeated wrong-page evidence remains a concrete
 quality/latency issue to investigate; do not accept it or claim the feature live.
+
+## Follow-up: reject invalid CLI invocation before server startup
+
+An actual `cuan agent --help` diagnostic used an unsupported root command. Go's
+flag parser stopped at that positional argument, and main then entered database
+startup instead of rejecting it. The observation timed out after10 seconds of
+database retries. Root positional arguments now exit2 with a `cuan --help` hint
+before configuration/database initialization. Bare server invocation and valid
+flag-based worker startup remain unchanged. Subprocess tests cover unknown root
+command, a worker flag with an unexpected positional argument, and normal help.
+
+Released53cba34d1885e8adf531d4a299a03a0bc5beb8ab passed the normal477 frontend
+checks and exact-SHA production health gate at schema39. The built binary's
+invalid-command behavior was separately exercised with a5-second observation
+budget and returned2 immediately; that verified binary replaced the old local
+CLI atomically. No DB status or task evidence was changed by this check.
+
+Main task correctionc6a5d56a completed and independently handed off to
+verifier889c45af, started18:28:15+08. Native developer timing was775667ms agent
+and35939ms checks. The new verifier terminal identifies Claude Sonnet4.6,
+confirming return to the primary route after capacity became available without
+interrupting the older Gemini worker. It remains active; neither the updated
+screenshot evidence nor complete feature/publication outcome is accepted yet.
