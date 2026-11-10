@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEvidenceRevalidationUsesExistingAllowanceAndNativeParent(t *testing.T) {
@@ -57,6 +58,49 @@ func TestEvidenceRevalidationUsesExistingAllowanceAndNativeParent(t *testing.T) 
 			}
 			if valid && (proof.RequestID(item.ID) != codeKey || proof.SnapshotSourceCommit() != proof.PreviousCommit) {
 				t.Fatal("evidence mode renewed the source allowance")
+			}
+		})
+	}
+}
+
+func TestReportingEvidenceReviewRequiresExplicitAuthenticatedReplan(t *testing.T) {
+	for _, mode := range []string{"verification", "publication", "continue", "needs input", "foreign record", "checks ran", "changed source", "cancelled", "old assessment"} {
+		t.Run(mode, func(t *testing.T) {
+			start, finish := time.Now().Add(-time.Minute), time.Now().Add(-time.Second)
+			exit := 124
+			item := &Task{ID: "task", Instructions: "Original scope"}
+			previous := &TaskAttempt{ID: "inspection", TaskID: item.ID, RunnerID: "runner", Status: AttemptStatusFailed, ExitCode: &exit, StartedAt: &start, FinishedAt: &finish, ErrorMessage: InspectionReportingTimeout}
+			events := []*TaskActivity{
+				{ID: "repository-observation:" + previous.ID, TaskID: item.ID, AttemptID: &previous.ID, Author: previous.RunnerID, ActivityType: "repository_scope_observed", NewStatus: AttemptStatusFailed, Message: `{"baseline":"` + strings.Repeat("b", 64) + `","final":"` + strings.Repeat("b", 64) + `"}`},
+				{ID: "verification:" + previous.ID, TaskID: item.ID, AttemptID: &previous.ID, Author: previous.RunnerID, ActivityType: ActivityTypeRunnerVerification, Message: `{"summary":""}`},
+				{ID: "timeout", TaskID: item.ID, AttemptID: &previous.ID, Author: previous.RunnerID, ActivityType: ActivityTypeAttempt, OldStatus: TaskStatusDoing, NewStatus: TaskStatusBlocked, CreatedAt: finish, Message: "Attempt selesai dengan status 'failed' (exit code: 124, peak RSS: 0 bytes)."},
+			}
+			assessment := map[string]string{"decision": "revise", "requested_outcome": "unfinished", "remaining_work": "verification", "revision": "Inspect remaining original outcome and save its evidence.", "manager_action": "replan", "manager_reason": "Native reporting stopped before a final report."}
+			switch mode {
+			case "publication":
+				assessment["remaining_work"] = "publication"
+			case "continue":
+				assessment["manager_action"] = "continue"
+			case "needs input":
+				assessment["requested_outcome"] = "needs_input"
+			case "foreign record":
+				events[1].Author = "foreign"
+			case "checks ran":
+				events[1].Message = `{"summary":"Project verification: test.sh --fast (exit 1)"}`
+			case "changed source":
+				events[0].Message = `{"baseline":"` + strings.Repeat("b", 64) + `","final":"` + strings.Repeat("c", 64) + `"}`
+			case "cancelled":
+				previous.CancelRequested = true
+			}
+			raw, _ := json.Marshal(map[string]any{"request_id": "review", "instructions_hash": LaunchInstructionsHash(item.Instructions), "evidence_digest": strings.Repeat("d", 64), "assessment": assessment})
+			review := &TaskActivity{ID: "review", TaskID: item.ID, AttemptID: &previous.ID, Author: "coordinator", ActivityType: "coordinator_review_assessment", CreatedAt: time.Now(), Message: string(raw)}
+			if mode == "old assessment" {
+				review.CreatedAt = start
+			}
+			events = append(events, review)
+			request, _ := OutcomeEvidenceReview(item, previous, events, "")
+			if (request != "") != (mode == "verification" || mode == "publication") {
+				t.Fatal("incorrect reporting replan admission", mode, request)
 			}
 		})
 	}

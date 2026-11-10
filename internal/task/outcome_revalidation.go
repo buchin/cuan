@@ -19,18 +19,20 @@ type outcomeRevalidationReviewRecord struct {
 	InstructionsHash string `json:"instructions_hash"`
 	EvidenceDigest   string `json:"evidence_digest"`
 	Assessment       struct {
-		Decision      string `json:"decision"`
-		RemainingWork string `json:"remaining_work"`
-		Revision      string `json:"revision"`
-		ManagerAction string `json:"manager_action"`
-		ManagerReason string `json:"manager_reason"`
+		Decision         string `json:"decision"`
+		RequestedOutcome string `json:"requested_outcome"`
+		RemainingWork    string `json:"remaining_work"`
+		Revision         string `json:"revision"`
+		ManagerAction    string `json:"manager_action"`
+		ManagerReason    string `json:"manager_reason"`
 	} `json:"assessment"`
 }
 
 // The existing single revalidation allowance can complete missing evidence,
 // without pretending that source files changed or granting an implementation.
 func OutcomeEvidenceReview(t *Task, previous *TaskAttempt, events []*TaskActivity, requestID string) (string, string) {
-	if t == nil || previous == nil || previous.Status != AttemptStatusSucceeded || previous.ExitCode == nil || *previous.ExitCode != 0 || previous.ErrorMessage != "" || previous.FinishedAt == nil || previous.CancelRequested || previous.CanceledAt != nil {
+	reporting := InspectionReportingFailure(previous, events)
+	if t == nil || previous == nil || (!reporting && (previous.Status != AttemptStatusSucceeded || previous.ExitCode == nil || *previous.ExitCode != 0 || previous.ErrorMessage != "")) || previous.FinishedAt == nil || previous.CancelRequested || previous.CanceledAt != nil {
 		return "", ""
 	}
 	var latest *TaskActivity
@@ -48,7 +50,10 @@ func OutcomeEvidenceReview(t *Task, previous *TaskAttempt, events []*TaskActivit
 		}
 	}
 	a := selected.Assessment
-	if latest == nil || (requestID != "" && requestID != selected.RequestID) || len(selected.EvidenceDigest) != 64 || a.Decision != "revise" || a.RemainingWork != "verification" || (a.ManagerAction != "continue" && a.ManagerAction != "replan") || strings.TrimSpace(a.ManagerReason) == "" || strings.TrimSpace(a.Revision) == "" || len(a.Revision) > 16000 {
+	if latest == nil || (requestID != "" && requestID != selected.RequestID) || len(selected.EvidenceDigest) != 64 || a.Decision != "revise" || (a.RemainingWork != "verification" && !(reporting && a.RemainingWork == "publication")) || (a.ManagerAction != "continue" && a.ManagerAction != "replan") || strings.TrimSpace(a.ManagerReason) == "" || strings.TrimSpace(a.Revision) == "" || len(a.Revision) > 16000 {
+		return "", ""
+	}
+	if reporting && (a.ManagerAction != "replan" || a.RequestedOutcome != "unfinished") {
 		return "", ""
 	}
 	return selected.RequestID, a.Revision
@@ -129,11 +134,20 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 	if binding == nil || (binding.Purpose != CurrentOutcomeInspection && binding.Purpose != NativeReleaseInspection) || binding.Purpose != proof.Purpose || binding.PreviousAttemptID != "" || binding.SourceVerifierAttemptID != proof.SourceVerifierAttemptID || binding.SourceAttemptID != proof.SourceAttemptID || binding.SourceCommit != proof.SourceCommit || binding.TargetCommit != proof.PreviousCommit || binding.Repository != proof.Repository || binding.OwnerID != proof.OwnerID || binding.RoomID != proof.RoomID || binding.SourceRequestID != proof.SourceRequestID || binding.InstructionsHash != proof.InstructionsHash {
 		return ErrInvalidTaskInput
 	}
+	events, err := store.ListActivities(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	reportingReplan := binding.Purpose == NativeReleaseInspection && binding.ReportingRecoveryAttemptID != "" && binding.CapacityRecoveryAttemptID == "" && InspectionReportingFailure(previous, events)
 	if binding.Purpose == NativeReleaseInspection {
-		if proof.RevalidationKind != EvidenceRevalidation || binding.ReportingRecoveryAttemptID != "" || binding.VerifierRecoveryAttemptID != "" || binding.CapacityRecoveryAttemptID != "" {
+		if proof.RevalidationKind != EvidenceRevalidation || (!reportingReplan && (binding.ReportingRecoveryAttemptID != "" || binding.VerifierRecoveryAttemptID != "" || binding.CapacityRecoveryAttemptID != "")) {
 			return ErrInvalidTaskInput
 		}
 		expected := *proof
+		if reportingReplan {
+			expected.ReportingRecoveryAttemptID = binding.ReportingRecoveryAttemptID
+			expected.VerifierRecoveryAttemptID = binding.VerifierRecoveryAttemptID
+		}
 		expected.PreviousAttemptID, expected.PreviousCommit, expected.ReviewRequestID, expected.RevalidationKind = "", "", "", ""
 		expected.ReviewPaths = nil
 		expected.TargetCommit, expected.ObservedAt = binding.TargetCommit, binding.ObservedAt
@@ -142,10 +156,6 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 		}
 	}
 	if err := ValidateLiveInspectionSource(ctx, store, t, binding); err != nil {
-		return err
-	}
-	events, err := store.ListActivities(ctx, t.ID)
-	if err != nil {
 		return err
 	}
 	if proof.RevalidationKind == EvidenceRevalidation {
@@ -158,6 +168,11 @@ func validateOutcomeRevalidation(ctx context.Context, store Store, t *Task, proo
 		if request == "" || request != proof.ReviewRequestID || !slices.Equal(paths, proof.ReviewPaths) {
 			return ErrInvalidTaskInput
 		}
+	}
+	if reportingReplan && proof.RevalidationKind == EvidenceRevalidation {
+		// Admission for one explicit saved PM replan, not a passed result or a
+		// renewal of either automatic recovery. PreviousAttemptID bounds it.
+		return nil
 	}
 	detail := &TaskDetailResponse{Task: *t, LatestAttempt: previous, Attempts: []*TaskAttempt{previous}, Activities: events}
 	if len(FailedCheckRevalidationPaths(detail)) > 0 {

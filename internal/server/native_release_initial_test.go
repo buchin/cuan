@@ -577,4 +577,103 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 	if s.recoverNativeReleaseVerification(ctx, terminal, origins) {
 		t.Fatal("second reporting timeout renewed retry allowance")
 	}
+	if aborted {
+		verifyNativeReportingManagerReplan(t, s, terminal, origins)
+	}
+}
+
+func verifyNativeReportingManagerReplan(t *testing.T, s *Server, terminal *task.TaskDetailResponse, origins []db.InboxRequest) {
+	t.Helper()
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var origin db.InboxRequest
+	for _, q := range origins {
+		if q.MessageID == terminal.SourceMessageID {
+			origin = q
+			break
+		}
+	}
+	if origin.OwnerID == "" {
+		t.Fatal("missing original owner")
+	}
+	review := origin
+	review.RequestID = db.GenerateUUID()
+	assessment := inboxReviewEvaluation{Decision: "revise", RequestedOutcome: "unfinished", RemainingWork: "publication", Explanation: "Publication succeeded; remaining outcome needs verification.", Revision: "Use authenticated source evidence, inspect remaining runtime outcome, and save the final report.", ManagerAction: "replan", ManagerReason: "The bounded automatic reporting recovery did not finish."}
+	_, err := s.saveReviewAssessment(ctx, terminal, review, assessment)
+	must(err)
+	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
+	current, err := s.taskSvc.GetTaskDetail(ctx, terminal.ID)
+	must(err)
+	blocker := &task.Task{ID: "pm-replan-lane-blocker", ProjectID: current.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}
+	must(s.taskSvc.Store().CreateTask(ctx, blocker))
+	before := len(current.Attempts)
+	s.queueInboxTaskReview(ctx, current)
+	s.queueInboxTaskReview(ctx, current)
+	job, err := s.taskSvc.LatestLaunch(ctx, current.ID)
+	must(err)
+	proof, err := task.LiveInspectionForLaunch(&current.Task, job)
+	must(err)
+	if job == nil || job.State != "queued" || proof == nil || proof.RevalidationKind != task.EvidenceRevalidation || proof.PreviousAttemptID != current.LatestAttempt.ID || proof.ReviewRequestID != review.RequestID || proof.ReportingRecoveryAttemptID != "" || proof.VerifierRecoveryAttemptID != "" {
+		t.Fatal("PM replan did not preserve its separate bounded identity", job, proof)
+	}
+	must(task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &current.Task, proof))
+	after, err := s.taskSvc.GetTaskDetail(ctx, current.ID)
+	must(err)
+	if len(after.Attempts) != before || after.Status == task.TaskStatusDone {
+		t.Fatal("PM plan duplicated execution or accepted incomplete work")
+	}
+	for _, change := range []string{"owner", "source", "review", "paths"} {
+		altered := *proof
+		switch change {
+		case "owner":
+			altered.OwnerID = "foreign"
+		case "source":
+			altered.SourceCommit = strings.Repeat("f", 40)
+		case "review":
+			altered.ReviewRequestID = "foreign"
+		case "paths":
+			altered.ReviewPaths = []string{"internal/task/other.go"}
+		}
+		if task.ValidateLiveInspectionSource(ctx, s.taskSvc.Store(), &current.Task, &altered) == nil {
+			t.Fatal("PM replan widened original authority", change)
+		}
+	}
+	must(s.taskSvc.Store().DeleteTask(ctx, blocker.ID))
+	reservation, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "pm-replan-dispatcher", job.ID)
+	must(err)
+	if reservation == nil {
+		t.Fatal("PM replan not claimable")
+	}
+	_, err = s.taskSvc.CreateAttempt(ctx, current.ID, job.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: job.AgentID, RequestID: job.RequestID, ExpectedPredecessorID: current.LatestAttempt.ID, InitializeQueuedTask: true, PreserveQueuedReport: true})
+	must(err)
+	claimed, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "stale-verifier", SupportedAgents: []string{job.AgentID}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true, SupportsEvidenceRevalidation: true, SupportsLiveInspectionRecovery: true}, time.Minute)
+	must(err)
+	if !claimed.Claimed || claimed.LiveInspection == nil || !claimed.PublicationLimits.ReadOnlyRepository || !claimed.PublicationLimits.DenyPush || !claimed.PublicationLimits.DenyDeploy || claimed.AutoDeploy {
+		t.Fatal("PM replan lost read-only scope")
+	}
+	hash := strings.Repeat("b", 64)
+	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 124, ErrorMessage: task.InspectionReportingTimeout, RepositoryVerification: &runner.RepositoryVerification{Baseline: hash, Final: hash}})
+	must(err)
+	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
+	stopped, err := s.taskSvc.GetTaskDetail(ctx, current.ID)
+	must(err)
+	review.RequestID = db.GenerateUUID()
+	_, err = s.saveReviewAssessment(ctx, stopped, review, assessment)
+	must(err)
+	stopped, err = s.taskSvc.GetTaskDetail(ctx, current.ID)
+	must(err)
+	if s.recoverNativeReleaseVerification(ctx, stopped, origins) {
+		t.Fatal("PM replan renewed automatic or evidence recovery")
+	}
+	s.queueInboxTaskReview(ctx, stopped)
+	last, err := s.taskSvc.LatestLaunch(ctx, current.ID)
+	must(err)
+	if last.ID != job.ID {
+		t.Fatal("second PM replan renewed execution allowance")
+	}
 }

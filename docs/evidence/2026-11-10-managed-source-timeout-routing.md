@@ -497,3 +497,47 @@ custom scratch survives. Existing native fast package tests pass (runner18.015s)
 and shared owner cache metadata/release tests remain intact. This correction is
 not yet deployed. It prevents another scratch leak but does not itself prove the
 original source-reuse feature or solve cache churn under persistent disk pressure.
+
+## Lean runtime baseline and explicit PM replan
+
+Owner steering prioritizes preserving necessary outcomes/checks and removing waste;
+8GiB must not become an unexplained baseline requirement. Live OS observation of
+the idle production processes measured cuan.service main RSS32,436KiB/PSS25,146KiB,
+and runner main RSS8,968KiB/PSS8,964KiB. The service groups charged approximately
+188MiB and334MiB, but their file-cache portions were164,507,648 and291,065,856 bytes,
+respectively. These group totals/peaks are not equivalent to application heap.
+The shared host has2 CPUs and3,659MiB RAM with about2,367MiB available at observation;
+774MiB allocated swap alone does not establish current pressure. Database, active
+provider processes and compiler peaks need separate load measurements. Dedicated
+2vCPU/2GiB is a reasonable initial validation target, not yet a proven whole-stack
+capacity guarantee; no hardware was upgraded.
+
+PM reviews now persist successfully. Assessments at12:15:28 and12:17:40 +08 retain
+unfinished outcome, original scope and valid source/publication, with the latter
+explicitly choosing replan to avoid duplicate heavy source tests. Existing code
+could not execute that saved plan after the bounded reporting recovery finished.
+
+Reuse the existing single evidence-revalidation allowance for an explicit saved PM
+replan after native reporting recovery exhaustion. Authenticated reporting timeout,
+unchanged repository, empty native checks, original delivery/source/owner/approval
+and unfinished outcome remain mandatory; a plain continue, owner prerequisite,
+assertion result, foreign record or changed repository does not qualify. Publication
+classification may describe the remaining outcome, but grants no publication write.
+A previous evidence-revalidation parent cannot re-enter this allowance. Automatic
+reporting/verifier recovery allowances remain consumed. No incomplete check receives
+acceptance credit or fabricated success.
+
+The real queue/claim fixture exercises that PM plan, verifies read-only/deny push/
+deny deploy, deduplication and lineage, then times it out and confirms another PM
+plan cannot renew execution. Negative task tests reject missing authority/evidence
+and cancellation. Required targeted task/server tests pass. The fixture must
+advertise both real evidence-revalidation and live-inspection-recovery capabilities;
+production runner already advertises both.
+
+The registered fast suite omitted internal/task even though repeated model checks
+compiled that package. It now owns that full unit package alongside the unchanged
+existing packages; no check was removed. Inspection guidance tells the reviewer to
+read the pinned recipe's package coverage before proposing extra checks. Actual
+scripts/test.sh --fast passes, task0.156s and runner17.174s on the cached local host.
+This is a test-ownership correction, not proof of production speedup. Model scratch
+cleanup, PM-plan execution and this package coverage are pending publication.
