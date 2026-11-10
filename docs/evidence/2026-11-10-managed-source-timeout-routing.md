@@ -97,3 +97,24 @@ removed regenerable package index cache; a subsequent observation showed
 entire observed difference solely to that command. The admission floor and
 source retention were not changed. Confirm actual continuation startup rather
 than treating available space as proof of admission.
+
+## Retained-work continuation and bounded steering
+
+Continuation `att_0d15a76cd7b0d4c1a2163c09b949b776` started automatically at
+08:44:54.755 +08 with the same task workspace. Read-only Git observations confirmed
+the four edited source files and untracked regression fixture survived. Its HEAD
+was still the retained `3f867886`; baseline reconciliation remains developer work.
+
+The source-regression fixture remained the active implementation bottleneck. Root
+sent one diagnostic checkpoint through official `cuan task steer`, pointing to
+the existing native source-review/publication fixtures and their predecessor,
+request-ID and timestamp contracts. It explicitly preserved guards, scope,
+independent verification and native publication ownership. The command reported
+`delivered`, `fallback=false`, and did not create a new attempt. This is root
+steering, so subsequent completion cannot be advertised as untouched autonomy.
+
+Later OS observations showed the registered worker and AGY harness alive, with
+no Go/compiler or command subprocess active. Saved terminal output had not
+advanced beyond 08:54:55. That establishes a quiet live harness, not a proven
+provider failure, completed test, or authority to restart it. Follow the same
+attempt and its native deadline; retain unknown outcomes honestly.
