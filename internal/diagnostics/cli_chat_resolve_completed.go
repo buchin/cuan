@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-func runChatResolveCompleted(ctx context.Context, args []string, out, errOut io.Writer) int {
+func runChatResolveBatch(ctx context.Context, command string, args []string, out, errOut io.Writer) int {
 	if len(args) != 0 {
-		fmt.Fprintln(errOut, "Usage: cuan chat resolve-completed")
+		fmt.Fprintf(errOut, "Usage: cuan chat %s\n", command)
 		return 2
 	}
 	if err := taskSessionOwnerWriteError(); err != nil {
@@ -31,16 +31,17 @@ func runChatResolveCompleted(ctx context.Context, args []string, out, errOut io.
 	}
 	var data struct {
 		Contacts []struct {
-			ID         string    `json:"conversation_id"`
-			Resolved   bool      `json:"resolved"`
-			ObservedAt time.Time `json:"resolution_observed_at"`
-			Total      int       `json:"task_count"`
-			Done       int       `json:"done_tasks"`
-			Canceled   int       `json:"canceled_tasks"`
-			Active     int       `json:"active_tasks"`
-			Queued     int       `json:"queued_tasks"`
-			Review     int       `json:"review_tasks"`
-			Failed     int       `json:"failed_tasks"`
+			ID          string    `json:"conversation_id"`
+			HasMessages bool      `json:"has_messages"`
+			Resolved    bool      `json:"resolved"`
+			ObservedAt  time.Time `json:"resolution_observed_at"`
+			Total       int       `json:"task_count"`
+			Done        int       `json:"done_tasks"`
+			Canceled    int       `json:"canceled_tasks"`
+			Active      int       `json:"active_tasks"`
+			Queued      int       `json:"queued_tasks"`
+			Review      int       `json:"review_tasks"`
+			Failed      int       `json:"failed_tasks"`
 		} `json:"contacts"`
 	}
 	err = json.NewDecoder(io.LimitReader(response.Body, 8<<20)).Decode(&data)
@@ -52,7 +53,7 @@ func runChatResolveCompleted(ctx context.Context, args []string, out, errOut io.
 	resolved, failed := []string{}, []string{}
 	seen := map[string]bool{}
 	for _, room := range data.Contacts {
-		if seen[room.ID] || room.Resolved || room.Done == 0 || room.Total != room.Done+room.Canceled || room.Active+room.Queued+room.Review+room.Failed != 0 || room.ObservedAt.IsZero() {
+		if seen[room.ID] || room.Resolved || (command == "resolve-completed" && room.Done == 0) || (command == "resolve-all" && room.Total == 0 && !room.HasMessages) || room.Total != room.Done+room.Canceled || room.Active+room.Queued+room.Review+room.Failed != 0 || room.ObservedAt.IsZero() {
 			continue
 		}
 		seen[room.ID] = true

@@ -613,3 +613,32 @@ there were zero doing tasks. Host filesystem available bytes were2,542,100,480.
 A read-only sample of ten old workspaces found ignored entries, nonremote commits
 and invalid Git roots; this explains why age alone did not reclaim all historical
 storage. No old source was deleted during that audit.
+
+## Production disposal observation and taskless follow-up
+
+Release53c36d90 is healthy on schema39; all470 frontend tests passed. The native
+resolve-completed CLI confirmed36 room resolutions and one failure. Before that
+operation available space was2,356,879,360 bytes; after its completed successful
+maintenance pass it was10,983,014,400 bytes (net increase8,626,135,040 bytes, about
+8.63 decimal GB; filesystem usage97% to85%). Retention logs identify task checkout,
+developer and verifier source-copy deletion. This is observed filesystem movement,
+not a promise that all directory sizes are independently reclaimable. No replacement
+source archive was made. One delivered attachment in resolved room67909438 was
+successfully downloaded afterward at its recorded3,993 bytes;20 historical messages
+and12 attachment references remained readable.
+
+The one failure in roomb4f7953c came from a canceled native attempt whose historical
+task row remains blocked. Aggregate counters already classified it canceled, but
+the resolution guard compared only the raw board status. Follow-up uses the same
+native effective classification after strict latest-attempt observation, retaining
+all-attempt and queued/claimed-launch guards. Task history stays blocked rather
+than being rewritten Done. Explicitly resolved canceled copies join bounded cleanup.
+
+Owner then approved including taskless conversations in the double-check action.
+Bulk now includes existing taskless chats and all-terminal work, states the skipped
+unfinished count, and excludes online visitors without messages. Added resolve-all
+CLI; resolve-completed retains its narrower compatibility semantics. CLI/MCP list
+projections now retain shared resolution/observation fields. Rendered390/1440px
+checks include taskless conversation resolution. A broader counter test exposed an
+obsolete fixture relying on ghost room creation and hidden legacy agent seeding;
+it now establishes its own single persona and actual conversation explicitly.

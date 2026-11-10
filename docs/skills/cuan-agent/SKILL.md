@@ -938,9 +938,11 @@ installation/version check alone is not proof that production chat exposes it.
 ## Conversation resolution
 
 Owner operations `cuan chat resolve ROOM_ID`, `cuan chat reopen ROOM_ID`, and
-`cuan chat resolve-completed` use shared conversation resolution, independently
-from read receipts. Resolve-completed only selects rooms with at least one Done
-task and no unfinished tasks (canceled tasks are excluded). Each write is checked
+`cuan chat resolve-all` use shared conversation resolution, independently
+from read receipts. Resolve-all includes taskless conversations and rooms with
+only Done/canceled work, excluding online visitors without messages. The optional
+resolve-completed command remains narrower: at least one Done task is required.
+Each write is checked
 against fresh native work/reply state and the observed message cutoff; partial
 failures are returned without retries. Bound task workers cannot resolve rooms.
 

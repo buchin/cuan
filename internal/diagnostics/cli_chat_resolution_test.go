@@ -98,3 +98,28 @@ func TestResolveCompletedSkipsUnfinishedAndAlreadyResolvedConversations(t *testi
 		t.Fatal(code, writes, errOut.String())
 	}
 }
+
+func TestResolveAllIncludesConversationWithoutTasks(t *testing.T) {
+	t.Setenv("CUAN_TASK_CAPABILITY_FILE", "")
+	t.Setenv("CUAN_TASK_CAPABILITY_JSON", "")
+	writes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			fmt.Fprint(w, `{"contacts":[{"conversation_id":"taskless","has_messages":true,"resolution_observed_at":"2026-11-10T08:00:00Z"},{"conversation_id":"online-visitor","has_messages":false,"resolution_observed_at":"2026-11-10T08:00:00Z"},{"conversation_id":"pending","has_messages":true,"task_count":1,"queued_tasks":1,"resolution_observed_at":"2026-11-10T08:00:00Z"}]}`)
+			return
+		}
+		writes++
+		if r.URL.Path != "/api/v1/chat/conversations/taskless/resolution" {
+			t.Error("incorrect bulk target", r.URL.Path)
+		}
+		fmt.Fprint(w, `{"id":"taskless","resolved":true}`)
+	}))
+	defer server.Close()
+	old := globalCuanClient
+	globalCuanClient = &CuanClient{BaseURL: server.URL, AuthToken: "fixture", HTTPClient: server.Client()}
+	t.Cleanup(func() { globalCuanClient = old })
+	var out, errOut bytes.Buffer
+	if code := RunChatCLI([]string{"resolve-all"}, &out, &errOut); code != 0 || writes != 1 {
+		t.Fatal(code, writes, errOut.String())
+	}
+}

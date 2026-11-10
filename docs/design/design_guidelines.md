@@ -617,6 +617,7 @@ Inbox defaults to Unresolved. All includes resolved history; the quiet checked-c
 filter opens Resolved. Done task progress remains distinct from explicit room
 resolution. Show Resolve in the existing header and Tasks footer, with Reopen for
 resolved rooms. Sidebar counts unresolved conversations, while read receipts remain
-independent. Bulk resolve reports the eligible count and skips unfinished work.
+independent. Bulk resolve includes conversations without tasks, reports the eligible/skipped
+counts and leaves unfinished work in the inbox.
 Resolution authorizes discarding repository working copies without a replacement
 archive; durable chat attachments, delivered results and history remain separate.

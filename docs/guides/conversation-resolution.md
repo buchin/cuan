@@ -7,8 +7,9 @@ Read receipts and customer email delivery remain independent.
 
 A task being Done does not resolve its conversation. Resolve explicitly from the
 conversation header or the Tasks panel. The double-check action resolves rooms
-whose tasks are all Done (canceled tasks are excluded; at least one Done task is
-required). It shows the eligible count and reports partial failures. Active work,
+including conversations without tasks and those whose work is Done or canceled.
+It shows the eligible count, how many unfinished conversations stay in the inbox,
+and any partial failures. Active work,
 queued replies, unfinished tasks and newly arrived messages block the action.
 A new message reopens the room. Team members share resolution, while their read
 markers remain personal. Existing personal contact archiving remains unchanged.
@@ -40,6 +41,8 @@ Owner CLI:
 ```sh
 cuan chat resolve ROOM_ID
 cuan chat reopen ROOM_ID
+cuan chat resolve-all
+# Optional narrower operation: only rooms with at least one Done task
 cuan chat resolve-completed
 cuan maintenance status
 cuan maintenance run

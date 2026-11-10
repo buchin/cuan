@@ -22,7 +22,11 @@ func (s *Server) releaseResolvedTaskCopies(ctx context.Context, item *task.TaskI
 	}
 	defer lease.Close()
 	detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
-	if err != nil || detail == nil || (detail.Status != "done" && detail.Status != "cancelled" && detail.Status != "canceled") || detail.ProjectID == "" {
+	if err != nil || detail == nil || detail.ProjectID == "" {
+		return
+	}
+	status, err := s.resolutionTaskStatus(ctx, &detail.Task)
+	if err != nil || (status != "done" && status != "canceled" && status != "cancelled") {
 		return
 	}
 	room, err := s.projectStudioRepo.GetRoomByID(ctx, detail.SourceRoomID)

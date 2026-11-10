@@ -81,7 +81,11 @@ func (s *Server) conversationResolutionBlocker(ctx context.Context, id string) (
 	seen := map[string]bool{}
 	for _, item := range items {
 		seen[item.ID] = true
-		if item.Status != "done" && item.Status != "cancelled" && item.Status != "canceled" {
+		status, err := s.resolutionTaskStatus(ctx, item)
+		if err != nil {
+			return "", err
+		}
+		if status != "done" && status != "cancelled" && status != "canceled" {
 			return "Finish or cancel the remaining tasks before resolving this conversation", nil
 		}
 		attempts, err := s.taskSvc.Store().ListAttempts(ctx, item.ID)
@@ -109,7 +113,7 @@ func (s *Server) conversationResolutionBlocker(ctx context.Context, id string) (
 			return "", err
 		}
 		for _, launch := range launches {
-			if launch.State == "queued" || launch.State == "running" {
+			if launch.State == "queued" || launch.State == "claimed" || launch.State == "running" {
 				return "Wait for the current work before resolving this conversation", nil
 			}
 		}
@@ -130,4 +134,19 @@ func (s *Server) conversationResolutionBlocker(ctx context.Context, id string) (
 		return "", errors.New("reply observation unavailable")
 	}
 	return "", nil
+}
+
+// Cancellation is a native terminal attempt state even when the historical board
+// row remains blocked/review. This classification never updates task history or
+// accepts a result. Active attempts/launches are checked separately before use.
+func (s *Server) resolutionTaskStatus(ctx context.Context, item *task.Task) (string, error) {
+	latest, err := s.taskSvc.Store().GetLatestAttempt(ctx, item.ID)
+	if err != nil && !errors.Is(err, task.ErrAttemptNotFound) {
+		return "", err
+	}
+	attempt := ""
+	if latest != nil {
+		attempt = latest.Status
+	}
+	return task.EffectiveStatus(item.Status, attempt, ""), nil
 }

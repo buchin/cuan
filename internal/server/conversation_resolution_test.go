@@ -71,6 +71,21 @@ func TestConversationResolutionRequiresCompletedWorkAndPreservesReadState(t *tes
 	if w := call(path, body, token); w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}
+	// A canceled run is terminal even if its historical board row stays blocked.
+	item.Status = "blocked"
+	if err := s.taskSvc.Store().UpdateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, &task.TaskAttempt{ID: "resolution-canceled", TaskID: item.ID, Status: "canceled", CreatedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	if w := call(path, body, token); w.Code != 200 {
+		t.Fatal("native cancellation disagreed with list eligibility", w.Code, w.Body.String())
+	}
+	unchanged, err := s.taskSvc.Store().GetTask(ctx, item.ID)
+	if err != nil || unchanged.Status != "blocked" {
+		t.Fatal("resolution rewrote task history", err)
+	}
 	newer := &db.ProjectMessage{RoomID: room.ID, AuthorType: "user", Content: "Additional scope", CreatedAt: at.Add(time.Second)}
 	if err := s.projectStudioRepo.CreateMessage(ctx, newer); err != nil {
 		t.Fatal(err)

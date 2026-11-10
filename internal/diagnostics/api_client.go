@@ -468,12 +468,16 @@ func (c *CuanClient) ListConversations(ctx context.Context, projectID string, li
 		updatedAt, _ := contact["updated_at"].(string)
 
 		res = append(res, map[string]any{
-			"id":              convID,
-			"conversation_id": convID,
-			"title":           title,
-			"agent_id":        agentID,
-			"last_message":    lastMsg,
-			"updated_at":      updatedAt,
+			"id":                     convID,
+			"conversation_id":        convID,
+			"title":                  title,
+			"agent_id":               agentID,
+			"last_message":           lastMsg,
+			"updated_at":             updatedAt,
+			"resolved":               contact["resolved"],
+			"resolved_at":            contact["resolved_at"],
+			"resolution_observed_at": contact["resolution_observed_at"],
+			"has_messages":           contact["has_messages"],
 		})
 		if len(res) >= limit {
 			break

@@ -68,6 +68,13 @@ func TestResolvedConversationReleasesRepoCopiesButKeepsMessagesAndProject(t *tes
 	if _, err := os.Stat(runnerCopy); err != nil {
 		t.Fatal("unresolved copy was removed", err)
 	}
+	item.Status = "blocked"
+	if err := s.taskSvc.Store().UpdateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, &task.TaskAttempt{ID: "canceled-copy", TaskID: item.ID, Status: "canceled", CreatedAt: at}); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.projectStudioRepo.SetRoomResolved(ctx, room.ID, &at); err != nil {
 		t.Fatal(err)
 	}

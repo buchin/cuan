@@ -17,19 +17,20 @@ const distJsContent = distJsFile ? fs.readFileSync(path.join(distDir, distJsFile
 
 const policySource = fs.readFileSync(new URL('../src/features/inbox/conversation-resolution-policy.ts', import.meta.url), 'utf8')
 const policyJS = ts.transpileModule(policySource, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText
-const { completedConversation, conversationHasUnfinishedTasks } = await import('data:text/javascript;base64,' + Buffer.from(policyJS).toString('base64'))
+const { resolvableConversation, conversationHasUnfinishedTasks } = await import('data:text/javascript;base64,' + Buffer.from(policyJS).toString('base64'))
 
-test('bulk resolution requires completed work; cancellation alone and empty rooms are excluded', () => {
+test('bulk resolution includes taskless conversations and canceled work but excludes unfinished tasks', () => {
   for (const [room, eligible] of [
-    [{task_count: 0}, false],
+    [{task_count: 0, has_messages: true}, true],
+    [{task_count: 0, has_messages: false}, false],
     [{task_count: 1, done_tasks: 1}, true],
     [{task_count: 2, done_tasks: 1, canceled_tasks: 1}, true],
-    [{task_count: 1, canceled_tasks: 1}, false],
+    [{task_count: 1, canceled_tasks: 1}, true],
     [{task_count: 2, done_tasks: 1}, false],
     [{task_count: 1, done_tasks: 1, review_tasks: 1}, false],
     [{task_count: 1, done_tasks: 1, active_tasks: 1}, false],
     [{task_count: 1, done_tasks: 1, failed_tasks: 1}, false],
-  ]) assert.equal(completedConversation(room), eligible)
+  ]) assert.equal(resolvableConversation(room), eligible)
   assert.equal(conversationHasUnfinishedTasks({task_count: 1, canceled_tasks: 1}), false, 'manual resolution permits canceled work')
   assert.equal(conversationHasUnfinishedTasks({task_count: 2, done_tasks: 1}), true)
 })

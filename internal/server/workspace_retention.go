@@ -32,17 +32,9 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 	if s.projectSvc == nil || s.taskSvc == nil || s.terminalManager == nil {
 		return cursor
 	}
-	doneItems, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: "done"})
-	cancelledItems, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: "cancelled"})
-	var items []*task.TaskItemResponse
-	items = append(items, doneItems...)
-	items = append(items, cancelledItems...)
-	if len(items) == 0 {
+	rows, err := s.taskSvc.Store().ListTasks(ctx, task.TaskFilter{})
+	if err != nil {
 		return cursor
-	}
-	count := len(items)
-	if count > 10 {
-		count = 10
 	}
 	period := project.WorkspaceRetentionPeriod()
 	resolved := func(lookupCtx context.Context, roomID string) bool {
@@ -68,6 +60,30 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 		return true
 	}
 
+	var items []*task.TaskItemResponse
+	for _, row := range rows {
+		status := row.Status
+		if status != "done" && status != "cancelled" && status != "canceled" {
+			if !resolved(ctx, row.SourceRoomID) {
+				continue
+			}
+			status, err = s.resolutionTaskStatus(ctx, row)
+			if err != nil || (status != "canceled" && status != "cancelled") {
+				continue
+			}
+		}
+		item := &task.TaskItemResponse{Task: *row}
+		item.Status = status
+		items = append(items, item)
+	}
+	if len(items) == 0 {
+		return cursor
+	}
+	count := len(items)
+	if count > 10 {
+		count = 10
+	}
+
 	for i := 0; i < count; i++ {
 		item := items[cursor%len(items)]
 		cursor++
@@ -86,7 +102,14 @@ func (s *Server) runWorkspaceRetention(ctx context.Context, cursor int, now time
 					return project.WorkspaceRetirementState{}, e
 				}
 				state := project.WorkspaceRetirementState{Status: latest.Status, UpdatedAt: latest.UpdatedAt, Resolved: resolved(runCtx, latest.SourceRoomID)}
-				if latest.Status != "done" && latest.Status != "cancelled" && latest.Status != "canceled" {
+				if state.Resolved {
+					state.Status, e = s.resolutionTaskStatus(runCtx, &latest.Task)
+					if e != nil {
+						return state, e
+					}
+				}
+
+				if state.Status != "done" && state.Status != "cancelled" && state.Status != "canceled" {
 					return state, nil
 				}
 				if latest.Status == "done" && now.Sub(latest.UpdatedAt) < period && !state.Resolved {

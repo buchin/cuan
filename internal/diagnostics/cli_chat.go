@@ -24,8 +24,8 @@ func RunChatCLI(args []string, out, errOut io.Writer) int {
 	defer cancel()
 
 	switch subcommand {
-	case "resolve-completed":
-		return runChatResolveCompleted(ctx, extraArgs, out, errOut)
+	case "resolve-all", "resolve-completed":
+		return runChatResolveBatch(ctx, subcommand, extraArgs, out, errOut)
 	case "resolve", "reopen":
 		return runChatResolution(ctx, subcommand, extraArgs, out, errOut)
 	case "delete", "cancel":
@@ -62,6 +62,7 @@ Usage:
   cuan chat retry <room-id> <request-id>
   cuan chat download <attachment-id> --output PATH
   cuan chat cancel <room-id> <request-id>
+  cuan chat resolve-all
   cuan chat resolve-completed
   cuan chat resolve <room-id>
   cuan chat reopen <room-id>

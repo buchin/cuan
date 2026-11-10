@@ -1,4 +1,4 @@
-import { completedConversation, conversationHasUnfinishedTasks, setConversationResolved } from './conversation-resolution'
+import { resolvableConversation, conversationHasUnfinishedTasks, setConversationResolved } from './conversation-resolution'
 import { workConversationPreview } from './conversation-work-preview'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
@@ -330,9 +330,12 @@ export function InboxSubPanel({
   const onlineVisitorCount = contacts.filter((c) => c.type === 'customer' && c.is_online).length
 
   const [markingAll, setMarkingAll] = useState(false)
-  const resolvable = contacts.filter(contact => !contact.resolved && completedConversation(contact))
+  const resolvable = contacts.filter(contact => !contact.resolved && resolvableConversation(contact))
   const handleResolveCompleted = async () => {
-    if (markingAll || !window.confirm(t('Resolve completed conversations?') + ' (' + resolvable.length + ')')) return
+    const skipped = contacts.filter(contact => !contact.resolved && contact.has_messages !== false && conversationHasUnfinishedTasks(contact)).length
+    const confirmation = t('Resolve {{count}} conversations?').replace('{{count}}', String(resolvable.length)) +
+      (skipped ? '\n' + t('{{count}} conversations with unfinished work will remain in your inbox.').replace('{{count}}', String(skipped)) : '')
+    if (markingAll || !window.confirm(confirmation)) return
     setMarkingAll(true)
     setResolutionError('')
     try {
@@ -405,8 +408,8 @@ export function InboxSubPanel({
             <IconButton
               type="button"
               disabled={markingAll}
-              label={t('Resolve completed conversations')}
-              title={t('Resolve completed conversations')}
+              label={t('Resolve conversations')}
+              title={t('Resolve conversations')}
               onClick={handleResolveCompleted}
 
             >

@@ -10,13 +10,13 @@ const assert=require('node:assert/strict');
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:850});await page.goto('http://127.0.0.1:5174/tests/conversation-resolution/fixture.html');
   await page.getByRole('tab',{name:'Unresolved',exact:true}).waitFor();
-  assert.equal(await page.getByTestId('conversation-item').count(),2);
-  await page.getByRole('tab',{name:'All',exact:true}).click();assert.equal(await page.getByTestId('conversation-item').count(),3);
+  assert.equal(await page.getByTestId('conversation-item').count(),3);
+  await page.getByRole('tab',{name:'All',exact:true}).click();assert.equal(await page.getByTestId('conversation-item').count(),4);
   await page.getByRole('button',{name:'Resolved conversations',exact:true}).click();assert.equal(await page.getByTestId('conversation-item').count(),1);
   await page.getByRole('tab',{name:'Unresolved',exact:true}).click();
   await page.screenshot({path:`/tmp/cuan-resolution-${width}.png`});
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow');
-  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Resolve completed conversations',exact:true}).click();
+  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Resolve conversations',exact:true}).click();
   await page.waitForFunction(()=>document.querySelectorAll('[data-testid=conversation-item]').length===1);
   if(width===1440){await page.getByRole('button',{name:'Tasks',exact:false}).click();await page.screenshot({path:'/tmp/cuan-resolution-panel-1440.png'});await page.getByRole('button',{name:'Reopen conversation',exact:true}).first().click();await page.waitForFunction(()=>document.querySelectorAll('[data-testid=conversation-item]').length===2)}
  }

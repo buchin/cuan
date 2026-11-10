@@ -15,6 +15,7 @@ const at='2026-11-10T08:00:00Z'
 const mobileChat = new URLSearchParams(location.search).has('chat')
 const initial=[
  {id:'done',name:'Perbaiki pengiriman email',task_count:1,done_tasks:1,last_message:'Email pelanggan sudah terkirim dan terverifikasi.'},
+ {id:'taskless',name:'Tanya jadwal layanan',task_count:0,last_message:'Terima kasih, informasinya sudah jelas.'},
  {id:'working',name:'Siapkan situs baru',task_count:1,active_tasks:1,last_message:'Sedang memeriksa hasil pekerjaan.'},
  {id:'resolved',name:'Rapikan halaman kontak',resolved:true,task_count:1,done_tasks:1,last_message:'Hasil sudah disimpan.'},
 ].map(c=>({...c,conversation_id:c.id,type:'agent',agent_id:'agent_cuan',avatar:'',status:'online',unread_count:2,updated_at:at,last_message_at:at,has_messages:true})) as ChatContact[]

@@ -16,16 +16,23 @@ import (
 func TestInboxTaskCounter_ContactsAndConversationsPayload(t *testing.T) {
 	srv, token := setupTestChatServer(t)
 
-	// Create an active agent in agentRepo
-	if srv.agentRepo != nil {
-		_ = srv.agentRepo.CreateAgent(context.Background(), &db.Agent{
-			ID:       "agent_dev",
-			Name:     "@dev",
-			Harness:  "agy",
-			Provider: "agy",
-			Enabled:  true,
-			Status:   db.AgentStatusActive,
-		})
+	// Use one explicit fixture persona, independent of default agent seeding.
+	srv.SetAgentRepository(db.NewMemoryAgentRepository())
+	if err := srv.agentRepo.CreateAgent(context.Background(), &db.Agent{
+		ID:       "agent_dev",
+		Name:     "@dev",
+		Harness:  "agy",
+		Provider: "agy",
+		Enabled:  true,
+		Status:   db.AgentStatusActive,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The list reads existing conversations; it must not create a room for every
+	// enabled agent. Establish the conversation whose counters this test exercises.
+	if err := srv.projectStudioRepo.CreateRoom(context.Background(), &db.ProjectRoom{ID: db.GenerateUUID(), ProjectID: "default", Title: "@dev", Topic: "agent:agent_dev"}); err != nil {
+		t.Fatal(err)
 	}
 
 	// 1. Initial contacts check: each contact should have task_count and active_tasks initialized to 0

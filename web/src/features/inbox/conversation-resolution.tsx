@@ -1,5 +1,5 @@
 import { conversationHasUnfinishedTasks } from './conversation-resolution-policy'
-export { completedConversation, conversationHasUnfinishedTasks } from './conversation-resolution-policy'
+export { resolvableConversation, conversationHasUnfinishedTasks } from './conversation-resolution-policy'
 import { useState } from 'react'
 import { CheckCircle2, Loader2, Undo2 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
