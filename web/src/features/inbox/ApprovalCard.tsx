@@ -6,7 +6,6 @@ import { cn } from '../../lib/utils'
 import {
   ClipboardCheck,
   CheckCircle2,
-  CheckCheck,
   Clock3,
   Folder,
   Pencil,
@@ -101,7 +100,6 @@ export function ApprovalCard({
                   : 'text-primary font-semibold',
             )}
           >
-            {accepted ? '✓ ' : ''}
             {t(
               accepted
                 ? 'Approved'
@@ -162,58 +160,44 @@ export function ApprovalCard({
       )}
 
       {/* Action Buttons (Touch target min-h-11, mobile responsive wrap) */}
-      <div className={cn(
-        'flex flex-wrap items-center gap-2 pt-1',
-        accepted ? 'border-t-0 pt-0' : 'border-t border-border/40'
-      )}>
-        <Button
-          size="sm"
-          className={cn(
-            'min-h-11 text-xs gap-1.5',
-            accepted
-              ? 'bg-transparent hover:bg-transparent text-emerald-600 dark:text-emerald-400 font-medium cursor-default shadow-none border-0 px-0'
-              : 'font-semibold px-3.5 py-2 cursor-pointer shadow-xs bg-primary text-primary-foreground',
-          )}
-          disabled={accepted || disabled}
-          onClick={onApprove}
-        >
-          {accepted ? (
-            <CheckCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-          ) : (
+      {!accepted && (
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40">
+          <Button
+            size="sm"
+            className="min-h-11 text-xs gap-1.5 font-semibold px-3.5 py-2 cursor-pointer shadow-xs bg-primary text-primary-foreground"
+            disabled={disabled}
+            onClick={onApprove}
+          >
             <Play className="h-3.5 w-3.5 fill-current" />
-          )}
-          <span>{accepted ? '✓ ' : ''}{t(accepted ? 'Approved' : 'Approve and start')}</span>
-        </Button>
+            <span>{t('Approve and start')}</span>
+          </Button>
 
-        {!accepted && (
-          <>
-            {onChangePlan && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-11 font-medium text-xs px-3 py-2 gap-1.5 cursor-pointer"
-                disabled={disabled}
-                onClick={onChangePlan}
-              >
-                <Pencil className="h-3.5 w-3.5 opacity-70" />
-                <span>{t('Change plan')}</span>
-              </Button>
-            )}
-            {onDefer && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="min-h-11 font-medium text-xs px-3 py-2 gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
-                disabled={deferred || disabled}
-                onClick={onDefer}
-              >
-                <Clock3 className="h-3.5 w-3.5 opacity-70" />
-                <span>{t(deferred ? 'Saved for later' : 'Not now')}</span>
-              </Button>
-            )}
-          </>
-        )}
-      </div>
+          {onChangePlan && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11 font-medium text-xs px-3 py-2 gap-1.5 cursor-pointer"
+              disabled={disabled}
+              onClick={onChangePlan}
+            >
+              <Pencil className="h-3.5 w-3.5 opacity-70" />
+              <span>{t('Change plan')}</span>
+            </Button>
+          )}
+          {onDefer && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="min-h-11 font-medium text-xs px-3 py-2 gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground"
+              disabled={deferred || disabled}
+              onClick={onDefer}
+            >
+              <Clock3 className="h-3.5 w-3.5 opacity-70" />
+              <span>{t(deferred ? 'Saved for later' : 'Not now')}</span>
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
