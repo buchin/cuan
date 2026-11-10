@@ -415,3 +415,57 @@ worktree, including3-run baseline inspection; a single run can pass. Temporary
 diagnostic instrumentation was removed. This is an unresolved pre-existing
 review-snapshot issue, not a passing broad suite and not justification to weaken
 source/visual acceptance. It remains follow-up work after the active backend task.
+
+## Native recovery published and admitted (not accepted)
+
+Two support publication attempts stopped with exit137 while rendering frontend
+chunks, before deployment; production stayed unchanged. A second attempt with a
+384MiB Node heap also stopped. OS inspection identified an idle local Cuan Vite
+preview and its esbuild child, including a deleted dependency executable retained
+by that preview. Root stopped that confirmed local preview, releasing its memory;
+no remote application was stopped. The subsequent complete native release with
+384MiB heap passed and published healthy exact SHA
+`464fcbd0f0ee482efa2d4d2f8722c5e877d2b814` at11:58:26.461 +08, source unchanged,
+runner restarted and undrained. No tests, fresh asset build or health gate skipped.
+
+The existing delivery scanner automatically saved recovery launch
+`launch_85e538972d10e63ce307930ef548235d90cdc4ac9945575e460f5ecbbc9f13e1`.
+Root neither resent a PM message nor manually changed the task status. Disk
+admission still blocked its dispatch. Root removed two more closed Go compiler
+scratch trees, last changed10:48 and10:42, now older1h, with generated layout,
+reader and identity checks; file bytes totaled237,998,177. Native journal vacuum
+removed94.6MiB of archived journals while preserving active journals with a100MiB vacuum target. The existing12:00 Nginx logrotate timer also completed successfully.
+Available disk became2,266,951,680 bytes. Source48h retention, independent Git,
+receipts/history and the2GiB admission floor remained unchanged.
+
+The same launch automatically started attempt
+`att_85e538972d10e63ce307930ef548235d` at12:00:34.845 +08, with deadline12:10:34.845.
+It retains original source3cb570d3, publisher att_2fe39d1e and running target464fcbd0,
+read-only repository, deny push/deploy. The agent stage began12:00:38.962, only
+4.117s after start, with no frontend preparation or visual recipe in the initial
+native stage records. The previous same-task inspection spent approximately123s
+before its agent stage. This verifies removal of that preparation waste, not
+end-to-end task completion or final acceptance. Outcome and final native checks
+are still pending.
+
+The recovered agent stage subsequently timed out at12:05:37.719 after298.756s,
+before a final report. The attempt remained failed, exit124. Actual OS observation
+showed a Go check for `github.com/buchin/cuan/internal/task`, not the registered
+fast suite or `./...`; shared cache variables were inherited. Its completion is
+unproven. New native observation records confirm the snapshot was unchanged;
+registered checks had not run (empty native summary). The existing single
+reporting recovery was automatically queued, retaining both previous failures.
+
+A171,493,598-byte generated Go compiler work tree remained after that model-stage
+process stopped. Root confirmed no Go process/readers remained, validated generated
+layout/identity and deleted this known terminated execution's scratch. This was
+another explicit infrastructure intervention. The earlier deployed scratch fix
+covers runner-owned project-check commands; model-started Go commands still need
+an execution-owned scratch lifecycle. Do not claim the entire compiler-scratch
+problem is solved or shorten source retention to recover these bytes.
+
+After disk availability recovered to2,212,904,960 bytes, that same reporting
+recovery automatically started `att_7da2bea1bd728767f0cbea6452bca2b0` at
+12:08:44.781 +08, deadline12:18:44.781. Its reporting/outcome and final native
+checks are still pending. Do not restart it from quiet output or count the prior
+model report/diagnostic as acceptance.
