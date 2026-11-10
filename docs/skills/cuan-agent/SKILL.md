@@ -397,6 +397,11 @@ replay. It does not claim a historical execution failed or rerun its actions.
 
 ### Bounded attempt log tail
 
+Use `cuan --help` for the installed command surface. Unknown root commands or
+unexpected positional arguments exit with usage status2 before server startup,
+database access or migrations. A bare invocation still starts the server; do
+not use a bare command as a CLI discovery probe.
+
 To investigate the end of a particular execution without scanning its entire
 terminal history:
 

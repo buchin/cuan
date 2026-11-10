@@ -98,6 +98,10 @@ func main() {
 	memberIDFlag := flag.String("member-id", "buchin", "Member ID authorizing the agent")
 	providerFlag := flag.String("provider", "antigravity", "Agent provider (antigravity, claude, shell)")
 	flag.Parse()
+	if flag.NArg() > 0 {
+		fmt.Fprintln(os.Stderr, "Unknown command or unexpected argument. Run cuan --help for supported commands.")
+		os.Exit(2)
+	}
 	if *chatWorker && *externalChatWorker {
 		log.Fatal("Choose either chat-worker or external-chat-worker")
 	}
