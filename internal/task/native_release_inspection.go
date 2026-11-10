@@ -29,7 +29,7 @@ func validateNativeReleaseInspectionSource(ctx context.Context, store Store, t *
 		if proof.TargetCommit != delivery.TargetCommit {
 			return ErrInvalidTaskInput
 		}
-	} else if err := validateStaleNativeInspectionRecovery(ctx, store, t, proof); err != nil {
+	} else if err := validateNativeInspectionVerifierRecovery(ctx, store, t, proof); err != nil {
 		return err
 	}
 	intent, err := NativeReleaseIntentForAttempt(ctx, store, t, proof.SourceAttemptID)
@@ -56,15 +56,23 @@ func validateNativeReleaseInspectionSource(ctx context.Context, store Store, t *
 	return nil
 }
 
-// A pre-model stale-target rejection permits one new read-only observation.
-// It never changes the historical delivery target or claims the failed verifier ran.
-func validateStaleNativeInspectionRecovery(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
+// A stale target or authenticated incomplete native check permits one new
+// read-only observation. It grants no acceptance credit or publication authority.
+func validateNativeInspectionVerifierRecovery(ctx context.Context, store Store, t *Task, proof *LiveInspectionIntent) error {
 	a, err := store.GetAttempt(ctx, proof.VerifierRecoveryAttemptID)
-	if err != nil || a == nil || a.TaskID != t.ID || a.Status != AttemptStatusFailed || a.ExitCode == nil || *a.ExitCode != 1 || a.ErrorMessage != StaleInspectionReleaseMessage || a.RunnerID == "" || a.StartedAt == nil || a.FinishedAt == nil || a.FinishedAt.Before(*a.StartedAt) || a.CancelRequested || a.CanceledAt != nil || proof.ObservedAt.Before(*a.FinishedAt) || !fullObjectID(proof.TargetCommit) {
+	if err != nil || a == nil || a.TaskID != t.ID || a.Status != AttemptStatusFailed || a.ExitCode == nil || a.RunnerID == "" || a.StartedAt == nil || a.FinishedAt == nil || a.FinishedAt.Before(*a.StartedAt) || a.CancelRequested || a.CanceledAt != nil || proof.ObservedAt.Before(*a.FinishedAt) || !fullObjectID(proof.TargetCommit) {
 		return ErrInvalidTaskInput
 	}
 	previous, err := LiveInspectionForAttempt(ctx, store, t, a.ID)
-	if err != nil || previous == nil || previous.Purpose != NativeReleaseInspection || previous.VerifierRecoveryAttemptID != "" || previous.ReportingRecoveryAttemptID != "" || previous.TargetCommit == proof.TargetCommit {
+	if err != nil || previous == nil || previous.Purpose != NativeReleaseInspection || previous.VerifierRecoveryAttemptID != "" || previous.ReportingRecoveryAttemptID != "" {
+		return ErrInvalidTaskInput
+	}
+	events, err := store.ListActivities(ctx, t.ID)
+	if err != nil {
+		return err
+	}
+	infrastructure := InspectionInfrastructureFailure(a, events)
+	if !infrastructure && (*a.ExitCode != 1 || a.ErrorMessage != StaleInspectionReleaseMessage || previous.TargetCommit == proof.TargetCommit) {
 		return ErrInvalidTaskInput
 	}
 	expected := *proof
@@ -75,9 +83,8 @@ func validateStaleNativeInspectionRecovery(ctx context.Context, store Store, t *
 	if string(left) != string(right) {
 		return ErrInvalidTaskInput
 	}
-	events, err := store.ListActivities(ctx, t.ID)
-	if err != nil {
-		return err
+	if infrastructure {
+		return nil
 	}
 	for _, event := range events {
 		if event == nil || event.TaskID != t.ID || event.AttemptID == nil || *event.AttemptID != a.ID {

@@ -214,7 +214,7 @@ func testStaleNativeInspectionRecovery(t *testing.T, store *MemoryStore, item *T
 	proof := original
 	proof.VerifierRecoveryAttemptID = verifier.ID
 	proof.TargetCommit, proof.ObservedAt = strings.Repeat("d", 40), finish
-	for _, scenario := range []string{"valid", "wrong owner", "wrong source", "same target", "generic failure", "cancelled", "still running", "missing finish"} {
+	for _, scenario := range []string{"valid", "wrong owner", "wrong source", "same target", "generic failure", "cancelled", "still running", "missing finish", "native abort", "native abort same target", "native timeout", "native assertion", "native foreign record", "native cancelled", "native changed boundary"} {
 		candidate, stopped := proof, base
 		switch scenario {
 		case "wrong owner":
@@ -234,13 +234,46 @@ func testStaleNativeInspectionRecovery(t *testing.T, store *MemoryStore, item *T
 		}
 		// Separate fixture state per case; never revive a terminal attempt.
 		variant := NewMemoryStore()
-		variant.tasks, variant.activities, variant.launches = store.tasks, store.activities, store.launches
+		variant.tasks, variant.launches = store.tasks, store.launches
+		for id, activity := range store.activities {
+			variant.activities[id] = activity
+		}
 		for id, attempt := range store.attempts {
 			variant.attempts[id] = attempt
 		}
+		if strings.HasPrefix(scenario, "native ") {
+			zero := 0
+			stopped.ExitCode, stopped.ErrorMessage = &zero, "Live result inspection project checks did not pass"
+			if scenario == "native timeout" {
+				stopped.ErrorMessage = InspectionProjectVerificationTimeout
+			}
+			if scenario == "native abort same target" {
+				candidate.TargetCommit = original.TargetCommit
+			}
+			stopped.CancelRequested = scenario == "native cancelled"
+			for _, e := range []*TaskActivity{
+				{ID: "native-report", TaskID: item.ID, AttemptID: &verifier.ID, ActivityType: "agent_report", NewStatus: TaskStatusReview},
+				{ID: "native-kind", TaskID: item.ID, AttemptID: &verifier.ID, ActivityType: "agent_result_kind", NewStatus: "implementation"},
+				{ID: "verification:" + verifier.ID, TaskID: item.ID, AttemptID: &verifier.ID, ActivityType: ActivityTypeRunnerVerification, Author: stopped.RunnerID, Message: `{"summary":"Project verification: test.sh --fast (exit -1)\nok config"}`},
+				{ID: "repository-observation:" + verifier.ID, TaskID: item.ID, AttemptID: &verifier.ID, ActivityType: "repository_scope_observed", Author: stopped.RunnerID, NewStatus: AttemptStatusFailed, Message: `{"baseline":"` + strings.Repeat("b", 64) + `","final":"` + strings.Repeat("b", 64) + `"}`},
+			} {
+				if scenario == "native assertion" && e.ActivityType == ActivityTypeRunnerVerification {
+					e.Message = `{"summary":"Project verification: test.sh --fast (exit -1)\n--- FAIL: TestBehavior"}`
+				}
+				if scenario == "native foreign record" && e.ActivityType == ActivityTypeRunnerVerification {
+					e.Author = "foreign"
+				}
+				if scenario == "native changed boundary" && e.ActivityType == "repository_scope_observed" {
+					e.Message = `{"baseline":"` + strings.Repeat("b", 64) + `","final":"` + strings.Repeat("c", 64) + `"}`
+				}
+				if err := variant.CreateActivity(ctx, e); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
 		variant.attempts[verifier.ID] = &stopped
 		err := ValidateLiveInspectionSource(ctx, variant, item, &candidate)
-		if (err == nil) != (scenario == "valid") {
+		if (err == nil) != (scenario == "valid" || scenario == "native abort" || scenario == "native abort same target" || scenario == "native timeout") {
 			t.Fatalf("stale native recovery %s: %v", scenario, err)
 		}
 	}

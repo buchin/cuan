@@ -310,7 +310,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	s.cfg.Environment = "production"
 	s.cfg.SourceRepository = intent.Repository
 	s.cfg.CommitSHA = target
-	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify evidence"
+	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify abort" && scenario != "initial verify evidence"
 	switch scenario {
 	case "initial verify changed release":
 		s.cfg.CommitSHA = strings.Repeat("f", 40)
@@ -406,14 +406,14 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	if len(after.Attempts) != before {
 		t.Fatal("reconstructed review duplicated independent verifier")
 	}
-	if scenario == "initial verify stale" {
-		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed)
+	if scenario == "initial verify stale" || scenario == "initial verify abort" {
+		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify abort")
 		return
 	}
 	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify evidence")
 }
 
-func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent) {
+func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent, aborted bool) {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -439,7 +439,19 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 	if !claimed.Claimed || claimed.LiveInspection == nil {
 		t.Fatal("fixture verifier not claimed")
 	}
-	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.StaleInspectionReleaseMessage})
+	completion := runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: task.StaleInspectionReleaseMessage}
+	if aborted {
+		for _, event := range []*task.TaskActivity{
+			{ID: "native-abort-report", TaskID: item.ID, AttemptID: &claimed.Attempt.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview},
+			{ID: "native-abort-kind", TaskID: item.ID, AttemptID: &claimed.Attempt.ID, ActivityType: "agent_result_kind", NewStatus: "implementation"},
+		} {
+			must(s.taskSvc.Store().CreateActivity(ctx, event))
+		}
+		completion.ExitCode, completion.ErrorMessage = 0, "Live result inspection project checks did not pass"
+		completion.TestSummary = "Project verification: test.sh --fast (exit -1)\nok config"
+		completion.RepositoryVerification = &runner.RepositoryVerification{Baseline: strings.Repeat("b", 64), Final: strings.Repeat("b", 64)}
+	}
+	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, completion)
 	must(err)
 	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))
 	p, err := s.projectSvc.Get(ctx, item.ProjectID)
@@ -452,11 +464,13 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 		}
 		return strings.TrimSpace(string(out))
 	}
-	run("checkout", "--detach", proof.TargetCommit)
-	must(os.WriteFile(filepath.Join(p.LocalPath, "later-release.txt"), []byte("unrelated release"), 0600))
-	run("add", "later-release.txt")
-	run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Later release retains delivered source")
-	s.cfg.CommitSHA = run("rev-parse", "HEAD")
+	if !aborted {
+		run("checkout", "--detach", proof.TargetCommit)
+		must(os.WriteFile(filepath.Join(p.LocalPath, "later-release.txt"), []byte("unrelated release"), 0600))
+		run("add", "later-release.txt")
+		run("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Later release retains delivered source")
+		s.cfg.CommitSHA = run("rev-parse", "HEAD")
+	}
 	failed, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
 	// Hold dispatch in its real project lane until this test explicitly claims.

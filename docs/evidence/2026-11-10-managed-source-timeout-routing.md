@@ -381,3 +381,37 @@ closed reconciliation schema makes both pass. Tools, unrelated actions and
 unscoped delegation stay rejected. This fixes the inconsistent contract without
 changing permissions or extending inference budgets. Retry/scope/format targeted
 tests pass locally. Runtime improvement for this correction remains unproven.
+
+## Native post-publication incomplete-check recovery
+
+Current-state diagnosis found a separate routing gap: existing infrastructure
+recovery covers current-outcome inspection, but native post-publication inspection
+only recognizes pre-model stale targets and missing final-report deadlines. A
+saved final report followed by an aborted native project check therefore remained
+stranded even after its command-timeout marker was corrected for future runs.
+
+Reuse the existing verifier-recovery identity and one-attempt bound for native
+post-publication inspections. A legacy generic inspection failure qualifies only
+with native runner-authored exit-1 check evidence, a saved implementation report,
+matching repository observation and no assertion findings. This establishes an
+incomplete/aborted command, not a historical timeout diagnosis. Positive failed
+assertion exit, changed/foreign observation, cancellation and missing report still
+reject recovery. Original source/delivery/owner/room/approval lineage is unchanged.
+A changed running release must contain the old delivered target; native snapshot
+checks remain mandatory. The failed attempt is retained and acceptance gets no
+credit. Existing reporting recovery retains its own already-bounded semantics.
+
+Tests extend the existing native-delivery fixtures rather than creating another
+publisher framework. The real service completion/queue/claim fixture confirms
+same-target aborted-check recovery, deduplication, original predecessor and
+read-only scope. Task protocol variants cover changed target, typed timeout,
+legacy abort and rejection of assertions, foreign records, cancellation and changed
+repository state. Required targeted task/server suites pass (server22.035s).
+
+A broader existing visual-evidence continuation test was also run and failed
+intermittently: its saved assessment digest no longer matches the task snapshot.
+The same failure reproduces on the unchanged production commit in a separate
+worktree, including3-run baseline inspection; a single run can pass. Temporary
+diagnostic instrumentation was removed. This is an unresolved pre-existing
+review-snapshot issue, not a passing broad suite and not justification to weaken
+source/visual acceptance. It remains follow-up work after the active backend task.
