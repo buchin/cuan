@@ -680,3 +680,34 @@ cross-workspace cache reuse, not a controlled end-to-end production speedup.
 Release binaries also use -trimpath so publication source-directory changes do
 not themselves invalidate identical compiled dependencies. Source identities and
 release linker version metadata remain unchanged.
+
+## Follow-up: remove owner-operated recovery
+
+The owner explicitly rejected Resume as an operational requirement. Production
+release f7aa10ab exposed a PM reassessment button, but its real request
+ dea84158-fb11-4e1b-a376-a2e87678d96c completed without admitting another execution:
+the task remained blocked on its failed independent native check. Reassessment
+alone was not effective continuation. Remove the Resume UI and endpoint rather
+than ask the owner to click repeatedly. Managed Inbox failure cards also suppress
+manual Retry. The owner clarified that primary status describes responsibility for the whole
+work item, rather than a process. Approved managed work therefore remains Working
+with an ownership pulse during internal recovery and external waits; owner input,
+completion and cancellation stop it. Native process/terminal state stays separate. Original cancellation, approval and acceptance remain authoritative.
+
+The shared coordinator/worker ownership prompt now explicitly requires a specific
+owner-only question with recommended choices where appropriate, followed by
+automatic continuation after its answer, without a second confirmation. This
+prompt change is not proof of end-to-end automatic recovery. Original task
+msg_612faba3-721b-4d16-b14a-e8e6b6824f38 remains unfinished: the existing inspection
+recovery admission still rejects its exhausted evidence-revalidation lineage.
+
+A separate information gap is corrected: PM review context receives the current
+attempt's native total duration and typed runner agent-stage duration from a
+bounded 32-line tail. Worker stdout, foreign attempts, impossible/negative or
+missing measurements cannot become timing evidence. Raw terminal text is not
+included. The actual agent stage was141411ms; the worker's approximately60s claim
+is retained as historical text, never promoted into measured speedup. Tests cover
+these boundaries, context injection and preservation of failed state. Actual
+390px/1440px screenshots and browser interactions confirm no managed Resume/Retry
+controls and correct work-ownership pulse. This does not establish final acceptance or
+repair the remaining admission blocker.

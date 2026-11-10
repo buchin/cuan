@@ -2031,10 +2031,6 @@ export function InboxView({
                 <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}
                   tasks={linkedTasks}
-                  onResumed={async task => {
-                    const updated = await tasksApi.get(task.id)
-                    setLinkedTasks(previous => previous.map(item => item.id === updated.id ? updated : item))
-                  }}
                   resolution={<ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} onChanged={onContactUpdated} />}
                   onDetails={task => handleOpenTaskDrawer(task)}
                   onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}

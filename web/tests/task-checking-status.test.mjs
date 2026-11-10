@@ -44,10 +44,24 @@ test('Pulse follows durable Cuan-owned next steps while preserving phase labels'
 
 test('stopped work does not imply the user owes an action',()=>{
  const paused={status:'blocked',latest_attempt:{status:'succeeded'}}
- assert.equal(workDisplayStatus(paused),'Work paused')
- assert.equal(workDisplayStatus({...paused,review_action:'continue'}),'Work paused')
+ assert.equal(workDisplayStatus(paused),'Unfinished')
+ assert.equal(workDisplayStatus({...paused,review_action:'continue'}),'Unfinished')
  assert.equal(workDisplayStatus({...paused,review_action:'needs_owner'}),'Needs your input')
  assert.equal(workDisplayStatus({...paused,review_action:'wait'}),'Waiting')
  assert.equal(workDisplayStatus({...paused,review_action:'needs_owner',review_state:'running'}),'Checking result')
  assert.equal(taskAgentPending({...paused,review_action:'continue'}),false)
+})
+
+
+test('managed work stays Cuan-owned across internal recovery until owner input or terminal state', () => {
+ const work={source_room_id:'room',status:'blocked',latest_attempt:{status:'failed'},launch:{state:'stopped'}}
+ for (const action of [undefined,'continue','replan','wait']) {
+  assert.equal(workDisplayStatus({...work,review_action:action}),'Working')
+  assert.equal(taskAgentPending({...work,review_action:action}),true)
+ }
+ assert.equal(workDisplayStatus({...work,review_action:'needs_owner'}),'Needs your input')
+ assert.equal(taskAgentPending({...work,review_action:'needs_owner'}),false)
+ assert.equal(workStatus(work),'Needs attention','execution state stays truthful for terminal and native controls')
+ for (const status of ['done','cancelled','canceled']) assert.equal(taskAgentPending({...work,status}),false)
+ assert.equal(taskAgentPending({...work,latest_attempt:{status:'failed',cancel_requested:true}}),false)
 })

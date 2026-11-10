@@ -1,4 +1,3 @@
-import { TaskResumeAction } from '../tasks/TaskResumeAction'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { CheckCircle2, Terminal } from 'lucide-react'
@@ -17,12 +16,11 @@ function running(task: Task) {
 }
 
 // Key this component by conversation so disclosure choices never leak between rooms.
-export function ComposerTasks({ tasks, onDetails, onTerminal, modes, resolution, onResumed }: {
+export function ComposerTasks({ tasks, onDetails, onTerminal, modes, resolution }: {
   tasks: Task[]
   onDetails: (task: Task) => void
   onTerminal: (task: Task) => void
   modes?: ReactNode
-  onResumed?: (task: Task) => void | Promise<void>
   resolution?: ReactNode
 }) {
   const { t } = useLanguage()
@@ -69,7 +67,6 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes, resolution,
             {progress && <p className="line-clamp-3 pb-2 text-sm leading-relaxed text-muted-foreground">{progress}</p>}
             <CardActions className="px-0 text-xs">
               <button type="button" className="mr-auto" onClick={() => onDetails(task)}>{t('Details')}</button>
-              <TaskResumeAction task={task} onResumed={() => onResumed?.(task)} />
               {workStatus(task) === 'Working' && <TaskTerminalAction task={task} onTerminal={onTerminal} />}
             </CardActions>
           </>}

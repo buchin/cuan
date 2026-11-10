@@ -1,4 +1,3 @@
-import { TaskResumeAction } from '../tasks/TaskResumeAction'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, X, Terminal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -58,6 +57,5 @@ export function InboxWorkPanel({task,view,onBack}:{task:Task;view:'details'|'ter
     </>:<div ref={body} className="relative min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6" data-work-scroll>
       {detail?<TaskWorkDetails task={detail} scrollRef={body}/>:!error&&<p role="status" className="text-sm text-muted-foreground">{id?'Memuat…':'Loading…'}</p>}
     </div>}
-    {view==='details'&&detail&&<div className="flex shrink-0 justify-end has-[button]:border-t border-border/50 px-4 sm:px-6"><TaskResumeAction task={detail} onResumed={refresh}/></div>}
   </aside>
 }

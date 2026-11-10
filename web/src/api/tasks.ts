@@ -132,9 +132,6 @@ export const tasksApi = {
       body: JSON.stringify(enriched),
     })
   },
-  resumePlan: (id: string): Promise<{ available: boolean; attempt_id?: string }> => apiFetch(path(id) + '/resume'),
-  resume: (id: string, attemptId: string): Promise<{ task_id: string; attempt_id: string; request_id: string; status: string; replayed?: boolean }> =>
-    apiFetch(path(id) + '/resume', { method: 'POST', body: JSON.stringify({ attempt_id: attemptId }) }),
   cancel: (id: string): Promise<TaskAttempt> =>
     apiFetch(path(id) + '/cancel', { method: 'POST' }),
   steer: (

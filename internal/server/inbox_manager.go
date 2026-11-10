@@ -10,8 +10,6 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-type taskOwnerResumeKey struct{}
-
 const inboxOwnershipPolicy = "Autonomous ownership policy: v1"
 
 func verificationReviewRevision(feedback string) string {
@@ -99,9 +97,6 @@ func (s *Server) queueManagerAssessment(ctx context.Context, origin db.InboxRequ
 		return false
 	}
 	key := managerReviewKey(d)
-	if ctx.Value(taskOwnerResumeKey{}) == true {
-		key = ownerResumeReviewKey(d)
-	}
 	if origin.RequestID == delegationMessageID(key+":retry") {
 		return false
 	}

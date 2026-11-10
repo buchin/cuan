@@ -955,13 +955,11 @@ measurements before claiming savings. Orphan workspaces from deleted tasks are
 not automatically authorized by resolving unrelated conversations. See the
 [resolution guide](../../guides/conversation-resolution.md).
 
-## Paused Inbox work
+## Ownership of unfinished work
 
-The Resume action asks the existing PM supervision to reassess the current saved
-result; it does not directly restart development or reset recovery budgets. It
-preserves original scope, approval, workspace and independent acceptance gates.
-Only the original owner can request it for paused Inbox work. Repeated clicks
-reuse a pending assessment, and a completed owner assessment cannot be renewed
-without changed evidence. Needs-input, prerequisite waits, canceled/completed
-work and active execution are excluded. A queued PM assessment appears as
-Waiting for checks rather than a new chat control message.
+Internal execution, handoff and verification failures remain Cuan's responsibility.
+Do not expose Resume/Retry controls for managed Inbox work or ask for renewed
+approval merely to recover the original mandate. Ask only for a concrete decision,
+access or information that only the owner can provide. Once supplied, continue
+the original task automatically, retaining its scope, history and acceptance gates.
+Never claim work is running without a saved active request or execution.

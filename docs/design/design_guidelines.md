@@ -622,11 +622,13 @@ counts and leaves unfinished work in the inbox.
 Resolution authorizes discarding repository working copies without a replacement
 archive; durable chat attachments, delivered results and history remain separate.
 
-### Paused work recovery
+### Ownership of unfinished work
 
-Paused Inbox tasks expose the same compact Resume action in composer task
-attachments and task detail footers. The action requests current PM supervision
-with saved context, shows a loading spinner and preserves the draft. Errors stay
-beside the action; no speculative success state or direct development restart.
-Detail actions remain outside the scrolling body. Composer attachments keep their
-bounded scroll area, including reachable footer actions on 390px screens.
+Managed Inbox work has no Resume button. Internal failures remain Cuan's
+responsibility. Only an indispensable owner decision or missing owner input
+receives a user action, with recommended choices and a free-text alternative.
+After that input, continue the existing task without a second confirmation.
+The primary status and pulse express ownership of unfinished approved work,
+including internal recovery and external waits. Only owner input or a terminal
+outcome ends that pulse. Actual process/terminal availability stays bound to
+native execution records; work ownership never creates a phantom terminal.

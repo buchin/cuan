@@ -97,22 +97,26 @@ export function workDisplayStatus(task: Task) {
   if (status === 'Completed' || status === 'Cancelled') return status
   if (task.review_state === 'running') return 'Checking result'
   if (task.review_state === 'queued') return 'Waiting for checks'
+  if (task.source_room_id && task.latest_attempt) {
+    return task.review_action === 'needs_owner' ? 'Needs your input' : 'Working'
+  }
   if (status === 'Needs attention') {
     if (task.review_action === 'needs_owner') return 'Needs your input'
     if (task.review_action === 'wait') return 'Waiting'
-    return 'Work paused'
+    return 'Unfinished'
   }
   return status
 }
 
-// Pulse means the next step still belongs to Cuan, including durable waiting
-// work. Board labels and a model's progress prose alone cannot prove that.
+// Pulse expresses ownership of the unfinished work, including recovery and
+// external waits. Native execution/terminal state remains separate.
 export function taskAgentPending(task: Task) {
   if (['done', 'cancelled', 'canceled'].includes(task.status as string)) return false
   if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return true
   const attempt = task.latest_attempt
   if (attempt?.cancel_requested || attempt?.canceled_at || ['cancelled', 'canceled'].includes(attempt?.status || '')) return false
   if (task.review_state === 'queued' || task.review_state === 'running') return true
+  if (task.source_room_id && attempt && task.review_action !== 'needs_owner') return true
   return ['queued', 'running'].includes(attempt?.status || task.execution_status || '')
 }
 

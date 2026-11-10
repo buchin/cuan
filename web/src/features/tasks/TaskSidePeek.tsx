@@ -1,4 +1,3 @@
-import { TaskResumeAction } from './TaskResumeAction'
 import { TaskTimeline } from './TaskTimeline'
 import { TaskDuration } from './TaskDuration'
 import { StatusDot } from '../../components/ui/StatusDot'
@@ -55,7 +54,7 @@ import {
   TASK_STATUSES,
   activeAttempt,
   taskAgentPending,
-  workDisplayStatus,
+  workStatus,
   statusLabel,
   taskRef,
   relativeTime,
@@ -1387,7 +1386,7 @@ function TaskDetailView({
                       {id ? 'Setujui hasil' : 'Approve result'}
                     </button>
                   )}
-                  {workDisplayStatus(detail) === 'Work paused' && detail.source_room_id ? <TaskResumeAction task={detail} onResumed={reload} /> : <button
+                  {workStatus(detail) === 'Needs attention' && detail.source_room_id ? null : <button
                     className="action-primary min-h-11 min-w-[44px] px-4 sm:px-5 text-xs sm:text-sm font-medium shadow-sm"
                     disabled={busy || !loaded || !!pending || launching || !!detail.review_state || detail.latest_attempt?.status === 'queued'}
                     onClick={taskAction}
