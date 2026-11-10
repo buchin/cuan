@@ -883,4 +883,18 @@ compiler; with managed defaults the second build does not invoke it. No timing
 threshold is used. Native dispatch and explicit release-override regressions
 pass, as does the complete short runner suite (16.613s). This proves elimination
 of redundant package compilation in that fixture, not an end-to-end production
-speedup. Deployment and observation on a new production execution remain pending.
+speedup. Released asbd1ae7e0a571068f71efe997abd31dc9e9c38d27 through the maintained
+deployment script after pull/merge, with477 frontend tests passing, schema39 and
+exact-SHA healthy production response. Post-deployment CLI observation confirms
+existing developerc6a5d56a remains running on the same attempt, not interrupted
+or reset. Its process predates the new default; observation on a new production
+execution remains pending.
+
+The preceding source verifierf96bf3fd succeeded at18:11:45+08, but PM correctly
+rejected its screenshots: they showed the public landing page instead of Inbox
+title behavior. Saved assessment373618d0-e3f2-4d08-a923-11bc651b87a5 at18:14:31
+retained that gap and automatically admitted developerc6a5d56a at18:14:32 without
+owner intervention. The task remains unfinished. This is evidence of automatic
+correction and a working visual gate, not successful feature verification or an
+efficient screenshot workflow. Repeated wrong-page evidence remains a concrete
+quality/latency issue to investigate; do not accept it or claim the feature live.
