@@ -6,7 +6,7 @@ import (
 )
 
 func TestVisualExclusionListsPreserveLaterPositiveWork(t *testing.T) {
-	for _, scope := range []string{"tidak ada UI, browser/screenshot, email", "No UI, browser, screenshots or email", "Tanpa UI/UX, browser screenshot, atau email", "Tidak boleh screenshot", "Jangan buka browser", "Do not use browser or screenshots"} {
+	for _, scope := range []string{"tidak ada UI, browser/screenshot, email", "No UI, browser, screenshots or email", "Tanpa UI/UX, browser screenshot, atau email", "Tanpa UI/browser/email", "No UI/browser/email", "Tanpa UI / browser / email", "Tidak boleh screenshot", "Jangan buka browser", "Do not use browser or screenshots"} {
 		if !ExcludesVisualCapture(scope) {
 			t.Errorf("capture ban missed: %q", scope)
 		}

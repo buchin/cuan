@@ -222,3 +222,56 @@ The same queued exact-source verifier
 `att_0cc53b38923b40b35a1f6038ca5e71cb` started automatically at
 09:59:02.764 +08 with read-only/deny push/deploy scope, preserving the developer
 source and existing launch identity. No task retry or acceptance was fabricated.
+
+## Publication, live inspection and measured duration (continuation)
+
+Independent source review `att_0cc53b38923b40b35a1f6038ca5e71cb` succeeded
+at10:06:03.171 +08. Native publisher `att_2fe39d1eca6804df5f0272f0aab75ae6`
+ran10:07:42.770–10:17:49.720, publishing healthy exact release
+`bf5a602b1586ed8c7130c365d7fbafaf8e1a0a75` containing approved source
+`3cb570d34e288918974b94b0585b64ea7244924c`.
+
+Elapsed developer attempts were25m,35m,21m15s and10m25s: approximately92m,
+not primarily independent verifier time. Early work grew an oversized publisher
+fixture instead of extending existing protocol fixtures; the third handoff then
+failed pinned baseline ancestry. Root sent three scoped steering interventions.
+This run is therefore not an untouched autonomy benchmark. The actual final
+implementation reused existing fixtures and evidence machinery.
+
+Post-publication inspection waited approximately20m for disk admission. With
+explicit owner authorization, root deleted74 closed single-link Nginx gzip
+archives older24h, after reader and file identity checks, reclaiming472,831,397
+bytes. Active logs and the newest24h were preserved. Available bytes increased
+to2,200,768,512; the same queued inspection started automatically. Failed earlier
+off-host archive copies are not preservation evidence. No source, Git objects,
+receipt/history or protected48h source retention was deleted or shortened.
+The existing hourly logrotate timer now uses daily rotation plus maxsize20M,
+rotate7 and maxage1, preserving existing compression, ownership and reopen hooks.
+Candidate native debug validation passed before atomic installation with backup.
+At10:46 +08 the last timer run still predated this change; its next execution
+was11:00, so automatic execution of the new policy is not yet established.
+
+Live attempt `att_9359b2d3924ed579fa5badf5236e86e3` started10:38:22.809.
+Frontend dependency preparation and native visual verification occupied roughly
+the first123s despite the original backend/no-browser scope. The exclusion
+parser handles comma lists but omitted slash separators between UI and browser
+in `Tanpa UI/browser/email`. A minimal delimiter correction plus policy and
+server-binding regressions passes locally. It preserves later affirmative
+requirements and genuine visual work; it does not remove registered checks.
+This correction is not yet published and cannot retroactively alter this attempt.
+
+The live model stage returned in174.177s at10:43:19.772, reporting four passing
+criteria. Native checks then began; OS observation confirmed an actual Go test
+process in the exact inspection snapshot. A model report or quiet output alone
+is not final acceptance. Comparing174s against the previous243s model stage is
+only an observation across different runs, not a controlled end-to-end speedup.
+
+The final native check did not pass. It stopped at10:48:20.518 after300.527s;
+config/auth/db reported success, but runner had no completed result. The attempt
+was correctly saved failed, not Done, at10:48:20.571. OS observation during checks
+confirmed the real Go process and owner cache settings. This is a native check
+timeout, not proof of failed assertions or absent implementation; its compilation
+versus test-execution split remains unmeasured. Preserve this failure and do not
+replace it with the model's PASS prose. Automatic maintenance was observed
+running after failure at10:48:33; the managed build cache was then12KiB. That
+post-failure observation alone does not establish deletion during active checks.

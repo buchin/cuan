@@ -12,7 +12,7 @@ import (
 )
 
 func TestNegativeVisualListDoesNotPrepareBackendTools(t *testing.T) {
-	for _, scope := range []string{"Batasan: tidak ada UI, browser/screenshot, email, scheduler baru.", "No UI, browser, screenshots or email.", "Tanpa UI/UX, browser screenshot, atau email."} {
+	for _, scope := range []string{"Batasan: tidak ada UI, browser/screenshot, email, scheduler baru.", "No UI, browser, screenshots or email.", "Tanpa UI/UX, browser screenshot, atau email.", "Tanpa UI/browser/email"} {
 		s, d, _ := stalledReviewFixture(t, "completed")
 		d.Title, d.Instructions = "Backend snapshot retention", scope
 		if s.taskRequiresVision(context.Background(), "owner", d, "", "") {

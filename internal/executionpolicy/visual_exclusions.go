@@ -4,7 +4,7 @@ import "regexp"
 
 // Bounded negative lists describe excluded work, not requested image/frontend
 // capabilities. Stop at an unknown item or a later affirmative instruction.
-var negativeVisualList = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak\s+(?:ada|boleh)|jangan|dilarang|do not|don't|never)\s+(?:(?:take|capture|create|generate|use|run|launch|open|invoke|buat|ambil|membuat|mengambil|gunakan|menggunakan|pakai|buka|membuka|jalankan|menjalankan|ubah|mengubah|modify|modifying|edit|touch)\s+)?` + visualExclusionItem + `(?:(?:\s*,\s*(?:(?:and|or|dan|atau)\s+)?|\s+(?:and|or|dan|atau)\s+)` + visualExclusionItem + `)*\b`)
+var negativeVisualList = regexp.MustCompile(`(?i)\b(?:no|without|tanpa|tidak\s+(?:ada|boleh)|jangan|dilarang|do not|don't|never)\s+(?:(?:take|capture|create|generate|use|run|launch|open|invoke|buat|ambil|membuat|mengambil|gunakan|menggunakan|pakai|buka|membuka|jalankan|menjalankan|ubah|mengubah|modify|modifying|edit|touch)\s+)?` + visualExclusionItem + `(?:(?:\s*,\s*(?:(?:and|or|dan|atau)\s+)?|\s*/\s*|\s+(?:and|or|dan|atau)\s+)` + visualExclusionItem + `)*\b`)
 
 const visualExclusionItem = `(?:(?:(?:modifikasi|perubahan|changes?\s+to)\s+)?(?:ui|ux|frontend|front-end)(?:\s*/\s*(?:ui|ux|frontend|front-end))*(?:\s+changes?)?|browser(?:(?:\s*/\s*|\s+)(?:automation|screenshots?))?|screenshots?|tangkapan\s+layar)`
 
