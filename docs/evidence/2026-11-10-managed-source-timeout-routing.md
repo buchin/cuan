@@ -317,3 +317,30 @@ build/module caches remain intact. Real process fixtures exercise all three exit
 paths, verify scratch removal and preserve a separate cached object. Targeted
 runner/task/server regressions and the full registered fast Go package set pass
 locally. This follow-up is not yet deployed.
+
+## Follow-up production and diagnostic outcome
+
+Release `72f3e2830dbbdbcacf861ca59ce64751f6367c30` finished at11:11:02.394 +08,
+exit0, exact-SHA healthy,38 migrations, source unchanged, runner restarted and
+undrained. Timeout-cause classification and per-command compiler scratch cleanup
+are now deployed. They do not retroactively accept or rewrite the failed attempt.
+
+The bounded diagnostic completed all five packages successfully. JSON package
+execution times: config0.016s, auth2.664s, db9.859s, runner36.980s,
+extensions0.132s; total package execution49.651s. Diagnostic log birth-to-last-write
+was approximately282.876s (11:02:16.163–11:06:59.039). The difference includes
+compilation/linking, setup, scheduling and process overhead; it is not a precise
+measurement of compilation CPU time. This confirms that an actual assertion
+failure is not necessary to explain the earlier300s native check timeout.
+The diagnostic is not an independent task receipt and gives no acceptance credit.
+
+Root sent one additional continuation message (room message18, request
+`eaf33f74-c2fd-4309-84e4-7cbca71bb79c`) through the official CLI, preserving the
+original task/criteria and explicitly denying acceptance based on this diagnostic.
+The send observation timed out, but inspection confirmed receipt; it was not resent.
+This is another manual workflow intervention, not autonomous benchmark success.
+That request failed its action response contract after115.9s; bounded format-only
+repair then timed out after44.1s at11:14:27.984. No new accepted PM assessment or
+replacement task execution was observed. This is a separate concrete blocker in
+coordinator response generation/validation; repeatedly resending the request would
+not establish recovery. Original task remains incomplete.
