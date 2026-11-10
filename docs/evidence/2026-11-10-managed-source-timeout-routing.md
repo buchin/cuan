@@ -952,4 +952,21 @@ the new factual progress copy wrapping without overflow; browser checks pass.
 Server source-review/manager/publication regression tests pass, complete short
 executionpolicy/task/runner suites pass, and actual PostgreSQL workflow-turn and
 native-release matrix tests pass (20.552s). Deployment and production repair
-observation remain pending; no successful feature release is claimed.
+observation were pending at this checkpoint; no successful feature release was
+claimed.
+
+Released83dbbabca763396acbd0b419f054baa5a84f5a4a through the normal checks
+(477 frontend tests), schema39 and exact-SHA healthy production gate. Official
+historical execution inspection now computes the original c6a5d56a revision
+without the false deployment restriction; its immutable completion still records
+publication disabled, and no historical native admission was fabricated.
+
+At19:03:38+08, PM automatically saved a fresh assessment naming the actual gap:
+"Pengujian perubahan sudah lulus, tetapi proses rilisnya belum tuntas."
+It selected the native managed-source admission repair, and separately admitted
+attempt004d4792. The runner started at19:03:42 and wrote its matching
+managed_release_claim at19:03:43 for the original project, task scope and dev
+branch. Official execution inspection confirms original publication scope is
+unrestricted. No owner message, attempt reset or manual status change was used.
+This proves automatic repair admission and restoration of native source-stage
+ownership, not completion of that execution, publication or acceptance.
