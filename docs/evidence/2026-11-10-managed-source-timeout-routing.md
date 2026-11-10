@@ -831,4 +831,26 @@ Inbox includes queued/checking work before first completion and reuses StatusDot
 for a single active task, keeping owner decisions static and Done checked.
 Real-component screenshots inspected at390px/1440px and browser assertions cover
 both release phases, visible queue/check pulses and absence of a phantom terminal.
-Publication and actual production phase-continuity observation remain pending.
+Published in816c9cb696dcbe37a0fd294ea1faecdca52a0fc2 after merging concurrent
+owner changes from dev;477 frontend tests pass and the normal deployment health
+gate passed. Post-deployment Owner CLI inspection confirms that the queued final
+inspection exposes launch.kind=inspection. Its existing attempt48a291a4 remains
+queued behind an already-running developer attemptaca36552, started before this
+release; this deployment does not preempt that worker or fabricate historical
+handoff receipts. Actual production phase-continuity observation remains pending.
+
+At17:56:28+08, existing developer attemptaca36552 completed successfully and
+the server atomically saved its workflow_handoff receipt. PM admitted its
+independent source verifierf96bf3fd at17:56:33 without an owner message.
+The older queued inspection48a291a4 received the next turn at17:56:37, detected
+that its pinned release52abbb21 had changed, and stopped before model execution.
+Existing automatic changed-release recovery admitted5b99e2c6 at17:56:50;
+it started at17:56:52 against816c9cb6, retaining original source8bad2de4 and
+read-only/no-push/no-deploy scope. No manual retry, status reset or cancellation
+was used. Full successful inspection and acceptance remain unproven.
+
+The completed developer's durable native timing records2026609ms agent stage
+and47847ms registered project checks. This identifies that attempt's dominant
+cost as the agent session, not native checks; it is not evidence of a speedup.
+An OS observation during this session found15GB available disk and about2.3GB
+available RAM. It does not establish resource availability throughout the run.
