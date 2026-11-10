@@ -177,3 +177,20 @@ assets. A clean-checkout case verifies build/test order, one build and publicati
 of that output; build-failure and test-failure cases both reject publication before
 Go compilation. All seven `scripts/test-release-build-gate.py` cases pass. Actual
 publication remains pending until a successful exact-SHA release observation.
+
+## Support corrections published; main task still incomplete
+
+Release `d167292577ed4f3134431c0895b0bbcb9f426a27` completed at
+09:28:30.594 +08 (196.787 seconds), exit zero, source unchanged. Production
+health matched that exact SHA, with38 migrations; runner restart and undrain
+succeeded. It includes the PM uncertainty wording, safe delivery reason codes,
+and the single fresh frontend build before asset-dependent tests. This successful
+release does not establish completion of the separate source-reuse implementation.
+
+The second developer `att_0d15a76cd7b0d4c1a2163c09b949b776` timed out at
+09:19:55.184 +08, exit124, without final source handoff or native checks. Its
+retained edits are not absent merely because that evidence is missing.
+PM review at09:21:11.917 chose replan/implementation and automatically launched
+`att_46bc2577b421832671399f8416045850` at09:21:14.756. That review preceded
+publication of the corrected PM wording. The third attempt is active, not
+verified, with the original criteria and independent verification still required.
