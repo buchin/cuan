@@ -310,7 +310,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	s.cfg.Environment = "production"
 	s.cfg.SourceRepository = intent.Repository
 	s.cfg.CommitSHA = target
-	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify abort" && scenario != "initial verify evidence"
+	invalid := scenario != "initial verify" && scenario != "initial verify stale" && scenario != "initial verify abort" && scenario != "initial verify evidence" && scenario != "initial verify check recipe"
 	switch scenario {
 	case "initial verify changed release":
 		s.cfg.CommitSHA = strings.Repeat("f", 40)
@@ -384,7 +384,7 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 			t.Fatalf("saved.Revision missing full audit notice: %s", saved.Revision)
 		}
 	}
-	if scenario == "initial verify" || scenario == "initial verify evidence" {
+	if scenario == "initial verify" || scenario == "initial verify evidence" || scenario == "initial verify check recipe" {
 		gaps := task.AcceptanceGaps(&detail.Task)
 		if len(gaps) == 0 {
 			t.Fatal("expected unfulfilled runtime criteria in AcceptanceGaps")
@@ -406,14 +406,14 @@ func verifyNativeDeliveryStartsIndependentInspection(t *testing.T, s *Server, to
 	if len(after.Attempts) != before {
 		t.Fatal("reconstructed review duplicated independent verifier")
 	}
-	if scenario == "initial verify stale" || scenario == "initial verify abort" {
-		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify abort")
+	if scenario == "initial verify stale" || scenario == "initial verify abort" || scenario == "initial verify check recipe" {
+		verifyStaleNativeInspectionRecovery(t, s, item, claim.Attempt.ID, saved, parsed, scenario != "initial verify stale", scenario == "initial verify check recipe")
 		return
 	}
 	verifyNativeInspectionCompletionAndAcceptance(t, s, item, claim.Attempt.ID, saved, parsed, scenario == "initial verify evidence")
 }
 
-func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent, aborted bool) {
+func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Task, releaseAttemptID string, launch *task.TaskLaunch, proof *task.LiveInspectionIntent, aborted bool, checkRecipe ...bool) {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -578,11 +578,11 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 		t.Fatal("second reporting timeout renewed retry allowance")
 	}
 	if aborted {
-		verifyNativeReportingManagerReplan(t, s, terminal, origins)
+		verifyNativeReportingManagerReplan(t, s, terminal, origins, checkRecipe...)
 	}
 }
 
-func verifyNativeReportingManagerReplan(t *testing.T, s *Server, terminal *task.TaskDetailResponse, origins []db.InboxRequest) {
+func verifyNativeReportingManagerReplan(t *testing.T, s *Server, terminal *task.TaskDetailResponse, origins []db.InboxRequest, checkRecipe ...bool) {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -657,6 +657,10 @@ func verifyNativeReportingManagerReplan(t *testing.T, s *Server, terminal *task.
 		t.Fatal("PM replan lost read-only scope")
 	}
 	hash := strings.Repeat("b", 64)
+	if len(checkRecipe) > 0 && checkRecipe[0] {
+		verifyChangedNativeCheckRecipe(t, s, current, claimed, review, assessment, origins)
+		return
+	}
 	_, err = s.runnerSvc.Complete(ctx, claimed.Attempt.ID, runner.CompleteAttemptRequest{RunnerID: "stale-verifier", Status: task.AttemptStatusFailed, ExitCode: 124, ErrorMessage: task.InspectionReportingTimeout, RepositoryVerification: &runner.RepositoryVerification{Baseline: hash, Final: hash}})
 	must(err)
 	must(s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()))

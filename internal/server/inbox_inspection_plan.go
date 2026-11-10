@@ -68,6 +68,19 @@ func (s *Server) liveInspectionPlanDiagnostic(ctx context.Context, d *task.TaskD
 		diagnostic.Code = "conversation_storage_unavailable"
 		return diagnostic
 	}
+	if d.LatestAttempt != nil && (d.LatestAttempt.ErrorMessage == task.InspectionProjectVerificationTimeout || d.LatestAttempt.ErrorMessage == task.InspectionProjectVerificationDeadline) {
+		if previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && previous != nil && previous.Purpose == task.NativeReleaseInspection {
+			proof, _, code := s.planNativeCheckRecipe(ctx, d, requests)
+			diagnostic.Code = code
+			if proof != nil {
+				diagnostic.SourceAttemptID, diagnostic.TargetCommit = proof.SourceAttemptID, proof.TargetCommit
+				if launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, proof.RequestID(d.ID))); err == nil {
+					diagnostic.ExistingAdmission = task.DiagnoseLaunch(&d.Task, launch)
+				}
+			}
+			return diagnostic
+		}
+	}
 	for _, origin := range requests {
 		if origin.MessageID != d.SourceMessageID {
 			continue

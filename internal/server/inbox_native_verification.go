@@ -22,6 +22,9 @@ func (s *Server) recoverNativeReleaseVerification(ctx context.Context, d *task.T
 	}
 
 	if d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusFailed {
+		if s.recoverNativeCheckRecipe(ctx, d, requests) {
+			return true
+		}
 		if s.recoverNativeInspectionReporting(ctx, d, requests) {
 			return true
 		}

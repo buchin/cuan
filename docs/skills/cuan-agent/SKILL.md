@@ -963,3 +963,12 @@ approval merely to recover the original mandate. Ask only for a concrete decisio
 access or information that only the owner can provide. Once supplied, continue
 the original task automatically, retaining its scope, history and acceptance gates.
 Never claim work is running without a saved active request or execution.
+
+A failed native registered-script check can continue automatically when its exact
+recipe changed in a freshly observed containing release and the saved PM replan
+still matches original authority. This uses the existing read-only snapshot lane;
+it is not a new implementation task, acceptance, reset counter or deploy-triggered
+retry. Server and runner both verify committed recipe changes. The identity is
+bounded per original publication source, retaining prior failed checks. Inspect
+`cuan task execution TASK` for native_check_* admission diagnostics; planner
+readiness alone does not prove queued execution or completion.

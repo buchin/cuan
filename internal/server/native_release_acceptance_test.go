@@ -39,7 +39,7 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	must(err)
 	current, err = s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
-	claimed, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "native-verifier", SupportedAgents: []string{current.LatestAttempt.AgentName}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true}, time.Minute)
+	claimed, err := s.runnerSvc.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "native-verifier", SupportedAgents: []string{current.LatestAttempt.AgentName}, SupportsLiveInspection: true, SupportsNativeVisualVerification: true, SupportsLiveInspectionRecovery: true}, time.Minute)
 	must(err)
 	if !claimed.Claimed || claimed.LiveInspection == nil || claimed.LiveInspection.Purpose != task.NativeReleaseInspection {
 		t.Fatal("delivered verifier was not claimed")

@@ -711,3 +711,36 @@ these boundaries, context injection and preservation of failed state. Actual
 390px/1440px screenshots and browser interactions confirm no managed Resume/Retry
 controls and correct work-ownership pulse. This does not establish final acceptance or
 repair the remaining admission blocker.
+
+## Follow-up: continue after a corrected registered native check recipe
+
+The remaining dead end was native admission after an evidence-revalidation
+attempt had produced a final report but its registered check command aborted.
+Existing reporting/evidence/infrastructure recovery identities were exhausted;
+a fresh saved PM replan therefore could not schedule the missing verification,
+even after scripts/test.sh changed to use module-relative Go compiler paths.
+
+Reuse the existing changed-path independent snapshot lane for this concrete
+case. Admission requires a runner-authored aborted registered test.sh --fast
+check, no assertion failure, a final report and unchanged-source observation,
+the latest saved PM replan with unchanged original scope, and a freshly observed
+containing release whose exact registered recipe changed. The native runner
+checks the committed recipe diff again before model execution. This lane remains
+read-only, denies push/deploy, retains all failed receipts and the original DoD,
+and grants no acceptance credit. Its deterministic request identity is fixed per
+original publication source, independent of later release commits; it cannot
+renew itself on each deploy or re-enter from its own failed child. No old retry
+counter, attempt or acceptance record is reset.
+
+Task tests reject assertion failures, foreign native records, missing final
+reports, changed repositories, unsupported commands, cancellations and missing
+or contradictory PM authority. A real-Git server/queue fixture reproduces the
+exhausted reporting/evidence lineage, rejects an unchanged recipe and an unrelated
+release, then schedules and claims a separate verifier after a committed recipe
+correction. Native completion plus original-criterion review reaches Done in
+that protocol fixture; model reports are explicitly synthetic there. Full
+original native delivery, infrastructure, relevant runner and server regressions
+pass. Actual production outcome remains pending publication and observation.
+
+Owner execution diagnostics share the same read-only planner and expose bounded
+native_check_* gate codes instead of the prior generic inspection-purpose failure.

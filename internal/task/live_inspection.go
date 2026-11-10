@@ -56,6 +56,9 @@ func LiveInspectionRequestID(taskID, sourceCommit, instructionsHash string) stri
 }
 
 func (p *LiveInspectionIntent) RequestID(taskID string) string {
+	if NativeCheckRecipeRevalidation(p) {
+		return verificationRequestID("native-check-recipe-revalidation:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
+	}
 	if p.Purpose == NativeReleaseInspection && p.PreviousAttemptID != "" && p.RevalidationKind == EvidenceRevalidation {
 		return verificationRequestID("native-release-evidence-revalidation:v1:"+p.InstructionsHash+":", taskID, p.SourceAttemptID)
 	}
@@ -229,6 +232,7 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 		return invalid("reporting_recovery_shape")
 	}
 	nativeEvidence := proof.Purpose == NativeReleaseInspection && proof.RevalidationKind == EvidenceRevalidation && proof.PreviousAttemptID != "" && proof.ReviewRequestID != "" && len(proof.ReviewPaths) == 0
+	nativeRevalidation := nativeEvidence || NativeCheckRecipeRevalidation(&proof)
 	if proof.RevalidationKind != "" && (proof.RevalidationKind != EvidenceRevalidation || (proof.Purpose != CurrentOutcomeInspection && !nativeEvidence) || proof.PreviousAttemptID == "" || proof.ReviewRequestID == "" || len(proof.ReviewPaths) != 0) {
 		return invalid("revalidation_kind")
 	}
@@ -238,13 +242,13 @@ func LiveInspectionForLaunch(t *Task, launch *TaskLaunch) (*LiveInspectionIntent
 	if proof.CapacityRecoveryAttemptID != "" && (proof.Purpose != CurrentOutcomeInspection || proof.CapacityRecoveryAttemptID == proof.SourceAttemptID) {
 		return invalid("capacity_recovery_shape")
 	}
-	if proof.Purpose != CurrentOutcomeInspection && !nativeEvidence && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
+	if proof.Purpose != CurrentOutcomeInspection && !nativeRevalidation && (proof.ReviewRequestID != "" || len(proof.ReviewPaths) > 0) {
 		return invalid("purpose_shape")
 	}
 	if proof.PreparationLaunchID != "" && (proof.PreviousAttemptID != "" || proof.ReviewRequestID != "" || len(proof.ReviewPaths) != 0) {
 		return invalid("preparation_shape")
 	}
-	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.PreparationLaunchID != "" || (nativeEvidence && (proof.ReportingRecoveryAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.CapacityRecoveryAttemptID != "")) || (!nativeEvidence && (proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != ""))) {
+	if proof.Purpose == NativeReleaseInspection && (proof.PreparedPublicationAttemptID != "" || proof.PreparationLaunchID != "" || (nativeEvidence && (proof.ReportingRecoveryAttemptID != "" || proof.VerifierRecoveryAttemptID != "" || proof.CapacityRecoveryAttemptID != "")) || (!nativeRevalidation && (proof.PreviousAttemptID != "" || proof.PreviousCommit != "" || proof.RevalidationKind != ""))) {
 		return invalid("native_release_shape")
 	}
 	validSource := proof.Purpose == "" && fullObjectID(proof.SourceCommit) && proof.SourceCommit != proof.TargetCommit
