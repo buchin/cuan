@@ -16,12 +16,11 @@ function running(task: Task) {
 }
 
 // Key this component by conversation so disclosure choices never leak between rooms.
-export function ComposerTasks({ tasks, onDetails, onTerminal, modes, resolution }: {
+export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   tasks: Task[]
   onDetails: (task: Task) => void
   onTerminal: (task: Task) => void
   modes?: ReactNode
-  resolution?: ReactNode
 }) {
   const { t } = useLanguage()
   const id = useId()
@@ -71,7 +70,6 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes, resolution 
             </CardActions>
           </>}
       })} />
-      {resolution && <CardActions className="px-3">{resolution}</CardActions>}
     </div>}
   </section>
 }

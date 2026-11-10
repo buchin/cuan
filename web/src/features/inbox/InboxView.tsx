@@ -2031,7 +2031,6 @@ export function InboxView({
                 <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}
                   tasks={linkedTasks}
-                  resolution={<ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} onChanged={onContactUpdated} />}
                   onDetails={task => handleOpenTaskDrawer(task)}
                   onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
                   modes={activeContact.type === 'customer' && (

@@ -21,7 +21,7 @@ const assert=require('node:assert/strict');
   if(width===1440){await page.getByRole('button',{name:'Tasks',exact:false}).click();await page.screenshot({path:'/tmp/cuan-resolution-panel-1440.png'});await page.getByRole('button',{name:'Reopen conversation',exact:true}).first().click();await page.waitForFunction(()=>document.querySelectorAll('[data-testid=conversation-item]').length===2)}
  }
  await page.setViewportSize({width:390,height:850});await page.goto('http://127.0.0.1:5174/tests/conversation-resolution/fixture.html?chat');
- await page.getByRole('button',{name:/Tasks/}).click();await page.screenshot({path:'/tmp/cuan-resolution-panel-390.png'});
+ await page.getByRole('button',{name:/Tasks/}).click();assert.equal(await page.locator('.composer-tasks').getByRole('button',{name:/Resolve conversation|Reopen conversation/}).count(),0);assert.equal(await page.getByRole('button',{name:'Resolve conversation',exact:true}).count(),1);await page.screenshot({path:'/tmp/cuan-resolution-panel-390.png'});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.deepEqual(errors,[]);console.log('Resolved/unresolved filtering, bulk completion, reopen and 390/1440px layout pass.');
  }finally{await browser.close()}
