@@ -28,7 +28,7 @@ func managedGoBuildEnvironment(root, base, owner string) (map[string]string, err
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{"GOPATH": filepath.Join(directory, "go"), "GOMODCACHE": filepath.Join(directory, "go", "pkg", "mod"), "GOCACHE": filepath.Join(directory, "go-build"), "GOENV": "off", "GOTOOLCHAIN": "auto"}, nil
+	return map[string]string{"GOPATH": filepath.Join(directory, "go"), "GOMODCACHE": filepath.Join(directory, "go", "pkg", "mod"), "GOCACHE": filepath.Join(directory, "go-build"), "GOENV": "off", "GOTOOLCHAIN": "auto", "GOFLAGS": "-trimpath"}, nil
 }
 
 func managedOwnerCacheDirectory(base, owner string, relativePaths []string) (string, error) {

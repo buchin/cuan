@@ -866,3 +866,21 @@ turn. This observes an actual inspection -> PM -> Done handoff without another
 worker cutting in, plus automatic stale-release reconciliation. It does not yet
 prove an entire new developer -> verifier -> publisher -> final inspection chain
 under this release; that wider continuity remains to be observed.
+
+## Follow-up: portable cache defaults for direct agent Go commands
+
+Source verifierf96bf3fd issued a direct targeted `go test` rather than the
+registered script. The shared managed cache environment did not supply
+`-trimpath`, although the registered script already did. This leaves direct
+commands with absolute checkout paths in their compiler cache identity.
+Managed Go executions now default to GOFLAGS=-trimpath; explicit project flags
+remain unchanged in developer/verifier and native release environments. Native
+check recipes do not import arbitrary agent GOFLAGS. No checks are removed.
+
+A real-Go fixture builds the identical import-free library in two different
+directories with one owner cache. Without trimpath both directories invoke the
+compiler; with managed defaults the second build does not invoke it. No timing
+threshold is used. Native dispatch and explicit release-override regressions
+pass, as does the complete short runner suite (16.613s). This proves elimination
+of redundant package compilation in that fixture, not an end-to-end production
+speedup. Deployment and observation on a new production execution remain pending.

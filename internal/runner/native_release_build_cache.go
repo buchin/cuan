@@ -66,6 +66,9 @@ func prepareNativeReleaseBuildCaches(ctx context.Context, execution *NativeRelea
 		}
 	}
 	for key, value := range goEnv {
+		if key == "GOFLAGS" && selected[key] != "" {
+			continue
+		}
 		selected[key] = value
 	}
 	for key, value := range npmEnv {

@@ -5,10 +5,60 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/buchin/cuan/internal/terminal"
 )
+
+func TestManagedGoBuildReusesCompilationAcrossSnapshotPaths(t *testing.T) {
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("Go tool required")
+	}
+	base := t.TempDir()
+	roots := []string{t.TempDir(), t.TempDir()}
+	for _, root := range roots {
+		for name, data := range map[string]string{
+			"go.mod":   "module example.test/portable\n\ngo 1.20\n",
+			"value.go": "package portable\nfunc Value() int { return 42 }\n",
+		} {
+			if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, portable := range []bool{false, true} {
+		for i, root := range roots {
+			settings, err := managedGoBuildEnvironment(root, base, "owner")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !portable {
+				settings["GOFLAGS"] = ""
+			}
+			cmd := exec.Command(goBin, "build", "-x", ".")
+			cmd.Dir = root
+			for _, entry := range os.Environ() {
+				key, _, _ := strings.Cut(entry, "=")
+				if _, replaced := settings[key]; !replaced {
+					cmd.Env = append(cmd.Env, entry)
+				}
+			}
+			for key, value := range settings {
+				cmd.Env = append(cmd.Env, key+"="+value)
+			}
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("build portable=%v snapshot=%d: %v\n%s", portable, i, err, output)
+			}
+			compiled := strings.Contains(string(output), "/compile ")
+			if compiled != (!portable || i == 0) {
+				t.Fatalf("unexpected compiler reuse portable=%v snapshot=%d compiled=%v\n%s", portable, i, compiled, output)
+			}
+		}
+	}
+}
 
 func TestManagedGoBuildCachesSurviveBrainHomeChangesAndIsolateOwners(t *testing.T) {
 	root, base := t.TempDir(), t.TempDir()

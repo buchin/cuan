@@ -21,6 +21,16 @@ project Go environment overrides are preserved, including the default module
 cache relationship when a custom GOPATH is configured. Non-Go projects and
 unowned/unconfigured internal execution retain their existing behavior.
 
+Managed Go executions default to `GOFLAGS=-trimpath` when the project supplies no
+nonempty override. A stable cache directory alone cannot reuse compilation of
+the same package at different absolute workspace paths. Trimming those paths
+lets direct agent `go test`/`go build` commands reuse compiled packages across
+developer and verifier snapshots, as the registered Cuan check script already
+does. This changes embedded source paths, not which tests run. An explicit
+project GOFLAGS value is preserved, including during native publication; native
+check recipes retain control over their own flags rather than importing arbitrary
+agent flags.
+
 Existing profile caches are not deleted by this change. Cleanup requires a
 separate retention/in-use check. This change does not restart failed tasks or
 reset execution/recovery budgets.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -83,6 +84,15 @@ func TestNativeReleaseReusesOwnerBuildCachesUnderMaintenanceLease(t *testing.T) 
 	if _, cleanup, err := prepareNativeReleaseBuildCaches(context.Background(), execution, workspaces, ""); err == nil {
 		cleanup()
 		t.Fatal("missing cache owner accepted")
+	}
+	execution.Environment = append(append([]string(nil), input...), "GOFLAGS=-p=2")
+	overridden, closeOverride, err := prepareNativeReleaseBuildCaches(context.Background(), execution, workspaces, "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeOverride()
+	if !slices.Contains(overridden, "GOFLAGS=-p=2") || slices.Contains(overridden, "GOFLAGS=-trimpath") {
+		t.Fatal("native release replaced explicit project build flags")
 	}
 }
 

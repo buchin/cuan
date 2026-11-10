@@ -135,7 +135,7 @@ func (a *readOnlyAuditAdapter) Name() string             { return "readonly-fixt
 func (a *readOnlyAuditAdapter) Version() (string, error) { return "1", nil }
 func (a *readOnlyAuditAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
 	if a.expectGoEnvironment {
-		if req.Env["GOENV"] != "off" || req.Env["GOTOOLCHAIN"] != "auto" || req.Env["GOMODCACHE"] != filepath.Join(req.Env["GOPATH"], "pkg", "mod") || req.Env["GOCACHE"] == "" {
+		if req.Env["GOENV"] != "off" || req.Env["GOTOOLCHAIN"] != "auto" || req.Env["GOFLAGS"] != "-trimpath" || req.Env["GOMODCACHE"] != filepath.Join(req.Env["GOPATH"], "pkg", "mod") || req.Env["GOCACHE"] == "" {
 			a.t.Error("managed Go environment missing from native execution")
 		}
 	}
