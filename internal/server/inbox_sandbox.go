@@ -194,6 +194,14 @@ func sandboxInboxCommand(binary string, args, env []string, home, workspace stri
 	}
 	wrapper, err := exec.LookPath("bwrap")
 	if err != nil {
+		if !isIsolatedTestEnv() {
+			if cand := findCandidateSandbox(); cand != "" {
+				wrapper = cand
+				err = nil
+			}
+		}
+	}
+	if err != nil {
 		return "", nil, fmt.Errorf("external chat sandbox unavailable")
 	}
 	mounts, err := inboxSandboxArgs(binary, home, workspace, attachments, crmSnapshots...)

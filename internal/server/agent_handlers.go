@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -1251,7 +1252,12 @@ func (s *Server) handleGetHarnessAuthStatus(w http.ResponseWriter, r *http.Reque
 
 	if harness == "agy" {
 		status := agent.GetAntigravityAuthStatus()
-		status["runtime_prerequisites"] = onboardingRuntimePrerequisites()
+		prereqs := onboardingRuntimePrerequisites()
+		if (!prereqs["sandbox_available"].(bool) || !prereqs["cli_available"].(bool)) && runtime.GOOS == "linux" {
+			EnsureRuntimePrerequisites(r.Context())
+			prereqs = onboardingRuntimePrerequisites()
+		}
+		status["runtime_prerequisites"] = prereqs
 		if r.URL.Query().Get("verify") == "true" {
 			if !s.requireOAuthOwner(w, r) {
 				return
