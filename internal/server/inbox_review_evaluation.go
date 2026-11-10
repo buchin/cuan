@@ -481,6 +481,13 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			if completeNote == "" {
 				completeNote = decision.Explanation
 			}
+			// An accepted native inspection presents the reviewer's outcome, not a
+			// worker's unreviewed timing estimate. Original reports remain in
+			// their immutable activities; measured stages stay in the receipt.
+			if inspection != nil && d.ExecutionCategory == task.ExecutionCategoryCode {
+				summary = decision.Explanation
+				completeNote = decision.Explanation
+			}
 			acceptedSnapshot := *d
 			acceptedSnapshot.Summary = summary
 			acceptedSnapshot.CompleteNote = completeNote

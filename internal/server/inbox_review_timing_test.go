@@ -93,3 +93,17 @@ func TestInboxReviewIncludesTimingWithoutChangingAcceptance(t *testing.T) {
 		t.Fatal("timing rewrote historical work")
 	}
 }
+
+func TestInboxReviewTimingUsesDurableReceiptWithoutTerminalLogs(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	start := time.Now().UTC().Add(-time.Minute)
+	finish := start.Add(50 * time.Second)
+	a := &task.TaskAttempt{ID: "measured", TaskID: "work", RunnerID: "native", StartedAt: &start, FinishedAt: &finish}
+	agent, checks := int64(20000), int64(25000)
+	raw, _ := json.Marshal(task.RunnerVerificationRecord{Timing: &task.ExecutionTiming{AgentElapsedMS: &agent, ProjectChecksElapsedMS: &checks}})
+	d := &task.TaskDetailResponse{Task: task.Task{ID: a.TaskID, Summary: "Untrusted 60 second estimate"}, LatestAttempt: a, Activities: []*task.TaskActivity{{ID: "verification:" + a.ID, TaskID: a.TaskID, AttemptID: &a.ID, Author: a.RunnerID, ActivityType: task.ActivityTypeRunnerVerification, Message: string(raw)}}}
+	timing := s.inboxReviewTiming(context.Background(), d)
+	if timing["provenance"] != "current_runner_verification" || timing["agent_elapsed_ms"] != agent || timing["project_checks_elapsed_ms"] != checks || timing["attempt_elapsed_ms"] != int64(50000) {
+		t.Fatal("review depends on transient terminal logs or worker estimate", timing)
+	}
+}

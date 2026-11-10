@@ -769,3 +769,30 @@ session time is226609ms, not60s; native checks did run and passed. The historica
 failed attempt's native checks had timed out, so a numeric speedup comparison
 against that incomplete check is invalid. Later presentation/provenance work must
 keep these native facts distinct from model prose instead of crediting estimates.
+
+## Follow-up: durable native measurements and accepted report provenance
+
+Future completions retain optional measured agent/check durations inside the
+existing runner verification record, atomically with the check result. No schema,
+queue, dependency or telemetry service is added. Both stages use native elapsed
+measurements; unknown remains absent and a measured zero remains zero. Current
+runner/task/attempt identity and plausible total duration bound review reads.
+Invalid optional telemetry is omitted without preventing terminal completion.
+Legacy attempts retain the bounded system-log fallback; old history is not filled
+with invented check durations or rewritten after acceptance.
+
+Native-inspected code acceptance now saves the PM's concise reviewed finding as
+its final summary/note rather than promoting the worker's report wholesale.
+Original worker reports, criteria, evidence and source identity remain in their
+existing records. This fixes report presentation provenance; it does not prove
+that arbitrary free-text PM claims are always correct. The already accepted
+historical task is unchanged. Inspection guidance explicitly leaves post-report
+measurements to native receipts rather than worker estimates or predecessor prose.
+
+Actual runner execution tests assert both measured stages reach completion.
+Completion round-trip tests verify persistence and failed-telemetry tolerance;
+identity/bounds tests reject foreign, historical, negative and impossible records.
+Server tests read durable stages without terminal logs and confirm accepted
+review text replaces an injected worker estimate while preserving that original
+report in history. Relevant native pipeline regressions pass; complete short task
+and runner suites pass (task0.165s, runner17.103s). Publication remains pending.

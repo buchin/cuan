@@ -14,6 +14,18 @@ func (s *Server) inboxReviewTiming(ctx context.Context, d *task.TaskDetailRespon
 	if d == nil || d.LatestAttempt == nil || s.taskSvc == nil {
 		return nil
 	}
+	if measured := task.AttemptExecutionTiming(d); measured != nil {
+		result := reviewAttemptTiming(d.LatestAttempt, nil)
+		result["provenance"] = "current_runner_verification"
+		if measured.AgentElapsedMS != nil {
+			result["agent_elapsed_ms"] = *measured.AgentElapsedMS
+			result["agent_stage_state"] = "observed"
+		}
+		if measured.ProjectChecksElapsedMS != nil {
+			result["project_checks_elapsed_ms"] = *measured.ProjectChecksElapsedMS
+		}
+		return result
+	}
 	logs, err := s.taskSvc.GetRecentAttemptLogs(ctx, d.LatestAttempt.ID, 32)
 	result := reviewAttemptTiming(d.LatestAttempt, logs)
 	if err != nil {

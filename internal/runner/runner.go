@@ -1176,10 +1176,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			result, err = r.adapter.Execute(agentCtx, req)
 		}
 	}
+	var executionTiming task.ExecutionTiming
 	if !agentStageStarted.IsZero() {
-		r.logAgentStage(agentCtx, att.ID, agentStageStarted, true, result, err)
+		record := r.logAgentStage(agentCtx, att.ID, agentStageStarted, true, result, err)
+		executionTiming.AgentElapsedMS = &record.ElapsedMS
 	}
 	var compReq CompleteAttemptRequest
+	compReq.ExecutionTiming = &executionTiming
 	compReq.RunnerID = r.cfg.RunnerID
 	if claim.LiveInspection != nil && err == nil {
 		compReq.LiveInspectionCommit = claim.LiveInspection.TargetCommit
@@ -1296,12 +1299,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 					verification, compReq.RepositoryVerification = verifyLiveInspectionChecks(verificationCtx, workingDir, claim.PHPUnitTargets, policy, readOnlyBaseline)
 					compReq.TestSummary = verification.Summary
 				}
+				checkElapsed := time.Since(verificationStarted).Milliseconds()
+				executionTiming.ProjectChecksElapsedMS = &checkElapsed
 				verificationState := "passed"
 				if !verification.Passed {
 					verificationState = "failed"
 				}
 				observation, stopObservation := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
-				r.streamLogLine(observation, att.ID, "system", fmt.Sprintf("Project verification %s after %s.", verificationState, time.Since(verificationStarted).Round(time.Millisecond)))
+				r.streamLogLine(observation, att.ID, "system", fmt.Sprintf("Project verification %s after %s.", verificationState, (time.Duration(checkElapsed)*time.Millisecond)))
 				stopObservation()
 				if !verification.Passed {
 					compReq.Status = task.AttemptStatusFailed

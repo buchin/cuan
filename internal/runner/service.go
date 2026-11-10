@@ -942,6 +942,9 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 			changes = task.NewRunnerChangeRecord(req.CommitSHA, req.DiffSummary)
 		}
 		record := task.RunnerVerificationRecord{Summary: req.TestSummary, Changes: changes, PublicationRequired: publicationRequired}
+		if req.ExecutionTiming.ValidFor(att.StartedAt, &now) {
+			record.Timing = req.ExecutionTiming
+		}
 		if publicationRequired != nil {
 			record.PublicationInstructionsHash = task.LaunchInstructionsHash(t.Instructions)
 		}

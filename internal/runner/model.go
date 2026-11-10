@@ -150,6 +150,7 @@ type StreamLogsRequest struct {
 
 // CompleteAttemptRequest reports the final outcome of an attempt.
 type CompleteAttemptRequest struct {
+	ExecutionTiming                *task.ExecutionTiming    `json:"execution_timing,omitempty"`
 	NativeReleaseProcess           *release.Result          `json:"native_release_process,omitempty"`
 	ManagedReleaseSource           *ManagedReleaseSource    `json:"managed_release_source,omitempty"`
 	VisualVerification             *task.VisualVerification `json:"visual_verification,omitempty"`

@@ -7,6 +7,7 @@ const ActivityTypeRunnerVerification = "runner_verification"
 // RunnerVerificationRecord is saved atomically with execution completion, even
 // when no verifier ran. Task-level TestSummary remains historical display data.
 type RunnerVerificationRecord struct {
+	Timing                      *ExecutionTiming    `json:"timing,omitempty"`
 	Summary                     string              `json:"summary"`
 	PublicationInstructionsHash string              `json:"publication_instructions_hash,omitempty"`
 	PublicationRequired         *bool               `json:"publication_required,omitempty"`

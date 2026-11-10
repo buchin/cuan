@@ -64,7 +64,7 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	must(err)
 	stamp := time.Now().UTC()
 	attempt := claimed.Attempt
-	must(s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: "fixture-native-verifier-report", TaskID: item.ID, AttemptID: &attempt.ID, Author: "agent", ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Observed work.txt contains target in the exact delivered snapshot", CreatedAt: stamp}))
+	must(s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{ID: "fixture-native-verifier-report", TaskID: item.ID, AttemptID: &attempt.ID, Author: "agent", ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Message: "Observed work.txt contains target in the exact delivered snapshot. Worker estimate: 60 seconds.", CreatedAt: stamp}))
 	fingerprint := strings.Repeat("b", 64)
 	completed, err := s.runnerSvc.Complete(ctx, attempt.ID, runner.CompleteAttemptRequest{RunnerID: "native-verifier", Status: task.AttemptStatusSucceeded, ExitCode: 0, AgentReportRequired: true, AgentReportConfirmed: true, LiveInspectionCommit: proof.TargetCommit, SourceAncestryVerified: true, RepositoryVerification: &runner.RepositoryVerification{Baseline: fingerprint, Final: fingerprint}, TestSummary: "Project verification: test.sh --fast (exit 0)"})
 	must(err)
@@ -191,12 +191,27 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	if _, err := os.Stat(retentionReceipt); !os.IsNotExist(err) {
 		t.Fatal("unaccepted verifier snapshot received retention grant", err)
 	}
+	workerSummary, workerNote := "Worker estimate: 60 seconds.", "Estimated speedup, not native measurement."
+	_, err = s.taskSvc.UpdateTask(ctx, item.ID, "fixture-verifier-report", task.UpdateTaskRequest{Summary: &workerSummary, CompleteNote: &workerNote})
+	must(err)
 	output := s.applyInboxReviewEvaluation(ctx, q, `{"decision":"pass","finding":"Delivered fixture content verified.","explanation":"Exact delivered content checked","remaining_work":"none","revision":""}`)
 	accepted, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
 	if accepted.Status != task.TaskStatusDone {
 		raw, _ := json.Marshal(s.inboxReviewPublication(ctx, accepted))
 		t.Fatalf("native verifier pass did not reach Done: %s publication=%s", output, raw)
+	}
+	if accepted.Summary != "Delivered fixture content verified." || accepted.CompleteNote != "Delivered fixture content verified." {
+		t.Fatal("worker estimate promoted to accepted result", accepted.Summary, accepted.CompleteNote)
+	}
+	retainedReport := false
+	for _, event := range accepted.Activities {
+		if event.ActivityType == "agent_report" && strings.Contains(event.Message, "Worker estimate: 60 seconds.") {
+			retainedReport = true
+		}
+	}
+	if !retainedReport {
+		t.Fatal("original report history was deleted")
 	}
 	if len(accepted.DoDChecklist) != 1 || accepted.DoDChecklist[0].ID != checklist[0].ID || accepted.DoDChecklist[0].Text != checklist[0].Text || !accepted.DoDChecklist[0].Completed || accepted.DoDChecklist[0].Evidence != checklist[0].Evidence {
 		t.Fatal("acceptance replaced original criteria or evidence")

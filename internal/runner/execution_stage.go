@@ -43,11 +43,13 @@ func agentStageRecord(ctx context.Context, started time.Time, finished bool, res
 	}
 	return record
 }
-func (r *Runner) logAgentStage(ctx context.Context, attempt string, started time.Time, finished bool, result *agent.ExecutionResult, runErr error) {
-	data, _ := json.Marshal(agentStageRecord(ctx, started, finished, result, runErr))
+func (r *Runner) logAgentStage(ctx context.Context, attempt string, started time.Time, finished bool, result *agent.ExecutionResult, runErr error) executionStageRecord {
+	record := agentStageRecord(ctx, started, finished, result, runErr)
+	data, _ := json.Marshal(record)
 	// Observation may outlive a cancelled agent; it grants no more execution time
 	// and never copies provider text, prompts, shell commands or credentials.
 	observation, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 	defer cancel()
 	r.streamLogLine(observation, attempt, "system", string(data))
+	return record
 }

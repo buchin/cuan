@@ -172,6 +172,11 @@ func TestLiveInspectionRunsFreshChecksInSnapshotWithoutPublication(t *testing.T)
 			if (completion.Status == task.AttemptStatusSucceeded) != (scenario == "valid" || scenario == "delivered release" || scenario == "valid recovery" || scenario == "native visual" || strings.HasPrefix(scenario, "current outcome")) {
 				t.Fatal("snapshot verification outcome incorrect", completion.Status, completion.ErrorMessage)
 			}
+			if strings.Contains(completion.TestSummary, "LIVE_MACHINE_CHECK") {
+				if completion.ExecutionTiming == nil || completion.ExecutionTiming.AgentElapsedMS == nil || completion.ExecutionTiming.ProjectChecksElapsedMS == nil || *completion.ExecutionTiming.AgentElapsedMS < 0 || *completion.ExecutionTiming.ProjectChecksElapsedMS < 0 {
+					t.Fatal("runner did not measure actual execution and check stages", completion.ExecutionTiming)
+				}
+			}
 			if scenario != "changed source" && scenario != "unavailable previous" && scenario != "native delivery failure" && !strings.Contains(completion.TestSummary, "LIVE_MACHINE_CHECK") {
 				t.Fatal("native runner skipped fresh fixed project checks")
 			}
