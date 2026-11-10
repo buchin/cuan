@@ -660,3 +660,23 @@ The delivered3,993-byte attachment was downloaded again through the official CLI
 its SHA256 exactly matched the earlier download. The main project repository still
 responds as a valid Git worktree. All user-visible history/attachment operations
 used the official Cuan CLI; no ad-hoc database or Cuan API operations were used.
+
+## Cache reuse across disposable checkout paths
+
+The original focus task remains blocked at its real incomplete native-check gate;
+no acceptance or retry allowance was changed. After storage recovery, inspection
+found that a stable owner GOCACHE alone does not make Go package actions portable
+across mutable checkout paths. A minimal same-module/same-source probe compiled
+both different directories under default flags, but with -trimpath the second
+directory reused the compiled package. No caches were cleared for this probe.
+
+Cuan's registered test recipe now uses -trimpath without removing packages, checks
+or timeouts. Its fast backend suite passes all config/auth/db/task/runner/extensions
+packages. First local execution took121.976s. A linked checkout at the same HEAD
+then ran the same package set with -x -trimpath in20.797s and emitted zero project
+compiler invocations; config and runner executed, other test results were cached.
+The temporary linked checkout was removed. These observations establish local
+cross-workspace cache reuse, not a controlled end-to-end production speedup.
+Release binaries also use -trimpath so publication source-directory changes do
+not themselves invalidate identical compiled dependencies. Source identities and
+release linker version metadata remain unchanged.
