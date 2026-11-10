@@ -1,3 +1,4 @@
+import { TaskResumeAction } from './TaskResumeAction'
 import { TaskDuration } from './TaskDuration'
 import { ListRowContent } from '../../components/layout/ListControls'
 import { useState, useEffect, useRef } from 'react'
@@ -537,7 +538,7 @@ export function TaskItemCard({
                 <span>{t('Changes applied')}</span>
               </span>
             )}
-            {status === 'Needs attention' ? (
+            {displayStatus === 'Work paused' && currentTask.source_room_id ? (<TaskResumeAction task={currentTask} onResumed={async () => { setCurrentTask(await tasksApi.get(currentTask.id)) }} />) : status === 'Needs attention' ? (
               <button
                 type="button"
                 disabled={retrying}

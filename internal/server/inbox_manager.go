@@ -10,6 +10,8 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+type taskOwnerResumeKey struct{}
+
 const inboxOwnershipPolicy = "Autonomous ownership policy: v1"
 
 func verificationReviewRevision(feedback string) string {
@@ -97,6 +99,9 @@ func (s *Server) queueManagerAssessment(ctx context.Context, origin db.InboxRequ
 		return false
 	}
 	key := managerReviewKey(d)
+	if ctx.Value(taskOwnerResumeKey{}) == true {
+		key = ownerResumeReviewKey(d)
+	}
 	if origin.RequestID == delegationMessageID(key+":retry") {
 		return false
 	}
@@ -105,7 +110,8 @@ func (s *Server) queueManagerAssessment(ctx context.Context, origin db.InboxRequ
 	}
 	now := time.Now().UTC()
 	request := db.InboxRequest{OwnerID: origin.OwnerID, AgentID: origin.AgentID, RoomID: origin.RoomID, RequestID: delegationMessageID(key), MessageID: delegationMessageID(key + ":input"), ReplyID: delegationMessageID(key + ":reply"), PayloadHash: delegationMessageID(key), State: "queued", CreatedAt: now, Deadline: now.Add(10 * time.Minute)}
-	content := inboxOwnershipPolicy + "\nReview the current result [/tasks/" + d.ID + "]. The coordinator must decide whether to continue approved work, change approach, wait for a genuine prerequisite, or ask one indispensable owner question. Do not ask for renewed consent merely because an internal attempt threshold was reached. Do not repeat a recently rejected identical revision. Original scope, cancellation and acceptance gates remain mandatory.\nReview evidence digest: " + inboxReviewEvidenceDigest(d)
+	content := inboxOwnershipPolicy + "\nReview the current result [Task](/tasks/" + d.ID + "). The coordinator must decide whether to continue approved work, change approach, wait for a genuine prerequisite, or ask one indispensable owner question. Do not ask for renewed consent merely because an internal attempt threshold was reached. Do not repeat a recently rejected identical revision. Original scope, cancellation and acceptance gates remain mandatory.\nReview evidence digest: " + inboxReviewEvidenceDigest(d)
+	content += "\nCurrent reported attempt: " + d.LatestAttempt.ID + "."
 	actual, fresh, err := repo.AcceptInboxRequest(ctx, request, &db.ProjectMessage{ID: request.MessageID, RoomID: request.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", AuthorName: "Cuan", Content: content, CreatedAt: now, UpdatedAt: now})
 	if err != nil {
 		return false

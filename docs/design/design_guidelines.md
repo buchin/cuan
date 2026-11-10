@@ -621,3 +621,12 @@ independent. Bulk resolve includes conversations without tasks, reports the elig
 counts and leaves unfinished work in the inbox.
 Resolution authorizes discarding repository working copies without a replacement
 archive; durable chat attachments, delivered results and history remain separate.
+
+### Paused work recovery
+
+Paused Inbox tasks expose the same compact Resume action in composer task
+attachments and task detail footers. The action requests current PM supervision
+with saved context, shows a loading spinner and preserves the draft. Errors stay
+beside the action; no speculative success state or direct development restart.
+Detail actions remain outside the scrolling body. Composer attachments keep their
+bounded scroll area, including reachable footer actions on 390px screens.

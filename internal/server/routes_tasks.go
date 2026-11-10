@@ -38,6 +38,8 @@ func (s *Server) registerTaskRoutes(pr chi.Router) {
 	pr.Patch("/tasks/{id}/attempts/{attemptId}", s.handleUpdateAttempt)
 	pr.Post("/tasks/{id}/cancel", s.handleCancelTask)
 	pr.Post("/tasks/{id}/retry", s.handleRetryTask)
+	pr.Get("/tasks/{id}/resume", s.handleTaskResume)
+	pr.Post("/tasks/{id}/resume", s.handleTaskResume)
 	pr.Post("/tasks/{id}/apply", s.handleApplyTask)
 	pr.Get("/tasks/{id}/attempts/{attemptId}/logs", s.handleGetAttemptLogs)
 	pr.Post("/tasks/{id}/steer", s.handleTaskSteer)

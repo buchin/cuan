@@ -1759,5 +1759,11 @@
   "unresolved conversations": "percakapan belum tuntas",
   "Resolve conversations": "Tuntaskan percakapan",
   "Resolve {{count}} conversations?": "Tuntaskan {{count}} percakapan?",
-  "{{count}} conversations with unfinished work will remain in your inbox.": "{{count}} percakapan yang pekerjaannya belum selesai tetap berada di inbox."
+  "{{count}} conversations with unfinished work will remain in your inbox.": "{{count}} percakapan yang pekerjaannya belum selesai tetap berada di inbox.",
+  "Resume": "Lanjutkan",
+  "Resume work": "Lanjutkan pekerjaan",
+  "Resuming…": "Melanjutkan…",
+  "Could not check whether this work can continue": "Belum bisa memeriksa apakah pekerjaan dapat dilanjutkan",
+  "Could not continue this work": "Pekerjaan belum bisa dilanjutkan",
+  "The work has changed. Check its latest status.": "Pekerjaan sudah berubah. Periksa status terbarunya."
 }

@@ -1,3 +1,4 @@
+import { TaskResumeAction } from './TaskResumeAction'
 import { TaskTimeline } from './TaskTimeline'
 import { TaskDuration } from './TaskDuration'
 import { StatusDot } from '../../components/ui/StatusDot'
@@ -54,6 +55,7 @@ import {
   TASK_STATUSES,
   activeAttempt,
   taskAgentPending,
+  workDisplayStatus,
   statusLabel,
   taskRef,
   relativeTime,
@@ -1385,7 +1387,7 @@ function TaskDetailView({
                       {id ? 'Setujui hasil' : 'Approve result'}
                     </button>
                   )}
-                  <button
+                  {workDisplayStatus(detail) === 'Work paused' && detail.source_room_id ? <TaskResumeAction task={detail} onResumed={reload} /> : <button
                     className="action-primary min-h-11 min-w-[44px] px-4 sm:px-5 text-xs sm:text-sm font-medium shadow-sm"
                     disabled={busy || !loaded || !!pending || launching || !!detail.review_state || detail.latest_attempt?.status === 'queued'}
                     onClick={taskAction}
@@ -1398,7 +1400,7 @@ function TaskDetailView({
                       running ? (detail.latest_attempt?.status !== 'queued' && <Terminal aria-hidden="true" className="h-4 w-4" />) : <Play className="h-4 w-4" />
                     )}
                     <span>{detail.review_state ? (detail.review_state === 'running' ? (id ? 'Memeriksa hasil' : 'Checking result') : (id ? 'Menunggu pemeriksaan' : 'Waiting for review')) : id ? (running ? (detail.latest_attempt?.status === 'queued' ? 'Dalam antrean' : 'Buka terminal') : detail.status === 'review' ? 'Minta perbaikan' : detail.attempts.length ? 'Coba lagi' : 'Mulai') : runLabel}</span>
-                  </button>
+                  </button>}
                 </>
               )}
             </div>
