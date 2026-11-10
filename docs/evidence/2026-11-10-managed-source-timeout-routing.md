@@ -469,3 +469,31 @@ recovery automatically started `att_7da2bea1bd728767f0cbea6452bca2b0` at
 12:08:44.781 +08, deadline12:18:44.781. Its reporting/outcome and final native
 checks are still pending. Do not restart it from quiet output or count the prior
 model report/diagnostic as acceptance.
+
+## Reporting recovery exhausted; model compiler scratch fix prepared
+
+Reporting recovery att_7da2bea1 ran until12:13:45.863 +08 and again reached its
+agent-stage deadline after300.240s without a final report. It remains failed,
+exit124; no further reporting retry is granted. OS observation during that stage
+again found `go test github.com/buchin/cuan/internal/task` with the same owner
+cache, and actual compiler descendants (rather than a running task.test binary).
+The same full task package on the local host completed in0.180s with caches.
+This supports compilation/cache cost as a bottleneck; it does not measure exact
+VPS compilation duration or prove its unseen check result. Native final checks and
+PM acceptance remain absent, so original task is still incomplete.
+
+A legacy-provider module-cache pruning dry run found zero eligible module caches
+and removed nothing. No module cache deletion or lower admission/source-retention
+limit was used to manufacture capacity. The latest inspected snapshot already has
+one packed Git object file, zero loose objects and no reclaimable garbage; do not
+claim repacking it would recover meaningful disk space.
+
+The remaining scratch lifecycle is now corrected locally for model-started Go
+commands: managed Go executions receive an execution-owned GOTMPDIR, removed before
+completion delivery and lease release. An explicit project GOTMPDIR is preserved.
+The lifecycle test exercises successful execution, deadline-error return and custom
+scratch; its completion HTTP handler observes managed scratch already absent while
+custom scratch survives. Existing native fast package tests pass (runner18.015s),
+and shared owner cache metadata/release tests remain intact. This correction is
+not yet deployed. It prevents another scratch leak but does not itself prove the
+original source-reuse feature or solve cache churn under persistent disk pressure.
