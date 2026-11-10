@@ -14,6 +14,19 @@ Passing automated/unit tests alone is NOT sufficient. The core goal is achieving
 4. **Predictable Flow & Usability:** Clean communication flow without interrupting workflows. Secondary technical details belong in `SlideDrawer`.
 5. **Mandatory Visual Inspection:** Agents must render and evaluate real screenshots (mobile 390px and desktop) before marking tasks complete.
 
+For protected application screens, start with `scripts/verify-ui.sh "${CUAN_TASK_ARTIFACTS_DIR:?}/ui"`
+and its real-component fixtures in `web/scripts/verify-inbox-work-panel.mjs`.
+Use the inspected source checkout and isolated fixture data; do not borrow an
+Owner login. Check which components and behaviors the fixture actually covers.
+Extend the relevant fixture for missing task-specific behavior rather than
+recreating application HTML. A read-only verifier can use a temporary fixture
+outside the checkout; keep the inspected source unchanged.
+Before capturing, assert that the requested screen, control and state are
+visible, then inspect the resulting images. A successful navigation or HTTP200
+to a landing/login page is not evidence of protected Inbox behavior. Report
+missing behavior or access as unverified, and distinguish fixture observations
+from production observations. See [protected UI verification](docs/skills/cuan-agent/SKILL.md#protected-ui-verification-without-owner-access).
+
 ## Integrations
 Before adding or changing an external integration, follow
 [the integration design principles](docs/product/integration-principles.md).
