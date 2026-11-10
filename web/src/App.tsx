@@ -265,9 +265,32 @@ export function App() {
     finally { setContactsLoading(false) }
   }, [])
   useEffect(() => {
-    const changed = () => { void refreshContacts() }
+    const changed = (e?: Event) => {
+      const custom = e as CustomEvent<{ roomId?: string; title?: string }> | undefined
+      if (custom?.detail?.roomId && custom.detail.title) {
+        const targetId = custom.detail.roomId
+        const newTitle = custom.detail.title
+        setContacts((prev) =>
+          prev.map((c) => {
+            if (
+              c.conversation_id === targetId ||
+              c.id === targetId ||
+              c.id === 'topic_' + targetId
+            ) {
+              return { ...c, name: newTitle }
+            }
+            return c
+          }),
+        )
+      }
+      void refreshContacts()
+    }
     window.addEventListener('cuan-conversation-resolution', changed)
-    return () => window.removeEventListener('cuan-conversation-resolution', changed)
+    window.addEventListener('cuan-conversation-updated', changed)
+    return () => {
+      window.removeEventListener('cuan-conversation-resolution', changed)
+      window.removeEventListener('cuan-conversation-updated', changed)
+    }
   }, [refreshContacts])
   const refreshAgents = useCallback(async () => {
     try {

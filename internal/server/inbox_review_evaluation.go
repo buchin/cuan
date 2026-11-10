@@ -844,6 +844,7 @@ func (s *Server) attemptInboxAutoDelegation(ctx context.Context, q db.InboxReque
 	if err != nil || created == nil {
 		return fail("The next phase task could not be saved.", err)
 	}
+	_, _ = s.syncRoomTitleOnTaskCreated(ctx, q.RoomID, nextTitle, q.OwnerID)
 	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
 	if err != nil || detail == nil || detail.ProjectID != d.ProjectID || detail.SourceRoomID != q.RoomID || detail.SourceMessageID != inputMsgID || phaseTaskInstructions(detail.Instructions) != nextInstructions || detail.ExecutionCategory != d.ExecutionCategory {
 		return fail("The saved phase scope differs from the approved handoff.", err)

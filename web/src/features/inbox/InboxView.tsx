@@ -563,6 +563,15 @@ export function InboxView({
         setRequests(data.requests || [])
         setLinkedTasks(data.tasks || [])
         if (data.tasks) cacheTasks(data.tasks)
+        if (data.contact?.name && activeContact && activeContact.name !== data.contact.name) {
+          activeContact.name = data.contact.name
+          window.dispatchEvent(
+            new CustomEvent('cuan-conversation-updated', {
+              detail: { roomId: convId, title: data.contact.name },
+            }),
+          )
+          onContactUpdated?.()
+        }
         if (activeContact && data.tasks) {
           const states = data.tasks.map(task => task.status === 'done' ? 'Completed' : workStatus(task))
           // The server summary also understands canceled attempts saved as review.
@@ -762,6 +771,14 @@ export function InboxView({
           setRequests(data.requests || [])
           setLinkedTasks(data.tasks || [])
           if (data.tasks) cacheTasks(data.tasks)
+          if (data.room_title && activeContact && activeContact.name !== data.room_title) {
+            window.dispatchEvent(
+              new CustomEvent('cuan-conversation-updated', {
+                detail: { roomId: convId, title: data.room_title },
+              }),
+            )
+            onContactUpdated?.()
+          }
           const pending = pendingRef.current
           if (
             pending?.convId === convId &&
@@ -1103,6 +1120,11 @@ export function InboxView({
         dod_checklist: card.dod_checklist,
       })
       setApprovedTasks((prev) => ({ ...prev, [card.task_title]: true }))
+      window.dispatchEvent(
+        new CustomEvent('cuan-conversation-updated', {
+          detail: { roomId: convId, title: card.task_title },
+        }),
+      )
       // Reload messages to get execution confirmation
       loadConversation(convId, false)
       if (onContactUpdated) onContactUpdated()
@@ -2194,6 +2216,17 @@ export function InboxView({
               if (activeContact) {
                 activeContact.task_count = (activeContact.task_count || 0) + 1
                 activeContact.active_tasks = (activeContact.active_tasks || 0) + 1
+                if (newTask.title) {
+                  activeContact.name = newTask.title
+                }
+              }
+              if (newTask.title) {
+                const targetId = activeContact?.conversation_id || activeContact?.id || ''
+                window.dispatchEvent(
+                  new CustomEvent('cuan-conversation-updated', {
+                    detail: { roomId: targetId, title: newTask.title },
+                  }),
+                )
               }
               onContactUpdated?.()
             }}

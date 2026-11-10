@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/go-chi/chi/v5"
 )
 
 // Existing agent aliases retain their legacy room; new topic UUIDs never resolve
@@ -23,7 +24,8 @@ func roomAgentID(topic string) string {
 }
 
 func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) {
-	if s.accountOwner(w, r) == "" {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
 		return
 	}
 	var req struct {
@@ -104,6 +106,9 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 			respondJSONError(w, 503, "Could not save the conversation. Retry using the same request ID.")
 			return
 		}
+		if strings.TrimSpace(req.Title) != "" && title != "New conversation" {
+			s.markRoomTitleManual(owner, room.ID, title)
+		}
 	}
 	respondJSON(w, 200, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UpdatedAt: room.UpdatedAt})
 }
@@ -129,4 +134,55 @@ func (s *Server) nameAgentTopic(ctx context.Context, roomID, text string) {
 	room.Title = string(title)
 	room.UpdatedAt = time.Now().UTC()
 	_ = s.projectStudioRepo.UpdateRoom(ctx, room)
+}
+
+func (s *Server) handleUpdateConversation(w http.ResponseWriter, r *http.Request) {
+	owner := s.accountOwner(w, r)
+	if owner == "" {
+		return
+	}
+	if s.projectStudioRepo == nil {
+		respondJSONError(w, 503, "Storage is unavailable")
+		return
+	}
+	resolved := s.resolveConversationContext(r.Context(), chi.URLParam(r, "id"), "")
+	var req struct {
+		Title string `json:"title"`
+		Name  string `json:"name"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil {
+		respondJSONError(w, 400, "Invalid title update request")
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		title = strings.TrimSpace(req.Name)
+	}
+	if title == "" || len([]rune(title)) > 200 {
+		respondJSONError(w, 400, "Enter a conversation title of up to 200 characters")
+		return
+	}
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
+	room, err := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID)
+	if err != nil || room == nil {
+		respondJSONError(w, 404, "Conversation not found")
+		return
+	}
+	room.Title = title
+	room.UpdatedAt = time.Now().UTC()
+	if err := s.projectStudioRepo.UpdateRoom(r.Context(), room); err != nil {
+		respondJSONError(w, 500, "Could not update conversation title: "+err.Error())
+		return
+	}
+	s.markRoomTitleManual(owner, room.ID, title)
+	if s.roomEventBroker != nil {
+		s.roomEventBroker.Broadcast(room.ID, "room.updated", map[string]any{
+			"id":    room.ID,
+			"title": title,
+			"topic": room.Topic,
+		})
+	}
+	s.publishInbox(room.ID)
+	respondJSON(w, 200, map[string]any{"id": room.ID, "title": title})
 }

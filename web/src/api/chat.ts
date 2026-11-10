@@ -324,12 +324,28 @@ export const chatApi = {
       },
     )
   },
+
+  updateTitle: async (
+    conversationId: string,
+    title: string,
+  ): Promise<{ id: string; title: string }> => {
+    return apiFetch<{ id: string; title: string }>(
+      `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ title }),
+      },
+    )
+  },
 }
 
 export type InboxSnapshot = Pick<
   ConversationDetail,
   'messages' | 'requests' | 'tasks'
->
+> & {
+  room_id?: string
+  room_title?: string
+}
 
 // Fetch streaming retains the app's Bearer authentication; no token in URLs.
 export async function streamConversation(

@@ -116,6 +116,7 @@ func (s *Server) handleInboxMessageTask(w http.ResponseWriter, r *http.Request) 
 		respondJSONError(w, 409, "This message is already linked to a task in another project")
 		return
 	}
+	_, _ = s.syncRoomTitleOnTaskCreated(r.Context(), resolved.RoomID, req.Title, owner)
 	s.publishInbox(resolved.RoomID)
 	respondJSON(w, 200, map[string]any{"task": created, "source_message_id": id, "status": created.Status})
 }
