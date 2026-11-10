@@ -577,6 +577,8 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		router:                 r,
 	}
 
+	s.wireTaskService(tSvc)
+
 	_ = sched.Register(&scheduler.Job{
 		ID:           "cleanup_stale_anonymous_contacts",
 		Name:         "Pembersihan Kontak Anonim Usang",

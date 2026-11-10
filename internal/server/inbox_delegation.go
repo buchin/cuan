@@ -454,6 +454,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if e != nil {
 			return fail("the task could not be saved")
 		}
+		_, _ = s.syncRoomTitleOnTaskCreated(ctx, q.RoomID, taskTitle, q.OwnerID)
 		t, err = s.taskSvc.GetTaskDetail(ctx, created.ID)
 		if err != nil {
 			return fail("the saved task could not be loaded")

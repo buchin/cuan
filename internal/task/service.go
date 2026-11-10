@@ -20,18 +20,43 @@ type ProjectFinder interface {
 	Get(ctx context.Context, id string) (*project.ProjectResponse, error)
 }
 
+type TaskCreationListener func(ctx context.Context, t *Task)
+
 type Service struct {
-	extensions    *sdk.Registry
-	taskMu        sync.Mutex
-	attemptMu     sync.Mutex
-	store         Store
-	projectFinder ProjectFinder
+	extensions            *sdk.Registry
+	taskMu                sync.Mutex
+	attemptMu             sync.Mutex
+	store                 Store
+	projectFinder         ProjectFinder
+	listenerMu            sync.RWMutex
+	taskCreationListeners []TaskCreationListener
 }
 
 func NewService(store Store, projectFinder ProjectFinder) *Service {
 	return &Service{
 		store:         store,
 		projectFinder: projectFinder,
+	}
+}
+
+func (s *Service) OnTaskCreated(fn TaskCreationListener) {
+	if fn == nil {
+		return
+	}
+	s.listenerMu.Lock()
+	defer s.listenerMu.Unlock()
+	s.taskCreationListeners = append(s.taskCreationListeners, fn)
+}
+
+func (s *Service) notifyTaskCreated(ctx context.Context, t *Task) {
+	if t == nil {
+		return
+	}
+	s.listenerMu.RLock()
+	listeners := append([]TaskCreationListener{}, s.taskCreationListeners...)
+	s.listenerMu.RUnlock()
+	for _, fn := range listeners {
+		fn(ctx, t)
 	}
 }
 
@@ -102,6 +127,7 @@ func (s *Service) CreateTask(ctx context.Context, author string, req CreateTaskR
 		s.taskMu.Unlock()
 		if createdEvent != nil {
 			s.extensionEvent(ctx, "task.created", createdEvent)
+			s.notifyTaskCreated(ctx, createdEvent)
 		}
 	}()
 	id := generateID("task")
@@ -151,6 +177,7 @@ func (s *Service) CreateTaskFromMessage(ctx context.Context, author, source stri
 	}
 	if err == nil {
 		s.extensionEvent(ctx, "task.created", result)
+		s.notifyTaskCreated(ctx, result)
 	}
 	return result, err
 }
