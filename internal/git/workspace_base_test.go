@@ -139,3 +139,41 @@ func TestCommitHashRequiresFullObjectName(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceClonesFromLinkedProjectWorktreeWithoutRemoteFallback(t *testing.T) {
+	root := t.TempDir()
+	base := filepath.Join(root, "project")
+	createTestBaseRepo(t, base)
+	source := filepath.Join(root, "project-task-worktree")
+	retentionGit(t, base, "worktree", "add", "-b", "cuan/source-task", source, "main")
+	if info, err := os.Stat(filepath.Join(source, ".git")); err != nil || !info.Mode().IsRegular() {
+		t.Fatal("fixture must use a linked Git worktree", err)
+	}
+	draft := filepath.Join(source, "retained-draft.txt")
+	if err := os.WriteFile(draft, []byte("preserve source work"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	head := retentionGit(t, source, "rev-parse", "HEAD")
+	ws, err := NewClient().PrepareTaskWorkspace(context.Background(), WorkspaceConfig{
+		TaskID: "linked-source-task", BaseRepoDir: source, WorkspacesBaseDir: filepath.Join(root, "runner"),
+		DefaultBranch: "main", BranchName: "task/linked-source", RemoteURL: filepath.Join(root, "unavailable-remote.git"),
+	})
+	if err != nil {
+		t.Fatal("valid local worktree fell back to unavailable remote", err)
+	}
+	if retentionGit(t, ws.Path, "rev-parse", "HEAD") != head || retentionGit(t, source, "symbolic-ref", "--short", "HEAD") != "cuan/source-task\n" {
+		t.Fatal("cloning changed the source branch or selected the wrong baseline")
+	}
+	if content, err := os.ReadFile(draft); err != nil || string(content) != "preserve source work" {
+		t.Fatal("source work was changed", err)
+	}
+	if _, err := os.Stat(filepath.Join(ws.Path, "retained-draft.txt")); !os.IsNotExist(err) {
+		t.Fatal("uncommitted source work was copied into the new task")
+	}
+	object := strings.TrimSpace(retentionGit(t, base, "rev-parse", "HEAD:README.md"))
+	sourceInfo, sourceErr := os.Stat(filepath.Join(base, ".git", "objects", object[:2], object[2:]))
+	cloneInfo, cloneErr := os.Stat(filepath.Join(ws.Path, ".git", "objects", object[:2], object[2:]))
+	if sourceErr != nil || cloneErr != nil || !os.SameFile(sourceInfo, cloneInfo) {
+		t.Fatal("local developer clone duplicated the shared project object", sourceErr, cloneErr)
+	}
+}

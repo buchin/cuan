@@ -541,3 +541,32 @@ read the pinned recipe's package coverage before proposing extra checks. Actual
 scripts/test.sh --fast passes, task0.156s and runner17.174s on the cached local host.
 This is a test-ownership correction, not proof of production speedup. Model scratch
 cleanup, PM-plan execution and this package coverage are pending publication.
+
+## Follow-up: storage cause and linked-worktree cloning
+
+Release34ee8bfa is published. Current official execution diagnostics confirm
+attempt att_ea9986fef6bf06f5d38415952ba42be6 failed/stopped; acceptance remains
+unproven. Its model stage took141.411s and native checks then hit300s. The model's
+approximately60s claim is not native timing evidence. An isolated cold-cache
+experiment also timed out300s (maximum RSS654,692KiB); it does not justify new
+CPU/GC defaults or a speedup claim. No recovery budget was renewed.
+
+Host inventory attributed46,182,182,912 bytes to /opt/cuan and6,148,984,832 bytes
+to the Cuan user data directory. Project data and runner workspaces dominate;
+other applications' database and Nginx logs are secondary. A sampled legacy
+checkout contains1,060,253,696 bytes of Git history; a current native snapshot
+contains190,476,288 bytes total. These standalone directory sizes can include
+hardlinked objects and must not be summed as independently reclaimable bytes.
+Native snapshot audit found no node_modules. Accepted snapshot source retention
+remains48 hours and Git objects/receipts remain protected.
+
+Concrete prevention: project execution uses linked worktrees with a regular
+.git file. PrepareTaskWorkspace previously recognized only .git directories and
+fell through to a remote clone, bypassing its existing local object-sharing path.
+Recognize both layouts. Independent verifier snapshot construction is unchanged.
+The real-Git regression fixture uses an unavailable remote, verifies the exact
+baseline and retained source branch/draft, and checks shared blob identity with
+os.SameFile. It failed before the fix and passes after it. Targeted workspace,
+resume, fresh-workspace and verification-snapshot tests pass (2.413s on this
+cached local host). This prevents future unnecessary remote clones; it neither
+retroactively reclaims old checkouts nor proves production workflow completion.

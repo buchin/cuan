@@ -131,10 +131,11 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	}
 
 	// Perform clone
-	// If BaseRepoDir exists and has .git, clone locally from BaseRepoDir for speed and object sharing
+	// Linked worktrees use a .git file. Both Git layouts can be cloned locally
+	// without a second remote download or a separate copy of the common object store.
 	baseGitDir := filepath.Join(cfg.BaseRepoDir, ".git")
 	if cfg.BaseRepoDir != "" {
-		if fi, err := os.Stat(baseGitDir); err == nil && fi.IsDir() {
+		if fi, err := os.Stat(baseGitDir); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
 			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--local", cfg.BaseRepoDir, workspacePath)
 			if out, err := cloneCmd.CombinedOutput(); err != nil {
 				return nil, fmt.Errorf("local clone from base repo failed: %s", string(out))
