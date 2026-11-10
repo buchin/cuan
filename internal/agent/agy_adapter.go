@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -25,12 +26,22 @@ func ResolveAGYBinaryPath() (string, error) {
 	if bin, err := exec.LookPath("agy"); err == nil {
 		return bin, nil
 	}
-	for _, candidate := range []string{
-		"/home/dev/.local/bin/agy",
-		"/home/ubuntu/.local/bin/agy",
+	candidates := []string{
 		"/usr/local/bin/agy",
 		"/usr/bin/agy",
-	} {
+		"/opt/cuan/runtime/agy",
+		"/home/dev/.local/bin/agy",
+		"/home/ubuntu/.local/bin/agy",
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		candidates = append([]string{
+			filepath.Join(home, ".local", "bin", "agy"),
+			filepath.Join(home, ".local", "share", "cuan", "runtime", "bin", "agy"),
+			filepath.Join(home, ".gemini", "antigravity-cli", "bin", "agy"),
+			filepath.Join(home, ".antigravity", "bin", "agy"),
+		}, candidates...)
+	}
+	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
