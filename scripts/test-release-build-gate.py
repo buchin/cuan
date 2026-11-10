@@ -60,6 +60,7 @@ class ReleaseBuildGateTests(unittest.TestCase):
         (self.repo / "migrations").mkdir()
 
         (self.repo / "README.md").write_text("# Cuan Fixture\n")
+        (self.repo / ".gitignore").write_text("web/dist/\n")
         (self.repo / "web" / "dist" / "index.html").write_text("<!doctype html><html><body>Cuan</body></html>\n")
         (self.repo / "migrations" / "000001_init.sql").write_text("-- init\n")
 
@@ -156,7 +157,20 @@ exit "$exit_code"
 
         # Stub npm: avoids real npm/node dependencies for frontend tests
         stub_npm = self.tools / "npm"
-        stub_npm.write_text("#!/usr/bin/env bash\nexit 0\n")
+        stub_npm.write_text(r"""#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$BUILD_TRACK_DIR/frontend-events.txt"
+if [[ "$1 $2" == "run build" ]]; then
+  [[ ! -f "$BUILD_TRACK_DIR/frontend-build-fail" ]] || exit 17
+  mkdir -p web/dist/assets
+  echo current-source > web/dist/assets/current-source
+  echo current-source > web/dist/index.html
+fi
+if [[ "$1" == "test" ]]; then
+  [[ -f web/dist/assets/current-source ]] || exit 18
+  [[ ! -f "$BUILD_TRACK_DIR/frontend-test-fail" ]] || exit 19
+fi
+exit 0
+""")
         stub_npm.chmod(0o755)
 
         # Stub sshpass: simulates remote deploy & health check without network
@@ -256,6 +270,27 @@ exit 0
 
         cmd = ["bash", "scripts/deploy.sh", "--branch", "dev"]
         return subprocess.run(cmd, cwd=str(self.repo), env=env, capture_output=True, text=True)
+
+    def test_clean_frontend_builds_once_before_its_gate(self):
+        shutil.rmtree(self.repo / "web" / "dist")
+        result = self._run_deploy({}, {}, {})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        events = (self.track_dir / "frontend-events.txt").read_text().splitlines()
+        self.assertEqual(events, ["ci --prefix web --no-audit --no-fund", "run build --prefix web", "test --prefix web"])
+        self.assertEqual((self._get_release_dir() / "web/dist/assets/current-source").read_text().strip(), "current-source")
+
+    def test_frontend_build_or_gate_failure_never_publishes(self):
+        for stage, expected in (("build", 17), ("test", 19)):
+            with self.subTest(stage=stage):
+                marker = self.track_dir / ("frontend-" + stage + "-fail")
+                marker.touch()
+                try:
+                    result = self._run_deploy({}, {}, {})
+                    self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                    self.assertFalse((self._get_release_dir() / "release.json").exists())
+                    self.assertFalse((self.track_dir / "started_pids.txt").exists())
+                finally:
+                    marker.unlink()
 
     def test_server_failure_rejects_release_and_terminates_children(self):
         result = self._run_deploy(

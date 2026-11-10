@@ -93,11 +93,6 @@ else
   fi
 fi
 
-if [ ! -d "web/dist" ] && [ -d "/opt/cuan/current/web/dist" ]; then
-  mkdir -p web
-  cp -a /opt/cuan/current/web/dist web/
-fi
-
 echo '::cuan-release-stage::checks'
 echo "==> Checking release activation safety..."
 python3 scripts/test-activate-release.py
@@ -114,7 +109,12 @@ python3 scripts/test-runtime-cache-maintenance.py
 
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
 npm ci --prefix web --no-audit --no-fund
+# Frontend gates inspect generated chunks; build this exact source once before
+# testing so clean checkouts never depend on assets from an older release.
+echo "==> Building current frontend assets before verification..."
+npm run build --prefix web
 
 echo '::cuan-release-stage::tests'
 echo "==> Running frontend test gate..."
@@ -140,16 +140,6 @@ if [[ "$is_local" == 0 ]]; then
 fi
 
 if [[ "$frontend_only" == 1 ]]; then
-  echo "==> Building frontend assets for $release_sha..."
-  if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
-    npm run build --prefix web
-  elif [ -d "web/dist" ]; then
-    echo "==> Using retained web/dist (frontend build toolchain not installed on host)"
-  elif [ -d "/opt/cuan/current/web/dist" ]; then
-    echo "==> Using retained /opt/cuan/current/web/dist (frontend build toolchain not installed on host)"
-    mkdir -p web
-    cp -a /opt/cuan/current/web/dist web/
-  fi
   if [[ "$is_local" == 1 ]]; then
     echo "==> Syncing static assets locally to /opt/cuan/current/web/dist/..."
     mkdir -p "$HOME/.local/share/cuan-releases/$release_sha/web"
@@ -193,15 +183,6 @@ for component in server migrate runner; do
   fi
 done
 echo "✓ Backend binaries compiled successfully."
-if command -v tsc >/dev/null 2>&1 || [ -f "web/node_modules/.bin/tsc" ]; then
-  npm run build --prefix web
-elif [ -d "web/dist" ]; then
-  echo "==> Using retained web/dist (frontend build toolchain not installed on host)"
-elif [ -d "/opt/cuan/current/web/dist" ]; then
-  echo "==> Using retained /opt/cuan/current/web/dist (frontend build toolchain not installed on host)"
-  mkdir -p web
-  cp -a /opt/cuan/current/web/dist web/
-fi
 cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
 cp README.md "$release_dir/"

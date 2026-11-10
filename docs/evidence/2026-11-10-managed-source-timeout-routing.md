@@ -155,3 +155,25 @@ assert both rejection and the precise reason, including propagation through the
 actual inspection validator. Targeted task tests pass. This diagnostics correction
 awaits publication and does not prove lower end-to-end latency or completion of
 the source-reuse task.
+
+## Release gate ordering correction
+
+Publishing diagnostics revision `7ca979c9` first passed all 470 frontend tests
+and Go compilation, then its Vite build was killed (exit 137). No production
+activation occurred. A retry with a bounded Node heap failed earlier: frontend
+tests required `web/dist/assets`, which the interrupted build had removed.
+The script ran asset-dependent tests before building their inputs. A prior
+release's retained dist could therefore conceal this cold-checkout failure.
+
+The release script now installs locked dependencies, builds the exact current
+frontend once, tests those assets, then compiles/packages/publishes. It no longer
+copies old production assets or builds the frontend a second time. Default Node
+heap is bounded at 512 MiB while an explicit existing NODE_OPTIONS remains honored.
+No test or source/health gate is skipped. The earlier kill alone does not prove
+its external resource cause.
+
+The release integration fixture now makes its test stub require newly generated
+assets. A clean-checkout case verifies build/test order, one build and publication
+of that output; build-failure and test-failure cases both reject publication before
+Go compilation. All seven `scripts/test-release-build-gate.py` cases pass. Actual
+publication remains pending until a successful exact-SHA release observation.
