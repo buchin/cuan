@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -20,9 +19,6 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
-import { ApprovalCard } from '../inbox/ApprovalCard'
-import { TaskCompletionCard } from '../inbox/TaskCompletionCard'
-import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -31,26 +27,6 @@ const repository = 'https://github.com/buchin/cuan'
 export function LandingPage() {
   const { t, language, setPreference } = useLanguage()
   const { resolvedTheme, toggleTheme } = useTheme()
-
-  const sampleCompletedTask: Task = useMemo(
-    () => ({
-      id: 't_87e92',
-      title: t('Integrasi Webhook Form & Bot WhatsApp'),
-      status: 'done',
-      priority: 'normal',
-      summary: t(
-        'Webhook receiver aktif dan terhubung ke WhatsApp. 3 skenario tes pengiriman notifikasi otomatis sukses tanpa downtime.'
-      ),
-      dod_checklist: [
-        { text: t('Pasang endpoint receiver webhook form order'), completed: true },
-        { text: t('Format template notifikasi WhatsApp pesanan'), completed: true },
-        { text: t('Uji coba simulasi kirim data (DoD 100% pass)'), completed: true },
-      ],
-      created_at: new Date(Date.now() - 300000).toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    [t],
-  )
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -297,51 +273,19 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                {/* Real Cuan Chat Preview */}
-                <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-3.5 text-left text-xs space-y-3">
-                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                    <div className="flex items-center gap-1.5 font-medium text-foreground">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="font-semibold text-xs">@cuan</span>
-                      <span className="text-[10px] text-muted-foreground font-mono">Project Manager</span>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground font-mono">{t('Baru saja')}</span>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="rounded-lg bg-card/80 p-2.5 border border-border/50">
-                      <div className="text-[10px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                        {t('Anda (Owner)')}
-                      </div>
-                      <p className="text-foreground leading-relaxed">
-                        &ldquo;{t('Tolong hubungkan webhook form order ke bot WhatsApp notifikasi admin.')}&rdquo;
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-primary/5 p-2.5 border border-primary/20">
-                      <div className="text-[10px] font-semibold text-primary mb-1 flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        @cuan
-                      </div>
-                      <p className="text-foreground/90 leading-relaxed text-[11px]">
-                        {t('Siap! Konteks repositori dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground">
-                    <span>{t('Pilihan cepat:')}</span>
-                    <div className="flex gap-1.5">
-                      <span className="rounded-md bg-primary/10 text-primary font-medium px-2 py-0.5 border border-primary/20">
-                        ✓ {t('Lanjutkan')}
-                      </span>
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground">
-                        {t('Sesuaikan')}
-                      </span>
-                    </div>
-                  </div>
+                <div className="mt-6 -mx-2 -mb-2">
+                  <img
+                    src="/landing/step-chat.png"
+                    alt={t('Pratinjau chat Cuan')}
+                    width={1098}
+                    height={1610}
+                    loading="lazy"
+                    className="w-full h-auto object-contain [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.06))]"
+                  />
                 </div>
               </li>
 
-              {/* STEP 02: APPROVAL CARD (Real Component) */}
+              {/* STEP 02: APPROVAL CARD */}
               <li className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
                 <div>
                   <div className="flex items-center justify-between">
@@ -362,21 +306,19 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                {/* Authentic ApprovalCard from Cuan codebase */}
-                <div className="mt-6 text-left">
-                  <ApprovalCard
-                    plan={{
-                      title: t('Integrasi Webhook Form & Bot WhatsApp'),
-                      project_name: 'landing-cuan',
-                      description: `- ${t('Pasang endpoint receiver webhook form order')}\n- ${t('Format template notifikasi WhatsApp pesanan')}\n- ${t('Uji coba simulasi kirim data (DoD 100% pass)')}`,
-                    }}
-                    disabled
-                    className="mt-0 pointer-events-none select-none shadow-none"
+                <div className="mt-6 -mx-2 -mb-2">
+                  <img
+                    src="/landing/step-approve.png"
+                    alt={t('Pratinjau Approval Card Cuan')}
+                    width={1098}
+                    height={1610}
+                    loading="lazy"
+                    className="w-full h-auto object-contain [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.06))]"
                   />
                 </div>
               </li>
 
-              {/* STEP 03: BERES (Real TaskCompletionCard Component) */}
+              {/* STEP 03: BERES */}
               <li className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
                 <div>
                   <div className="flex items-center justify-between">
@@ -397,11 +339,14 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                {/* Authentic TaskCompletionCard from Cuan codebase */}
-                <div className="mt-6 text-left">
-                  <TaskCompletionCard
-                    task={sampleCompletedTask}
-                    className="mt-0 pointer-events-none select-none shadow-none text-left"
+                <div className="mt-6 -mx-2 -mb-2">
+                  <img
+                    src="/landing/step-done.png"
+                    alt={t('Pratinjau tugas terverifikasi Cuan')}
+                    width={1098}
+                    height={1610}
+                    loading="lazy"
+                    className="w-full h-auto object-contain [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.06))]"
                   />
                 </div>
               </li>
