@@ -8,9 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,17 +33,11 @@ func runProjectVerification(parent context.Context, workingDir string, defaultBr
 	if workingDir == "" {
 		return verificationResult{Passed: true, Summary: "No workspace was assigned; no project verifier available."}
 	}
-	command := ""
-	args := []string{}
-	testScript := filepath.Join(workingDir, "scripts", "test.sh")
-	if info, err := os.Stat(testScript); err == nil && !info.IsDir() && info.Mode()&0111 != 0 {
-		command, args = testScript, []string{"--fast"}
-	} else if _, err := os.Stat(filepath.Join(workingDir, "go.mod")); err == nil {
-		command, args = "go", []string{"test", "./..."}
-	} else {
+	spec, found := detectProjectVerifier(workingDir)
+	if !found {
 		return verificationResult{Passed: true, Summary: "No supported project verifier was available; agent report evidence retained."}
 	}
-	return runProjectVerifierCommand(parent, workingDir, command, args...)
+	return runProjectVerifierCommand(parent, workingDir, spec.Command, spec.Args...)
 }
 
 func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {

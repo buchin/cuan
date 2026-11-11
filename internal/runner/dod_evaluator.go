@@ -279,6 +279,14 @@ func (e *DoDEvaluator) checkTargetedTestsPass(ctx context.Context, workingDir st
 		if cmdErr != nil {
 			return false, fmt.Sprintf("Go tests failed: %s", strings.TrimSpace(string(out))), time.Since(start), cmdErr
 		}
+	} else {
+		// Language-agnostic detection for non-Go repositories (PHP, Python, Node, Rust)
+		if spec, ok := detectProjectVerifier(workingDir); ok {
+			out, cmdErr := e.runCmd(ctx, workingDir, spec.Command, spec.Args...)
+			if cmdErr != nil {
+				return false, fmt.Sprintf("%s tests failed: %s", spec.Kind, strings.TrimSpace(string(out))), time.Since(start), cmdErr
+			}
+		}
 	}
 
 	// 2. Check Vitest frontend tests if web/package.json exists
