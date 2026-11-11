@@ -172,13 +172,10 @@ export function LandingPage() {
       <main>
         {/* 1. HOOK / HERO SECTION (Above the fold on standard MacBook 1440x900) */}
         <section
-          className="relative mx-auto max-w-6xl px-6 pb-12 pt-6 text-center sm:px-8 sm:pb-16 sm:pt-8"
+          className="relative mx-auto max-w-6xl px-6 pb-12 pt-8 text-center sm:px-8 sm:pb-16 sm:pt-12"
           aria-labelledby="landing-title"
         >
           <div className="mx-auto max-w-3xl">
-            <div className="mb-4 inline-flex items-center rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-foreground/80">
-              <span>{t('Agentic Project Manager untuk Digital Marketer')}</span>
-            </div>
             <h1
               id="landing-title"
               className="font-display text-5xl font-bold tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-[76px] lg:leading-[1.08]"
