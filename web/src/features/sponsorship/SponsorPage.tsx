@@ -42,7 +42,8 @@ export function SponsorPage() {
       .catch(() => null)
   }, [])
 
-  const defaultCheckoutURL = 'https://checkout.dojo.id/products/cuan-founding-backer'
+  const foundingBackerCheckoutURL = 'https://dojo.cc/checkout/cuan-founding-backer'
+  const businessSponsorCheckoutURL = 'https://dojo.cc/checkout/cuan-business-sponsor'
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -213,7 +214,7 @@ export function SponsorPage() {
 
               <div className="mt-8 pt-6 border-t border-border/40">
                 <a
-                  href={defaultCheckoutURL}
+                  href={foundingBackerCheckoutURL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="action-secondary w-full min-h-12 text-sm font-semibold justify-center gap-2 cursor-pointer"
@@ -222,7 +223,7 @@ export function SponsorPage() {
                   <ArrowRight className="h-4 w-4" />
                 </a>
                 <p className="text-[11px] text-muted-foreground text-center mt-2">
-                  {t('Diproses aman via Dojo Payment Gateway (QRIS, VA Bank, Kartu)')}
+                  {t('Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)')}
                 </p>
               </div>
             </div>
@@ -270,7 +271,7 @@ export function SponsorPage() {
 
               <div className="mt-8 pt-6 border-t border-border/40">
                 <a
-                  href={defaultCheckoutURL}
+                  href={businessSponsorCheckoutURL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="action-primary w-full min-h-12 text-sm font-semibold justify-center gap-2 shadow-xs cursor-pointer"
@@ -279,7 +280,7 @@ export function SponsorPage() {
                   <ArrowRight className="h-4 w-4" />
                 </a>
                 <p className="text-[11px] text-muted-foreground text-center mt-2">
-                  {t('Diproses aman via Dojo Payment Gateway (QRIS, VA Bank, Kartu)')}
+                  {t('Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)')}
                 </p>
               </div>
             </div>

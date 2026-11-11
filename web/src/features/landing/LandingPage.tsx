@@ -1058,8 +1058,8 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
                 {language === 'id'
-                  ? 'Satu sistem mandiri di VPS Anda. Cuan tidak mengunci bisnis Anda di ekosistem tertutup. Cukup minta tim agen menghubungkan software bisnis Anda lewat standar terbuka Model Context Protocol (MCP).'
-                  : 'One autonomous system on your VPS. Cuan never locks you into a proprietary walled garden. Simply prompt your agent team to connect your favorite tools via the open Model Context Protocol (MCP) standard.'}
+                  ? '3 tool di bawah ini hanyalah contoh ilustrasi integrasi. Anda tidak dibatasi tool-tool ini—software apa pun yang Anda gunakan, asal mendukung standar terbuka Model Context Protocol (MCP), Cuan bisa langsung menghubungkan dan mengeksekusinya tanpa vendor lock-in.'
+                  : 'The 3 tools below are illustrative integration examples. You are never limited to these—any software you use, as long as it supports the open Model Context Protocol (MCP) standard, Cuan can connect and execute seamlessly without vendor lock-in.'}
               </p>
             </div>
 
@@ -1069,52 +1069,52 @@ export function LandingPage() {
                 ? [
                     {
                       Icon: Calendar,
-                      category: 'Konten & Media Sosial',
+                      category: 'Contoh: Konten & Media Sosial',
                       prompt: '“Cuan, konekin ke Tebar.app MCP”',
                       title: 'Tebar.app MCP',
-                      desc: 'Agen otomatis meriset tren, menulis draf copy promosi, dan langsung mengatur jadwal postingan di media sosial lewat Tebar.app tanpa repot copy-paste atau bolak-balik aplikasi.',
+                      desc: 'Agen bisa meriset tren, menulis draf copy promosi, dan langsung mengatur jadwal postingan di media sosial lewat Tebar.app tanpa repot copy-paste atau bolak-balik aplikasi.',
                       tags: ['Tebar.app MCP', 'Jadwal Posting Sosmed', 'Auto-Draft Konten', 'Multi-Channel'],
                     },
                     {
                       Icon: Server,
-                      category: 'Cloud Hosting & Server VPS',
+                      category: 'Contoh: Cloud Hosting & Server VPS',
                       prompt: '“Cuan, konekin ke IDCloudHost MCP”',
                       title: 'IDCloudHost MCP',
-                      desc: 'Agen langsung memantau performa VPS, mengelola domain, dan memastikan server infrastruktur bisnis Anda terus aktif lancar 24/7 tanpa perlu menyentuh terminal.',
+                      desc: 'Agen bisa memantau performa VPS, mengelola domain, dan memastikan server infrastruktur bisnis Anda terus aktif lancar 24/7 tanpa perlu menyentuh terminal.',
                       tags: ['IDCloudHost MCP', 'Server VPS 24/7', 'Status Hosting', 'Manajemen Domain'],
                     },
                     {
                       Icon: ShoppingBag,
-                      category: 'Penjualan & Form Order Web',
+                      category: 'Contoh: Penjualan & Form Order Web',
                       prompt: '“Cuan, konekin ke Scalev MCP”',
                       title: 'Scalev MCP',
-                      desc: 'Agen otomatis menarik data pesanan baru dari checkout Scalev, menyinkronkan kontak leads pembeli, dan melayani pertanyaan calon pelanggan di widget live chat 24/7.',
+                      desc: 'Agen bisa menarik data pesanan baru dari checkout Scalev, menyinkronkan kontak leads pembeli, dan melayani pertanyaan calon pelanggan di widget live chat 24/7.',
                       tags: ['Scalev MCP', 'Form Order Checkout', 'Tracking Penjualan', 'Sinkronisasi Leads'],
                     },
                   ]
                 : [
                     {
                       Icon: Calendar,
-                      category: 'Content & Social Media Scheduling',
+                      category: 'Example: Social Media Scheduling',
                       prompt: '“Cuan, connect to Postiz MCP”',
                       title: 'Postiz MCP',
-                      desc: 'Agents research trending topics, draft promotional copy, and schedule multi-platform posts across X, LinkedIn, and Instagram automatically without manual copy-paste.',
+                      desc: 'Agents can research trending topics, draft promotional copy, and schedule multi-platform posts across X, LinkedIn, and Instagram automatically without manual copy-paste.',
                       tags: ['Postiz MCP', 'Social Post Scheduler', 'Multi-Platform', 'Content Calendar'],
                     },
                     {
                       Icon: Server,
-                      category: 'Cloud Hosting & Infrastructure',
+                      category: 'Example: Cloud Hosting & Infrastructure',
                       prompt: '“Cuan, connect to Hetzner MCP”',
                       title: 'Hetzner Cloud MCP',
-                      desc: 'Agents inspect VPS health, manage networking, and keep your self-hosted infrastructure running fast, secure, and available 24/7 with zero terminal complexity.',
+                      desc: 'Agents can inspect VPS health, manage networking, and keep your self-hosted infrastructure running fast, secure, and available 24/7 with zero terminal complexity.',
                       tags: ['Hetzner Cloud MCP', '24/7 VPS Server', 'Server Health', 'Cloud Infrastructure'],
                     },
                     {
                       Icon: ShoppingBag,
-                      category: 'E-Commerce Orders & Payments',
+                      category: 'Example: E-Commerce Orders & Payments',
                       prompt: '“Cuan, connect to Shopify MCP”',
                       title: 'Shopify & Stripe MCP',
-                      desc: 'Agents retrieve incoming customer orders, sync lead data, and answer shopper questions in 24/7 live chat with full purchase history context.',
+                      desc: 'Agents can retrieve incoming customer orders, sync lead data, and answer shopper questions in 24/7 live chat with full purchase history context.',
                       tags: ['Shopify MCP', 'Stripe Payments', 'Order Tracking', 'Customer Support'],
                     },
                   ]
@@ -1129,7 +1129,7 @@ export function LandingPage() {
                         <Icon className="h-5 w-5" strokeWidth={1.5} />
                       </div>
                       <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                        MCP
+                        {language === 'id' ? 'Contoh MCP' : 'Example MCP'}
                       </span>
                     </div>
 
@@ -1175,13 +1175,13 @@ export function LandingPage() {
                     </div>
                     <h4 className="text-base font-bold text-foreground">
                       {language === 'id'
-                        ? 'Tidak Terbatas pada 3 Tool Ini Saja — Asal Mendukung MCP, Bisa Terhubung'
-                        : 'Not Limited to Just These Three — Any MCP-Enabled Service Connects Instantly'}
+                        ? '3 Tool di Atas Hanya Contoh — Bebas Hubungkan Software MCP Apa Pun'
+                        : 'The 3 Tools Above Are Just Examples — Connect Any MCP Software Freely'}
                     </h4>
                     <p className="mt-1 text-xs sm:text-sm leading-relaxed text-muted-foreground">
                       {language === 'id'
-                        ? 'Cuan mengadopsi standar terbuka Model Context Protocol (MCP). Software apa pun yang Anda gunakan—baik tool SaaS, database (PostgreSQL/MySQL), spreadsheet, maupun sistem internal kantor—selama menyediakan konektor MCP, agen Cuan bisa langsung menghubungkan dan mengeksekusinya.'
-                        : 'Cuan is built on the open Model Context Protocol (MCP) standard. Any software you use—whether third-party SaaS, databases (PostgreSQL/MySQL), spreadsheets, or custom internal APIs—can be directly operated by your Cuan agents without proprietary lock-in.'}
+                        ? 'Tebar.app, IDCloudHost, dan Scalev hanyalah contoh skenario dunia nyata. Cuan mengadopsi protokol standar terbuka Model Context Protocol (MCP). Aplikasi bisnis apa pun yang Anda gunakan—baik SaaS lokal, sistem internasional, database (PostgreSQL/MySQL), spreadsheet stok, hingga software kasir internal—selama memiliki server MCP, bisa langsung dioperasikan oleh agen Cuan.'
+                        : 'Postiz, Hetzner Cloud, and Shopify are merely real-world scenario examples. Cuan is built entirely on the open Model Context Protocol (MCP) standard. Any business tool you rely on—whether international SaaS, company databases (PostgreSQL/MySQL), inventory spreadsheets, or custom internal systems—as long as it supports MCP, your Cuan agents can operate it instantly.'}
                     </p>
                   </div>
                 </div>

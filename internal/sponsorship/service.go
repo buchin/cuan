@@ -126,7 +126,7 @@ func NewService(store Store, logoStorage *LogoStorage, webhookSecret string) *Se
 		store:           store,
 		logoStorage:     logoStorage,
 		webhookSecret:   strings.TrimSpace(webhookSecret),
-		checkoutBaseURL: "https://checkout.dojo.id/products/cuan-founding-backer",
+		checkoutBaseURL: "https://dojo.cc/checkout/cuan-founding-backer",
 	}
 }
 
@@ -138,7 +138,7 @@ func (s *Service) CheckoutBaseURL() string {
 	if s.checkoutBaseURL != "" {
 		return s.checkoutBaseURL
 	}
-	return "https://checkout.dojo.id/products/cuan-founding-backer"
+	return "https://dojo.cc/checkout/cuan-founding-backer"
 }
 
 func (s *Service) SetCheckoutBaseURL(u string) {
@@ -338,7 +338,7 @@ func (s *Service) CreateCheckoutSession(ctx context.Context, req CreateCheckoutR
 
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		u, _ = url.Parse("https://checkout.dojo.id/products/cuan-founding-backer")
+		u, _ = url.Parse("https://dojo.cc/checkout/cuan-founding-backer")
 	}
 	q := u.Query()
 	q.Set("order_id", dojoOrderID)

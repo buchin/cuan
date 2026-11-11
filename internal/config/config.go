@@ -153,7 +153,7 @@ func Load() *Config {
 	}
 	dojoWebhookSecret := getEnv("DOJO_WEBHOOK_SECRET", "dev-dojo-secret")
 	dojoWaitingListWebhookURL := getEnv("DOJO_WAITING_LIST_WEBHOOK_URL", "")
-	dojoCheckoutURL := getEnv("DOJO_CHECKOUT_URL", "https://checkout.dojo.id/products/cuan-founding-backer")
+	dojoCheckoutURL := getEnv("DOJO_CHECKOUT_URL", "https://dojo.cc/checkout/cuan-founding-backer")
 	sponsorLogosDir := getEnv("CUAN_SPONSOR_LOGOS_DIR", "data/sponsors/logos")
 	readmePath := getEnv("CUAN_README_PATH", "README.md")
 	sponsorsArchiveDir := getEnv("CUAN_SPONSORS_ARCHIVE_DIR", "sponsors")
