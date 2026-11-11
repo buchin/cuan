@@ -166,12 +166,11 @@ export function LandingPage() {
         <Link
           to="/"
           className="inline-flex min-h-11 items-center gap-2 font-medium tracking-tight"
-          aria-label="cuanagent"
+          aria-label="Cuan"
         >
           <CuanMark decorative className="h-7 w-7" />
-          <span className="font-display text-xl tracking-tight">
-            <span className="font-bold text-foreground">cuan</span>
-            <span className="font-normal text-muted-foreground/80">agent</span>
+          <span className="font-display text-xl font-bold tracking-tight text-foreground">
+            cuan
           </span>
         </Link>
         <nav
@@ -180,44 +179,44 @@ export function LandingPage() {
         >
           <a
             href="#problem"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
             {t('Masalah')}
           </a>
           <a
             href="#how-it-works"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
             {t('Cara kerja')}
           </a>
           <a
             href="#ecosystem"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap lg:inline-flex"
           >
             {t('Integrasi & MCP')}
           </a>
           <a
             href="#comparison"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
             {t('Perbandingan')}
           </a>
           <a
             href="#features"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
             {t('Fitur')}
           </a>
           <Link
             to="/sponsor"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap lg:inline-flex"
           >
             {t('Sponsor')}
           </Link>
           <button
             type="button"
             onClick={() => setShowGithubModal(true)}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors cursor-pointer"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors cursor-pointer whitespace-nowrap"
             title="GitHub Repository"
           >
             <Github className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -228,7 +227,7 @@ export function LandingPage() {
           <button
             type="button"
             onClick={() => setPreference(language === 'id' ? 'en' : 'id')}
-            className="inline-flex min-h-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+            className="inline-flex min-h-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors shrink-0"
             title={language === 'id' ? 'Ganti ke English' : 'Switch to Bahasa Indonesia'}
           >
             {language === 'id' ? 'ID' : 'EN'}
@@ -238,7 +237,7 @@ export function LandingPage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors shrink-0"
             aria-label="Ganti tema"
             title={resolvedTheme === 'dark' ? 'Tema terang' : 'Tema gelap'}
           >
@@ -249,11 +248,11 @@ export function LandingPage() {
             )}
           </button>
 
-          {/* Waiting List Primary Action Button */}
+          {/* Waiting List Primary Action Button (desktop/tablet only; mobile uses the prominent Hero form directly below) */}
           <button
             type="button"
             onClick={scrollToWaitingList}
-            className="action-primary min-h-10 px-4 text-xs sm:text-sm font-semibold shadow-xs cursor-pointer"
+            className="action-primary hidden sm:inline-flex min-h-10 px-4 text-xs sm:text-sm font-semibold shadow-xs cursor-pointer whitespace-nowrap shrink-0"
           >
             {t('Gabung Waiting List')}
           </button>
@@ -964,9 +963,8 @@ export function LandingPage() {
                     <th className="px-3 py-3.5 font-bold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
                       <div className="inline-flex items-center gap-1.5 font-bold">
                         <CuanMark decorative className="h-4 w-4" />
-                        <span className="font-display tracking-tight text-sm">
-                          <span className="font-bold text-foreground">cuan</span>
-                          <span className="font-normal text-muted-foreground/80">agent</span>
+                        <span className="font-display tracking-tight text-sm font-bold text-foreground">
+                          cuan
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
@@ -1155,9 +1153,8 @@ export function LandingPage() {
                     <div>
                       <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-foreground">
                         <CuanMark decorative className="h-3.5 w-3.5" />
-                        <span className="font-display tracking-tight">
-                          <span className="font-bold text-foreground">cuan</span>
-                          <span className="font-normal text-muted-foreground/80">agent</span>
+                        <span className="font-display tracking-tight font-bold text-foreground">
+                          cuan
                         </span>
                         <span className="text-xs font-normal text-muted-foreground">({t('AI Project Manager')})</span>
                       </div>
@@ -1315,9 +1312,8 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-border/60 px-6 py-6 text-sm text-muted-foreground sm:px-8">
         <p className="flex items-center gap-1.5">
-          <span className="font-display tracking-tight">
-            <span className="font-bold text-foreground">cuan</span>
-            <span className="font-normal text-muted-foreground/80">agent</span>
+          <span className="font-display tracking-tight font-bold text-foreground">
+            cuan
           </span>
           <span>· {t('Your always-on project manager.')}</span>
         </p>

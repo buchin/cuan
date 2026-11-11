@@ -51,22 +51,22 @@ export function SponsorPage() {
         <Link
           to="/"
           className="inline-flex min-h-11 items-center gap-2 font-medium tracking-tight"
-          aria-label="cuanagent"
+          aria-label="Cuan"
         >
           <CuanMark decorative className="h-7 w-7" />
-          <span className="font-display text-xl tracking-tight">
-            <span className="font-bold text-foreground">cuan</span>
-            <span className="font-normal text-muted-foreground/80">agent</span>
+          <span className="font-display text-xl font-bold tracking-tight text-foreground">
+            cuan
           </span>
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-4">
           <Link
             to="/"
-            className="inline-flex min-h-9 items-center gap-1.5 px-3 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex min-h-9 items-center gap-1.5 px-3 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>{t('Kembali ke Beranda')}</span>
+            <span className="hidden sm:inline">{t('Kembali ke Beranda')}</span>
+            <span className="sm:hidden">{t('Beranda')}</span>
           </Link>
 
           {/* Language Switcher */}
@@ -361,9 +361,8 @@ export function SponsorPage() {
       {/* Footer */}
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-border/60 px-6 py-6 text-sm text-muted-foreground sm:px-8">
         <p className="flex items-center gap-1.5">
-          <span className="font-display tracking-tight">
-            <span className="font-bold text-foreground">cuan</span>
-            <span className="font-normal text-muted-foreground/80">agent</span>
+          <span className="font-display tracking-tight font-bold text-foreground">
+            cuan
           </span>
           <span>· {t('Your always-on project manager.')}</span>
         </p>
