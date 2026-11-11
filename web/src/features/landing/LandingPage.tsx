@@ -13,10 +13,14 @@ import {
   Users,
   Sun,
   Moon,
-  Clock,
   Coins,
-  AlertCircle,
   Sparkles,
+  Bot,
+  Terminal,
+  ExternalLink,
+  Check,
+  X,
+  Minus,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -55,6 +59,12 @@ export function LandingPage() {
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
           >
             {t('Cara kerja')}
+          </a>
+          <a
+            href="#comparison"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+          >
+            {t('Perbandingan')}
           </a>
           <a
             href="#features"
@@ -192,34 +202,54 @@ export function LandingPage() {
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 {
-                  Icon: Clock,
-                  title: 'Sewa tim teknis & operasional mahal',
-                  desc: 'Gaji jutaan rupiah per bulan untuk programmer, admin, atau CS tambahan. Rawan miskomunikasi dan antrean berminggu-minggu bahkan untuk otomasi atau revisi kecil.',
+                  Icon: Bot,
+                  title: 'Chatbot web cuma memberi saran teks, eksekusi tetap manual',
+                  refText: 'ChatGPT, Claude.ai',
+                  refUrl: 'https://chatgpt.com',
+                  desc: 'Chatbot percakapan dirancang untuk tanya-jawab dan drafting ide. Mereka tidak terhubung langsung ke server atau database toko Anda, sehingga Anda tetap harus manual copy-paste kode, menyatukan webhook, dan tebak-tebak errornya sendiri.',
                 },
                 {
-                  Icon: Coins,
-                  title: 'Langganan SaaS AI luar negeri bikin boncos',
-                  desc: 'Tagihan bulanan membengkak dengan markup tinggi, kuota token dibatasi, dan data pelanggan serta rahasia bisnis Anda tersimpan di server pihak ketiga.',
+                  Icon: Terminal,
+                  title: 'Tool koding CLI dibuat untuk programmer di terminal lokal',
+                  refText: 'Claude Code, Antigravity, Codex',
+                  refUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code',
+                  desc: 'Sangat andal untuk developer, tetapi wajib mengoperasikan layar terminal hitam (bash/git) yang membingungkan non-teknis. Berjalan di laptop lokal sehingga langsung mati begitu laptop Anda tutup atau sleep, dan tidak bisa diakses santai dari HP.',
                 },
                 {
-                  Icon: AlertCircle,
-                  title: 'Ngulik sendiri malah burnout',
-                  desc: 'Mencoba utak-atik terminal, git, webhook, dan kodingan sendiri. Seharian habis membaca tutorial dan error log, waktu untuk jualan malah hilang.',
+                  Icon: Activity,
+                  title: 'Agen otonom mentah minim rem pengaman & bukan untuk bisnis',
+                  refText: 'Hermes Agent, AutoGPT',
+                  refUrl: 'https://github.com/NousResearch/hermes-agent',
+                  desc: 'Dirancang untuk riset teknis dan scripting otonom, bukan operasional bisnis harian. Tanpa Approval Card dan verifikasi visual, eksekusi mandiri rawan looping token tak berujung, dan tidak memiliki inbox WhatsApp atau CRM untuk melayani pelanggan.',
                 },
-              ].map(({ Icon, title, desc }) => (
+              ].map(({ Icon, title, refText, refUrl, desc }) => (
                 <div
                   key={title}
-                  className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border"
+                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border"
                 >
-                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                    <Icon className="h-5 w-5" />
+                  <div>
+                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-display text-base font-semibold text-foreground">
+                      {t(title)}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {t(desc)}
+                    </p>
                   </div>
-                  <h3 className="font-display text-base font-semibold text-foreground">
-                    {t(title)}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {t(desc)}
-                  </p>
+                  <div className="mt-5 pt-3.5 border-t border-border/40">
+                    <a
+                      href={refUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground/70 hover:text-foreground transition-colors"
+                      title={t('Lihat referensi resmi')}
+                    >
+                      <span>{t('Referensi:')} {refText}</span>
+                      <ExternalLink className="h-3 w-3 opacity-60" />
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>
@@ -351,6 +381,317 @@ export function LandingPage() {
                 </div>
               </li>
             </ol>
+          </div>
+        </section>
+
+        {/* 3.5. COMPARISON SECTION (Why Cuan is Different) */}
+        <section
+          id="comparison"
+          className="scroll-mt-6 border-t border-border/60 bg-muted/10 px-6 py-16 sm:px-8 sm:py-24"
+          aria-labelledby="comparison-title"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                <span>{t('Mengapa Cuan Berbeda?')}</span>
+              </div>
+              <h2
+                id="comparison-title"
+                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+              >
+                {t('Bukan Sekadar Chatbot atau Tool Programmer')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {t(
+                  'Perbandingan faktual antara chatbot percakapan biasa, tool koding developer, framework agen otonom, dan Cuan.',
+                )}
+              </p>
+            </div>
+
+            {/* DESKTOP TABLE VIEW (hidden sm:block) */}
+            <div className="mt-10 hidden sm:block overflow-x-auto pb-4">
+              <table className="w-full min-w-[760px] border-collapse text-left text-xs sm:text-sm">
+                <thead>
+                  <tr className="border-b border-border/60">
+                    <th className="py-3.5 pr-4 font-semibold text-muted-foreground w-[24%]">
+                      {t('Kebutuhan Bisnis Anda')}
+                    </th>
+                    <th className="px-3 py-3.5 font-medium text-muted-foreground text-center w-[19%]">
+                      <div className="font-medium text-foreground">{t('Chatbot Web')}</div>
+                      <a
+                        href="https://chatgpt.com"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
+                      >
+                        ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                      </a>
+                    </th>
+                    <th className="px-3 py-3.5 font-medium text-muted-foreground text-center w-[19%]">
+                      <div className="font-medium text-foreground">{t('Tool Koding CLI')}</div>
+                      <a
+                        href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
+                      >
+                        Claude Code/Codex <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                      </a>
+                    </th>
+                    <th className="px-3 py-3.5 font-medium text-muted-foreground text-center w-[19%]">
+                      <div className="font-medium text-foreground">{t('Agen Otonom')}</div>
+                      <a
+                        href="https://github.com/NousResearch/hermes-agent"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
+                      >
+                        Hermes Agent <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                      </a>
+                    </th>
+                    <th className="px-3 py-3.5 font-semibold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
+                      <div className="inline-flex items-center gap-1.5 font-semibold">
+                        <CuanMark decorative className="h-4 w-4" />
+                        cuan
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                        {t('AI Project Manager')}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {[
+                    {
+                      label: 'Lingkungan eksekusi',
+                      chatbot: { icon: 'x', text: 'Hanya teks di browser' },
+                      coder: { icon: 'warn', text: 'Terminal laptop lokal' },
+                      hermes: { icon: 'warn', text: 'Python di mesin dev' },
+                      cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
+                    },
+                    {
+                      label: 'Antarmuka & kemudahan pakai',
+                      chatbot: { icon: 'warn', text: 'Chat teks saja' },
+                      coder: { icon: 'x', text: 'Wajib terminal hitam & git' },
+                      hermes: { icon: 'x', text: 'CLI & dashboard teknis' },
+                      cuan: { icon: 'check', text: 'Web & Mobile tenang (ramah non-teknis)' },
+                    },
+                    {
+                      label: 'Rem pengaman persetujuan',
+                      chatbot: { icon: 'x', text: 'Tidak ada (hanya saran)' },
+                      coder: { icon: 'warn', text: 'Prompt teks [y/n]' },
+                      hermes: { icon: 'x', text: 'Eksekusi mandiri tanpa gate' },
+                      cuan: { icon: 'check', text: 'Approval Card 1-Tap' },
+                    },
+                    {
+                      label: 'Quality Gate & verifikasi selesai',
+                      chatbot: { icon: 'x', text: 'Tidak ada pengujian' },
+                      coder: { icon: 'warn', text: 'Testing kode programmer' },
+                      hermes: { icon: 'warn', text: 'Self-evaluation LLM' },
+                      cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
+                    },
+                    {
+                      label: 'Alat operasional bisnis (WhatsApp/CRM)',
+                      chatbot: { icon: 'x', text: 'Tidak ada' },
+                      coder: { icon: 'x', text: 'Tidak ada' },
+                      hermes: { icon: 'warn', text: 'Bridge bot dasar (tanpa CRM)' },
+                      cuan: { icon: 'check', text: 'Inbox WhatsApp & CRM Kontak' },
+                    },
+                    {
+                      label: 'Model biaya token AI',
+                      chatbot: { icon: 'x', text: 'Langganan per akun' },
+                      coder: { icon: 'check', text: 'Langganan developer' },
+                      hermes: { icon: 'warn', text: 'Bayar API per token' },
+                      cuan: { icon: 'check', text: 'Bebas dobel biaya (CLI / BYOK)' },
+                    },
+                  ].map((row, idx, arr) => (
+                    <tr key={row.label} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3.5 pr-4 font-medium text-foreground">
+                        {t(row.label)}
+                      </td>
+                      <td className="px-3 py-3.5 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-1">
+                          {row.chatbot.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          {row.chatbot.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
+                          {row.chatbot.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
+                          <span className="text-[11px] leading-tight">{t(row.chatbot.text)}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-1">
+                          {row.coder.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          {row.coder.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
+                          {row.coder.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
+                          <span className="text-[11px] leading-tight">{t(row.coder.text)}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3.5 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-1">
+                          {row.hermes.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          {row.hermes.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
+                          {row.hermes.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
+                          <span className="text-[11px] leading-tight">{t(row.hermes.text)}</span>
+                        </div>
+                      </td>
+                      <td className={`px-3 py-3.5 text-center bg-primary/5 dark:bg-primary/10 border-x border-border/50 ${idx === arr.length - 1 ? 'border-b rounded-b-lg' : ''}`}>
+                        <div className="flex flex-col items-center gap-1 font-medium text-foreground">
+                          {row.cuan.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+                          {row.cuan.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
+                          {row.cuan.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
+                          <span className="text-[11px] leading-tight text-foreground font-medium">{t(row.cuan.text)}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE CARD VIEW (block sm:hidden) - Zero Horizontal Scroll, High Ergonomics */}
+            <div className="mt-8 space-y-4 sm:hidden">
+              {[
+                {
+                  label: 'Lingkungan eksekusi',
+                  desc: 'Di mana tugas benar-benar dijalankan',
+                  chatbot: { icon: 'x', text: 'Hanya teks di browser' },
+                  coder: { icon: 'warn', text: 'Terminal laptop lokal' },
+                  hermes: { icon: 'warn', text: 'Python di mesin dev' },
+                  cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
+                },
+                {
+                  label: 'Antarmuka & kemudahan pakai',
+                  desc: 'Kenyamanan akses untuk tim non-teknis',
+                  chatbot: { icon: 'warn', text: 'Chat teks saja' },
+                  coder: { icon: 'x', text: 'Wajib terminal hitam & git' },
+                  hermes: { icon: 'x', text: 'CLI & dashboard teknis' },
+                  cuan: { icon: 'check', text: 'Web & Mobile tenang (ramah non-teknis)' },
+                },
+                {
+                  label: 'Rem pengaman persetujuan',
+                  desc: 'Kontrol manusia sebelum aksi menyentuh sistem',
+                  chatbot: { icon: 'x', text: 'Tidak ada (hanya saran)' },
+                  coder: { icon: 'warn', text: 'Prompt teks [y/n]' },
+                  hermes: { icon: 'x', text: 'Eksekusi mandiri tanpa gate' },
+                  cuan: { icon: 'check', text: 'Approval Card 1-Tap' },
+                },
+                {
+                  label: 'Quality Gate & verifikasi selesai',
+                  desc: 'Pembuktian nyata sebelum tugas dianggap tuntas',
+                  chatbot: { icon: 'x', text: 'Tidak ada pengujian' },
+                  coder: { icon: 'warn', text: 'Testing kode programmer' },
+                  hermes: { icon: 'warn', text: 'Self-evaluation LLM' },
+                  cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
+                },
+                {
+                  label: 'Alat operasional bisnis (WhatsApp/CRM)',
+                  desc: 'Integrasi chat pelanggan dan database kontak',
+                  chatbot: { icon: 'x', text: 'Tidak ada' },
+                  coder: { icon: 'x', text: 'Tidak ada' },
+                  hermes: { icon: 'warn', text: 'Bridge bot dasar (tanpa CRM)' },
+                  cuan: { icon: 'check', text: 'Inbox WhatsApp & CRM Kontak' },
+                },
+                {
+                  label: 'Model biaya token AI',
+                  desc: 'Struktur biaya pemakaian kecerdasan buatan',
+                  chatbot: { icon: 'x', text: 'Langganan per akun' },
+                  coder: { icon: 'check', text: 'Langganan developer' },
+                  hermes: { icon: 'warn', text: 'Bayar API per token' },
+                  cuan: { icon: 'check', text: 'Bebas dobel biaya (CLI / BYOK)' },
+                },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  className="rounded-xl border border-border/60 bg-card p-4 shadow-2xs"
+                >
+                  <div className="mb-3">
+                    <h3 className="font-display text-sm font-semibold text-foreground">
+                      {t(row.label)}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t(row.desc)}
+                    </p>
+                  </div>
+
+                  {/* Cuan Highlight Card */}
+                  <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/5 dark:bg-primary/10 p-3">
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                        <CuanMark decorative className="h-3.5 w-3.5" />
+                        cuan ({t('AI Project Manager')})
+                      </div>
+                      <div className="mt-0.5 text-xs font-medium text-foreground">
+                        {t(row.cuan.text)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Alternatives Comparison List */}
+                  <div className="space-y-2 border-t border-border/40 pt-2.5 text-xs">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-[11px]">Chatbot (ChatGPT/Claude)</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
+                        {row.chatbot.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
+                        {row.chatbot.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
+                        {row.chatbot.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        <span>{t(row.chatbot.text)}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-[11px]">Tool Koding (Claude Code)</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
+                        {row.coder.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
+                        {row.coder.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
+                        {row.coder.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        <span>{t(row.coder.text)}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span className="text-[11px]">Agen Otonom (Hermes Agent)</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
+                        {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
+                        {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
+                        {row.hermes.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        <span>{t(row.hermes.text)}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Reference Links on Mobile */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
+                <a
+                  href="https://chatgpt.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                >
+                  ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+                <span>·</span>
+                <a
+                  href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                >
+                  Claude Code <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+                <span>·</span>
+                <a
+                  href="https://github.com/NousResearch/hermes-agent"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                >
+                  Hermes Agent <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                </a>
+              </div>
+            </div>
           </div>
         </section>
 
