@@ -2,7 +2,6 @@ import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  ChevronRight,
   GitBranch,
   Github,
   MessageSquare,
@@ -122,22 +121,10 @@ export function LandingPage() {
             {t('Cara kerja')}
           </a>
           <a
-            href="#comparison"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
-          >
-            {t('Perbandingan')}
-          </a>
-          <a
             href="#features"
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
             {t('Fitur')}
-          </a>
-          <a
-            href="#ecosystem"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap lg:inline-flex"
-          >
-            {t('Integrasi & MCP')}
           </a>
           <Link
             to="/sponsor"
@@ -189,8 +176,7 @@ export function LandingPage() {
           aria-labelledby="landing-title"
         >
           <div className="mx-auto max-w-3xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-foreground/80">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+            <div className="mb-4 inline-flex items-center rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-foreground/80">
               <span>{t('Agentic Project Manager untuk Digital Marketer')}</span>
             </div>
             <h1
@@ -224,7 +210,7 @@ export function LandingPage() {
                     />
                     <button
                       type="submit"
-                      disabled={isSubmitting || !email.trim()}
+                      disabled={isSubmitting}
                       className="action-primary min-h-12 px-6 text-base font-semibold shadow-xs shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {isSubmitting ? (
@@ -296,15 +282,6 @@ export function LandingPage() {
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3.5">
-              <a
-                href="#problem"
-                className="action-secondary min-h-12 px-6 text-base font-semibold"
-              >
-                {t('Pelajari Cara Kerja')}
-                <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
-              </a>
-            </div>
           </div>
 
           {/* Centered 3-Device Mockup Showcase - Optimized Above the Fold */}
@@ -1264,6 +1241,18 @@ export function LandingPage() {
           >
             {t('Program Sponsor Founding')}
           </Link>
+          <a
+            href="#comparison"
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
+          >
+            {t('Perbandingan')}
+          </a>
+          <a
+            href="#ecosystem"
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
+          >
+            {t('Integrasi & MCP')}
+          </a>
           <a
             className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
             href={repository + '#readme'}
