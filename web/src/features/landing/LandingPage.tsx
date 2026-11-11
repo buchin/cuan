@@ -971,13 +971,13 @@ export function LandingPage() {
                 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
               >
                 {language === 'id'
-                  ? 'Cukup Minta Cuan Koneksikan MCP Tool Pilihan Anda'
-                  : 'Prompt Cuan to Connect Your Favorite Tools via MCP'}
+                  ? 'Bebas Hubungkan Software Bisnis Apa Pun Lewat MCP'
+                  : 'Connect Any Business Tool Freely via Open MCP'}
               </h2>
               <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
                 {language === 'id'
-                  ? '3 tool di bawah ini hanyalah contoh ilustrasi integrasi. Anda tidak dibatasi tool-tool ini—software apa pun yang Anda gunakan, asal mendukung standar terbuka Model Context Protocol (MCP), Cuan bisa langsung menghubungkan dan mengeksekusinya tanpa vendor lock-in.'
-                  : 'The 3 tools below are illustrative integration examples. You are never limited to these—any software you use, as long as it supports the open Model Context Protocol (MCP) standard, Cuan can connect and execute seamlessly without vendor lock-in.'}
+                  ? 'Cuan mengadopsi standar terbuka Model Context Protocol (MCP). Dari manajemen sosmed, server hosting, checkout e-commerce, hingga database internal—semua bisa dioperasikan agen cukup lewat chat tanpa batas vendor.'
+                  : 'Cuan is built entirely on the open Model Context Protocol (MCP) standard. From social media, server hosting, and e-commerce checkouts to internal databases—your agents operate everything in plain words without vendor lock-in.'}
               </p>
             </div>
 
@@ -987,68 +987,57 @@ export function LandingPage() {
                 ? [
                     {
                       Icon: Calendar,
-                      category: 'Contoh: Konten & Media Sosial',
-                      prompt: '“Cuan, konekin ke Tebar.app MCP”',
+                      category: 'Konten & Media Sosial',
+                      prompt: '“Cuan, jadwalkan postingan promo ke Instagram & X”',
                       title: 'Tebar.app MCP',
-                      desc: 'Agen bisa meriset tren, menulis draf copy promosi, dan langsung mengatur jadwal postingan di media sosial lewat Tebar.app tanpa repot copy-paste atau bolak-balik aplikasi.',
-                      tags: ['Tebar.app MCP', 'Jadwal Posting Sosmed', 'Auto-Draft Konten', 'Multi-Channel'],
+                      desc: 'Agen meriset tren, menulis draf copy promosi, dan langsung mengatur jadwal postingan di media sosial tanpa repot bolak-balik aplikasi.',
                     },
                     {
                       Icon: Server,
-                      category: 'Contoh: Cloud Hosting & Server VPS',
-                      prompt: '“Cuan, konekin ke IDCloudHost MCP”',
+                      category: 'Hosting & Server VPS',
+                      prompt: '“Cuan, cek utilisasi RAM dan backup server VPS”',
                       title: 'IDCloudHost MCP',
-                      desc: 'Agen bisa memantau performa VPS, mengelola domain, dan memastikan server infrastruktur bisnis Anda terus aktif lancar 24/7 tanpa perlu menyentuh terminal.',
-                      tags: ['IDCloudHost MCP', 'Server VPS 24/7', 'Status Hosting', 'Manajemen Domain'],
+                      desc: 'Agen memantau performa VPS, mengelola domain, dan memastikan server infrastruktur bisnis Anda terus aktif lancar 24/7 tanpa menyentuh terminal.',
                     },
                     {
                       Icon: ShoppingBag,
-                      category: 'Contoh: Penjualan & Form Order Web',
-                      prompt: '“Cuan, konekin ke Scalev MCP”',
+                      category: 'Penjualan & Form Order',
+                      prompt: '“Cuan, rekap pesanan baru dan sinkronkan leads”',
                       title: 'Scalev MCP',
-                      desc: 'Agen bisa menarik data pesanan baru dari checkout Scalev, menyinkronkan kontak leads pembeli, dan melayani pertanyaan calon pelanggan di widget live chat 24/7.',
-                      tags: ['Scalev MCP', 'Form Order Checkout', 'Tracking Penjualan', 'Sinkronisasi Leads'],
+                      desc: 'Agen menarik data pesanan baru dari checkout Scalev, menyinkronkan kontak leads pembeli, dan siap membalas pertanyaan calon pelanggan di live chat 24/7.',
                     },
                   ]
                 : [
                     {
                       Icon: Calendar,
-                      category: 'Example: Social Media Scheduling',
-                      prompt: '“Cuan, connect to Postiz MCP”',
+                      category: 'Social Media Scheduling',
+                      prompt: '“Cuan, schedule promotional posts to X & LinkedIn”',
                       title: 'Postiz MCP',
-                      desc: 'Agents can research trending topics, draft promotional copy, and schedule multi-platform posts across X, LinkedIn, and Instagram automatically without manual copy-paste.',
-                      tags: ['Postiz MCP', 'Social Post Scheduler', 'Multi-Platform', 'Content Calendar'],
+                      desc: 'Agents research trending topics, draft promotional copy, and schedule multi-platform posts automatically without manual copy-paste.',
                     },
                     {
                       Icon: Server,
-                      category: 'Example: Cloud Hosting & Infrastructure',
-                      prompt: '“Cuan, connect to Hetzner MCP”',
+                      category: 'Cloud Hosting & Infrastructure',
+                      prompt: '“Cuan, check server RAM usage and run backup”',
                       title: 'Hetzner Cloud MCP',
-                      desc: 'Agents can inspect VPS health, manage networking, and keep your self-hosted infrastructure running fast, secure, and available 24/7 with zero terminal complexity.',
-                      tags: ['Hetzner Cloud MCP', '24/7 VPS Server', 'Server Health', 'Cloud Infrastructure'],
+                      desc: 'Agents inspect VPS health, manage networking, and keep your self-hosted infrastructure running fast and secure 24/7 with zero terminal complexity.',
                     },
                     {
                       Icon: ShoppingBag,
-                      category: 'Example: E-Commerce Orders & Payments',
-                      prompt: '“Cuan, connect to Shopify MCP”',
+                      category: 'E-Commerce Orders & Payments',
+                      prompt: '“Cuan, sync incoming orders and update leads”',
                       title: 'Shopify & Stripe MCP',
-                      desc: 'Agents can retrieve incoming customer orders, sync lead data, and answer shopper questions in 24/7 live chat with full purchase history context.',
-                      tags: ['Shopify MCP', 'Stripe Payments', 'Order Tracking', 'Customer Support'],
+                      desc: 'Agents retrieve incoming customer orders, sync lead data, and answer shopper questions in 24/7 live chat with full purchase history context.',
                     },
                   ]
-              ).map(({ Icon, category, prompt, title, desc, tags }) => (
+              ).map(({ Icon, category, prompt, title, desc }) => (
                 <div
                   key={title}
                   className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80 flex flex-col justify-between"
                 >
                   <div>
-                    <div className="mb-4 flex items-center justify-between">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                        <Icon className="h-5 w-5" strokeWidth={1.5} />
-                      </div>
-                      <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                        {language === 'id' ? 'Contoh MCP' : 'Example MCP'}
-                      </span>
+                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                      <Icon className="h-5 w-5" strokeWidth={1.5} />
                     </div>
 
                     <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
@@ -1059,7 +1048,7 @@ export function LandingPage() {
                     </h3>
 
                     {/* Chat Prompt Bubble */}
-                    <div className="my-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs font-mono text-foreground/90 flex items-center gap-2">
+                    <div className="my-3.5 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs font-mono text-foreground/90 flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                       <span className="truncate">{prompt}</span>
                     </div>
@@ -1068,46 +1057,12 @@ export function LandingPage() {
                       {desc}
                     </p>
                   </div>
-
-                  <div className="mt-5 flex flex-wrap gap-1.5 text-xs font-mono text-muted-foreground border-t border-border/40 pt-3.5">
-                    {tags.map((tag) => (
-                      <span key={tag} className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Standar Terbuka MCP Clarification Banner */}
-            <div className="mt-8 rounded-xl border border-border/60 bg-card p-5 sm:p-6 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
-                    <Sparkles className="h-5 w-5" strokeWidth={1.5} />
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-primary uppercase tracking-wider mb-0.5">
-                      {language === 'id' ? 'Standar Terbuka Model Context Protocol' : 'Open Model Context Protocol Standard'}
-                    </div>
-                    <h4 className="text-base font-bold text-foreground">
-                      {language === 'id'
-                        ? '3 Tool di Atas Hanya Contoh — Bebas Hubungkan Software MCP Apa Pun'
-                        : 'The 3 Tools Above Are Just Examples — Connect Any MCP Software Freely'}
-                    </h4>
-                    <p className="mt-1 text-xs sm:text-sm leading-relaxed text-muted-foreground">
-                      {language === 'id'
-                        ? 'Tebar.app, IDCloudHost, dan Scalev hanyalah contoh skenario dunia nyata. Cuan mengadopsi protokol standar terbuka Model Context Protocol (MCP). Aplikasi bisnis apa pun yang Anda gunakan—baik SaaS lokal, sistem internasional, database (PostgreSQL/MySQL), spreadsheet stok, hingga software kasir internal—selama memiliki server MCP, bisa langsung dioperasikan oleh agen Cuan.'
-                        : 'Postiz, Hetzner Cloud, and Shopify are merely real-world scenario examples. Cuan is built entirely on the open Model Context Protocol (MCP) standard. Any business tool you rely on—whether international SaaS, company databases (PostgreSQL/MySQL), inventory spreadsheets, or custom internal systems—as long as it supports MCP, your Cuan agents can operate it instantly.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Model AI resmi highlight banner without hardcoded outdated version numbers */}
-            <div className="mt-4 rounded-xl border border-border/60 bg-card p-5 sm:p-6 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            {/* Model AI resmi highlight banner */}
+            <div className="mt-8 rounded-xl border border-border/60 bg-card p-5 sm:p-6 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Bot className="h-5 w-5" strokeWidth={1.5} />
