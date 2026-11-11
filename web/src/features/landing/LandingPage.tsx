@@ -26,9 +26,9 @@ import {
   Database,
   Loader2,
   Cpu,
+  Server,
   Calendar,
   ShoppingBag,
-  Receipt,
   Sparkles,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
@@ -1032,7 +1032,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* 4.5. OPEN ECOSYSTEM & INTEGRATION (Bring Your Models, Channels, Apps, Skills & Custom MCP) */}
+        {/* 4.5. OPEN ECOSYSTEM & MCP INTEGRATION */}
         <section
           id="ecosystem"
           className="scroll-mt-6 border-t border-border/60 bg-muted/10 px-6 py-16 sm:px-8 sm:py-24"
@@ -1042,115 +1042,176 @@ export function LandingPage() {
             <div className="max-w-3xl">
               <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                 <Cpu className="h-4 w-4 text-primary" strokeWidth={1.5} />
-                <span>{t('Ekosistem Terbuka & Integrasi')}</span>
+                <span>
+                  {language === 'id'
+                    ? 'Ekosistem Terbuka & Integrasi MCP'
+                    : 'Open Ecosystem & MCP Integrations'}
+                </span>
               </div>
               <h2
                 id="ecosystem-title"
                 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
               >
-                {t('Hubungkan Tool Bisnis Favorit, Kanal Jualan, & Model AI Anda')}
+                {language === 'id'
+                  ? 'Cukup Minta Cuan Koneksikan MCP Tool Pilihan Anda'
+                  : 'Prompt Cuan to Connect Your Favorite Tools via MCP'}
               </h2>
               <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
-                {t(
-                  'Satu sistem mandiri di VPS Anda. Cuan tidak mengunci bisnis Anda di ekosistem tertutup. Hubungkan agen ke tool post scheduler sosmed, webhook form pemesanan web, ekstraksi foto struk belanja, hingga model AI resmi tanpa batas.',
-                )}
+                {language === 'id'
+                  ? 'Satu sistem mandiri di VPS Anda. Cuan tidak mengunci bisnis Anda di ekosistem tertutup. Cukup minta tim agen menghubungkan software bisnis Anda lewat standar terbuka Model Context Protocol (MCP).'
+                  : 'One autonomous system on your VPS. Cuan never locks you into a proprietary walled garden. Simply prompt your agent team to connect your favorite tools via the open Model Context Protocol (MCP) standard.'}
               </p>
             </div>
 
+            {/* 3 MCP Examples Grid */}
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {/* CARD 1: OTOMASI KONTEN & POST SCHEDULER */}
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                  <Calendar className="h-5 w-5" strokeWidth={1.5} />
-                </div>
-                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
-                  {t('Konten & Media Sosial')}
-                </div>
-                <h3 className="font-display text-lg font-bold text-foreground">
-                  {t('Jadwal Posting Sosmed & Content Scheduler')}
-                </h3>
-                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  {t(
-                    'Minta Cuan meriset tren, menulis draf copy promosi, dan langsung meneruskannya ke tool post scheduler (Instagram, TikTok, Twitter/X, LinkedIn) secara otomatis tanpa copy-paste manual.',
-                  )}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Post Scheduler</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Instagram & TikTok Auto-draft</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Twitter / X Threads</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Kalender Konten</span>
-                </div>
-              </div>
+              {(language === 'id'
+                ? [
+                    {
+                      Icon: Calendar,
+                      category: 'Konten & Media Sosial',
+                      prompt: '“Cuan, konekin ke Tebar.app MCP”',
+                      title: 'Tebar.app MCP',
+                      desc: 'Agen otomatis meriset tren, menulis draf copy promosi, dan langsung mengatur jadwal postingan di media sosial lewat Tebar.app tanpa repot copy-paste atau bolak-balik aplikasi.',
+                      tags: ['Tebar.app MCP', 'Jadwal Posting Sosmed', 'Auto-Draft Konten', 'Multi-Channel'],
+                    },
+                    {
+                      Icon: Server,
+                      category: 'Cloud Hosting & Server VPS',
+                      prompt: '“Cuan, konekin ke IDCloudHost MCP”',
+                      title: 'IDCloudHost MCP',
+                      desc: 'Agen langsung memantau performa VPS, mengelola domain, dan memastikan server infrastruktur bisnis Anda terus aktif lancar 24/7 tanpa perlu menyentuh terminal.',
+                      tags: ['IDCloudHost MCP', 'Server VPS 24/7', 'Status Hosting', 'Manajemen Domain'],
+                    },
+                    {
+                      Icon: ShoppingBag,
+                      category: 'Penjualan & Form Order Web',
+                      prompt: '“Cuan, konekin ke Scalev MCP”',
+                      title: 'Scalev MCP',
+                      desc: 'Agen otomatis menarik data pesanan baru dari checkout Scalev, menyinkronkan kontak leads pembeli, dan melayani pertanyaan calon pelanggan di widget live chat 24/7.',
+                      tags: ['Scalev MCP', 'Form Order Checkout', 'Tracking Penjualan', 'Sinkronisasi Leads'],
+                    },
+                  ]
+                : [
+                    {
+                      Icon: Calendar,
+                      category: 'Content & Social Media Scheduling',
+                      prompt: '“Cuan, connect to Postiz MCP”',
+                      title: 'Postiz MCP',
+                      desc: 'Agents research trending topics, draft promotional copy, and schedule multi-platform posts across X, LinkedIn, and Instagram automatically without manual copy-paste.',
+                      tags: ['Postiz MCP', 'Social Post Scheduler', 'Multi-Platform', 'Content Calendar'],
+                    },
+                    {
+                      Icon: Server,
+                      category: 'Cloud Hosting & Infrastructure',
+                      prompt: '“Cuan, connect to Hetzner MCP”',
+                      title: 'Hetzner Cloud MCP',
+                      desc: 'Agents inspect VPS health, manage networking, and keep your self-hosted infrastructure running fast, secure, and available 24/7 with zero terminal complexity.',
+                      tags: ['Hetzner Cloud MCP', '24/7 VPS Server', 'Server Health', 'Cloud Infrastructure'],
+                    },
+                    {
+                      Icon: ShoppingBag,
+                      category: 'E-Commerce Orders & Payments',
+                      prompt: '“Cuan, connect to Shopify MCP”',
+                      title: 'Shopify & Stripe MCP',
+                      desc: 'Agents retrieve incoming customer orders, sync lead data, and answer shopper questions in 24/7 live chat with full purchase history context.',
+                      tags: ['Shopify MCP', 'Stripe Payments', 'Order Tracking', 'Customer Support'],
+                    },
+                  ]
+              ).map(({ Icon, category, prompt, title, desc, tags }) => (
+                <div
+                  key={title}
+                  className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                        <Icon className="h-5 w-5" strokeWidth={1.5} />
+                      </div>
+                      <span className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                        MCP
+                      </span>
+                    </div>
 
-              {/* CARD 2: PENJUALAN WEB & LIVE CHAT */}
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                  <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
-                </div>
-                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
-                  {t('Penjualan & Layanan Pelanggan')}
-                </div>
-                <h3 className="font-display text-lg font-bold text-foreground">
-                  {t('Form Order Web, Notifikasi Email & Live Chat 24/7')}
-                </h3>
-                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  {t(
-                    'Sambungkan webhook checkout (Shopify, WooCommerce, form order) agar agen otomatis memproses pesanan masuk, melayani tanya-jawab pelanggan di live chat website 24/7, dan mengirim rekap ke email Anda.',
-                  )}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Webhook Form Order</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Widget Live Chat 24/7</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Notifikasi Email Resend</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Database Kontak & Leads</span>
-                </div>
-              </div>
+                    <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                      {category}
+                    </div>
+                    <h3 className="font-display text-lg font-bold text-foreground">
+                      {title}
+                    </h3>
 
-              {/* CARD 3: PEMBUKUAN STRUK & STANDAR TERBUKA MCP */}
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                  <Receipt className="h-5 w-5" strokeWidth={1.5} />
+                    {/* Chat Prompt Bubble */}
+                    <div className="my-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs font-mono text-foreground/90 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="truncate">{prompt}</span>
+                    </div>
+
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {desc}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-1.5 text-xs font-mono text-muted-foreground border-t border-border/40 pt-3.5">
+                    {tags.map((tag) => (
+                      <span key={tag} className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
-                  {t('Keuangan & Integrasi MCP')}
-                </div>
-                <h3 className="font-display text-lg font-bold text-foreground">
-                  {t('Foto Struk Jadi Mutasi & Koneksi Tool Khusus')}
-                </h3>
-                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  {t(
-                    'Cukup kirim foto struk belanja atau bukti transfer di chat—agen mengekstrak angka dan mencatat mutasi keuangan otomatis. Anda juga bisa menyambungkan spreadsheet stok atau software internal via standar terbuka Model Context Protocol (MCP).',
-                  )}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">AI Vision Baca Struk</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Rekap Mutasi Keuangan</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Koneksi Spreadsheet Stok</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Standar Terbuka MCP</span>
+              ))}
+            </div>
+
+            {/* Standar Terbuka MCP Clarification Banner */}
+            <div className="mt-8 rounded-xl border border-border/60 bg-card p-5 sm:p-6 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+                    <Sparkles className="h-5 w-5" strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-primary uppercase tracking-wider mb-0.5">
+                      {language === 'id' ? 'Standar Terbuka Model Context Protocol' : 'Open Model Context Protocol Standard'}
+                    </div>
+                    <h4 className="text-base font-bold text-foreground">
+                      {language === 'id'
+                        ? 'Tidak Terbatas pada 3 Tool Ini Saja — Asal Mendukung MCP, Bisa Terhubung'
+                        : 'Not Limited to Just These Three — Any MCP-Enabled Service Connects Instantly'}
+                    </h4>
+                    <p className="mt-1 text-xs sm:text-sm leading-relaxed text-muted-foreground">
+                      {language === 'id'
+                        ? 'Cuan mengadopsi standar terbuka Model Context Protocol (MCP). Software apa pun yang Anda gunakan—baik tool SaaS, database (PostgreSQL/MySQL), spreadsheet, maupun sistem internal kantor—selama menyediakan konektor MCP, agen Cuan bisa langsung menghubungkan dan mengeksekusinya.'
+                        : 'Cuan is built on the open Model Context Protocol (MCP) standard. Any software you use—whether third-party SaaS, databases (PostgreSQL/MySQL), spreadsheets, or custom internal APIs—can be directly operated by your Cuan agents without proprietary lock-in.'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Model AI resmi highlight banner */}
-            <div className="mt-8 rounded-xl border border-border/60 bg-card p-5 sm:p-6 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            {/* Model AI resmi highlight banner without hardcoded outdated version numbers */}
+            <div className="mt-4 rounded-xl border border-border/60 bg-card p-5 sm:p-6 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Bot className="h-5 w-5" strokeWidth={1.5} />
                 </div>
                 <div>
                   <h4 className="text-sm sm:text-base font-bold text-foreground">
-                    {t('Bebas Hubungkan Model AI Resmi Favorit Anda')}
+                    {language === 'id'
+                      ? 'Bebas Hubungkan Model AI Resmi Pilihan Anda'
+                      : 'Connect Your Preferred Official AI Subscriptions'}
                   </h4>
                   <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground">
-                    {t('Gunakan akun resmi (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key sendiri (DeepSeek, OpenAI) tanpa biaya token dobel.')}
+                    {language === 'id'
+                      ? 'Gunakan akun resmi (Claude, ChatGPT, Gemini) atau pasang API key sendiri (DeepSeek, OpenAI) tanpa biaya token dobel.'
+                      : 'Bring your official subscriptions (Claude, ChatGPT, Gemini) or use your own API keys (DeepSeek, OpenAI) with zero token markup.'}
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground shrink-0">
-                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">Claude 3.7</span>
-                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">GPT-4o</span>
-                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">Gemini 2.5</span>
-                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">DeepSeek R1</span>
+                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">Claude</span>
+                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">ChatGPT</span>
+                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">Gemini</span>
+                <span className="rounded-md border border-border/60 bg-muted/40 px-2.5 py-1">DeepSeek</span>
               </div>
             </div>
           </div>
