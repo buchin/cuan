@@ -377,12 +377,15 @@ export function LandingPage() {
                         @cuan
                       </div>
                       <p className="text-foreground/90 leading-relaxed text-[11px]">
-                        {t('Siap! Konteks alur kerja dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
+                        {t('Siap! Konteks alur kerja dan webhook terbaca. 3 tugas masuk antrean otomatis. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground font-mono">
-                    <span>#msg_chat_01</span>
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      <span>{t('Antrean: 1 aktif · 2 menunggu')}</span>
+                    </span>
                     <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground font-sans text-[11px]">
                       {t('Draft Approval Card')} &rarr;
                     </span>
@@ -570,6 +573,14 @@ export function LandingPage() {
                       cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                     },
                     {
+                      label: 'Antrean banyak tugas (Multi-task)',
+                      desc: 'Memproses banyak instruksi tanpa ditunggui',
+                      chatbot: { icon: 'x', text: 'Prompt manual 1 per 1' },
+                      coder: { icon: 'warn', text: 'Wajib ditungguin di terminal' },
+                      hermes: { icon: 'warn', text: 'Single-task / laptop aktif' },
+                      cuan: { icon: 'check', text: 'Antrean otonom 24/7 di server' },
+                    },
+                    {
                       label: 'Antarmuka & kemudahan pakai',
                       desc: 'Kenyamanan akses untuk tim non-teknis',
                       chatbot: { icon: 'warn', text: 'Chat teks percakapan' },
@@ -662,6 +673,14 @@ export function LandingPage() {
                   coder: { icon: 'warn', text: 'Terminal laptop lokal / software koding' },
                   hermes: { icon: 'warn', text: 'Mesin lokal / cloud vendor (Meta)' },
                   cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
+                },
+                {
+                  label: 'Antrean banyak tugas (Multi-task)',
+                  desc: 'Memproses banyak instruksi tanpa ditunggui',
+                  chatbot: { icon: 'x', text: 'Prompt manual 1 per 1' },
+                  coder: { icon: 'warn', text: 'Wajib ditungguin di terminal' },
+                  hermes: { icon: 'warn', text: 'Single-task / laptop aktif' },
+                  cuan: { icon: 'check', text: 'Antrean otonom 24/7 di server' },
                 },
                 {
                   label: 'Antarmuka & kemudahan pakai',
@@ -814,8 +833,8 @@ export function LandingPage() {
                 },
                 {
                   Icon: Users,
-                  title: 'Kolaborasi Tim & 1-Klik Undangan WhatsApp',
-                  text: 'Undang staf dan admin dalam 1-klik via link WhatsApp tanpa ribet konfigurasi server email. Hak akses Owner vs Member menjaga kredensial AI tetap aman.',
+                  title: 'Kolaborasi Tim & Undangan Staf via Email',
+                  text: 'Undang staf dan admin dengan mudah via tautan email. Hak akses bertingkat Owner vs Member menjaga kredensial AI dan data sensitif tetap aman.',
                 },
                 {
                   Icon: Database,
