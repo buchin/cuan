@@ -23,6 +23,11 @@ const LandingPage = lazy(() =>
     default: m.LandingPage,
   })),
 )
+const SponsorPage = lazy(() =>
+  import('./features/sponsorship/SponsorPage').then((m) => ({
+    default: m.SponsorPage,
+  })),
+)
 const LoginScreen = lazy(() =>
   import('./components/auth/LoginScreen').then((m) => ({
     default: m.LoginScreen,
@@ -698,6 +703,14 @@ export function App() {
     return (
       <Suspense fallback={<ViewFallback />}>
         <AcceptInvitePage />
+      </Suspense>
+    )
+  }
+
+  if (rootSegment === 'sponsor' || rootSegment === 'sponsors') {
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <SponsorPage />
       </Suspense>
     )
   }

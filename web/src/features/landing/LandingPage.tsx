@@ -1,8 +1,10 @@
+import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
   ChevronRight,
   GitBranch,
+  Github,
   MessageSquare,
   Mail,
   ShieldCheck,
@@ -22,6 +24,11 @@ import {
   X,
   Minus,
   Database,
+  Loader2,
+  Cpu,
+  Server,
+  Layers,
+  Sparkles,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { ApprovalCard } from '../inbox/ApprovalCard'
@@ -33,6 +40,124 @@ const repository = 'https://github.com/buchin/cuan'
 export function LandingPage() {
   const { t, language, setPreference } = useLanguage()
   const { resolvedTheme, toggleTheme } = useTheme()
+
+  const [email, setEmail] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+  const [waitingListStep, setWaitingListStep] = useState<'email' | 'otp' | 'confirmed'>('email')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [showGithubModal, setShowGithubModal] = useState(false)
+  const emailInputRef = useRef<HTMLInputElement>(null)
+  const otpInputRef = useRef<HTMLInputElement>(null)
+
+  const scrollToWaitingList = () => {
+    setShowGithubModal(false)
+    const el = document.getElementById('waiting-list')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+      setTimeout(() => {
+        if (waitingListStep === 'otp') {
+          otpInputRef.current?.focus()
+        } else {
+          emailInputRef.current?.focus()
+        }
+      }, 400)
+    }
+  }
+
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = email.trim()
+    if (!trimmed || !trimmed.includes('@')) {
+      setFormError(t('Masukkan alamat email yang valid.'))
+      return
+    }
+
+    setIsSubmitting(true)
+    setFormError(null)
+
+    try {
+      // 1. Submit to Dojo OTP Magic Link endpoint for cuan-waiting-list product gate
+      const dojoRes = await fetch('https://dojo.cc/api/v1/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed, product: 'cuan-waiting-list' }),
+      })
+
+      // 2. Submit to local Cuan waiting list intake (background fail-safe)
+      fetch('/api/waiting-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed, source: 'hero_waiting_list' }),
+      }).catch(() => {})
+
+      if (!dojoRes.ok) {
+        const data = await dojoRes.json().catch(() => ({}))
+        throw new Error(data.error || t('Gagal mengirim kode verifikasi. Coba lagi sebentar lagi.'))
+      }
+
+      setWaitingListStep('otp')
+      setTimeout(() => {
+        otpInputRef.current?.focus()
+      }, 100)
+    } catch (err: any) {
+      setFormError(err.message || t('Terjadi gangguan jaringan saat mengirim kode verifikasi.'))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmedOtp = otpCode.trim()
+    if (trimmedOtp.length !== 6) {
+      setFormError(t('Masukkan 6 angka kode verifikasi dengan lengkap.'))
+      return
+    }
+
+    setIsSubmitting(true)
+    setFormError(null)
+
+    try {
+      const res = await fetch('https://dojo.cc/api/v1/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), otp_code: trimmedOtp }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(
+          data.error === 'Invalid code'
+            ? t('Kode konfirmasi salah. Silakan periksa kembali email Anda.')
+            : (data.error || t('Kode verifikasi tidak sesuai atau telah kedaluwarsa.'))
+        )
+      }
+
+      setWaitingListStep('confirmed')
+    } catch (err: any) {
+      setFormError(err.message || t('Kode konfirmasi tidak sesuai atau telah kedaluwarsa.'))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    setIsSubmitting(true)
+    setFormError(null)
+    try {
+      await fetch('https://dojo.cc/api/v1/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), product: 'cuan-waiting-list' }),
+      })
+      setFormError(t('Kode verifikasi baru telah dikirim ke email Anda.'))
+    } catch {
+      setFormError(t('Gagal mengirim ulang kode. Silakan coba sebentar lagi.'))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -66,6 +191,12 @@ export function LandingPage() {
             {t('Cara kerja')}
           </a>
           <a
+            href="#ecosystem"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
+          >
+            {t('Integrasi & MCP')}
+          </a>
+          <a
             href="#comparison"
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
@@ -77,14 +208,21 @@ export function LandingPage() {
           >
             {t('Fitur')}
           </a>
-          <a
-            href={repository}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to="/sponsor"
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
-            GitHub
-          </a>
+            {t('Sponsor')}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setShowGithubModal(true)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors cursor-pointer"
+            title="GitHub Repository"
+          >
+            <Github className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <span className="hidden sm:inline">GitHub</span>
+          </button>
 
           {/* Language Switcher */}
           <button
@@ -111,9 +249,14 @@ export function LandingPage() {
             )}
           </button>
 
-          <Link to="/login" className="action-secondary min-h-10 px-4 text-sm font-semibold">
-            {t('Masuk')}
-          </Link>
+          {/* Waiting List Primary Action Button */}
+          <button
+            type="button"
+            onClick={scrollToWaitingList}
+            className="action-primary min-h-10 px-4 text-xs sm:text-sm font-semibold shadow-xs cursor-pointer"
+          >
+            {t('Gabung Waiting List')}
+          </button>
         </nav>
       </header>
 
@@ -137,11 +280,174 @@ export function LandingPage() {
             <p className="mt-4 text-lg font-normal text-muted-foreground sm:text-xl md:text-2xl leading-relaxed">
               {t('Kelola bisnis tanpa pusing urusan teknis.')}
             </p>
+
+            {/* 2-Step Waiting List Form with Dojo OTP & Sponsorship CTA */}
+            <div id="waiting-list" className="mt-8 max-w-lg mx-auto scroll-mt-24">
+              {waitingListStep === 'email' && (
+                <div className="space-y-3">
+                  <form onSubmit={handleRequestOtp} className="flex flex-col sm:flex-row gap-2.5">
+                    <input
+                      ref={emailInputRef}
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        setFormError(null)
+                      }}
+                      placeholder={t('Masukkan email Anda...')}
+                      aria-label={t('Email untuk waiting list')}
+                      className="min-h-12 flex-1 rounded-xl border border-border/70 bg-card px-4 text-base text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs transition-colors"
+                      disabled={isSubmitting}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !email.trim()}
+                      className="action-primary min-h-12 px-6 text-base font-semibold shadow-xs shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>{t('Mengirim...')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>{t('Gabung Waiting List')}</span>
+                          <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                  {formError && (
+                    <p className="text-xs text-rose-500 font-medium text-center">{formError}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground text-center">
+                    🔒 {t('Gratis · Tanpa kartu kredit · Prioritas rilis v1.0 & akses repositori')}
+                  </p>
+                </div>
+              )}
+
+              {waitingListStep === 'otp' && (
+                <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs text-left space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+                        <Mail className="h-3.5 w-3.5" />
+                        <span>{t('Verifikasi Email 6 Angka')}</span>
+                      </div>
+                      <h3 className="font-display text-lg font-bold text-foreground mt-0.5">
+                        {t('Masukkan Kode Konfirmasi')}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                        {t('Kode verifikasi telah dikirim ke')}{' '}
+                        <span className="font-semibold text-foreground">{email}</span>. {t('Silakan cek inbox atau folder spam.')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleVerifyOtp} className="space-y-3">
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <input
+                        ref={otpInputRef}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        required
+                        value={otpCode}
+                        onChange={(e) => {
+                          setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                          setFormError(null)
+                        }}
+                        placeholder="123456"
+                        aria-label={t('6 digit kode verifikasi')}
+                        className="min-h-12 flex-1 rounded-xl border border-border/70 bg-background px-4 text-center font-mono text-xl tracking-widest font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                        disabled={isSubmitting}
+                      />
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || otpCode.trim().length !== 6}
+                        className="action-primary min-h-12 px-6 text-base font-semibold shadow-xs shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>{t('Memverifikasi...')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{t('Verifikasi & Amankan Posisi')}</span>
+                            <CheckCircle2 className="h-4 w-4" strokeWidth={1.5} />
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {formError && (
+                      <p className="text-xs text-rose-500 font-medium">{formError}</p>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWaitingListStep('email')
+                          setFormError(null)
+                        }}
+                        className="hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
+                      >
+                        {t('Ganti email')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResendOtp}
+                        disabled={isSubmitting}
+                        className="hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
+                      >
+                        {t('Kirim ulang kode')}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {waitingListStep === 'confirmed' && (
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-5 sm:p-6 text-left space-y-4 shadow-xs">
+                  <div className="flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400 font-bold text-base sm:text-lg">
+                    <CheckCircle2 className="h-5 w-5 shrink-0" strokeWidth={2} />
+                    <span>{t('Posisi Anda di Waiting List Cuan v1.0 Resmi Terdaftar!')}</span>
+                  </div>
+                  <p className="text-sm text-foreground/90 leading-relaxed">
+                    {t('Email Anda telah terverifikasi.')} {t('Kami telah mengirimkan email sambutan dan konfirmasi ke')}{' '}
+                    <span className="font-semibold text-foreground">{email}</span>. {t('Notifikasi rilis v1.0 dan akses repositori akan dikirimkan langsung ke inbox Anda.')}
+                  </p>
+
+                  <div className="rounded-xl border border-border/70 bg-card p-4 sm:p-5 space-y-2.5">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary uppercase tracking-wider">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>{t('Akselerasi Peluncuran')}</span>
+                    </div>
+                    <div className="font-display text-base sm:text-lg font-bold text-foreground">
+                      {t('Ingin akses VIP pertama & ikut mempercepat peluncuran Cuan?')}
+                    </div>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      {t('Jadilah Founding Sponsor untuk mendapatkan akses early-build, logo & tautan permanen di repositori GitHub & landing page, serta sesi konsultasi instalasi VPS.')}
+                    </p>
+                    <div className="pt-2">
+                      <Link
+                        to="/sponsor"
+                        className="action-primary min-h-10 px-5 text-xs sm:text-sm font-semibold inline-flex items-center gap-2"
+                      >
+                        <span>{t('Lihat Halaman Sponsor & Benefit')}</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3.5">
-              <Link to="/login" className="action-primary min-h-12 px-7 text-base font-semibold shadow-xs">
-                {t('Mulai Sekarang')}
-                <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
-              </Link>
               <a
                 href="#problem"
                 className="action-secondary min-h-12 px-6 text-base font-semibold"
@@ -180,6 +486,107 @@ export function LandingPage() {
               <Zap className="h-4 w-4" strokeWidth={1.5} />
               {t('Bebas biaya token dobel · Bawa akun resmi atau API key sendiri (Claude, ChatGPT, Gemini, DeepSeek)')}
             </span>
+          </div>
+        </section>
+
+        {/* 1.5. OPEN ECOSYSTEM & INTEGRATION (Bring Your Models, Channels, Apps, Skills & Custom MCP) */}
+        <section
+          id="ecosystem"
+          className="scroll-mt-6 border-t border-border/60 bg-muted/10 px-6 py-16 sm:px-8 sm:py-24"
+          aria-labelledby="ecosystem-title"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Cpu className="h-4 w-4 text-primary" strokeWidth={1.5} />
+                <span>{t('Ekosistem Terbuka & Integrasi')}</span>
+              </div>
+              <h2
+                id="ecosystem-title"
+                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+              >
+                {t('Satu Sistem Mandiri untuk Seluruh Model AI, Aplikasi, & MCP')}
+              </h2>
+              <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
+                {t(
+                  'Bebas dari vendor lock-in. Cuan berjalan di server VPS milik Anda sendiri, menghubungkan model AI resmi favorit, kanal komunikasi bisnis, dan standar terbuka Model Context Protocol (MCP).',
+                )}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {/* CARD 1: MODEL AI RESMI */}
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                  <Bot className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                  Multi-Provider & BYOK
+                </div>
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t('Model AI Resmi (Bebas Biaya Dobel)')}
+                </h3>
+                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  {t(
+                    'Hubungkan akun resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key langsung (DeepSeek, OpenAI) tanpa markup margin token. Bebas ganti model sesuai kebutuhan tugas.',
+                  )}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Claude 3.7</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">GPT-4o</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Gemini 2.5</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">DeepSeek R1</span>
+                </div>
+              </div>
+
+              {/* CARD 2: KANAL OPERASIONAL BISNIS */}
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                  <Server className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                  24/7 Always-On VPS
+                </div>
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t('Infrastruktur Bisnis & Saluran Komunikasi')}
+                </h3>
+                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  {t(
+                    'Agen terus bekerja di VPS Ubuntu/Debian saat Anda tidur atau laptop ditutup. Dilengkapi widget Live Chat web, peringatan email Resend untuk obrolan idle, dan webhook order otomatis.',
+                  )}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">VPS Ubuntu/Debian</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Live Chat Widget</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Resend Email</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Webhook Order</span>
+                </div>
+              </div>
+
+              {/* CARD 3: APPS, SKILLS & CUSTOM MCP */}
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                  <Layers className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                  Extensibility & MCP
+                </div>
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t('Apps, Skills & Custom MCP Server')}
+                </h3>
+                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  {t(
+                    'Dukungan penuh standar terbuka Model Context Protocol (MCP) untuk menyambungkan database Postgres/MySQL atau API custom internal, ditambah skill AI Vision struk, auto-responder, dan CRM grounding.',
+                  )}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Custom MCP stdio/SSE</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">AI Vision Receipt</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">CRM Grounding</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Quality Gate DoD</span>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -284,8 +691,8 @@ export function LandingPage() {
                 },
                 {
                   Icon: Activity,
-                  title: 'AI otonom (Hermes, Muse, Nod) untuk automasi personal, bukan operasional bisnis',
-                  desc: 'Hermes Agent dan Nod hebat untuk automasi di laptop pengembang, sementara Muse terkunci di cloud Meta. Namun tanpa Approval Card bisnis, Quality Gate visual, serta CRM percakapan terpadu, eksekusinya belum siap untuk operasional bisnis harian.',
+                  title: 'AI otonom personal belum siap untuk operasional bisnis',
+                  desc: 'Asisten otonom personal hebat untuk automasi di laptop developer atau eksperimen cloud tertutup. Namun tanpa Approval Card bisnis, Quality Gate visual, antrean multi-task di VPS, serta CRM percakapan terpadu, eksekusinya belum siap untuk operasional bisnis harian.',
                 },
               ].map(({ Icon, title, desc }) => (
                 <div
@@ -537,21 +944,21 @@ export function LandingPage() {
                       {t('Kebutuhan Bisnis Anda')}
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Chatbot Web')}</div>
+                      <div className="font-bold text-foreground">{t('Chatbot Percakapan')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        ChatGPT, Claude
+                        {t('Chatbot percakapan biasa')}
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Coding Agent & CLI')}</div>
+                      <div className="font-bold text-foreground">{t('Tool Koding Developer')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        Claude Code, Codex
+                        {t('Software koding CLI')}
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('AI Otonom')}</div>
+                      <div className="font-bold text-foreground">{t('Asisten Personal')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        Hermes Agent, Muse, Nod
+                        {t('Asisten personal lokal & cloud')}
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-bold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
@@ -563,7 +970,7 @@ export function LandingPage() {
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        {t('AI Project Manager')}
+                        {t('AI Project Manager Bisnis')}
                       </div>
                     </th>
                   </tr>
@@ -575,7 +982,7 @@ export function LandingPage() {
                       desc: 'Di mana tugas benar-benar dijalankan',
                       chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
                       coder: { icon: 'warn', text: 'Terminal laptop lokal / software koding' },
-                      hermes: { icon: 'warn', text: 'Mesin lokal / cloud vendor (Meta)' },
+                      hermes: { icon: 'warn', text: 'Mesin lokal / cloud vendor' },
                       cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                     },
                     {
@@ -763,7 +1170,7 @@ export function LandingPage() {
                   {/* Alternatives Comparison List */}
                   <div className="space-y-2 border-t border-border/40 pt-2.5 text-xs sm:text-sm">
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">Chatbot (ChatGPT/Claude)</span>
+                      <span className="text-xs">{t('Chatbot percakapan biasa')}</span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.chatbot.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.chatbot.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
@@ -773,7 +1180,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">Coding Agent (Claude Code/Codex)</span>
+                      <span className="text-xs">{t('Software koding developer')}</span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.coder.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.coder.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
@@ -783,7 +1190,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">{t('AI Otonom (Hermes, Muse, Nod)')}</span>
+                      <span className="text-xs">{t('Asisten personal lokal & cloud')}</span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
@@ -893,10 +1300,14 @@ export function LandingPage() {
                 {t('Open source · Lisensi Apache-2.0 · Kendali penuh di VPS sendiri')}
               </p>
             </div>
-            <Link to="/login" className="action-primary min-h-12 px-7 text-base font-semibold shadow-xs">
-              {t('Mulai Sekarang')}
+            <button
+              type="button"
+              onClick={scrollToWaitingList}
+              className="action-primary min-h-12 px-7 text-base font-semibold shadow-xs cursor-pointer inline-flex items-center gap-2"
+            >
+              <span>{t('Gabung Waiting List')}</span>
               <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
-            </Link>
+            </button>
           </div>
         </section>
       </main>
@@ -910,21 +1321,98 @@ export function LandingPage() {
           </span>
           <span>· {t('Your always-on project manager.')}</span>
         </p>
-        <div className="flex gap-5">
+        <div className="flex flex-wrap items-center gap-5">
+          <Link
+            to="/sponsor"
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors font-medium text-primary"
+          >
+            {t('Program Sponsor Founding')}
+          </Link>
           <a
             className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
             href={repository + '#readme'}
           >
             {t('Self-hosting guide')}
           </a>
-          <a
-            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
-            href={repository}
+          <button
+            type="button"
+            onClick={() => setShowGithubModal(true)}
+            className="inline-flex min-h-11 items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
           >
-            GitHub
-          </a>
+            <Github className="h-4 w-4" strokeWidth={1.5} />
+            <span>GitHub</span>
+          </button>
         </div>
       </footer>
+
+      {/* GitHub Curation Notice Modal */}
+      {showGithubModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="github-modal-title"
+          onClick={() => setShowGithubModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border/80 bg-card p-6 shadow-xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/60 text-foreground">
+                  <Github className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <h3 id="github-modal-title" className="font-display text-base font-bold text-foreground">
+                    {t('Repositori Open Source Cuan v1.0')}
+                  </h3>
+                  <div className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span>{t('Tahap Kurasi Final Rilis Publik (Apache-2.0)')}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGithubModal(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                aria-label={t('Tutup')}
+              >
+                <X className="h-5 w-5" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {t(
+                'Repositori publik Cuan sedang disiapkan dan dirapikan untuk rilis open source resmi. Masukkan email Anda di Waiting List untuk mendapatkan notifikasi rilis pertama dan akses repositori prioritas.',
+              )}
+            </p>
+
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground flex items-center justify-between">
+              <span>{t('Lisensi Terbuka:')}</span>
+              <span className="font-mono font-semibold text-foreground">Apache License 2.0</span>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={scrollToWaitingList}
+                className="action-primary flex-1 min-h-11 px-4 text-sm font-semibold justify-center cursor-pointer"
+              >
+                {t('Daftar Waiting List Sekarang')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowGithubModal(false)}
+                className="action-secondary min-h-11 px-4 text-sm font-semibold justify-center cursor-pointer"
+              >
+                {t('Tutup')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
