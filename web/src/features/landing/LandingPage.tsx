@@ -19,6 +19,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
+import { ApprovalCard } from '../inbox/ApprovalCard'
 import { useLanguage } from '../../context/LanguageContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -242,7 +243,7 @@ export function LandingPage() {
                 id="how-title"
                 className="font-display text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl"
               >
-                {t('Kenalkan Cuan: AI Agent Mandiri di Server Anda Sendiri')}
+                {t('Kenalkan Cuan: AI Project Manager Siap Kerja Tanpa Pengawasan')}
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
                 {t(
@@ -251,62 +252,168 @@ export function LandingPage() {
               </p>
             </div>
 
-            <ol className="mt-12 grid gap-8 md:grid-cols-3">
-              {[
-                {
-                  step: '01',
-                  name: 'Chat',
-                  image: '/landing/step-chat.png',
-                  alt: 'Pratinjau antarmuka chat Cuan',
-                  title: 'Describe what you need in plain words',
-                  text: 'Start in Chat from your phone or desktop. Share a goal, paste a reference, or upload a script. Cuan reviews your project and context automatically.',
-                },
-                {
-                  step: '02',
-                  name: 'Setujui',
-                  image: '/landing/step-approve.png',
-                  alt: 'Pratinjau kartu persetujuan Cuan',
-                  title: 'Review and approve a clear plan',
-                  text: 'Before touching anything, Cuan presents a structured Approval Card outlining the exact scope and verification criteria. One tap to approve.',
-                },
-                {
-                  step: '03',
-                  name: 'Beres',
-                  image: '/landing/step-done.png',
-                  alt: 'Pratinjau hasil terverifikasi Cuan',
-                  title: 'Verified outcomes delivered to your server',
-                  text: 'Autonomous agents execute the work, run automated tests, inspect real visual output, and report back when everything is 100% verified and live.',
-                },
-              ].map((item) => (
-                <li key={item.step} className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
-                        {item.step}
+            <ol className="mt-12 grid gap-8 lg:grid-cols-3">
+              {/* STEP 01: CHAT */}
+              <li className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
+                      01
+                    </span>
+                    <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Chat
+                    </span>
+                  </div>
+                  <h3 className="font-display mt-4 text-base font-semibold leading-snug">
+                    {t('Describe what you need in plain words')}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t('Start in Chat from your phone or desktop. Share a goal, paste a reference, or upload a script. Cuan reviews your project and context automatically.')}
+                  </p>
+                </div>
+
+                {/* Real Cuan Chat Preview */}
+                <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-3.5 text-left text-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="font-semibold text-xs">@cuan</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">Project Manager</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-mono">{t('Baru saja')}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="rounded-lg bg-card/80 p-2.5 border border-border/50">
+                      <div className="text-[10px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        {t('Anda (Owner)')}
+                      </div>
+                      <p className="text-foreground leading-relaxed">
+                        &ldquo;{t('Tolong hubungkan webhook form order ke bot WhatsApp notifikasi admin.')}&rdquo;
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-primary/5 p-2.5 border border-primary/20">
+                      <div className="text-[10px] font-semibold text-primary mb-1 flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        @cuan
+                      </div>
+                      <p className="text-foreground/90 leading-relaxed text-[11px]">
+                        {t('Siap! Konteks repositori dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground">
+                    <span>{t('Pilihan cepat:')}</span>
+                    <div className="flex gap-1.5">
+                      <span className="rounded-md bg-primary/10 text-primary font-medium px-2 py-0.5 border border-primary/20">
+                        ✓ {t('Lanjutkan')}
                       </span>
-                      <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        {t(item.name)}
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground">
+                        {t('Sesuaikan')}
                       </span>
                     </div>
-                    <h3 className="font-display mt-4 text-base font-semibold leading-snug">
-                      {t(item.title)}
-                    </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {t(item.text)}
-                    </p>
                   </div>
-                  <div className="mt-6 overflow-hidden rounded-lg border border-border/60 bg-muted/20 shadow-2xs">
-                    <img
-                      src={item.image}
-                      alt={item.alt}
-                      width={720}
-                      height={480}
-                      className="h-auto w-full object-contain transition-transform duration-300 hover:scale-[1.02]"
-                      loading="lazy"
-                    />
+                </div>
+              </li>
+
+              {/* STEP 02: APPROVAL CARD (Real Component) */}
+              <li className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
+                      02
+                    </span>
+                    <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Setujui
+                    </span>
                   </div>
-                </li>
-              ))}
+                  <h3 className="font-display mt-4 text-base font-semibold leading-snug">
+                    {t('Review and approve a clear plan')}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t('Before touching anything, Cuan presents a structured Approval Card outlining the exact scope and verification criteria. One tap to approve.')}
+                  </p>
+                </div>
+
+                {/* Authentic ApprovalCard from Cuan codebase */}
+                <div className="mt-6 text-left">
+                  <ApprovalCard
+                    plan={{
+                      title: t('Integrasi Webhook Form & Bot WhatsApp'),
+                      project_name: 'landing-cuan',
+                      description: `- ${t('Pasang endpoint receiver webhook form order')}\n- ${t('Format template notifikasi WhatsApp pesanan')}\n- ${t('Uji coba simulasi kirim data (DoD 100% pass)')}`,
+                    }}
+                    disabled
+                    className="mt-0 pointer-events-none select-none shadow-none"
+                  />
+                </div>
+              </li>
+
+              {/* STEP 03: BERES (Real Verified Result Card) */}
+              <li className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
+                      03
+                    </span>
+                    <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Beres
+                    </span>
+                  </div>
+                  <h3 className="font-display mt-4 text-base font-semibold leading-snug">
+                    {t('Verified outcomes delivered to your server')}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t('Autonomous agents execute the work, run automated tests, inspect real visual output, and report back when everything is 100% verified and live.')}
+                  </p>
+                </div>
+
+                {/* Authentic Verified Result Card */}
+                <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-3.5 text-left text-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="font-semibold text-xs text-foreground">
+                        {t('Status: Selesai')}
+                      </span>
+                    </div>
+                    <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium">
+                      ✓ {t('100% Teruji')}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                      {t('Hasil Eksekusi')}
+                    </div>
+                    <div className="font-semibold text-foreground text-xs mt-0.5">
+                      {t('Webhook Form & WhatsApp Berhasil Aktif')}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-emerald-500/5 p-2.5 border border-emerald-500/20 space-y-1.5 text-[11px] text-foreground/90">
+                    <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
+                      {t('Bukti Kualitas (Quality Gate):')}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-500 font-bold">✓</span>
+                      <span>{t('3 pengujian otomatis lulus tanpa error')}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-500 font-bold">✓</span>
+                      <span>{t('Bukti visual tangkapan layar terverifikasi')}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-500 font-bold">✓</span>
+                      <span>{t('Deploy aman ke VPS tanpa downtime')}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground font-mono">
+                    <span>#msg_e87e92</span>
+                    <span className="text-primary font-sans font-medium text-[11px]">
+                      {t('Laporan Terverifikasi')} &rarr;
+                    </span>
+                  </div>
+                </div>
+              </li>
             </ol>
           </div>
         </section>
