@@ -31,13 +31,13 @@ export function LandingPage() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {/* Navigation Header */}
-      <header className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
+      <header className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
         <Link
           to="/"
           className="inline-flex min-h-11 items-center gap-2 font-semibold tracking-tight"
           aria-label="Cuan"
         >
-          <CuanMark decorative className="h-8 w-8" />
+          <CuanMark decorative className="h-7 w-7" />
           <span className="text-xl">cuan</span>
         </Link>
         <nav
@@ -103,33 +103,33 @@ export function LandingPage() {
       </header>
 
       <main>
-        {/* 1. HOOK / HERO SECTION */}
+        {/* 1. HOOK / HERO SECTION (Above the fold on standard MacBook 1440x900) */}
         <section
-          className="relative mx-auto max-w-6xl px-6 pb-16 pt-12 text-center sm:px-8 sm:pb-24 sm:pt-20"
+          className="relative mx-auto max-w-6xl px-6 pb-12 pt-6 text-center sm:px-8 sm:pb-16 sm:pt-8"
           aria-labelledby="landing-title"
         >
           <div className="mx-auto max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+            <div className="mb-3.5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
               <span>{t('AI Agent for Marketers')}</span>
             </div>
             <h1
               id="landing-title"
-              className="text-4xl font-bold tracking-tight text-[#1B1616] dark:text-foreground sm:text-6xl md:text-7xl lg:text-[84px] lg:leading-[1.05]"
+              className="text-4xl font-bold tracking-tight text-[#1B1616] dark:text-foreground sm:text-5xl md:text-6xl lg:text-[68px] lg:leading-[1.08]"
             >
               {t('Chat. Setujui. Beres.')}
             </h1>
-            <p className="mt-5 text-lg font-normal text-[#5A5252] dark:text-muted-foreground sm:text-2xl sm:leading-relaxed">
+            <p className="mt-3 text-base font-normal text-[#5A5252] dark:text-muted-foreground sm:text-xl sm:leading-normal">
               {t('Kelola bisnis tanpa pusing urusan teknis.')}
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link to="/login" className="action-primary min-h-12 px-7 text-base font-medium shadow-xs">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Link to="/login" className="action-primary min-h-11 px-6 text-sm font-medium shadow-xs">
                 {t('Mulai Sekarang')}
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <a
                 href="#problem"
-                className="action-secondary min-h-12 px-6 text-base font-medium"
+                className="action-secondary min-h-11 px-5 text-sm font-medium"
               >
                 {t('Pelajari Cara Kerja')}
                 <ChevronRight className="h-4 w-4" />
@@ -137,22 +137,22 @@ export function LandingPage() {
             </div>
           </div>
 
-          {/* Centered 3-Device Mockup Showcase with Natural Depth */}
-          <div className="mx-auto mt-14 max-w-5xl sm:mt-18">
+          {/* Centered 3-Device Mockup Showcase - Optimized Above the Fold */}
+          <div className="mx-auto mt-6 max-w-4xl sm:mt-8">
             <div className="relative">
               <img
                 src="/landing/cuan.webp"
                 alt={t('Cuan multi-device workspace on Laptop, Tablet, and Mobile')}
                 width={2000}
                 height={1088}
-                className="h-auto w-full object-contain [filter:drop-shadow(0_20px_40px_rgba(0,0,0,0.07))_drop-shadow(0_4px_12px_rgba(0,0,0,0.03))]"
+                className="max-h-[480px] w-full object-contain [filter:drop-shadow(0_16px_36px_rgba(0,0,0,0.08))_drop-shadow(0_4px_12px_rgba(0,0,0,0.03))]"
                 loading="eager"
               />
             </div>
           </div>
 
           {/* Trust Highlights */}
-          <div className="mx-auto mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-muted-foreground">
+          <div className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5" />
               {t('Open source under Apache-2.0')}
