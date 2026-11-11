@@ -13,7 +13,9 @@ import {
   Users,
   Sun,
   Moon,
+  Clock,
   Coins,
+  AlertCircle,
   Sparkles,
   Bot,
   Terminal,
@@ -178,7 +180,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* 2. THE PROBLEM & AGITATE SECTION (P-A in PAS-P) */}
+        {/* 2A. BUSINESS OPERATIONS PROBLEM (Level 1: Real Business Headaches) */}
         <section
           id="problem"
           className="scroll-mt-6 border-t border-border/60 bg-muted/20 px-6 py-16 sm:px-8 sm:py-24"
@@ -186,6 +188,10 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                <span>{t('Tantangan Pebisnis & Marketer')}</span>
+              </div>
               <h2
                 id="problem-title"
                 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
@@ -194,7 +200,69 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
                 {t(
-                  'Banyak pebisnis dan marketer membuang puluhan jam berharga mengurusi operasional manual, membalas chat berulang, integrasi webhook, hingga error teknis alih-alih fokus mencari cuan.',
+                  'Banyak pebisnis dan marketer membuang puluhan jam berharga mengurusi operasional manual, membalas chat berulang, integrasi teknis, hingga error alih-alih fokus mencari cuan.',
+                )}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  Icon: Clock,
+                  title: 'Sewa tim teknis & operasional mahal',
+                  desc: 'Gaji jutaan rupiah per bulan untuk programmer, admin, atau CS tambahan. Rawan miskomunikasi dan antrean berminggu-minggu bahkan untuk otomasi atau revisi kecil.',
+                },
+                {
+                  Icon: Coins,
+                  title: 'Langganan SaaS luar negeri bikin boncos',
+                  desc: 'Tagihan bulanan membengkak dengan markup tinggi, kuota token dibatasi, dan data pelanggan serta rahasia bisnis Anda tersimpan di server pihak ketiga.',
+                },
+                {
+                  Icon: AlertCircle,
+                  title: 'Ngulik sendiri malah burnout',
+                  desc: 'Mencoba utak-atik terminal, git, webhook, dan kodingan sendiri. Seharian habis membaca tutorial dan error log, waktu untuk jualan malah hilang.',
+                },
+              ].map(({ Icon, title, desc }) => (
+                <div
+                  key={title}
+                  className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border"
+                >
+                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-display text-base font-semibold text-foreground">
+                    {t(title)}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t(desc)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 2B. AI EXPECTATION VS REALITY (Level 2: The Bottlenecks of Existing AI) */}
+        <section
+          id="ai-limits"
+          className="scroll-mt-6 border-t border-border/40 bg-card px-6 py-16 sm:px-8 sm:py-24"
+          aria-labelledby="ai-limits-title"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Bot className="h-3.5 w-3.5 text-primary" />
+                <span>{t('Realita AI Saat Ini')}</span>
+              </div>
+              <h2
+                id="ai-limits-title"
+                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+              >
+                {t('Berharap AI membereskan segalanya, tapi malah nambah pusing?')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {t(
+                  'Banyak marketer mencoba berbagai AI terbaru untuk mengatasi masalah di atas, namun masing-masing punya batasan yang bikin pekerjaan tetap macet.',
                 )}
               </p>
             </div>
@@ -225,10 +293,10 @@ export function LandingPage() {
               ].map(({ Icon, title, refText, refUrl, desc }) => (
                 <div
                   key={title}
-                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border"
+                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-muted/20 p-6 shadow-2xs transition-colors hover:border-border"
                 >
                   <div>
-                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-card text-muted-foreground border border-border/50">
                       <Icon className="h-5 w-5" />
                     </div>
                     <h3 className="font-display text-base font-semibold text-foreground">
