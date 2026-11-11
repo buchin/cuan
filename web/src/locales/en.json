@@ -461,5 +461,6 @@
   "Sinkronkan nomor kontak & catatan riwayat pelanggan": "Synchronize contact numbers and customer interaction history",
   "Pengujian DoD: verifikasi visual & regresi 100%": "DoD verification: visual proof & 100% regression pass",
   "Integrasi Webhook Pesanan & CRM Kontak": "Order Webhook & Contact CRM Integration",
-  "4 pengujian otomatis lulus tanpa error": "4 automated tests passed without errors"
+  "4 pengujian otomatis lulus tanpa error": "4 automated tests passed without errors",
+  "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.": "As the business owner, you direct the work in plain words from your phone or desktop. Cuan leads a team of specialized agents—handling business operations, customer support, automated bookkeeping, and technical deployment directly on your own server with verified outcomes."
 }
