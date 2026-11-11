@@ -24,8 +24,15 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       )
     check()
     media.addEventListener('change', check)
+    const isPublicLanding =
+      typeof window !== 'undefined' &&
+      (window.location.pathname === '/' ||
+        window.location.pathname === '/sponsor' ||
+        window.location.pathname === '/sponsors')
+
     const ready = (e: Event) => {
       e.preventDefault()
+      if (isPublicLanding) return
       setPrompt(e as InstallPrompt)
     }
     const done = () => {
@@ -34,7 +41,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener('beforeinstallprompt', ready)
     window.addEventListener('appinstalled', done)
-    if ('serviceWorker' in navigator && window.isSecureContext)
+    if (!isPublicLanding && 'serviceWorker' in navigator && window.isSecureContext)
       navigator.serviceWorker
         .register('/sw.js', { updateViaCache: 'none' })
         .catch(() =>

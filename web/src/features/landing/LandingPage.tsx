@@ -190,12 +190,6 @@ export function LandingPage() {
             {t('Cara kerja')}
           </a>
           <a
-            href="#ecosystem"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap lg:inline-flex"
-          >
-            {t('Integrasi & MCP')}
-          </a>
-          <a
             href="#comparison"
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
@@ -206,6 +200,12 @@ export function LandingPage() {
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap sm:inline-flex"
           >
             {t('Fitur')}
+          </a>
+          <a
+            href="#ecosystem"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap lg:inline-flex"
+          >
+            {t('Integrasi & MCP')}
           </a>
           <Link
             to="/sponsor"
@@ -227,7 +227,7 @@ export function LandingPage() {
           <button
             type="button"
             onClick={() => setPreference(language === 'id' ? 'en' : 'id')}
-            className="inline-flex min-h-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors shrink-0"
+            className="inline-flex min-h-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors shrink-0 cursor-pointer"
             title={language === 'id' ? 'Ganti ke English' : 'Switch to Bahasa Indonesia'}
           >
             {language === 'id' ? 'ID' : 'EN'}
@@ -237,7 +237,7 @@ export function LandingPage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors shrink-0"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/50 bg-muted/30 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors shrink-0 cursor-pointer"
             aria-label="Ganti tema"
             title={resolvedTheme === 'dark' ? 'Tema terang' : 'Tema gelap'}
           >
@@ -246,15 +246,6 @@ export function LandingPage() {
             ) : (
               <Moon className="h-4 w-4" strokeWidth={1.5} />
             )}
-          </button>
-
-          {/* Waiting List Primary Action Button (desktop/tablet only; mobile uses the prominent Hero form directly below) */}
-          <button
-            type="button"
-            onClick={scrollToWaitingList}
-            className="action-primary hidden sm:inline-flex min-h-10 px-4 text-xs sm:text-sm font-semibold shadow-xs cursor-pointer whitespace-nowrap shrink-0"
-          >
-            {t('Gabung Waiting List')}
           </button>
         </nav>
       </header>
@@ -485,107 +476,6 @@ export function LandingPage() {
               <Zap className="h-4 w-4" strokeWidth={1.5} />
               {t('Bebas biaya token dobel · Bawa akun resmi atau API key sendiri (Claude, ChatGPT, Gemini, DeepSeek)')}
             </span>
-          </div>
-        </section>
-
-        {/* 1.5. OPEN ECOSYSTEM & INTEGRATION (Bring Your Models, Channels, Apps, Skills & Custom MCP) */}
-        <section
-          id="ecosystem"
-          className="scroll-mt-6 border-t border-border/60 bg-muted/10 px-6 py-16 sm:px-8 sm:py-24"
-          aria-labelledby="ecosystem-title"
-        >
-          <div className="mx-auto max-w-6xl">
-            <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <Cpu className="h-4 w-4 text-primary" strokeWidth={1.5} />
-                <span>{t('Ekosistem Terbuka & Integrasi')}</span>
-              </div>
-              <h2
-                id="ecosystem-title"
-                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
-              >
-                {t('Satu Sistem Mandiri untuk Seluruh Model AI, Aplikasi, & MCP')}
-              </h2>
-              <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
-                {t(
-                  'Bebas dari vendor lock-in. Cuan berjalan di server VPS milik Anda sendiri, menghubungkan model AI resmi favorit, kanal komunikasi bisnis, dan standar terbuka Model Context Protocol (MCP).',
-                )}
-              </p>
-            </div>
-
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {/* CARD 1: MODEL AI RESMI */}
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                  <Bot className="h-5 w-5" strokeWidth={1.5} />
-                </div>
-                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
-                  Multi-Provider & BYOK
-                </div>
-                <h3 className="font-display text-lg font-bold text-foreground">
-                  {t('Model AI Resmi (Bebas Biaya Dobel)')}
-                </h3>
-                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  {t(
-                    'Hubungkan akun resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key langsung (DeepSeek, OpenAI) tanpa markup margin token. Bebas ganti model sesuai kebutuhan tugas.',
-                  )}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Claude 3.7</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">GPT-4o</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Gemini 2.5</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">DeepSeek R1</span>
-                </div>
-              </div>
-
-              {/* CARD 2: KANAL OPERASIONAL BISNIS */}
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                  <Server className="h-5 w-5" strokeWidth={1.5} />
-                </div>
-                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
-                  24/7 Always-On VPS
-                </div>
-                <h3 className="font-display text-lg font-bold text-foreground">
-                  {t('Infrastruktur Bisnis & Saluran Komunikasi')}
-                </h3>
-                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  {t(
-                    'Agen terus bekerja di VPS Ubuntu/Debian saat Anda tidur atau laptop ditutup. Dilengkapi widget Live Chat web, peringatan email Resend untuk obrolan idle, dan webhook order otomatis.',
-                  )}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">VPS Ubuntu/Debian</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Live Chat Widget</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Resend Email</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Webhook Order</span>
-                </div>
-              </div>
-
-              {/* CARD 3: APPS, SKILLS & CUSTOM MCP */}
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                  <Layers className="h-5 w-5" strokeWidth={1.5} />
-                </div>
-                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
-                  Extensibility & MCP
-                </div>
-                <h3 className="font-display text-lg font-bold text-foreground">
-                  {t('Apps, Skills & Custom MCP Server')}
-                </h3>
-                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                  {t(
-                    'Dukungan penuh standar terbuka Model Context Protocol (MCP) untuk menyambungkan database Postgres/MySQL atau API custom internal, ditambah skill AI Vision struk, auto-responder, dan CRM grounding.',
-                  )}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Custom MCP stdio/SSE</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">AI Vision Receipt</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">CRM Grounding</span>
-                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Quality Gate DoD</span>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -1279,6 +1169,107 @@ export function LandingPage() {
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 4.5. OPEN ECOSYSTEM & INTEGRATION (Bring Your Models, Channels, Apps, Skills & Custom MCP) */}
+        <section
+          id="ecosystem"
+          className="scroll-mt-6 border-t border-border/60 bg-muted/10 px-6 py-16 sm:px-8 sm:py-24"
+          aria-labelledby="ecosystem-title"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Cpu className="h-4 w-4 text-primary" strokeWidth={1.5} />
+                <span>{t('Ekosistem Terbuka & Integrasi')}</span>
+              </div>
+              <h2
+                id="ecosystem-title"
+                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+              >
+                {t('Satu Sistem Mandiri untuk Seluruh Model AI, Aplikasi, & MCP')}
+              </h2>
+              <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
+                {t(
+                  'Bebas dari vendor lock-in. Cuan berjalan di server VPS milik Anda sendiri, menghubungkan model AI resmi favorit, kanal komunikasi bisnis, dan standar terbuka Model Context Protocol (MCP).',
+                )}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {/* CARD 1: MODEL AI RESMI */}
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                  <Bot className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                  Multi-Provider & BYOK
+                </div>
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t('Model AI Resmi (Bebas Biaya Dobel)')}
+                </h3>
+                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  {t(
+                    'Hubungkan akun resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key langsung (DeepSeek, OpenAI) tanpa markup margin token. Bebas ganti model sesuai kebutuhan tugas.',
+                  )}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Claude 3.7</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">GPT-4o</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Gemini 2.5</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">DeepSeek R1</span>
+                </div>
+              </div>
+
+              {/* CARD 2: KANAL OPERASIONAL BISNIS */}
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                  <Server className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                  24/7 Always-On VPS
+                </div>
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t('Infrastruktur Bisnis & Saluran Komunikasi')}
+                </h3>
+                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  {t(
+                    'Agen terus bekerja di VPS Ubuntu/Debian saat Anda tidur atau laptop ditutup. Dilengkapi widget Live Chat web, peringatan email Resend untuk obrolan idle, dan webhook order otomatis.',
+                  )}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">VPS Ubuntu/Debian</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Live Chat Widget</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Resend Email</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Webhook Order</span>
+                </div>
+              </div>
+
+              {/* CARD 3: APPS, SKILLS & CUSTOM MCP */}
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                  <Layers className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="text-xs font-semibold text-primary mb-1 uppercase tracking-wider">
+                  Extensibility & MCP
+                </div>
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t('Apps, Skills & Custom MCP Server')}
+                </h3>
+                <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                  {t(
+                    'Dukungan penuh standar terbuka Model Context Protocol (MCP) untuk menyambungkan database Postgres/MySQL atau API custom internal, ditambah skill AI Vision struk, auto-responder, dan CRM grounding.',
+                  )}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-mono text-muted-foreground">
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Custom MCP stdio/SSE</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">AI Vision Receipt</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">CRM Grounding</span>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-1">Quality Gate DoD</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
