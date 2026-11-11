@@ -12,16 +12,16 @@ export function resolveLanguage(
   languages: readonly string[],
 ): 'en' | 'id' {
   if (preference !== 'auto') return preference
-  // The first supported browser preference wins. Unsupported locales use English.
+  // The first supported browser preference wins. Default to Indonesian.
   for (const language of languages) {
     const base = language.toLowerCase().split('-')[0]
     if (base === 'id' || base === 'en') return base
   }
-  return 'en'
+  return 'id'
 }
 const LanguageContext = createContext({
-  preference: 'en' as LanguagePreference,
-  language: 'en' as 'en' | 'id',
+  preference: 'id' as LanguagePreference,
+  language: 'id' as 'en' | 'id',
   setPreference: (_value: LanguagePreference) => {},
   t: (text: string) => text,
 })
@@ -29,9 +29,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setValue] = useState<LanguagePreference>(() => {
     try {
       const value = localStorage.getItem('cuan-language')
-      return value === 'en' || value === 'id' || value === 'auto' ? value : 'en'
+      return value === 'en' || value === 'id' || value === 'auto' ? value : 'id'
     } catch {
-      return 'en'
+      return 'id'
     }
   })
   const [languages, setLanguages] = useState(
