@@ -11,12 +11,12 @@ import {
   Volume2,
   Activity,
   Users,
-  Terminal,
   Sun,
   Moon,
   Clock,
   Coins,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -111,7 +111,7 @@ export function LandingPage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-3.5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              <span>{t('AI Agent for Marketers')}</span>
+              <span>{t('AI Project Manager untuk Bisnis & Kreator')}</span>
             </div>
             <h1
               id="landing-title"
@@ -163,7 +163,7 @@ export function LandingPage() {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Zap className="h-3.5 w-3.5" />
-              {t('Zero SaaS markup · BYOK & official CLIs')}
+              {t('Bebas biaya token dobel · BYOK & CLI resmi (Claude, Codex, DeepSeek, Gemini)')}
             </span>
           </div>
         </section>
@@ -383,9 +383,9 @@ export function LandingPage() {
                   text: 'Review the plan before work starts. Get a clear account of changes, checks, and evidence before any code is published.',
                 },
                 {
-                  Icon: GitBranch,
-                  title: 'Your workspace, your AI',
-                  text: 'Self-host Cuan and connect your own AI subscriptions (Claude, Codex, DeepSeek). Keep your projects and credentials on your own server.',
+                  Icon: Coins,
+                  title: 'Bebas biaya dobel token AI',
+                  text: 'Jalankan langganan resmi Anda (Claude Pro/Team via CLI claude, ChatGPT Plus via codex, Gemini via agy) atau bawa API key sendiri (DeepSeek, OpenAI, Ollama) tanpa markup token bulanan.',
                 },
                 {
                   Icon: CheckCircle2,
@@ -399,13 +399,13 @@ export function LandingPage() {
                 },
                 {
                   Icon: Users,
-                  title: 'Team collaboration and role access',
-                  text: 'Collaborate with team members under robust role-based access control, keeping administrative settings and AI provider keys protected.',
+                  title: 'Kolaborasi Tim & 1-Klik Undangan WhatsApp',
+                  text: 'Undang staf dan admin dalam 1-klik via link WhatsApp tanpa ribet konfigurasi server email. Hak akses Owner vs Member menjaga kredensial AI tetap aman.',
                 },
                 {
-                  Icon: Terminal,
-                  title: 'Live interactive terminal inspection',
-                  text: 'Stream stdout/stderr logs in real time with interactive chat steering to guide agents without restarting sessions from scratch.',
+                  Icon: Sparkles,
+                  title: 'CRM Kontak & Memori Bisnis (Grounding)',
+                  text: 'Database pelanggan terintegrasi dengan tag prospek (leads) dan riwayat percakapan. Cuan mengingat profil bisnis Anda untuk setiap respon cerdas agen.',
                 },
                 {
                   Icon: Mail,
