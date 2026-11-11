@@ -30,9 +30,35 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         window.location.pathname === '/sponsor' ||
         window.location.pathname === '/sponsors')
 
+    if (isPublicLanding) {
+      // Clean up any manifest link and service worker registrations on public landing page
+      const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+      if (manifestLink) {
+        manifestLink.remove()
+      }
+      if ('serviceWorker' in navigator) {
+        void navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            void reg.unregister()
+          }
+        })
+      }
+      return () => {
+        media.removeEventListener('change', check)
+      }
+    }
+
+    // In-app: dynamically attach manifest for PWA capabilities
+    let manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+    if (!manifestLink) {
+      manifestLink = document.createElement('link')
+      manifestLink.rel = 'manifest'
+      manifestLink.href = '/manifest.webmanifest'
+      document.head.appendChild(manifestLink)
+    }
+
     const ready = (e: Event) => {
       e.preventDefault()
-      if (isPublicLanding) return
       setPrompt(e as InstallPrompt)
     }
     const done = () => {
@@ -41,7 +67,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener('beforeinstallprompt', ready)
     window.addEventListener('appinstalled', done)
-    if (!isPublicLanding && 'serviceWorker' in navigator && window.isSecureContext)
+    if ('serviceWorker' in navigator && window.isSecureContext)
       navigator.serviceWorker
         .register('/sw.js', { updateViaCache: 'none' })
         .catch(() =>
