@@ -206,7 +206,7 @@ export function LandingPage() {
                   title: 'Chatbot web cuma memberi saran teks, eksekusi tetap manual',
                   refText: 'ChatGPT, Claude.ai',
                   refUrl: 'https://chatgpt.com',
-                  desc: 'Chatbot percakapan dirancang untuk tanya-jawab dan drafting ide. Mereka tidak terhubung langsung ke server atau database toko Anda, sehingga Anda tetap harus manual copy-paste kode, menyatukan webhook, dan tebak-tebak errornya sendiri.',
+                  desc: 'Chatbot percakapan dirancang untuk tanya-jawab dan drafting ide. Mereka tidak terhubung langsung ke server atau database bisnis Anda, sehingga Anda tetap harus manual copy-paste kode, menyatukan webhook, dan tebak-tebak errornya sendiri.',
                 },
                 {
                   Icon: Terminal,
