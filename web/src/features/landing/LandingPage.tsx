@@ -281,8 +281,8 @@ export function LandingPage() {
                 },
                 {
                   Icon: Activity,
-                  title: 'Agen otonom (Hermes, Muse, Nod) minim rem pengaman & bukan untuk bisnis',
-                  desc: 'Bagus untuk riset pengembang, tetapi bukan untuk operasional bisnis harian. Tanpa Approval Card dan verifikasi visual, eksekusi mandiri rawan looping token tak berujung dan mengubah konfigurasi tanpa izin pemilik bisnis.',
+                  title: 'Hermes Agent & agen otonom (Muse, Nod) untuk automasi personal, bukan operasional bisnis',
+                  desc: 'Hermes Agent dan agen personal seperti Nod sangat hebat untuk riset dan automasi di laptop pengembang. Namun tanpa Approval Card bisnis, Quality Gate visual, serta CRM percakapan terpadu, eksekusi mandirinya belum siap diserahkan ke tim non-teknis.',
                 },
               ].map(({ Icon, title, desc }) => (
                 <div
@@ -537,15 +537,15 @@ export function LandingPage() {
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Tool Koding CLI')}</div>
+                      <div className="font-bold text-foreground">{t('Coding Agent & CLI')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
                         Claude Code, Codex
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Agen Otonom')}</div>
+                      <div className="font-bold text-foreground">{t('Hermes Agent')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        Hermes, Muse, Nod
+                        Hermes Agent, Muse, Nod
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-bold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
@@ -563,44 +563,50 @@ export function LandingPage() {
                   {[
                     {
                       label: 'Lingkungan eksekusi',
-                      chatbot: { icon: 'x', text: 'Hanya teks di browser' },
-                      coder: { icon: 'warn', text: 'Terminal laptop lokal' },
-                      hermes: { icon: 'warn', text: 'Python di mesin dev' },
+                      desc: 'Di mana tugas benar-benar dijalankan',
+                      chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
+                      coder: { icon: 'warn', text: 'Terminal laptop lokal / IDE' },
+                      hermes: { icon: 'warn', text: 'Aplikasi desktop / mesin lokal' },
                       cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                     },
                     {
                       label: 'Antarmuka & kemudahan pakai',
-                      chatbot: { icon: 'warn', text: 'Chat teks saja' },
+                      desc: 'Kenyamanan akses untuk tim non-teknis',
+                      chatbot: { icon: 'warn', text: 'Chat teks percakapan' },
                       coder: { icon: 'x', text: 'Wajib terminal hitam & git' },
-                      hermes: { icon: 'x', text: 'CLI & dashboard teknis' },
+                      hermes: { icon: 'warn', text: 'Desktop app personal & CLI' },
                       cuan: { icon: 'check', text: 'Web & Mobile tenang (ramah non-teknis)' },
                     },
                     {
                       label: 'Rem pengaman persetujuan',
-                      chatbot: { icon: 'x', text: 'Tidak ada (hanya saran)' },
-                      coder: { icon: 'warn', text: 'Prompt teks [y/n]' },
-                      hermes: { icon: 'x', text: 'Eksekusi mandiri tanpa gate' },
-                      cuan: { icon: 'check', text: 'Approval Card 1-Tap' },
+                      desc: 'Kontrol manusia sebelum aksi menyentuh sistem',
+                      chatbot: { icon: 'x', text: 'Tidak ada (hanya saran teks)' },
+                      coder: { icon: 'warn', text: 'Prompt teks terminal [y/n]' },
+                      hermes: { icon: 'warn', text: 'Prompt izin ad-hoc per aksi' },
+                      cuan: { icon: 'check', text: 'Approval Card 1-Tap terstruktur' },
                     },
                     {
                       label: 'Quality Gate & verifikasi selesai',
-                      chatbot: { icon: 'x', text: 'Tidak ada pengujian' },
+                      desc: 'Pembuktian nyata sebelum tugas dianggap tuntas',
+                      chatbot: { icon: 'x', text: 'Tidak ada pengujian sistem' },
                       coder: { icon: 'warn', text: 'Testing kode programmer' },
                       hermes: { icon: 'warn', text: 'Self-evaluation LLM' },
                       cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
                     },
                     {
                       label: 'Alat operasional bisnis (Live Chat/CRM)',
+                      desc: 'Integrasi live chat pelanggan dan database kontak',
                       chatbot: { icon: 'x', text: 'Tidak ada' },
                       coder: { icon: 'x', text: 'Tidak ada' },
-                      hermes: { icon: 'warn', text: 'Bridge bot dasar (tanpa CRM)' },
+                      hermes: { icon: 'warn', text: 'Personal agent (tanpa CRM/Inbox)' },
                       cuan: { icon: 'check', text: 'Inbox Live Chat & CRM Kontak' },
                     },
                     {
                       label: 'Model biaya token AI',
-                      chatbot: { icon: 'x', text: 'Langganan per akun' },
-                      coder: { icon: 'check', text: 'Langganan developer' },
-                      hermes: { icon: 'warn', text: 'Bayar API per token' },
+                      desc: 'Struktur biaya pemakaian kecerdasan buatan',
+                      chatbot: { icon: 'x', text: 'Langganan per akun ($20/bln)' },
+                      coder: { icon: 'warn', text: 'Langganan / API developer' },
+                      hermes: { icon: 'warn', text: 'Bayar API per token (BYO-AI)' },
                       cuan: { icon: 'check', text: 'Bebas dobel biaya (CLI / BYOK)' },
                     },
                   ].map((row, idx, arr) => (
@@ -652,31 +658,31 @@ export function LandingPage() {
                 {
                   label: 'Lingkungan eksekusi',
                   desc: 'Di mana tugas benar-benar dijalankan',
-                  chatbot: { icon: 'x', text: 'Hanya teks di browser' },
-                  coder: { icon: 'warn', text: 'Terminal laptop lokal' },
-                  hermes: { icon: 'warn', text: 'Python di mesin dev' },
+                  chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
+                  coder: { icon: 'warn', text: 'Terminal laptop lokal / IDE' },
+                  hermes: { icon: 'warn', text: 'Aplikasi desktop / mesin lokal' },
                   cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                 },
                 {
                   label: 'Antarmuka & kemudahan pakai',
                   desc: 'Kenyamanan akses untuk tim non-teknis',
-                  chatbot: { icon: 'warn', text: 'Chat teks saja' },
+                  chatbot: { icon: 'warn', text: 'Chat teks percakapan' },
                   coder: { icon: 'x', text: 'Wajib terminal hitam & git' },
-                  hermes: { icon: 'x', text: 'CLI & dashboard teknis' },
+                  hermes: { icon: 'warn', text: 'Desktop app personal & CLI' },
                   cuan: { icon: 'check', text: 'Web & Mobile tenang (ramah non-teknis)' },
                 },
                 {
                   label: 'Rem pengaman persetujuan',
                   desc: 'Kontrol manusia sebelum aksi menyentuh sistem',
-                  chatbot: { icon: 'x', text: 'Tidak ada (hanya saran)' },
-                  coder: { icon: 'warn', text: 'Prompt teks [y/n]' },
-                  hermes: { icon: 'x', text: 'Eksekusi mandiri tanpa gate' },
-                  cuan: { icon: 'check', text: 'Approval Card 1-Tap' },
+                  chatbot: { icon: 'x', text: 'Tidak ada (hanya saran teks)' },
+                  coder: { icon: 'warn', text: 'Prompt teks terminal [y/n]' },
+                  hermes: { icon: 'warn', text: 'Prompt izin ad-hoc per aksi' },
+                  cuan: { icon: 'check', text: 'Approval Card 1-Tap terstruktur' },
                 },
                 {
                   label: 'Quality Gate & verifikasi selesai',
                   desc: 'Pembuktian nyata sebelum tugas dianggap tuntas',
-                  chatbot: { icon: 'x', text: 'Tidak ada pengujian' },
+                  chatbot: { icon: 'x', text: 'Tidak ada pengujian sistem' },
                   coder: { icon: 'warn', text: 'Testing kode programmer' },
                   hermes: { icon: 'warn', text: 'Self-evaluation LLM' },
                   cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
@@ -686,15 +692,15 @@ export function LandingPage() {
                   desc: 'Integrasi live chat pelanggan dan database kontak',
                   chatbot: { icon: 'x', text: 'Tidak ada' },
                   coder: { icon: 'x', text: 'Tidak ada' },
-                  hermes: { icon: 'warn', text: 'Bridge bot dasar (tanpa CRM)' },
+                  hermes: { icon: 'warn', text: 'Personal agent (tanpa CRM/Inbox)' },
                   cuan: { icon: 'check', text: 'Inbox Live Chat & CRM Kontak' },
                 },
                 {
                   label: 'Model biaya token AI',
                   desc: 'Struktur biaya pemakaian kecerdasan buatan',
-                  chatbot: { icon: 'x', text: 'Langganan per akun' },
-                  coder: { icon: 'check', text: 'Langganan developer' },
-                  hermes: { icon: 'warn', text: 'Bayar API per token' },
+                  chatbot: { icon: 'x', text: 'Langganan per akun ($20/bln)' },
+                  coder: { icon: 'warn', text: 'Langganan / API developer' },
+                  hermes: { icon: 'warn', text: 'Bayar API per token (BYO-AI)' },
                   cuan: { icon: 'check', text: 'Bebas dobel biaya (CLI / BYOK)' },
                 },
               ].map((row) => (
@@ -738,7 +744,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">Tool Koding (Claude Code)</span>
+                      <span className="text-xs">Coding Agent (Claude Code/Codex)</span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.coder.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.coder.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
@@ -748,7 +754,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">{t('Hermes / Muse / Nod')}</span>
+                      <span className="text-xs">{t('Hermes Agent (Muse, Nod)')}</span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
