@@ -217,10 +217,10 @@ export function LandingPage() {
                 },
                 {
                   Icon: Activity,
-                  title: 'Agen otonom mentah minim rem pengaman & bukan untuk bisnis',
-                  refText: 'Hermes Agent, AutoGPT',
+                  title: 'Agen otonom (Hermes, Muse, Nod) minim rem pengaman & bukan untuk bisnis',
+                  refText: 'Hermes, Muse, Nod',
                   refUrl: 'https://github.com/NousResearch/hermes-agent',
-                  desc: 'Dirancang untuk riset teknis dan scripting otonom, bukan operasional bisnis harian. Tanpa Approval Card dan verifikasi visual, eksekusi mandiri rawan looping token tak berujung, dan tidak memiliki inbox WhatsApp atau CRM untuk melayani pelanggan.',
+                  desc: 'Bagus untuk riset pengembang, tetapi bukan untuk operasional bisnis harian. Tanpa Approval Card dan verifikasi visual, eksekusi mandiri rawan looping token tak berujung dan mengubah konfigurasi tanpa izin pemilik bisnis.',
                 },
               ].map(({ Icon, title, refText, refUrl, desc }) => (
                 <div
@@ -447,7 +447,7 @@ export function LandingPage() {
                         rel="noreferrer"
                         className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
                       >
-                        Hermes Agent <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" />
                       </a>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
@@ -650,7 +650,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-[11px]">Agen Otonom (Hermes Agent)</span>
+                      <span className="text-[11px]">{t('Hermes / Muse / Nod')}</span>
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
                         {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
                         {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
@@ -688,7 +688,7 @@ export function LandingPage() {
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 hover:text-foreground"
                 >
-                  Hermes Agent <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" />
                 </a>
               </div>
             </div>
