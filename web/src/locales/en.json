@@ -513,5 +513,18 @@
   "Bayar API per pemakaian": "Pay-per-use direct API billing",
   "Bebas dobel biaya (pakai akun resmi sendiri)": "Zero double margins (BYOK / official accounts)",
   "Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.": "Run your official subscriptions (Claude Pro, ChatGPT Plus, Gemini) or bring personal API keys (DeepSeek, OpenAI) with zero token markup.",
-  "CRM Kontak & Memori Bisnis Terpadu": "Unified Contacts CRM & Business Memory"
+  "CRM Kontak & Memori Bisnis Terpadu": "Unified Contacts CRM & Business Memory",
+  "Hubungkan Tool Bisnis Favorit, Kanal Jualan, & Model AI Anda": "Connect Your Favorite Business Tools, Sales Channels & AI Models",
+  "Satu sistem mandiri di VPS Anda. Cuan tidak mengunci bisnis Anda di ekosistem tertutup. Hubungkan agen ke tool post scheduler sosmed, webhook form pemesanan web, ekstraksi foto struk belanja, hingga model AI resmi tanpa batas.": "One autonomous system on your VPS. Cuan never locks you into a walled garden. Connect agents to social media post schedulers, web order webhooks, receipt photo extraction, and official AI models without limits.",
+  "Konten & Media Sosial": "Content & Social Media",
+  "Jadwal Posting Sosmed & Content Scheduler": "Social Media Posting & Content Scheduler",
+  "Minta Cuan meriset tren, menulis draf copy promosi, dan langsung meneruskannya ke tool post scheduler (Instagram, TikTok, Twitter/X, LinkedIn) secara otomatis tanpa copy-paste manual.": "Have Cuan research trending topics, write promotional draft copies, and directly push them to your social post scheduler (Instagram, TikTok, Twitter/X, LinkedIn) automatically without manual copy-paste.",
+  "Penjualan & Layanan Pelanggan": "Sales & Customer Support",
+  "Form Order Web, Notifikasi Email & Live Chat 24/7": "Web Order Forms, Email Alerts & 24/7 Live Chat",
+  "Sambungkan webhook checkout (Shopify, WooCommerce, form order) agar agen otomatis memproses pesanan masuk, melayani tanya-jawab pelanggan di live chat website 24/7, dan mengirim rekap ke email Anda.": "Connect checkout webhooks (Shopify, WooCommerce, order forms) so agents automatically process new orders, answer customer questions on your 24/7 website live chat, and send email digests to you.",
+  "Keuangan & Integrasi MCP": "Finance & MCP Integrations",
+  "Foto Struk Jadi Mutasi & Koneksi Tool Khusus": "Receipt Photos to Accounting & Custom Tool Integrations",
+  "Cukup kirim foto struk belanja atau bukti transfer di chat—agen mengekstrak angka dan mencatat mutasi keuangan otomatis. Anda juga bisa menyambungkan spreadsheet stok atau software internal via standar terbuka Model Context Protocol (MCP).": "Simply send a photo of a shopping receipt or transfer slip in chat—agents extract amounts and record financial records automatically. Need custom integrations? Connect your stock spreadsheets or internal tools via the open Model Context Protocol (MCP) standard.",
+  "Bebas Hubungkan Model AI Resmi Favorit Anda": "Freely Connect Your Favorite Official AI Models",
+  "Gunakan akun resmi (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key sendiri (DeepSeek, OpenAI) tanpa biaya token dobel.": "Use your official accounts (Claude Pro, ChatGPT Plus, Gemini) or bring personal API keys (DeepSeek, OpenAI) with zero token markup."
 }

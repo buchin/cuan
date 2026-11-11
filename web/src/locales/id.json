@@ -1976,5 +1976,18 @@
   "Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.": "Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.",
   "Autonomous Definition of Done loop": "Verifikasi kualitas otomatis (Quality Gate)",
   "Built-in quality gate runs targeted tests and verifies real component outputs automatically before marking any task complete.": "Sistem otomatis menguji fungsi dan memvalidasi tampilan visual sebelum menandai tugas selesai, sehingga hasil kerja bebas dari eror atau setengah jadi.",
-  "CRM Kontak & Memori Bisnis Terpadu": "CRM Kontak & Memori Bisnis Terpadu"
+  "CRM Kontak & Memori Bisnis Terpadu": "CRM Kontak & Memori Bisnis Terpadu",
+  "Hubungkan Tool Bisnis Favorit, Kanal Jualan, & Model AI Anda": "Hubungkan Tool Bisnis Favorit, Kanal Jualan, & Model AI Anda",
+  "Satu sistem mandiri di VPS Anda. Cuan tidak mengunci bisnis Anda di ekosistem tertutup. Hubungkan agen ke tool post scheduler sosmed, webhook form pemesanan web, ekstraksi foto struk belanja, hingga model AI resmi tanpa batas.": "Satu sistem mandiri di VPS Anda. Cuan tidak mengunci bisnis Anda di ekosistem tertutup. Hubungkan agen ke tool post scheduler sosmed, webhook form pemesanan web, ekstraksi foto struk belanja, hingga model AI resmi tanpa batas.",
+  "Konten & Media Sosial": "Konten & Media Sosial",
+  "Jadwal Posting Sosmed & Content Scheduler": "Jadwal Posting Sosmed & Content Scheduler",
+  "Minta Cuan meriset tren, menulis draf copy promosi, dan langsung meneruskannya ke tool post scheduler (Instagram, TikTok, Twitter/X, LinkedIn) secara otomatis tanpa copy-paste manual.": "Minta Cuan meriset tren, menulis draf copy promosi, dan langsung meneruskannya ke tool post scheduler (Instagram, TikTok, Twitter/X, LinkedIn) secara otomatis tanpa copy-paste manual.",
+  "Penjualan & Layanan Pelanggan": "Penjualan & Layanan Pelanggan",
+  "Form Order Web, Notifikasi Email & Live Chat 24/7": "Form Order Web, Notifikasi Email & Live Chat 24/7",
+  "Sambungkan webhook checkout (Shopify, WooCommerce, form order) agar agen otomatis memproses pesanan masuk, melayani tanya-jawab pelanggan di live chat website 24/7, dan mengirim rekap ke email Anda.": "Sambungkan webhook checkout (Shopify, WooCommerce, form order) agar agen otomatis memproses pesanan masuk, melayani tanya-jawab pelanggan di live chat website 24/7, dan mengirim rekap ke email Anda.",
+  "Keuangan & Integrasi MCP": "Keuangan & Integrasi MCP",
+  "Foto Struk Jadi Mutasi & Koneksi Tool Khusus": "Foto Struk Jadi Mutasi & Koneksi Tool Khusus",
+  "Cukup kirim foto struk belanja atau bukti transfer di chat—agen mengekstrak angka dan mencatat mutasi keuangan otomatis. Anda juga bisa menyambungkan spreadsheet stok atau software internal via standar terbuka Model Context Protocol (MCP).": "Cukup kirim foto struk belanja atau bukti transfer di chat—agen mengekstrak angka dan mencatat mutasi keuangan otomatis. Anda juga bisa menyambungkan spreadsheet stok atau software internal via standar terbuka Model Context Protocol (MCP).",
+  "Bebas Hubungkan Model AI Resmi Favorit Anda": "Bebas Hubungkan Model AI Resmi Favorit Anda",
+  "Gunakan akun resmi (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key sendiri (DeepSeek, OpenAI) tanpa biaya token dobel.": "Gunakan akun resmi (Claude Pro, ChatGPT Plus, Gemini) atau pasang API key sendiri (DeepSeek, OpenAI) tanpa biaya token dobel."
 }
