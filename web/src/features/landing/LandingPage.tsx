@@ -8,17 +8,16 @@ import {
   Mail,
   ShieldCheck,
   CheckCircle2,
+  Lock,
   Zap,
   Volume2,
   Activity,
   Users,
   Sun,
   Moon,
-  Clock,
   Coins,
   AlertCircle,
   Bot,
-  Terminal,
   Check,
   X,
   Minus,
@@ -178,11 +177,11 @@ export function LandingPage() {
           <div className="mx-auto max-w-3xl">
             <h1
               id="landing-title"
-              className="font-display text-5xl font-bold tracking-tight text-foreground sm:text-6xl md:text-7xl lg:text-[76px] lg:leading-[1.08]"
+              className="font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl lg:leading-[1.1]"
             >
               {t('Chat. Setujui. Beres.')}
             </h1>
-            <p className="mt-4 text-lg font-normal text-muted-foreground sm:text-xl md:text-2xl leading-relaxed">
+            <p className="mt-4 text-base font-normal text-muted-foreground sm:text-lg md:text-xl leading-relaxed">
               {t('Kelola bisnis tanpa pusing urusan teknis.')}
             </p>
 
@@ -226,8 +225,9 @@ export function LandingPage() {
                   {formError && (
                     <p className="text-xs text-rose-500 font-medium text-center">{formError}</p>
                   )}
-                  <p className="text-xs text-muted-foreground text-center">
-                    🔒 {t('Gratis · Tanpa kartu kredit · Prioritas rilis v1.0 & akses repositori')}
+                  <p className="text-xs text-muted-foreground text-center inline-flex items-center justify-center gap-1.5 w-full">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" strokeWidth={1.5} />
+                    <span>{t('Gratis · Tanpa kartu kredit · Prioritas rilis v1.0 & akses repositori')}</span>
                   </p>
                 </div>
               )}
@@ -312,7 +312,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* 2A. BUSINESS OPERATIONS PROBLEM (Level 1: Real Business Headaches) */}
+        {/* 2. THE REAL BUSINESS & AI BOTTLENECKS (Consolidated) */}
         <section
           id="problem"
           className="scroll-mt-6 border-t border-border/60 bg-muted/20 px-6 py-16 sm:px-8 sm:py-24"
@@ -322,7 +322,7 @@ export function LandingPage() {
             <div className="max-w-3xl">
               <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
                 <AlertCircle className="h-4 w-4 text-amber-500/90" strokeWidth={1.5} />
-                <span>{t('Tantangan Pebisnis & Marketer')}</span>
+                <span>{t('Tantangan Pebisnis & Kreator')}</span>
               </div>
               <h2
                 id="problem-title"
@@ -332,7 +332,7 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
                 {t(
-                  'Banyak pebisnis dan marketer membuang puluhan jam berharga mengurusi operasional manual, membalas chat berulang, integrasi teknis, hingga error alih-alih fokus mencari cuan.',
+                  'Banyak pebisnis mencoba sewa programmer, langganan SaaS mahal, hingga utak-atik AI terbaru—namun tetap berakhir pusing dan kehilangan waktu jualan.',
                 )}
               </p>
             </div>
@@ -340,19 +340,19 @@ export function LandingPage() {
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 {
-                  Icon: Clock,
-                  title: 'Sewa tim teknis & operasional mahal',
-                  desc: 'Gaji jutaan rupiah per bulan untuk programmer, admin, atau CS tambahan. Rawan miskomunikasi dan antrean berminggu-minggu bahkan untuk otomasi atau revisi kecil.',
-                },
-                {
                   Icon: Coins,
-                  title: 'Langganan SaaS luar negeri bikin boncos',
-                  desc: 'Tagihan bulanan membengkak dengan markup tinggi, kuota token dibatasi, dan data pelanggan serta rahasia bisnis Anda tersimpan di server pihak ketiga.',
+                  title: 'Sewa tim mahal, ngulik sendiri burnout',
+                  desc: 'Gaji jutaan rupiah per bulan dan antrean berminggu-minggu bahkan untuk revisi kecil. Mencoba koding sendiri, seharian habis membaca tutorial dan error log alih-alih fokus jualan.',
                 },
                 {
-                  Icon: AlertCircle,
-                  title: 'Ngulik sendiri malah burnout',
-                  desc: 'Mencoba utak-atik terminal, git, webhook, dan kodingan sendiri. Seharian habis membaca tutorial dan error log, waktu untuk jualan malah hilang.',
+                  Icon: Bot,
+                  title: 'Chatbot AI cuma ngasih teks, eksekusi tetap manual',
+                  desc: 'ChatGPT dan Claude hebat untuk drafting ide, tapi mereka cuma memberi resep dan potongan kode. Anda tetap harus manual copy-paste, menyatukan webhook, dan tebak-tebak errornya sendiri.',
+                },
+                {
+                  Icon: Activity,
+                  title: 'Asisten personal (Hermes, Muse) belum siap untuk bisnis',
+                  desc: 'Lagi tren di kalangan kreator untuk riset pribadi atau ngobrol di Telegram, tapi belum siap untuk operasional bisnis—tanpa rem Approval Card terstruktur, tanpa verifikasi visual, dan tanpa Inbox chat pelanggan.',
                 },
               ].map(({ Icon, title, desc }) => (
                 <div
@@ -360,68 +360,6 @@ export function LandingPage() {
                   className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80"
                 >
                   <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                    <Icon className="h-5 w-5" strokeWidth={1.5} />
-                  </div>
-                  <h3 className="font-display text-lg font-bold text-foreground">
-                    {t(title)}
-                  </h3>
-                  <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
-                    {t(desc)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* 2B. AI EXPECTATION VS REALITY (Level 2: The Bottlenecks of Existing AI) */}
-        <section
-          id="ai-limits"
-          className="scroll-mt-6 border-t border-border/40 bg-card px-6 py-16 sm:px-8 sm:py-24"
-          aria-labelledby="ai-limits-title"
-        >
-          <div className="mx-auto max-w-6xl">
-            <div className="max-w-3xl">
-              <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
-                <Bot className="h-4 w-4 text-primary" strokeWidth={1.5} />
-                <span>{t('Realita AI Saat Ini')}</span>
-              </div>
-              <h2
-                id="ai-limits-title"
-                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
-              >
-                {t('Berharap AI membereskan segalanya, tapi malah nambah pusing?')}
-              </h2>
-              <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
-                {t(
-                  'Banyak marketer mencoba berbagai AI terbaru untuk mengatasi masalah di atas, namun masing-masing punya batasan yang bikin pekerjaan tetap macet.',
-                )}
-              </p>
-            </div>
-
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                {
-                  Icon: Bot,
-                  title: 'Chatbot web cuma memberi saran teks, eksekusi tetap manual',
-                  desc: 'Chatbot percakapan dirancang untuk tanya-jawab dan drafting ide. Mereka tidak terhubung langsung ke server atau database bisnis Anda, sehingga Anda tetap harus manual copy-paste kode, menyatukan webhook, dan tebak-tebak errornya sendiri.',
-                },
-                {
-                  Icon: Terminal,
-                  title: 'Tool koding CLI dibuat untuk programmer di terminal lokal',
-                  desc: 'Sangat andal untuk developer, tetapi wajib mengoperasikan layar terminal hitam (bash/git) yang membingungkan non-teknis. Berjalan di laptop lokal sehingga langsung mati begitu laptop Anda tutup atau sleep, dan tidak bisa diakses santai dari HP.',
-                },
-                {
-                  Icon: Activity,
-                  title: 'AI otonom personal belum siap untuk operasional bisnis',
-                  desc: 'Asisten otonom personal hebat untuk automasi di laptop developer atau eksperimen cloud tertutup. Namun tanpa Approval Card bisnis, Quality Gate visual, antrean multi-task di VPS, serta CRM percakapan terpadu, eksekusinya belum siap untuk operasional bisnis harian.',
-                },
-              ].map(({ Icon, title, desc }) => (
-                <div
-                  key={title}
-                  className="rounded-xl border border-border/60 bg-muted/20 p-6 shadow-2xs transition-colors hover:border-border/80"
-                >
-                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-card text-muted-foreground border border-border/50">
                     <Icon className="h-5 w-5" strokeWidth={1.5} />
                   </div>
                   <h3 className="font-display text-lg font-bold text-foreground">
