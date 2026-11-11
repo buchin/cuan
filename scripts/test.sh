@@ -33,6 +33,17 @@ done
 
 echo "==> Running Cuan verification tests..."
 
+if [[ "$MODE" == "all" && -d "$ROOT_DIR/.git" ]]; then
+  # Smart change detection: if only frontend files changed relative to HEAD, avoid heavy Go backend test runs
+  CHANGED_BACKEND=$(git -C "$ROOT_DIR" diff --name-only HEAD 2>/dev/null | grep -E '^(internal/|pkg/|cmd/|migrations/|go\.(mod|sum))' || true)
+  CHANGED_UNTRACKED_BACKEND=$(git -C "$ROOT_DIR" status --porcelain 2>/dev/null | grep -E '^\?\? (internal/|pkg/|cmd/|migrations/|go\.(mod|sum))' || true)
+  CHANGED_FRONTEND=$(git -C "$ROOT_DIR" diff --name-only HEAD 2>/dev/null | grep -E '^web/' || true)
+  if [[ -n "$CHANGED_FRONTEND" && -z "$CHANGED_BACKEND" && -z "$CHANGED_UNTRACKED_BACKEND" ]]; then
+    echo "==> Change detection: only web/ changed, skipping Go backend test suites."
+    MODE="frontend"
+  fi
+fi
+
 if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
   echo "==> Testing Go packages (config, auth, db, task, runner)..."
   if [[ "$FAST_MODE" == "true" ]]; then
@@ -48,7 +59,11 @@ if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
 fi
 
 if [[ "$MODE" == "all" || "$MODE" == "frontend" ]]; then
-  if [[ "$FAST_MODE" != "true" ]]; then
+  if [[ "$FAST_MODE" == "true" ]]; then
+    echo "==> Validating TypeScript types in web..."
+    (cd "$ROOT_DIR/web" && npx tsc --noEmit)
+    echo "✓ TypeScript check passed."
+  else
     echo "==> Validating React Vite frontend build..."
     (cd "$ROOT_DIR/web" && npm run build)
     echo "✓ Frontend validation passed successfully."

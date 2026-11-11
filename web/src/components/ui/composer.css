@@ -18,11 +18,12 @@
   --composer-surface: #1e2023;
 }
 .composer-mode-tab {
-  padding-top: 12px;
   background: transparent;
   color: oklch(var(--muted-foreground));
 }
+.composer-mode-tabs .composer-mode-tab,
 .composer-mode-tab:is([aria-selected='true'], [aria-expanded='true']) {
+  padding-top: 12px;
   background: linear-gradient(to bottom, transparent 12px, var(--composer-surface) 12px);
   color: oklch(var(--foreground));
 }

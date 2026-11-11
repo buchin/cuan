@@ -1387,7 +1387,7 @@ export function InboxView({
                 onClick={handleMessageContainerClick}
                 className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
-                <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2">
+                <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2 pb-4">
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
                   {activeContact?.type === 'customer' ? (

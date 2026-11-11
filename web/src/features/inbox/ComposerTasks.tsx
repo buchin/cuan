@@ -9,6 +9,7 @@ import { workStatus, workDisplayStatus, taskAgentPending, taskLiveActivityText, 
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
+import { cn } from '../../lib/utils'
 
 function running(task: Task) {
   const status = workStatus(task)
@@ -38,10 +39,16 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       trigger.current?.focus()
     }
   }}>
-    <div className="flex flex-wrap items-end justify-between gap-x-2 bg-transparent">
+    <div className={cn(
+      "flex flex-wrap items-end justify-between gap-x-2 bg-transparent",
+      !modes && !open && "justify-end pb-1"
+    )}>
     {modes}
     {tasks.length > 0 && <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined}
-      className="composer-mode-tab ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 px-2 text-xs font-medium bg-transparent hover:text-foreground"
+      className={cn(
+        "composer-mode-tab ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-medium bg-transparent hover:text-foreground cursor-pointer transition-colors",
+        modes || open ? "min-h-11 px-2" : "min-h-7 px-2.5 py-1 rounded-full border border-border/40 bg-muted/20 hover:bg-muted/50 text-muted-foreground"
+      )}
       onClick={() => setOpen(value => !value)}>
       <span>{t('Tasks')}</span>
       <span className="composer-tasks-count tabular-nums bg-muted px-1.5 text-[11px]">{ordered.length}</span>
