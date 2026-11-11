@@ -257,7 +257,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		baseHost = cfg.BaseDomain
 	}
 	dnsVerifier := domain.NewDNSVerifier(domain.DNSVerifierConfig{
-		CanonicalHosts: []string{baseHost, "cuan.work", "cuan.app", "cuan.dojo.cc"},
+		CanonicalHosts: []string{baseHost, "cuan.work", "cuan.app", "cuan.dojo.cc", "cuan-app.dojo.cc"},
 		TargetIPs:      []string{"127.0.0.1", "::1"},
 	})
 	dnsPoller := domain.NewDNSHealthPoller(domRepo, dnsVerifier, depDriver, srvRepo, caddyRouter)

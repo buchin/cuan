@@ -113,7 +113,7 @@ function ViewFallback() {
 }
 
 export function App() {
-  const { isAuthenticated, isLoading: authLoading, token, setupRequired } = useAuth()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -715,15 +715,13 @@ export function App() {
     )
   }
 
-  if (
-    rootSegment === 'about' ||
-    (location.pathname === '/' && !token && !isAuthenticated && setupRequired !== true)
-  )
+  if (rootSegment === 'landing' || rootSegment === 'about') {
     return (
       <Suspense fallback={<ViewFallback />}>
         <LandingPage />
       </Suspense>
     )
+  }
 
   if (authLoading) {
     return (
@@ -800,7 +798,7 @@ export function App() {
 
   // 2. Unauthenticated: Auth Gatekeeper
   if (!isAuthenticated) {
-    if (location.pathname === '/' && setupRequired !== true) {
+    if (rootSegment === 'landing' || rootSegment === 'about') {
       return (
         <Suspense fallback={<ViewFallback />}>
           <LandingPage />
