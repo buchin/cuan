@@ -189,7 +189,7 @@ export function LandingPage() {
           aria-labelledby="landing-title"
         >
           <div className="mx-auto max-w-3xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-foreground/80">
               <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
               <span>{t('Agentic Project Manager untuk Digital Marketer')}</span>
             </div>
@@ -346,8 +346,8 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <AlertCircle className="h-4 w-4 text-amber-500/80" strokeWidth={1.5} />
+              <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
+                <AlertCircle className="h-4 w-4 text-amber-500/90" strokeWidth={1.5} />
                 <span>{t('Tantangan Pebisnis & Marketer')}</span>
               </div>
               <h2
@@ -408,7 +408,7 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
                 <Bot className="h-4 w-4 text-primary" strokeWidth={1.5} />
                 <span>{t('Realita AI Saat Ini')}</span>
               </div>
@@ -470,7 +470,7 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={1.5} />
                 <span>{t('Cara kerja Cuan')}</span>
               </div>
@@ -482,7 +482,7 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
                 {t(
-                  'Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.',
+                  'Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan bekerja sebagai Agentic Project Manager yang menyusun rencana, mengotomasi alur operasional bisnis, menghubungkan tools lewat MCP, hingga deploy di server Anda sendiri sampai tuntas terverifikasi.',
                 )}
               </p>
             </div>
@@ -567,7 +567,7 @@ export function LandingPage() {
                   </h3>
                   <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
                     {t(
-                      'Before touching anything, Cuan presents a structured Approval Card outlining the scope, specialist agents (@sm, @dev, @support), and verification criteria. One tap to approve.',
+                      'Before touching anything, Cuan presents a structured Approval Card outlining the work scope, connected MCP tools, and definition of done verification criteria. One tap to approve.',
                     )}
                   </p>
                 </div>
@@ -603,7 +603,7 @@ export function LandingPage() {
                   </h3>
                   <p className="mt-2.5 text-sm sm:text-base leading-relaxed text-muted-foreground">
                     {t(
-                      'Autonomous agents execute operations, handle support, or write code, verifying Definition of Done criteria, and report back via an authentic Task Card with 100% proof.',
+                      'Cuan executes the approved plan autonomously, connects the necessary tools, verifies Definition of Done criteria, and reports back via an authentic Task Card with 100% proof.',
                     )}
                   </p>
                 </div>
@@ -666,7 +666,7 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
                 <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={1.5} />
                 <span>{t('Mengapa Cuan Berbeda?')}</span>
               </div>
@@ -1040,7 +1040,7 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <div className="mb-3.5 inline-flex items-center gap-2 text-sm sm:text-[15px] font-semibold text-foreground/80">
                 <Cpu className="h-4 w-4 text-primary" strokeWidth={1.5} />
                 <span>
                   {language === 'id'
