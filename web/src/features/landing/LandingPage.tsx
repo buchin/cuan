@@ -14,18 +14,23 @@ import {
   Terminal,
   Sun,
   Moon,
+  Clock,
+  Coins,
+  AlertCircle,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
 import { useTheme } from '../../context/ThemeContext'
 
 const repository = 'https://github.com/buchin/cuan'
+
 export function LandingPage() {
   const { t, language, setPreference } = useLanguage()
   const { resolvedTheme, toggleTheme } = useTheme()
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
+      {/* Navigation Header */}
       <header className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
         <Link
           to="/"
@@ -40,10 +45,22 @@ export function LandingPage() {
           className="flex items-center gap-2 sm:gap-4"
         >
           <a
+            href="#problem"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+          >
+            {t('Masalah')}
+          </a>
+          <a
             href="#how-it-works"
             className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
           >
             {t('Cara kerja')}
+          </a>
+          <a
+            href="#features"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+          >
+            {t('Fitur')}
           </a>
           <a
             href={repository}
@@ -84,9 +101,11 @@ export function LandingPage() {
           </Link>
         </nav>
       </header>
+
       <main>
+        {/* 1. HOOK / HERO SECTION */}
         <section
-          className="relative mx-auto max-w-6xl px-6 pb-20 pt-12 text-center sm:px-8 sm:pb-28 sm:pt-20"
+          className="relative mx-auto max-w-6xl px-6 pb-16 pt-12 text-center sm:px-8 sm:pb-24 sm:pt-20"
           aria-labelledby="landing-title"
         >
           <div className="mx-auto max-w-3xl">
@@ -105,22 +124,20 @@ export function LandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link to="/login" className="action-primary min-h-12 px-7 text-base font-medium shadow-xs">
-                {t('Get started')}
+                {t('Mulai Sekarang')}
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <a
-                href={repository}
-                target="_blank"
-                rel="noreferrer"
+                href="#problem"
                 className="action-secondary min-h-12 px-6 text-base font-medium"
               >
-                GitHub
+                {t('Pelajari Cara Kerja')}
                 <ChevronRight className="h-4 w-4" />
               </a>
             </div>
           </div>
 
-          {/* Centered 3-Device Mockup Showcase with Clean Natural Depth */}
+          {/* Centered 3-Device Mockup Showcase with Natural Depth */}
           <div className="mx-auto mt-14 max-w-5xl sm:mt-18">
             <div className="relative">
               <img
@@ -151,24 +168,90 @@ export function LandingPage() {
           </div>
         </section>
 
+        {/* 2. THE PROBLEM & AGITATE SECTION (P-A in PAS-P) */}
+        <section
+          id="problem"
+          className="scroll-mt-6 border-t border-border/60 bg-muted/20 px-6 py-16 sm:px-8 sm:py-24"
+          aria-labelledby="problem-title"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-3xl">
+              <h2
+                id="problem-title"
+                className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+              >
+                {t('Punya segudang ide bisnis, tapi sering mentok di urusan teknis?')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {t(
+                  'Banyak pebisnis dan marketer membuang puluhan jam berharga hanya untuk mengurusi konfigurasi server, skrip error, dan integrasi yang rumit alih-alih fokus mencari cuan.',
+                )}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  Icon: Clock,
+                  title: 'Sewa programmer mahal & lambat',
+                  desc: 'Biaya jutaan rupiah per bulan, antrean berminggu-minggu, dan rawan miskomunikasi bahkan hanya untuk revisi kecil atau perbaikan form landing page.',
+                },
+                {
+                  Icon: Coins,
+                  title: 'Langganan SaaS AI luar negeri bikin boncos',
+                  desc: 'Tagihan bulanan membengkak dengan markup tinggi, kuota token dibatasi, dan data pelanggan serta rahasia bisnis Anda tersimpan di server pihak ketiga.',
+                },
+                {
+                  Icon: AlertCircle,
+                  title: 'Ngulik sendiri malah burnout',
+                  desc: 'Mencoba utak-atik terminal, git, webhook, dan kodingan sendiri. Seharian habis membaca tutorial dan error log, waktu untuk jualan malah hilang.',
+                },
+              ].map(({ Icon, title, desc }) => (
+                <div
+                  key={title}
+                  className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border"
+                >
+                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-base font-semibold text-foreground">
+                    {t(title)}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t(desc)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 3. SOLUTION & PROCESS SECTION (S-P in PAS-P / StoryBrand 3-Step) */}
         <section
           id="how-it-works"
-          className="scroll-mt-6 border-y border-border/60 bg-muted/20 px-6 py-16 sm:px-8 sm:py-24"
+          className="scroll-mt-6 border-t border-border/60 px-6 py-16 sm:px-8 sm:py-24"
           aria-labelledby="how-title"
         >
           <div className="mx-auto max-w-6xl">
-            <h2
-              id="how-title"
-              className="text-2xl font-semibold tracking-tight sm:text-3xl"
-            >
-              {t('How Cuan works')}
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              {t(
-                'You don’t need to organize tasks or choose an agent to begin. Start with what you want to achieve.',
-              )}
-            </p>
-            <ol className="mt-10 grid gap-8 md:grid-cols-3">
+            <div className="max-w-3xl">
+              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <span>{t('Cara kerja Cuan')}</span>
+              </div>
+              <h2
+                id="how-title"
+                className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl"
+              >
+                {t('Kenalkan Cuan: AI Agent Mandiri di Server Anda Sendiri')}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {t(
+                  'Anda bertindak sebagai direktur yang memberi instruksi lewat chat santai. Cuan yang menyusun rencana, mengeksekusi kodingan, menguji hasil, dan deploy di VPS Anda sampai beres.',
+                )}
+              </p>
+            </div>
+
+            <ol className="mt-12 grid gap-8 md:grid-cols-3">
               {[
                 {
                   step: '01',
@@ -210,98 +293,110 @@ export function LandingPage() {
           </div>
         </section>
 
+        {/* 4. PROOF & SUPERPOWERS SECTION (P in PAS-P) */}
         <section
-          className="mx-auto max-w-6xl px-6 py-16 sm:px-8 sm:py-24"
-          aria-labelledby="control-title"
+          id="features"
+          className="scroll-mt-6 border-t border-border/60 bg-muted/20 px-6 py-16 sm:px-8 sm:py-24"
+          aria-labelledby="features-title"
         >
-          <div className="max-w-2xl">
-            <h2
-              id="control-title"
-              className="text-2xl font-semibold tracking-tight sm:text-3xl"
-            >
-              {t('Stay in control, without staying on top of everything')}
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {t(
-                'Your goals and decisions guide the work. Cuan handles the coordination and shows you what actually happened.',
-              )}
-            </p>
-          </div>
-          <div className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                Icon: ShieldCheck,
-                title: 'Approval stays with you',
-                text: 'Review the plan before work starts. Get a clear account of changes, checks, and evidence before any code is published.',
-              },
-              {
-                Icon: GitBranch,
-                title: 'Your workspace, your AI',
-                text: 'Self-host Cuan and connect your own AI subscriptions (Claude, Codex, DeepSeek). Keep your projects and credentials on your own server.',
-              },
-              {
-                Icon: CheckCircle2,
-                title: 'Autonomous Definition of Done loop',
-                text: 'Built-in quality gate runs targeted tests and verifies real component outputs automatically before marking any task complete.',
-              },
-              {
-                Icon: MessageSquare,
-                title: 'Multi-channel unified customer inbox',
-                text: 'Manage customer conversations from WhatsApp and live chat in one calm, monochromatic stream with quiet whisper notes for operators.',
-              },
-              {
-                Icon: Users,
-                title: 'Team collaboration and role access',
-                text: 'Collaborate with team members under robust role-based access control, keeping administrative settings and AI provider keys protected.',
-              },
-              {
-                Icon: Terminal,
-                title: 'Live interactive terminal inspection',
-                text: 'Stream stdout/stderr logs in real time with interactive chat steering to guide agents without restarting sessions from scratch.',
-              },
-              {
-                Icon: Mail,
-                title: 'Resend email alerts & idle chat transcripts.',
-                text: 'Never lose a customer lead. Automatically receive responsive email digests via Resend when live chat inquiries are unread or idle (>5-10m).',
-              },
-              {
-                Icon: Volume2,
-                title: 'Background audio chime & tab notifications.',
-                text: 'Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.',
-              },
-              {
-                Icon: Activity,
-                title: 'Worker observability & queue health.',
-                text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
-              },
-            ].map(({ Icon, title, text }) => (
-              <div key={title} className="rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
-                <Icon className="mb-3.5 h-4.5 w-4.5 text-muted-foreground" />
-                <h3 className="text-sm font-semibold text-foreground">{t(title)}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                  {t(text)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="border-t border-border px-5 py-12 sm:px-8">
-          <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight">
-                {t('What would you like to get done?')}
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-2xl">
+              <h2
+                id="features-title"
+                className="text-2xl font-semibold tracking-tight sm:text-3xl"
+              >
+                {t('Tetap memegang kendali penuh, tanpa pusing urusan teknis')}
               </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t('Start with the goal. Let Cuan organize the next step.')}
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                {t(
+                  'Tujuan dan keputusan bisnis Anda yang memimpin arah kerja. Cuan mengurus detail teknis dan membuktikan hasil kerjanya secara transparan.',
+                )}
               </p>
             </div>
-            <Link to="/login" className="action-primary min-h-12 px-5">
-              {t('Get started')}
+
+            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                {
+                  Icon: ShieldCheck,
+                  title: 'Approval stays with you',
+                  text: 'Review the plan before work starts. Get a clear account of changes, checks, and evidence before any code is published.',
+                },
+                {
+                  Icon: GitBranch,
+                  title: 'Your workspace, your AI',
+                  text: 'Self-host Cuan and connect your own AI subscriptions (Claude, Codex, DeepSeek). Keep your projects and credentials on your own server.',
+                },
+                {
+                  Icon: CheckCircle2,
+                  title: 'Autonomous Definition of Done loop',
+                  text: 'Built-in quality gate runs targeted tests and verifies real component outputs automatically before marking any task complete.',
+                },
+                {
+                  Icon: MessageSquare,
+                  title: 'Multi-channel unified customer inbox',
+                  text: 'Manage customer conversations from WhatsApp and live chat in one calm, monochromatic stream with quiet whisper notes for operators.',
+                },
+                {
+                  Icon: Users,
+                  title: 'Team collaboration and role access',
+                  text: 'Collaborate with team members under robust role-based access control, keeping administrative settings and AI provider keys protected.',
+                },
+                {
+                  Icon: Terminal,
+                  title: 'Live interactive terminal inspection',
+                  text: 'Stream stdout/stderr logs in real time with interactive chat steering to guide agents without restarting sessions from scratch.',
+                },
+                {
+                  Icon: Mail,
+                  title: 'Resend email alerts & idle chat transcripts.',
+                  text: 'Never lose a customer lead. Automatically receive responsive email digests via Resend when live chat inquiries are unread or idle (>5-10m).',
+                },
+                {
+                  Icon: Volume2,
+                  title: 'Background audio chime & tab notifications.',
+                  text: 'Harmonic Web Audio chime synthesizes subtle sound cues and dynamic browser tab badges when tasks finish in the background, with zero-friction silent autoplay fallback.',
+                },
+                {
+                  Icon: Activity,
+                  title: 'Worker observability & queue health.',
+                  text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
+                },
+              ].map(({ Icon, title, text }) => (
+                <div key={title} className="rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
+                  <Icon className="mb-3.5 h-4.5 w-4.5 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-foreground">{t(title)}</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    {t(text)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 5. FINAL PITCH / CTA SECTION */}
+        <section className="border-t border-border px-6 py-16 sm:px-8 sm:py-20">
+          <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
+            <div className="max-w-xl">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                {t('Siap bebas dari pusing urusan teknis?')}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {t('Fokus besarkan bisnis dan cari cuan. Biarkan agen Cuan yang merapikan dan mengeksekusi kebutuhan teknis di server Anda.')}
+              </p>
+              <p className="mt-3 text-xs text-muted-foreground/80">
+                {t('Open source · Lisensi Apache-2.0 · Kendali penuh di VPS sendiri')}
+              </p>
+            </div>
+            <Link to="/login" className="action-primary min-h-12 px-6 text-base font-medium shadow-xs">
+              {t('Mulai Sekarang')}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
       </main>
+
+      {/* Footer */}
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-border px-5 py-6 text-xs text-muted-foreground sm:px-8">
         <p>cuan · {t('Your always-on project manager.')}</p>
         <div className="flex gap-5">
