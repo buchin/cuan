@@ -1938,5 +1938,20 @@
   "Pengujian DoD: verifikasi visual & regresi 100%": "Pengujian DoD: verifikasi visual & regresi 100%",
   "Integrasi Webhook Pesanan & CRM Kontak": "Integrasi Webhook Pesanan & CRM Kontak",
   "4 pengujian otomatis lulus tanpa error": "4 pengujian otomatis lulus tanpa error",
-  "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.": "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi."
+  "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.": "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.",
+  "Bebas biaya token dobel · Bawa akun resmi atau API key sendiri (Claude, ChatGPT, Gemini, DeepSeek)": "Bebas biaya token dobel · Bawa akun resmi atau API key sendiri (Claude, ChatGPT, Gemini, DeepSeek)",
+  "Siap! Konteks alur kerja dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.": "Siap! Konteks alur kerja dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.",
+  "Pasang webhook pesanan otomatis ke sistem secara aman": "Pasang webhook pesanan otomatis ke sistem secara aman",
+  "Pengujian otomatis & verifikasi visual 100% tuntas": "Pengujian otomatis & verifikasi visual 100% tuntas",
+  "Terminal laptop lokal / software koding": "Terminal laptop lokal / software koding",
+  "Evaluasi internal bot": "Evaluasi internal bot",
+  "Bukti visual + tes otomatis tuntas": "Bukti visual + tes otomatis tuntas",
+  "Bayar API per pemakaian": "Bayar API per pemakaian",
+  "Bebas dobel biaya (pakai akun resmi sendiri)": "Bebas dobel biaya (pakai akun resmi sendiri)",
+  "Approval stays with you": "Kendali persetujuan di tangan Anda",
+  "Review the plan before work starts. Get a clear account of changes, checks, and evidence before any code is published.": "Tinjau dan setujui rencana sebelum robot mulai bekerja. Dapatkan rincian perubahan, kriteria pengujian, dan bukti nyata sebelum diterapkan ke sistem.",
+  "Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.": "Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.",
+  "Autonomous Definition of Done loop": "Verifikasi kualitas otomatis (Quality Gate)",
+  "Built-in quality gate runs targeted tests and verifies real component outputs automatically before marking any task complete.": "Sistem otomatis menguji fungsi dan memvalidasi tampilan visual sebelum menandai tugas selesai, sehingga hasil kerja bebas dari eror atau setengah jadi.",
+  "CRM Kontak & Memori Bisnis Terpadu": "CRM Kontak & Memori Bisnis Terpadu"
 }

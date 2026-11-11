@@ -479,5 +479,16 @@
   "Pengujian DoD: verifikasi visual & regresi 100%": "DoD verification: visual proof & 100% regression pass",
   "Integrasi Webhook Pesanan & CRM Kontak": "Order Webhook & Contact CRM Integration",
   "4 pengujian otomatis lulus tanpa error": "4 automated tests passed without errors",
-  "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.": "As the business owner, you direct the work in plain words from your phone or desktop. Cuan leads a team of specialized agents—handling business operations, customer support, automated bookkeeping, and technical deployment directly on your own server with verified outcomes."
+  "Anda bertindak sebagai owner yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.": "As the business owner, you direct the work in plain words from your phone or desktop. Cuan leads a team of specialized agents—handling business operations, customer support, automated bookkeeping, and technical deployment directly on your own server with verified outcomes.",
+  "Bebas biaya token dobel · Bawa akun resmi atau API key sendiri (Claude, ChatGPT, Gemini, DeepSeek)": "Zero token markup · Bring your official subscription or API keys (Claude, ChatGPT, Gemini, DeepSeek)",
+  "Siap! Konteks alur kerja dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.": "Understood! Workflow context and webhooks identified. Preparing a structured Approval Card and DoD verification criteria before execution.",
+  "Pasang webhook pesanan otomatis ke sistem secara aman": "Safely connect automated order webhooks to your system",
+  "Pengujian otomatis & verifikasi visual 100% tuntas": "Automated regression testing & 100% visual proof",
+  "Terminal laptop lokal / software koding": "Local laptop terminal / coding tools",
+  "Evaluasi internal bot": "Internal agent self-evaluation",
+  "Bukti visual + tes otomatis tuntas": "Visual proof + verified automated tests",
+  "Bayar API per pemakaian": "Pay-per-use direct API billing",
+  "Bebas dobel biaya (pakai akun resmi sendiri)": "Zero double margins (BYOK / official accounts)",
+  "Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.": "Run your official subscriptions (Claude Pro, ChatGPT Plus, Gemini) or bring personal API keys (DeepSeek, OpenAI) with zero token markup.",
+  "CRM Kontak & Memori Bisnis Terpadu": "Unified Contacts CRM & Business Memory"
 }

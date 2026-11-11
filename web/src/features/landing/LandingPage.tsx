@@ -175,7 +175,7 @@ export function LandingPage() {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Zap className="h-4 w-4" strokeWidth={1.5} />
-              {t('Bebas biaya token dobel · BYOK & CLI resmi (Claude, Codex, DeepSeek, Gemini)')}
+              {t('Bebas biaya token dobel · Bawa akun resmi atau API key sendiri (Claude, ChatGPT, Gemini, DeepSeek)')}
             </span>
           </div>
         </section>
@@ -377,7 +377,7 @@ export function LandingPage() {
                         @cuan
                       </div>
                       <p className="text-foreground/90 leading-relaxed text-[11px]">
-                        {t('Siap! Konteks repositori dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
+                        {t('Siap! Konteks alur kerja dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
                       </p>
                     </div>
                   </div>
@@ -417,7 +417,7 @@ export function LandingPage() {
                     plan={{
                       title: t('Integrasi Webhook Pesanan & CRM Kontak'),
                       project_name: 'cuan-workspace',
-                      description: `- ${t('Pasang receiver webhook pesanan tanpa ekspos token')}\n- ${t('Sinkronkan nomor kontak & catatan riwayat pelanggan')}\n- ${t('Pengujian DoD: verifikasi visual & regresi 100%')}`,
+                      description: `- ${t('Pasang webhook pesanan otomatis ke sistem secara aman')}\n- ${t('Sinkronkan nomor kontak & catatan riwayat pelanggan')}\n- ${t('Pengujian otomatis & verifikasi visual 100% tuntas')}`,
                     }}
                     disabled={false}
                     onApprove={() => {}}
@@ -565,7 +565,7 @@ export function LandingPage() {
                       label: 'Lingkungan eksekusi',
                       desc: 'Di mana tugas benar-benar dijalankan',
                       chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
-                      coder: { icon: 'warn', text: 'Terminal laptop lokal / IDE' },
+                      coder: { icon: 'warn', text: 'Terminal laptop lokal / software koding' },
                       hermes: { icon: 'warn', text: 'Aplikasi desktop / mesin lokal' },
                       cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                     },
@@ -590,8 +590,8 @@ export function LandingPage() {
                       desc: 'Pembuktian nyata sebelum tugas dianggap tuntas',
                       chatbot: { icon: 'x', text: 'Tidak ada pengujian sistem' },
                       coder: { icon: 'warn', text: 'Testing kode programmer' },
-                      hermes: { icon: 'warn', text: 'Self-evaluation LLM' },
-                      cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
+                      hermes: { icon: 'warn', text: 'Evaluasi internal bot' },
+                      cuan: { icon: 'check', text: 'Bukti visual + tes otomatis tuntas' },
                     },
                     {
                       label: 'Alat operasional bisnis (Live Chat/CRM)',
@@ -606,8 +606,8 @@ export function LandingPage() {
                       desc: 'Struktur biaya pemakaian kecerdasan buatan',
                       chatbot: { icon: 'x', text: 'Langganan per akun ($20/bln)' },
                       coder: { icon: 'warn', text: 'Langganan / API developer' },
-                      hermes: { icon: 'warn', text: 'Bayar API per token (BYO-AI)' },
-                      cuan: { icon: 'check', text: 'Bebas dobel biaya (CLI / BYOK)' },
+                      hermes: { icon: 'warn', text: 'Bayar API per pemakaian' },
+                      cuan: { icon: 'check', text: 'Bebas dobel biaya (pakai akun resmi sendiri)' },
                     },
                   ].map((row, idx, arr) => (
                     <tr key={row.label} className="hover:bg-muted/30 transition-colors">
@@ -659,7 +659,7 @@ export function LandingPage() {
                   label: 'Lingkungan eksekusi',
                   desc: 'Di mana tugas benar-benar dijalankan',
                   chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
-                  coder: { icon: 'warn', text: 'Terminal laptop lokal / IDE' },
+                  coder: { icon: 'warn', text: 'Terminal laptop lokal / software koding' },
                   hermes: { icon: 'warn', text: 'Aplikasi desktop / mesin lokal' },
                   cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                 },
@@ -684,8 +684,8 @@ export function LandingPage() {
                   desc: 'Pembuktian nyata sebelum tugas dianggap tuntas',
                   chatbot: { icon: 'x', text: 'Tidak ada pengujian sistem' },
                   coder: { icon: 'warn', text: 'Testing kode programmer' },
-                  hermes: { icon: 'warn', text: 'Self-evaluation LLM' },
-                  cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
+                  hermes: { icon: 'warn', text: 'Evaluasi internal bot' },
+                  cuan: { icon: 'check', text: 'Bukti visual + tes otomatis tuntas' },
                 },
                 {
                   label: 'Alat operasional bisnis (Live Chat/CRM)',
@@ -700,8 +700,8 @@ export function LandingPage() {
                   desc: 'Struktur biaya pemakaian kecerdasan buatan',
                   chatbot: { icon: 'x', text: 'Langganan per akun ($20/bln)' },
                   coder: { icon: 'warn', text: 'Langganan / API developer' },
-                  hermes: { icon: 'warn', text: 'Bayar API per token (BYO-AI)' },
-                  cuan: { icon: 'check', text: 'Bebas dobel biaya (CLI / BYOK)' },
+                  hermes: { icon: 'warn', text: 'Bayar API per pemakaian' },
+                  cuan: { icon: 'check', text: 'Bebas dobel biaya (pakai akun resmi sendiri)' },
                 },
               ].map((row) => (
                 <div
@@ -800,7 +800,7 @@ export function LandingPage() {
                 {
                   Icon: Coins,
                   title: 'Bebas biaya dobel token AI',
-                  text: 'Jalankan langganan resmi Anda (Claude Pro/Team via CLI claude, ChatGPT Plus via codex, Gemini via agy) atau bawa API key sendiri (DeepSeek, OpenAI, Ollama) tanpa markup token bulanan.',
+                  text: 'Jalankan langganan resmi Anda (Claude Pro, ChatGPT Plus, Gemini) atau bawa API key sendiri (DeepSeek, OpenAI) tanpa markup token bulanan.',
                 },
                 {
                   Icon: CheckCircle2,
@@ -819,7 +819,7 @@ export function LandingPage() {
                 },
                 {
                   Icon: Database,
-                  title: 'CRM Kontak & Memori Bisnis (Grounding)',
+                  title: 'CRM Kontak & Memori Bisnis Terpadu',
                   text: 'Database pelanggan terintegrasi dengan tag prospek (leads) dan riwayat percakapan. Cuan mengingat profil bisnis Anda untuk setiap respon cerdas agen.',
                 },
                 {
