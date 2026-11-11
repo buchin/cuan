@@ -114,6 +114,7 @@ type DojoWebhookPayload struct {
 	Status      string          `json:"status"` // paid, completed, success
 	PaidAt      *time.Time      `json:"paid_at,omitempty"`
 	SponsorID   string          `json:"sponsor_id,omitempty"`
+	AutoApprove bool            `json:"auto_approve,omitempty"`
 	Metadata    json.RawMessage `json:"metadata,omitempty"`
 }
 

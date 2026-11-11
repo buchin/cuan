@@ -603,17 +603,24 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 			return nil, fmt.Errorf("update existing order to paid: %w", err)
 		}
 
-		// Transition sponsor to pending_review
+		// Transition sponsor to pending_review or auto-approve
+		sponsorStatus := SponsorStatusPendingReview
 		if existingOrder.SponsorID != nil && *existingOrder.SponsorID != "" {
-			_ = s.store.UpdateSponsorStatus(ctx, *existingOrder.SponsorID, SponsorStatusPendingReview, "")
-			_ = s.store.CreateActivity(ctx, &ActivityLog{
-				SponsorID: *existingOrder.SponsorID,
-				OrderID:   &existingOrder.ID,
-				Action:    ActivityActionOrderPaid,
-				Details:   fmt.Sprintf("Order %s paid IDR %d through the Dojo webhook", existingOrder.DojoOrderID, existingOrder.AmountIDR),
-				Actor:     "dojo_webhook",
-				CreatedAt: now,
-			})
+			spID := *existingOrder.SponsorID
+			if payload.AutoApprove {
+				_ = s.ApproveSponsor(ctx, spID, "dojo_webhook_auto")
+				sponsorStatus = SponsorStatusApproved
+			} else {
+				_ = s.store.UpdateSponsorStatus(ctx, spID, SponsorStatusPendingReview, "")
+				_ = s.store.CreateActivity(ctx, &ActivityLog{
+					SponsorID: spID,
+					OrderID:   &existingOrder.ID,
+					Action:    ActivityActionOrderPaid,
+					Details:   fmt.Sprintf("Order %s paid IDR %d through the Dojo webhook", existingOrder.DojoOrderID, existingOrder.AmountIDR),
+					Actor:     "dojo_webhook",
+					CreatedAt: now,
+				})
+			}
 		}
 
 		return &WebhookResult{
@@ -623,7 +630,7 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 			DojoOrderID:      existingOrder.DojoOrderID,
 			AmountIDR:        existingOrder.AmountIDR,
 			Status:           existingOrder.Status,
-			SponsorStatus:    SponsorStatusPendingReview,
+			SponsorStatus:    sponsorStatus,
 			Message:          "Order status updated to paid",
 		}, nil
 	}
@@ -650,17 +657,23 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 		return nil, fmt.Errorf("create order from webhook: %w", err)
 	}
 
-	// Transition sponsor to pending_review
+	// Transition sponsor to pending_review or auto-approve
+	sponsorStatus := SponsorStatusPendingReview
 	if spID != nil && *spID != "" {
-		_ = s.store.UpdateSponsorStatus(ctx, *spID, SponsorStatusPendingReview, "")
-		_ = s.store.CreateActivity(ctx, &ActivityLog{
-			SponsorID: *spID,
-			OrderID:   &newOrder.ID,
-			Action:    ActivityActionOrderPaid,
-			Details:   fmt.Sprintf("Order baru %s lunas senilai Rp %d via Dojo webhook", newOrder.DojoOrderID, newOrder.AmountIDR),
-			Actor:     "dojo_webhook",
-			CreatedAt: now,
-		})
+		if payload.AutoApprove {
+			_ = s.ApproveSponsor(ctx, *spID, "dojo_webhook_auto")
+			sponsorStatus = SponsorStatusApproved
+		} else {
+			_ = s.store.UpdateSponsorStatus(ctx, *spID, SponsorStatusPendingReview, "")
+			_ = s.store.CreateActivity(ctx, &ActivityLog{
+				SponsorID: *spID,
+				OrderID:   &newOrder.ID,
+				Action:    ActivityActionOrderPaid,
+				Details:   fmt.Sprintf("Order baru %s lunas senilai Rp %d via Dojo webhook", newOrder.DojoOrderID, newOrder.AmountIDR),
+				Actor:     "dojo_webhook",
+				CreatedAt: now,
+			})
+		}
 	}
 
 	return &WebhookResult{
@@ -670,7 +683,7 @@ func (s *Service) ProcessDojoWebhook(ctx context.Context, incomingSecret string,
 		DojoOrderID:      newOrder.DojoOrderID,
 		AmountIDR:        newOrder.AmountIDR,
 		Status:           newOrder.Status,
-		SponsorStatus:    SponsorStatusPendingReview,
+		SponsorStatus:    sponsorStatus,
 		Message:          "Order created and marked as paid",
 	}, nil
 }
