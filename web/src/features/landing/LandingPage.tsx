@@ -16,13 +16,13 @@ import {
   Clock,
   Coins,
   AlertCircle,
-  Sparkles,
   Bot,
   Terminal,
   ExternalLink,
   Check,
   X,
   Minus,
+  Database,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -37,14 +37,14 @@ export function LandingPage() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {/* Navigation Header */}
-      <header className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
+      <header className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-6 sm:px-8">
         <Link
           to="/"
-          className="inline-flex min-h-11 items-center gap-2 font-semibold tracking-tight"
+          className="inline-flex min-h-11 items-center gap-2 font-medium tracking-tight"
           aria-label="Cuan"
         >
           <CuanMark decorative className="h-7 w-7" />
-          <span className="text-xl">cuan</span>
+          <span className="text-xl font-semibold">cuan</span>
         </Link>
         <nav
           aria-label={t('Website navigation')}
@@ -52,25 +52,25 @@ export function LandingPage() {
         >
           <a
             href="#problem"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
             {t('Masalah')}
           </a>
           <a
             href="#how-it-works"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
             {t('Cara kerja')}
           </a>
           <a
             href="#comparison"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
             {t('Perbandingan')}
           </a>
           <a
             href="#features"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
             {t('Fitur')}
           </a>
@@ -78,7 +78,7 @@ export function LandingPage() {
             href={repository}
             target="_blank"
             rel="noreferrer"
-            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground sm:inline-flex"
+            className="hidden min-h-11 items-center px-2 text-sm text-muted-foreground hover:text-foreground transition-colors sm:inline-flex"
           >
             GitHub
           </a>
@@ -102,9 +102,9 @@ export function LandingPage() {
             title={resolvedTheme === 'dark' ? 'Tema terang' : 'Tema gelap'}
           >
             {resolvedTheme === 'dark' ? (
-              <Sun className="h-4 w-4" />
+              <Sun className="h-4 w-4" strokeWidth={1.5} />
             ) : (
-              <Moon className="h-4 w-4" />
+              <Moon className="h-4 w-4" strokeWidth={1.5} />
             )}
           </button>
 
@@ -121,36 +121,36 @@ export function LandingPage() {
           aria-labelledby="landing-title"
         >
           <div className="mx-auto max-w-3xl">
-            <div className="mb-3.5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
               <span>{t('AI Project Manager untuk Marketer')}</span>
             </div>
             <h1
               id="landing-title"
-              className="font-display text-4xl font-bold tracking-tight text-[#1B1616] dark:text-foreground sm:text-5xl md:text-6xl lg:text-[68px] lg:leading-[1.08]"
+              className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-[64px] lg:leading-[1.1]"
             >
               {t('Chat. Setujui. Beres.')}
             </h1>
-            <p className="mt-3 text-base font-normal text-[#5A5252] dark:text-muted-foreground sm:text-xl sm:leading-normal">
+            <p className="mt-3 text-base text-muted-foreground sm:text-lg sm:leading-relaxed">
               {t('Kelola bisnis tanpa pusing urusan teknis.')}
             </p>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link to="/login" className="action-primary min-h-11 px-6 text-sm font-medium shadow-xs">
                 {t('Mulai Sekarang')}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
               </Link>
               <a
                 href="#problem"
                 className="action-secondary min-h-11 px-5 text-sm font-medium"
               >
                 {t('Pelajari Cara Kerja')}
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
               </a>
             </div>
           </div>
 
           {/* Centered 3-Device Mockup Showcase - Optimized Above the Fold */}
-          <div className="mx-auto mt-6 max-w-4xl sm:mt-8">
+          <div className="mx-auto mt-8 max-w-4xl sm:mt-10">
             <div className="relative">
               <img
                 src="/landing/cuan.webp"
@@ -166,15 +166,15 @@ export function LandingPage() {
           {/* Trust Highlights */}
           <div className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5" />
+              <ShieldCheck className="h-4 w-4" strokeWidth={1.5} />
               {t('Open source under Apache-2.0')}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <GitBranch className="h-3.5 w-3.5" />
+              <GitBranch className="h-4 w-4" strokeWidth={1.5} />
               {t('Self-hosted on your own VPS')}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <Zap className="h-3.5 w-3.5" />
+              <Zap className="h-4 w-4" strokeWidth={1.5} />
               {t('Bebas biaya token dobel · BYOK & CLI resmi (Claude, Codex, DeepSeek, Gemini)')}
             </span>
           </div>
@@ -188,13 +188,13 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <AlertCircle className="h-4 w-4 text-amber-500/80" strokeWidth={1.5} />
                 <span>{t('Tantangan Pebisnis & Marketer')}</span>
               </div>
               <h2
                 id="problem-title"
-                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+                className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl md:text-4xl"
               >
                 {t('Punya segudang ide bisnis, tapi sering mentok di urusan teknis?')}
               </h2>
@@ -225,10 +225,10 @@ export function LandingPage() {
               ].map(({ Icon, title, desc }) => (
                 <div
                   key={title}
-                  className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border"
+                  className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80"
                 >
                   <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-5 w-5" strokeWidth={1.5} />
                   </div>
                   <h3 className="font-display text-base font-semibold text-foreground">
                     {t(title)}
@@ -250,13 +250,13 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Bot className="h-3.5 w-3.5 text-primary" />
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Bot className="h-4 w-4 text-primary" strokeWidth={1.5} />
                 <span>{t('Realita AI Saat Ini')}</span>
               </div>
               <h2
                 id="ai-limits-title"
-                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+                className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl md:text-4xl"
               >
                 {t('Berharap AI membereskan segalanya, tapi malah nambah pusing?')}
               </h2>
@@ -293,11 +293,11 @@ export function LandingPage() {
               ].map(({ Icon, title, refText, refUrl, desc }) => (
                 <div
                   key={title}
-                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-muted/20 p-6 shadow-2xs transition-colors hover:border-border"
+                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-muted/20 p-6 shadow-2xs transition-colors hover:border-border/80"
                 >
                   <div>
                     <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-card text-muted-foreground border border-border/50">
-                      <Icon className="h-5 w-5" />
+                      <Icon className="h-5 w-5" strokeWidth={1.5} />
                     </div>
                     <h3 className="font-display text-base font-semibold text-foreground">
                       {t(title)}
@@ -306,16 +306,16 @@ export function LandingPage() {
                       {t(desc)}
                     </p>
                   </div>
-                  <div className="mt-5 pt-3.5 border-t border-border/40">
+                  <div className="mt-6 pt-4 border-t border-border/40">
                     <a
                       href={refUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground/70 hover:text-foreground transition-colors"
+                      className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground/75 hover:text-foreground transition-colors"
                       title={t('Lihat referensi resmi')}
                     >
                       <span>{t('Referensi:')} {refText}</span>
-                      <ExternalLink className="h-3 w-3 opacity-60" />
+                      <ExternalLink className="h-3 w-3 opacity-60" strokeWidth={1.5} />
                     </a>
                   </div>
                 </div>
@@ -332,13 +332,13 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={1.5} />
                 <span>{t('Cara kerja Cuan')}</span>
               </div>
               <h2
                 id="how-title"
-                className="font-display text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl"
+                className="font-display text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl"
               >
                 {t('Kenalkan Cuan: AI Project Manager Siap Kerja Tanpa Pengawasan')}
               </h2>
@@ -357,7 +357,7 @@ export function LandingPage() {
                     <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
                       01
                     </span>
-                    <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       Chat
                     </span>
                   </div>
@@ -390,7 +390,7 @@ export function LandingPage() {
                     <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
                       02
                     </span>
-                    <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       Setujui
                     </span>
                   </div>
@@ -423,7 +423,7 @@ export function LandingPage() {
                     <span className="font-mono text-xs font-semibold text-muted-foreground tabular-nums">
                       03
                     </span>
-                    <span className="rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       Beres
                     </span>
                   </div>
@@ -460,13 +460,13 @@ export function LandingPage() {
         >
           <div className="mx-auto max-w-6xl">
             <div className="max-w-3xl">
-              <div className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={1.5} />
                 <span>{t('Mengapa Cuan Berbeda?')}</span>
               </div>
               <h2
                 id="comparison-title"
-                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+                className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl md:text-4xl"
               >
                 {t('Bukan Sekadar Chatbot atau Tool Programmer')}
               </h2>
@@ -482,43 +482,43 @@ export function LandingPage() {
               <table className="w-full min-w-[760px] border-collapse text-left text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-border/60">
-                    <th className="py-3.5 pr-4 font-semibold text-muted-foreground w-[24%]">
+                    <th className="py-3 pr-4 font-semibold text-muted-foreground w-[24%]">
                       {t('Kebutuhan Bisnis Anda')}
                     </th>
-                    <th className="px-3 py-3.5 font-medium text-muted-foreground text-center w-[19%]">
+                    <th className="px-3 py-3 font-medium text-muted-foreground text-center w-[19%]">
                       <div className="font-medium text-foreground">{t('Chatbot Web')}</div>
                       <a
                         href="https://chatgpt.com"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5 transition-colors"
                       >
-                        ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
                       </a>
                     </th>
-                    <th className="px-3 py-3.5 font-medium text-muted-foreground text-center w-[19%]">
+                    <th className="px-3 py-3 font-medium text-muted-foreground text-center w-[19%]">
                       <div className="font-medium text-foreground">{t('Tool Koding CLI')}</div>
                       <a
                         href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5 transition-colors"
                       >
-                        Claude Code/Codex <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        Claude Code/Codex <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
                       </a>
                     </th>
-                    <th className="px-3 py-3.5 font-medium text-muted-foreground text-center w-[19%]">
+                    <th className="px-3 py-3 font-medium text-muted-foreground text-center w-[19%]">
                       <div className="font-medium text-foreground">{t('Agen Otonom')}</div>
                       <a
                         href="https://github.com/NousResearch/hermes-agent"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5 transition-colors"
                       >
-                        Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                        Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
                       </a>
                     </th>
-                    <th className="px-3 py-3.5 font-semibold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
+                    <th className="px-3 py-3 font-semibold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
                       <div className="inline-flex items-center gap-1.5 font-semibold">
                         <CuanMark decorative className="h-4 w-4" />
                         cuan
@@ -575,39 +575,39 @@ export function LandingPage() {
                     },
                   ].map((row, idx, arr) => (
                     <tr key={row.label} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-3.5 pr-4 font-medium text-foreground">
+                      <td className="py-3 pr-4 font-medium text-foreground">
                         {t(row.label)}
                       </td>
-                      <td className="px-3 py-3.5 text-center text-muted-foreground">
+                      <td className="px-3 py-3 text-center text-muted-foreground">
                         <div className="flex flex-col items-center gap-1">
-                          {row.chatbot.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                          {row.chatbot.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
-                          {row.chatbot.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
-                          <span className="text-[11px] leading-tight">{t(row.chatbot.text)}</span>
+                          {row.chatbot.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                          {row.chatbot.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" strokeWidth={1.5} />}
+                          {row.chatbot.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" strokeWidth={1.5} />}
+                          <span className="text-xs leading-tight">{t(row.chatbot.text)}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3.5 text-center text-muted-foreground">
+                      <td className="px-3 py-3 text-center text-muted-foreground">
                         <div className="flex flex-col items-center gap-1">
-                          {row.coder.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                          {row.coder.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
-                          {row.coder.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
-                          <span className="text-[11px] leading-tight">{t(row.coder.text)}</span>
+                          {row.coder.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                          {row.coder.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" strokeWidth={1.5} />}
+                          {row.coder.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" strokeWidth={1.5} />}
+                          <span className="text-xs leading-tight">{t(row.coder.text)}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3.5 text-center text-muted-foreground">
+                      <td className="px-3 py-3 text-center text-muted-foreground">
                         <div className="flex flex-col items-center gap-1">
-                          {row.hermes.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                          {row.hermes.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
-                          {row.hermes.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
-                          <span className="text-[11px] leading-tight">{t(row.hermes.text)}</span>
+                          {row.hermes.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                          {row.hermes.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" strokeWidth={1.5} />}
+                          {row.hermes.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" strokeWidth={1.5} />}
+                          <span className="text-xs leading-tight">{t(row.hermes.text)}</span>
                         </div>
                       </td>
-                      <td className={`px-3 py-3.5 text-center bg-primary/5 dark:bg-primary/10 border-x border-border/50 ${idx === arr.length - 1 ? 'border-b rounded-b-lg' : ''}`}>
+                      <td className={`px-3 py-3 text-center bg-primary/5 dark:bg-primary/10 border-x border-border/50 ${idx === arr.length - 1 ? 'border-b rounded-b-lg' : ''}`}>
                         <div className="flex flex-col items-center gap-1 font-medium text-foreground">
-                          {row.cuan.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
-                          {row.cuan.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" />}
-                          {row.cuan.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" />}
-                          <span className="text-[11px] leading-tight text-foreground font-medium">{t(row.cuan.text)}</span>
+                          {row.cuan.icon === 'check' && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                          {row.cuan.icon === 'warn' && <Minus className="h-4 w-4 text-amber-500/70" strokeWidth={1.5} />}
+                          {row.cuan.icon === 'x' && <X className="h-4 w-4 text-muted-foreground/40" strokeWidth={1.5} />}
+                          <span className="text-xs leading-tight text-foreground font-medium">{t(row.cuan.text)}</span>
                         </div>
                       </td>
                     </tr>
@@ -683,7 +683,7 @@ export function LandingPage() {
 
                   {/* Cuan Highlight Card */}
                   <div className="mb-3 flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/5 dark:bg-primary/10 p-3">
-                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" strokeWidth={1.5} />
                     <div>
                       <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
                         <CuanMark decorative className="h-3.5 w-3.5" />
@@ -700,9 +700,9 @@ export function LandingPage() {
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span className="text-[11px]">Chatbot (ChatGPT/Claude)</span>
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
-                        {row.chatbot.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
-                        {row.chatbot.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
-                        {row.chatbot.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        {row.chatbot.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                        {row.chatbot.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
+                        {row.chatbot.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" strokeWidth={1.5} />}
                         <span>{t(row.chatbot.text)}</span>
                       </span>
                     </div>
@@ -710,9 +710,9 @@ export function LandingPage() {
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span className="text-[11px]">Tool Koding (Claude Code)</span>
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
-                        {row.coder.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
-                        {row.coder.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
-                        {row.coder.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        {row.coder.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                        {row.coder.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
+                        {row.coder.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" strokeWidth={1.5} />}
                         <span>{t(row.coder.text)}</span>
                       </span>
                     </div>
@@ -720,9 +720,9 @@ export function LandingPage() {
                     <div className="flex items-center justify-between text-muted-foreground">
                       <span className="text-[11px]">{t('Hermes / Muse / Nod')}</span>
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
-                        {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />}
-                        {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" />}
-                        {row.hermes.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" />}
+                        {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+                        {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
+                        {row.hermes.icon === 'x' && <X className="h-3.5 w-3.5 text-muted-foreground/40" strokeWidth={1.5} />}
                         <span>{t(row.hermes.text)}</span>
                       </span>
                     </div>
@@ -736,27 +736,27 @@ export function LandingPage() {
                   href="https://chatgpt.com"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground"
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
                 >
-                  ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
                 </a>
                 <span>·</span>
                 <a
                   href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground"
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
                 >
-                  Claude Code <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  Claude Code <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
                 </a>
                 <span>·</span>
                 <a
                   href="https://github.com/NousResearch/hermes-agent"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground"
+                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
                 >
-                  Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                  Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
                 </a>
               </div>
             </div>
@@ -773,7 +773,7 @@ export function LandingPage() {
             <div className="max-w-2xl">
               <h2
                 id="features-title"
-                className="font-display text-2xl font-bold tracking-tight sm:text-3xl"
+                className="font-display text-2xl font-semibold tracking-tight sm:text-3xl"
               >
                 {t('Tetap memegang kendali penuh, tanpa pusing urusan teknis')}
               </h2>
@@ -812,7 +812,7 @@ export function LandingPage() {
                   text: 'Undang staf dan admin dalam 1-klik via link WhatsApp tanpa ribet konfigurasi server email. Hak akses Owner vs Member menjaga kredensial AI tetap aman.',
                 },
                 {
-                  Icon: Sparkles,
+                  Icon: Database,
                   title: 'CRM Kontak & Memori Bisnis (Grounding)',
                   text: 'Database pelanggan terintegrasi dengan tag prospek (leads) dan riwayat percakapan. Cuan mengingat profil bisnis Anda untuk setiap respon cerdas agen.',
                 },
@@ -832,8 +832,8 @@ export function LandingPage() {
                   text: 'Monitor your cuan-runner daemon health, queue depth, and heartbeat directly in Settings with crystal-clear visual status indicators and zero terminal complexity.',
                 },
               ].map(({ Icon, title, text }) => (
-                <div key={title} className="rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
-                  <Icon className="mb-3.5 h-4.5 w-4.5 text-muted-foreground" />
+                <div key={title} className="rounded-xl border border-border/60 bg-card p-6 shadow-2xs transition-colors hover:border-border/80">
+                  <Icon className="mb-3 h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
                   <h3 className="text-sm font-semibold text-foreground">{t(title)}</h3>
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                     {t(text)}
@@ -845,10 +845,10 @@ export function LandingPage() {
         </section>
 
         {/* 5. FINAL PITCH / CTA SECTION */}
-        <section className="border-t border-border px-6 py-16 sm:px-8 sm:py-20">
+        <section className="border-t border-border/60 px-6 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
             <div className="max-w-xl">
-              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h2 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 {t('Siap bebas dari pusing urusan teknis?')}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -858,26 +858,26 @@ export function LandingPage() {
                 {t('Open source · Lisensi Apache-2.0 · Kendali penuh di VPS sendiri')}
               </p>
             </div>
-            <Link to="/login" className="action-primary min-h-12 px-6 text-base font-medium shadow-xs">
+            <Link to="/login" className="action-primary min-h-12 px-6 text-sm font-medium shadow-xs">
               {t('Mulai Sekarang')}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
             </Link>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-border px-5 py-6 text-xs text-muted-foreground sm:px-8">
+      <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-border/60 px-6 py-6 text-xs text-muted-foreground sm:px-8">
         <p>cuan · {t('Your always-on project manager.')}</p>
         <div className="flex gap-5">
           <a
-            className="inline-flex min-h-11 items-center hover:text-foreground"
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
             href={repository + '#readme'}
           >
             {t('Self-hosting guide')}
           </a>
           <a
-            className="inline-flex min-h-11 items-center hover:text-foreground"
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
             href={repository}
           >
             GitHub
