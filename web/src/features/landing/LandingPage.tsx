@@ -281,8 +281,8 @@ export function LandingPage() {
                 },
                 {
                   Icon: Activity,
-                  title: 'Hermes Agent & agen otonom (Muse, Nod) untuk automasi personal, bukan operasional bisnis',
-                  desc: 'Hermes Agent dan agen personal seperti Nod sangat hebat untuk riset dan automasi di laptop pengembang. Namun tanpa Approval Card bisnis, Quality Gate visual, serta CRM percakapan terpadu, eksekusi mandirinya belum siap diserahkan ke tim non-teknis.',
+                  title: 'AI otonom (Hermes, Muse, Nod) untuk automasi personal, bukan operasional bisnis',
+                  desc: 'Hermes Agent dan Nod hebat untuk automasi di laptop pengembang, sementara Muse terkunci di cloud Meta. Namun tanpa Approval Card bisnis, Quality Gate visual, serta CRM percakapan terpadu, eksekusinya belum siap untuk operasional bisnis harian.',
                 },
               ].map(({ Icon, title, desc }) => (
                 <div
@@ -543,7 +543,7 @@ export function LandingPage() {
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Hermes Agent')}</div>
+                      <div className="font-bold text-foreground">{t('AI Otonom')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
                         Hermes Agent, Muse, Nod
                       </div>
@@ -566,7 +566,7 @@ export function LandingPage() {
                       desc: 'Di mana tugas benar-benar dijalankan',
                       chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
                       coder: { icon: 'warn', text: 'Terminal laptop lokal / software koding' },
-                      hermes: { icon: 'warn', text: 'Aplikasi desktop / mesin lokal' },
+                      hermes: { icon: 'warn', text: 'Mesin lokal / cloud vendor (Meta)' },
                       cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                     },
                     {
@@ -660,7 +660,7 @@ export function LandingPage() {
                   desc: 'Di mana tugas benar-benar dijalankan',
                   chatbot: { icon: 'x', text: 'Cloud vendor (terisolasi dari VPS)' },
                   coder: { icon: 'warn', text: 'Terminal laptop lokal / software koding' },
-                  hermes: { icon: 'warn', text: 'Aplikasi desktop / mesin lokal' },
+                  hermes: { icon: 'warn', text: 'Mesin lokal / cloud vendor (Meta)' },
                   cuan: { icon: 'check', text: 'Server VPS 24/7 mandiri' },
                 },
                 {
@@ -754,7 +754,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">{t('Hermes Agent (Muse, Nod)')}</span>
+                      <span className="text-xs">{t('AI Otonom (Hermes, Muse, Nod)')}</span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
