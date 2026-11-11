@@ -557,5 +557,6 @@
   "Lisensi Terbuka:": "Open Source License:",
   "Daftar Waiting List Sekarang": "Join Waiting List Now",
   "Your always-on project manager.": "Your always-on project manager.",
-  "Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)": "Payment via Bank BCA Transfer (Indonesia) & Stripe (International)"
+  "Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)": "Payment via Bank BCA Transfer (Indonesia) & Stripe (International)",
+  "Pembayaran diproses aman via Dojo Checkout. Untuk sponsor lokal (Indonesia) mendukung Transfer Bank BCA, dan untuk sponsor internasional mendukung pembayaran via Stripe.": "Payments are processed securely via Dojo Checkout. Bank BCA transfer is supported for Indonesian sponsors, and Stripe is supported for international sponsors."
 }

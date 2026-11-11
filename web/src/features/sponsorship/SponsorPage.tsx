@@ -325,7 +325,7 @@ export function SponsorPage() {
               },
               {
                 q: 'Apa metode pembayaran yang tersedia?',
-                a: 'Pembayaran dilakukan secara instan dan aman melalui Dojo Payment Checkout terverifikasi: QRIS (GoPay, OVO, ShopeePay, Dana, LinkAja, BCA Mobile), Virtual Account semua bank utama di Indonesia (BCA, Mandiri, BRI, BNI, Permata), serta Kartu Kredit/Debit.',
+                a: 'Pembayaran diproses aman via Dojo Checkout. Untuk sponsor lokal (Indonesia) mendukung Transfer Bank BCA, dan untuk sponsor internasional mendukung pembayaran via Stripe.',
               },
               {
                 q: 'Bagaimana cara menyerahkan logo dan tautan website perusahaan?',
