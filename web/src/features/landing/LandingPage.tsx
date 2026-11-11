@@ -1,8 +1,6 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
-  Check,
   ChevronRight,
   GitBranch,
   MessageSquare,
@@ -29,25 +27,7 @@ import { useLanguage } from '../../context/LanguageContext'
 
 const repository = 'https://github.com/buchin/cuan'
 export function LandingPage() {
-  const { t } = useLanguage(),
-    [step, setStep] = useState<'plan' | 'work' | 'result'>('plan')
-  const demo = {
-    plan: {
-      label: 'A clear plan, before work starts.',
-      text: 'I’ll review the project, propose the changes and ask for your approval.',
-      detail: 'You choose the outcome and approve the scope.',
-    },
-    work: {
-      label: 'The work keeps moving.',
-      text: 'The approved changes are underway. I’ll keep you updated and flag anything that needs a decision.',
-      detail: 'Check progress when you want. Get notified when you’re needed.',
-    },
-    result: {
-      label: 'A result you can check.',
-      text: 'The changes are ready. Here’s what changed, what was verified and what needs your review.',
-      detail: 'Review the result and decide what happens next.',
-    },
-  }[step]
+  const { t } = useLanguage()
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <header className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
@@ -82,105 +62,60 @@ export function LandingPage() {
       </header>
       <main>
         <section
-          className="mx-auto grid max-w-6xl gap-10 px-5 pb-16 pt-10 sm:px-8 sm:pt-16 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-12 lg:pb-24 lg:pt-20"
+          className="relative mx-auto max-w-6xl px-5 pb-16 pt-10 text-center sm:px-8 sm:pb-24 sm:pt-16"
           aria-labelledby="landing-title"
         >
-          <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1 text-xs font-medium text-muted-foreground shadow-2xs">
+          {/* Subtle Ambient Radial Glow */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-4 h-[320px] w-[500px] -translate-x-1/2 rounded-full bg-amber-500/10 blur-[100px] -z-10 sm:h-[420px] sm:w-[700px]"
+          />
+
+          <div className="mx-auto max-w-3xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-2xs backdrop-blur-xs">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
-              <span>{t('Calm & Layered UI System · Things 3 & Bear Notes Inspired')}</span>
+              <span>{t('✨ AI Agent for Marketers')}</span>
             </div>
-            <p className="mb-4 text-sm font-medium text-muted-foreground">
-              {t('Your always-on project manager.')}
-            </p>
             <h1
               id="landing-title"
-              className="max-w-xl text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl"
+              className="text-4xl font-bold tracking-tight text-[#1B1616] dark:text-foreground sm:text-6xl md:text-7xl lg:text-[84px] lg:leading-[1.05]"
             >
-              {t('Rest easy.')}
-              <br />
-              <span className="text-primary">
-                {t('Cuan gets things done.')}
-              </span>
+              {t('Chat. Setujui. Beres.')}
             </h1>
-            <p className="mt-6 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
-              {t(
-                'Let Cuan handle your projects, so you can rest easy while the work gets done.',
-              )}
+            <p className="mt-5 text-lg font-normal text-[#5A5252] dark:text-muted-foreground sm:text-2xl sm:leading-relaxed">
+              {t('Kelola bisnis tanpa pusing urusan teknis.')}
             </p>
-            <p className="mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground">
-              {t(
-                'Set the goal. Approve the plan. Cuan takes care of the work and keeps you updated.',
-              )}
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link to="/login" className="action-primary min-h-12 px-5">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
+              <Link to="/login" className="action-primary min-h-12 px-7 text-base font-medium shadow-xs">
                 {t('Get started')}
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <a
-                href="#how-it-works"
-                className="action-secondary min-h-12 px-5"
+                href={repository}
+                target="_blank"
+                rel="noreferrer"
+                className="action-secondary min-h-12 px-6 text-base font-medium"
               >
-                {t('See how it works')}
+                GitHub
                 <ChevronRight className="h-4 w-4" />
               </a>
             </div>
-            <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-              {t('Open source. Self-hosted. Connected to your AI accounts.')}
+            <p className="mt-4 text-xs font-normal text-muted-foreground">
+              {t('Open source · Self-hosted di VPS sendiri · Zero SaaS markup')}
             </p>
           </div>
-          <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-              <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                <CuanMark decorative className="h-5 w-5" />
-                {t('A website update')}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {t('Example workflow')}
-              </span>
-            </div>
-            <div className="space-y-4 p-4 sm:p-5">
-              <p className="ml-8 rounded-xl bg-muted p-4 text-sm leading-relaxed">
-                {t('Help me improve our website’s mobile experience.')}
-              </p>
-              <div
-                className="flex gap-2 border-b border-border"
-                aria-label={t('Example stages')}
-              >
-                {(
-                  [
-                    { id: 'plan', label: 'Plan' },
-                    { id: 'work', label: 'Work' },
-                    { id: 'result', label: 'Result' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-pressed={step === item.id}
-                    onClick={() => setStep(item.id)}
-                    className={
-                      'min-h-11 border-b-2 px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ' +
-                      (step === item.id
-                        ? 'border-primary font-medium text-primary'
-                        : 'border-transparent text-muted-foreground')
-                    }
-                  >
-                    {t(item.label)}
-                  </button>
-                ))}
-              </div>
-              <div className="min-h-48 space-y-4" aria-live="polite">
-                <div className="mr-4 rounded-xl border border-border p-4 text-sm leading-relaxed">
-                  <p className="mb-2 font-medium">{t(demo.label)}</p>
-                  <p className="text-muted-foreground">{t(demo.text)}</p>
-                </div>
-                <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  {t(demo.detail)}
-                </p>
-              </div>
+
+          {/* Centered 3-Device Mockup Showcase with Natural Shadow */}
+          <div className="mx-auto mt-12 max-w-5xl sm:mt-16">
+            <div className="relative">
+              <img
+                src="/landing/cuan.webp"
+                alt={t('Cuan multi-device workspace on Laptop, Tablet, and Mobile')}
+                width={2000}
+                height={1088}
+                className="h-auto w-full object-contain [filter:drop-shadow(0_20px_40px_rgba(0,0,0,0.08))_drop-shadow(0_8px_16px_rgba(0,0,0,0.04))]"
+                loading="eager"
+              />
             </div>
           </div>
         </section>
