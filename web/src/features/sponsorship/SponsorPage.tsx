@@ -353,7 +353,7 @@ export function SponsorPage() {
               {t('Ada pertanyaan khusus sebelum bergabung?')}
             </h3>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              {t('Silakan hubungi kami via email di')} <a href="mailto:support@cuan.dojo.cc" className="font-medium text-primary hover:underline">support@cuan.dojo.cc</a>.
+              {t('Silakan hubungi kami di')} <a href="https://dojo.cc/support" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">dojo.cc/support</a>.
             </p>
           </div>
         </section>
