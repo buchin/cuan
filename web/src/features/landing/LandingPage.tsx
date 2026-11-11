@@ -191,7 +191,7 @@ export function LandingPage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground">
               <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
-              <span>{t('AI Project Manager untuk Marketer')}</span>
+              <span>{t('Agentic Project Manager untuk Digital Marketer')}</span>
             </div>
             <h1
               id="landing-title"
