@@ -115,7 +115,7 @@ export function LandingPage() {
             </div>
             <h1
               id="landing-title"
-              className="text-4xl font-bold tracking-tight text-[#1B1616] dark:text-foreground sm:text-5xl md:text-6xl lg:text-[68px] lg:leading-[1.08]"
+              className="font-display text-4xl font-bold tracking-tight text-[#1B1616] dark:text-foreground sm:text-5xl md:text-6xl lg:text-[68px] lg:leading-[1.08]"
             >
               {t('Chat. Setujui. Beres.')}
             </h1>
@@ -178,7 +178,7 @@ export function LandingPage() {
             <div className="max-w-3xl">
               <h2
                 id="problem-title"
-                className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
+                className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl md:text-4xl"
               >
                 {t('Punya segudang ide bisnis, tapi sering mentok di urusan teknis?')}
               </h2>
@@ -214,7 +214,7 @@ export function LandingPage() {
                   <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-semibold text-foreground">
+                  <h3 className="font-display text-base font-semibold text-foreground">
                     {t(title)}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -240,7 +240,7 @@ export function LandingPage() {
               </div>
               <h2
                 id="how-title"
-                className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl"
+                className="font-display text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl"
               >
                 {t('Kenalkan Cuan: AI Agent Mandiri di Server Anda Sendiri')}
               </h2>
@@ -281,7 +281,7 @@ export function LandingPage() {
                       {t(item.name)}
                     </span>
                   </div>
-                  <h3 className="mt-4 text-base font-semibold leading-snug">
+                  <h3 className="font-display mt-4 text-base font-semibold leading-snug">
                     {t(item.title)}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -303,7 +303,7 @@ export function LandingPage() {
             <div className="max-w-2xl">
               <h2
                 id="features-title"
-                className="text-2xl font-semibold tracking-tight sm:text-3xl"
+                className="font-display text-2xl font-bold tracking-tight sm:text-3xl"
               >
                 {t('Tetap memegang kendali penuh, tanpa pusing urusan teknis')}
               </h2>
@@ -378,7 +378,7 @@ export function LandingPage() {
         <section className="border-t border-border px-6 py-16 sm:px-8 sm:py-20">
           <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
             <div className="max-w-xl">
-              <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t('Siap bebas dari pusing urusan teknis?')}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">

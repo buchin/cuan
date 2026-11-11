@@ -2,6 +2,7 @@
    Source: https://tweakcn.com/r/themes/cmu77w83m000104kxbep145by */
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
+@import '@fontsource-variable/archivo';
 
 @tailwind base;
 @tailwind components;
@@ -43,6 +44,7 @@
     --sidebar-border: 0.961 0.0029 264.5419;
     --sidebar-ring: 0.5334 0.2049 258.8101;
     --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Archivo Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --font-serif: Noto Serif Georgian, ui-serif, serif;
     --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
     --shadow-color: #000000;
@@ -103,6 +105,7 @@
     --sidebar-border: 0.2807 0.0039 264.5029;
     --sidebar-ring: 0.72 0.04 250;
     --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Archivo Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
     --font-serif: Noto Serif Georgian, ui-serif, serif;
     --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
     --shadow-color: #000000;
