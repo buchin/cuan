@@ -43,13 +43,11 @@ export function LandingPage() {
   const { resolvedTheme, toggleTheme } = useTheme()
 
   const [email, setEmail] = useState('')
-  const [otpCode, setOtpCode] = useState('')
-  const [waitingListStep, setWaitingListStep] = useState<'email' | 'otp' | 'confirmed'>('email')
+  const [waitingListStep, setWaitingListStep] = useState<'email' | 'confirmed'>('email')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [showGithubModal, setShowGithubModal] = useState(false)
   const emailInputRef = useRef<HTMLInputElement>(null)
-  const otpInputRef = useRef<HTMLInputElement>(null)
 
   const scrollToWaitingList = () => {
     setShowGithubModal(false)
@@ -57,16 +55,12 @@ export function LandingPage() {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' })
       setTimeout(() => {
-        if (waitingListStep === 'otp') {
-          otpInputRef.current?.focus()
-        } else {
-          emailInputRef.current?.focus()
-        }
+        emailInputRef.current?.focus()
       }, 400)
     }
   }
 
-  const handleRequestOtp = async (e: React.FormEvent) => {
+  const handleJoinWaitingList = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = email.trim()
     if (!trimmed || !trimmed.includes('@')) {
@@ -78,83 +72,20 @@ export function LandingPage() {
     setFormError(null)
 
     try {
-      // 1. Submit to Dojo OTP Magic Link endpoint for cuan-waiting-list product gate
-      const dojoRes = await fetch('https://dojo.cc/api/v1/auth/magic-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed, product: 'cuan-waiting-list' }),
-      })
-
-      // 2. Submit to local Cuan waiting list intake (background fail-safe)
-      fetch('/api/waiting-list', {
+      const res = await fetch('/api/waiting-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmed, source: 'hero_waiting_list' }),
-      }).catch(() => {})
-
-      if (!dojoRes.ok) {
-        const data = await dojoRes.json().catch(() => ({}))
-        throw new Error(data.error || t('Gagal mengirim kode verifikasi. Coba lagi sebentar lagi.'))
-      }
-
-      setWaitingListStep('otp')
-      setTimeout(() => {
-        otpInputRef.current?.focus()
-      }, 100)
-    } catch (err: any) {
-      setFormError(err.message || t('Terjadi gangguan jaringan saat mengirim kode verifikasi.'))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmedOtp = otpCode.trim()
-    if (trimmedOtp.length !== 6) {
-      setFormError(t('Masukkan 6 angka kode verifikasi dengan lengkap.'))
-      return
-    }
-
-    setIsSubmitting(true)
-    setFormError(null)
-
-    try {
-      const res = await fetch('https://dojo.cc/api/v1/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), otp_code: trimmedOtp }),
       })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(
-          data.error === 'Invalid code'
-            ? t('Kode konfirmasi salah. Silakan periksa kembali email Anda.')
-            : (data.error || t('Kode verifikasi tidak sesuai atau telah kedaluwarsa.'))
-        )
+        throw new Error(data.error || data.message || t('Gagal mendaftar waiting list. Coba lagi sebentar lagi.'))
       }
 
       setWaitingListStep('confirmed')
     } catch (err: any) {
-      setFormError(err.message || t('Kode konfirmasi tidak sesuai atau telah kedaluwarsa.'))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleResendOtp = async () => {
-    setIsSubmitting(true)
-    setFormError(null)
-    try {
-      await fetch('https://dojo.cc/api/v1/auth/magic-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), product: 'cuan-waiting-list' }),
-      })
-      setFormError(t('Kode verifikasi baru telah dikirim ke email Anda.'))
-    } catch {
-      setFormError(t('Gagal mengirim ulang kode. Silakan coba sebentar lagi.'))
+      setFormError(err.message || t('Terjadi gangguan jaringan saat mendaftar waiting list.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -272,11 +203,11 @@ export function LandingPage() {
               {t('Kelola bisnis tanpa pusing urusan teknis.')}
             </p>
 
-            {/* 2-Step Waiting List Form with Dojo OTP & Sponsorship CTA */}
+            {/* Waiting List Form & Sponsorship CTA */}
             <div id="waiting-list" className="mt-8 max-w-lg mx-auto scroll-mt-24">
               {waitingListStep === 'email' && (
                 <div className="space-y-3">
-                  <form onSubmit={handleRequestOtp} className="flex flex-col sm:flex-row gap-2.5">
+                  <form onSubmit={handleJoinWaitingList} className="flex flex-col sm:flex-row gap-2.5">
                     <input
                       ref={emailInputRef}
                       type="email"
@@ -299,7 +230,7 @@ export function LandingPage() {
                       {isSubmitting ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>{t('Mengirim...')}</span>
+                          <span>{t('Mendaftarkan...')}</span>
                         </>
                       ) : (
                         <>
@@ -318,90 +249,6 @@ export function LandingPage() {
                 </div>
               )}
 
-              {waitingListStep === 'otp' && (
-                <div className="rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs text-left space-y-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
-                        <Mail className="h-3.5 w-3.5" />
-                        <span>{t('Verifikasi Email 6 Angka')}</span>
-                      </div>
-                      <h3 className="font-display text-lg font-bold text-foreground mt-0.5">
-                        {t('Masukkan Kode Konfirmasi')}
-                      </h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                        {t('Kode verifikasi telah dikirim ke')}{' '}
-                        <span className="font-semibold text-foreground">{email}</span>. {t('Silakan cek inbox atau folder spam.')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleVerifyOtp} className="space-y-3">
-                    <div className="flex flex-col sm:flex-row gap-2.5">
-                      <input
-                        ref={otpInputRef}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        required
-                        value={otpCode}
-                        onChange={(e) => {
-                          setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                          setFormError(null)
-                        }}
-                        placeholder="123456"
-                        aria-label={t('6 digit kode verifikasi')}
-                        className="min-h-12 flex-1 rounded-xl border border-border/70 bg-background px-4 text-center font-mono text-xl tracking-widest font-bold text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
-                        disabled={isSubmitting}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isSubmitting || otpCode.trim().length !== 6}
-                        className="action-primary min-h-12 px-6 text-base font-semibold shadow-xs shrink-0 inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>{t('Memverifikasi...')}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>{t('Verifikasi & Amankan Posisi')}</span>
-                            <CheckCircle2 className="h-4 w-4" strokeWidth={1.5} />
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    {formError && (
-                      <p className="text-xs text-rose-500 font-medium">{formError}</p>
-                    )}
-
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWaitingListStep('email')
-                          setFormError(null)
-                        }}
-                        className="hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
-                      >
-                        {t('Ganti email')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleResendOtp}
-                        disabled={isSubmitting}
-                        className="hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
-                      >
-                        {t('Kirim ulang kode')}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
               {waitingListStep === 'confirmed' && (
                 <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-5 sm:p-6 text-left space-y-4 shadow-xs">
                   <div className="flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400 font-bold text-base sm:text-lg">
@@ -409,8 +256,8 @@ export function LandingPage() {
                     <span>{t('Posisi Anda di Waiting List Cuan v1.0 Resmi Terdaftar!')}</span>
                   </div>
                   <p className="text-sm text-foreground/90 leading-relaxed">
-                    {t('Email Anda telah terverifikasi.')} {t('Kami telah mengirimkan email sambutan dan konfirmasi ke')}{' '}
-                    <span className="font-semibold text-foreground">{email}</span>. {t('Notifikasi rilis v1.0 dan akses repositori akan dikirimkan langsung ke inbox Anda.')}
+                    {t('Email Anda telah tercatat.')} {t('Kami telah menambahkan')}{' '}
+                    <span className="font-semibold text-foreground">{email}</span> {t('ke antrean prioritas rilis v1.0. Notifikasi peluncuran resmi dan akses repositori akan dikirimkan langsung ke inbox Anda.')}
                   </p>
 
                   <div className="rounded-xl border border-border/70 bg-card p-4 sm:p-5 space-y-2.5">
@@ -424,7 +271,7 @@ export function LandingPage() {
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                       {t('Jadilah Founding Sponsor untuk mendapatkan akses early-build, logo & tautan permanen di repositori GitHub & landing page, serta sesi konsultasi instalasi VPS.')}
                     </p>
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
                       <Link
                         to="/sponsor"
                         className="action-primary min-h-10 px-5 text-xs sm:text-sm font-semibold inline-flex items-center gap-2"
@@ -432,6 +279,17 @@ export function LandingPage() {
                         <span>{t('Lihat Halaman Sponsor & Benefit')}</span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWaitingListStep('email')
+                          setEmail('')
+                          setFormError(null)
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
+                      >
+                        {t('Daftarkan email lain')}
+                      </button>
                     </div>
                   </div>
                 </div>
