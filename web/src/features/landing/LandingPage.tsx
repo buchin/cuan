@@ -678,7 +678,7 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-base sm:text-lg leading-relaxed text-muted-foreground">
                 {t(
-                  'Perbandingan faktual antara chatbot percakapan biasa, tool koding developer, framework agen otonom, dan Cuan.',
+                  'Perbandingan faktual antara Chatbot percakapan (Claude, ChatGPT, Gemini), Tool Koding (OpenCode, Claude Code, Antigravity), Asisten Personal (Hermes, Muse), dan Cuan.',
                 )}
               </p>
             </div>
@@ -692,21 +692,21 @@ export function LandingPage() {
                       {t('Kebutuhan Bisnis Anda')}
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Chatbot Percakapan')}</div>
+                      <div className="font-bold text-foreground">{t('Chatbot')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        {t('Chatbot percakapan biasa')}
+                        (Claude, ChatGPT, Gemini)
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
-                      <div className="font-bold text-foreground">{t('Tool Koding Developer')}</div>
+                      <div className="font-bold text-foreground">{t('Tool Koding')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        {t('Software koding CLI')}
+                        (OpenCode, Claude Code, Antigravity)
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-semibold text-center w-[19%]">
                       <div className="font-bold text-foreground">{t('Asisten Personal')}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
-                        {t('Asisten personal lokal & cloud')}
+                        (Hermes, Muse)
                       </div>
                     </th>
                     <th className="px-3 py-3.5 font-bold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
@@ -916,7 +916,9 @@ export function LandingPage() {
                   {/* Alternatives Comparison List */}
                   <div className="space-y-2 border-t border-border/40 pt-2.5 text-xs sm:text-sm">
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">{t('Chatbot percakapan biasa')}</span>
+                      <span className="text-xs">
+                        {t('Chatbot')} <span className="text-[11px] text-muted-foreground/75">(Claude, ChatGPT, Gemini)</span>
+                      </span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.chatbot.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.chatbot.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
@@ -926,7 +928,9 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">{t('Software koding developer')}</span>
+                      <span className="text-xs">
+                        {t('Tool Koding')} <span className="text-[11px] text-muted-foreground/75">(OpenCode, Claude Code, Antigravity)</span>
+                      </span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.coder.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.coder.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
@@ -936,7 +940,9 @@ export function LandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-muted-foreground">
-                      <span className="text-xs">{t('Asisten personal lokal & cloud')}</span>
+                      <span className="text-xs">
+                        {t('Asisten Personal')} <span className="text-[11px] text-muted-foreground/75">(Hermes, Muse)</span>
+                      </span>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
                         {row.hermes.icon === 'check' && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
                         {row.hermes.icon === 'warn' && <Minus className="h-3.5 w-3.5 text-amber-500/80" strokeWidth={1.5} />}
