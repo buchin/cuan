@@ -18,7 +18,6 @@ import {
   AlertCircle,
   Bot,
   Terminal,
-  ExternalLink,
   Check,
   X,
   Minus,
@@ -272,52 +271,32 @@ export function LandingPage() {
                 {
                   Icon: Bot,
                   title: 'Chatbot web cuma memberi saran teks, eksekusi tetap manual',
-                  refText: 'ChatGPT, Claude.ai',
-                  refUrl: 'https://chatgpt.com',
                   desc: 'Chatbot percakapan dirancang untuk tanya-jawab dan drafting ide. Mereka tidak terhubung langsung ke server atau database bisnis Anda, sehingga Anda tetap harus manual copy-paste kode, menyatukan webhook, dan tebak-tebak errornya sendiri.',
                 },
                 {
                   Icon: Terminal,
                   title: 'Tool koding CLI dibuat untuk programmer di terminal lokal',
-                  refText: 'Claude Code, Antigravity, Codex',
-                  refUrl: 'https://docs.anthropic.com/en/docs/agents-and-tools/claude-code',
                   desc: 'Sangat andal untuk developer, tetapi wajib mengoperasikan layar terminal hitam (bash/git) yang membingungkan non-teknis. Berjalan di laptop lokal sehingga langsung mati begitu laptop Anda tutup atau sleep, dan tidak bisa diakses santai dari HP.',
                 },
                 {
                   Icon: Activity,
                   title: 'Agen otonom (Hermes, Muse, Nod) minim rem pengaman & bukan untuk bisnis',
-                  refText: 'Hermes, Muse, Nod',
-                  refUrl: 'https://github.com/NousResearch/hermes-agent',
                   desc: 'Bagus untuk riset pengembang, tetapi bukan untuk operasional bisnis harian. Tanpa Approval Card dan verifikasi visual, eksekusi mandiri rawan looping token tak berujung dan mengubah konfigurasi tanpa izin pemilik bisnis.',
                 },
-              ].map(({ Icon, title, refText, refUrl, desc }) => (
+              ].map(({ Icon, title, desc }) => (
                 <div
                   key={title}
-                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-muted/20 p-6 shadow-2xs transition-colors hover:border-border/80"
+                  className="rounded-xl border border-border/60 bg-muted/20 p-6 shadow-2xs transition-colors hover:border-border/80"
                 >
-                  <div>
-                    <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-card text-muted-foreground border border-border/50">
-                      <Icon className="h-5 w-5" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="font-display text-base font-semibold text-foreground">
-                      {t(title)}
-                    </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {t(desc)}
-                    </p>
+                  <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-card text-muted-foreground border border-border/50">
+                    <Icon className="h-5 w-5" strokeWidth={1.5} />
                   </div>
-                  <div className="mt-6 pt-4 border-t border-border/40">
-                    <a
-                      href={refUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground/75 hover:text-foreground transition-colors"
-                      title={t('Lihat referensi resmi')}
-                    >
-                      <span>{t('Referensi:')} {refText}</span>
-                      <ExternalLink className="h-3 w-3 opacity-60" strokeWidth={1.5} />
-                    </a>
-                  </div>
+                  <h3 className="font-display text-base font-semibold text-foreground">
+                    {t(title)}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {t(desc)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -487,36 +466,21 @@ export function LandingPage() {
                     </th>
                     <th className="px-3 py-3 font-medium text-muted-foreground text-center w-[19%]">
                       <div className="font-medium text-foreground">{t('Chatbot Web')}</div>
-                      <a
-                        href="https://chatgpt.com"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5 transition-colors"
-                      >
-                        ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
-                      </a>
+                      <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                        ChatGPT, Claude
+                      </div>
                     </th>
                     <th className="px-3 py-3 font-medium text-muted-foreground text-center w-[19%]">
                       <div className="font-medium text-foreground">{t('Tool Koding CLI')}</div>
-                      <a
-                        href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5 transition-colors"
-                      >
-                        Claude Code/Codex <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
-                      </a>
+                      <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                        Claude Code, Codex
+                      </div>
                     </th>
                     <th className="px-3 py-3 font-medium text-muted-foreground text-center w-[19%]">
                       <div className="font-medium text-foreground">{t('Agen Otonom')}</div>
-                      <a
-                        href="https://github.com/NousResearch/hermes-agent"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground mt-0.5 transition-colors"
-                      >
-                        Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
-                      </a>
+                      <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                        Hermes, Muse, Nod
+                      </div>
                     </th>
                     <th className="px-3 py-3 font-semibold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
                       <div className="inline-flex items-center gap-1.5 font-semibold">
@@ -729,36 +693,6 @@ export function LandingPage() {
                   </div>
                 </div>
               ))}
-
-              {/* Reference Links on Mobile */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
-                <a
-                  href="https://chatgpt.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-                >
-                  ChatGPT/Claude <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
-                </a>
-                <span>·</span>
-                <a
-                  href="https://docs.anthropic.com/en/docs/agents-and-tools/claude-code"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-                >
-                  Claude Code <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
-                </a>
-                <span>·</span>
-                <a
-                  href="https://github.com/NousResearch/hermes-agent"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
-                >
-                  Hermes / Muse / Nod <ExternalLink className="h-2.5 w-2.5 opacity-60" strokeWidth={1.5} />
-                </a>
-              </div>
             </div>
           </div>
         </section>
