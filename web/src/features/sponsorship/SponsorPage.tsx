@@ -11,6 +11,8 @@ import {
   HelpCircle,
   Server,
   Heart,
+  Github,
+  X,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { useLanguage } from '../../context/LanguageContext'
@@ -29,6 +31,7 @@ export function SponsorPage() {
   const { resolvedTheme, toggleTheme } = useTheme()
 
   const [sponsors, setSponsors] = useState<SponsorItem[]>([])
+  const [showGithubModal, setShowGithubModal] = useState(false)
 
   useEffect(() => {
     // Fetch live approved sponsors if available
@@ -369,14 +372,83 @@ export function SponsorPage() {
           <Link to="/" className="inline-flex min-h-11 items-center hover:text-foreground transition-colors">
             {t('Beranda')}
           </Link>
-          <a
-            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
-            href="https://github.com/buchin/cuan"
+          <button
+            type="button"
+            onClick={() => setShowGithubModal(true)}
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors cursor-pointer"
           >
             GitHub
-          </a>
+          </button>
         </div>
       </footer>
+
+      {/* GitHub Curation Notice Modal */}
+      {showGithubModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="github-modal-title"
+          onClick={() => setShowGithubModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border/80 bg-card p-6 shadow-xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/60 text-foreground">
+                  <Github className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <h3 id="github-modal-title" className="font-display text-base font-bold text-foreground">
+                    {t('Repositori Open Source Cuan v1.0')}
+                  </h3>
+                  <div className="inline-flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span>{t('Tahap Kurasi Final Rilis Publik (Apache-2.0)')}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGithubModal(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                aria-label={t('Tutup')}
+              >
+                <X className="h-5 w-5" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {t(
+                'Repositori publik Cuan sedang disiapkan dan dirapikan untuk rilis open source resmi. Masukkan email Anda di Waiting List untuk mendapatkan notifikasi rilis pertama dan akses repositori prioritas.',
+              )}
+            </p>
+
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground flex items-center justify-between">
+              <span>{t('Lisensi Terbuka:')}</span>
+              <span className="font-mono font-semibold text-foreground">Apache License 2.0</span>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <Link
+                to="/"
+                className="action-primary flex-1 min-h-11 px-4 text-sm font-semibold justify-center inline-flex items-center"
+              >
+                {t('Daftar Waiting List Sekarang')}
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowGithubModal(false)}
+                className="action-secondary min-h-11 px-4 text-sm font-semibold justify-center cursor-pointer"
+              >
+                {t('Tutup')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

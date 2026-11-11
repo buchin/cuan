@@ -34,7 +34,6 @@ import { ApprovalCard } from '../inbox/ApprovalCard'
 import { useLanguage } from '../../context/LanguageContext'
 import { useTheme } from '../../context/ThemeContext'
 
-const repository = 'https://github.com/buchin/cuan'
 
 export function LandingPage() {
   const { t, language, setPreference } = useLanguage()
@@ -1143,12 +1142,13 @@ export function LandingPage() {
           >
             {t('Integrasi & MCP')}
           </a>
-          <a
-            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"
-            href={repository + '#readme'}
+          <button
+            type="button"
+            onClick={() => setShowGithubModal(true)}
+            className="inline-flex min-h-11 items-center hover:text-foreground transition-colors cursor-pointer"
           >
             {t('Self-hosting guide')}
-          </a>
+          </button>
           <button
             type="button"
             onClick={() => setShowGithubModal(true)}
