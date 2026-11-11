@@ -102,7 +102,7 @@ export function SponsorPage() {
         <section className="mx-auto max-w-4xl px-6 pt-12 pb-10 text-center sm:px-8 sm:pt-16 sm:pb-14">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3.5 py-1.5 text-xs font-semibold text-muted-foreground">
             <Heart className="h-3.5 w-3.5 text-rose-500 fill-rose-500/20" />
-            <span>{t('Batch 1 · Founding Backers (Terbatas 50 Sponsor)')}</span>
+            <span>{t('Batch 1 · Founding Backers')}</span>
           </div>
 
           <h1 className="font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl lg:leading-[1.1]">
