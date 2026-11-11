@@ -41,10 +41,13 @@ export function LandingPage() {
         <Link
           to="/"
           className="inline-flex min-h-11 items-center gap-2 font-medium tracking-tight"
-          aria-label="Cuan"
+          aria-label="cuanagent"
         >
           <CuanMark decorative className="h-7 w-7" />
-          <span className="text-xl font-semibold">cuan</span>
+          <span className="font-display text-xl tracking-tight">
+            <span className="font-bold text-foreground">cuan</span>
+            <span className="font-normal text-muted-foreground/80">agent</span>
+          </span>
         </Link>
         <nav
           aria-label={t('Website navigation')}
@@ -554,7 +557,10 @@ export function LandingPage() {
                     <th className="px-3 py-3.5 font-bold text-foreground text-center w-[19%] bg-primary/5 dark:bg-primary/10 rounded-t-lg border-x border-t border-border/50">
                       <div className="inline-flex items-center gap-1.5 font-bold">
                         <CuanMark decorative className="h-4 w-4" />
-                        cuan
+                        <span className="font-display tracking-tight text-sm">
+                          <span className="font-bold text-foreground">cuan</span>
+                          <span className="font-normal text-muted-foreground/80">agent</span>
+                        </span>
                       </div>
                       <div className="text-xs text-muted-foreground font-normal mt-0.5">
                         {t('AI Project Manager')}
@@ -742,7 +748,11 @@ export function LandingPage() {
                     <div>
                       <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-foreground">
                         <CuanMark decorative className="h-3.5 w-3.5" />
-                        cuan ({t('AI Project Manager')})
+                        <span className="font-display tracking-tight">
+                          <span className="font-bold text-foreground">cuan</span>
+                          <span className="font-normal text-muted-foreground/80">agent</span>
+                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">({t('AI Project Manager')})</span>
                       </div>
                       <div className="mt-0.5 text-xs sm:text-sm font-semibold text-foreground">
                         {t(row.cuan.text)}
@@ -893,7 +903,13 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-border/60 px-6 py-6 text-sm text-muted-foreground sm:px-8">
-        <p>cuan · {t('Your always-on project manager.')}</p>
+        <p className="flex items-center gap-1.5">
+          <span className="font-display tracking-tight">
+            <span className="font-bold text-foreground">cuan</span>
+            <span className="font-normal text-muted-foreground/80">agent</span>
+          </span>
+          <span>· {t('Your always-on project manager.')}</span>
+        </p>
         <div className="flex gap-5">
           <a
             className="inline-flex min-h-11 items-center hover:text-foreground transition-colors"

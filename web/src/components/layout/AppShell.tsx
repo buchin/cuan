@@ -305,12 +305,9 @@ export function AppShell({
           <Link
             to="/studio"
             aria-label={t('Start new work')}
-            className="inline-flex h-8 items-center gap-2 rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            className="inline-flex h-8 items-center rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
           >
             <CuanMark decorative className="h-7 w-7 shrink-0 text-foreground" />
-            <span className="nav-label text-lg font-semibold tracking-tight text-foreground">
-              cuan
-            </span>
           </Link>
           <button
             className="sidebar-collapse icon-action hidden min-[1200px]:inline-flex h-7 w-7"

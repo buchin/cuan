@@ -35,7 +35,10 @@ export function LoginScreen() {
       <header className="mx-auto w-full max-w-5xl">
         <Link to="/" className="inline-flex min-h-11 items-center gap-2.5" aria-label={t('Cuan home')}>
           <CuanMark className="h-8 w-8" />
-          <span className="text-lg font-semibold">cuan</span>
+          <span className="font-display text-lg tracking-tight">
+            <span className="font-bold text-foreground">cuan</span>
+            <span className="font-normal text-muted-foreground/80">agent</span>
+          </span>
         </Link>
       </header>
       <main className="mx-auto my-auto w-full max-w-sm py-8">
