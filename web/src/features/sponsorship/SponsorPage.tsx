@@ -222,21 +222,19 @@ export function SponsorPage() {
                   <span>{t('Dukung Sebagai Founding Backer')}</span>
                   <ArrowRight className="h-4 w-4" />
                 </a>
-                <p className="text-[11px] text-muted-foreground text-center mt-2">
-                  {t('Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)')}
-                </p>
               </div>
             </div>
 
             {/* TIER 2: BUSINESS SPONSOR (HIGHLIGHTED) */}
-            <div className="relative flex flex-col justify-between rounded-2xl border-2 border-primary/40 bg-primary/5 dark:bg-primary/10 p-6 sm:p-8 shadow-xs">
-              <div className="absolute -top-3 right-6 rounded-full bg-primary px-3 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-2xs">
-                {t('Paling Direkomendasikan')}
-              </div>
-
+            <div className="flex flex-col justify-between rounded-2xl border border-border/80 bg-card p-6 sm:p-8 shadow-xs">
               <div>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                  <span>{t('Untuk Bisnis, Brand & Agensi')}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs font-semibold text-muted-foreground">
+                    <span>{t('Untuk Bisnis, Brand & Agensi')}</span>
+                  </div>
+                  <span className="text-xs font-semibold text-primary">
+                    {t('Paling Direkomendasikan')}
+                  </span>
                 </div>
                 <h3 className="font-display text-2xl font-bold text-foreground mt-3">
                   Business Sponsor
@@ -279,12 +277,12 @@ export function SponsorPage() {
                   <span>{t('Dukung Sebagai Business Sponsor')}</span>
                   <ArrowRight className="h-4 w-4" />
                 </a>
-                <p className="text-[11px] text-muted-foreground text-center mt-2">
-                  {t('Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)')}
-                </p>
               </div>
             </div>
           </div>
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            {t('Pembayaran via Transfer Bank BCA (Lokal) & Stripe (Internasional)')}
+          </p>
         </section>
 
         {/* Existing Sponsors Showcase (if available) */}
