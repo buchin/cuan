@@ -492,11 +492,11 @@ export function LandingPage() {
                       cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
                     },
                     {
-                      label: 'Alat operasional bisnis (WhatsApp/CRM)',
+                      label: 'Alat operasional bisnis (Live Chat/CRM)',
                       chatbot: { icon: 'x', text: 'Tidak ada' },
                       coder: { icon: 'x', text: 'Tidak ada' },
                       hermes: { icon: 'warn', text: 'Bridge bot dasar (tanpa CRM)' },
-                      cuan: { icon: 'check', text: 'Inbox WhatsApp & CRM Kontak' },
+                      cuan: { icon: 'check', text: 'Inbox Live Chat & CRM Kontak' },
                     },
                     {
                       label: 'Model biaya token AI',
@@ -584,12 +584,12 @@ export function LandingPage() {
                   cuan: { icon: 'check', text: 'Bukti visual + DoD otomatis' },
                 },
                 {
-                  label: 'Alat operasional bisnis (WhatsApp/CRM)',
-                  desc: 'Integrasi chat pelanggan dan database kontak',
+                  label: 'Alat operasional bisnis (Live Chat/CRM)',
+                  desc: 'Integrasi live chat pelanggan dan database kontak',
                   chatbot: { icon: 'x', text: 'Tidak ada' },
                   coder: { icon: 'x', text: 'Tidak ada' },
                   hermes: { icon: 'warn', text: 'Bridge bot dasar (tanpa CRM)' },
-                  cuan: { icon: 'check', text: 'Inbox WhatsApp & CRM Kontak' },
+                  cuan: { icon: 'check', text: 'Inbox Live Chat & CRM Kontak' },
                 },
                 {
                   label: 'Model biaya token AI',
@@ -735,8 +735,8 @@ export function LandingPage() {
                 },
                 {
                   Icon: MessageSquare,
-                  title: 'Multi-channel unified customer inbox',
-                  text: 'Manage customer conversations from WhatsApp and live chat in one calm, monochromatic stream with quiet whisper notes for operators.',
+                  title: 'Inbox live chat pelanggan terpadu',
+                  text: 'Kelola percakapan pelanggan dari widget live chat web dalam satu alur tenang, lengkap dengan catatan bisik privat untuk operator.',
                 },
                 {
                   Icon: Users,
