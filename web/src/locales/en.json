@@ -392,5 +392,7 @@
   "Perkecil": "Zoom out",
   "Perbesar": "Zoom in",
   "Atur ulang zoom": "Reset zoom",
-  "Geser diagram": "Pan diagram"
+  "Geser diagram": "Pan diagram",
+  "Resend email alerts & idle chat transcripts.": "Resend email alerts & idle chat transcripts.",
+  "Never lose a customer lead. Automatically receive responsive email digests via Resend when live chat inquiries are unread or idle (>5-10m).": "Never lose a customer lead. Automatically receive responsive email digests via Resend when live chat inquiries are unread or idle (>5-10m)."
 }

@@ -1850,6 +1850,8 @@
   "Resolve conversations": "Tuntaskan percakapan",
   "Resolve {{count}} conversations?": "Tuntaskan {{count}} percakapan?",
   "{{count}} conversations with unfinished work will remain in your inbox.": "{{count}} percakapan yang pekerjaannya belum selesai tetap berada di inbox.",
+  "Resend email alerts & idle chat transcripts.": "Notifikasi email Resend & transkrip obrolan idle.",
+  "Never lose a customer lead. Automatically receive responsive email digests via Resend when live chat inquiries are unread or idle (>5-10m).": "Jangan lewatkan prospek pelanggan. Terima rangkuman email otomatis via Resend saat chat belum terbaca atau idle (>5-10m).",
   "Waiting to deploy": "Menunggu rilis",
   "Deploying": "Merilis"
 }
