@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -20,6 +21,8 @@ import {
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
 import { ApprovalCard } from '../inbox/ApprovalCard'
+import { TaskCompletionCard } from '../inbox/TaskCompletionCard'
+import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -28,6 +31,26 @@ const repository = 'https://github.com/buchin/cuan'
 export function LandingPage() {
   const { t, language, setPreference } = useLanguage()
   const { resolvedTheme, toggleTheme } = useTheme()
+
+  const sampleCompletedTask: Task = useMemo(
+    () => ({
+      id: 't_87e92',
+      title: t('Integrasi Webhook Form & Bot WhatsApp'),
+      status: 'done',
+      priority: 'normal',
+      summary: t(
+        'Webhook receiver aktif dan terhubung ke WhatsApp. 3 skenario tes pengiriman notifikasi otomatis sukses tanpa downtime.'
+      ),
+      dod_checklist: [
+        { text: t('Pasang endpoint receiver webhook form order'), completed: true },
+        { text: t('Format template notifikasi WhatsApp pesanan'), completed: true },
+        { text: t('Uji coba simulasi kirim data (DoD 100% pass)'), completed: true },
+      ],
+      created_at: new Date(Date.now() - 300000).toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+    [t],
+  )
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -185,7 +208,7 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
                 {t(
-                  'Banyak pebisnis dan marketer membuang puluhan jam berharga hanya untuk mengurusi konfigurasi server, skrip error, dan integrasi yang rumit alih-alih fokus mencari cuan.',
+                  'Banyak pebisnis dan marketer membuang puluhan jam berharga mengurusi operasional manual, membalas chat berulang, integrasi webhook, hingga error teknis alih-alih fokus mencari cuan.',
                 )}
               </p>
             </div>
@@ -194,8 +217,8 @@ export function LandingPage() {
               {[
                 {
                   Icon: Clock,
-                  title: 'Sewa programmer mahal & lambat',
-                  desc: 'Biaya jutaan rupiah per bulan, antrean berminggu-minggu, dan rawan miskomunikasi bahkan hanya untuk revisi kecil atau perbaikan form landing page.',
+                  title: 'Sewa tim teknis & operasional mahal',
+                  desc: 'Gaji jutaan rupiah per bulan untuk programmer, admin, atau CS tambahan. Rawan miskomunikasi dan antrean berminggu-minggu bahkan untuk otomasi atau revisi kecil.',
                 },
                 {
                   Icon: Coins,
@@ -247,7 +270,7 @@ export function LandingPage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
                 {t(
-                  'Anda bertindak sebagai direktur yang memberi instruksi lewat chat santai. Cuan yang menyusun rencana, mengeksekusi kodingan, menguji hasil, dan deploy di VPS Anda sampai beres.',
+                  'Anda bertindak sebagai direktur yang memberi instruksi lewat chat santai. Cuan memimpin tim agen spesialis—mulai dari otomasi operasional bisnis, layanan customer support, pembukuan mutasi, hingga koding dan deploy di server Anda sendiri sampai tuntas terverifikasi.',
                 )}
               </p>
             </div>
@@ -268,7 +291,9 @@ export function LandingPage() {
                     {t('Describe what you need in plain words')}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {t('Start in Chat from your phone or desktop. Share a goal, paste a reference, or upload a script. Cuan reviews your project and context automatically.')}
+                    {t(
+                      'Start in Chat from your phone or desktop. Share an operational goal, customer support workflow, financial receipt, or web feature. Cuan analyzes your context automatically.',
+                    )}
                   </p>
                 </div>
 
@@ -331,7 +356,9 @@ export function LandingPage() {
                     {t('Review and approve a clear plan')}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {t('Before touching anything, Cuan presents a structured Approval Card outlining the exact scope and verification criteria. One tap to approve.')}
+                    {t(
+                      'Before touching anything, Cuan presents a structured Approval Card outlining the scope, specialist agents (@sm, @dev, @support), and verification criteria. One tap to approve.',
+                    )}
                   </p>
                 </div>
 
@@ -349,7 +376,7 @@ export function LandingPage() {
                 </div>
               </li>
 
-              {/* STEP 03: BERES (Real Verified Result Card) */}
+              {/* STEP 03: BERES (Real TaskCompletionCard Component) */}
               <li className="flex flex-col justify-between rounded-xl border border-border/50 bg-card p-6 shadow-2xs">
                 <div>
                   <div className="flex items-center justify-between">
@@ -364,54 +391,18 @@ export function LandingPage() {
                     {t('Verified outcomes delivered to your server')}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {t('Autonomous agents execute the work, run automated tests, inspect real visual output, and report back when everything is 100% verified and live.')}
+                    {t(
+                      'Autonomous agents execute operations, handle support, or write code, verifying Definition of Done criteria, and report back via an authentic Task Card with 100% proof.',
+                    )}
                   </p>
                 </div>
 
-                {/* Authentic Verified Result Card */}
-                <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-3.5 text-left text-xs space-y-3">
-                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                      <span className="font-semibold text-xs text-foreground">
-                        {t('Status: Selesai')}
-                      </span>
-                    </div>
-                    <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium">
-                      ✓ {t('100% Teruji')}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                      {t('Hasil Eksekusi')}
-                    </div>
-                    <div className="font-semibold text-foreground text-xs mt-0.5">
-                      {t('Webhook Form & WhatsApp Berhasil Aktif')}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-emerald-500/5 p-2.5 border border-emerald-500/20 space-y-1.5 text-[11px] text-foreground/90">
-                    <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
-                      {t('Bukti Kualitas (Quality Gate):')}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      <span>{t('3 pengujian otomatis lulus tanpa error')}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      <span>{t('Bukti visual tangkapan layar terverifikasi')}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      <span>{t('Deploy aman ke VPS tanpa downtime')}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground font-mono">
-                    <span>#msg_e87e92</span>
-                    <span className="text-primary font-sans font-medium text-[11px]">
-                      {t('Laporan Terverifikasi')} &rarr;
-                    </span>
-                  </div>
+                {/* Authentic TaskCompletionCard from Cuan codebase */}
+                <div className="mt-6 text-left">
+                  <TaskCompletionCard
+                    task={sampleCompletedTask}
+                    className="mt-0 pointer-events-none select-none shadow-none text-left"
+                  />
                 </div>
               </li>
             </ol>
@@ -507,7 +498,7 @@ export function LandingPage() {
                 {t('Siap bebas dari pusing urusan teknis?')}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {t('Fokus besarkan bisnis dan cari cuan. Biarkan agen Cuan yang merapikan dan mengeksekusi kebutuhan teknis di server Anda.')}
+                {t('Fokus besarkan bisnis dan cari cuan. Biarkan agen Cuan yang merapikan operasional, melayani pelanggan, dan mengeksekusi kebutuhan teknis di server Anda.')}
               </p>
               <p className="mt-3 text-xs text-muted-foreground/80">
                 {t('Open source · Lisensi Apache-2.0 · Kendali penuh di VPS sendiri')}
