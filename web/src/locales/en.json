@@ -49,8 +49,8 @@
   "Webhook Form & WhatsApp Berhasil Aktif": "Form Webhook & WhatsApp Live and Active",
   "Bukti Kualitas (Quality Gate):": "Quality Gate Evidence:",
   "3 pengujian otomatis lulus tanpa error": "3 automated tests passed without errors",
-  "Bukti visual tangkapan layar terverifikasi": "Real component visual evidence verified",
-  "Deploy aman ke VPS tanpa downtime": "Zero-downtime deployment to your VPS",
+  "Bukti visual tangkapan layar terverifikasi": "Visual screenshot evidence verified",
+  "Deploy aman ke VPS tanpa downtime": "Safe VPS deployment with zero downtime",
   "Laporan Terverifikasi": "Verified Report",
   "Kenalkan Cuan: AI Agent Mandiri di Server Anda Sendiri": "Meet Cuan: Autonomous AI Agents Running on Your Own Server",
   "Anda bertindak sebagai direktur yang memberi instruksi lewat chat santai. Cuan yang menyusun rencana, mengeksekusi kodingan, menguji hasil, dan deploy di VPS Anda sampai beres.": "You direct the work in plain words from your phone or desktop. Cuan plans, codes, tests, and deploys directly on your own VPS.",
@@ -453,5 +453,13 @@
   "Realita AI Saat Ini": "The Reality of AI Today",
   "Berharap AI membereskan segalanya, tapi malah nambah pusing?": "Hoped AI Would Solve Everything, Only to Hit New Roadblocks?",
   "Banyak marketer mencoba berbagai AI terbaru untuk mengatasi masalah di atas, namun masing-masing punya batasan yang bikin pekerjaan tetap macet.": "Many marketers adopt the latest AI tools hoping to eliminate friction, only to find each category has bottlenecks that stall real execution.",
-  "Langganan SaaS luar negeri bikin boncos": "Foreign SaaS subscriptions burn margin"
+  "Langganan SaaS luar negeri bikin boncos": "Foreign SaaS subscriptions burn margin",
+  "Tolong hubungkan webhook form order ke live chat pelanggan dan rekap mutasi otomatis.": "Please connect the order form webhook to customer live chat and automatic mutation digest.",
+  "Webhook Live Chat & Mutasi Berhasil Aktif": "Live Chat Webhook & Mutation Digest Active",
+  "Draft Approval Card": "Draft Approval Card",
+  "Pasang receiver webhook pesanan tanpa ekspos token": "Set up order webhook receiver without exposing tokens",
+  "Sinkronkan nomor kontak & catatan riwayat pelanggan": "Synchronize contact numbers and customer interaction history",
+  "Pengujian DoD: verifikasi visual & regresi 100%": "DoD verification: visual proof & 100% regression pass",
+  "Integrasi Webhook Pesanan & CRM Kontak": "Order Webhook & Contact CRM Integration",
+  "4 pengujian otomatis lulus tanpa error": "4 automated tests passed without errors"
 }

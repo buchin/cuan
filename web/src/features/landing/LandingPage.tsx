@@ -24,6 +24,7 @@ import {
   Database,
 } from 'lucide-react'
 import { CuanMark } from '../../components/brand/CuanMark'
+import { ApprovalCard } from '../inbox/ApprovalCard'
 import { useLanguage } from '../../context/LanguageContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -350,15 +351,42 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                <div className="mt-6 -mx-2 -mb-2">
-                  <img
-                    src="/landing/step-chat.png"
-                    alt={t('Pratinjau chat Cuan')}
-                    width={1098}
-                    height={1610}
-                    loading="lazy"
-                    className="w-full h-auto object-contain [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.06))]"
-                  />
+                {/* Real Cuan Chat Preview */}
+                <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-4 text-left text-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      <span className="font-semibold text-xs">@cuan</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">Project Manager</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-mono">{t('Baru saja')}</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    <div className="rounded-lg bg-card p-3 border border-border/50 shadow-2xs">
+                      <div className="text-[10px] font-semibold text-muted-foreground mb-1 flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        {t('Anda (Owner)')}
+                      </div>
+                      <p className="text-foreground leading-relaxed">
+                        &ldquo;{t('Tolong hubungkan webhook form order ke live chat pelanggan dan rekap mutasi otomatis.')}&rdquo;
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-primary/5 dark:bg-primary/10 p-3 border border-primary/20">
+                      <div className="text-[10px] font-semibold text-primary mb-1 flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                        @cuan
+                      </div>
+                      <p className="text-foreground/90 leading-relaxed text-[11px]">
+                        {t('Siap! Konteks repositori dan webhook terbaca. Saya siapkan Approval Card rencana kerja dan kriteria pengujian sebelum eksekusi.')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground font-mono">
+                    <span>#msg_chat_01</span>
+                    <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground font-sans text-[11px]">
+                      {t('Draft Approval Card')} &rarr;
+                    </span>
+                  </div>
                 </div>
               </li>
 
@@ -383,14 +411,17 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                <div className="mt-6 -mx-2 -mb-2">
-                  <img
-                    src="/landing/step-approve.png"
-                    alt={t('Pratinjau Approval Card Cuan')}
-                    width={1098}
-                    height={1610}
-                    loading="lazy"
-                    className="w-full h-auto object-contain [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.06))]"
+                {/* Real ApprovalCard Component from Cuan */}
+                <div className="mt-6 text-left">
+                  <ApprovalCard
+                    plan={{
+                      title: t('Integrasi Webhook Pesanan & CRM Kontak'),
+                      project_name: 'cuan-workspace',
+                      description: `- ${t('Pasang receiver webhook pesanan tanpa ekspos token')}\n- ${t('Sinkronkan nomor kontak & catatan riwayat pelanggan')}\n- ${t('Pengujian DoD: verifikasi visual & regresi 100%')}`,
+                    }}
+                    disabled={false}
+                    onApprove={() => {}}
+                    className="mt-0 pointer-events-none select-none shadow-none"
                   />
                 </div>
               </li>
@@ -416,15 +447,50 @@ export function LandingPage() {
                   </p>
                 </div>
 
-                <div className="mt-6 -mx-2 -mb-2">
-                  <img
-                    src="/landing/step-done.png"
-                    alt={t('Pratinjau tugas terverifikasi Cuan')}
-                    width={1098}
-                    height={1610}
-                    loading="lazy"
-                    className="w-full h-auto object-contain [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.06))]"
-                  />
+                {/* Authentic Verified Task Result Card */}
+                <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-4 text-left text-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
+                      <span className="font-semibold text-xs text-foreground">
+                        {t('Status: Selesai')}
+                      </span>
+                    </div>
+                    <span className="rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium">
+                      ✓ {t('100% Teruji')}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-mono text-muted-foreground">
+                      {t('Hasil Eksekusi')}
+                    </div>
+                    <div className="font-semibold text-foreground text-sm mt-0.5">
+                      {t('Webhook Live Chat & Mutasi Berhasil Aktif')}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-card p-3 border border-border/50 shadow-2xs space-y-2 text-[11px] text-foreground/90">
+                    <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      {t('Bukti Kualitas (Quality Gate):')}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" strokeWidth={1.5} />
+                      <span>{t('4 pengujian otomatis lulus tanpa error')}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" strokeWidth={1.5} />
+                      <span>{t('Bukti visual tangkapan layar terverifikasi')}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" strokeWidth={1.5} />
+                      <span>{t('Deploy aman ke VPS tanpa downtime')}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground font-mono">
+                    <span>#task_94a2f</span>
+                    <span className="text-primary font-sans font-medium text-[11px]">
+                      {t('Laporan Terverifikasi')} &rarr;
+                    </span>
+                  </div>
                 </div>
               </li>
             </ol>
