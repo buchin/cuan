@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/project"
 )
 
@@ -250,6 +251,10 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		executionCategory = InferExecutionCategory(title, instructions)
 	}
 	executionCategory = scopeConstrainedCategory(title, instructions, executionCategory)
+	// Every task creation path funnels through here, and instructions are
+	// persisted and later replayed to a provider. Redact credential material
+	// once at this boundary so no caller can leak it by omission.
+	instructions = agent.MaskSecrets(instructions, nil)
 	t := &Task{
 		CreationHash:      taskCreationHash(req),
 		DoDChecklist:      append([]DoDItem{}, req.DoDChecklist...),

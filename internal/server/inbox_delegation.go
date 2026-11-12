@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
@@ -454,12 +453,10 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			runes := []rune(instructions)
 			instructions = string(runes[:19997]) + "..."
 		}
-		// Task text is stored and replayed to workers, so credential material that
-		// reached the conversation must never be copied verbatim into it.
-		instructions = agent.MaskSecrets(instructions, nil)
 		// Lane inference must see the same final text the worker receives, not
 		// only the reconcile description; otherwise explicit artifact/read-only
 		// scopes were classified as code and forced through publication gates.
+		// Credential redaction happens once at the task creation boundary.
 		if d.ExecutionCategory == "" {
 			d.ExecutionCategory = task.InferExecutionCategory(taskTitle, instructions)
 		}
