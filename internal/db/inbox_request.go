@@ -11,6 +11,13 @@ import (
 
 var ErrInboxQueueFull = errors.New("inbox queue full")
 
+// InboxRequestWindow bounds one claimed chat request. It must outlast the
+// provider's own print timeout (360s) or the request deadline always wins the
+// race: production showed a stage still reading files at 346.8s of a 346.97s
+// budget, so its answer was destroyed before the provider could finish. The
+// extra minute lets the provider stop on its own terms and report what it has.
+const InboxRequestWindow = 420 * time.Second
+
 var ErrInboxRequestConflict = errors.New("request key already belongs to different content")
 
 type InboxRequest struct {
@@ -284,11 +291,11 @@ func (r *SQLProjectStudioRepository) ClaimInboxRequest(ctx context.Context, room
 	}
 	var q InboxRequest
 	var steps []byte
-	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET state='running',safe_error='',started_at=NOW(),deadline=NOW()+INTERVAL '360 seconds'
+	err = tx.QueryRowContext(ctx, `UPDATE inbox_requests SET state='running',safe_error='',started_at=NOW(),deadline=NOW()+INTERVAL '1 second' * $3
  WHERE room_id=$1 AND request_id=$2 AND state='queued'
  AND NOT EXISTS(SELECT 1 FROM inbox_requests WHERE room_id=$1 AND state IN ('running','cancelling'))
  AND request_id=(SELECT request_id FROM inbox_requests WHERE room_id=$1 AND state='queued' ORDER BY created_at,request_id LIMIT 1)
- RETURNING room_id,request_id,payload_hash,message_id,reply_id,state,safe_error,created_at,deadline,started_at,steps,owner_id,agent_id`, room, id).Scan(&q.RoomID, &q.RequestID, &q.PayloadHash, &q.MessageID, &q.ReplyID, &q.State, &q.SafeError, &q.CreatedAt, &q.Deadline, &q.StartedAt, &steps, &q.OwnerID, &q.AgentID)
+ RETURNING room_id,request_id,payload_hash,message_id,reply_id,state,safe_error,created_at,deadline,started_at,steps,owner_id,agent_id`, room, id, int(InboxRequestWindow.Seconds())).Scan(&q.RoomID, &q.RequestID, &q.PayloadHash, &q.MessageID, &q.ReplyID, &q.State, &q.SafeError, &q.CreatedAt, &q.Deadline, &q.StartedAt, &steps, &q.OwnerID, &q.AgentID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return q, false, nil
 	}
@@ -353,7 +360,7 @@ func (r *MemoryProjectStudioRepository) ClaimInboxRequest(ctx context.Context, r
 	q.State = "running"
 	q.SafeError = ""
 	q.StartedAt = &now
-	q.Deadline = now.Add(360 * time.Second)
+	q.Deadline = now.Add(InboxRequestWindow)
 	r.requests[key] = q
 	return q, true, nil
 }
