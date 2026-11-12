@@ -46,8 +46,11 @@ func TestCoordinatorDelegationSchemaMatchesNativePayload(t *testing.T) {
 				field := native.Field(i)
 				key := strings.Split(field.Tag.Get("json"), ",")[0]
 				want := "string"
-				if field.Type.Kind() == reflect.Bool {
+				switch field.Type.Kind() {
+				case reflect.Bool:
 					want = "boolean"
+				case reflect.Slice:
+					want = "array"
 				}
 				if payload.Properties[key].Type != want {
 					t.Fatalf("provider/native field mismatch: %s", key)

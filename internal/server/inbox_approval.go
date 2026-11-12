@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 const inboxApprovalInstruction = "When a concrete plan is ready and you need the user's approval before starting work, present its outcome, scope, limits and acceptance criteria in plain language, then end the reply with exactly one cuan-approval fenced JSON block, for example:\n```cuan-approval\n{\"title\":\"Navigation audit\",\"description\":\"Read-only navigation audit. Report findings; do not modify or deploy.\",\"project_id\":\"registered project ID\"}\n```\nFor an executable plan include description (the exact scope, limits and acceptance criteria, up to 6000 characters), and either project_id or project_name in the same JSON. Use only title, description, and either project_id or project_name. Do not include authorization_message_id, action, task_id or revision: user approval is recorded separately after this proposal. The application displays that description and a button to approve that exact plan. Never hide extra scope in the description. The title is at most 200 characters. This marker creates a proposal and approval notification; it does not authorize or run anything until the user approves. Do not use it for greetings, ordinary questions, clarification, already approved work or a completed result. Do not combine it with cuan-delegate or cuan-task blocks."
@@ -62,7 +63,10 @@ type inboxApprovalPlan struct {
 	Description  string                 `json:"description,omitempty"`
 	ProjectID    string                 `json:"project_id,omitempty"`
 	ProjectName  string                 `json:"project_name,omitempty"`
-	Continuation *inboxContinuationPlan `json:"continuation,omitempty"`
+	// RequiredStages declares which acceptance stages this work must reach.
+	// Absent means "not declared" and keeps the previous behaviour.
+	RequiredStages []string               `json:"required_stages,omitempty"`
+	Continuation   *inboxContinuationPlan `json:"continuation,omitempty"`
 }
 type approvedInboxPlan struct {
 	Action    string            `json:"action,omitempty"`
@@ -93,6 +97,13 @@ func parseInboxApprovalPlan(content string) *inboxApprovalPlan {
 	if strings.TrimSpace(p.Description) == "" || len([]rune(p.Description)) > 6000 || (p.ProjectID == "") == (strings.TrimSpace(p.ProjectName) == "") || len([]rune(p.ProjectName)) > 100 {
 		return nil
 	}
+	// A declared stage list must use the supported vocabulary. An invalid value
+	// is rejected here rather than silently dropped, so a typo cannot quietly
+	// turn "publish this" into "do not publish".
+	if invalid := task.InvalidStages(p.RequiredStages); len(invalid) > 0 {
+		return nil
+	}
+	p.RequiredStages = task.NormalizeStages(p.RequiredStages)
 	return &p
 }
 func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id string) (*approvedInboxPlan, error) {
@@ -172,7 +183,7 @@ func decodeApprovedInboxPlan(content string) *approvedInboxPlan {
 }
 
 func approvedPlanDelegation(plan *approvedInboxPlan, authorization string) string {
-	d := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName, AuthorizationID: authorization}
+	d := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName, AuthorizationID: authorization, RequiredStages: plan.Plan.RequiredStages}
 	if c := plan.Plan.Continuation; c != nil {
 		d = inboxDelegation{TaskID: c.TaskID, ProjectID: plan.Plan.ProjectID, Revision: c.Revision, AuthorizationID: authorization}
 	}

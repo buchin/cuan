@@ -40,10 +40,10 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 			id, project_id, title, instructions, status, priority, assigned_agent,
 			branch_name, pr_url, pr_number, commit_sha, diff_summary, test_summary,
 			created_at, updated_at,source_room_id,source_message_id,summary,complete_note,dod_checklist,creation_hash,
-			execution_category
+			execution_category, required_stages
 		) VALUES (
 			$1, NULLIF($2,''), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,NULLIF($16,'')::uuid,NULLIF($17,'')::uuid,$18,$19,$20::jsonb,$21,
-			$22
+			$22, $23
 		)
 	`
 	_, err = tx.ExecContext(ctx, query,
@@ -63,6 +63,7 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 		t.CreatedAt,
 		t.UpdatedAt, t.SourceRoomID, t.SourceMessageID, t.Summary, t.CompleteNote, checklistJSON(t.DoDChecklist), t.CreationHash,
 		t.ExecutionCategory,
+		t.RequiredStages,
 	)
 	if err != nil {
 		return fmt.Errorf("create task: %w", err)
@@ -103,7 +104,7 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
 			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash,
-			COALESCE(execution_category, 'code')
+			COALESCE(execution_category, 'code'), required_stages
 		FROM tasks
 		WHERE id = $1
 	`
@@ -126,6 +127,7 @@ func (s *DBStore) GetTask(ctx context.Context, id string) (*Task, error) {
 		&t.CreatedAt,
 		&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID, &t.Summary, &t.CompleteNote, &checklist, &t.CreationHash,
 		&t.ExecutionCategory,
+		&t.RequiredStages,
 	)
 	if err == sql.ErrNoRows {
 		return nil, ErrTaskNotFound
@@ -170,7 +172,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			COALESCE(diff_summary, ''),
 			COALESCE(test_summary, ''),
 			created_at, updated_at,COALESCE(source_room_id::text,''),COALESCE(source_message_id::text,''),summary,complete_note,dod_checklist,creation_hash,
-			COALESCE(execution_category, 'code')
+			COALESCE(execution_category, 'code'), required_stages
 		FROM tasks
 		WHERE ($1 = '' OR project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = tasks.id AND tp.project_id = $1))
 		  AND ($2 = '' OR status = $2)
@@ -207,6 +209,7 @@ func (s *DBStore) ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, er
 			&t.CreatedAt,
 			&t.UpdatedAt, &t.SourceRoomID, &t.SourceMessageID, &t.Summary, &t.CompleteNote, &checklist, &t.CreationHash,
 			&t.ExecutionCategory,
+			&t.RequiredStages,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
@@ -300,7 +303,8 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 			diff_summary = $11,
 			test_summary = $12,
 			updated_at = $13,summary=$14,complete_note=$15,dod_checklist=$16::jsonb,project_id=NULLIF($17,''),
-			execution_category = $18
+			execution_category = $18,
+			required_stages = $19
 		WHERE id = $1
 	`
 	res, err := tx.ExecContext(ctx, query,
@@ -318,6 +322,7 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 		t.TestSummary,
 		t.UpdatedAt, t.Summary, t.CompleteNote, checklistJSON(t.DoDChecklist), t.ProjectID,
 		t.ExecutionCategory,
+		t.RequiredStages,
 	)
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)

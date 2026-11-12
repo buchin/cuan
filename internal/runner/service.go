@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/taskfsm"
 )
@@ -381,7 +382,18 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		resp.DefaultBranch = p.DefaultBranch
 		resp.WorkingDir = p.LocalPath
 		settings := project.SettingsFromMetadata(p.Metadata)
-		resp.AutoDeploy = settings.IsAutoDeployEnabled() && !limits.DenyDeploy
+		// Publication is a declared task stage, not a project-wide default. A
+		// project that has no usable verification connection has no publication
+		// target at all, so it must not gate an otherwise finished task.
+		autoDeploy := settings.IsAutoDeployEnabled() && !limits.DenyDeploy
+		if task.StagesDeclared(t.RequiredStages) {
+			autoDeploy = task.RequiresPublish(t.RequiredStages) && !limits.DenyDeploy
+		} else if autoDeploy {
+			if publication.ConfigurationState(project.ParseEnvironment(settings.Environment)) != "configured" {
+				autoDeploy = false
+			}
+		}
+		resp.AutoDeploy = autoDeploy
 		resp.Environment = settings.Environment
 		resp.DeployBranch = strings.TrimSpace(settings.DeployBranch)
 		if resp.DeployBranch == "" {
@@ -588,15 +600,22 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				settings := project.SettingsFromMetadata(p.Metadata)
 				isCodeLane := t.ExecutionCategory == "" || t.ExecutionCategory == task.ExecutionCategoryCode
 				requiresDeploy := isCodeLane
-				if req.RequiresDeploy != nil {
+				// A declared stage list is authoritative: publication happens only
+				// when the approved task actually asked for it. Without a
+				// declaration the previous inference still applies.
+				declared := task.StagesDeclared(t.RequiredStages)
+				if declared {
+					requiresDeploy = task.RequiresPublish(t.RequiredStages)
+				} else if req.RequiresDeploy != nil {
 					requiresDeploy = *req.RequiresDeploy
 				} else if (req.HasCodeChanges != nil && !*req.HasCodeChanges) || (req.DiffSummary == "" && req.CommitSHA == "") {
 					if isInvestigationOrNonCode(t.Title, t.Instructions, t.Summary, t.CompleteNote) {
 						requiresDeploy = false
 					}
 				}
-				// A caller's exemption cannot override observed code changes.
-				if isCodeLane && req.HasCodeChanges != nil && *req.HasCodeChanges {
+				// A caller's exemption cannot override observed code changes, but a
+				// declaration that omits publish is an owner decision, not a bypass.
+				if !declared && isCodeLane && req.HasCodeChanges != nil && *req.HasCodeChanges {
 					requiresDeploy = true
 				}
 

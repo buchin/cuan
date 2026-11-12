@@ -53,6 +53,9 @@ type inboxDelegation struct {
 	TaskID            string `json:"task_id,omitempty"`
 	Revision          string `json:"revision,omitempty"`
 	AgentID           string `json:"agent_id,omitempty"`
+	// RequiredStages carries the approved acceptance stages from the plan.
+	// Nil means the approval did not declare them.
+	RequiredStages []string `json:"required_stages,omitempty"`
 }
 
 func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
@@ -468,6 +471,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			AssignedAgent:     targetAgent,
 			ExecutionCategory: d.ExecutionCategory,
 			DoDChecklist:      dodChecklist,
+			RequiredStages:    d.RequiredStages,
 		})
 		if e != nil {
 			log.Printf("inbox delegation failed to create task room=%s auth=%s: %v", q.RoomID, d.AuthorizationID, e)

@@ -268,6 +268,7 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		Status:            initialStatus,
 		Priority:          priority,
 		ExecutionCategory: executionCategory,
+		RequiredStages:    NormalizeStages(req.RequiredStages),
 		AssignedAgent:     assignedAgent,
 		CreatedAt:         time.Now().UTC(),
 		UpdatedAt:         time.Now().UTC(),

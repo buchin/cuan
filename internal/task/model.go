@@ -86,7 +86,11 @@ type Task struct {
 	Status            string    `json:"status"`             // backlog, doing, review, done, blocked
 	Priority          string    `json:"priority"`           // low, normal, high, urgent
 	ExecutionCategory string    `json:"execution_category"` // code, ops, readonly
-	AssignedAgent     string    `json:"assigned_agent"`     // e.g. agy
+	// RequiredStages declares which acceptance stages this task must reach.
+	// Nil keeps legacy behaviour; an empty non-nil slice means no stage is
+	// implied. See stage.go for the stage contract.
+	RequiredStages []string  `json:"required_stages,omitempty"`
+	AssignedAgent  string    `json:"assigned_agent"` // e.g. agy
 	BranchName        string    `json:"branch_name,omitempty"`
 	PRURL             string    `json:"pr_url,omitempty"`
 	PRNumber          int       `json:"pr_number,omitempty"`
@@ -193,6 +197,9 @@ type CreateTaskRequest struct {
 	Category          string    `json:"category,omitempty"`
 	AssignedAgent     string    `json:"assigned_agent,omitempty"`
 	DoDChecklist      []DoDItem `json:"dod_checklist,omitempty"`
+	// RequiredStages declares the approved acceptance stages. Nil keeps legacy
+	// behaviour; an explicit empty list means no stage is implied.
+	RequiredStages []string `json:"required_stages,omitempty"`
 }
 
 type UpdateTaskRequest struct {
