@@ -246,14 +246,17 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 
 type runTaskAgentPayload struct {
 	RecoverySourceAttemptID string `json:"-"`
-	RequestID               string `json:"request_id"`
-	Revision                string `json:"revision"`
-	AgentID                 string `json:"agent_id"`
-	Prompt                  string `json:"prompt"`
-	Binary                  string `json:"binary"`
-	RunnerID                string `json:"runner_id,omitempty"`
-	Cols                    uint16 `json:"cols"`
-	Rows                    uint16 `json:"rows"`
+	// OwnerAuthorized is set only by orchestration that verified a later user
+	// turn authorized this continuation.
+	OwnerAuthorized bool   `json:"-"`
+	RequestID       string `json:"request_id"`
+	Revision        string `json:"revision"`
+	AgentID         string `json:"agent_id"`
+	Prompt          string `json:"prompt"`
+	Binary          string `json:"binary"`
+	RunnerID        string `json:"runner_id,omitempty"`
+	Cols            uint16 `json:"cols"`
+	Rows            uint16 `json:"rows"`
 }
 
 // handleRunTaskAgent spawns an autonomous or interactive agent process bound to the task PTY.
@@ -780,7 +783,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					return
 				}
 			}
-			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash, ExpectedPredecessorID: payload.RecoverySourceAttemptID, InitializeQueuedTask: runnerID == "cuan-runner", PreserveQueuedReport: revision != ""})
+			attempt, err = s.taskSvc.CreateAttempt(r.Context(), taskID, "owner", task.CreateAttemptRequest{RunnerID: runnerID, AgentName: agentID, RequestID: payload.RequestID, RequestHash: requestHash, ExpectedPredecessorID: payload.RecoverySourceAttemptID, InitializeQueuedTask: runnerID == "cuan-runner", PreserveQueuedReport: revision != "", OwnerAuthorized: payload.OwnerAuthorized})
 			if errors.Is(err, task.ErrTaskActive) {
 				respondJSONError(w, 409, task.ActiveAttemptLaunchError)
 				return

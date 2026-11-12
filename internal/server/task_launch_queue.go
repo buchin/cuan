@@ -318,7 +318,11 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 		return finish("started", "")
 	}
-	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID}, job.OwnerID)
+	// The launch record carries the verified continuation basis. A launch whose
+	// request is not the task's original approval represents a later, separately
+	// authorized turn rather than a blind repeat of the previous attempt.
+	ownerAuthorized := job.SourceRequestID != "" && job.SourceRequestID != job.RequestID
+	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID, OwnerAuthorized: ownerAuthorized}, job.OwnerID)
 	if response.code == 200 {
 		return finish("started", "")
 	}

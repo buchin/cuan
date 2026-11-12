@@ -758,6 +758,25 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 	if t.Status == TaskStatusDone {
 		return nil, fmt.Errorf("%w: reopen the completed task before starting a new session", ErrInvalidTaskInput)
 	}
+	// One shared attempt budget governs automatic work retries. Two kinds of call
+	// are not automatic repeats: typed native continuations (verification,
+	// inspection, release handoff) are new stages of an approved workflow, and an
+	// owner-authorized continuation carries fresh consent from a later user turn.
+	typedContinuation := req.ExpectedPredecessorID != "" || req.InitializeQueuedTask
+	if !typedContinuation && !req.OwnerAuthorized {
+		if attempts, listErr := s.store.ListAttempts(ctx, taskID); listErr == nil && len(attempts) > 0 {
+			business, latest, previous := businessAttempts(attempts)
+			if business >= MaxAttemptsFor() {
+				return nil, fmt.Errorf("%w: task reached its %d-attempt limit; retry explicitly with a reason to continue", ErrInvalidTaskInput, MaxAttemptsFor())
+			}
+			if latest != nil && !RetryWorthy(latest.ErrorMessage) && latest.ErrorMessage != "" {
+				return nil, fmt.Errorf("%w: the previous attempt stopped on an unattended cause (%s); fix it instead of retrying", ErrInvalidTaskInput, ClassifyAttemptFailure(latest.ErrorMessage))
+			}
+			if RepeatedFailure(latest, previous) {
+				return nil, fmt.Errorf("%w: the previous attempts failed with the same reason; resolve it instead of retrying", ErrInvalidTaskInput)
+			}
+		}
+	}
 	runnerID := strings.TrimSpace(req.RunnerID)
 	if runnerID == "" {
 		runnerID = "cuan-runner"
@@ -1065,7 +1084,7 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 }
 
 // RetryTask creates a brand-new execution attempt for a failed, canceled, or interrupted task.
-func (s *Service) RetryTask(ctx context.Context, taskID string, author string, runnerID string, agentName string) (*TaskAttempt, error) {
+func (s *Service) RetryTask(ctx context.Context, taskID string, author string, runnerID string, agentName string, reason string) (*TaskAttempt, error) {
 	t, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -1082,28 +1101,15 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, author string, r
 			return nil, fmt.Errorf("%w: task is running or already queued", ErrInvalidTaskInput)
 		}
 		attempts, _ := s.store.ListAttempts(ctx, taskID)
-		businessCount := 0
-		for _, a := range attempts {
-			if a == nil || a.Status == AttemptStatusCanceled || a.CancelRequested || a.CanceledAt != nil {
-				continue
-			}
-			if a.Status == AttemptStatusInterrupted {
-				continue
-			}
-			var ec int
-			if a.ExitCode != nil {
-				ec = *a.ExitCode
-			}
-			if ec == 137 || ec == 143 {
-				continue
-			}
-			errLower := strings.ToLower(a.ErrorMessage)
-			if strings.Contains(errLower, "lease expired") || strings.Contains(errLower, "heartbeat lost") || strings.Contains(errLower, "runner killed") || strings.Contains(errLower, "runner restart") || strings.Contains(errLower, "connection lost") || strings.Contains(errLower, "interrupted") {
-				continue
-			}
-			businessCount++
-		}
-		nextAttemptNum = businessCount + 1
+		business, _, _ := businessAttempts(attempts)
+		nextAttemptNum = business + 1
+	}
+
+	// Retries cannot silently exceed the shared attempt budget. An owner may
+	// still force one past the limit, but only with a recorded reason, so the
+	// task ledger shows why the ceiling was crossed instead of looping quietly.
+	if latest != nil && !CanRequeue(nextAttemptNum-1) && strings.TrimSpace(reason) == "" {
+		return nil, fmt.Errorf("%w: task reached its %d-attempt limit; supply a reason to retry beyond it", ErrInvalidTaskInput, MaxAttemptsFor())
 	}
 
 	if runnerID == "" {
@@ -1146,6 +1152,9 @@ func (s *Service) RetryTask(ctx context.Context, taskID string, author string, r
 		NewStatus:    AttemptStatusQueued,
 		Message:      fmt.Sprintf("Attempt %s explicitly retried (attempt #%d) by %s.", newAttempt.ID, nextAttemptNum, author),
 		CreatedAt:    now,
+	}
+	if strings.TrimSpace(reason) != "" {
+		act.Message = fmt.Sprintf("Attempt %s explicitly retried (attempt #%d) by %s. Reason: %s", newAttempt.ID, nextAttemptNum, author, strings.TrimSpace(reason))
 	}
 	_ = s.store.CreateActivity(ctx, act)
 

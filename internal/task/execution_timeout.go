@@ -141,13 +141,19 @@ func GetGracePeriod() time.Duration {
 
 // CanRequeue returns true if the attempt count has not exceeded the max attempts threshold (3).
 func CanRequeue(attemptNumber int) bool {
-	maxAtt := MaxAttempts
+	return attemptNumber < MaxAttemptsFor()
+}
+
+// MaxAttemptsFor is the single source of truth for how many business attempts a
+// task may consume. Every requeue/retry path must consult it; previously three
+// separate checks disagreed and retries could exceed the limit indefinitely.
+func MaxAttemptsFor() int {
 	if v := os.Getenv("CUAN_TASK_MAX_ATTEMPTS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			maxAtt = n
+			return n
 		}
 	}
-	return attemptNumber < maxAtt
+	return MaxAttempts
 }
 
 // AttemptDeadline is immutable once claimed; legacy attempts use the same policy.

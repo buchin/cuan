@@ -33,3 +33,44 @@ func TestInferStandaloneFileWithDilarangRepositoryScope(t *testing.T) {
 		t.Fatal("explicit standalone scope routed to application repository", got)
 	}
 }
+
+// An inspection title must win over implementation words that merely appear in
+// the body. This is the production case that sent a research task to the code
+// lane and then to a publication gate it could never satisfy.
+func TestInferInspectionTitleBeatsIncidentalImplementationWord(t *testing.T) {
+	body := "Evaluasi kelayakan paket VPS menggunakan tool native web_fetch yang baru saja diimplementasikan pada Cuan."
+	if got := InferExecutionCategory("Sesi Analisis Mandiri: Audit Paket cloudra.id via web_fetch", body); got != ExecutionCategoryReadOnly {
+		t.Fatalf("audit title routed to %q, want readonly", got)
+	}
+	for _, title := range []string{
+		"Investigasi dan perbaiki kendala login",
+		"Audit keamanan repositori",
+		"Analisis penyebab kegagalan build",
+	} {
+		if got := InferExecutionCategory(title, body); got != ExecutionCategoryReadOnly {
+			t.Fatalf("inspection title %q routed to %q", title, got)
+		}
+	}
+	// Real implementation work must stay in the code lane.
+	for _, title := range []string{
+		"Implementasi fitur resolve conversation",
+		"Tambahkan halaman pengaturan baru",
+		"Perbaiki masalah pada repositori",
+	} {
+		if got := InferExecutionCategory(title, "Ubah komponen frontend dan deploy."); got != ExecutionCategoryCode {
+			t.Fatalf("implementation title %q routed to %q", title, got)
+		}
+	}
+}
+
+// Whole-word matching keeps unrelated words from hijacking the lane.
+func TestInferTitleTermsRespectWordBoundaries(t *testing.T) {
+	for _, title := range []string{
+		"Implementasi auditorium virtual", // contains "audit" as a prefix of auditorium
+		"Tambah fitur monitorkan transaksi",
+	} {
+		if got := InferExecutionCategory(title, "Buat komponen frontend."); got != ExecutionCategoryCode {
+			t.Fatalf("title %q routed to %q, want code", title, got)
+		}
+	}
+}

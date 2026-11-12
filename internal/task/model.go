@@ -223,10 +223,14 @@ type CreateAttemptRequest struct {
 	InitializeQueuedTask  bool   `json:"-"`
 	PreserveQueuedReport  bool   `json:"-"`
 	ExpectedPredecessorID string `json:"-"`
-	RequestID             string `json:"request_id,omitempty"`
-	RequestHash           string `json:"-"`
-	RunnerID              string `json:"runner_id,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
+	// OwnerAuthorized marks a continuation carrying fresh consent from a later
+	// user turn. It is set by orchestration that verified the source message,
+	// never by a caller's own claim.
+	OwnerAuthorized bool   `json:"-"`
+	RequestID       string `json:"request_id,omitempty"`
+	RequestHash     string `json:"-"`
+	RunnerID        string `json:"runner_id,omitempty"`
+	AgentName       string `json:"agent_name,omitempty"`
 }
 
 type UpdateAttemptRequest struct {

@@ -1023,13 +1023,14 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		RunnerID  string `json:"runner_id"`
 		AgentName string `json:"agent_name"`
+		Reason    string `json:"reason"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	if req.RunnerID == "" {
 		req.RunnerID = "cuan-runner"
 	}
 
-	att, err := s.taskSvc.RetryTask(r.Context(), taskID, author, req.RunnerID, req.AgentName)
+	att, err := s.taskSvc.RetryTask(r.Context(), taskID, author, req.RunnerID, req.AgentName, req.Reason)
 	if err != nil {
 		if errors.Is(err, task.ErrTaskNotFound) {
 			respondJSONError(w, http.StatusNotFound, "Task not found")

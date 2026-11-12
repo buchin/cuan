@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
@@ -439,9 +440,6 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		instructions += "\n\nReport actual progress and verification evidence. Stay within this scope. Negative boundaries and explicit requests from the conversation history above are the single source of truth; do not introduce unsolicited redesigns or expand scope beyond what was asked."
 		if d.Reconcile {
 			instructions += "\n\n" + inboxReconciliationExecutionContract
-			if d.ExecutionCategory == "" {
-				d.ExecutionCategory = task.InferExecutionCategory(d.Title, d.Description)
-			}
 		}
 		dodChecklist := extractDoDFromDescription(d.Description)
 		taskTitle := d.Title
@@ -455,6 +453,15 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if len([]rune(instructions)) > 20000 {
 			runes := []rune(instructions)
 			instructions = string(runes[:19997]) + "..."
+		}
+		// Task text is stored and replayed to workers, so credential material that
+		// reached the conversation must never be copied verbatim into it.
+		instructions = agent.MaskSecrets(instructions, nil)
+		// Lane inference must see the same final text the worker receives, not
+		// only the reconcile description; otherwise explicit artifact/read-only
+		// scopes were classified as code and forced through publication gates.
+		if d.ExecutionCategory == "" {
+			d.ExecutionCategory = task.InferExecutionCategory(taskTitle, instructions)
 		}
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
 			SourceRoomID:      q.RoomID,

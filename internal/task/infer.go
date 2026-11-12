@@ -66,6 +66,47 @@ func scopeConstrainedCategory(title, instructions, category string) string {
 	return category
 }
 
+// readonlyCategoryFor reports whether a title describes inspection work. It
+// matches whole words so "auditor" or "monitoring" in unrelated prose cannot
+// silently move a real implementation task into the read-only lane.
+func readonlyCategoryFor(title string) string {
+	for _, term := range titleReadonlyTerms {
+		if containsWord(title, term) {
+			return ExecutionCategoryReadOnly
+		}
+	}
+	return ""
+}
+
+// containsWord reports whether term appears in text as a standalone word.
+func containsWord(text, term string) bool {
+	for start := 0; start < len(text); {
+		at := strings.Index(text[start:], term)
+		if at < 0 {
+			return false
+		}
+		at += start
+		end := at + len(term)
+		beforeOK := at == 0 || !isWordByte(text[at-1])
+		afterOK := end >= len(text) || !isWordByte(text[end])
+		if beforeOK && afterOK {
+			return true
+		}
+		start = at + 1
+	}
+	return false
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
+}
+
+var titleReadonlyTerms = []string{
+	"audit", "analisis", "analysis", "investigasi", "investigation",
+	"review", "inspeksi", "inspection", "evaluasi", "evaluation",
+	"rca", "root cause", "riset", "research", "monitoring", "monitor",
+}
+
 // InferExecutionCategory determines the appropriate execution lane (code, ops, readonly)
 // based on task title and instructions.
 func InferExecutionCategory(title, instructions string) string {
@@ -94,6 +135,13 @@ func InferExecutionCategory(title, instructions string) string {
 	}
 	if accountOperation.MatchString(activeScope) && !sourceChangeForOperation.MatchString(activeScope) && (!deployActionWord.MatchString(activeScope) || executionpolicy.FromInstructions(title+"\n"+instructions).DenyDeploy) {
 		return ExecutionCategoryOps
+	}
+
+	// Read-only signals lead when the title itself is an inspection task. A
+	// title like "Audit ... via web_fetch" is read-only even when the body
+	// mentions implementation in passing ("the tool just implemented").
+	if ExecutionCategoryReadOnly == readonlyCategoryFor(strings.ToLower(strings.TrimSpace(title))) {
+		return ExecutionCategoryReadOnly
 	}
 
 	// Code creation/modification signals take precedence over incidental words like 'view'
