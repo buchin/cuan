@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/project"
-	"github.com/buchin/cuan/internal/publication"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/taskfsm"
 )
@@ -382,16 +381,12 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		resp.DefaultBranch = p.DefaultBranch
 		resp.WorkingDir = p.LocalPath
 		settings := project.SettingsFromMetadata(p.Metadata)
-		// Publication is a declared task stage, not a project-wide default. A
-		// project that has no usable verification connection has no publication
-		// target at all, so it must not gate an otherwise finished task.
+		// Publication is a declared task stage when the approval says so. Without
+		// a declaration the saved project setting still governs the claim, so a
+		// frozen approval snapshot is never replaced by current defaults.
 		autoDeploy := settings.IsAutoDeployEnabled() && !limits.DenyDeploy
 		if task.StagesDeclared(t.RequiredStages) {
 			autoDeploy = task.RequiresPublish(t.RequiredStages) && !limits.DenyDeploy
-		} else if autoDeploy {
-			if publication.ConfigurationState(project.ParseEnvironment(settings.Environment)) != "configured" {
-				autoDeploy = false
-			}
 		}
 		resp.AutoDeploy = autoDeploy
 		resp.Environment = settings.Environment
