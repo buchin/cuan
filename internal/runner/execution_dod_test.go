@@ -194,7 +194,7 @@ func TestRunnerService_DoDFixableGap_AutoRequeueWithAdaptiveTimeout(t *testing.T
 	}
 
 	// 3. Verify adaptive timeout calculation for Attempt 2 is 35m
-	if timeout := CalculateAdaptiveTimeout(latestAtt.AttemptNumber); timeout != 35*time.Minute {
+	if timeout := CalculateAdaptiveTimeout(latestAtt.AttemptNumber); timeout != 75*time.Minute {
 		t.Fatalf("expected 35m timeout for Attempt 2, got %v", timeout)
 	}
 

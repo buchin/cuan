@@ -24,9 +24,49 @@ type ptyDiagnosticCollector struct {
 	quotaWindow string
 	redrawText  string
 	redrawRaw   string
+	progress    bool
+}
+
+// animatedStatus reports whether a cleaned line is only a provider progress
+// animation such as "Running command..." rather than new work output. An agent
+// waiting on one long command redraws this continuously, so counting it as
+// progress would hide a genuine stall.
+func animatedStatus(clean string) bool {
+	key := strings.ToLower(strings.TrimRight(clean, ". …"))
+	if key == "" {
+		return false
+	}
+	for _, status := range []string{"running command", "reading", "reading file", "thinking", "working", "managing tasks"} {
+		if strings.HasPrefix(status, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// Progressed reports whether the last Feed produced work output rather than
+// only animation frames. Callers use it to tell a working agent from a stuck one.
+func (c *ptyDiagnosticCollector) Progressed() bool { return c.progress }
+
+// noteProgress records work output. keep() may return several diagnostic lines
+// concatenated, so each one is classified separately.
+func (c *ptyDiagnosticCollector) noteProgress(line string) {
+	if c.progress {
+		return
+	}
+	for _, part := range strings.Split(line, "\n") {
+		if strings.TrimSpace(part) == "" {
+			continue
+		}
+		if !animatedStatus(task.CleanTerminalStatusLine(part)) {
+			c.progress = true
+			return
+		}
+	}
 }
 
 func (c *ptyDiagnosticCollector) Feed(chunk []byte) ([]string, string) {
+	c.progress = false
 	c.pending += string(chunk)
 	c.quotaWindow += string(chunk)
 	probe := task.CleanTerminalStatusLine(c.quotaWindow)
@@ -62,6 +102,7 @@ func (c *ptyDiagnosticCollector) Feed(chunk []byte) ([]string, string) {
 		}
 		if line := c.keep(c.pending[:at]); line != "" {
 			out = append(out, line)
+			c.noteProgress(line)
 		}
 		c.pending = c.pending[at+1:]
 	}

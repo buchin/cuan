@@ -107,8 +107,8 @@ func TestDoDEvaluator_DirtyWorkingTree_AutoRequeue(t *testing.T) {
 	if res.NextAttemptNumber != 2 {
 		t.Fatalf("expected NextAttemptNumber=2, got %d", res.NextAttemptNumber)
 	}
-	if res.NextTimeout != 35*time.Minute {
-		t.Fatalf("expected NextTimeout 35m for attempt 2, got %v", res.NextTimeout)
+	if res.NextTimeout != 75*time.Minute {
+		t.Fatalf("expected NextTimeout 75m for attempt 2, got %v", res.NextTimeout)
 	}
 	if !strings.Contains(res.RequeueInstructions, "Working tree tidak bersih") {
 		t.Fatalf("expected dirty working tree in instructions, got: %s", res.RequeueInstructions)
@@ -153,7 +153,7 @@ func TestDoDEvaluator_TestFailure_AutoRequeueWithAdaptiveTimeout(t *testing.T) {
 	if res.NextAttemptNumber != 3 {
 		t.Fatalf("expected NextAttemptNumber=3, got %d", res.NextAttemptNumber)
 	}
-	if res.NextTimeout != 45*time.Minute {
+	if res.NextTimeout != 90*time.Minute {
 		t.Fatalf("expected NextTimeout 45m for attempt 3, got %v", res.NextTimeout)
 	}
 }

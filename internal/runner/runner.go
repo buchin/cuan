@@ -1262,6 +1262,12 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			if compReq.ErrorMessage == "" {
 				compReq.ErrorMessage = "Runner connection lost or process interrupted"
 			}
+		} else if result.Status == "STALLED" {
+			// Progress stopped, not the clock. Keep saved work and let the next
+			// attempt continue instead of reporting a phantom timeout.
+			compReq.Status = task.AttemptStatusFailed
+			compReq.ExitCode = 124
+			compReq.ErrorMessage = "The agent stopped producing work; saved progress is preserved for the next attempt."
 		} else if result.Status == "TIMEOUT" {
 			compReq.Status = task.AttemptStatusFailed
 			compReq.ExitCode = 124
@@ -1703,11 +1709,27 @@ func (r *Runner) executeWithPTY(
 		}()
 	}
 
-	// Subscribe logger to feed database logs in real time
+	// Subscribe logger to feed database logs in real time. A fast process may exit
+	// before this point; that is completion, not a failure, so retain its output.
 	logSubID := "logger-" + att.ID
 	logSub, history, subscribeErr := sess.Subscribe(logSubID, terminal.ModeWatch)
 	if subscribeErr != nil {
-		return nil, fmt.Errorf("subscribe task output: %w", subscribeErr)
+		if !errors.Is(subscribeErr, terminal.ErrSessionClosed) {
+			return nil, fmt.Errorf("subscribe task output: %w", subscribeErr)
+		}
+		early := &agent.ExecutionResult{Status: "SUCCESS", ExitCode: proc.ExitCode()}
+		if early.ExitCode != 0 {
+			early.Status = "FAILED"
+			early.Error = fmt.Sprintf("exit code %d", early.ExitCode)
+		}
+		if output := sess.Scrollback(); len(output) > 0 {
+			probe := &ptyDiagnosticCollector{}
+			lines, _ := probe.Feed(output)
+			if len(lines) > 0 {
+				r.streamOutputLogs(ctx, att.ID, strings.Join(lines, "\n"), "")
+			}
+		}
+		return early, nil
 	}
 	defer sess.Unsubscribe(logSubID)
 
@@ -1715,6 +1737,15 @@ func (r *Runner) executeWithPTY(
 	var quotaReset string
 	var diagnostics ptyDiagnosticCollector
 	var logMu sync.Mutex
+	// Progress watchdog: the attempt stops when the agent stops producing work,
+	// not when a fixed wall-clock guess expires. The execution deadline remains a
+	// hard ceiling so a genuinely runaway process still ends.
+	var lastProgress atomic.Int64
+	lastProgress.Store(time.Now().UnixNano())
+	lastProgressActivity := func() {
+		lastProgress.Store(time.Now().UnixNano())
+	}
+	var stalled atomic.Bool
 	persistLines := func(logCtx context.Context, lines []string) {
 		if len(lines) == 0 {
 			return
@@ -1727,6 +1758,9 @@ func (r *Runner) executeWithPTY(
 		logMu.Lock()
 		defer logMu.Unlock()
 		lines, quota := diagnostics.Feed(chunk)
+		if diagnostics.Progressed() {
+			lastProgressActivity()
+		}
 		if quota != "" && !quotaHit.Swap(true) {
 			if _, reset, ok := agent.ParseProviderQuotaResetDuration(quota); ok {
 				quotaReset = reset
@@ -1746,7 +1780,47 @@ func (r *Runner) executeWithPTY(
 		defer cancel()
 		persistLines(flushCtx, diagnostics.Flush())
 	}()
+	// Stop a stalled attempt early instead of waiting for the wall-clock ceiling.
+	// A working agent keeps refreshing progress, so silence is the real signal.
+	// Start only after the output subscription exists: a very short fixture can
+	// finish before this point, and that is completion, not a stall.
+	watchdogDone := make(chan struct{})
+	startWatchdog := func() {
+		go func() {
+			defer close(watchdogDone)
+			idle := task.ProgressIdleTimeout()
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-execCtx.Done():
+					return
+				case <-ticker.C:
+					// A finished agent is not a stalled one; redraw animations are
+					// excluded from progress, so check liveness before acting.
+					if sess.IsClosed() {
+						return
+					}
+					silent := time.Since(time.Unix(0, lastProgress.Load()))
+					if silent < idle {
+						continue
+					}
+					stalled.Store(true)
+					r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("No new work output for %v; stopping this attempt so saved progress can continue on the next one.", silent.Round(time.Second)))
+					cancelExec()
+					_ = sess.Close()
+					return
+				}
+			}
+		}()
+	}
+
 	consumeOutput(history)
+	startWatchdog()
+	defer func() {
+		cancelExec()
+		<-watchdogDone
+	}()
 	loggerDone := make(chan struct{})
 	go func() {
 		defer close(loggerDone)
@@ -1861,7 +1935,12 @@ func (r *Runner) executeWithPTY(
 		res.Status = "BLOCKED"
 		res.Error = "Agent reported a blocker; saved findings require review."
 	}
-	if waitErr != nil && errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+	if waitErr != nil && stalled.Load() {
+		// The agent stopped producing work before the ceiling was reached. Report
+		// the real cause so the retry can continue the saved progress.
+		res.Status = "STALLED"
+		res.Error = "The agent stopped producing work; saved progress is preserved for the next attempt."
+	} else if waitErr != nil && errors.Is(execCtx.Err(), context.DeadlineExceeded) {
 		res.Status = "TIMEOUT"
 		res.Error = "execution timed out"
 	} else if waitErr != nil && errors.Is(execCtx.Err(), context.Canceled) {

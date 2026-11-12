@@ -662,13 +662,22 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			}
 		}
 		log.Printf("inbox runtime result rejected reason=%s bytes=%d events=%d tool_failures=%d", reason, runtime.bytes, runtime.events, runtime.toolFailures)
-		if reason == "provider_timeout" && toolFreeReview && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
+		// A provider that ended its own turn on a deadline is a slow-capacity
+		// signal, not a Cuan cancellation and not a user error. Let another
+		// permitted account or model answer the same turn instead of failing it,
+		// for every stage rather than only saved-result review.
+		if reason == "provider_timeout" && ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow {
 			if step != nil {
-				step("review_provider_wait", "Provider timeout before a review decision. The saved task result remains unaccepted; no task execution will be replayed.")
+				step("provider_wait", "The provider ended its turn on a deadline. Trying other permitted capacity instead of failing this message.")
 			}
-			return "", inboxReviewProviderWaiting
+			if toolFreeReview {
+				if step != nil {
+					step("review_provider_wait", "Provider timeout before a review decision. The saved task result remains unaccepted; no task execution will be replayed.")
+				}
+				return "", inboxReviewProviderWaiting
+			}
+			return "", inboxProviderCapacityWait
 		}
-
 		return "", failure
 	}
 	if runErr != nil {
@@ -687,17 +696,37 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	return validateReply(output)
 }
 
+// inboxAgyResult is the native CLI's final JSON envelope. Only Status and
+// Response are ever user-visible; the remaining fields exist to classify why a
+// turn did not produce an answer.
+type inboxAgyResult struct {
+	Status        string            `json:"status"`
+	Response      string            `json:"response"`
+	Error         json.RawMessage   `json:"error"`
+	Message       string            `json:"message"`
+	Reason        string            `json:"reason"`
+	ShortError    string            `json:"short_error"`
+	DeniedActions []json.RawMessage `json:"denied_actions"`
+}
+
+// providerTurnDeadlineExceeded reports that the provider ended its own turn on a
+// deadline while Cuan's context was still alive. That is a slow-account signal,
+// not a Cuan cancellation, so it must stay retryable.
+func providerTurnDeadlineExceeded(result inboxAgyResult, diagnostic string) bool {
+	lower := strings.ToLower(result.Status + " " + result.Reason + " " + result.ShortError + " " + diagnostic)
+	for _, marker := range []string{"print_timeout", "deadline_exceeded", "print timeout", "deadline exceeded"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // Only the final response of a successful CLI result is user-visible. Never
 // publish JSON envelopes, stderr, reasoning, authentication material or partial
 // responses from failed turns. Exit zero alone does not establish success.
 func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
-	var result struct {
-		Status        string            `json:"status"`
-		Response      string            `json:"response"`
-		Error         json.RawMessage   `json:"error"`
-		Message       string            `json:"message"`
-		DeniedActions []json.RawMessage `json:"denied_actions"`
-	}
+	var result inboxAgyResult
 	if strings.TrimSpace(raw) == "" {
 		return "", safeInboxProviderFailure(nil, stderr), "empty_output"
 	}
@@ -706,6 +735,13 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 	}
 	if strings.ToUpper(strings.TrimSpace(result.Status)) != "SUCCESS" {
 		diagnostic := result.Status + "\n" + string(result.Error) + "\n" + result.Message + "\n" + stderr
+		// agy reports its own print timeout as DEADLINE_EXCEEDED with partial
+		// output, which is distinct from Cuan cancelling the turn. Treat it as a
+		// retryable provider wait so another account/model can answer instead of
+		// discarding the user's turn on the first slow response.
+		if providerTurnDeadlineExceeded(result, diagnostic) {
+			return "", safeInboxProviderFailure(context.DeadlineExceeded, ""), "provider_timeout"
+		}
 		if strings.Contains(strings.ToLower(result.Status), "timeout") || strings.Contains(strings.ToLower(stderr), "timeout") {
 			return "", safeInboxProviderFailure(context.DeadlineExceeded, ""), "provider_timeout"
 		}

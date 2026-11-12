@@ -281,6 +281,15 @@ func (s *Session) IsClosed() bool {
 	return s.closed
 }
 
+// Scrollback returns retained output without requiring a live session. A fast
+// process can exit before a reader subscribes; its output is still evidence and
+// must not be reported as a closed-session error.
+func (s *Session) Scrollback() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]byte(nil), s.historyBuffer.Bytes()...)
+}
+
 // publishOutput never lets a slow subscriber continue after losing PTY bytes.
 // ANSI and UTF-8 sequences span chunks: a silent gap corrupts the screen. Keep
 // the history and detach only the lagging viewer so it can replay on reconnect.

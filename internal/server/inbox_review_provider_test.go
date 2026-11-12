@@ -60,6 +60,13 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"dec
 				if failure != "" || out == "" || backupErr != nil {
 					t.Fatal("safe review did not fail over", failure)
 				}
+			} else if scenario == "ordinary chat" {
+				// Ordinary chat carries no approved work to replay, so a provider
+				// deadline must fail over to permitted capacity instead of failing
+				// the user's message. Only the tool-activity scenarios stay blocked.
+				if failure == inboxReviewProviderWaiting {
+					t.Fatal("ordinary chat reported the review-only wait", failure)
+				}
 			} else {
 				if out != "" || failure == "" || backupErr == nil {
 					t.Fatal("unapproved/unsafe replay", scenario, failure)

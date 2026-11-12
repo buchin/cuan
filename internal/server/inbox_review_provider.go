@@ -7,6 +7,11 @@ import (
 )
 
 const inboxReviewProviderWaiting = "The review service is temporarily unavailable. Saved work will be reviewed automatically."
+
+// inboxProviderCapacityWait marks a turn whose provider ended on its own
+// deadline. It is a routing signal for the failover loop, never a user-facing
+// message: another permitted account or model should answer the same turn.
+const inboxProviderCapacityWait = "\x00provider_capacity_wait"
 const inboxReviewProviderPolicy = "Review inference reliability policy: v1"
 
 // Only a validated tool-free evaluation can retry a transient provider failure.

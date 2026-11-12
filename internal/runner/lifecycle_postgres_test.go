@@ -55,7 +55,7 @@ func TestExecutionLifecyclePostgres(t *testing.T) {
 	if err != nil || claim.Attempt == nil {
 		t.Fatalf("claim: %+v %v", claim, err)
 	}
-	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) != 25*time.Minute {
+	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) != 60*time.Minute {
 		t.Fatalf("missing shared deadline: %+v", claim.Attempt)
 	}
 	persisted, err := ts.GetAttempt(ctx, a.ID)

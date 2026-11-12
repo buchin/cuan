@@ -183,6 +183,19 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 			}
 			return output, ""
 		}
+		if failure == inboxProviderCapacityWait {
+			// The provider ended its own turn on a deadline. Spend the remaining
+			// allowed routes before surfacing anything to the user: a single slow
+			// account must not discard an otherwise answerable message. Only retry
+			// when the turn is safe to repeat; a stage that already performed
+			// tool activity must not be replayed on another account.
+			if safe {
+				lastNonQuotaFailure = inboxProviderCapacityWait
+				routes = filterOutAccountRoutes(routes, route.accountID)
+				continue
+			}
+			return "", inboxProviderCapacityWait
+		}
 		if retryableInboxReviewProvider(ctx, failure, safe, len(attachments)) {
 			lastNonQuotaFailure = inboxReviewProviderWaiting
 			if step != nil {
@@ -244,6 +257,14 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		if step != nil {
 			step("recovery_safe", "No provider execution was started; account session slots are full.")
 		}
+		if step != nil {
+			step("capacity_wait", "Waiting for available AI capacity.")
+		}
+		return "", inboxQuotaNoBackup
+	}
+	if lastNonQuotaFailure == inboxProviderCapacityWait {
+		// Every permitted route ended on the provider's own deadline. Report the
+		// capacity wait in user terms and keep the message saved for retry.
 		if step != nil {
 			step("capacity_wait", "Waiting for available AI capacity.")
 		}

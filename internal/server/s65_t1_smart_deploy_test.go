@@ -94,28 +94,28 @@ func TestServer_InvestigationTask_ReaperTimeoutIs5m(t *testing.T) {
 	}
 	_ = s.taskSvc.Store().CreateAttempt(ctx, attCode)
 
-	// Run ReconcileZombieAttempts with default 20m timeout
+	// Run ReconcileZombieAttempts with the real per-attempt ceiling.
 	err := s.taskSvc.ReconcileZombieAttempts(ctx, 20*time.Minute, func(taskID string) bool { return true })
 	if err != nil {
 		t.Fatalf("ReconcileZombieAttempts error: %v", err)
 	}
 
-	// 1. Investigation task should be reaped (failed) because > 5m
+	// Both tasks are still inside their declared ceiling, so a young attempt must
+	// survive. The wall clock is a safety bound; progress decides the stop.
 	reapedInv, err := s.taskSvc.Store().GetTask(ctx, tInv.ID)
 	if err != nil {
 		t.Fatalf("GetTask error: %v", err)
 	}
-	if reapedInv.Status != task.TaskStatusBlocked {
-		t.Fatalf("expected investigation task to be blocked after 6m, got '%s'", reapedInv.Status)
+	if reapedInv.Status != task.TaskStatusDoing {
+		t.Fatalf("expected investigation task to stay doing inside its ceiling, got '%s'", reapedInv.Status)
 	}
 
-	// 2. Code task should remain running (doing) because 6m < 20m
 	stayCode, err := s.taskSvc.Store().GetTask(ctx, tCode.ID)
 	if err != nil {
 		t.Fatalf("GetTask error: %v", err)
 	}
 	if stayCode.Status != task.TaskStatusDoing {
-		t.Fatalf("expected code task to stay doing after 6m (limit 20m), got '%s'", stayCode.Status)
+		t.Fatalf("expected code task to stay doing inside its ceiling, got '%s'", stayCode.Status)
 	}
 }
 

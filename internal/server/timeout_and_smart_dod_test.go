@@ -20,17 +20,17 @@ func TestTimeoutEscalation_RunnerAdaptiveScale(t *testing.T) {
 	os.Unsetenv("CUAN_TASK_TIMEOUT_MAX")
 	os.Unsetenv("CUAN_TASK_GRACE_PERIOD")
 
-	// Verify Attempt 1: 25m
-	if d := runner.CalculateAdaptiveTimeout(1); d != 25*time.Minute {
-		t.Fatalf("expected 25m for attempt 1, got %v", d)
+	// Verify Attempt 1 ceiling: 60m
+	if d := runner.CalculateAdaptiveTimeout(1); d != 60*time.Minute {
+		t.Fatalf("expected 60m ceiling for attempt 1, got %v", d)
 	}
-	// Verify Attempt 2: 35m
-	if d := runner.CalculateAdaptiveTimeout(2); d != 35*time.Minute {
-		t.Fatalf("expected 35m for attempt 2, got %v", d)
+	// Verify Attempt 2 ceiling: 75m
+	if d := runner.CalculateAdaptiveTimeout(2); d != 75*time.Minute {
+		t.Fatalf("expected 75m ceiling for attempt 2, got %v", d)
 	}
-	// Verify Attempt 3 (Max Cap): 45m
-	if d := runner.CalculateAdaptiveTimeout(3); d != 45*time.Minute {
-		t.Fatalf("expected 45m for attempt 3, got %v", d)
+	// Verify Attempt 3 (Max Cap) ceiling: 90m
+	if d := runner.CalculateAdaptiveTimeout(3); d != 90*time.Minute {
+		t.Fatalf("expected 90m ceiling for attempt 3, got %v", d)
 	}
 	// Verify Grace Period: 30s
 	if gp := runner.GetGracePeriod(); gp != 30*time.Second {
