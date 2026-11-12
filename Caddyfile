@@ -15,10 +15,10 @@ cuan.chat {
 }
 
 # 2. Main Cuan Application Reverse Proxy
-# Serves canonical primary domain cuan.work, legacy co-primary cuan.dojo.cc,
+# Serves canonical primary domain cuan.work, app.cuan.work, legacy co-primary cuan.dojo.cc,
 # private app workspace cuan-app.dojo.cc,
 # and environment override {$CUAN_DOMAIN:localhost} for local/staging deployments.
-cuan.work, cuan.dojo.cc, cuan-app.dojo.cc, {$CUAN_DOMAIN:localhost} {
+app.cuan.work, cuan.work, cuan.dojo.cc, cuan-app.dojo.cc, {$CUAN_DOMAIN:localhost} {
 	# High performance compression
 	encode zstd gzip
 
