@@ -273,7 +273,7 @@ func TestCaddyAskHandler_BaseDomainsAuthorized(t *testing.T) {
 	baseDomains := []string{
 		"cuan.work",
 		"CUAN.WORK",
-		"cuan.dojo.cc",
+		"app.cuan.work",
 		"cuan.chat",
 		"CUAN.CHAT",
 	}

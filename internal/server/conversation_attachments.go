@@ -392,8 +392,8 @@ func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Re
 	}
 
 	attID := db.GenerateUUID()
-	baseURL := "https://cuan.dojo.cc"
-	if r.Host != "" && !strings.Contains(r.Host, "dojo.cc") {
+	baseURL := "https://" + r.Host
+	if r.Host != "" {
 		proto := "https"
 		if r.Header.Get("X-Forwarded-Proto") == "http" || strings.HasPrefix(r.Host, "localhost") || strings.HasPrefix(r.Host, "127.0.0.1") {
 			proto = "http"

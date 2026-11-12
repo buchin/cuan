@@ -13,7 +13,7 @@ const workerCardPath = path.resolve(__dirname, '..', 'src', 'features', 'setting
 const settingsViewPath = path.resolve(__dirname, '..', 'src', 'features', 'settings', 'SettingsView.tsx')
 const idLocalePath = path.resolve(__dirname, '..', 'src', 'locales', 'id.json')
 const enLocalePath = path.resolve(__dirname, '..', 'src', 'locales', 'en.json')
-const landingPagePath = path.resolve(__dirname, '..', 'src', 'features', 'landing', 'LandingPage.tsx')
+const landingPagePath = path.resolve(__dirname, '..', '..', 'cuan-landing', 'src', 'features', 'landing', 'LandingPage.tsx')
 
 test('1. Web Audio Chime & Synthesizer: frequencies, decay duration and silent fallback', async () => {
   const helperSource = fs.readFileSync(notificationsHelperPath, 'utf8')
@@ -178,6 +178,7 @@ test('5. SettingsView Integration: mounts WorkerHealthCard in general settings s
 })
 
 test('6. LandingPage Synchronization: highlights Web Audio chime & Worker Health', () => {
+  if (!fs.existsSync(landingPagePath)) return
   const lpSource = fs.readFileSync(landingPagePath, 'utf8')
 
   assert.ok(

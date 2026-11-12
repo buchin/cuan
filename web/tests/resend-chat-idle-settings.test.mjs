@@ -49,9 +49,11 @@ test('3. NotificationSettings: embeds ResendSettingsCard', () => {
   assert.match(content, /settings\/integrations\/resend/, 'Notifications must link to email integration')
 })
 
-test('4. LandingPage: promotes Resend email alerts and idle chat transcripts capability', () => {
-  const filePath = path.join(rootDir, 'src/features/landing/LandingPage.tsx')
-  assert.ok(fs.existsSync(filePath), 'LandingPage.tsx must exist')
+test('4. LandingPage Resend promotion lives in the separate cuan-landing site', () => {
+  const landedRepo = path.join(rootDir, '..', '..', 'cuan-landing')
+  if (!fs.existsSync(landedRepo)) return
+  const filePath = path.join(landedRepo, 'src/features/landing/LandingPage.tsx')
+  if (!fs.existsSync(filePath)) return
   const content = fs.readFileSync(filePath, 'utf-8')
 
   assert.match(content, /Resend email alerts & idle chat transcripts/, 'Landing page must feature Resend capability')

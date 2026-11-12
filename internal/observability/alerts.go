@@ -511,7 +511,7 @@ func NewAlertDispatcher(repo db.ObservabilityRepository, opts ...AlertDispatcher
 		discordNotifier:  NewDiscordNotifier(client),
 		webhookNotifier:  NewWebhookNotifier(client),
 		cooldown:         DefaultCooldown,
-		baseURL:          "https://cuan.dojo.cc",
+		baseURL:          "",
 		states:           make(map[string]*TargetAlertState),
 	}
 

@@ -678,7 +678,7 @@ HOST:
 ` + "```" + `
 Stop wasting hours staring at a blank screen. In this video, discover how to use agentic project management to automate your YouTube ideation, CTR hooks, and full 10-minute scripts!
 
-👉 Start scaling your creator studio: https://cuan.dojo.cc
+👉 Start scaling your creator studio: https://app.cuan.work
 
 ⏱️ CHAPTER TIMESTAMPS:
 00:00 - The Creator Overwhelm Dilemma
@@ -689,8 +689,8 @@ Stop wasting hours staring at a blank screen. In this video, discover how to use
 09:30 - Final Verdict & How to Get Started
 
 🔗 RESOURCES MENTIONED:
-- Cuan Studio: https://cuan.dojo.cc
-- Creator Blueprints Guide: https://cuan.dojo.cc/docs
+- Cuan Studio: https://app.cuan.work
+- Creator Blueprints Guide: https://cuan.work/docs
 
 #ContentCreator #YouTubeGrowth #AITools
 ` + "```" + `
@@ -757,7 +757,7 @@ Welcome to the Cuan community!
 You took a major step toward reclaiming your time and scaling your creative business. As promised, your Creator Project Blueprint is ready inside your studio dashboard.
 
 Here is what you should do right now:
-1. Log in to your Studio dashboard at https://cuan.dojo.cc
+1. Log in to your Studio dashboard at https://app.cuan.work
 2. Choose your pipeline (Blog, YouTube, Online Shop, or Affiliate)
 3. Hit "Run with Agent" on your first task and watch your draft generate automatically.
 
@@ -799,7 +799,7 @@ Option A: Keep manually juggling disjointed apps, rewriting prompts, and losing 
 Option B: Let specialized AI agents handle the mechanical heavy lifting while you focus purely on high-leverage creative decisions.
 
 Unlock full access to Cuan Studio today:
-👉 https://cuan.dojo.cc/studio
+👉 https://app.cuan.work/studio
 
 Let's turn your ideas into cuan!
 `

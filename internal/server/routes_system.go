@@ -172,7 +172,7 @@ func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetSystemMode(w http.ResponseWriter, r *http.Request) {
 	mode := "marketing"
 	version := "0.1.0"
-	baseDomain := "cuan.dojo.cc"
+	baseDomain := ""
 
 	if s.cfg != nil {
 		if s.cfg.AppMode != "" {

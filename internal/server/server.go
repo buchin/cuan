@@ -8,6 +8,7 @@ import (
 	extensionSDK "github.com/buchin/cuan/pkg/extensions"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -252,12 +253,16 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	healthPoller := deployer.NewProcessHealthPoller(depStore, srvRepo, vault, sshMgr, portPool)
 	remoteDriver.SetHealthPoller(healthPoller)
 
-	baseHost := "cuan.dojo.cc"
+	baseHost := ""
 	if cfg.BaseDomain != "" {
 		baseHost = cfg.BaseDomain
 	}
+	canonicalHosts := []string{"cuan.work", "app.cuan.work", "cuan.chat"}
+	if baseHost != "" && baseHost != "localhost" {
+		canonicalHosts = append([]string{baseHost}, canonicalHosts...)
+	}
 	dnsVerifier := domain.NewDNSVerifier(domain.DNSVerifierConfig{
-		CanonicalHosts: []string{baseHost, "cuan.work", "app.cuan.work", "cuan.app", "cuan.dojo.cc", "cuan-app.dojo.cc"},
+		CanonicalHosts: canonicalHosts,
 		TargetIPs:      []string{"127.0.0.1", "::1"},
 	})
 	dnsPoller := domain.NewDNSHealthPoller(domRepo, dnsVerifier, depDriver, srvRepo, caddyRouter)
@@ -276,10 +281,14 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		observability.WithServerRepo(srvRepo),
 	)
 
+	alertBaseURL := os.Getenv("CUAN_PUBLIC_APP_URL")
+	if alertBaseURL == "" && baseHost != "" && baseHost != "localhost" {
+		alertBaseURL = fmt.Sprintf("https://%s", baseHost)
+	}
 	obsAlertDispatcher := observability.NewAlertDispatcher(
 		obsRepo,
 		observability.WithAlertKeyVault(vault),
-		observability.WithAlertBaseURL(fmt.Sprintf("https://%s", baseHost)),
+		observability.WithAlertBaseURL(alertBaseURL),
 		observability.WithProjectResolver(func(ctx context.Context, targetType, targetID string) string {
 			if targetType == "deployment" && depStore != nil {
 				dep, err := depStore.GetDeployment(ctx, targetID)

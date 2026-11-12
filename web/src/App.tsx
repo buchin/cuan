@@ -18,16 +18,6 @@ import { useMediaQuery } from './hooks/useMediaQuery'
 import { Loader2 } from 'lucide-react'
 
 // Code-splitting via dynamic imports for heavy routes and dialogs
-const LandingPage = lazy(() =>
-  import('./features/landing/LandingPage').then((m) => ({
-    default: m.LandingPage,
-  })),
-)
-const SponsorPage = lazy(() =>
-  import('./features/sponsorship/SponsorPage').then((m) => ({
-    default: m.SponsorPage,
-  })),
-)
 const LoginScreen = lazy(() =>
   import('./components/auth/LoginScreen').then((m) => ({
     default: m.LoginScreen,
@@ -707,18 +697,10 @@ export function App() {
     )
   }
 
-  if (rootSegment === 'sponsor' || rootSegment === 'sponsors') {
-    return (
-      <Suspense fallback={<ViewFallback />}>
-        <SponsorPage />
-      </Suspense>
-    )
-  }
-
   if (rootSegment === 'landing' || rootSegment === 'about') {
     return (
       <Suspense fallback={<ViewFallback />}>
-        <LandingPage />
+        <LoginScreen />
       </Suspense>
     )
   }
@@ -798,13 +780,6 @@ export function App() {
 
   // 2. Unauthenticated: Auth Gatekeeper
   if (!isAuthenticated) {
-    if (rootSegment === 'landing' || rootSegment === 'about') {
-      return (
-        <Suspense fallback={<ViewFallback />}>
-          <LandingPage />
-        </Suspense>
-      )
-    }
     return (
       <Suspense fallback={<ViewFallback />}>
         <LoginScreen />

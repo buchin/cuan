@@ -661,7 +661,7 @@ func GetSystemSettings(ctx context.Context) (any, error) {
 	}
 	baseDomain := os.Getenv("BASE_DOMAIN")
 	if baseDomain == "" {
-		baseDomain = "cuan.dojo.cc"
+		baseDomain = "localhost"
 	}
 
 	db := getPlatformDB()

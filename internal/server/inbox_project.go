@@ -130,7 +130,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			}
 		}
 	} else {
-		// Strip URLs so domain names like cuan.dojo.cc don't falsely match project keywords
+		// Strip URLs so domain names like example.com don't falsely match project keywords
 		proseText := cuanURLRegex.ReplaceAllString(text, " ")
 		words := " " + strings.Join(strings.FieldsFunc(strings.ToLower(proseText), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-' }), " ") + " "
 		matches := []*project.ProjectResponse{}

@@ -169,7 +169,7 @@ type VerificationResult struct {
 
 // DNSVerifierConfig contains configuration options for the verification engine.
 type DNSVerifierConfig struct {
-	CanonicalHosts  []string      // e.g. ["cuan.app", "cuan.dojo.cc"]
+	CanonicalHosts  []string      // e.g. ["cuan.work", "app.cuan.work"]
 	TargetIPs       []string      // e.g. ["127.0.0.1", "::1"]
 	ChallengePrefix string        // e.g. "_cuan-challenge."
 	Timeout         time.Duration // Default per-lookup timeout
@@ -252,7 +252,7 @@ func NewDNSVerifier(cfg DNSVerifierConfig, opts ...VerifierOption) *DNSVerifier 
 	}
 	// Fallback canonical hosts if none provided
 	if len(v.canonicalHosts) == 0 {
-		v.canonicalHosts = []string{"cuan.app", "cuan.dojo.cc"}
+		v.canonicalHosts = []string{"cuan.work", "app.cuan.work"}
 	}
 
 	for _, ip := range cfg.TargetIPs {

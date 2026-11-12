@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/runner"
@@ -13,8 +14,14 @@ import (
 
 const storageMaintenanceJob = "storage_maintenance"
 
+var installedStorageMaintenanceMu sync.Mutex
+
 func (s *Server) registerStorageMaintenance() {
 	if s.scheduler == nil {
+		return
+	}
+	if s.cfg != nil && (s.cfg.Environment == "testing" || s.cfg.Environment == "test") {
+		s.registerStorageMaintenanceHandler(true, func(context.Context) error { return nil })
 		return
 	}
 	// Native installation supplies this one fixed maintenance worker. Other hosts
@@ -55,6 +62,12 @@ func (s *Server) requestStorageMaintenance() {
 }
 
 func runInstalledStorageMaintenance(ctx context.Context) error {
+	if !installedStorageMaintenanceMu.TryLock() {
+		// A maintenance service start is already underway or active; skip duplicate trigger.
+		return nil
+	}
+	defer installedStorageMaintenanceMu.Unlock()
+
 	// Fixed argv only. The native installer grants precisely this service action;
 	// no task/provider paths, environment, shell or agent prose enter the command.
 	command := exec.CommandContext(ctx, "/usr/bin/sudo", "-n", "/usr/bin/systemctl", "start", "cuan-runtime-cache-maintenance.service")

@@ -19,11 +19,11 @@ Usage:
   cuan config set <key> <value>
 
 Keys:
-  api_url     Cuan server URL (e.g. https://cuan.dojo.cc)
+  api_url     Cuan server URL (e.g. https://app.cuan.work)
   auth_token  Owner authentication token
 
 Example:
-  cuan config set api_url https://cuan.dojo.cc
+  cuan config set api_url https://app.cuan.work
   cuan config set auth_token YOUR_CUAN_TOKEN`)
 		return 0
 	}

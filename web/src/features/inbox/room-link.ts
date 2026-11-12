@@ -1,7 +1,7 @@
 /**
  * Utility functions for detecting and parsing internal Cuan conversation and task links.
  * Supports relative paths (/inbox/:id, /chat/:id, /tasks/:id) and absolute internal URLs
- * hosted on Cuan domains (e.g. cuan.dojo.cc, *.cuan.id, localhost, etc.).
+ * hosted on Cuan domains (e.g. cuan.work, app.cuan.work, localhost, etc.).
  */
 
 export function isCuanHost(hostname: string, host?: string): boolean {

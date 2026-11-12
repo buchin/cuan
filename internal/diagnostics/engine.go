@@ -844,7 +844,7 @@ func InspectDeploymentStatus(ctx context.Context, project, dir, healthURL string
 	probeURL := strings.TrimSpace(healthURL)
 	if probeURL == "" {
 		if project == "cuan" || project == "default" {
-			probeURL = "https://cuan.dojo.cc/healthz"
+			probeURL = "https://app.cuan.work/healthz"
 		}
 	}
 

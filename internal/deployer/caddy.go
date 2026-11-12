@@ -57,7 +57,7 @@ type Router interface {
 	// UnregisterRoute revokes the dynamic virtual host route cleanly.
 	UnregisterRoute(ctx context.Context, slug string) error
 
-	// FormatDomain returns the FQDN for the slug (e.g. {slug}.cuan.dojo.cc).
+	// FormatDomain returns the FQDN for the slug (e.g. {slug}.example.com).
 	FormatDomain(slug string) string
 
 	// BaseDomain returns the active base domain.
@@ -85,7 +85,7 @@ type Router interface {
 // CaddyConfig configures the dynamic Caddy virtual host engine.
 type CaddyConfig struct {
 	AdminURL              string       // e.g. "http://localhost:2019" (env: CADDY_ADMIN_URL)
-	BaseDomain            string       // e.g. "cuan.dojo.cc" (env: BASE_DOMAIN)
+	BaseDomain            string       // e.g. "example.com" (env: BASE_DOMAIN)
 	ServerName            string       // e.g. "srv0" (env: CADDY_SERVER_NAME)
 	SnippetsDir           string       // directory for Caddyfile snippets fallback (optional)
 	FallbackHTML          string       // custom HTML body for 502/503 graceful fallback
@@ -103,7 +103,7 @@ func DefaultCaddyConfig() CaddyConfig {
 		baseDomain = os.Getenv("CUAN_BASE_DOMAIN")
 	}
 	if baseDomain == "" {
-		baseDomain = "cuan.dojo.cc"
+		baseDomain = "localhost"
 	}
 
 	adminURL := os.Getenv("CADDY_ADMIN_URL")
@@ -180,7 +180,7 @@ func NewCaddyRouter(cfg CaddyConfig) *CaddyRouter {
 	cfg.AdminURL = strings.TrimRight(cfg.AdminURL, "/")
 
 	if cfg.BaseDomain == "" {
-		cfg.BaseDomain = "cuan.dojo.cc"
+		cfg.BaseDomain = "localhost"
 	}
 	cfg.BaseDomain = strings.ToLower(strings.TrimSpace(cfg.BaseDomain))
 

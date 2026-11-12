@@ -195,7 +195,7 @@ func (o *Orchestrator) Deploy(ctx context.Context, req DeployRequest) (*DeployRe
 		if o.cfg.Router != nil {
 			domain = o.cfg.Router.FormatDomain(projectID)
 		} else {
-			domain = fmt.Sprintf("%s.cuan.dojo.cc", projectID)
+			domain = fmt.Sprintf("%s.localhost", projectID)
 		}
 	}
 

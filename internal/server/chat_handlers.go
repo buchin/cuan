@@ -1764,6 +1764,21 @@ func (s *Server) handleChatWidgetJS(w http.ResponseWriter, r *http.Request) {
 // HELPER METHODS
 // ============================================================================
 
+// customerAttachmentBaseURL is the public origin widget visitors should use to
+// fetch their own attachments. It follows the configured public app URL, then
+// the configured base domain, so no retired host is baked into responses.
+func customerAttachmentBaseURL(s *Server) string {
+	if value := strings.TrimSpace(os.Getenv("CUAN_PUBLIC_APP_URL")); value != "" {
+		return strings.TrimRight(value, "/")
+	}
+	if s != nil && s.cfg != nil {
+		if domain := strings.TrimSpace(s.cfg.BaseDomain); domain != "" && domain != "localhost" {
+			return "https://" + domain
+		}
+	}
+	return ""
+}
+
 // isCustomerRoom returns true if the given room represents a visitor/customer session.
 func (s *Server) isCustomerRoom(ctx context.Context, roomID string) bool {
 	if roomID == "" {
@@ -1965,7 +1980,8 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 				}
 				if err == nil {
 					if isCustomer {
-						a.URL = "https://cuan.dojo.cc/api/chat/attachments/" + a.ID
+						// Widget visitors resolve attachments on the public app origin.
+						a.URL = customerAttachmentBaseURL(s) + "/api/chat/attachments/" + a.ID
 					}
 					attached = append(attached, a)
 				}

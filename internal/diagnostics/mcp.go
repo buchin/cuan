@@ -473,13 +473,13 @@ var nativeMCPTools = []mcpToolDefinition{
 	},
 	{
 		Name:        "probe_endpoint_health",
-		Description: "Probe an HTTP/HTTPS health endpoint (e.g. https://cuan.dojo.cc/healthz or http://localhost:8080/healthz), measuring latency, HTTP status, and parsing version/commit_sha metadata in a strictly read-only manner.",
+		Description: "Probe an HTTP/HTTPS health endpoint (e.g. https://app.cuan.work/healthz or http://localhost:8080/healthz), measuring latency, HTTP status, and parsing version/commit_sha metadata in a strictly read-only manner.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"url": map[string]any{
 					"type":        "string",
-					"description": "HTTP or HTTPS target URL to probe (e.g. 'https://cuan.dojo.cc/healthz')",
+					"description": "HTTP or HTTPS target URL to probe (e.g. 'https://app.cuan.work/healthz')",
 				},
 				"timeout_seconds": map[string]any{
 					"type":        "integer",
@@ -529,7 +529,7 @@ var nativeMCPTools = []mcpToolDefinition{
 				},
 				"health_url": map[string]any{
 					"type":        "string",
-					"description": "Optional live health endpoint URL (default: 'https://cuan.dojo.cc/healthz' for cuan)",
+					"description": "Optional live health endpoint URL (default: 'https://app.cuan.work/healthz' for cuan)",
 				},
 			},
 		},

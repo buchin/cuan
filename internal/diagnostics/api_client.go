@@ -88,7 +88,7 @@ func GetCuanConfig() CuanAPIConfig {
 
 	// 4. Default fallbacks
 	if cfg.BaseURL == "" {
-		cfg.BaseURL = "https://cuan.dojo.cc"
+		cfg.BaseURL = "https://app.cuan.work"
 	}
 	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 

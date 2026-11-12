@@ -160,7 +160,7 @@ if [[ "$frontend_only" == 1 ]]; then
     sshpass -e ssh "$release_host" "curl -s http://127.0.0.1:8080/healthz" >/dev/null
     unset SSHPASS
   else
-    curl -sSf http://127.0.0.1:8080/healthz >/dev/null 2>&1 || curl -sSf https://cuan.dojo.cc/healthz >/dev/null
+    curl -sSf http://127.0.0.1:8080/healthz >/dev/null 2>&1 || curl -sSf "${CUAN_PUBLICATION_HEALTH_URL:-https://app.cuan.work/healthz}" >/dev/null
   fi
   echo "Frontend assets updated to $release_sha. Zero downtime; active runner sessions uninterrupted."
   exit 0
@@ -268,7 +268,7 @@ for attempt in {1..20}; do
     health_json="$(sshpass -e ssh "$release_host" "curl -s http://127.0.0.1:8080/healthz" 2>/dev/null || true)"
     unset SSHPASS
   else
-    health_json="$(curl -sSf http://127.0.0.1:8080/healthz 2>/dev/null || curl -sSf https://cuan.dojo.cc/healthz 2>/dev/null || true)"
+    health_json="$(curl -sSf http://127.0.0.1:8080/healthz 2>/dev/null || curl -sSf "${CUAN_PUBLICATION_HEALTH_URL:-https://app.cuan.work/healthz}" 2>/dev/null || true)"
   fi
   if [[ -n "$health_json" ]]; then
     live_sha="$(python3 -c "import sys, json; print(json.loads('''$health_json''').get('commit_sha', ''))" 2>/dev/null || true)"
