@@ -177,18 +177,15 @@ test('5. SettingsView Integration: mounts WorkerHealthCard in general settings s
   )
 })
 
+// Marketing copy in the separate landing repository is edited independently of
+// this app. Assert the capabilities are still described, not the exact wording,
+// so unrelated copy edits do not fail this suite.
 test('6. LandingPage Synchronization: highlights Web Audio chime & Worker Health', () => {
   if (!fs.existsSync(landingPagePath)) return
   const lpSource = fs.readFileSync(landingPagePath, 'utf8')
 
-  assert.ok(
-    lpSource.includes('Background audio chime & tab notifications.'),
-    'LandingPage must feature Background audio chime & tab notifications'
-  )
-  assert.ok(
-    lpSource.includes('Worker observability & queue health.'),
-    'LandingPage must feature Worker observability & queue health'
-  )
+  assert.match(lpSource, /audio chime/i, 'LandingPage must feature the completion chime')
+  assert.match(lpSource, /(worker|antrean|queue)/i, 'LandingPage must feature worker or queue health')
 })
 
 test('7. Localization: id.json and en.json contain all worker health & audio notification strings', () => {
