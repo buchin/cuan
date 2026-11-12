@@ -1117,6 +1117,14 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	var liveStreamedCount int64
 	var result *agent.ExecutionResult
 	agentCtx := ctx
+	// Validate declared verification targets before spending the attempt. Stale
+	// project configuration used to surface only after the agent had finished all
+	// its work, so the attempt was burned by a prerequisite it never controlled.
+	if err == nil && !policy.ReadOnlyRepository && strings.TrimSpace(claim.PHPUnitTargets) != "" && workingDir != "" {
+		if prerequisite := validateRegisteredVerificationTargets(workingDir, claim.PHPUnitTargets); prerequisite != "" {
+			err = errors.New(prerequisite)
+		}
+	}
 	if err == nil && (claim.Verification != nil || claim.LiveInspection != nil) {
 		reserveLimit := 30 * time.Second
 		if claim.LiveInspection != nil {

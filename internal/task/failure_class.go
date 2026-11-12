@@ -41,6 +41,7 @@ func ClassifyAttemptFailure(message string) AttemptFailureClass {
 	for _, term := range []string{
 		"phpunit target or runtime is unavailable",
 		"phpunit target unavailable",
+		"registered phpunit target",
 		"dependency preparation failed",
 		"locked frontend dependency preparation failed",
 		"command not found",

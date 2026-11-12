@@ -10,6 +10,53 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 )
 
+// validateRegisteredVerificationTargets reports the first declared target that
+// cannot exist in this workspace, or "" when all of them resolve. Declared
+// checks are project configuration, so a stale entry is a prerequisite problem:
+// detecting it before the agent starts keeps a valid attempt from being spent on
+// configuration the agent cannot fix within its own scope.
+func validateRegisteredVerificationTargets(root, configuredTargets string) string {
+	targets, err := executionpolicy.PHPUnitTargets(configuredTargets)
+	if err != nil {
+		return "Registered PHPUnit targets are invalid. Project configuration must name valid checks; this attempt did not consume the task."
+	}
+	if len(targets) == 0 {
+		return ""
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "Verification workspace unavailable; the attempt did not start."
+	}
+	runtime := "vendor/bin/phpunit"
+	if info, err := os.Stat(filepath.Join(resolvedRoot, "vendor/bin/pest")); err == nil && info.Mode().IsRegular() {
+		runtime = "vendor/bin/pest"
+	}
+	for _, target := range append(append([]string{}, targets...), runtime) {
+		resolved, err := filepath.EvalSymlinks(filepath.Join(resolvedRoot, filepath.FromSlash(target)))
+		kind := "target"
+		if target == runtime {
+			kind = "runtime"
+		}
+		if err != nil {
+			if os.IsNotExist(err) {
+				if kind == "runtime" {
+					// The PHP dependency preparation step may still provide it.
+					continue
+				}
+				return fmt.Sprintf("Registered PHPUnit %s %s is missing from this project; fix the project's declared checks before running this task.", kind, target)
+			}
+			return fmt.Sprintf("Registered PHPUnit %s %s could not be resolved; fix the project's declared checks before running this task.", kind, target)
+		}
+		if !strings.HasPrefix(resolved, resolvedRoot+string(os.PathSeparator)) {
+			if kind == "runtime" {
+				continue
+			}
+			return fmt.Sprintf("Registered PHPUnit %s %s resolves outside the project workspace; fix the project's declared checks before running this task.", kind, target)
+		}
+	}
+	return ""
+}
+
 func runRegisteredProjectVerification(ctx context.Context, root, configuredTargets string) verificationResult {
 	targets, err := executionpolicy.PHPUnitTargets(configuredTargets)
 	if err != nil {
