@@ -9,6 +9,8 @@ import {
   Copy,
   Check,
   CheckCircle2,
+  Clock3,
+  X,
   RefreshCw,
   FileText,
   AlertCircle,
@@ -23,6 +25,7 @@ import {
   workStatus,
   workDisplayStatus,
   taskAgentPending,
+  taskExecutionActive,
   workStatusBadgeClass,
   taskTargetUrl,
   taskDetailUrl,
@@ -429,12 +432,18 @@ export const TaskCard = memo(function TaskCard({
               statusBadge
             )}
           >
-            {taskAgentPending(currentTask) ? (
+            {taskExecutionActive(currentTask) ? (
               <StatusDot status="working" size="xs" label={t(workDisplayStatus(currentTask))} />
             ) : isDone ? (
               <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" />
+            ) : isQueued ? (
+              <Clock3 aria-hidden="true" className="h-3 w-3 shrink-0 text-muted-foreground" />
             ) : isNeedsAttention ? (
               <AlertCircle className="h-3 w-3 shrink-0 text-destructive" />
+            ) : status === 'Cancelled' ? (
+              <X className="h-3 w-3 shrink-0 text-muted-foreground" />
+            ) : taskAgentPending(currentTask) ? (
+              <Clock3 aria-hidden="true" className="h-3 w-3 shrink-0 text-muted-foreground" />
             ) : (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}

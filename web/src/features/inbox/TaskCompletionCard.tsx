@@ -4,6 +4,9 @@ import { useState, useMemo, useEffect, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
+  CheckCheck,
+  Clock3,
+  AlertCircle,
   ClipboardCheck,
   ExternalLink,
   MessageSquare,
@@ -20,7 +23,7 @@ import type { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
-import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl, workStatus, workDisplayStatus, taskAgentPending } from '../tasks/task-ui'
+import { taskRef, agentDisplayName, relativeTime, taskTerminalUrl, taskDetailUrl, workStatus, workDisplayStatus, taskExecutionActive } from '../tasks/task-ui'
 import { TaskDuration } from '../tasks/TaskDuration'
 import { ChatMarkdown } from './ChatMarkdown'
 import { parseTaskReviewEnvelope } from './task-envelope'
@@ -60,6 +63,9 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
 
   const stateLabel = workStatus(currentTask)
   const isDone = stateLabel === 'Completed'
+  const isReview = stateLabel === 'Ready for review' || stateLabel === 'Answered' || currentTask.status === 'review'
+  const isQueued = stateLabel === 'Queued'
+  const isNeedsAttention = stateLabel === 'Needs attention'
   const stopped = ['Cancelled', 'Needs attention'].includes(stateLabel)
 
   // Parse dual-channel output envelope & fallback
@@ -183,12 +189,20 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
                 : 'text-muted-foreground'
             )}
           >
-            {taskAgentPending(currentTask) ? <StatusDot status="working" size="xs" aria-hidden /> : isDone ? (
+            {taskExecutionActive(currentTask) ? (
+              <StatusDot status="working" size="xs" aria-hidden />
+            ) : isDone ? (
               <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)] shrink-0" />
+            ) : isQueued ? (
+              <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            ) : isReview ? (
+              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+            ) : isNeedsAttention ? (
+              <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
             ) : (
               <ClipboardCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             )}
-            <span>{taskAgentPending(currentTask) ? t(workDisplayStatus(currentTask)) : stopped ? t(stateLabel) : isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
+            <span>{taskExecutionActive(currentTask) ? t(workDisplayStatus(currentTask)) : isQueued ? t(workDisplayStatus(currentTask)) : stopped ? t(stateLabel) : isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
           </span>
 
           <span className="text-xs font-mono font-medium text-muted-foreground">

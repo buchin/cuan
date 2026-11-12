@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
-import { taskAgentPending } from './task-ui'
+import { taskExecutionActive } from './task-ui'
 
 export function TaskDuration({ task, compact = false, fallback = null, className = '' }: {
   task: Task; compact?: boolean; fallback?: ReactNode; className?: string
@@ -9,7 +9,7 @@ export function TaskDuration({ task, compact = false, fallback = null, className
   const { language } = useLanguage()
   const [now, setNow] = useState(Date.now)
   const done = task.status === 'done'
-  const active = !done && taskAgentPending(task)
+  const active = !done && taskExecutionActive(task)
   useEffect(() => {
     if (!active) return
     setNow(Date.now())

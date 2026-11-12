@@ -19,6 +19,9 @@ import {
   ExternalLink,
   Rocket,
   CheckCircle2,
+  Clock3,
+  CheckCheck,
+  AlertCircle,
   FolderOpen,
   ChevronDown,
   ShieldCheck,
@@ -53,7 +56,8 @@ import { TaskSessions } from './TaskSessions'
 import {
   TASK_STATUSES,
   activeAttempt,
-  taskAgentPending,
+  taskExecutionActive,
+  taskAgentQueued,
   workStatus,
   workDisplayStatus,
   statusLabel,
@@ -608,7 +612,17 @@ function TaskDetailView({
         </h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
           <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border", taskStatusBadgeClass(detail.status))}>
-            {detail.status === 'done' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden /> : taskAgentPending(detail) && <StatusDot status="working" size="xs" aria-hidden />}
+            {detail.status === 'done' ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden />
+            ) : taskExecutionActive(detail) ? (
+              <StatusDot status="working" size="xs" aria-hidden />
+            ) : taskAgentQueued(detail) ? (
+              <Clock3 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            ) : detail.status === 'review' ? (
+              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" aria-hidden />
+            ) : detail.status === 'blocked' ? (
+              <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-hidden />
+            ) : null}
             {t(workDisplayStatus(detail))}
           </span>
           <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
@@ -1395,7 +1409,7 @@ function TaskDetailView({
                     {busy ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />
                     ) : detail.review_state ? (
-                      <StatusDot status={taskAgentPending(detail) ? 'working' : 'idle'} size="xs" aria-hidden />
+                      <StatusDot status={detail.review_state === 'running' ? 'working' : 'idle'} size="xs" aria-hidden />
                     ) : (
                       running ? (detail.latest_attempt?.status !== 'queued' && <Terminal aria-hidden="true" className="h-4 w-4" />) : <Play className="h-4 w-4" />
                     )}

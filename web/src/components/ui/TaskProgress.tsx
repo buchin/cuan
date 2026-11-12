@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { StatusDot } from './StatusDot'
-import { CheckCircle2, X } from 'lucide-react'
+import { CheckCircle2, Clock3, CheckCheck, AlertCircle, X } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import { taskProgressModel, type TaskProgressCounts } from './task-progress-model'
@@ -52,12 +52,23 @@ export function TaskProgress({ className, ...counts }: TaskProgressCounts & { cl
     : t('{{count}} tasks in progress').replace('{{count}}',format.format(model.pending || model.total))
   const angle=model.fraction*Math.PI*2,x=8+4.5*Math.sin(angle),y=8-4.5*Math.cos(angle)
   const leave=()=>{if(!pinned){clear();timer.current=setTimeout(()=>close(),150)}}
-  const isPulsing = !model.complete && model.pending > 0
+  const isPulsing = !model.complete && (counts.active || 0) > 0
   const isSingle = model.total === 1 && !model.complete
+  const hasActive = (counts.active || 0) > 0
+  const hasQueued = (counts.queued || 0) > 0
+  const hasReview = (counts.review || 0) > 0
+  const hasBlocked = (counts.blocked || 0) > 0
   return <>
     <button ref={trigger} type="button" data-task-progress-trigger data-task-progress={model.mixed?'complete-with-cancellations':model.complete?'complete':'partial'}
       aria-label={label} aria-haspopup="dialog" aria-expanded={open} aria-controls={open?id:undefined}
-      className={cn('inline-flex h-11 w-11 shrink-0 items-center justify-center bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',model.mixed?'text-muted-foreground':model.complete?'text-[color:var(--status-success)]':'text-[color:var(--status-working)]',className)}
+      className={cn('inline-flex h-11 w-11 shrink-0 items-center justify-center bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring',
+        model.mixed ? 'text-muted-foreground'
+        : model.complete ? 'text-[color:var(--status-success)]'
+        : hasActive ? 'text-[color:var(--status-working)]'
+        : hasBlocked ? 'text-amber-500'
+        : hasReview ? 'text-purple-600 dark:text-purple-400'
+        : 'text-muted-foreground',
+        className)}
       onPointerDown={event=>event.stopPropagation()} onContextMenu={event=>{event.preventDefault();event.stopPropagation()}}
       onKeyDown={event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close(true)}}}
       onMouseEnter={()=>{if(matchMedia('(hover: hover) and (pointer: fine)').matches){clear();setOpen(true)}}} onMouseLeave={leave}
@@ -66,7 +77,19 @@ export function TaskProgress({ className, ...counts }: TaskProgressCounts & { cl
         {model.complete&&!model.mixed?(
           <CheckCircle2 className="h-full w-full" strokeWidth={1.75}/>
         ):isSingle?(
-          <span className="flex h-full w-full items-center justify-center"><StatusDot size="md" status={isPulsing?'working':(counts.blocked||0)>0?'warning':'neutral'} /></span>
+          <span className="flex h-full w-full items-center justify-center">
+            {hasActive ? (
+              <StatusDot size="md" status="working" title={t('Working')} />
+            ) : hasQueued ? (
+              <Clock3 className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" aria-label={t('Queued')} />
+            ) : hasReview ? (
+              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" aria-label={t('In review')} />
+            ) : hasBlocked ? (
+              <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-label={t('Needs attention')} />
+            ) : (
+              <StatusDot size="md" status="neutral" />
+            )}
+          </span>
         ):(
           <svg viewBox="0 0 16 16" className={cn("h-full w-full", isPulsing && "task-pulse-subtle animate-pulse")}>
             <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.65"/>

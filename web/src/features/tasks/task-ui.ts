@@ -114,6 +114,23 @@ export function workDisplayStatus(task: Task) {
   return status
 }
 
+// Active execution means a runner or review worker is actively executing right now.
+export function taskExecutionActive(task: Task): boolean {
+  if (['done', 'cancelled', 'canceled'].includes(task.status as string)) return false
+  const attempt = task.latest_attempt
+  if (attempt?.cancel_requested || attempt?.canceled_at || ['cancelled', 'canceled'].includes(attempt?.status || '')) return false
+  if (task.review_state === 'running') return true
+  const attemptStatus = attempt?.status || task.execution_status
+  return attemptStatus === 'running'
+}
+
+export function taskAgentQueued(task: Task): boolean {
+  if (['done', 'cancelled', 'canceled'].includes(task.status as string)) return false
+  if (taskExecutionActive(task)) return false
+  const status = workStatus(task)
+  return status === 'Queued' || (task.status as string) === 'queued' || (task.status as string) === 'pending' || task.latest_attempt?.status === 'queued' || task.launch?.state === 'queued' || task.review_state === 'queued'
+}
+
 // Pulse expresses ownership of the unfinished work, including recovery and
 // external waits. Native execution/terminal state remains separate.
 export function taskAgentPending(task: Task) {

@@ -13,6 +13,8 @@ export type StatusDotVariant =
   | "running"
   | "pulse"
   | "working"
+  | "queued"
+  | "review"
 
 export interface StatusDotProps extends React.HTMLAttributes<HTMLSpanElement> {
   status?: StatusDotVariant
@@ -60,6 +62,8 @@ export const StatusDot = React.forwardRef<HTMLSpanElement, StatusDotProps>(
       running: "bg-sky-500 dark:bg-sky-400",
       pulse: "bg-sky-500 dark:bg-sky-400",
       working: "bg-blue-500/90 dark:bg-blue-400",
+      queued: "bg-muted-foreground/40 dark:bg-muted-foreground/50",
+      review: "bg-purple-500/90 dark:bg-purple-400",
     }[status] || "bg-muted-foreground/40"
 
     const defaultTitle = typeof label === "string" ? label : status

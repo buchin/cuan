@@ -6,6 +6,10 @@ import {
   Folder,
   Terminal,
   CheckCircle2,
+  Clock3,
+  CheckCheck,
+  X,
+  AlertCircle,
   Play,
   Rocket,
   RefreshCw,
@@ -26,6 +30,7 @@ import {
   workStatus,
   workDisplayStatus,
   taskAgentPending,
+  taskExecutionActive,
   workStatusBadgeClass,
   taskTargetUrl,
   taskDetailUrl,
@@ -270,7 +275,7 @@ export function TaskItemCard({
   }
 
   if (variant === 'row') {
-    const dotVariant = taskAgentPending(currentTask) ? 'working' : getTaskDotVariant(status)
+    const dotVariant = taskExecutionActive(currentTask) ? 'working' : isQueued ? 'queued' : getTaskDotVariant(status)
 
     return (
       <div
@@ -329,16 +334,18 @@ export function TaskItemCard({
               statusBadgeClass
             )}
           >
-            {taskAgentPending(currentTask) ? (
+            {taskExecutionActive(currentTask) ? (
               <StatusDot status="working" size="sm" label={t(displayStatus)} />
+            ) : isQueued ? (
+              <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             ) : status === 'Ready for review' ? (
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-purple-600 dark:bg-purple-400 shrink-0" />
+              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
             ) : status === 'Completed' || status === 'Answered' ? (
               <CheckCircle2 className="h-3 w-3 shrink-0 text-[color:var(--status-success)]" />
             ) : status === 'Cancelled' ? (
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-zinc-500 dark:bg-zinc-400 shrink-0" />
+              <X className="h-3.5 w-3.5 shrink-0 text-zinc-500 dark:text-zinc-400" />
             ) : status === 'Needs attention' ? (
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-destructive shrink-0" />
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
             ) : (
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}

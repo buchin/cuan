@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, Terminal } from 'lucide-react'
+import { CheckCircle2, Clock3, CheckCheck, AlertCircle, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { AccordionTimeline } from '../../components/ui/AccordionTimeline'
-import { workStatus, workDisplayStatus, taskAgentPending, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
@@ -52,7 +52,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       onClick={() => setOpen(value => !value)}>
       <span>{t('Tasks')}</span>
       <span className="composer-tasks-count tabular-nums bg-muted px-1.5 text-[11px]">{ordered.length}</span>
-      {ordered.some(taskAgentPending) && <StatusDot status="working" size="xs" label={t('In progress')} />}
+      {ordered.some(taskExecutionActive) && <StatusDot status="working" size="xs" label={t('In progress')} />}
     </button>}
     </div>
     {tasks.length > 0 && <div hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30">
@@ -63,7 +63,19 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
           : taskLiveActivityText(task, '') || taskSummaryText(task)
         return {id: task.id,
-          indicator: status === 'Completed' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} /> : <StatusDot status={taskAgentPending(task) ? 'working' : work === 'Needs attention' ? 'warning' : 'neutral'} size="xs" label={t(status)} />,
+          indicator: status === 'Completed' ? (
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
+          ) : taskExecutionActive(task) ? (
+            <StatusDot status="working" size="xs" label={t(status)} />
+          ) : work === 'Queued' ? (
+            <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t(status)} />
+          ) : work === 'Ready for review' ? (
+            <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" aria-label={t(status)} />
+          ) : work === 'Needs attention' ? (
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label={t(status)} />
+          ) : (
+            <StatusDot status="neutral" size="xs" label={t(status)} />
+          ),
           title: <span className="min-w-0 sm:flex sm:items-center sm:gap-3">
               <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
               <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
