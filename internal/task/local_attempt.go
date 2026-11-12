@@ -65,7 +65,10 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 			}
 		}
 	}
-	result, e := tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status='doing'`, taskID, board)
+	// A cancelled task returns to the queue, so an interrupted attempt may find
+	// the board in backlog rather than doing. An unknown outcome must still be
+	// surfaced instead of silently leaving the task looking runnable.
+	result, e := tx.ExecContext(ctx, `UPDATE tasks SET status=$2,updated_at=NOW() WHERE id=$1 AND status IN ('doing','backlog')`, taskID, board)
 	if e != nil {
 		return e
 	}
@@ -99,7 +102,10 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	if !ok {
 		return ErrTaskNotFound
 	}
-	if t.Status != TaskStatusDoing {
+	// A cancelled task returns to the queue, so an interrupted attempt may find
+	// the board in backlog rather than doing. An unknown outcome must still be
+	// surfaced instead of silently leaving the task looking runnable.
+	if t.Status != TaskStatusDoing && t.Status != TaskStatusBacklog {
 		return nil
 	}
 	t.UpdatedAt = time.Now().UTC()

@@ -1062,9 +1062,11 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 		return nil, fmt.Errorf("update cancel attempt: %w", err)
 	}
 
-	// Update task status to blocked or review
+	// Cancellation is an owner decision, not a defect in the work. Sending the
+	// task back to the queue keeps it runnable, which is what "cancel" means to
+	// the person who asked; only a genuine failure may block a task.
 	oldTaskStatus := t.Status
-	t.Status = TaskStatusBlocked
+	t.Status = TaskStatusBacklog
 	t.UpdatedAt = now
 	_ = s.FinishTaskLaunches(ctx, taskID, "stopped")
 	if err := s.store.UpdateTask(ctx, t); err == nil {
@@ -1080,8 +1082,8 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 		ActivityType: ActivityTypeCancelRequested,
 		Author:       author,
 		OldStatus:    oldTaskStatus,
-		NewStatus:    TaskStatusBlocked,
-		Message:      fmt.Sprintf("Cancellation of attempt %s requested by %s. Process termination has been requested.", latest.ID, author),
+		NewStatus:    TaskStatusBacklog,
+		Message:      fmt.Sprintf("Cancellation of attempt %s requested by %s. The task is back in the queue and can run again.", latest.ID, author),
 		CreatedAt:    now,
 	}
 	_ = s.store.CreateActivity(ctx, act)

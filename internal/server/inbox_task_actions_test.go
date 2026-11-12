@@ -82,8 +82,10 @@ func TestApplyInboxTaskCancelAndReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get task detail failed: %v", err)
 	}
-	if detail.Status != task.TaskStatusBlocked {
-		t.Fatalf("expected status blocked after cancel, got: %s", detail.Status)
+	// Cancelling is an owner decision, so the task returns to the queue ready to
+	// run again instead of showing a blocker that never happened.
+	if detail.Status != task.TaskStatusBacklog {
+		t.Fatalf("expected status backlog after cancel, got: %s", detail.Status)
 	}
 
 	// Test Reopen

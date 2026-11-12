@@ -106,14 +106,15 @@ func (s *Server) applyInboxTaskCancel(ctx context.Context, q db.InboxRequest, co
 	s.kickTaskLaunches()
 	_, cancelErr := s.taskSvc.CancelTask(ctx, action.TaskID, author)
 	if cancelErr != nil {
-		// If no active attempt, transition task status directly to blocked
-		blocked := task.TaskStatusBlocked
+		// Nothing is running, so there is no attempt to cancel. The task itself is
+		// still an owner decision: return it to the queue rather than blocking it.
+		backlog := task.TaskStatusBacklog
 		note := action.Reason
 		if note == "" {
 			note = "Cancelled upon user request in chat"
 		}
 		_, updateErr := s.taskSvc.UpdateTask(ctx, action.TaskID, author, task.UpdateTaskRequest{
-			Status:       &blocked,
+			Status:       &backlog,
 			CompleteNote: &note,
 		})
 		if updateErr != nil && !errors.Is(cancelErr, task.ErrInvalidTaskInput) && !errors.Is(cancelErr, task.ErrAttemptNotFound) {
