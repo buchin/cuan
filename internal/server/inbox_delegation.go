@@ -452,6 +452,10 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 				instructions += fmt.Sprintf("\n\nActive Phase: %d\nApproved active outcome: %s\nExecute and verify ONLY this active phase. The complete approved plan above preserves context and limits; later phases are not this task's deliverables. The coordinator starts the next phase after this result is accepted.", phase, outcome)
 			}
 		}
+		if len([]rune(instructions)) > 20000 {
+			runes := []rune(instructions)
+			instructions = string(runes[:19997]) + "..."
+		}
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
 			SourceRoomID:      q.RoomID,
 			ProjectID:         d.ProjectID,
@@ -462,6 +466,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			DoDChecklist:      dodChecklist,
 		})
 		if e != nil {
+			log.Printf("inbox delegation failed to create task room=%s auth=%s: %v", q.RoomID, d.AuthorizationID, e)
 			return fail("the task could not be saved")
 		}
 		_, _ = s.syncRoomTitleOnTaskCreated(ctx, q.RoomID, taskTitle, q.OwnerID)
@@ -994,6 +999,17 @@ func (s *Server) sendBusinessFriendlyReviewNotification(ctx context.Context, tas
 	}
 }
 
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+	if maxRunes <= 3 {
+		return string(runes[:maxRunes])
+	}
+	return string(runes[:maxRunes-3]) + "..."
+}
+
 func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID string, maxTurns int) string {
 	if len(messages) == 0 {
 		return ""
@@ -1010,15 +1026,26 @@ func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID st
 		startIdx = endIdx - maxTurns + 1
 	}
 
-	var sb strings.Builder
-	sb.WriteString("## Authoritative Conversation History (Single Source of Truth)\n")
-	for i := startIdx; i <= endIdx; i++ {
+	const maxTotalBudget = 6000
+	const maxUserRunes = 1500
+	const maxAgentRunes = 600
+
+	type turnItem struct {
+		line string
+	}
+	var collected []turnItem
+	usedRunes := 0
+
+	for i := endIdx; i >= startIdx; i-- {
 		m := messages[i]
 		author := "User"
+		maxAllowed := maxUserRunes
 		if m.AuthorType == "agent" {
 			author = "Coordinator"
+			maxAllowed = maxAgentRunes
 		} else if m.AuthorType == "system" {
 			author = "System"
+			maxAllowed = maxAgentRunes
 		}
 		text, ids := decodeAttachmentMessage(m.Content)
 		text = strings.TrimSpace(text)
@@ -1028,9 +1055,28 @@ func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID st
 		if len(ids) > 0 {
 			text += fmt.Sprintf(" [Attachments: %s]", strings.Join(ids, ", "))
 		}
-		if text != "" {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", author, text))
+		if text == "" {
+			continue
 		}
+		truncated := truncateRunes(text, maxAllowed)
+		line := fmt.Sprintf("- **%s**: %s\n", author, truncated)
+		lineRunes := len([]rune(line))
+
+		if len(collected) > 0 && usedRunes+lineRunes > maxTotalBudget {
+			break
+		}
+		collected = append(collected, turnItem{line: line})
+		usedRunes += lineRunes
+	}
+
+	if len(collected) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Authoritative Conversation History (Single Source of Truth)\n")
+	for i := len(collected) - 1; i >= 0; i-- {
+		sb.WriteString(collected[i].line)
 	}
 	return sb.String()
 }

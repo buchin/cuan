@@ -70,3 +70,38 @@ func TestFormatConversationHistoryContext_LimitsMaxTurns(t *testing.T) {
 		t.Fatalf("expected latest message to be included: %s", result)
 	}
 }
+
+func TestFormatConversationHistoryContext_CapsLargeMessagesAndTotalBudget(t *testing.T) {
+	now := time.Now()
+	hugeMessage := strings.Repeat("AveryLongReportDataParagraphHere ", 600) // ~20,000 chars
+	messages := []db.ProjectMessage{
+		{
+			ID:         "msg-huge-1",
+			AuthorType: "agent",
+			Content:    hugeMessage,
+			CreatedAt:  now.Add(-2 * time.Minute),
+		},
+		{
+			ID:         "msg-auth",
+			AuthorType: "user",
+			Content:    "coba cek cloudflare apakah ada akses dns dojo. Creds di env",
+			CreatedAt:  now,
+		},
+	}
+
+	result := formatConversationHistoryContext(messages, "msg-auth", 10)
+
+	if !strings.Contains(result, "## Authoritative Conversation History") {
+		t.Fatalf("missing section header: %s", result)
+	}
+	if !strings.Contains(result, "**User**: coba cek cloudflare apakah ada akses dns dojo. Creds di env") {
+		t.Fatalf("missing user auth turn: %s", result)
+	}
+	// The coordinator's 20,000 char message must be truncated with ellipsis
+	if len(result) > 6500 {
+		t.Fatalf("expected capped history context (<6500 chars), got %d chars", len(result))
+	}
+	if !strings.Contains(result, "...") {
+		t.Fatalf("expected truncation ellipsis for huge message, got: %s", result)
+	}
+}

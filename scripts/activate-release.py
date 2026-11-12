@@ -222,8 +222,10 @@ def assert_no_accidental_downgrade(old_dir, target_dir, base, allow_divergent=Fa
     if old_dir.name == 'legacy-before-s25' and not (old_dir / 'release.json').exists():
         return  # First native migration has no earlier versioned release.
     try:
-        old_sha = json.loads((old_dir / 'release.json').read_text())['sha']
-        target_sha = json.loads((target_dir / 'release.json').read_text())['sha']
+        old_data = json.loads((old_dir / 'release.json').read_text())
+        old_sha = old_data.get('sha') or old_data.get('commit')
+        target_data = json.loads((target_dir / 'release.json').read_text())
+        target_sha = target_data.get('sha') or target_data.get('commit')
     except (OSError, ValueError, KeyError) as error:
         raise RuntimeError('Release ancestry metadata is unavailable; activation was not changed') from error
     if not all(re.fullmatch('[0-9a-f]{40}', value) for value in (old_sha, target_sha)):
