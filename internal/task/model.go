@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,23 @@ const (
 	AttemptStatusCanceled    = "canceled"
 	AttemptStatusInterrupted = "interrupted"
 )
+
+// NormalizeStatus maps every accepted spelling of a board status to the single
+// value the store records. The CLI documents "todo", "in_progress" and
+// "canceled" while the board uses "backlog", "doing" and "cancelled"; without
+// this the documented flags were rejected as invalid input.
+func NormalizeStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "todo", "backlog":
+		return TaskStatusBacklog
+	case "in_progress", "doing", "running":
+		return TaskStatusDoing
+	case "canceled", "cancelled":
+		return "cancelled"
+	default:
+		return strings.ToLower(strings.TrimSpace(status))
+	}
+}
 
 // Task priority constants
 const (
