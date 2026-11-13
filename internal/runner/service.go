@@ -801,7 +801,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				requeueMsg := fmt.Sprintf("Auto-Requeue: Celah DoD terdeteksi pada attempt #%d. Task otomatis dikembalikan ke antrean untuk perbaikan pada attempt #%d (alokasi timeout adaptif: %v).\n\nInstruksi Revisi:\n%s",
 					att.AttemptNumber, nextAttNum, nextTimeout, dodVal.RequeueInstructions)
 				requeueAct := &task.TaskActivity{
-					ID:           fmt.Sprintf("act_requeue_%s_%d", newAttempt.ID, time.Now().UnixNano()),
+					ID:           "requeue:" + newAttempt.ID,
 					TaskID:       t.ID,
 					AttemptID:    &newAttempt.ID,
 					ActivityType: task.ActivityTypeAttempt,
@@ -942,7 +942,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 		}
 
 		act := &task.TaskActivity{
-			ID:           fmt.Sprintf("act_finish_%s_%d", att.ID, time.Now().UnixNano()),
+			ID:           "finish:" + att.ID,
 			TaskID:       t.ID,
 			AttemptID:    &att.ID,
 			ActivityType: task.ActivityTypeAttempt,

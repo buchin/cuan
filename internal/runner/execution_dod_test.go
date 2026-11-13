@@ -326,3 +326,64 @@ func TestRunnerService_ValidateTaskTransition_StateMachineIntegration(t *testing
 		}
 	}
 }
+
+func TestRunnerService_CompletionActivityIDs_LengthWithinPostgresVarcharLimit(t *testing.T) {
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+	svc := NewService(runnerStore, taskStore)
+
+	ctx := context.Background()
+	taskID := "msg_89a87918-0333-4dbd-a1ec-1d65a22e108c"
+	attemptID := "att_d56637e8bda56aaff73f8d9de0c3a3c6"
+	now := time.Now().UTC()
+
+	taskItem := &task.Task{
+		ID:        taskID,
+		Title:     "Long ID Verification",
+		Status:    task.TaskStatusDoing,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := taskStore.CreateTask(ctx, taskItem); err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	attempt := &task.TaskAttempt{
+		ID:            attemptID,
+		TaskID:        taskID,
+		RunnerID:      "runner-01",
+		AgentName:     "agy",
+		Status:        task.AttemptStatusRunning,
+		AttemptNumber: 6,
+		CreatedAt:     now,
+	}
+	if err := taskStore.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+
+	req := CompleteAttemptRequest{
+		RunnerID: "runner-01",
+		Status:   task.AttemptStatusSucceeded,
+		ExitCode: 0,
+		TestSummary: "Project verification: go test ./... (exit 0)",
+	}
+
+	_, err := svc.Complete(ctx, attemptID, req)
+	if err != nil {
+		t.Fatalf("failed to complete attempt: %v", err)
+	}
+
+	activities, err := taskStore.ListActivities(ctx, taskID)
+	if err != nil {
+		t.Fatalf("failed to list activities: %v", err)
+	}
+	if len(activities) == 0 {
+		t.Fatalf("expected activities to be recorded, got 0")
+	}
+
+	for _, act := range activities {
+		if len(act.ID) > 64 {
+			t.Errorf("activity ID '%s' length %d exceeds PostgreSQL VARCHAR(64) limit", act.ID, len(act.ID))
+		}
+	}
+}
