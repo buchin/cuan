@@ -4,7 +4,7 @@
 **Target Audience:** Solopreneurs, small teams, creator businesses, and non-technical entrepreneurs
 **Repository:** `cuan` (`RPcd484fc4229ae192d17a0f01`)
 **Status:** Living Design System Guideline
-**Version:** 1.3.0 (Updated in Sprint 62: Things 3 & Bear Notes Navigation & Visual Calm — Mobile Nav 4-Pillar with Contacts, Schedules Consolidation, Floating Soft Surface Composer, Universal Inset Groups & Terminal Streaming)
+**Version:** 1.3.1 (Updated: Zero-Noise Confirmation & Success States — No Nested Boxes, No Badge Overload, Single Hairline Hierarchy)
 **Author:** Buchin <buchin@dropsugar.com>  
 
 ---
@@ -115,6 +115,18 @@ Sistem desain Cuan berakar pada prinsip **Calm Software**, yang diilhami oleh du
 - **Aturan Utama:**
   - Seluruh halaman dan turunannya (Tasks, Projects, Contacts, Settings) mematuhi audit Things 3: 0 border kawat 1px kaku, 0 pil putih solid `#ffffff`, konsisten menggunakan `GroupedSection`, `HairlineList`, `border-border/40` dan `bg-card/30` - `bg-card/50`.
   - Komponen `TaskTerminal.tsx` dan backend Go `agy_adapter.go` / `runner.go` menggunakan format keluaran `stream-json` seketika. Log mengalir lancar dengan incremental poller (`after_id=N`) tanpa buffering delay dan dilengkapi indikator denyut hijau zamrud (*Streaming live logs…*).
+
+### 2.14. Zero-Noise Confirmation & Success States (No Nested Boxes, No Badge Overload)
+- **Aturan Utama:** Kartu konfirmasi status, intake formulir sukses (seperti Waiting List, aktivasi akun, verifikasi hasil, atau persetujuan tugas/approval) **WAJIB** mematuhi prinsip *Zero Visual Noise*.
+- **Larangan Keras (Anti-Patterns):**
+  1. **Zero Nested Cards:** Dilarang keras menaruh kotak/kartu di dalam kartu (*no boxes inside boxes*, misal menaruh card background abu-abu `bg-muted/30` di dalam kartu konfirmasi). Gunakan pembatas setipis helai rambut (*hairline divider*: `border-t border-border/40`).
+  2. **No Duplicate Status Pills:** Dilarang mengulang teks status yang sama dalam satu kartu (misal: header menulis "Status: Antrean Prioritas Aktif" dan footer menulis "Antrean Prioritas Aktif"). Pilih satu penempatan yang paling jelas di header.
+  3. **No Micro-Tag Clutter / Badge Overload:** Dilarang menjejalkan lebih dari satu badge/tag mikro (misal tag `#wl_terkonfirmasi`, tag `⚡ AKSELERASI PELUNCURAN`, tag `Founding Sponsor`, dan pill `5 Titans · 30 Backers` sekaligus). Badge overload memicu kelelahan kognitif (*cognitive friction*) dan merusak ketenangan visual.
+- **Mekanisme yang Benar (The Things 3 / Bear Way):**
+  - Satu kartu tunggal yang lapang (`rounded-xl border border-border/70 bg-card p-4 sm:p-5 shadow-2xs`).
+  - Indikator status murni di header dengan ikon centang lembut (`CheckCircle2 text-emerald-600 dark:text-emerald-400`) didampingi satu catatan tenang di sisi kanan.
+  - Hirarki informasi berurutan secara tipografis tanpa kotak pemisah tebal.
+  - Penawaran atau langkah berikutnya (seperti ajakan Founding Sponsor atau instruksi lanjutan) dipisahkan oleh satu *hairline divider* (`border-t border-border/40 pt-3`) dengan tombol aksi sekunder yang bersahaja (`action-secondary`), bukan tombol berteriak yang bersaing dengan pesan sukses.
 
 ---
 
