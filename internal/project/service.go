@@ -249,6 +249,30 @@ func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error)
 	return p.ToResponse(), nil
 }
 
+// ownsWorkspace reports whether a stored path belongs to this project rather
+// than to a different one. Workspace directories are named after the project ID,
+// so a path whose last element is another project's identifier belongs there.
+// Other names are kept as-is because managed workspaces use generated
+// directory names inside the project's own base directory.
+func (s *Service) ownsWorkspace(p *Project) bool {
+	// The default project holds general work and keeps whatever path it was given.
+	// It has no repository identity to compare against, so validating it would
+	// rewrite a configuration the owner chose.
+	if p.ID == "default" {
+		return true
+	}
+	name := filepath.Base(filepath.Clean(p.LocalPath))
+	if name == p.ID {
+		return true
+	}
+	// A generated workspace name is not an identity, so it stays valid as long as
+	// it is not named after a different project.
+	if name == "default" || strings.HasPrefix(name, "proj_") {
+		return false
+	}
+	return true
+}
+
 func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 	if p == nil || p.ID == "" {
 		return
@@ -256,28 +280,23 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 	if p.ID == "default" && p.RepoURL == "" && p.LocalPath == "" {
 		return
 	}
-	if p.LocalPath != "" {
-		if fi, err := os.Stat(p.LocalPath); err == nil && fi.IsDir() {
-			return
-		}
+	// A stored path that belongs to this project is authoritative, whether or not
+	// the directory exists yet; provisioning creates it later. Only a path that
+	// points at a different project's workspace is corrected here.
+	if p.LocalPath != "" && s.ownsWorkspace(p) {
+		return
 	}
 
+	// Only a directory that carries this project's own identity may be adopted.
+	// Deriving a candidate from the basename of a previously stored path adopted
+	// another project's directory: "cuan" inherited the archived "default"
+	// workspace and every task then failed with "project unavailable" because
+	// the workspace belonged to a different project.
 	candidates := []string{
 		filepath.Join(s.baseDir, p.ID),
 	}
-	if p.LocalPath != "" {
-		candidates = append(candidates, filepath.Join(s.baseDir, filepath.Base(p.LocalPath)))
-		if idx := strings.Index(p.LocalPath, "data/projects/"); idx >= 0 {
-			rel := strings.TrimPrefix(p.LocalPath[idx:], "data/projects/")
-			candidates = append(candidates, filepath.Join(s.baseDir, rel))
-		}
-	}
 	if s.baseDir == "data/projects" || strings.HasPrefix(s.baseDir, "/opt/cuan") {
-		persistentBase := "/opt/cuan/data/projects"
-		candidates = append(candidates, filepath.Join(persistentBase, p.ID))
-		if p.LocalPath != "" {
-			candidates = append(candidates, filepath.Join(persistentBase, filepath.Base(p.LocalPath)))
-		}
+		candidates = append(candidates, filepath.Join("/opt/cuan/data/projects", p.ID))
 	}
 
 	for _, candidate := range candidates {
@@ -288,8 +307,11 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 		}
 	}
 
-	if p.LocalPath == "" {
-		p.LocalPath = filepath.Join(s.baseDir, p.ID)
+	// No candidate directory exists yet. Record the project's own workspace path
+	// instead of leaving a stale path that points at another project's files.
+	own := filepath.Join(s.baseDir, p.ID)
+	if filepath.Clean(p.LocalPath) != filepath.Clean(own) {
+		p.LocalPath = own
 		_ = s.store.UpdateProject(ctx, p)
 	}
 }
