@@ -168,7 +168,7 @@ func (s *Service) TaskExecutionWorkspace(ctx context.Context, taskID, instructio
 		return p.LocalPath, nil
 	}
 	var snapshot taskProjectSnapshot
-	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[at+markerLen:], "\n```")), &snapshot) != nil {
+	if json.Unmarshal([]byte(snapshotBody(instructions, at, markerLen)), &snapshot) != nil {
 		return "", errors.New("Task project context is invalid")
 	}
 	if !snapshot.IsolatedRepository {

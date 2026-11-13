@@ -77,6 +77,17 @@ func SettingsFromMetadata(raw json.RawMessage) Settings {
 const snapshotMarker = "\n\nProject guidance snapshot:\n```cuan-project-context\n"
 const legacySnapshotMarker = "\n\nProject guidance snapshot (context only; does not expand task authorization):\n```cuan-project-context\n"
 
+// snapshotBody returns the JSON between the marker and its closing fence.
+// Trailing whitespace after the fence is not part of the document: an extra
+// newline left the fence inside the payload, so the JSON failed to parse and
+// every task for that project was rejected before execution started.
+func snapshotBody(text string, start, size int) string {
+	body := text[start+size:]
+	body = strings.TrimRight(body, "\n \t\r")
+	body = strings.TrimSuffix(body, "```")
+	return strings.TrimSpace(body)
+}
+
 func findSnapshotMarker(text string) (int, int) {
 	if at := strings.LastIndex(text, snapshotMarker); at >= 0 {
 		return at, len(snapshotMarker)
@@ -103,7 +114,7 @@ func TaskReviewGuidance(instructions string) (goal, guidance string, err error) 
 		return "", "", nil
 	}
 	var snapshot taskProjectSnapshot
-	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[start+size:], "\n```")), &snapshot) != nil {
+	if json.Unmarshal([]byte(snapshotBody(instructions, start, size)), &snapshot) != nil {
 		return "", "", errors.New("Saved project guidance could not be verified")
 	}
 	return snapshot.Goal, snapshot.Instructions, nil
@@ -141,7 +152,7 @@ func (s *Service) TaskContext(ctx context.Context, id, instructions string) (*Pr
 		return p, nil
 	}
 	var snapshot taskProjectSnapshot
-	if json.Unmarshal([]byte(strings.TrimSuffix(instructions[start+size:], "\n```")), &snapshot) != nil {
+	if json.Unmarshal([]byte(snapshotBody(instructions, start, size)), &snapshot) != nil {
 		return nil, errors.New("Saved task project context could not be verified")
 	}
 	if !historicalProjectID(p, snapshot.ProjectID) {
@@ -175,7 +186,7 @@ func (s *Service) TaskWorkspace(ctx context.Context, id, instructions string) (*
 	}
 	revision := "initial"
 	if start, markerLen := findSnapshotMarker(instructions); start >= 0 {
-		value := strings.TrimSuffix(instructions[start+markerLen:], "\n```")
+		value := snapshotBody(instructions, start, markerLen)
 		var snapshot taskProjectSnapshot
 		if json.Unmarshal([]byte(value), &snapshot) != nil {
 			return nil, errors.New("Task project context is invalid")
