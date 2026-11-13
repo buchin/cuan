@@ -185,7 +185,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 		if _, err := store.(task.LaunchStore).ClaimLaunch(ctx, job.AvailableAt.Add(time.Second), "source-observation", job.ID); err != nil {
 			t.Fatal(err)
 		}
-		a, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "source-checker", AgentName: d.AssignedAgent, RequestID: job.RequestID})
+		a, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "source-checker", AgentName: d.AssignedAgent, RequestID: job.RequestID, OwnerAuthorized: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -275,7 +275,7 @@ func accountOutcomeRecoveryContract(t *testing.T, mode string) {
 	if _, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "outcome", launch.ID); err != nil {
 		t.Fatal(err)
 	}
-	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "observer", AgentName: d.AssignedAgent, RequestID: launch.RequestID})
+	attempt, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "observer", AgentName: d.AssignedAgent, RequestID: launch.RequestID, OwnerAuthorized: true})
 	if err != nil {
 		t.Fatal(err)
 	}

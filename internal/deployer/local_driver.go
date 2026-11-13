@@ -366,7 +366,7 @@ func (d *LocalDriver) Start(ctx context.Context, id string) error {
 	})
 
 	// Wait briefly for process to bind socket
-	waitForSocket(port, 300*time.Millisecond)
+	waitForSocket(port, 2*time.Second)
 
 	// 9. Register dynamic virtual host route in Caddy
 	if d.router != nil {

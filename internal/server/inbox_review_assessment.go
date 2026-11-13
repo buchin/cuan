@@ -57,7 +57,27 @@ func reviewAssessmentMissing(d *task.TaskDetailResponse) bool {
 	return !found
 }
 
+func (s *Server) inboxSourceOrigin(ctx context.Context, d *task.TaskDetailResponse, q db.InboxRequest) db.InboxRequest {
+	if d != nil && q.MessageID == d.SourceMessageID && q.RoomID == d.SourceRoomID {
+		return q
+	}
+	if s.projectStudioRepo != nil && d != nil && d.SourceRoomID != "" && d.SourceMessageID != "" {
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			if requests, err := store.ListInboxRequests(ctx, d.SourceRoomID); err == nil {
+				for _, r := range requests {
+					if r.MessageID == d.SourceMessageID {
+						return r
+					}
+				}
+			}
+		}
+	}
+	return q
+}
+
 func (s *Server) saveReviewAssessment(ctx context.Context, d *task.TaskDetailResponse, q db.InboxRequest, assessment inboxReviewEvaluation) (inboxReviewEvaluation, error) {
+	origin := s.inboxSourceOrigin(ctx, d, q)
+	s.observeInboxPublicationConfiguration(ctx, d, origin)
 	if assessment.SourceReview == "pass" {
 		source, proof := s.verifiedSupplementalSource(ctx, d)
 		visual := s.requireVisualReview(ctx, d, inboxReviewEvaluation{Decision: "pass", VisualInspection: assessment.VisualInspection})

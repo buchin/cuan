@@ -39,30 +39,32 @@ func CollectHostMetrics() HostMetrics {
 
 func readMemInfo() (total int64, avail int64) {
 	f, err := os.Open("/proc/meminfo")
-	if err != nil {
-		return 0, 0
-	}
-	defer f.Close()
+	if err == nil {
+		defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		key := strings.TrimSuffix(fields[0], ":")
-		val, _ := strconv.ParseInt(fields[1], 10, 64)
-		valBytes := val * 1024 // /proc/meminfo values are in kB
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			key := strings.TrimSuffix(fields[0], ":")
+			val, _ := strconv.ParseInt(fields[1], 10, 64)
+			valBytes := val * 1024 // /proc/meminfo values are in kB
 
-		switch key {
-		case "MemTotal":
-			total = valBytes
-		case "MemAvailable":
-			avail = valBytes
+			switch key {
+			case "MemTotal":
+				total = valBytes
+			case "MemAvailable":
+				avail = valBytes
+			}
+		}
+		if total > 0 {
+			return total, avail
 		}
 	}
-	return total, avail
+	return osMemInfo()
 }
 
 func readDiskInfo(path string) (total int64, used int64) {
@@ -78,16 +80,15 @@ func readDiskInfo(path string) (total int64, used int64) {
 
 func readCPULoad() float64 {
 	data, err := os.ReadFile("/proc/loadavg")
-	if err != nil {
-		return 0.0
-	}
-	fields := strings.Fields(string(data))
-	if len(fields) > 0 {
-		load1, err := strconv.ParseFloat(fields[0], 64)
-		if err == nil {
-			// Convert load to roughly a percentage (e.g. 1.0 on 2-core machine ~ 50%)
-			return load1 * 25.0
+	if err == nil {
+		fields := strings.Fields(string(data))
+		if len(fields) > 0 {
+			load1, err := strconv.ParseFloat(fields[0], 64)
+			if err == nil {
+				// Convert load to roughly a percentage (e.g. 1.0 on 2-core machine ~ 50%)
+				return load1 * 25.0
+			}
 		}
 	}
-	return 0.0
+	return osCPULoad()
 }

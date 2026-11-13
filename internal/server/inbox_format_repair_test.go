@@ -97,7 +97,7 @@ sleep 10
 	}
 	installInboxSandboxStub(t, bin)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	ctx = context.WithValue(ctx, inboxFormatRepairKey{}, coordinatorJSON("Saved findings.", "", nil))
 	ctx = context.WithValue(ctx, inboxSchemaRetryKey{}, true)

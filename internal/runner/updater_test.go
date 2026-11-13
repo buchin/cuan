@@ -93,7 +93,11 @@ func TestUpdateManager_CheckForUpdateAndPerform(t *testing.T) {
 	if !restarted {
 		t.Fatal("expected restartFunc to be called")
 	}
-	if restartedPath != targetBin {
-		t.Fatalf("expected restarted path %s, got %s", targetBin, restartedPath)
+	targetResolved, err := filepath.EvalSymlinks(targetBin)
+	if err != nil {
+		targetResolved = targetBin
+	}
+	if restartedPath != targetResolved {
+		t.Fatalf("expected restarted path %s, got %s", targetResolved, restartedPath)
 	}
 }

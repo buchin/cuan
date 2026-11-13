@@ -10,5 +10,8 @@ func TestOwnershipMandateIsInjectedIntoCoordinatorAndWorkerPrompts(t *testing.T)
 		if !strings.Contains(p, AutonomousOwnership) || !strings.Contains(p, "not whether Cuan should keep trying") {
 			t.Fatal("core ownership policy absent")
 		}
+		if !strings.Contains(p, "ROOT CAUSE RESOLUTION (ANTI-TAMBAL SULAM)") || !strings.Contains(p, "Selesaikan masalah user dari akarnya, bukan tambal sulam") {
+			t.Fatal("anti-tambal sulam root cause resolution mandate absent")
+		}
 	}
 }

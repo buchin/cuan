@@ -122,7 +122,7 @@ func verificationRuntimeRecoveryContract(t *testing.T, s *Server, d *task.TaskDe
 	if _, err = store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "runtime-recovery", job.ID); err != nil {
 		t.Fatal(err)
 	}
-	att, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: d.LatestAttempt.RunnerID, AgentName: d.AssignedAgent, RequestID: job.RequestID})
+	att, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: d.LatestAttempt.RunnerID, AgentName: d.AssignedAgent, RequestID: job.RequestID, OwnerAuthorized: true})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,6 +40,19 @@ func TestMaskSecretsKeepsEmbeddedJSONValid(t *testing.T) {
 	}
 }
 
+func TestMaskSecretsKeepsJSONWithPasswordKeyValid(t *testing.T) {
+	doc := map[string]any{
+		"token":       "ghp_123456789012345678901234567890",
+		"secret":      "supersecretpassword",
+		"environment": "API_KEY=sk-12345678901234567890\nDB_PASS=mypassword123",
+	}
+	raw, _ := json.Marshal(doc)
+	masked := MaskSecrets(string(raw), nil)
+	if !json.Valid([]byte(masked)) {
+		t.Fatalf("masking broke JSON: %s", masked)
+	}
+}
+
 // A host key printed in prose is still a credential.
 func TestMaskSecretsRedactsHostKeyInProse(t *testing.T) {
 	in := "Host key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINspux4JFwlYuqloxDv0xMPd56KGC root@host"

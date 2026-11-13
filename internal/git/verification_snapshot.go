@@ -236,6 +236,24 @@ func (c *Client) publishVerificationSnapshot(ctx context.Context, temporary, des
 	return destination, nil
 }
 
+func equalSourcePaths(a, b string) bool {
+	if a == b {
+		return true
+	}
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	if strings.TrimPrefix(filepath.Clean(a), "/private") == strings.TrimPrefix(filepath.Clean(b), "/private") {
+		return true
+	}
+	realA, errA := filepath.EvalSymlinks(a)
+	realB, errB := filepath.EvalSymlinks(b)
+	if errA == nil && errB == nil && realA == realB {
+		return true
+	}
+	return false
+}
+
 func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, expected verificationSnapshotBinding) error {
 	bad := errors.New("saved verification snapshot changed or could not be verified; existing files were preserved")
 	info, err := os.Lstat(filepath.Join(root, ".git"))
@@ -252,7 +270,10 @@ func (c *Client) validateVerificationSnapshot(ctx context.Context, root string, 
 	}
 	raw, err := os.ReadFile(path)
 	var binding verificationSnapshotBinding
-	if err != nil || json.Unmarshal(raw, &binding) != nil || binding != expected {
+	if err != nil || json.Unmarshal(raw, &binding) != nil {
+		return bad
+	}
+	if !equalSourcePaths(binding.Source, expected.Source) || binding.SourceCommit != expected.SourceCommit || binding.TargetCommit != expected.TargetCommit {
 		return bad
 	}
 	if c.VerifySnapshotCommit(ctx, root, expected.SourceCommit, expected.TargetCommit) != nil {

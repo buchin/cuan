@@ -285,6 +285,7 @@ func TestQualityGate_DualPath_InvestigationTaskCompletesWithoutDeploy(t *testing
 	noCodeChanges := false
 	noDeploy := false
 
+	baseline := strings.Repeat("a", 64)
 	req := runner.CompleteAttemptRequest{
 		RunnerID:                "cuan-runner-1",
 		Status:                  task.AttemptStatusSucceeded,
@@ -296,6 +297,7 @@ func TestQualityGate_DualPath_InvestigationTaskCompletesWithoutDeploy(t *testing
 		DiffSummary:             "",
 		CommitSHA:               "",
 		LiveDeploymentConfirmed: false, // Investigation has NO live deploy!
+		RepositoryVerification:  &runner.RepositoryVerification{Baseline: baseline, Final: baseline},
 	}
 
 	completedAtt, err := runnerSvc.Complete(ctx, attInv.ID, req)

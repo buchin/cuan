@@ -99,9 +99,9 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reco
 	}
 	scope := "Create an artifact once and verify it. Do not deploy."
 	if !repository {
-		// Explicit artifact scope selects the operational path without asking
+		// Explicit operational scope selects the operational path without asking
 		// a nondeveloper to specify an internal execution category.
-		scope = "Create a standalone artifact file once and verify it. No repository changes. Do not deploy."
+		scope = "Run operational task to verify artifact once. Do not deploy."
 		first = strings.ReplaceAll(first, "Create an artifact once and verify it. Do not deploy.", scope)
 	}
 	revision := response("```cuan-delegate\n{\"project_id\":\"recovery-project\",\"authorization_message_id\":\"AUTH\",\"task_id\":\"msg_AUTH\",\"revision\":\"Verify the saved artifact and checkpoint; preserve completed work. Report verified result without deployment.\"}\n```")
@@ -109,7 +109,7 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reco
 	final := string(finalRaw)
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
- guide="${3##*Read the session guidance at }"; guide="${guide% before proceeding.}"
+ guide="${3##*Read the session guidance at }"; guide="${guide%% before proceeding*}"
  sed -n 's/^Approval message: //p' "$guide" | head -n 1 > "$HOME/recovery-auth"
  if [ ! -f "$HOME/recovery-artifact" ]; then
   if [ -f .git ]; then

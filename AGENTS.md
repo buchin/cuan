@@ -27,6 +27,12 @@ to a landing/login page is not evidence of protected Inbox behavior. Report
 missing behavior or access as unverified, and distinguish fixture observations
 from production observations. See [protected UI verification](docs/skills/cuan-agent/SKILL.md#protected-ui-verification-without-owner-access).
 
+## Root-Cause Problem Solving & Anti-Tambal Sulam
+All changes and bug fixes MUST address the root cause, never tambal sulam:
+1. **Root Cause Analysis (RCA):** Uncover and fix the core structural, contract, or invariant breakdown behind errors, not just the line throwing an exception.
+2. **Anti-Tambal Sulam:** Strictly forbidden to use superficial regex hacks on structured documents, suppress/swallow errors, bypass verification checks, or hardcode fragile special-cases.
+3. **Authentic Verification:** Verify against actual runtime behavior and authentic test cases, ensuring user intent is truly satisfied.
+
 ## Verification & Test Efficiency
 - **Smart Test Selection:** When changes touch only frontend files (`web/`), skip heavy backend Go test suites. Run `./scripts/test.sh --fast` or frontend validation directly.
 - **Fixture Authenticity:** Verification fixtures must reflect actual usage scenarios: both customer conversations (with reply mode tabs) AND direct bot/agent conversations (without mode tabs). Ensure no artificial dead zones or visual gaps are created when tabs are hidden.

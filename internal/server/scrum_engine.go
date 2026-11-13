@@ -145,12 +145,19 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 	// is a readable outcome, not another copy of the internal review document.
 	if len(task.AcceptanceGaps(&d.Task)) != 0 {
 		return inboxReviewEvaluation{
-			Decision:    "revise",
-			Explanation: "Hasil pekerjaan sudah dilaporkan, tetapi bukti pemeriksaannya belum lengkap.",
-			Revision:    "Laporkan bukti pengujian konkret, verifikasi keluaran, dan penuhi seluruh kriteria Definition of Done sebelum menyatakan selesai.",
+			Decision:         "revise",
+			RequestedOutcome: "unfinished",
+			RemainingWork:    "implementation",
+			Explanation:      "Hasil pekerjaan sudah dilaporkan, tetapi bukti pemeriksaannya belum lengkap.",
+			Revision:         "Laporkan bukti pengujian konkret, verifikasi keluaran, dan penuhi seluruh kriteria Definition of Done sebelum menyatakan selesai.",
 		}
 	}
-	return inboxReviewEvaluation{Decision: "pass", Explanation: "Hasil pekerjaan memenuhi kriteria yang disepakati."}
+	return inboxReviewEvaluation{
+		Decision:         "pass",
+		RequestedOutcome: "completed",
+		RemainingWork:    "none",
+		Explanation:      "Hasil pekerjaan memenuhi kriteria yang disepakati.",
+	}
 
 }
 

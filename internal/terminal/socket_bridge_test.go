@@ -188,7 +188,8 @@ func TestSocketBridge_LifecycleAndStreaming(t *testing.T) {
 func TestSocketBridge_ConcatenatedControlFrames(t *testing.T) {
 	tmpDir := t.TempDir()
 	taskID := "task-concat-frames-test"
-	sockPath := filepath.Join(tmpDir, "concat.sock")
+	sockPath := SocketPath(taskID)
+	defer os.Remove(sockPath)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -262,7 +263,8 @@ func TestSocketBridge_ConcatenatedControlFrames(t *testing.T) {
 func TestSocketBridge_FragmentedControlFrames(t *testing.T) {
 	tmpDir := t.TempDir()
 	taskID := "task-frag-frames-test"
-	sockPath := filepath.Join(tmpDir, "frag.sock")
+	sockPath := SocketPath(taskID)
+	defer os.Remove(sockPath)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -17,6 +17,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/db"
 	cuanPrompt "github.com/buchin/cuan/internal/prompt"
+	"github.com/buchin/cuan/internal/taskprocess"
 )
 
 type inboxRegenerateReplyKey struct{}
@@ -114,7 +115,7 @@ func getChatToolBudget() int {
 			return n
 		}
 	}
-	return 8 // Chat resolves context; deep investigation belongs in a scoped task.
+	return 12 // Chat resolves context; deep investigation belongs in a scoped task.
 }
 
 func getChatInspectionBatchFactor() int {
@@ -159,6 +160,14 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	if home == "" {
 		home, _ = os.UserHomeDir()
+	}
+	if resolvedHome, err := filepath.EvalSymlinks(home); err == nil {
+		home = resolvedHome
+	}
+	if workspace != "" {
+		if resolvedWorkspace, err := filepath.EvalSymlinks(workspace); err == nil {
+			workspace = resolvedWorkspace
+		}
 	}
 	snapshotReview, _ := ctx.Value(inboxTaskReviewKey{}).(bool)
 	answerOnly, _ := ctx.Value(inboxAnswerOnlyKey{}).(bool)
@@ -279,6 +288,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	validateReply := func(reply string) (string, string) {
 		if snapshotReview {
 			decision, err := parseInboxReviewEvaluation(reply)
+			if err != nil && (formatRepair || alreadyRepaired) {
+				trimmed := strings.TrimSpace(reply)
+				if !strings.HasPrefix(trimmed, "{") {
+					decision, err = parseFallbackTextReview(reply)
+				}
+			}
 			if err != nil {
 				if step != nil {
 					step("response_contract", inboxReviewResponseDiagnostic(reply))
@@ -465,7 +480,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			if separator < 0 {
 				err = fmt.Errorf("sandbox command separator missing")
 			} else {
-				probeArgs := append(append([]string{}, args[:separator+1]...), "/bin/true")
+				probeArgs := append(append([]string{}, args[:separator+1]...), findTrueBinary())
 				probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 				err = exec.CommandContext(probeCtx, path, probeArgs...).Run()
 				cancel()
@@ -481,7 +496,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		cmd.Dir = executionWorkspace
 	}
 	cmd.Env = profileEnv
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.SysProcAttr = taskprocess.SysProcAttr()
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
@@ -770,12 +785,26 @@ func prepareInboxReplyWorkspace(home string) (string, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", err
 	}
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil || resolved != dir {
-		return "", fmt.Errorf("reply workspace must not be a symlink")
-	}
-	if err := agent.PrepareAntigravitySettings(home, dir); err != nil {
+	info, err := os.Lstat(dir)
+	if err != nil {
 		return "", err
 	}
-	return dir, nil
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("reply workspace must not be a symlink")
+	}
+	canonicalHome, err := filepath.EvalSymlinks(home)
+	if err != nil {
+		return "", err
+	}
+	canonicalDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", err
+	}
+	if canonicalDir != filepath.Join(canonicalHome, ".cuan-chat-workspace") {
+		return "", fmt.Errorf("reply workspace must not be a symlink")
+	}
+	if err := agent.PrepareAntigravitySettings(home, canonicalDir); err != nil {
+		return "", err
+	}
+	return canonicalDir, nil
 }

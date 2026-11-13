@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/buchin/cuan/internal/task"
@@ -60,6 +61,18 @@ func TestAcceptedReviewReportsOutcomeWithoutFutureDeliveryPromise(t *testing.T) 
 	}
 	row.ExecutionCategory = task.ExecutionCategoryReadOnly
 	if err := s.taskSvc.Store().UpdateTask(context.Background(), row); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateActivity(context.Background(), &task.TaskActivity{
+		ID:           "scope:" + d.LatestAttempt.ID,
+		TaskID:       d.ID,
+		AttemptID:    &d.LatestAttempt.ID,
+		ActivityType: "repository_scope_verified",
+		Author:       d.LatestAttempt.RunnerID,
+		NewStatus:    "read_only",
+		Message:      "Runner verified unchanged repository state",
+		CreatedAt:    time.Now().UTC(),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	out := s.applyInboxReviewEvaluation(context.Background(), q, `{"decision":"pass","finding":"Laporan investigasi tersedia dan memenuhi kriteria yang diminta.","explanation":"Cuan akan menyampaikan laporan kepada pengguna.","remaining_work":"none","revision":""}`)

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/buchin/cuan/internal/taskprocess"
 )
 
 var nativeCatalogCache = struct {
@@ -152,7 +154,7 @@ func nativeAccountModelCatalog(ctx context.Context, owner, id string) (map[strin
 	cmd := exec.CommandContext(probe, binary, "models")
 	cmd.Env = AntigravityProfileEnvironment(home)
 	cmd.Dir = home
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.SysProcAttr = taskprocess.SysProcAttr()
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return os.ErrProcessDone

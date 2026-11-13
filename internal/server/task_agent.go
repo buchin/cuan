@@ -319,7 +319,7 @@ capability file. Need structured metadata? task --help documents --report-file.
 		cleanup()
 		return nil, "", "", none, e
 	}
-	prompt := "\n\nRead the session guidance at " + guide + " before proceeding."
+	prompt := "\n\nA fresh report template is prepared at CUAN_TASK_REPORT_FILE. Read the session guidance at " + guide + " before proceeding."
 	if artifactOnly {
 		prompt = "\n\n" + instructions
 	}

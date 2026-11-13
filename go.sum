@@ -8,6 +8,8 @@ github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de h1:FxWPpzIjnTlhP
 github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de/go.mod h1:DCaWoUhZrYW9p1lxo/cm8EmUOOzAPSEZNGF2DK1dJgw=
 github.com/buchin/agentrunner v0.2.0 h1:T6p9hQxfsXDD0TBci7DCtXqON7qzsGr35mfPAH0qcbs=
 github.com/buchin/agentrunner v0.2.0/go.mod h1:0WyC1f8HSst3nQcKk9BMr6FsUgezoRsWeZ22bPSYz8U=
+github.com/buchin/agentrunner v0.2.1 h1:e0FuzxNmZas+EfqPJiCqE8OBOioVFJz/UNsvG3eV44M=
+github.com/buchin/agentrunner v0.2.1/go.mod h1:0WyC1f8HSst3nQcKk9BMr6FsUgezoRsWeZ22bPSYz8U=
 github.com/buchin/dodeval v0.1.1 h1:p+QBmUEbVTjmZVVtfXfTJDMFOzemjAgh2C+2xqeUBtU=
 github.com/buchin/dodeval v0.1.1/go.mod h1:v9KTmkIWsuRr/zwMAGyt/1+eROQkIef9NK0a+3pYIeU=
 github.com/buchin/taskfsm v0.1.0 h1:waSb+cVczzTPaiswzPcmNw4f5+xzvHYwxxAwPnQw7kg=

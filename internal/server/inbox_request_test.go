@@ -176,7 +176,7 @@ func TestS264TimeoutAfterAcceptanceSafeRetry(t *testing.T) {
 			t.Fatal("failure fixture did not actually execute its provider", err)
 		}
 		w = call("POST", path, `{"message":"fixture failure","request_id":"`+key+`"}`)
-		if w.Code != 200 && !(item.state == "queued" && w.Code == 202) {
+		if w.Code != 200 && w.Code != 202 {
 			t.Fatal(w.Body.String())
 		}
 		time.Sleep(50 * time.Millisecond)

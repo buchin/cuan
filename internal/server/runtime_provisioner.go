@@ -237,7 +237,7 @@ func ensureSandboxUsable(bwrapPath string) {
 	if runtime.GOOS != "linux" || isIsolatedTestEnv() || bwrapPath == "" {
 		return
 	}
-	probeCmd := exec.Command(bwrapPath, "--ro-bind", "/usr", "/usr", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--", "/bin/true")
+	probeCmd := exec.Command(bwrapPath, "--ro-bind", "/usr", "/usr", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--", findTrueBinary())
 	if err := probeCmd.Run(); err != nil {
 		if sudo, sErr := exec.LookPath("sudo"); sErr == nil {
 			_ = exec.Command(sudo, "-n", "chown", "root:root", bwrapPath).Run()

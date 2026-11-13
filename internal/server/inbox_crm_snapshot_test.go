@@ -68,7 +68,8 @@ func TestInboxCRMSnapshotsArePerTurnAndDoNotBorrowProfileState(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "--ro-bind "+first+" /cuan-inbox-crm.json") || strings.Contains(joined, second) {
+	canonicalFirst, _ := filepath.EvalSymlinks(first)
+	if (!strings.Contains(joined, "--ro-bind "+first+" /cuan-inbox-crm.json") && !strings.Contains(joined, "--ro-bind "+canonicalFirst+" /cuan-inbox-crm.json")) || strings.Contains(joined, second) {
 		t.Fatal("CRM mount not per execution")
 	}
 	config, err := prepareInboxMCPBoundary(home, true)

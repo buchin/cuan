@@ -35,7 +35,11 @@ func (c *Client) DiscardResolvedRepoCopy(ctx context.Context, base, path string)
 		return 0, err
 	}
 	real, err := filepath.EvalSymlinks(path)
-	if err != nil || real != path || !info.IsDir() {
+	if err != nil || !info.IsDir() {
+		return 0, errors.New("resolved copy is not a private directory")
+	}
+	parentResolved, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil || real != filepath.Join(parentResolved, filepath.Base(path)) {
 		return 0, errors.New("resolved copy is not a private directory")
 	}
 	metadata, err := os.Lstat(filepath.Join(path, ".git"))
@@ -48,7 +52,7 @@ func (c *Client) DiscardResolvedRepoCopy(ctx context.Context, base, path string)
 	}
 	defer lease.Close()
 	root, err := c.snapshotGit(ctx, path, "rev-parse", "--show-toplevel")
-	if err != nil || strings.TrimSpace(string(root)) != path {
+	if err != nil || !equalSourcePaths(strings.TrimSpace(string(root)), path) {
 		return 0, errors.New("resolved copy repository identity is unavailable")
 	}
 	var bytes int64

@@ -38,12 +38,13 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	// 2. Setup a task bound to this room with DoD checklist
 	taskID := "task-scrum-engine-pass"
 	tItem := &task.Task{
-		ID:           taskID,
-		Title:        "Feature Alpha: Implement user export",
-		Instructions: "Implement user export with CSV output and unit tests.",
-		ProjectID:    "default",
-		SourceRoomID: room.ID,
-		Status:       task.TaskStatusDoing,
+		ID:                taskID,
+		Title:             "Feature Alpha: Implement user export",
+		Instructions:      "Implement user export with CSV output and unit tests.",
+		ProjectID:         "default",
+		SourceRoomID:      room.ID,
+		ExecutionCategory: task.ExecutionCategoryOps,
+		Status:            task.TaskStatusDoing,
 		DoDChecklist: []task.DoDItem{
 			{Text: "CSV generator implemented", Completed: true, Evidence: "CSV output matched the fixture schema"},
 			{Text: "Targeted unit tests PASS", Completed: true, Evidence: "targeted CSV tests passed"},
@@ -77,12 +78,20 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	srv.handleRunnerAttemptCompleted(ctx, taskID, attID, string(task.AttemptStatusSucceeded), 0, tItem.Summary, tItem.CompleteNote, "", room.ID)
 
 	// 5. Drain room so review request executes
-	srv.drainInboxRoom(room.ID)
+	deadline := time.Now().Add(2 * time.Second)
+	var detail *task.TaskDetailResponse
+	for time.Now().Before(deadline) {
+		srv.drainInboxRoom(room.ID)
+		detail, _ = srv.taskSvc.GetTaskDetail(ctx, taskID)
+		if detail != nil && detail.Status == task.TaskStatusDone {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
 	// 6. Verify task status is now 'done'
-	detail, err := srv.taskSvc.GetTaskDetail(ctx, taskID)
-	if err != nil {
-		t.Fatalf("failed to get task detail: %v", err)
+	if detail == nil {
+		t.Fatalf("failed to get task detail")
 	}
 	if detail.Status != task.TaskStatusDone {
 		t.Errorf("expected task status 'done', got '%s'", detail.Status)
@@ -251,14 +260,15 @@ func TestAutonomousScrumEngine_GlobalEventBusSubscription(t *testing.T) {
 
 	taskID := "task-scrum-bus-test"
 	_ = srv.taskSvc.Store().CreateTask(ctx, &task.Task{
-		ID:           taskID,
-		Title:        "Bus test task",
-		Instructions: "Verify event bus propagation",
-		ProjectID:    "default",
-		SourceRoomID: room.ID,
-		Status:       task.TaskStatusDoing,
-		Summary:      "Done bus test",
-		CompleteNote: "Verified event bus",
+		ID:                taskID,
+		Title:             "Bus test task",
+		Instructions:      "Verify event bus propagation",
+		ProjectID:         "default",
+		SourceRoomID:      room.ID,
+		ExecutionCategory: task.ExecutionCategoryOps,
+		Status:            task.TaskStatusDoing,
+		Summary:           "Done bus test",
+		CompleteNote:      "Verified event bus",
 	})
 
 	attID := "att-bus-1"

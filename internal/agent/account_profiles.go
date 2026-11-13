@@ -195,6 +195,9 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 		a.State = "login_required"
 		a.Message = "Login Google diperlukan untuk akun ini"
 		a.VerifiedAt = nil
+	} else if a.State == "login_required" {
+		a.State = "unknown"
+		a.Message = "Availability has not been checked."
 	} else if a.State == "quota_limited" && a.QuotaRetryAt != nil && !time.Now().Before(*a.QuotaRetryAt) {
 		a.State = "unknown"
 		a.Message = "Usage cooldown ended. Availability has not been checked."

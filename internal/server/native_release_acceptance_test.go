@@ -71,6 +71,15 @@ func verifyNativeInspectionCompletionAndAcceptance(t *testing.T, s *Server, item
 	if completed.Status != task.AttemptStatusSucceeded {
 		t.Fatal("native verifier completion rejected", completed.ErrorMessage)
 	}
+	if currentLaunch, err := s.taskSvc.GetLaunch(ctx, launch.ID); err == nil && currentLaunch != nil {
+		if currentLaunch.State == "claimed" {
+			_ = s.taskSvc.FinishLaunch(ctx, currentLaunch.ID, currentLaunch.LeaseToken, "stopped", time.Now().UTC(), "")
+		} else if currentLaunch.State == "queued" {
+			if claimed, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "stopper", currentLaunch.ID); err == nil && claimed != nil {
+				_ = s.taskSvc.FinishLaunch(ctx, claimed.ID, claimed.LeaseToken, "stopped", time.Now().UTC(), "")
+			}
+		}
+	}
 	verified, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	must(err)
 	evidence := s.liveInspectionReviewContext(ctx, verified)

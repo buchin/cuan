@@ -50,8 +50,19 @@ func prepareInspectionDependencies(parent context.Context, root string, managedC
 				return fmt.Errorf("automatic verification setup requires credential-free HTTPS package sources")
 			}
 		}
+		if !filepath.IsAbs(directory) {
+			return fmt.Errorf("verification dependency directory must be private")
+		}
+		dirInfo, err := os.Lstat(directory)
+		if err != nil || !dirInfo.IsDir() || dirInfo.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("verification dependency directory must be private")
+		}
 		resolved, err := filepath.EvalSymlinks(directory)
-		if err != nil || resolved != filepath.Clean(directory) {
+		if err != nil {
+			return fmt.Errorf("verification dependency directory must be private")
+		}
+		parentResolved, err := filepath.EvalSymlinks(filepath.Dir(directory))
+		if err != nil || resolved != filepath.Join(parentResolved, filepath.Base(directory)) {
 			return fmt.Errorf("verification dependency directory must be private")
 		}
 		manifestPath := filepath.Join(directory, "package.json")

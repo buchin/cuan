@@ -13,13 +13,25 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/taskprocess"
 )
 
 // Prepare locked PHP dependencies in this private workspace only. Never run
 // Composer scripts/plugins or inherit provider, task, Git or Composer auth.
 func preparePHPDependencies(parent context.Context, root, cacheBase, owner string) error {
+	if !filepath.IsAbs(root) {
+		return fmt.Errorf("PHP dependency workspace must be private")
+	}
+	info, err := os.Lstat(root)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("PHP dependency workspace must be private")
+	}
 	resolved, err := filepath.EvalSymlinks(root)
-	if err != nil || resolved != filepath.Clean(root) {
+	if err != nil {
+		return fmt.Errorf("PHP dependency workspace must be private")
+	}
+	parentResolved, err := filepath.EvalSymlinks(filepath.Dir(root))
+	if err != nil || resolved != filepath.Join(parentResolved, filepath.Base(root)) {
 		return fmt.Errorf("PHP dependency workspace must be private")
 	}
 	read := func(name string, value any) error {
@@ -134,7 +146,7 @@ func preparePHPDependencies(parent context.Context, root, cacheBase, owner strin
 	ctx, cancel := context.WithTimeout(parent, budget)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "composer", "--no-plugins", "--no-scripts", "install", "--prefer-dist", "--no-interaction", "--no-progress")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.SysProcAttr = taskprocess.SysProcAttr()
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return os.ErrProcessDone

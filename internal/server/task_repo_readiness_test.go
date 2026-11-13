@@ -44,6 +44,13 @@ func TestTaskRepoReadiness_HealsStaleLocalPath(t *testing.T) {
 	realDir := filepath.Join(t.TempDir(), "projects", projectID)
 	initTestGitRepo(t, realDir)
 
+	stubBin := t.TempDir()
+	gitStub := "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"fetch\" ]; then exit 0; fi\ndone\nexec /usr/bin/git \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(stubBin, "git"), []byte(gitStub), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", stubBin+":"+os.Getenv("PATH"))
+
 	now := time.Now().UTC()
 	proj := &project.Project{
 		ID:            projectID,

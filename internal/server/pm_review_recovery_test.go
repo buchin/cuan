@@ -136,7 +136,7 @@ printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"### Ev
 		t.Fatal(err)
 	}
 	taskID, attemptID := "pm-markdown-task", "pm-markdown-attempt"
-	item := &task.Task{ID: taskID, ProjectID: "default", SourceRoomID: room.RoomID, AssignedAgent: "agent_lifecycle", Status: "review", Summary: "CSV export", CompleteNote: "Header and row fixture matched", DoDChecklist: []task.DoDItem{{Text: "CSV output", Completed: true, Evidence: "header and row fixture"}}}
+	item := &task.Task{ID: taskID, ProjectID: "default", SourceRoomID: room.RoomID, AssignedAgent: "agent_lifecycle", ExecutionCategory: task.ExecutionCategoryOps, Status: "review", Summary: "CSV export", CompleteNote: "Header and row fixture matched", DoDChecklist: []task.DoDItem{{Text: "CSV output", Completed: true, Evidence: "header and row fixture"}}}
 	if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
 		t.Fatal(err)
 	}

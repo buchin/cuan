@@ -17,9 +17,17 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+func canonicalTempDir(t *testing.T) string {
+	d := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(d); err == nil {
+		return resolved
+	}
+	return d
+}
+
 func TestInboxProjectScopeSnapshotAndWorkspace(t *testing.T) {
 	ctx := context.Background()
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	repo := filepath.Join(root, "repo")
 	os.Mkdir(repo, 0700)
 	run := func(args ...string) {
@@ -112,7 +120,7 @@ func TestInboxProjectScopeSnapshotAndWorkspace(t *testing.T) {
 }
 
 func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
-	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	home, workspace, bin := canonicalTempDir(t), canonicalTempDir(t), canonicalTempDir(t)
 	script := "#!/bin/sh\npython3 - \"$*\" <<'PY'\nimport os,sys,json\nopen(os.path.join(os.environ['HOME'],'cli-args'),'w').write(sys.argv[1])\nprint(json.dumps({'event':'result','result':{'status':'SUCCESS','response':json.dumps({'reply':os.environ['HOME']+'\\n'+os.getcwd(),'topic_title':'','action':None})}}))\nPY\n"
 	os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700)
 	installInboxSandboxStub(t, bin)
@@ -129,7 +137,7 @@ func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 
 func TestInboxProjectContextMetricsAndBlockerDiagnostics(t *testing.T) {
 	ctx := context.Background()
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	repo := filepath.Join(root, "repo")
 	os.Mkdir(repo, 0700)
 	c := exec.Command("git", "-C", repo, "init", "-q")
@@ -294,7 +302,7 @@ func TestInboxProjectContext_DatabaseStatusConsistency(t *testing.T) {
 
 func TestInboxProjectContextDynamicIntelligence(t *testing.T) {
 	ctx := context.Background()
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	repo := filepath.Join(root, "repo")
 	os.Mkdir(repo, 0700)
 	c := exec.Command("git", "-C", repo, "init", "-q")

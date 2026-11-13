@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -11,16 +12,33 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sync"
 	"time"
 )
 
 var safeSocketNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_\-]`)
 
+func socketDir() string {
+	// Unix domain socket paths have strict length limits: 104 bytes on Darwin/BSD,
+	// 108 bytes on Linux. On Darwin, os.TempDir() (/var/folders/...) is ~50 bytes.
+	// Prefer /tmp on Unix systems when available to stay safely under 104 bytes.
+	if runtime.GOOS != "windows" {
+		if fi, err := os.Stat("/tmp"); err == nil && fi.IsDir() {
+			return "/tmp"
+		}
+	}
+	return os.TempDir()
+}
+
 // SocketPath returns the standard Unix domain socket path for a task terminal.
 func SocketPath(taskID string) string {
 	safe := safeSocketNameRegex.ReplaceAllString(taskID, "_")
-	return filepath.Join(os.TempDir(), fmt.Sprintf("cuan-pty-%s.sock", safe))
+	if len(safe) > 32 {
+		h := sha256.Sum256([]byte(taskID))
+		safe = fmt.Sprintf("%s_%s", safe[:16], hex.EncodeToString(h[:4]))
+	}
+	return filepath.Join(socketDir(), fmt.Sprintf("cuan-pty-%s.sock", safe))
 }
 
 // SocketExists checks if a terminal Unix socket currently exists and is active.

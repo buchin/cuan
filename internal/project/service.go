@@ -280,11 +280,13 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 	if p.ID == "default" && p.RepoURL == "" && p.LocalPath == "" {
 		return
 	}
-	// A stored path that belongs to this project is authoritative, whether or not
-	// the directory exists yet; provisioning creates it later. Only a path that
-	// points at a different project's workspace is corrected here.
+	// A stored path that belongs to this project and exists on disk is authoritative.
+	// If the stored path is missing, check whether a candidate carrying this project's
+	// own ID exists before falling back to unprovisioned workspace paths.
 	if p.LocalPath != "" && s.ownsWorkspace(p) {
-		return
+		if fi, err := os.Stat(p.LocalPath); err == nil && fi.IsDir() {
+			return
+		}
 	}
 
 	// Only a directory that carries this project's own identity may be adopted.
@@ -305,6 +307,12 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 			_ = s.store.UpdateProject(ctx, p)
 			return
 		}
+	}
+
+	// A path that already belongs to this project is preserved even before its
+	// directory exists, because provisioning creates it later.
+	if p.LocalPath != "" && s.ownsWorkspace(p) {
+		return
 	}
 
 	// No candidate directory exists yet. Record the project's own workspace path

@@ -76,8 +76,11 @@ def referenced(root, proc=Path('/proc')):
 
 
 def mounted_dependency(modules):
+    mountinfo = Path('/proc/self/mountinfo')
+    if not mountinfo.is_file():
+        return False
     try:
-        for line in Path('/proc/self/mountinfo').read_text().splitlines():
+        for line in mountinfo.read_text().splitlines():
             target = re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), line.split()[4])
             if target == str(modules) or target.startswith(str(modules) + '/'):
                 return True

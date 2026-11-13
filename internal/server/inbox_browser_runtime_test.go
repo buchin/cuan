@@ -36,6 +36,7 @@ func inboxBrowserFixture(t *testing.T) (browserfetch.Manifest, string) {
 		t.Fatal(err)
 	}
 	t.Setenv("CUAN_CHAT_BROWSER_MANIFEST", path)
+	t.Setenv("PATH", root+":"+os.Getenv("PATH"))
 	return manifest, path
 }
 

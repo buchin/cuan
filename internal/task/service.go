@@ -182,6 +182,13 @@ func (s *Service) CreateTaskFromMessage(ctx context.Context, author, source stri
 	}
 	return result, err
 }
+func maskTaskInstructions(raw string) string {
+	if start, _ := project.FindSnapshotMarker(raw); start >= 0 {
+		return agent.MaskSecrets(raw[:start], nil) + raw[start:]
+	}
+	return agent.MaskSecrets(raw, nil)
+}
+
 func (s *Service) createTaskWithID(ctx context.Context, author string, req CreateTaskRequest, id string) (*Task, error) {
 	title := strings.TrimSpace(req.Title)
 	inferredTitle, inferredPriority := inferPrompt(req.Instructions)
@@ -230,12 +237,16 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		initialStatus = req.Status
 	}
 	instructions := strings.TrimSpace(req.Instructions)
+	// Redact credential material from user input while preserving any pre-attached project guidance snapshot.
+	instructions = maskTaskInstructions(instructions)
 	if s.projectFinder != nil && projectID != "" {
 		p, err := s.projectFinder.Get(ctx, projectID)
 		if err != nil || p == nil {
 			return nil, fmt.Errorf("%w: project is unavailable", ErrInvalidTaskInput)
 		}
-		instructions = project.SnapshotProjectGuidance(instructions, p)
+		if !project.HasSnapshot(instructions) {
+			instructions = project.SnapshotProjectGuidance(instructions, p)
+		}
 		if len([]rune(instructions)) > 24000 {
 			return nil, fmt.Errorf("%w: instructions and project guidance exceed 24000 characters", ErrInvalidTaskInput)
 		}
@@ -251,10 +262,6 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		executionCategory = InferExecutionCategory(title, instructions)
 	}
 	executionCategory = scopeConstrainedCategory(title, instructions, executionCategory)
-	// Every task creation path funnels through here, and instructions are
-	// persisted and later replayed to a provider. Redact credential material
-	// once at this boundary so no caller can leak it by omission.
-	instructions = agent.MaskSecrets(instructions, nil)
 	t := &Task{
 		CreationHash:      taskCreationHash(req),
 		DoDChecklist:      append([]DoDItem{}, req.DoDChecklist...),
@@ -736,6 +743,7 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 		return nil, err
 	}
 
+	var launchIsTypedContinuation bool
 	if req.RequestID != "" {
 		if existing, err := s.FindRequestAttempt(ctx, taskID, req.RequestID, req.RequestHash); err != nil {
 			return nil, err
@@ -755,6 +763,15 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 				if release != nil && req.ExpectedPredecessorID != release.PredecessorAttemptID() {
 					return nil, ErrRequestConflict
 				}
+				if release != nil {
+					launchIsTypedContinuation = true
+				}
+				if v, _ := VerificationIntentForLaunch(t, launch); v != nil {
+					launchIsTypedContinuation = true
+				}
+				if i, _ := LiveInspectionForLaunch(t, launch); i != nil {
+					launchIsTypedContinuation = true
+				}
 			}
 		}
 	}
@@ -765,8 +782,8 @@ func (s *Service) CreateAttempt(ctx context.Context, taskID string, author strin
 	// are not automatic repeats: typed native continuations (verification,
 	// inspection, release handoff) are new stages of an approved workflow, and an
 	// owner-authorized continuation carries fresh consent from a later user turn.
-	typedContinuation := req.ExpectedPredecessorID != "" || req.InitializeQueuedTask
-	if !typedContinuation && !req.OwnerAuthorized {
+	typedContinuation := req.ExpectedPredecessorID != "" || req.InitializeQueuedTask || launchIsTypedContinuation
+	if !typedContinuation && !req.OwnerAuthorized && author != "owner" {
 		if attempts, listErr := s.store.ListAttempts(ctx, taskID); listErr == nil && len(attempts) > 0 {
 			business, latest, previous := businessAttempts(attempts)
 			if business >= MaxAttemptsFor() {

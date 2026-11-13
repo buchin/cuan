@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/studio"
 )
@@ -323,8 +324,13 @@ func (s *Server) handleUpdateProjectRoom(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	owner := s.accountOwner(w, r)
-	s.markRoomTitleManual(owner, room.ID, title)
+	var ownerID string
+	if s.authSvc != nil {
+		if owner, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); err == nil && owner != nil {
+			ownerID = owner.ID
+		}
+	}
+	s.markRoomTitleManual(ownerID, room.ID, title)
 
 	if s.roomEventBroker != nil {
 		s.roomEventBroker.Broadcast(room.ID, "room.updated", room.ToDTO())

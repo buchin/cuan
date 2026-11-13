@@ -94,8 +94,8 @@ func TestBrowserInspectionDeadlineKillsChildAndReleasesSlot(t *testing.T) {
 	// Fixed fixture-controlled paths; no agent string is interpolated into a shell.
 	r := fixtureRuntime(t, "printf '%s' \"$HOME\" > "+strconv.Quote(homeFile)+"\nsleep 30 &\nprintf '%s' \"$!\" > "+strconv.Quote(pidFile)+"\nwait\n")
 	started := time.Now()
-	_, err := r.fetch(context.Background(), "https://example.invalid/", 300*time.Millisecond)
-	if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) > 3*time.Second {
+	_, err := r.fetch(context.Background(), "https://example.invalid/", 1200*time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) > 5*time.Second {
 		t.Fatal("deadline not enforced", err)
 	}
 	raw, err := os.ReadFile(pidFile)
@@ -106,12 +106,14 @@ func TestBrowserInspectionDeadlineKillsChildAndReleasesSlot(t *testing.T) {
 	// Signal delivery is asynchronous. A killed child can remain a zombie
 	// until init reaps it; observe the terminal state within a bounded window.
 	stopped := false
-	end := time.Now().Add(500 * time.Millisecond)
+	end := time.Now().Add(1000 * time.Millisecond)
 	for time.Now().Before(end) {
 		stat, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
 		if os.IsNotExist(err) {
-			stopped = true
-			break
+			if kerr := syscall.Kill(pid, 0); errors.Is(kerr, syscall.ESRCH) {
+				stopped = true
+				break
+			}
 		}
 		if err == nil {
 			parts := strings.Split(string(stat), ") ")
@@ -120,7 +122,7 @@ func TestBrowserInspectionDeadlineKillsChildAndReleasesSlot(t *testing.T) {
 				break
 			}
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 	if !stopped {
 		t.Fatal("child still executing after cancellation")

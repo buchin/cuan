@@ -41,7 +41,7 @@ func runInboxPlanApproval(t *testing.T, deferFirst bool, deniedFirst ...bool) {
 	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
 	script := `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
- guide="${3##*Read the session guidance at }";guide="${guide% before proceeding.}"
+ guide="${3##*Read the session guidance at }";guide="${guide%% before proceeding*}"
  grep -q 'Read-only navigation audit. Report evidence. Do not modify or deploy.' "$guide" || exit 21
  "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Audit complete' --complete-note 'Read-only fixture verified; no deployment' >/dev/null || exit 22
  while :;do sleep 1;done

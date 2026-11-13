@@ -88,6 +88,17 @@ func snapshotBody(text string, start, size int) string {
 	return strings.TrimSpace(body)
 }
 
+// HasSnapshot reports whether instructions already contain an embedded project context snapshot.
+func HasSnapshot(text string) bool {
+	start, _ := findSnapshotMarker(text)
+	return start >= 0
+}
+
+// FindSnapshotMarker reports the start position and length of the embedded project guidance snapshot.
+func FindSnapshotMarker(text string) (int, int) {
+	return findSnapshotMarker(text)
+}
+
 func findSnapshotMarker(text string) (int, int) {
 	if at := strings.LastIndex(text, snapshotMarker); at >= 0 {
 		return at, len(snapshotMarker)

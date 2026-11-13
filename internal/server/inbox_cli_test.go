@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -185,7 +186,7 @@ else
     # Recovery must receive the completed observation, not discard it.
     case "$*" in *public-fixture-observed*) ;; *) exit 9;; esac
     # Second invocation (recovery): return direct synthesis with action: null
-    printf '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis komponen filter tasks telah diperiksa sebagian dari konteks yang ada.\",\"topic_title\":\"\",\"action\":null}"}}\n'
+    printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis komponen filter tasks telah diperiksa sebagian dari konteks yang ada.\",\"topic_title\":\"\",\"action\":null}"}}'
     exit 0
 fi
 `
@@ -259,7 +260,7 @@ while [ "$i" -le 50 ]; do
     printf '{"event":"step_update","step_update":{"step_index":%d,"state":"DONE","step_type":"tool","tool_name":"read_file"}}\n' "$i"
     i=$((i + 1))
 done
-printf '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis 50 berkas kode telah selesai secara menyeluruh tanpa kendala.\",\"topic_title\":\"\",\"action\":null}"}}\n'
+printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Analisis 50 berkas kode telah selesai secara menyeluruh tanpa kendala.\",\"topic_title\":\"\",\"action\":null}"}}'
 exit 0
 `
 	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
@@ -373,7 +374,8 @@ func TestInboxProviderSignalIsRecordedWithoutInventingCompletion(t *testing.T) {
 			result = text
 		}
 	})
-	if out != "" || failure == "" || !strings.Contains(result, "signal 10") {
+	wantSignal := fmt.Sprintf("signal %d", syscall.SIGUSR1)
+	if out != "" || failure == "" || !strings.Contains(result, wantSignal) {
 		t.Fatalf("missing process signal: out=%q failure=%q result=%q", out, failure, result)
 	}
 }

@@ -205,8 +205,16 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
+	dirLstat, err := os.Lstat(dir)
+	if err != nil || !dirLstat.IsDir() || dirLstat.Mode()&os.ModeSymlink != 0 {
+		return errors.New("CLI settings directory needs review; no settings were changed")
+	}
 	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil || resolved != dir {
+	if err != nil {
+		return errors.New("CLI settings directory needs review; no settings were changed")
+	}
+	parentResolved, err := filepath.EvalSymlinks(filepath.Dir(dir))
+	if err != nil || resolved != filepath.Join(parentResolved, filepath.Base(dir)) {
 		return errors.New("CLI settings directory needs review; no settings were changed")
 	}
 	path := filepath.Join(dir, "settings.json")
@@ -313,8 +321,16 @@ func PrepareAntigravityReadOnlyPermissions(home string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
+	dirLstat, err := os.Lstat(dir)
+	if err != nil || !dirLstat.IsDir() || dirLstat.Mode()&os.ModeSymlink != 0 {
+		return errors.New("CLI settings directory needs review; no settings were changed")
+	}
 	resolved, err := filepath.EvalSymlinks(dir)
-	if err != nil || resolved != dir {
+	if err != nil {
+		return errors.New("CLI settings directory needs review; no settings were changed")
+	}
+	parentResolved, err := filepath.EvalSymlinks(filepath.Dir(dir))
+	if err != nil || resolved != filepath.Join(parentResolved, filepath.Base(dir)) {
 		return errors.New("CLI settings directory needs review; no settings were changed")
 	}
 	path := filepath.Join(dir, "settings.json")

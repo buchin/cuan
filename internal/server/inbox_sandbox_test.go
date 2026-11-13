@@ -107,9 +107,12 @@ func TestInboxExternalSandboxMountsUserLocalBin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	canonicalUserBin, _ := filepath.EvalSymlinks(userBin)
 	found := false
 	for i := 0; i < len(args)-2; i++ {
-		if args[i] == "--ro-bind" && args[i+1] == userBin && args[i+2] == userBin {
+		arg1, _ := filepath.EvalSymlinks(args[i+1])
+		arg2, _ := filepath.EvalSymlinks(args[i+2])
+		if args[i] == "--ro-bind" && (args[i+1] == userBin || arg1 == canonicalUserBin) && (args[i+2] == userBin || arg2 == canonicalUserBin) {
 			found = true
 			break
 		}
@@ -193,8 +196,10 @@ func TestInboxSandboxMasksMCPConnectionsWithoutChangingProfile(t *testing.T) {
 	}
 	for _, target := range targets {
 		masked := false
+		canonicalTarget, _ := filepath.EvalSymlinks(target)
 		for i := 0; i+2 < len(args); i++ {
-			if args[i] == "--ro-bind" && args[i+2] == target && args[i+1] != target {
+			arg2, _ := filepath.EvalSymlinks(args[i+2])
+			if args[i] == "--ro-bind" && (args[i+2] == target || arg2 == canonicalTarget) && args[i+1] != target {
 				raw, err := os.ReadFile(args[i+1])
 				if err != nil || string(raw) != inboxPublicWebMCPConfig {
 					t.Fatal("invalid public web MCP boundary")

@@ -463,21 +463,15 @@ func InspectSystemHealth(ctx context.Context, targetPath string) (*SystemHealthR
 		res.Healthy = false
 	}
 
-	// 2. Memory inspection via /proc/meminfo or sysinfo
-	inspectMemoryLinux(&res.Memory)
+	// 2. Memory inspection via platform sysinfo/proc
+	inspectMemory(&res.Memory)
 	if res.Memory.UsedPercent >= 90.0 {
 		res.Memory.Warning = true
 		res.Healthy = false
 	}
 
 	// 3. Sysinfo for uptime and load average
-	var si syscall.Sysinfo_t
-	if err := syscall.Sysinfo(&si); err == nil {
-		res.UptimeSeconds = uint64(si.Uptime)
-		res.LoadAverages[0] = float64(si.Loads[0]) / 65536.0
-		res.LoadAverages[1] = float64(si.Loads[1]) / 65536.0
-		res.LoadAverages[2] = float64(si.Loads[2]) / 65536.0
-	}
+	collectSystemLoad(res)
 
 	return res, nil
 }

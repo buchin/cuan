@@ -167,7 +167,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			Info     map[string]json.RawMessage `json:"tool_info"`
 		} `json:"step_update"`
 	}
-	if json.Unmarshal(line, &e) != nil {
+	if err := json.Unmarshal(line, &e); err != nil {
 		s.invalid = true
 		return
 	}

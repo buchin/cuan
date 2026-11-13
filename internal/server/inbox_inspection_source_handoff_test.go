@@ -184,7 +184,7 @@ func TestSuccessfulNegativeInspectionResumesOriginalDeveloperScope(t *testing.T)
 			if _, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "developer", launch.ID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID}); err != nil {
+			if _, err := s.taskSvc.CreateAttempt(ctx, d.ID, origin.OwnerID, task.CreateAttemptRequest{RunnerID: "cuan-runner", AgentName: d.AssignedAgent, RequestID: launch.RequestID, OwnerAuthorized: true}); err != nil {
 				t.Fatal("developer reservation rejected", err)
 			}
 			service := runner.NewService(runner.NewMemoryStore(s.taskSvc.Store()), s.taskSvc.Store(), nil)

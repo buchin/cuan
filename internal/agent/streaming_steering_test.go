@@ -134,7 +134,7 @@ func TestAGYAdapter_StreamJSONChunksAndResult(t *testing.T) {
 	scriptContent := `#!/bin/sh
 echo '{"event":"init","init":{"tools":["run_command"]}}'
 echo '{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}'
-echo '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"Processing task\n"}}'
+echo '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"Processing task\\n"}}'
 echo '{"event":"result","result":{"status":"SUCCESS","response":"Done streaming chunks","duration_seconds":1.2,"num_turns":1}}'
 `
 	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {

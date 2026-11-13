@@ -57,6 +57,10 @@ func verifyDocumentationChanges(ctx context.Context, root, branch string) *verif
 		}
 	}
 	checked, deleted := 0, 0
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		realRoot = filepath.Clean(root)
+	}
 	for name := range paths {
 		path := filepath.Join(root, name)
 		info, err := os.Lstat(path)
@@ -74,7 +78,7 @@ func verifyDocumentationChanges(ctx context.Context, root, branch string) *verif
 		if err != nil {
 			return &verificationResult{Error: "Documentation verification failed: unresolved file"}
 		}
-		rel, err := filepath.Rel(root, resolved)
+		rel, err := filepath.Rel(realRoot, resolved)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return &verificationResult{Error: "Documentation verification failed: file outside workspace"}
 		}

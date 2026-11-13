@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -362,6 +363,9 @@ func TestDeployerMigrations(t *testing.T) {
 
 // TestLocalDriverLifecycle verifies Deploy, Start, Stop, Restart, and GetLogs using LocalDriver.
 func TestLocalDriverLifecycle(t *testing.T) {
+	if _, err := exec.LookPath("php"); err != nil {
+		t.Skip("skipping PHP execution test; php binary not found in PATH")
+	}
 	tempDir := t.TempDir()
 	storage, err := NewStorageEngine(filepath.Join(tempDir, "deployments"))
 	if err != nil {
@@ -746,6 +750,9 @@ func TestLocalDriver_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("PHPRuntime_Lifecycle", func(t *testing.T) {
+		if _, err := exec.LookPath("php"); err != nil {
+			t.Skip("skipping PHP execution test; php binary not found in PATH")
+		}
 		tempDir := t.TempDir()
 		storage, err := NewStorageEngine(filepath.Join(tempDir, "deployments"))
 		if err != nil {

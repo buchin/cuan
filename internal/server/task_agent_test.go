@@ -315,7 +315,7 @@ func TestTaskAgentInteractiveTurnAndReportedFinish(t *testing.T) {
 [ "$2" = "--prompt-interactive" ] || exit 22
 [ "$4" = "--add-dir" ] && [ "$5" = "$PWD" ] || exit 26
 guide="${3##*Read the session guidance at }"
-guide="${guide% before proceeding.}"
+guide="${guide%% before proceeding*}"
 [ -r "$guide" ] || exit 27
 grep -F "$PWD" "$guide" >/dev/null || exit 28
 "$CUAN_TASK_EXECUTABLE" task --help | grep -F 'dod_checklist' >/dev/null || exit 29

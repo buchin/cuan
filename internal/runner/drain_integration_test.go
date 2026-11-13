@@ -206,8 +206,12 @@ func TestRunner_SelfUpdate_OnTaskCompletion(t *testing.T) {
 	if !updateRestarted {
 		t.Fatal("expected restart function to be invoked")
 	}
-	if updatedPath != targetBin {
-		t.Fatalf("expected restart target to be %s, got %s", targetBin, updatedPath)
+	targetResolved, err := filepath.EvalSymlinks(targetBin)
+	if err != nil {
+		targetResolved = targetBin
+	}
+	if updatedPath != targetResolved {
+		t.Fatalf("expected restart target to be %s, got %s", targetResolved, updatedPath)
 	}
 	t.Log("✓ Self-update successfully verified and triggered handover to new binary")
 }

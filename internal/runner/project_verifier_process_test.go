@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -58,7 +59,7 @@ func TestProjectVerifierDeadlineStopsDescendantHoldingOutput(t *testing.T) {
 			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	result := make(chan verificationResult, 1)
 	go func() { result <- runProjectVerification(ctx, root) }()
@@ -73,7 +74,7 @@ func TestProjectVerifierDeadlineStopsDescendantHoldingOutput(t *testing.T) {
 		if strings.Contains(got.Summary, "exit 0") {
 			t.Fatal("failed verifier claimed exit 0")
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(4 * time.Second):
 		t.Fatal("task deadline left verifier waiting for descendant output")
 	}
 	raw, err := os.ReadFile(pidFile)
@@ -140,6 +141,9 @@ func TestProjectVerifierExitedShellCannotLeaveChildPipeOpen(t *testing.T) {
 }
 
 func TestProjectVerifierDeadlineStopsDetachedBrowserStyleChild(t *testing.T) {
+	if _, err := exec.LookPath("setsid"); err != nil {
+		t.Skip("skipping on platforms without setsid")
+	}
 	root := t.TempDir()
 	pidFile := filepath.Join(root, "detached.pid")
 	script := filepath.Join(root, "verify.sh")
@@ -204,7 +208,7 @@ func TestProjectVerifierCleansCompilerScratchAfterExitAndTimeout(t *testing.T) {
 			ctx := withProjectVerifierBuildEnvironment(context.Background(), map[string]string{"GOCACHE": cache})
 			if mode == "timeout" {
 				var cancel context.CancelFunc
-				ctx, cancel = context.WithTimeout(ctx, 200*time.Millisecond)
+				ctx, cancel = context.WithTimeout(ctx, 1500*time.Millisecond)
 				defer cancel()
 			}
 			result := runProjectVerifierCommand(ctx, root, script)

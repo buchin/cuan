@@ -158,8 +158,9 @@ def compact(snapshots, apply=False, minimum=48 * 3600, now=None, proc=Path('/pro
     now = time.time() if now is None else now
     report = {'eligible': [], 'compacted': [], 'retained': {}, 'busy': 0, 'failed': 0,
               'reclaimed_materialized_bytes': 0, 'git_objects_preserved': True}
-    if snapshots.is_symlink() or not snapshots.is_dir() or snapshots.resolve() != snapshots:
+    if snapshots.is_symlink() or not snapshots.is_dir():
         return report
+    snapshots = snapshots.resolve()
     deadline, changes = time.monotonic() + 20, 0
     for root in sorted(snapshots.iterdir()):
         if time.monotonic() >= deadline or changes >= 3:

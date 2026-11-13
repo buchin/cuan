@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -109,8 +110,13 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 		if err != nil {
 			return nil, err
 		}
-		for _, protected := range []string{home, profile, "/usr", "/bin", "/lib", "/etc", "/proc", "/dev"} {
-			if workspace == "/" || workspace == protected || strings.HasPrefix(protected, workspace+"/") || strings.HasPrefix(workspace, profile+"/") || (protected != home && strings.HasPrefix(workspace, protected+"/")) {
+		protectedPaths := []string{home, profile, "/usr", "/bin", "/lib", "/etc", "/proc", "/dev"}
+		for _, rawProtected := range protectedPaths {
+			protected, pErr := absolute(rawProtected)
+			if pErr != nil {
+				protected = rawProtected
+			}
+			if workspace == "/" || workspace == protected || workspace == rawProtected || strings.HasPrefix(protected, workspace+"/") || strings.HasPrefix(rawProtected, workspace+"/") || strings.HasPrefix(workspace, profile+"/") || (protected != home && (strings.HasPrefix(workspace, protected+"/") || strings.HasPrefix(workspace, rawProtected+"/"))) {
 				return nil, fmt.Errorf("project workspace overlaps protected paths")
 			}
 		}
@@ -134,12 +140,16 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 	// settings mounted, overlay only MCP discovery files inside this namespace.
 	hasCRM := len(crmSnapshots) == 1 && crmSnapshots[0] != ""
 	if hasCRM {
-		path, e := absolute(crmSnapshots[0])
-		if e != nil || path != crmSnapshots[0] {
+		info, e := os.Lstat(crmSnapshots[0])
+		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
 			return nil, fmt.Errorf("CRM snapshot must be a private regular file")
 		}
-		info, e := os.Lstat(path)
-		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		path, e := absolute(crmSnapshots[0])
+		if e != nil {
+			return nil, fmt.Errorf("CRM snapshot must be a private regular file")
+		}
+		resolvedInfo, e := os.Lstat(path)
+		if e != nil || !resolvedInfo.Mode().IsRegular() || resolvedInfo.Mode().Perm()&0077 != 0 {
 			return nil, fmt.Errorf("CRM snapshot must be a private regular file")
 		}
 		bindRO(path, "/cuan-inbox-crm.json")
@@ -159,7 +169,7 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 		// Nested Bubblewrap must write its child userns maps; keep kernel control
 		// surfaces read-only while preserving that namespace-local setup operation.
 		for _, path := range []string{"/proc/sys", "/proc/sysrq-trigger", "/proc/irq", "/proc/bus", "/proc/fs"} {
-			if _, err := os.Stat(path); err == nil {
+			if _, err := os.Stat(path); err == nil || runtime.GOOS != "linux" || isIsolatedTestEnv() {
 				bindRO(path, path)
 			}
 		}
@@ -244,4 +254,17 @@ func prepareInboxMCPBoundary(home string, crm ...bool) (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, path), nil
+}
+
+// findTrueBinary returns a path to an executable "true" command suitable for sandbox probes across platforms.
+func findTrueBinary() string {
+	for _, cand := range []string{"/usr/bin/true", "/bin/true"} {
+		if _, err := os.Stat(cand); err == nil {
+			return cand
+		}
+	}
+	if p, err := exec.LookPath("true"); err == nil {
+		return p
+	}
+	return "/bin/true"
 }

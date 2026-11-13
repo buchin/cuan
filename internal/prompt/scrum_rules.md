@@ -38,10 +38,11 @@ Sprint dilarang masuk `running` sebelum scope disetujui PO.
 - AgentSession wajib laporkan progres, bukti verifikasi, commit, deployment, dan blocker.
 - Automated test targeted & efisien: wajib terarah (file/fitur spesifik), dilarang full test suite jika tidak esensial.
 - Penilaian manusia diperankan agent yang sesuai, bukan PO. Browser & resource berat digunakan seperlunya.
+- **Perbaikan dari Akarnya (Anti-Tambal Sulam):** Setiap error, bug, atau kegagalan wajib diselesaikan dari akarnya (Root Cause Analysis - RCA). Dilarang keras tambal sulam: dilarang quick hack, dilarang regex serampangan pada data terstruktur, dilarang supresi/menelan error, dilarang bypass palsu, dan dilarang mematikan/melemahkan assertion test.
 
 ## 7. Evaluasi DoD
 SM evaluasi bukti vs DoD setelah AgentSession melapor:
-- **Hakikat DoD:** Definisi Done hakiki adalah terwujudnya Intensi Pengguna (User Intent) yang terekam dalam obrolan percakapan dan lampiran visual/file. Checklist tekstual adalah hipotesis awal; bukti kelulusan WAJIB berupa Observable Delta nyata pada komponen/sistem riil (bukan mock test sintetis buatan agent sendiri).
+- **Hakikat DoD:** Definisi Done hakiki adalah terwujudnya Intensi Pengguna (User Intent) yang terekam dalam obrolan percakapan dan lampiran visual/file. Checklist tekstual adalah hipotesis awal; bukti kelulusan WAJIB berupa Observable Delta nyata pada komponen/sistem riil (bukan mock test sintetis buatan agent sendiri). Masalah user wajib terselesaikan tuntas dari akarnya, bukan sekadar menyamarkan gejala error.
 - **Lulus:** nyatakan selesai & JALANKAN task BERIKUTNYA (WAJIB).
 - **Belum lulus (agent-fixable):** perbarui arahan & lanjutkan AgentSession.
 - **Tidak agent-fixable:** catat blocker, dampak, bukti & opsi di dokumen sprint untuk Sprint Review.

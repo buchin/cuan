@@ -37,7 +37,11 @@ func TestBrowserRuntimeExposesInstalledOfficialToolOutsideWorkspace(t *testing.T
 		t.Fatal(err)
 	}
 	prompt := browserRuntimeEnvironment(env, true)
-	if env["CUAN_BROWSER_MODULE"] != module || env["CUAN_BROWSER_CLI"] != filepath.Join(bin, "cuan-browser") || !strings.Contains(prompt, "instead of searching") {
+	resolvedModule, err := filepath.EvalSymlinks(module)
+	if err != nil {
+		resolvedModule = module
+	}
+	if env["CUAN_BROWSER_MODULE"] != resolvedModule || env["CUAN_BROWSER_CLI"] != filepath.Join(bin, "cuan-browser") || !strings.Contains(prompt, "instead of searching") {
 		t.Fatal("missing installed tool context")
 	}
 	if env["PLAYWRIGHT_BROWSERS_PATH"] != filepath.Join(root, "cache", "ms-playwright") {

@@ -150,6 +150,9 @@ func TestApprovedPhaseRecoveryCompletesPersistedReviewAfterAcceptanceOutage(t *t
 	if err := underlying.UpdateTask(ctx, row); err != nil {
 		t.Fatal(err)
 	}
+	if err := underlying.CreateActivity(ctx, &task.TaskActivity{ID: "scope:" + parent.LatestAttempt.ID, TaskID: parent.ID, AttemptID: &parent.LatestAttempt.ID, ActivityType: "repository_scope_verified", Author: parent.LatestAttempt.RunnerID, NewStatus: "read_only", Message: "Runner verified unchanged repository state", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
 	key := "task-review:" + parent.LatestAttempt.ID
 	q := origin
 	q.RequestID = delegationMessageID(key)

@@ -169,7 +169,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	child.Env = childEnv
 	// The agent cannot survive an abruptly killed supervisor. LockOSThread keeps
 	// the Linux parent-death binding tied to this live supervisor thread.
-	child.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL, Setpgid: true}
+	child.SysProcAttr = SysProcAttr()
 	// The lock is intentionally not inherited by provider children: a deployed
 	// service may outlive the task without retaining task execution ownership.
 	if err := child.Start(); err != nil {
@@ -184,7 +184,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		signal.Ignore(syscall.SIGTTOU)
 		ttyErr := unix.IoctlSetPointerInt(int(tty.Fd()), unix.TIOCSPGRP, child.Process.Pid)
 		signal.Reset(syscall.SIGTTOU)
-		if ttyErr != nil && !errors.Is(ttyErr, syscall.ENOTTY) {
+		if ttyErr != nil && !errors.Is(ttyErr, syscall.ENOTTY) && !errors.Is(ttyErr, syscall.ENODEV) && !errors.Is(ttyErr, syscall.ENOTSUP) && !errors.Is(ttyErr, syscall.EINVAL) {
 			_ = syscall.Kill(-child.Process.Pid, syscall.SIGKILL)
 			_ = child.Wait()
 			fmt.Fprintln(stderr, "The task terminal could not be prepared.")

@@ -173,7 +173,7 @@ esac
 		proposal := response("```cuan-approval\n{\"title\":\"Fresh work\",\"description\":\"Verify the requested result. Do not deploy.\",\"project_id\":\"default\"}\n```")
 		script = `#!/bin/sh
 if [ "$1" = "--dangerously-skip-permissions" ]; then
- guide="${3##*Read the session guidance at }"; guide="${guide% before proceeding.}"
+ guide="${3##*Read the session guidance at }"; guide="${guide%% before proceeding*}"
  sed -n 's/^Approval message: //p' "$guide" | head -n 1 > "$HOME/fresh-auth"
  if [ ! -f "$HOME/fresh-artifact" ]; then
   echo ORIGINAL_ARTIFACT > "$HOME/fresh-artifact"

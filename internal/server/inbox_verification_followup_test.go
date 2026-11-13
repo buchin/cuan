@@ -190,7 +190,7 @@ func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDeta
 	if _, err = store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "verifier-launch", job.ID); err != nil {
 		t.Fatal(err)
 	}
-	att, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: job.RequestID})
+	att, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: job.RequestID, OwnerAuthorized: true})
 	if err != nil {
 		t.Fatal(err)
 	}

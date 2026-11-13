@@ -15,12 +15,23 @@ import (
 // maintenance. The inode stays in .git, outside source fingerprints, and must
 // never be unlinked: waiting processes must all lock the same inode.
 func AcquireVerificationLease(ctx context.Context, root string) (*os.File, error) {
+	if !filepath.IsAbs(root) {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
+	info, err := os.Lstat(root)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
 	real, err := filepath.EvalSymlinks(root)
-	if err != nil || real != filepath.Clean(root) || !filepath.IsAbs(root) {
+	if err != nil {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
+	realParent, err := filepath.EvalSymlinks(filepath.Dir(root))
+	if err != nil || real != filepath.Join(realParent, filepath.Base(root)) {
 		return nil, errors.New("verification lease requires a private snapshot")
 	}
 	metadata := filepath.Join(root, ".git")
-	info, err := os.Lstat(metadata)
+	info, err = os.Lstat(metadata)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("verification lease requires private repository metadata")
 	}

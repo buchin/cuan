@@ -32,9 +32,13 @@ func browserRuntimeEnvironment(env map[string]string, requiresVision bool) strin
 	if json.Unmarshal(raw, &pkg) != nil || pkg.Name != "playwright-core" {
 		return ""
 	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return ""
+	cache := os.Getenv("XDG_CACHE_HOME")
+	if cache == "" {
+		var err error
+		cache, err = os.UserCacheDir()
+		if err != nil {
+			return ""
+		}
 	}
 	env["PLAYWRIGHT_BROWSERS_PATH"] = filepath.Join(cache, "ms-playwright")
 	env["CUAN_BROWSER_CLI"] = cli

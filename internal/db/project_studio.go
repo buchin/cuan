@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha1"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -51,6 +52,20 @@ func GenerateUUID() string {
 			uint64(now)&0xffffffffffff)
 	}
 	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // Variant 10
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// GenerateDeterministicUUID generates an RFC 4122 v5 deterministic UUID from namespace and name.
+func GenerateDeterministicUUID(namespace, name string) string {
+	h := sha1.New()
+	h.Write([]byte(namespace))
+	h.Write([]byte(":" + name))
+	sum := h.Sum(nil)
+	var b [16]byte
+	copy(b[:], sum[:16])
+	b[6] = (b[6] & 0x0f) | 0x50 // Version 5
 	b[8] = (b[8] & 0x3f) | 0x80 // Variant 10
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])

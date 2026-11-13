@@ -58,7 +58,7 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: job.RequestID})
+	a, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: job.RequestID, OwnerAuthorized: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func verificationCapacityRecoveryContract(t *testing.T, s *Server, d *task.TaskD
 	if _, err := store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "capacity-recovery", queued.ID); err != nil {
 		t.Fatal(err)
 	}
-	recovered, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: queued.RequestID})
+	recovered, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "verifier", AgentName: d.AssignedAgent, RequestID: queued.RequestID, OwnerAuthorized: true})
 	if err != nil {
 		t.Fatal(err)
 	}

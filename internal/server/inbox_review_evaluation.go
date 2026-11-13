@@ -109,10 +109,52 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 		if isCustomerReplyDelivery(q, d) {
 			return d
 		}
-		for _, suffix := range []string{":owner-resume:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v6:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v6:" + inboxReviewEvidenceDigest(d) + ":retry", ":verifier-correction-v5:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v5:" + inboxReviewEvidenceDigest(d) + ":retry", ":verifier-correction-v4:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v4:" + inboxReviewEvidenceDigest(d) + ":retry", ":verifier-correction-v3:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v3:" + inboxReviewEvidenceDigest(d) + ":retry", ":verifier-correction-v1:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v1:" + inboxReviewEvidenceDigest(d) + ":retry", ":verifier-correction-v2:" + inboxReviewEvidenceDigest(d), ":verifier-correction-v2:" + inboxReviewEvidenceDigest(d) + ":retry", ":source-assessment:" + inboxReviewEvidenceDigest(d), ":source-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":provider-assessment:" + inboxReviewEvidenceDigest(d), ":provider-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":manager:" + inboxReviewEvidenceDigest(d) + ":retry", ":ownership-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":manager:" + inboxReviewEvidenceDigest(d), ":ownership-assessment:" + inboxReviewEvidenceDigest(d), "", ":snapshot", ":snapshot:evaluation", ":evidence:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d), ":reconcile:" + inboxReviewEvidenceDigest(d) + ":retry", ":report-provenance:" + inboxReviewEvidenceDigest(d), ":report-provenance:" + inboxReviewEvidenceDigest(d) + ":retry", ":assessment:" + inboxReviewEvidenceDigest(d), ":assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":verification-assessment:" + inboxReviewEvidenceDigest(d), ":verification-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":visual-assessment:" + inboxReviewEvidenceDigest(d), ":visual-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":publication-assessment:" + inboxReviewEvidenceDigest(d), ":publication-assessment:" + inboxReviewEvidenceDigest(d) + ":retry", ":operational-assessment:" + inboxReviewEvidenceDigest(d), ":operational-assessment:" + inboxReviewEvidenceDigest(d) + ":retry"} {
-			key := "task-review:" + d.LatestAttempt.ID + suffix
-			if q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input") {
-				return d
+		for _, digest := range inboxReviewEvidenceDigests(d) {
+			for _, suffix := range []string{
+				":owner-resume:" + digest,
+				":verifier-correction-v6:" + digest,
+				":verifier-correction-v6:" + digest + ":retry",
+				":verifier-correction-v5:" + digest,
+				":verifier-correction-v5:" + digest + ":retry",
+				":verifier-correction-v4:" + digest,
+				":verifier-correction-v4:" + digest + ":retry",
+				":verifier-correction-v3:" + digest,
+				":verifier-correction-v3:" + digest + ":retry",
+				":verifier-correction-v1:" + digest,
+				":verifier-correction-v1:" + digest + ":retry",
+				":verifier-correction-v2:" + digest,
+				":verifier-correction-v2:" + digest + ":retry",
+				":source-assessment:" + digest,
+				":source-assessment:" + digest + ":retry",
+				":provider-assessment:" + digest,
+				":provider-assessment:" + digest + ":retry",
+				":manager:" + digest + ":retry",
+				":ownership-assessment:" + digest + ":retry",
+				":manager:" + digest,
+				":ownership-assessment:" + digest,
+				"",
+				":snapshot",
+				":snapshot:evaluation",
+				":evidence:" + digest,
+				":reconcile:" + digest,
+				":reconcile:" + digest + ":retry",
+				":report-provenance:" + digest,
+				":report-provenance:" + digest + ":retry",
+				":assessment:" + digest,
+				":assessment:" + digest + ":retry",
+				":verification-assessment:" + digest,
+				":verification-assessment:" + digest + ":retry",
+				":visual-assessment:" + digest,
+				":visual-assessment:" + digest + ":retry",
+				":publication-assessment:" + digest,
+				":publication-assessment:" + digest + ":retry",
+				":operational-assessment:" + digest,
+				":operational-assessment:" + digest + ":retry",
+			} {
+				key := "task-review:" + d.LatestAttempt.ID + suffix
+				if q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input") {
+					return d
+				}
 			}
 		}
 	}
@@ -349,16 +391,20 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 			}
 		}
 		return inboxReviewEvaluation{
-			Decision:    "revise",
-			Explanation: truncateProjectText(cleanExplanation, 6000),
-			Revision:    revision,
+			Decision:         "revise",
+			RequestedOutcome: "unfinished",
+			RemainingWork:    "implementation",
+			Explanation:      truncateProjectText(cleanExplanation, 6000),
+			Revision:         revision,
 		}, nil
 	}
 	if extractedDec == "pass" || (strings.Contains(upper, "LULUS") && !strings.Contains(upper, "BELUM") && !strings.Contains(upper, "TIDAK")) {
 		return inboxReviewEvaluation{
-			Decision:    "pass",
-			Explanation: truncateProjectText(cleanExplanation, 6000),
-			Revision:    "",
+			Decision:         "pass",
+			RequestedOutcome: "completed",
+			RemainingWork:    "none",
+			Explanation:      truncateProjectText(cleanExplanation, 6000),
+			Revision:         "",
 		}, nil
 	}
 	return inboxReviewEvaluation{}, errors.New("cannot determine review decision from text")
@@ -898,8 +944,57 @@ func inboxReviewEvidenceDigest(d *task.TaskDetailResponse) string {
 	return inboxReviewEvidenceDigestForPublicationPolicy(d, inboxPublicationReviewPolicy)
 }
 
+func inboxReviewEvidenceDigests(d *task.TaskDetailResponse) []string {
+	if d == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	var result []string
+	add := func(digest string) {
+		if digest != "" && !seen[digest] {
+			seen[digest] = true
+			result = append(result, digest)
+		}
+	}
+
+	add(inboxReviewEvidenceDigest(d))
+	add(inboxReviewEvidenceDigestForPublicationPolicy(d, previousPublicationReviewPolicy))
+
+	if d.LatestAttempt != nil {
+		var pubObs []*task.TaskActivity
+		var otherActivities []*task.TaskActivity
+		for _, a := range d.Activities {
+			if a != nil && a.TaskID == d.ID && a.AttemptID != nil && *a.AttemptID == d.LatestAttempt.ID && a.ActivityType == publicationConfigurationActivity && a.Author == "coordinator" {
+				pubObs = append(pubObs, a)
+			} else {
+				otherActivities = append(otherActivities, a)
+			}
+		}
+		if len(pubObs) > 0 {
+			copyNoPub := *d
+			copyNoPub.Activities = otherActivities
+			add(inboxReviewEvidenceDigest(&copyNoPub))
+			add(inboxReviewEvidenceDigestForPublicationPolicy(&copyNoPub, previousPublicationReviewPolicy))
+
+			for _, obs := range pubObs {
+				copyObs := *d
+				copyObs.Activities = append(append([]*task.TaskActivity{}, otherActivities...), obs)
+				add(inboxReviewEvidenceDigest(&copyObs))
+				add(inboxReviewEvidenceDigestForPublicationPolicy(&copyObs, previousPublicationReviewPolicy))
+			}
+		}
+	}
+
+	return result
+}
+
 func inboxReviewEvidenceDigestMatches(d *task.TaskDetailResponse, digest string) bool {
-	return digest == inboxReviewEvidenceDigest(d) || digest == inboxReviewEvidenceDigestForPublicationPolicy(d, previousPublicationReviewPolicy)
+	for _, candidate := range inboxReviewEvidenceDigests(d) {
+		if candidate == digest {
+			return true
+		}
+	}
+	return false
 }
 
 func inboxReviewEvidenceDigestForPublicationPolicy(d *task.TaskDetailResponse, publicationPolicy string) string {
