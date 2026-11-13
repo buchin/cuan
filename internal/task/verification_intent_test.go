@@ -99,11 +99,27 @@ func TestProjectChecksPassedRejectsUntrustedEvidence(t *testing.T) {
 	for _, c := range []struct {
 		author, summary string
 		want            bool
-	}{{"runner", "Project verification: test.sh --fast (exit 0)", true}, {"agent", "Project verification: test.sh --fast (exit 0)", false}, {"runner", "No project verifier available", false}, {"runner", "Project verification: test.sh --fast (exit 1)", false}} {
+	}{
+		{"runner", "Project verification: test.sh --fast (exit 0)", true},
+		{"runner", "Project verification: registered PHPUnit targets (exit 0)\nOK (1 test)", true},
+		{"runner", "Project verification: php vendor/bin/phpunit --colors=never (exit 0)\nOK (107 tests, 294 assertions)", true},
+		{"runner", "Project verification: php vendor/bin/pest (exit 0)", true},
+		{"runner", "Project verification: php artisan test (exit 0)", true},
+		{"runner", "Project verification: go test ./... (exit 0)", true},
+		{"runner", "Project verification: npm test --if-present (exit 0)", true},
+		{"runner", "Project verification: pytest -q (exit 0)", true},
+		{"runner", "Project verification: cargo test (exit 0)", true},
+		{"runner", "Project verification: documentation change only; no code checks required (exit 0)", true},
+		{"agent", "Project verification: test.sh --fast (exit 0)", false},
+		{"runner", "No project verifier available", false},
+		{"runner", "Project verification: test.sh --fast (exit 1)", false},
+		{"runner", "Project verification: php vendor/bin/phpunit --colors=never (exit 1)", false},
+		{"runner", "Project verification incomplete: php vendor/bin/phpunit (exit 0)", false},
+	} {
 		raw, _ := json.Marshal(RunnerVerificationRecord{Summary: c.summary})
 		d.Activities = []*TaskActivity{{TaskID: "task", AttemptID: &id, ActivityType: ActivityTypeRunnerVerification, Author: c.author, Message: string(raw)}}
 		if got := ProjectChecksPassed(d); got != c.want {
-			t.Fatalf("author %s summary %s accepted=%v", c.author, c.summary, got)
+			t.Fatalf("author %s summary %s accepted=%v, want=%v", c.author, c.summary, got, c.want)
 		}
 	}
 }

@@ -146,7 +146,13 @@ func VerificationSourceChecksPassed(d *TaskDetailResponse) bool {
 
 func PassingProjectCheckSummary(summary string) bool {
 	first := strings.SplitN(summary, "\n", 2)[0]
-	return first == "Project verification: registered PHPUnit targets (exit 0)" || first == "Project verification: test.sh --fast (exit 0)" || first == "Project verification: go test ./... (exit 0)"
+	if !strings.HasPrefix(first, "Project verification: ") || !strings.HasSuffix(first, " (exit 0)") {
+		return false
+	}
+	if strings.HasPrefix(first, "Project verification incomplete:") {
+		return false
+	}
+	return true
 }
 func VerificationSummaryHash(summary string) string {
 	sum := sha256.Sum256([]byte(summary))
