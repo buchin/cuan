@@ -13,8 +13,10 @@ var (
 	apiKeyRegex            = regexp.MustCompile(`(sk-[a-zA-Z0-9_\-]{15,}|AIzaSy[a-zA-Z0-9_\-]{30,}|xai-[a-zA-Z0-9_\-]{20,}|gsk_[a-zA-Z0-9_\-]{20,})`)
 	labeledCredentialRegex = regexp.MustCompile(`(?im)^([ \t]*(?:[-*+]\s*)?(?:\*\*)?(?:kredensial|credentials?|password|kata sandi|ssh password|root password)[^:\r\n]{0,40}[:=])[^\r\n]*`)
 	// SSH host keys and private keys are credentials: they pin trust for release
-	// publication and must never be copied into stored task or chat text.
-	sshKeyRegex = regexp.MustCompile(`(?i)((?:ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp\d+|ssh-dss)[\s=:]+)[A-Za-z0-9+/=]{20,}(?:\s+\S+)?`)
+	// publication and must never be copied into stored task or chat text. The
+	// key material stops at a quote so masking cannot consume JSON structure:
+	// swallowing the closing quote made stored task snapshots unparseable.
+	sshKeyRegex = regexp.MustCompile(`(?i)((?:ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp\d+|ssh-dss)[\s=:]+)[A-Za-z0-9+/=]{20,}(?:[ \t]+[^\s"']+)?`)
 	// Environment assignments carry secrets without a password-like label, for
 	// example CUAN_AUTH_SECRET=..., DOJO_*_PASSWORD=..., *_TOKEN=... . Only the
 	// value is replaced so surrounding diagnostics stay readable.
