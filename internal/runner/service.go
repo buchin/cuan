@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -352,6 +353,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		if err != nil || p == nil {
 			// No provider has started. Keep a terminal, attributable failure
 			// rather than executing against unrelated current defaults.
+			log.Printf("[RunnerService] task=%s project=%s saved project context unavailable: %v", t.ID, t.ProjectID, err)
 			_, finishErr := s.Complete(ctx, att.ID, CompleteAttemptRequest{RunnerID: req.RunnerID, Status: task.AttemptStatusFailed, ExitCode: 1, ErrorMessage: "Saved task project context is unavailable; no provider execution was started"})
 			if finishErr != nil {
 				return nil, finishErr
