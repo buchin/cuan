@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -37,6 +38,113 @@ func TestTaskWorkspacePersistsReviewFieldsAndRequiresEvidence(t *testing.T) {
 	other, _ := store.GetTask(ctx, created.ID)
 	if other.DoDChecklist[0].Text == fresh.DoDChecklist[0].Text {
 		t.Fatal("checklist references leaked")
+	}
+}
+
+func TestTaskWorkspaceAllowsApprovalWhenPriorAttemptSucceeded(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:        "Feature implementation",
+		Instructions: "Implement and verify feature",
+		DoDChecklist: []DoDItem{{Text: "Pass unit tests"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Attempt 1: succeeded
+	att1, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{
+		RunnerID:  "cuan-runner",
+		AgentName: "agy",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero := 0
+	if _, err := svc.UpdateAttemptStatus(ctx, att1.ID, "runner", UpdateAttemptRequest{
+		Status:   AttemptStatusSucceeded,
+		ExitCode: &zero,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Attempt 2: verification attempt interrupted/failed
+	att2, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{
+		RunnerID:        "cuan-runner",
+		AgentName:       "verifier",
+		OwnerAuthorized: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failExit := 124
+	if _, err := svc.UpdateAttemptStatus(ctx, att2.ID, "runner", UpdateAttemptRequest{
+		Status:   AttemptStatusFailed,
+		ExitCode: &failExit,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Task in review with completed DoD and complete note
+	review, done := TaskStatusReview, TaskStatusDone
+	note := "Verified successfully"
+	checked := []DoDItem{{Text: "Pass unit tests", Completed: true}}
+	if _, err := svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{
+		Status:       &review,
+		Summary:      &note,
+		CompleteNote: &note,
+		DoDChecklist: &checked,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Approving to done MUST succeed because attempt 1 succeeded
+	approved, err := svc.UpdateTask(ctx, created.ID, "owner", UpdateTaskRequest{
+		Status: &done,
+	})
+	if err != nil {
+		t.Fatalf("expected approval to succeed when prior attempt succeeded, got: %v", err)
+	}
+	if approved.Status != TaskStatusDone {
+		t.Fatalf("expected status done, got %s", approved.Status)
+	}
+
+	// Task with ONLY failed attempts must still be rejected
+	failedTask, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		Title:        "Failed task",
+		Instructions: "Should fail",
+		DoDChecklist: []DoDItem{{Text: "Pass unit tests"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failedAtt, err := svc.CreateAttempt(ctx, failedTask.ID, "owner", CreateAttemptRequest{
+		RunnerID:  "cuan-runner",
+		AgentName: "agy",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateAttemptStatus(ctx, failedAtt.ID, "runner", UpdateAttemptRequest{
+		Status:   AttemptStatusFailed,
+		ExitCode: &failExit,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateTask(ctx, failedTask.ID, "owner", UpdateTaskRequest{
+		Status:       &review,
+		Summary:      &note,
+		CompleteNote: &note,
+		DoDChecklist: &checked,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateTask(ctx, failedTask.ID, "owner", UpdateTaskRequest{
+		Status: &done,
+	}); err == nil || !strings.Contains(err.Error(), "this execution has no successful result to approve") {
+		t.Fatalf("expected rejection for task with no successful attempts, got: %v", err)
 	}
 }
 func TestTaskWorkspaceLaunchRetryIsDurableAndDoesNotReviveFinalAttempt(t *testing.T) {
