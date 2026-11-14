@@ -122,6 +122,7 @@ type ClaimTaskResponse struct {
 	RepoURL                string                            `json:"repo_url,omitempty"`
 	DefaultBranch          string                            `json:"default_branch,omitempty"`
 	DeployBranch           string                            `json:"deploy_branch,omitempty"`
+	DeployScript           string                            `json:"deploy_script,omitempty"`
 	WorkingDir             string                            `json:"working_dir,omitempty"`
 	AutoDeploy             bool                              `json:"auto_deploy,omitempty"`
 	Environment            string                            `json:"environment,omitempty"`

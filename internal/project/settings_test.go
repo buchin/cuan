@@ -279,6 +279,45 @@ func TestProjectSettingsDeployBranch(t *testing.T) {
 	}
 }
 
+func TestProjectSettingsDeployScript(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	initial := &Project{ID: "proj_deploy_script", Name: "DeployScript Test", DefaultBranch: "main", Metadata: json.RawMessage(`{}`), UpdatedAt: time.Now().UTC()}
+	if err := store.CreateProject(ctx, initial); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(store, nil, "fixture-secret", t.TempDir())
+	p, _ := service.Get(ctx, initial.ID)
+
+	// Update with custom deploy_script
+	req := UpdateSettingsRequest{
+		Name:              "DeployScript Test",
+		DefaultBranch:     "main",
+		DeployScript:      "bash scripts/release.sh",
+		ExpectedUpdatedAt: p.UpdatedAt,
+	}
+	saved, err := service.UpdateSettings(ctx, p.ID, req)
+	if err != nil {
+		t.Fatalf("expected update to succeed, got %v", err)
+	}
+	settings := SettingsFromMetadata(saved.Metadata)
+	if settings.DeployScript != "bash scripts/release.sh" {
+		t.Fatalf("expected deploy_script 'bash scripts/release.sh', got %q", settings.DeployScript)
+	}
+
+	// Update with overly long deploy script (>10,000 chars)
+	longScript := strings.Repeat("echo 'a'\n", 1500)
+	badReq := UpdateSettingsRequest{
+		Name:              "DeployScript Test",
+		DefaultBranch:     "main",
+		DeployScript:      longScript,
+		ExpectedUpdatedAt: saved.UpdatedAt,
+	}
+	if _, err := service.UpdateSettings(ctx, p.ID, badReq); err == nil {
+		t.Fatal("expected error for overly long deploy script, got nil")
+	}
+}
+
 func TestParseEnvironment(t *testing.T) {
 	raw := `
 # Production environment configuration

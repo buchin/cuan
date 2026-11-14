@@ -165,3 +165,44 @@ func TestNativePublicationObservationBoundToActiveRegisteredResult(t *testing.T)
 		})
 	}
 }
+
+func TestDeployScriptPublicationVerification(t *testing.T) {
+	s, token := setupTestChatServer(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	metadata, _ := json.Marshal(map[string]any{
+		"cuan_settings": project.Settings{
+			DeployScript: "bash scripts/release.sh",
+		},
+	})
+	p := &project.Project{ID: "script-project", Name: "Script Project", Metadata: metadata}
+	if err := projects.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	commit := strings.Repeat("c", 40)
+	item := &task.Task{ID: "script-task", ProjectID: p.ID, Title: "Script Task", Status: task.TaskStatusDoing, CommitSHA: commit}
+	if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now().Add(-time.Minute)
+	attempt := &task.TaskAttempt{ID: "script-attempt", TaskID: item.ID, RunnerID: "script-runner", Status: task.AttemptStatusRunning, CreatedAt: started, StartedAt: &started}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(map[string]string{"task_id": item.ID, "runner_id": attempt.RunnerID, "commit_sha": commit})
+	req := httptest.NewRequest("POST", "/api/v1/runner/attempts/"+attempt.ID+"/publication/verify", strings.NewReader(string(raw)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("expected HTTP 200 for deploy_script project, got %d: %s", w.Code, w.Body.String())
+	}
+	d, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !task.VerifiedDeployment(d.Activities, d.LatestAttempt, commit, time.Now().UTC()) {
+		t.Fatal("expected verified deployment fact recorded for deploy_script project")
+	}
+}

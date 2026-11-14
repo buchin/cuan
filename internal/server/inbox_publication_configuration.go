@@ -33,7 +33,11 @@ func (s *Server) publicationConnectionState(p *project.ProjectResponse) string {
 			return "current_process"
 		}
 	}
-	return publication.ConfigurationState(project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment))
+	settings := project.SettingsFromMetadata(p.Metadata)
+	if strings.TrimSpace(settings.DeployScript) != "" {
+		return "configured"
+	}
+	return publication.ConfigurationState(project.ParseEnvironment(settings.Environment))
 }
 
 func (s *Server) publicationConfigurationForTask(ctx context.Context, d *task.TaskDetailResponse) string {

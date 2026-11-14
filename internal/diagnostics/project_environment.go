@@ -129,7 +129,7 @@ func (c *CuanClient) UpdateProjectEnvironment(ctx context.Context, id string, va
 	for _, key := range []string{"name", "repo_url", "default_branch"} {
 		payload[key] = p[key]
 	}
-	for _, key := range []string{"goal", "instructions", "deploy_branch"} {
+	for _, key := range []string{"goal", "instructions", "deploy_branch", "deploy_script"} {
 		value, _ := settings[key].(string)
 		payload[key] = value
 	}

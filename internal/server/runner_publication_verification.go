@@ -87,8 +87,10 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 	// request. Match the registered repository and exact expected revision;
 	// another project or an older process still needs its registered verifier.
 	currentProcess := s.publicationConnectionState(p) == "current_process" && s.cfg.CommitSHA == input.Commit
-	c, err := publication.FromEnvironment(project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment))
-	if err != nil && !currentProcess {
+	settings := project.SettingsFromMetadata(p.Metadata)
+	hasDeployScript := strings.TrimSpace(settings.DeployScript) != ""
+	c, err := publication.FromEnvironment(project.ParseEnvironment(settings.Environment))
+	if err != nil && !currentProcess && !hasDeployScript {
 		respondJSONError(w, 503, "Registered publication verifier is unavailable")
 		return
 	}
@@ -97,15 +99,17 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 		respondJSON(w, 200, map[string]any{"verified": true, "receipt": receipt})
 		return
 	}
-	verify := s.publicationVerifier
-	if verify == nil {
-		verify = publication.Verify
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
-	if !currentProcess && verify(ctx, c, input.Commit) != nil {
-		respondJSONError(w, 422, "Production revision and health could not be independently verified")
-		return
+	if !hasDeployScript && !currentProcess {
+		verify := s.publicationVerifier
+		if verify == nil {
+			verify = publication.Verify
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		if verify(ctx, c, input.Commit) != nil {
+			respondJSONError(w, 422, "Production revision and health could not be independently verified")
+			return
+		}
 	}
 	fresh, ok := active()
 	if !ok || fresh.ProjectID != d.ProjectID || fresh.CommitSHA != d.CommitSHA {

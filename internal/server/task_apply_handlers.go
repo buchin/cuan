@@ -7,6 +7,8 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/buchin/cuan/internal/git"
@@ -196,6 +198,25 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 	if s.projectSvc != nil {
 		proj, err := s.projectSvc.Get(ctx, projectID)
 		if err == nil && proj != nil {
+			settings := project.SettingsFromMetadata(proj.Metadata)
+			if strings.TrimSpace(settings.DeployScript) != "" && proj.LocalPath != "" {
+				log.Printf("[AutoDeploy] Executing project deploy script for %s in %s", projectID, proj.LocalPath)
+				cmd := exec.CommandContext(ctx, "bash", "-c", settings.DeployScript)
+				cmd.Dir = proj.LocalPath
+				if settings.Environment != "" {
+					envMap := project.ParseEnvironment(settings.Environment)
+					var envSlice []string
+					for k, v := range envMap {
+						envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
+					}
+					cmd.Env = append(os.Environ(), envSlice...)
+				}
+				if out, err := cmd.CombinedOutput(); err != nil {
+					log.Printf("[AutoDeploy] Project deploy script failed for %s: %v: %s", projectID, err, string(out))
+				} else {
+					log.Printf("[AutoDeploy] Project deploy script succeeded for %s", projectID)
+				}
+			}
 			if proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") {
 				log.Printf("[AutoDeploy] Native Cuan project %s auto-deploy acknowledged", projectID)
 			}

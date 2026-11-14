@@ -23,6 +23,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
     instructions: String(p.metadata?.cuan_settings?.instructions || ''),
     repo_url: p.repo_url || '', default_branch: p.default_branch || '',
     deploy_branch: String(p.metadata?.cuan_settings?.deploy_branch || ''),
+    deploy_script: String(p.metadata?.cuan_settings?.deploy_script || ''),
     auto_deploy: p.metadata?.cuan_settings?.auto_deploy !== false,
     environment: String(p.metadata?.cuan_settings?.environment || ''),
   })
@@ -88,6 +89,22 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
           onChange={event => change('auto_deploy', event.target.checked)}
         />
       </div>
+      {form.auto_deploy && !isDefault && (
+        <div className="space-y-2">
+          <label htmlFor="project-deploy-script" className="text-sm font-medium">{t('Deploy Script (Optional)')}</label>
+          <textarea
+            id="project-deploy-script"
+            className="field-control font-mono text-xs min-h-20 resize-y py-2.5 leading-relaxed"
+            rows={2}
+            maxLength={10000}
+            disabled={busy}
+            value={form.deploy_script}
+            onChange={event => change('deploy_script', event.target.value)}
+            placeholder={t('e.g. bash scripts/release.sh or npm run deploy')}
+          />
+          <p className="text-xs text-muted-foreground">{t('Shell command or script executed to publish this project. If empty, Cuan uses the default publication verifier.')}</p>
+        </div>
+      )}
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}
       {environmentView && <section className="space-y-5">

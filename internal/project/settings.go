@@ -26,6 +26,7 @@ type Settings struct {
 	WorkspaceRevision string `json:"workspace_revision,omitempty"`
 	AutoDeploy        *bool  `json:"auto_deploy,omitempty"`
 	DeployBranch      string `json:"deploy_branch,omitempty"`
+	DeployScript      string `json:"deploy_script,omitempty"`
 	Environment       string `json:"environment,omitempty"`
 }
 
@@ -43,6 +44,7 @@ type UpdateSettingsRequest struct {
 	RepoURL           string    `json:"repo_url"`
 	DefaultBranch     string    `json:"default_branch"`
 	DeployBranch      string    `json:"deploy_branch,omitempty"`
+	DeployScript      string    `json:"deploy_script,omitempty"`
 	AutoDeploy        *bool     `json:"auto_deploy,omitempty"`
 	Environment       string    `json:"environment,omitempty"`
 	ExpectedUpdatedAt time.Time `json:"expected_updated_at"`
@@ -60,6 +62,7 @@ type taskProjectSnapshot struct {
 	Instructions       string `json:"instructions,omitempty"`
 	AutoDeploy         *bool  `json:"auto_deploy,omitempty"`
 	DeployBranch       string `json:"deploy_branch,omitempty"`
+	DeployScript       string `json:"deploy_script,omitempty"`
 	Environment        string `json:"environment,omitempty"`
 }
 
@@ -144,6 +147,7 @@ func SnapshotProjectGuidance(instructions string, p *ProjectResponse) string {
 		Instructions:       settings.Instructions,
 		AutoDeploy:         &autoDeploy,
 		DeployBranch:       settings.DeployBranch,
+		DeployScript:       settings.DeployScript,
 		Environment:        settings.Environment,
 	})
 	return strings.TrimSpace(instructions) + snapshotMarker + string(raw) + "\n```"
@@ -171,7 +175,7 @@ func (s *Service) TaskContext(ctx context.Context, id, instructions string) (*Pr
 	}
 	settings := SettingsFromMetadata(p.Metadata)
 	settings.Goal, settings.Instructions = snapshot.Goal, snapshot.Instructions
-	settings.Environment, settings.DeployBranch = snapshot.Environment, snapshot.DeployBranch
+	settings.Environment, settings.DeployBranch, settings.DeployScript = snapshot.Environment, snapshot.DeployBranch, snapshot.DeployScript
 	settings.WorkspaceRevision = snapshot.Revision
 	if snapshot.AutoDeploy != nil {
 		settings.AutoDeploy = snapshot.AutoDeploy
@@ -270,6 +274,10 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	if deployBranch != "" && (len(deployBranch) > 200 || strings.HasPrefix(deployBranch, "-") || exec.CommandContext(ctx, "git", "check-ref-format", "--branch", deployBranch).Run() != nil) {
 		return nil, errors.New("Enter a valid deployment branch name.")
 	}
+	deployScript := strings.TrimSpace(req.DeployScript)
+	if len([]rune(deployScript)) > 10000 {
+		return nil, errors.New("Deploy script exceeds the allowed length (10,000 characters).")
+	}
 	repo := strings.TrimSpace(req.RepoURL)
 	owner, repoName := "", ""
 	if repo != "" {
@@ -310,6 +318,7 @@ func (s *Service) UpdateSettings(ctx context.Context, id string, req UpdateSetti
 	settings.Goal = strings.TrimSpace(req.Goal)
 	settings.Instructions = strings.TrimSpace(req.Instructions)
 	settings.DeployBranch = deployBranch
+	settings.DeployScript = deployScript
 	settings.Environment = strings.TrimSpace(req.Environment)
 	if req.AutoDeploy != nil {
 		settings.AutoDeploy = req.AutoDeploy
