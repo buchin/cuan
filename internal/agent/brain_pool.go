@@ -57,7 +57,7 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 			if len(requiresVision) > 0 && requiresVision[0] && model != "" && !IsModelVisionCapable("agy", model) && !IsModelVisionCapable("agy", normModel) {
 				continue
 			}
-			if p.State == "quota_limited" && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
+			if p.State == "quota_limited" && !p.AllowModelFallback && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
 				continue
 			}
 			if time.Now().Before(p.ModelCooldowns[model]) || time.Now().Before(p.ModelCooldowns[normModel]) {

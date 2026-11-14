@@ -549,19 +549,24 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 	profile, err := agent.GetProviderAccount(owner, route.accountID)
 	isCuanFacade := registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan"
 	allowed := err == nil && profile.CredentialsPresent && ((route.primary && ((profile.AgentID == registered.ID && profile.ConnectionID == registered.ConnectionID) || isCuanFacade)) || (!route.primary && (profile.AllowFailover || isCuanFacade)))
-	if allowed && isCuanFacade && route.model != profile.ModelID {
-		allowed = profile.AllowModelFallback && (profile.FallbackModelID == "" || route.model == profile.FallbackModelID)
+	normRouteModel := agent.NormalizeModelAlias(route.model)
+	normProfileModel := agent.NormalizeModelAlias(profile.ModelID)
+	normFallbackModel := agent.NormalizeModelAlias(profile.FallbackModelID)
+
+	if allowed && isCuanFacade && route.model != profile.ModelID && normRouteModel != normProfileModel {
+		allowed = profile.AllowModelFallback && (profile.FallbackModelID == "" || route.model == profile.FallbackModelID || normRouteModel == normFallbackModel)
 	}
-	if allowed && route.fallback && (!profile.AllowModelFallback || profile.FallbackModelID != route.model) {
+	if allowed && route.fallback && (!profile.AllowModelFallback || (profile.FallbackModelID != "" && route.model != profile.FallbackModelID && normRouteModel != normFallbackModel)) {
+		// If explicit fallback model is set and matches, allow. If it doesn't match fallback ID, but model fallback is allowed and it's a valid text model, allow.
+		allowed = profile.AllowModelFallback && agent.IsTextModel(route.model)
+	}
+	if allowed && !isCuanFacade && route.model != "" && route.model != registered.ModelID && normRouteModel != agent.NormalizeModelAlias(registered.ModelID) && route.model != registered.FallbackModelID && normRouteModel != agent.NormalizeModelAlias(registered.FallbackModelID) && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
 		allowed = false
 	}
-	if allowed && !isCuanFacade && route.model != "" && route.model != registered.ModelID && route.model != registered.FallbackModelID && agent.IsTextModel(registered.ModelID) && !profile.AllowModelFallback {
+	if allowed && (time.Now().Before(profile.ModelCooldowns[route.model]) || time.Now().Before(profile.ModelCooldowns[normRouteModel])) {
 		allowed = false
 	}
-	if allowed && time.Now().Before(profile.ModelCooldowns[route.model]) {
-		allowed = false
-	}
-	if allowed && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)) {
+	if allowed && profile.State == "quota_limited" && !profile.AllowModelFallback && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)) {
 		allowed = false
 	}
 	if allowed {
