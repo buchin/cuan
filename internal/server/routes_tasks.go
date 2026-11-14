@@ -13,6 +13,7 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -610,6 +611,54 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, att)
+}
+
+func (s *Server) handleTaskSteer(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req runner.SteerAttemptRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.Prompt) == "" {
+		respondJSONError(w, http.StatusBadRequest, "prompt is required")
+		return
+	}
+
+	if req.Author == "" {
+		if owner := auth.GetOwnerFromContext(r.Context()); owner != nil && owner.Email != "" {
+			req.Author = owner.Email
+		} else {
+			req.Author = "user"
+		}
+	}
+
+	if s.runnerSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "runner service not available")
+		return
+	}
+
+	attemptID := id
+	if s.taskSvc != nil {
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), id); err == nil && detail != nil {
+			if detail.LatestAttempt != nil && detail.LatestAttempt.ID != "" {
+				attemptID = detail.LatestAttempt.ID
+			}
+		}
+	}
+
+	resp, err := s.runnerSvc.Steer(r.Context(), attemptID, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondJSONError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 
