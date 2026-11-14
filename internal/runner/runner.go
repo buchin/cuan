@@ -23,6 +23,10 @@ import (
 	"github.com/buchin/cuan/internal/terminal"
 )
 
+// DefaultExecutionOutputFormat configures the runner adapter for streaming chunks.
+// OutputFormat: "stream-json"
+const DefaultExecutionOutputFormat = "stream-json"
+
 type activeAttempt struct {
 	attempt   *task.TaskAttempt
 	lane      string

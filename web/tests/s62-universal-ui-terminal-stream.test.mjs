@@ -32,7 +32,8 @@ test('1. S62-T3: Live Terminal Streaming & Incremental Poller in TaskTerminal.ts
 
   const terminalSource = fs.readFileSync(taskTerminalPath, 'utf8')
   const adapterSource = fs.readFileSync(agyAdapterPath, 'utf8')
-  const runnerSource = fs.readFileSync(runnerPath, 'utf8')
+  const runnerFiles = [runnerPath, path.join(repoRoot, 'internal/runner/run_attempt.go')]
+  const runnerSource = runnerFiles.filter(fs.existsSync).map(p => fs.readFileSync(p, 'utf8')).join('\n')
 
   // agy_adapter.go and runner.go streaming configuration
   assert.ok(
