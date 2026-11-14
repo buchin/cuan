@@ -252,7 +252,7 @@ else
   sshpass -e ssh "$release_host" "sudo -n python3 /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-s25/install-runtime-cache-maintenance.py --service-home /home/$DOJO_TERMAPI_VPS_USERNAME"
   echo '::cuan-release-stage::transfer'
   echo "==> Transferring verified payload (compressed, resumable)..."
-  sshpass -e rsync -az --partial --append-verify -e "sshpass -e ssh -o StrictHostKeyChecking=no" "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
+  rsync -az --partial --append-verify -e "sshpass -e ssh -o StrictHostKeyChecking=no" "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
   sshpass -e scp -q scripts/activate-release.py scripts/verify-authorized-release.py "$release_host:.local/share/cuan-s25/"
   sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
