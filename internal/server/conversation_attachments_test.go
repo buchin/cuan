@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -133,5 +134,25 @@ func TestConversationAttachments(t *testing.T) {
 	if response := call("POST", "/api/v1/chat/conversations/"+accepted.ConversationID+"/messages", string(rawEnvelope)); response.Code != 400 {
 		t.Fatal("reserved metadata accepted", response.Code)
 	}
-
 }
+
+func TestCustomerAttachmentBaseURL_NoLegacyDomain(t *testing.T) {
+	// 1. With legacy cuan.dojo.cc BaseDomain, customerAttachmentBaseURL must return empty (preventing dead hosts)
+	srv := &Server{cfg: &config.Config{BaseDomain: "cuan.dojo.cc"}}
+	if base := customerAttachmentBaseURL(srv); base != "" {
+		t.Fatalf("expected empty base for legacy dojo.cc host, got %q", base)
+	}
+
+	// 2. With localhost BaseDomain, must return empty
+	srvLocal := &Server{cfg: &config.Config{BaseDomain: "localhost"}}
+	if base := customerAttachmentBaseURL(srvLocal); base != "" {
+		t.Fatalf("expected empty base for localhost, got %q", base)
+	}
+
+	// 3. With explicit CUAN_PUBLIC_APP_URL, follows the configured public URL
+	t.Setenv("CUAN_PUBLIC_APP_URL", "https://app.cuan.work")
+	if base := customerAttachmentBaseURL(srv); base != "https://app.cuan.work" {
+		t.Fatalf("expected https://app.cuan.work, got %q", base)
+	}
+}
+

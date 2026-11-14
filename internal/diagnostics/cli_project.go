@@ -27,6 +27,8 @@ func RunProjectCLI(args []string, in io.Reader, out, errOut io.Writer) int {
 	const help = `Cuan project environments (same settings as the application UI)
 
 Usage:
+  cuan project settings show PROJECT_ID
+  cuan project settings set PROJECT_ID [--deploy-script TEXT] [--auto-deploy true|false] [--deploy-branch TEXT]
   cuan project guidance show PROJECT_ID
   cuan project guidance set PROJECT_ID --goal TEXT [--instructions TEXT]
   cuan project env list PROJECT_ID [--reveal]
@@ -43,6 +45,9 @@ Changes apply to new tasks; existing tasks retain their environment snapshot.`
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
 		fmt.Fprintln(out, help)
 		return 0
+	}
+	if args[0] == "settings" {
+		return runProjectSettingsCLI(args[1:], out, errOut)
 	}
 	if args[0] == "guidance" {
 		return runProjectGuidanceCLI(args[1:], out, errOut)

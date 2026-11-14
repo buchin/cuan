@@ -269,9 +269,11 @@ func (s *Server) TriggerRoomIdleNotification(ctx context.Context, roomID string)
 	storeName := "Cuan"
 
 	convoURL := ""
-	if base := customerAttachmentBaseURL(s); base != "" {
-		convoURL = fmt.Sprintf("%s/inbox/%s", base, roomID)
+	base := customerAttachmentBaseURL(s)
+	if base == "" {
+		base = "https://app.cuan.work"
 	}
+	convoURL = fmt.Sprintf("%s/inbox/%s", base, roomID)
 
 	var items []resend.ChatMessageItem
 	for _, m := range unreadCustomerMsgs {

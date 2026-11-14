@@ -18,7 +18,7 @@ func customerAttachmentBaseURL(s *Server) string {
 		return strings.TrimRight(value, "/")
 	}
 	if s != nil && s.cfg != nil {
-		if domain := strings.TrimSpace(s.cfg.BaseDomain); domain != "" && domain != "localhost" {
+		if domain := strings.TrimSpace(s.cfg.BaseDomain); domain != "" && domain != "localhost" && !strings.Contains(domain, "dojo.cc") {
 			return "https://" + domain
 		}
 	}
@@ -226,9 +226,13 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 					a, _, err = findAttachmentAcrossOwners(id)
 				}
 				if err == nil {
-					if isCustomer {
-						// Widget visitors resolve attachments on the public app origin.
-						a.URL = customerAttachmentBaseURL(s) + "/api/chat/attachments/" + a.ID
+					baseURL := customerAttachmentBaseURL(s)
+					if isCustomer || strings.Contains(a.URL, "dojo.cc") || a.URL == "" {
+						if baseURL != "" {
+							a.URL = baseURL + "/api/chat/attachments/" + a.ID
+						} else {
+							a.URL = "/api/chat/attachments/" + a.ID
+						}
 					}
 					attached = append(attached, a)
 				}

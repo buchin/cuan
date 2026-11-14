@@ -392,21 +392,12 @@ func (s *Server) handleVisitorUploadAttachment(w http.ResponseWriter, r *http.Re
 	}
 
 	attID := db.GenerateUUID()
-	baseURL := "https://" + r.Host
-	if r.Host != "" {
-		proto := "https"
-		if r.Header.Get("X-Forwarded-Proto") == "http" || strings.HasPrefix(r.Host, "localhost") || strings.HasPrefix(r.Host, "127.0.0.1") {
-			proto = "http"
-		}
-		baseURL = proto + "://" + r.Host
-	}
-
 	a := conversationAttachment{
 		ID:   attID,
 		Name: name,
 		Type: kind,
 		Size: int64(len(data)),
-		URL:  baseURL + "/api/chat/attachments/" + attID,
+		URL:  "/api/chat/attachments/" + attID,
 	}
 
 	dir, err := attachmentDirectory("visitor", a.ID)

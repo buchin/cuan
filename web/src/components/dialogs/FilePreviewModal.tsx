@@ -51,6 +51,7 @@ import {
   isCodeFile,
   isTextFile,
   isPreviewableFile,
+  resolveAttachmentUrl,
 } from './filePreviewUtils'
 
 export {
@@ -725,8 +726,9 @@ export function FilePreviewModal({
     setLoading(true)
     setError('')
     try {
-      const sep = attachment.url.includes('?') ? '&' : '?'
-      const previewUrl = `${attachment.url}${sep}preview=1`
+      const targetUrl = resolveAttachmentUrl(attachment)
+      const sep = targetUrl.includes('?') ? '&' : '?'
+      const previewUrl = `${targetUrl}${sep}preview=1`
       const res = await fetch(previewUrl, {
         headers: { Authorization: 'Bearer ' + getAuthToken() },
       })
@@ -801,7 +803,7 @@ export function FilePreviewModal({
       onDownload()
     } else {
       const link = document.createElement('a')
-      link.href = attachment.url
+      link.href = resolveAttachmentUrl(attachment)
       link.download = attachment.name
       link.target = '_blank'
       link.click()

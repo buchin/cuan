@@ -8,7 +8,10 @@ import { getAuthToken } from '../../api/client'
 import {
   isPreviewableFile,
   isImageFile,
+  resolveAttachmentUrl,
 } from '../../components/dialogs/filePreviewUtils'
+
+export { resolveAttachmentUrl }
 
 const FilePreviewModal = lazy(() =>
   import('../../components/dialogs/FilePreviewModal').then((m) => ({
@@ -385,8 +388,9 @@ export function AttachmentFile({ attachment: a, internal = false, imagePreview =
     setURL('')
     setFailed(false)
     if (!isImg) return
-    const sep = a.url.includes('?') ? '&' : '?'
-    fetch(`${a.url}${sep}preview=1`, { headers: { Authorization: 'Bearer ' + getAuthToken() } })
+    const targetUrl = resolveAttachmentUrl(a)
+    const sep = targetUrl.includes('?') ? '&' : '?'
+    fetch(`${targetUrl}${sep}preview=1`, { headers: { Authorization: 'Bearer ' + getAuthToken() } })
       .then(async (r) => {
         if (!r.ok) throw new Error()
         return r.blob()
@@ -413,7 +417,8 @@ export function AttachmentFile({ attachment: a, internal = false, imagePreview =
     setLoading(true)
     setFailed(false)
     try {
-      const r = await fetch(a.url, {
+      const targetUrl = resolveAttachmentUrl(a)
+      const r = await fetch(targetUrl, {
         headers: { Authorization: 'Bearer ' + getAuthToken() },
       })
       if (!r.ok) throw new Error()

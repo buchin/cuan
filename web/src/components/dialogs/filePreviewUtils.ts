@@ -60,3 +60,31 @@ export function isPreviewableFile(name: string, type?: string): boolean {
     isTextFile(name, type)
   )
 }
+
+/**
+ * Resolves an attachment URL to a reliable same-origin or canonical path.
+ * Normalizes foreign/retired domains (such as legacy cuan.dojo.cc) into
+ * same-origin relative endpoints so cross-origin, proxy, or CORS errors are avoided.
+ */
+export function resolveAttachmentUrl(a?: { id?: string; url?: string }): string {
+  if (!a) return ''
+  const rawUrl = a.url || ''
+  if (a.id) {
+    if (!rawUrl || rawUrl.includes('dojo.cc')) {
+      return `/api/chat/attachments/${encodeURIComponent(a.id)}`
+    }
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+      try {
+        const u = new URL(rawUrl)
+        const isCurrentOrigin = typeof window !== 'undefined' && window.location && u.origin === window.location.origin
+        if (!isCurrentOrigin) {
+          return u.pathname + u.search
+        }
+      } catch {
+        return `/api/chat/attachments/${encodeURIComponent(a.id)}`
+      }
+    }
+  }
+  return rawUrl || (a.id ? `/api/chat/attachments/${encodeURIComponent(a.id)}` : '')
+}
+
