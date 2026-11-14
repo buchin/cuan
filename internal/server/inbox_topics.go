@@ -77,6 +77,13 @@ func (s *Server) handleCreateAgentTopic(w http.ResponseWriter, r *http.Request) 
 			if req.ProjectID != "" && !strings.EqualFold(req.ProjectID, "default") {
 				if p, err := s.projectSvc.Get(r.Context(), req.ProjectID); err == nil && p != nil && !p.IsArchived {
 					projectID = p.ID
+				} else if projects, err := s.projectSvc.List(r.Context()); err == nil {
+					for _, candidate := range projects {
+						if !candidate.IsArchived && (strings.EqualFold(candidate.Name, req.ProjectID) || strings.EqualFold(candidate.RepoName, req.ProjectID) || strings.EqualFold(candidate.ID, req.ProjectID)) {
+							projectID = candidate.ID
+							break
+						}
+					}
 				}
 			} else {
 				// If no project specified or "default" requested, check if "default" is active.

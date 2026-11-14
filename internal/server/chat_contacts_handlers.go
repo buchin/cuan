@@ -1,0 +1,447 @@
+package server
+
+import (
+	"net/http"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/buchin/cuan/internal/auth"
+	"github.com/buchin/cuan/internal/db"
+)
+
+// ChatContact represents a contact in the direct messenger hub (agent or customer).
+type ChatContact struct {
+	ResolutionObservedAt time.Time  `json:"resolution_observed_at"`
+	Resolved             bool       `json:"resolved"`
+	ResolvedAt           *time.Time `json:"resolved_at,omitempty"`
+	ContactID            string     `json:"contact_id,omitempty"`
+	AgentID              string     `json:"agent_id,omitempty"`
+	AgentName            string     `json:"agent_name,omitempty"`
+	ID                   string     `json:"id"`
+	Type                 string     `json:"type"` // "agent" or "customer"
+	Name                 string     `json:"name"`
+	Email                string     `json:"email,omitempty"`
+	Avatar               string     `json:"avatar"`
+	Status               string     `json:"status"` // "online", "idle", "offline"
+	Product              string     `json:"product,omitempty"`
+	GuestUUID            string     `json:"guest_uuid,omitempty"`
+	ConversationID       string     `json:"conversation_id"`
+	UnreadCount          int        `json:"unread_count"`
+	LastMessage          string     `json:"last_message,omitempty"`
+	LastMessageAt        time.Time  `json:"last_message_at,omitempty"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	HasMessages          bool       `json:"has_messages"`
+	MessageCount         int        `json:"message_count"`
+	IsOnline             bool       `json:"is_online"`
+	CurrentURL           string     `json:"current_url,omitempty"`
+	PageTitle            string     `json:"page_title,omitempty"`
+	TaskCount            int        `json:"task_count"`
+	ActiveTasks          int        `json:"active_tasks"`
+	ReviewTasks          int        `json:"review_tasks"`
+	QueuedTasks          int        `json:"queued_tasks"`
+	DoneTasks            int        `json:"done_tasks"`
+	FailedTasks          int        `json:"failed_tasks"`
+	CanceledTasks        int        `json:"canceled_tasks"`
+}
+
+// ============================================================================
+// INTERNAL DIRECT MESSENGER API - CONTACTS
+// ============================================================================
+
+// GET /api/v1/chat/contacts
+func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Request) {
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
+	s.ensureDefaultAgentRooms(r.Context())
+
+	typeFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
+	searchQuery := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+
+	preferences := itemPreferences{}
+	if s.authSvc != nil {
+		if owner, e := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r)); e == nil {
+			itemPreferencesMu.Lock()
+			saved, readError := readItemPreferences(owner.ID)
+			itemPreferencesMu.Unlock()
+			if readError != nil {
+				respondJSONError(w, 503, "Could not load conversation state. Try again.")
+				return
+			}
+			preferences = saved
+		}
+	}
+	countUnread := func(id string, messages []db.ProjectMessage, isAgent bool) int {
+		state := preferences["conversation:"+id]
+		cutoff, _ := time.Parse(time.RFC3339Nano, state.ReadAt)
+		count := 0
+		for _, message := range messages {
+			if internalInboxReviewInput(message) || !message.CreatedAt.After(cutoff) {
+				continue
+			}
+			if isAgent {
+				if message.AuthorType == "agent" || message.AuthorType == "system" {
+					count++
+				} else if message.AuthorType == "user" {
+					count = 0
+				}
+			} else {
+				if message.AuthorType == "user" {
+					count++
+				} else if message.AuthorType == "agent" || message.AuthorType == "system" {
+					count = 0
+				}
+			}
+		}
+		if state.Unread && count == 0 {
+			return 1
+		}
+		return count
+	}
+	contacts := make([]ChatContact, 0)
+
+	// Count active tasks and total tasks per conversation room
+	counts, err := s.readTaskCounts(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Could not load conversation task progress. Try again.")
+		return
+	}
+	resolutionObserved := map[string]time.Time{}
+	observeResolution := func(id string, messages []db.ProjectMessage) {
+		for _, message := range messages {
+			if message.CreatedAt.After(resolutionObserved[id]) {
+				resolutionObserved[id] = message.CreatedAt
+			}
+		}
+	}
+	getRoomTaskCounts := func(ids ...string) (int, int, int, int, int, int, int) {
+		for _, id := range ids {
+			if c, ok := counts.Rooms[id]; ok {
+				return c.Total, c.Active, c.Queued, c.Done, c.Failed, c.Review, c.Canceled
+			}
+		}
+		return 0, 0, 0, 0, 0, 0, 0
+	}
+
+	if typeFilter != "customers" {
+		// Include any agents from s.agentRepo that are active and not already included
+		if s.agentRepo != nil {
+			if dbAgents, err := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{Status: db.AgentStatusActive}); err == nil {
+				hasCuanAgent := false
+				for _, a := range dbAgents {
+					if a.Enabled && (a.ID == db.AgentIDCuan || a.Name == db.DefaultAgentHandle) {
+						hasCuanAgent = true
+						break
+					}
+				}
+				for _, a := range dbAgents {
+					if !a.Enabled {
+						continue
+					}
+					// Single Agent Facade: when @cuan is active, hide internal legacy agents from contacts list
+					if hasCuanAgent && isLegacyInternalAgent(a.ID) && a.ID != db.AgentIDCuan {
+						continue
+					}
+					roomID := ""
+					lastMsg := "No conversations yet."
+					lastAt := a.UpdatedAt
+					unread := 0
+					if s.projectStudioRepo != nil {
+						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+							for _, rm := range allRooms {
+								if rm.Topic == "agent:"+a.ID || rm.Title == a.Name {
+									roomID = rm.ID
+									break
+								}
+							}
+						}
+						if roomID == "" {
+							deterministicID := db.GenerateDeterministicUUID("agent", a.ID)
+							for _, candidateID := range []string{deterministicID, "contact_" + a.ID, a.ID} {
+								if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), candidateID); len(msgs) > 0 {
+									roomID = candidateID
+									break
+								}
+							}
+						}
+						if roomID != "" {
+							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
+								observeResolution(roomID, msgs)
+								msgs = visibleInboxMessages(msgs)
+								if len(msgs) > 0 {
+									lastMsg = msgs[len(msgs)-1].Content
+									lastAt = msgs[len(msgs)-1].CreatedAt
+									unread = countUnread(roomID, msgs, true)
+								}
+							}
+						}
+					}
+					hasRoom := roomID != ""
+					if roomID == "" {
+						// Deterministic room UUID for registered agent without pre-creating empty rooms
+						roomID = db.GenerateDeterministicUUID("agent", a.ID)
+					}
+					tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(roomID, "contact_"+a.ID, a.ID)
+					c := ChatContact{
+						ID:      "contact_" + a.ID,
+						AgentID: a.ID, AgentName: a.Name,
+						Type:           "agent",
+						Name:           a.Name,
+						Avatar:         a.Avatar,
+						Status:         "idle",
+						ConversationID: roomID,
+						UnreadCount:    unread,
+						LastMessage:    attachmentPreview(lastMsg),
+						LastMessageAt:  lastAt,
+						UpdatedAt:      lastAt,
+						HasMessages:    hasRoom,
+						MessageCount:   0,
+						IsOnline:       true,
+						TaskCount:      tc,
+						ActiveTasks:    at,
+						QueuedTasks:    qt,
+						DoneTasks:      dt,
+						FailedTasks:    ft,
+						CanceledTasks:  ct,
+						ReviewTasks:    rt,
+					}
+					contacts = append(contacts, c)
+				}
+			}
+		}
+	}
+
+	if typeFilter != "customers" && s.projectStudioRepo != nil && s.agentRepo != nil {
+		if rooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
+			for _, room := range rooms {
+				if !strings.HasPrefix(room.Topic, "agent-topic:") {
+					continue
+				}
+				a, err := s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+				if err != nil || a == nil || !a.Enabled {
+					continue
+				}
+				last := "No messages yet."
+				at := room.UpdatedAt
+				unread := 0
+				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
+					observeResolution(room.ID, messages)
+					messages = visibleInboxMessages(messages)
+					if len(messages) > 0 {
+						last = messages[len(messages)-1].Content
+						at = messages[len(messages)-1].CreatedAt
+						unread = countUnread(room.ID, messages, true)
+					}
+				}
+				tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt, canceledCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
+				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt, CanceledTasks: canceledCnt})
+			}
+		}
+	}
+
+	// 3. Customer Live Chat Sessions (from Dojo Live Chat visitors)
+	if typeFilter != "agents" {
+		sessionList := []*LiveChatSession{}
+		contactIDs := map[string]string{}
+		saved, err := s.crmList(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Could not load customer conversations")
+			return
+		}
+		for _, c := range saved {
+			if c.IsManual {
+				continue
+			}
+			contactIDs[c.SessionUUID] = c.ID
+			name := c.Name
+			if name == "" {
+				name = "Visitor #" + c.ID[:6]
+			}
+			sessionList = append(sessionList, &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: name, Email: c.Email, Status: "offline", CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt})
+		}
+
+		if s.projectStudioRepo != nil {
+			known := map[string]bool{}
+			for _, v := range sessionList {
+				known[v.UUID] = true
+			}
+			if rooms, e := s.projectStudioRepo.ListAllRooms(r.Context()); e == nil {
+				for _, rm := range rooms {
+					if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && roomAgentID(rm.Topic) == "" && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
+						sessionList = append(sessionList, &LiveChatSession{UUID: rm.ID, GuestUUID: rm.ID, Product: rm.Topic, Name: rm.Title, Status: "offline", CreatedAt: rm.CreatedAt, UpdatedAt: rm.UpdatedAt})
+					}
+				}
+			}
+		}
+
+		sort.Slice(sessionList, func(i, j int) bool {
+			return sessionList[i].UpdatedAt.After(sessionList[j].UpdatedAt)
+		})
+
+		for _, sess := range sessionList {
+			lastMsg := ""
+			lastAt := sess.UpdatedAt
+			unread := 0
+			hasMessages := false
+			msgCount := 0
+
+			if s.projectStudioRepo != nil {
+				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
+					observeResolution(sess.UUID, msgs)
+					msgs = visibleInboxMessages(msgs)
+					if len(msgs) > 0 {
+						msgCount = len(msgs)
+						hasMessages = true
+						lastMsg = msgs[len(msgs)-1].Content
+						lastAt = msgs[len(msgs)-1].CreatedAt
+						unread = countUnread(sess.UUID, msgs, false)
+					}
+				}
+			}
+
+			globalChatManager.RLock()
+			liveSess := globalChatManager.sessions[sess.UUID]
+			isOnline := false
+			currURL := ""
+			pageTitle := ""
+			if liveSess != nil {
+				currURL = liveSess.CurrentURL
+				pageTitle = liveSess.PageTitle
+				if liveSess.Status == "active" && time.Since(liveSess.UpdatedAt) <= 5*time.Minute {
+					isOnline = true
+				}
+			}
+			globalChatManager.RUnlock()
+
+			// Skip sessions that have no messages AND are no longer online to prevent clutter.
+			if !hasMessages && !isOnline {
+				continue
+			}
+
+			status := "offline"
+			if isOnline {
+				status = "online"
+			}
+
+			if lastMsg == "" {
+				if isOnline {
+					if pageTitle != "" {
+						lastMsg = "Viewing: " + pageTitle
+					} else if currURL != "" {
+						lastMsg = "Viewing: " + currURL
+					} else {
+						lastMsg = "Online on website"
+					}
+				} else {
+					lastMsg = "A new conversation session has started."
+				}
+			}
+
+			tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			contactEmail := sess.Email
+			if contactEmail == "" && liveSess != nil && liveSess.Email != "" {
+				contactEmail = liveSess.Email
+			}
+			if contactEmail == "" {
+				if crmS, err := s.crmSession(r.Context(), sess.UUID); err == nil && crmS != nil && crmS.Email != "" {
+					contactEmail = crmS.Email
+				}
+			}
+
+			custContact := ChatContact{
+				ContactID:      contactIDs[sess.UUID],
+				ID:             "cust_" + sess.UUID,
+				Type:           "customer",
+				Name:           sess.Name,
+				Email:          contactEmail,
+				Avatar:         "👤",
+				Status:         status,
+				Product:        sess.Product,
+				GuestUUID:      sess.GuestUUID,
+				ConversationID: sess.UUID,
+				UnreadCount:    unread,
+				LastMessage:    attachmentPreview(lastMsg),
+				LastMessageAt:  lastAt,
+				UpdatedAt:      lastAt,
+				HasMessages:    hasMessages,
+				MessageCount:   msgCount,
+				IsOnline:       isOnline,
+				CurrentURL:     currURL,
+				PageTitle:      pageTitle,
+				TaskCount:      tc,
+				ActiveTasks:    at,
+				QueuedTasks:    qt,
+				DoneTasks:      dt,
+				FailedTasks:    ft,
+				CanceledTasks:  ct,
+				ReviewTasks:    rt,
+			}
+			contacts = append(contacts, custContact)
+		}
+	}
+
+	if s.agentRepo != nil {
+		if cuan, err := s.agentRepo.GetAgentByID(r.Context(), db.AgentIDCuan); err == nil && cuan != nil && cuan.Enabled {
+			for i := range contacts {
+				if contacts[i].Type == "agent" {
+					if strings.HasPrefix(contacts[i].ID, "contact_") {
+						contacts[i].Name = cuan.Name
+					}
+					contacts[i].AgentID, contacts[i].AgentName, contacts[i].Avatar = cuan.ID, cuan.Name, cuan.Avatar
+				}
+			}
+		}
+	}
+	// Filter by search query if specified
+	if searchQuery != "" {
+		filtered := make([]ChatContact, 0)
+		for _, c := range contacts {
+			if strings.Contains(strings.ToLower(c.Name+" "+c.AgentName+" "+c.Email), searchQuery) ||
+				strings.Contains(strings.ToLower(c.LastMessage), searchQuery) ||
+				strings.Contains(strings.ToLower(c.Product), searchQuery) {
+				filtered = append(filtered, c)
+			}
+		}
+		contacts = filtered
+	}
+
+	// Shared resolution is independent from each operator's read marker.
+	if s.projectStudioRepo != nil {
+		rooms, err := s.projectStudioRepo.ListAllRooms(r.Context())
+		if err != nil {
+			respondJSONError(w, 503, "Could not load conversation status")
+			return
+		}
+		byID := make(map[string]db.ProjectRoom, len(rooms))
+		for _, room := range rooms {
+			byID[room.ID] = room
+		}
+		for i := range contacts {
+			room := byID[contacts[i].ConversationID]
+			contacts[i].ResolvedAt = room.ResolvedAt
+			observed := resolutionObserved[contacts[i].ConversationID]
+			if observed.IsZero() {
+				observed = contacts[i].LastMessageAt
+			}
+			contacts[i].ResolutionObservedAt = observed
+			contacts[i].Resolved = room.IsResolved(observed) && contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
+		}
+	}
+	for i := range contacts {
+		if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {
+			contacts[i].UnreadCount = 1
+		}
+	}
+	sort.SliceStable(contacts, func(i, j int) bool { return contacts[i].UpdatedAt.After(contacts[j].UpdatedAt) })
+	// UI consumers need one representation, not a duplicate compatibility alias.
+	// Keep the legacy envelope for existing CLI/integration consumers.
+	if r.URL.Query().Get("view") == "list" {
+		respondJSON(w, http.StatusOK, map[string]any{"contacts": contacts, "total": len(contacts)})
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"contacts":      contacts,
+		"conversations": contacts,
+		"total":         len(contacts),
+	})
+}

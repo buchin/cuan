@@ -1056,6 +1056,11 @@ func CreateInboxConversation(ctx context.Context, agentID, projectID, title stri
 	agentID = NormalizeAgentAlias(agentID)
 	if projectID == "" {
 		projectID = "default"
+	} else if !strings.EqualFold(projectID, "default") {
+		var resolvedProjID string
+		if err := db.QueryRowContext(ctx, "SELECT id FROM projects WHERE id = $1 OR LOWER(name) = LOWER($1) OR LOWER(repo_name) = LOWER($1) LIMIT 1", projectID).Scan(&resolvedProjID); err == nil && resolvedProjID != "" {
+			projectID = resolvedProjID
+		}
 	}
 	if title == "" {
 		title = "New conversation"
