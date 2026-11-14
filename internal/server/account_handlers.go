@@ -9,6 +9,7 @@ import (
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
+	"github.com/buchin/cuan/internal/db"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -206,7 +207,8 @@ func (s *Server) handleProviderAccountFailover(w http.ResponseWriter, r *http.Re
 		return
 	}
 	registered, err := s.agentRepo.GetAgentByID(r.Context(), profile.AgentID)
-	if err != nil || registered == nil || registered.ConnectionID != profile.ConnectionID {
+	isCuanFacade := err == nil && registered != nil && (registered.ID == db.AgentIDCuan || registered.Name == db.DefaultAgentHandle || registered.Name == "@cuan")
+	if err != nil || registered == nil || (!isCuanFacade && registered.ConnectionID != profile.ConnectionID) {
 		respondJSONError(w, 409, "Account connection does not match its agent")
 		return
 	}

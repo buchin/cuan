@@ -897,3 +897,121 @@ func TestInboxBoundedQuotaRouteCheckKeepsWorkPending(t *testing.T) {
 		seen[model] = true
 	}
 }
+
+func TestInboxCuanFacadePoolAndModelAliases(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	s, token := setupTestChatServer(t)
+	ownerObj, _ := s.authSvc.ValidateToken(context.Background(), token)
+	owner := ownerObj.ID
+	agentRepo := s.agentRepo
+
+	facade := &db.Agent{
+		ID:           db.AgentIDCuan,
+		Name:         "@cuan",
+		Harness:      "agy",
+		Provider:     "agy",
+		ConnectionID: "",
+		Enabled:      true,
+		Status:       db.AgentStatusActive,
+	}
+	_ = agentRepo.CreateAgent(context.Background(), facade)
+
+	// Create primary account bound to agent_cuan with a connection ID
+	primary, err := agent.CreateProviderAccount(owner, "Primary Pin5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	primaryHome, _ := agent.ProviderAccountHome(owner, primary.ID)
+	_ = os.MkdirAll(agent.AntigravityConfigDirPath(primaryHome), 0700)
+	_ = os.WriteFile(agent.AntigravityCredentialsFilePath(primaryHome), []byte("fixture-credential-token-longer-than-16"), 0600)
+	_ = agent.BindProviderAccount(owner, primary.ID, db.AgentIDCuan, "conn_profile_pin5")
+	file := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", primary.ID, "account.json")
+	data, _ := os.ReadFile(file)
+	var meta map[string]any
+	_ = json.Unmarshal(data, &meta)
+	meta["state"] = "verified"
+	meta["model_id"] = "gemini-3.8-flash-high"
+	meta["fallback_model_id"] = "gemini-3.8-flash-high"
+	data, _ = json.Marshal(meta)
+	_ = os.WriteFile(file, data, 0600)
+	primary, _ = agent.GetProviderAccount(owner, primary.ID)
+
+	// Test 1: inboxAccountProfileHome returns primaryHome directly for @cuan
+	home, err := s.inboxAccountProfileHome(context.Background(), owner, facade, primary)
+	if err != nil {
+		t.Fatalf("expected primary account to resolve home, got error: %v", err)
+	}
+	if home != primaryHome {
+		t.Fatalf("expected %s, got %s", primaryHome, home)
+	}
+
+	// Create secondary account bound to an archived persona with AllowFailover=true
+	archivedAgent := &db.Agent{
+		ID:           "agent_dm",
+		Name:         "@dm",
+		Harness:      "agy",
+		Provider:     "agy",
+		ConnectionID: "conn_profile_dm",
+		Enabled:      false,
+		Status:       db.AgentStatusArchived,
+	}
+	_ = agentRepo.CreateAgent(context.Background(), archivedAgent)
+
+	backup, err := agent.CreateProviderAccount(owner, "Backup DM")
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupHome, _ := agent.ProviderAccountHome(owner, backup.ID)
+	_ = os.MkdirAll(agent.AntigravityConfigDirPath(backupHome), 0700)
+	_ = os.WriteFile(agent.AntigravityCredentialsFilePath(backupHome), []byte("fixture-credential-token-longer-than-16"), 0600)
+	_ = agent.BindProviderAccount(owner, backup.ID, "agent_dm", "conn_profile_dm")
+	_, _ = agent.SetProviderAccountFailover(owner, backup.ID, true)
+	fileB := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", backup.ID, "account.json")
+	dataB, _ := os.ReadFile(fileB)
+	var metaB map[string]any
+	_ = json.Unmarshal(dataB, &metaB)
+	metaB["state"] = "verified"
+	dataB, _ = json.Marshal(metaB)
+	_ = os.WriteFile(fileB, dataB, 0600)
+	backup, _ = agent.GetProviderAccount(owner, backup.ID)
+
+	// Test 2: inboxAccountProfileHome allows failover account even if persona is archived
+	bHome, err := s.inboxAccountProfileHome(context.Background(), owner, facade, backup)
+	if err != nil {
+		t.Fatalf("expected backup failover account to resolve home for facade, got error: %v", err)
+	}
+	if bHome != backupHome {
+		t.Fatalf("expected %s, got %s", backupHome, bHome)
+	}
+
+	// Test 3: Model alias normalization: gemini-3.8-flash-tiered resolves to gemini-3.8-flash-high
+	oldFetch := fetchInboxModelUsage
+	defer func() { fetchInboxModelUsage = oldFetch }()
+	fetchInboxModelUsage = func(ctx context.Context, o, id string) agent.AccountModelUsage {
+		return agent.AccountModelUsage{
+			Available: true,
+			Models: []agent.ModelUsage{
+				{Model: "gemini-3.8-flash-tiered", Remaining: 85.5},
+			},
+		}
+	}
+	primary.ModelID = "gemini-3.8-flash-high"
+	primary.FallbackModelID = "gemini-3.8-flash-high"
+	routes := s.providerRoutes(context.Background(), owner, facade, primaryHome, false)
+	var primaryRoute *inboxAccountRoute
+	for _, r := range routes {
+		if r.accountID == primary.ID {
+			primaryRoute = &r
+			break
+		}
+	}
+	if primaryRoute == nil {
+		t.Fatal("expected primary route to be present")
+	}
+	if primaryRoute.model != "gemini-3.8-flash-high" {
+		t.Fatalf("expected canonical model gemini-3.8-flash-high, got %s", primaryRoute.model)
+	}
+	if primaryRoute.remaining != 85.5 {
+		t.Fatalf("expected remaining quota 85.5, got %f", primaryRoute.remaining)
+	}
+}

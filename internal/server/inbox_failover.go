@@ -415,10 +415,10 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 				found := false
 				normID := agent.NormalizeModelAlias(id)
 				for _, item := range usage.Models {
-					if item.Model == id || item.Model == normID {
+					if item.Model == id || item.Model == normID || agent.NormalizeModelAlias(item.Model) == normID || agent.NormalizeModelAlias(item.Model) == id {
 						found = true
 						remaining = item.Remaining
-						id = item.Model
+						id = normID
 						break
 					}
 				}
@@ -595,6 +595,9 @@ func (s *Server) inboxAccountProfileHome(ctx context.Context, owner string, regi
 	if s.agentRepo == nil || profile.AgentID == "" || profile.ConnectionID == "" {
 		return "", errors.New("Account binding is incomplete")
 	}
+	if isFacade && (profile.AgentID == db.AgentIDCuan || profile.AgentID == registered.ID || profile.AllowFailover) {
+		return agent.ProviderAccountHome(owner, profile.ID)
+	}
 	bound, err := s.agentRepo.GetAgentByID(ctx, profile.AgentID)
 	if err != nil || bound == nil {
 		cleanID := strings.TrimPrefix(profile.AgentID, "@")
@@ -606,6 +609,9 @@ func (s *Server) inboxAccountProfileHome(ctx context.Context, owner string, regi
 	harness := db.NormalizeHarness(bound.Harness, bound.Provider)
 	if harness != "agy" && harness != "antigravity" && harness != "" {
 		return "", errors.New("Account provider does not match its binding")
+	}
+	if isFacade {
+		return agent.ProviderAccountHome(owner, profile.ID)
 	}
 	return s.ownedAgentProfileHome(ctx, owner, bound)
 }
