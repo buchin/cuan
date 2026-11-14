@@ -382,7 +382,10 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 	}
 	probeStarted := time.Now().UTC()
 	model := ""
-	// Verify the same provider-default path used by a new Auto conversation.
+	if a.ModelID != "" && a.ModelID != "auto" {
+		model = NormalizeModelAlias(a.ModelID)
+	}
+	// Verify the selected model, or provider default path if not explicitly set.
 	probeErr := VerifyAntigravityProfile(ctx, home, model)
 
 	now := time.Now().UTC()

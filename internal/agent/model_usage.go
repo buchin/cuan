@@ -45,6 +45,20 @@ func IsTextModel(id string) bool {
 	lower := strings.ToLower(id)
 	return modelIDPattern.MatchString(id) && (strings.HasPrefix(lower, "gemini-") || strings.HasPrefix(lower, "claude-")) && !strings.Contains(lower, "image") && !strings.Contains(lower, "embedding") && !strings.Contains(lower, "computer-use")
 }
+
+// NormalizeModelAlias resolves common model aliases to their canonical CLI catalog IDs.
+func NormalizeModelAlias(id string) string {
+	lower := strings.ToLower(strings.TrimSpace(id))
+	switch lower {
+	case "gemini-3.8-flash", "google/gemini-3.8-flash", "gemini-3.8-flash-tiered", "gemini-flash":
+		return "gemini-3.8-flash-high"
+	case "gemini-1.5-pro", "gemini-pro":
+		return "gemini-1.5-pro"
+	case "gemini-1.5-flash":
+		return "gemini-1.5-flash"
+	}
+	return id
+}
 func FetchAccountModelUsage(ctx context.Context, owner, id string) AccountModelUsage {
 	result := AccountModelUsage{CheckedAt: time.Now().UTC(), Models: []ModelUsage{}, Message: "Model usage is unavailable. No remaining quota is assumed."}
 	a, err := GetProviderAccount(owner, id)

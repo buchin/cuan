@@ -21,7 +21,7 @@ func ReconcileSelectedModelQuota(owner, id string, usage AccountModelUsage) (*Pr
 	}
 	available := false
 	for _, model := range usage.Models {
-		if model.Model == a.ModelID && model.Remaining > 0 {
+		if (model.Model == a.ModelID || NormalizeModelAlias(model.Model) == NormalizeModelAlias(a.ModelID)) && model.Remaining > 0 {
 			available = true
 			break
 		}

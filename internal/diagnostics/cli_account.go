@@ -148,6 +148,27 @@ func (c *CuanClient) SetProviderAccountFallbackModel(ctx context.Context, id, mo
 	return data.Account, nil
 }
 
+func (c *CuanClient) SetProviderAccountFailover(ctx context.Context, id string, enabled bool) (*agent.ProviderAccount, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	resp, err := c.doRequest(ctx, http.MethodPatch, "/api/v1/provider-accounts/"+url.PathEscape(id)+"/failover", map[string]any{"enabled": enabled})
+	if err != nil {
+		return nil, fmt.Errorf("could not update failover; read account settings before retrying")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("account failover update failed (HTTP %d)", resp.StatusCode)
+	}
+	var data struct {
+		Account *agent.ProviderAccount `json:"account"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&data) != nil || data.Account == nil || data.Account.ID != id || data.Account.AllowFailover != enabled {
+		return nil, fmt.Errorf("failover update could not be confirmed; read account settings before retrying")
+	}
+	return data.Account, nil
+}
+
 // Verify probes the existing sign-in and updates readiness, never accepting terms or changing policy.
 func (c *CuanClient) VerifyProviderAccount(ctx context.Context, id string) (*agent.ProviderAccount, error) {
 	if strings.TrimSpace(id) == "" || strings.ContainsAny(id, "/\\?#") {
@@ -187,6 +208,7 @@ Usage:
   cuan account models ACCOUNT_ID
   cuan account model ACCOUNT_ID MODEL_ID|auto
   cuan account fallback ACCOUNT_ID MODEL_ID|off
+  cuan account failover ACCOUNT_ID on|off
   cuan account verify ACCOUNT_ID
 Output is JSON metadata only. Credentials and native profile paths are never returned.
 Verify probes an existing sign-in and updates readiness without accepting terms.
@@ -222,6 +244,9 @@ Usage reads the provider's availability evidence; it does not change model/fallb
 			model = ""
 		}
 		result, err = GetCuanClient().SetProviderAccountFallbackModel(ctx, args[1], model)
+	case args[0] == "failover" && len(args) == 3:
+		enabled := args[2] == "on" || args[2] == "true" || args[2] == "yes" || args[2] == "1"
+		result, err = GetCuanClient().SetProviderAccountFailover(ctx, args[1], enabled)
 	default:
 		fmt.Fprintln(errOut, help)
 		return 2

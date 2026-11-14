@@ -97,8 +97,12 @@ func FetchRunnableAccountModelUsage(ctx context.Context, owner, id string) Accou
 	// exhausted and not 100% available. Runtime results still decide availability.
 	byID := map[string]ModelUsage{}
 	for _, model := range usage.Models {
+		norm := NormalizeModelAlias(model.Model)
 		if models[model.Model] {
 			byID[model.Model] = model
+		} else if models[norm] {
+			model.Model = norm
+			byID[norm] = model
 		}
 	}
 	ids := make([]string, 0, len(models))

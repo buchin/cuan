@@ -349,7 +349,7 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		if candidate.Legacy || !isEligible || !candidate.CredentialsPresent || candidate.State == "login_required" || candidate.State == "unavailable" || candidate.State == "setup_incomplete" || (!isCuanFacade && (candidate.AgentID == "" || candidate.ConnectionID == "")) || (primary != nil && primary.ID == candidate.ID) || s.agentRepo == nil {
 			continue
 		}
-		if candidate.State == "quota_limited" && (candidate.QuotaRetryAt == nil || time.Now().Before(*candidate.QuotaRetryAt)) {
+		if candidate.State == "quota_limited" && !candidate.AllowModelFallback && (candidate.QuotaRetryAt == nil || time.Now().Before(*candidate.QuotaRetryAt)) {
 			continue
 		}
 		candidateHome, err := s.inboxAccountProfileHome(ctx, owner, registered, candidate)
@@ -393,42 +393,54 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 		if isCuanFacade && profile != nil && profile.ModelID != "" {
 			model = profile.ModelID
 		}
-		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited" && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)))
-		addModel := func(id string, remaining float64, fallback ...bool) {
-			if profile != nil && time.Now().Before(profile.ModelCooldowns[id]) {
-				return
+		blocked := (isPrimary && limited) || (profile != nil && profile.State == "quota_limited" && !profile.AllowModelFallback && (profile.QuotaRetryAt == nil || time.Now().Before(*profile.QuotaRetryAt)))
+		addModel := func(id string, remaining float64, fallback ...bool) bool {
+			normID := agent.NormalizeModelAlias(id)
+			if profile != nil && (time.Now().Before(profile.ModelCooldowns[id]) || time.Now().Before(profile.ModelCooldowns[normID])) {
+				return false
 			}
 			accountID := ""
 			if profile != nil {
 				accountID = profile.ID
 			}
-			routes = append(routes, inboxAccountRoute{accountID, profileHome, id, remaining, isPrimary, len(fallback) > 0 && fallback[0]})
+			routes = append(routes, inboxAccountRoute{accountID, profileHome, normID, remaining, isPrimary, len(fallback) > 0 && fallback[0]})
+			return true
 		}
 		if profile != nil && profile.FallbackModelID != "" {
 			if blocked {
 				return
 			}
-			addExact := func(id string, fallback bool) {
+			addExact := func(id string, fallback bool) bool {
 				remaining := -1.0 // Catalog membership does not establish quota.
 				found := false
+				normID := agent.NormalizeModelAlias(id)
 				for _, item := range usage.Models {
-					if item.Model == id {
+					if item.Model == id || item.Model == normID {
 						found = true
 						remaining = item.Remaining
+						id = item.Model
 						break
 					}
 				}
 				if usage.Available && !found {
-					return
+					return false
 				}
 				if remaining == 0 {
-					return
+					return false
 				}
-				addModel(id, remaining, fallback)
+				return addModel(id, remaining, fallback)
 			}
-			addExact(profile.ModelID, false)
+			addedPrimary := addExact(profile.ModelID, false)
+			addedFallback := false
 			if profile.AllowModelFallback && profile.FallbackModelID != profile.ModelID {
-				addExact(profile.FallbackModelID, true)
+				addedFallback = addExact(profile.FallbackModelID, true)
+			}
+			if !addedPrimary && !addedFallback && profile.AllowModelFallback && usage.Available {
+				for _, item := range usage.Models {
+					if item.Model != profile.ModelID && item.Model != profile.FallbackModelID && (item.Remaining > 0 || item.Remaining == -1) && agent.IsTextModel(item.Model) {
+						addModel(item.Model, item.Remaining, true)
+					}
+				}
 			}
 			return
 		}

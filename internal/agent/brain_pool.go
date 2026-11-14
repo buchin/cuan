@@ -50,23 +50,27 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 				}
 				model = p.FallbackModelID
 			}
-			if p.Legacy || excluded[p.ID] || excluded[BrainRouteKey(p.ID, model)] || !p.CredentialsPresent || p.State == "login_required" || p.State == "unavailable" || p.State == "setup_incomplete" {
+			normModel := NormalizeModelAlias(model)
+			if p.Legacy || excluded[p.ID] || excluded[BrainRouteKey(p.ID, model)] || excluded[BrainRouteKey(p.ID, normModel)] || !p.CredentialsPresent || p.State == "login_required" || p.State == "unavailable" || p.State == "setup_incomplete" {
 				continue
 			}
-			if len(requiresVision) > 0 && requiresVision[0] && model != "" && !IsModelVisionCapable("agy", model) {
+			if len(requiresVision) > 0 && requiresVision[0] && model != "" && !IsModelVisionCapable("agy", model) && !IsModelVisionCapable("agy", normModel) {
 				continue
 			}
 			if p.State == "quota_limited" && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
 				continue
 			}
-			if time.Now().Before(p.ModelCooldowns[model]) {
+			if time.Now().Before(p.ModelCooldowns[model]) || time.Now().Before(p.ModelCooldowns[normModel]) {
 				continue
 			}
 			if tier == 1 {
 				// Discover supported IDs, never infer runnable models from quota labels.
 				catalog, ok := nativeAccountModelCatalog(context.Background(), owner, p.ID)
-				if !ok || !catalog[model] {
+				if !ok || (!catalog[model] && !catalog[normModel]) {
 					continue
+				}
+				if !catalog[model] && catalog[normModel] {
+					model = normModel
 				}
 			}
 			release, err := lease(owner, p.ID)
@@ -74,11 +78,11 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 				continue
 			}
 			current, err := GetProviderAccount(owner, p.ID)
-			if err != nil || !current.CredentialsPresent || current.State == "quota_limited" || current.State == "unavailable" || current.State == "login_required" || current.State == "setup_incomplete" || time.Now().Before(current.ModelCooldowns[model]) {
+			if err != nil || !current.CredentialsPresent || current.State == "quota_limited" || current.State == "unavailable" || current.State == "login_required" || current.State == "setup_incomplete" || time.Now().Before(current.ModelCooldowns[model]) || time.Now().Before(current.ModelCooldowns[normModel]) {
 				release()
 				continue
 			}
-			if (tier == 0 && current.ModelID != model) || (tier == 1 && (!current.AllowModelFallback || current.FallbackModelID != model || current.ModelID == model)) {
+			if (tier == 0 && current.ModelID != model && current.ModelID != normModel) || (tier == 1 && (!current.AllowModelFallback || (current.FallbackModelID != model && current.FallbackModelID != normModel) || current.ModelID == model)) {
 				release()
 				continue
 			}
