@@ -105,7 +105,16 @@ func runRegisteredProjectVerification(ctx context.Context, root, configuredTarge
 		result := runProjectVerifierCommand(ctx, root, "php", runtime, "--colors=never", target)
 		_, _ = output.Write([]byte(result.Summary + "\n"))
 		if !result.Passed {
-			result.Summary = output.String()
+			exitCode := 1
+			if idx := strings.Index(result.Summary, "(exit "); idx != -1 {
+				if end := strings.Index(result.Summary[idx:], ")"); end != -1 {
+					var code int
+					if _, err := fmt.Sscanf(result.Summary[idx:idx+end+1], "(exit %d)", &code); err == nil && code != 0 {
+						exitCode = code
+					}
+				}
+			}
+			result.Summary = fmt.Sprintf("Project verification: registered PHPUnit targets (exit %d)\n%s", exitCode, output.String())
 			return result
 		}
 	}
