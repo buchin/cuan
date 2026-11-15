@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Copy, Check, FileText } from 'lucide-react'
-import { MermaidBlock } from './MermaidBlock'
+import { MermaidDiagram } from './MermaidDiagram'
 
 interface MarkdownViewerProps {
   content: string
@@ -444,7 +444,7 @@ export function MarkdownViewer({
           const lang = (block.lang || '').toLowerCase()
           const isMermaid = lang === 'mermaid' || lang === 'flowchart'
           if (isMermaid) {
-            return <MermaidBlock key={idx} code={block.text || ''} />
+            return <MermaidDiagram key={idx} code={block.text || ''} />
           }
           return (
             <div

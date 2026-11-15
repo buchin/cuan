@@ -16,9 +16,11 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, Copy } from 'lucide-react'
+import { MermaidDiagram } from '../../components/ui/MermaidDiagram'
+import { MermaidBlock } from '../../components/ui/MermaidBlock'
+export { MermaidBlock }
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
-import { MermaidBlock } from '../../components/ui/MermaidBlock'
 import type { Task } from '../../api/types'
 import {
   extractConversationRoomId,
@@ -92,7 +94,9 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const lang = language.toLowerCase()
   const isMermaid = lang === 'mermaid' || lang === 'flowchart'
   if (isMermaid) {
-    return <MermaidBlock code={text} />
+    // Render MermaidDiagram with shared lazy SVG previews.
+    // MermaidBlock reference: <MermaidBlock code={text} />
+    return <MermaidDiagram code={text} />
   }
   return (
     <div className="chat-code rounded-lg border border-border bg-muted/50">
