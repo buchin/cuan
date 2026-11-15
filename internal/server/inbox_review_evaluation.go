@@ -589,10 +589,15 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				return acceptedCustomerTaskResult(d, decision.Explanation)
 			}
 
-			if !strings.Contains(decision.Explanation, "/tasks/"+d.ID) {
-				return decision.Explanation + taskLink
+			explanation := decision.Explanation
+			if strings.TrimSpace(d.Summary) != "" && !strings.Contains(explanation, strings.TrimSpace(d.Summary)) {
+				explanation = explanation + "\n\n" + strings.TrimSpace(d.Summary)
 			}
-			return decision.Explanation
+
+			if !strings.Contains(explanation, "/tasks/"+d.ID) {
+				return explanation + taskLink
+			}
+			return explanation
 		}
 	}
 	if d.Status == task.TaskStatusDone {

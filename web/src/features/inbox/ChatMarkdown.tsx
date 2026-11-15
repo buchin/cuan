@@ -16,9 +16,9 @@ import {
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, Copy } from 'lucide-react'
-import { MermaidDiagram } from '../../components/ui/MermaidDiagram'
 import { TaskCard } from './TaskCard'
 import { RoomCard } from './RoomCard'
+import { MermaidBlock } from '../../components/ui/MermaidBlock'
 import type { Task } from '../../api/types'
 import {
   extractConversationRoomId,
@@ -89,8 +89,11 @@ function CodeBlock({ children }: { children?: ReactNode }) {
       </ExtensionBoundary>
     )
 
-  const isMermaid = language === 'mermaid' || language === 'flowchart'
-  if (isMermaid) return <MermaidDiagram code={text} />
+  const lang = language.toLowerCase()
+  const isMermaid = lang === 'mermaid' || lang === 'flowchart'
+  if (isMermaid) {
+    return <MermaidBlock code={text} />
+  }
   return (
     <div className="chat-code rounded-lg border border-border bg-muted/50">
       <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5 text-xs text-muted-foreground">
@@ -261,3 +264,6 @@ export const ChatMarkdown = memo(function ChatMarkdown({
     </div>
   )
 })
+
+export const MarkdownRenderer = ChatMarkdown
+

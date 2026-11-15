@@ -982,27 +982,27 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				if output != nil {
 					output.flush()
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 				if s.projectStudioRepo != nil {
 					_ = s.projectStudioRepo.UpdateTaskExecution(ctx, taskID, h.Status, fmt.Sprintf("Runner exited with code %d (%s). Review the result and verification evidence.", h.ExitCode, h.Status))
 				}
 				if attempt != nil && s.taskSvc != nil {
 					state := task.AttemptStatusFailed
-					if (h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted") || h.EndReason == "agent_report" {
-						state = task.AttemptStatusSucceeded
-					}
 					note := output.failureNote()
-					if h.EndReason == "agent_report" {
+					ready := false
+					if h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
+						isReady, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
+						ready = e == nil && isReady
+					}
+					if h.EndReason == "agent_report" || ready {
+						state = task.AttemptStatusSucceeded
 						note = ""
+					} else if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
+						state = task.AttemptStatusFailed
+						note = "No review-ready result was recorded. Check the agent report and saved output."
 					}
-					if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
-						ready, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
-						if e != nil || !ready {
-							state = task.AttemptStatusFailed
-							note = "No review-ready result was recorded. Check the agent report and saved output."
-						}
-					}
+					var updatedAttempt *task.TaskAttempt
 					var e error
 					if repositoryBaseline != "" {
 						final, observeErr := runner.ObserveRepositoryScope(ctx, workDir)
@@ -1015,10 +1015,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							return
 						}
 					}
-					if h.EndReason == "agent_report" {
-						_, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
+					if h.EndReason == "agent_report" || ready {
+						updatedAttempt, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
 					} else {
-						_, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
+						updatedAttempt, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})
 					}
 					if e == nil {
 						// Completion outlives the HTTP request that launched the terminal.
@@ -1026,6 +1026,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					}
 					_ = s.taskSvc.FinishTaskLaunches(context.Background(), taskID, "stopped")
 					s.kickTaskLaunches()
+					if e == nil && updatedAttempt != nil && (updatedAttempt.Status == task.AttemptStatusSucceeded || updatedAttempt.Status == task.AttemptStatusFailed) {
+						s.onRunnerAttemptCompleted(ctx, updatedAttempt)
+					}
+					s.kickInboxTaskUpdates(context.Background())
 				}
 			},
 		}

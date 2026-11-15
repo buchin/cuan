@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -60,11 +62,6 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 		return
 	}
 
-	// If task is already done, no need to re-evaluate
-	if detail.Status == task.TaskStatusDone {
-		return
-	}
-
 	// Resolve the target discussion/chat room
 	targetRoomID := detail.SourceRoomID
 	if targetRoomID == "" && sourceRoomID != "" {
@@ -99,8 +96,58 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 		detail.SourceRoomID = targetRoomID
 	}
 
+	// If task is already done, ensure the completion summary report is delivered
+	if detail.Status == task.TaskStatusDone {
+		s.ensureTaskCompletionDelivered(ctx, detail, targetRoomID)
+		return
+	}
+
 	// Trigger autonomous task review in the room
 	s.queueInboxTaskReview(ctx, detail)
+}
+
+func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task.TaskDetailResponse, roomID string) {
+	if s.projectStudioRepo == nil || detail == nil {
+		return
+	}
+	targetRoom := roomID
+	if targetRoom == "" {
+		targetRoom = detail.SourceRoomID
+	}
+	if targetRoom == "" {
+		return
+	}
+	// Single-bubble idempotency: verify whether a completion notification was already delivered to targetRoom
+	msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, targetRoom)
+	if err == nil {
+		for _, m := range msgs {
+			if strings.Contains(m.Content, "/tasks/"+detail.ID) &&
+				(strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria") ||
+					strings.Contains(m.Content, "Pekerjaan ditandai selesai") ||
+					strings.Contains(m.Content, "Pekerjaan telah diselesaikan")) {
+				return
+			}
+		}
+	}
+	summary := strings.TrimSpace(detail.Summary)
+	if summary == "" {
+		summary = "Pekerjaan telah diselesaikan dan diverifikasi."
+	}
+	content := fmt.Sprintf("Hasil pekerjaan memenuhi kriteria yang disepakati.\n\n%s\n\n[View work](/tasks/%s)", summary, detail.ID)
+	now := time.Now().UTC()
+	msg := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     targetRoom,
+		AuthorType: "agent",
+		AuthorID:   "scrum_master",
+		AuthorName: "Scrum Master",
+		Content:    content,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
+		s.publishInbox(targetRoom)
+	}
 }
 
 // evaluateTaskDoDDeterministic performs autonomous deterministic DoD evaluation when
