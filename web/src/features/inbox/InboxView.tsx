@@ -1,4 +1,5 @@
 import { ConversationResolutionAction } from './conversation-resolution'
+import { mergeConversationMessages } from './message-reconciliation'
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
@@ -526,42 +527,46 @@ export function InboxView({
         )
         if (activeConvRef.current !== convId || version !== loadVersion.current)
           return
-        setMessages((prev) => {
-          const next = data.messages || []
+        setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
+        setHasMoreOlder(!!data.has_more)
+        markConversationSeen(convId, data.messages || [])
+        setRequests((prev) => {
+          const next = data.requests || []
           if (prev.length === next.length) {
-            let unchanged = true
+            let same = true
             for (let i = 0; i < prev.length; i++) {
-              const a = prev[i]
-              const b = next[i]
               if (
-                (a.uuid || a.id) !== (b.uuid || b.id) ||
-                a.content !== b.content ||
-                a.message !== b.message ||
-                a.created_at !== b.created_at ||
-                a.delivered_at !== b.delivered_at ||
-                a.read_confirmed_at !== b.read_confirmed_at ||
-                a.email_delivery?.status !== b.email_delivery?.status ||
-                a.email_delivery?.recipient_type !== b.email_delivery?.recipient_type ||
-                a.reply_draft !== b.reply_draft ||
-                a.work_update?.kind !== b.work_update?.kind ||
-                a.work_update?.task_id !== b.work_update?.task_id ||
-                a.work_update?.attempt_id !== b.work_update?.attempt_id ||
-                a.regenerate_reply_id !== b.regenerate_reply_id ||
-                a.plan_deferred !== b.plan_deferred ||
-                a.approval_accepted !== b.approval_accepted
+                prev[i].request_id !== next[i].request_id ||
+                prev[i].state !== next[i].state ||
+                prev[i].safe_error !== next[i].safe_error
               ) {
-                unchanged = false
+                same = false
                 break
               }
             }
-            if (unchanged) return prev
+            if (same) return prev
           }
           return next
         })
-        setHasMoreOlder(!!data.has_more)
-        markConversationSeen(convId, data.messages || [])
-        setRequests(data.requests || [])
-        setLinkedTasks(data.tasks || [])
+        setLinkedTasks((prev) => {
+          const next = data.tasks || []
+          if (prev.length === next.length) {
+            let same = true
+            for (let i = 0; i < prev.length; i++) {
+              if (
+                prev[i].id !== next[i].id ||
+                prev[i].status !== next[i].status ||
+                prev[i].updated_at !== next[i].updated_at ||
+                prev[i].title !== next[i].title
+              ) {
+                same = false
+                break
+              }
+            }
+            if (same) return prev
+          }
+          return next
+        })
         if (data.tasks) cacheTasks(data.tasks)
         if (data.contact?.name && activeContact && activeContact.name !== data.contact.name) {
           activeContact.name = data.contact.name
@@ -757,19 +762,45 @@ export function InboxView({
           failures = 0
           setStreamState('live')
           setLoading(false)
-          setMessages((prev) => {
-            if (prev.length === 0) return data.messages || []
-            const byUuid = new Map(prev.map((m) => [m.uuid || String(m.id), m]))
-            for (const m of data.messages || []) {
-              byUuid.set(m.uuid || String(m.id), m)
+          setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
+          markConversationSeen(convId, data.messages || [])
+          setRequests((prev) => {
+            const next = data.requests || []
+            if (prev.length === next.length) {
+              let same = true
+              for (let i = 0; i < prev.length; i++) {
+                if (
+                  prev[i].request_id !== next[i].request_id ||
+                  prev[i].state !== next[i].state ||
+                  prev[i].safe_error !== next[i].safe_error
+                ) {
+                  same = false
+                  break
+                }
+              }
+              if (same) return prev
             }
-            return Array.from(byUuid.values()).sort(
-              (a, b) => (a.id || 0) - (b.id || 0),
-            )
+            return next
           })
-        markConversationSeen(convId, data.messages || [])
-          setRequests(data.requests || [])
-          setLinkedTasks(data.tasks || [])
+          setLinkedTasks((prev) => {
+            const next = data.tasks || []
+            if (prev.length === next.length) {
+              let same = true
+              for (let i = 0; i < prev.length; i++) {
+                if (
+                  prev[i].id !== next[i].id ||
+                  prev[i].status !== next[i].status ||
+                  prev[i].updated_at !== next[i].updated_at ||
+                  prev[i].title !== next[i].title
+                ) {
+                  same = false
+                  break
+                }
+              }
+              if (same) return prev
+            }
+            return next
+          })
           if (data.tasks) cacheTasks(data.tasks)
           if (data.room_title && activeContact && activeContact.name !== data.room_title) {
             window.dispatchEvent(
@@ -778,6 +809,35 @@ export function InboxView({
               }),
             )
             onContactUpdated?.()
+          }
+          if (activeContact && data.tasks) {
+            const states = data.tasks.map(task => task.status === 'done' ? 'Completed' : workStatus(task))
+            const total = data.tasks.length
+            const at = states.filter(state => state === 'Working').length
+            const rt = states.filter(state => ['Ready for review', 'Answered'].includes(state)).length
+            const qt = states.filter(state => state === 'Queued').length
+            const dt = states.filter(state => state === 'Completed').length
+            const ct = states.filter(state => state === 'Cancelled').length
+            const ft = states.filter(state => ['Needs attention', 'Not running'].includes(state)).length
+
+            const changed =
+              activeContact.task_count !== total ||
+              activeContact.active_tasks !== at ||
+              activeContact.review_tasks !== rt ||
+              activeContact.queued_tasks !== qt ||
+              activeContact.done_tasks !== dt ||
+              activeContact.canceled_tasks !== ct ||
+              activeContact.failed_tasks !== ft
+            activeContact.task_count = total
+            activeContact.active_tasks = at
+            activeContact.review_tasks = rt
+            activeContact.queued_tasks = qt
+            activeContact.done_tasks = dt
+            activeContact.canceled_tasks = ct
+            activeContact.failed_tasks = ft
+            if (changed) {
+              onContactUpdated?.()
+            }
           }
           const pending = pendingRef.current
           if (

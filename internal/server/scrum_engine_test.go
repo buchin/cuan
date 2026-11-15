@@ -108,14 +108,21 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 		t.Fatalf("failed to list messages: %v", err)
 	}
 	foundReview := false
+	foundSummary := false
 	for _, m := range messages {
 		if strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria yang disepakati.") && !strings.Contains(m.Content, "### Evaluasi") {
 			foundReview = true
+			if strings.Contains(m.Content, tItem.Summary) {
+				foundSummary = true
+			}
 			break
 		}
 	}
 	if !foundReview {
 		t.Errorf("expected readable accepted outcome in room messages")
+	}
+	if !foundSummary {
+		t.Errorf("expected completed summary report in room messages")
 	}
 }
 
@@ -397,5 +404,79 @@ func TestScrumFallbackChatCopyPreservesFullEvidenceAndTechnicalRevision(t *testi
 	decision = evaluateTaskDoDDeterministic(d)
 	if decision.Decision != "revise" || !strings.Contains(decision.Revision, "undefined variable foo") || strings.Contains(decision.Explanation, "INTERNAL_DIAGNOSTIC_ONLY") || strings.Contains(decision.Explanation, "otomatis") {
 		t.Fatal("lost correction detail or promised an unrecorded launch", decision)
+	}
+}
+
+func TestAutonomousScrumEngine_TaskAlreadyDone_DeliversProactiveSummary(t *testing.T) {
+	srv, _ := setupTestChatServer(t)
+	ctx := context.Background()
+
+	_ = srv.agentRepo.CreateAgent(ctx, &cuanDB.Agent{
+		ID:      "scrum_master",
+		Name:    "Scrum Master",
+		Harness: "agy",
+		Enabled: true,
+		Status:  cuanDB.AgentStatusActive,
+	})
+	roomID := cuanDB.GenerateUUID()
+	room := &cuanDB.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Topic:     "agent-topic:scrum_master",
+		Title:     "Scrum Room",
+	}
+	if err := srv.projectStudioRepo.CreateRoom(ctx, room); err != nil {
+		t.Fatalf("failed to create room: %v", err)
+	}
+
+	taskID := "task-scrum-done-proactive"
+	tItem := &task.Task{
+		ID:           taskID,
+		Title:        "Feature Delta: Payment reconciliation",
+		Instructions: "Reconcile payment records and activate access.",
+		ProjectID:    "default",
+		SourceRoomID: room.ID,
+		Status:       task.TaskStatusDone,
+		Summary:      "Akun customer rifqi270994@gmail.com dan payment ID 76 berhasil diaktifkan penuh.",
+		CompleteNote: "Data membership 21004 aktif pada live API Dojo.",
+	}
+	if err := srv.taskSvc.Store().CreateTask(ctx, tItem); err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	attID := "att-scrum-done-1"
+	exit0 := 0
+	now := time.Now().UTC()
+	att := &task.TaskAttempt{
+		ID:            attID,
+		TaskID:        taskID,
+		AttemptNumber: 1,
+		RunnerID:      "cuan-runner",
+		Status:        task.AttemptStatusSucceeded,
+		ExitCode:      &exit0,
+		CreatedAt:     now,
+		FinishedAt:    &now,
+	}
+	if err := srv.taskSvc.Store().CreateAttempt(ctx, att); err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+
+	// Trigger attempt completion event through Scrum Engine
+	srv.handleRunnerAttemptCompleted(ctx, taskID, attID, string(task.AttemptStatusSucceeded), 0, tItem.Summary, tItem.CompleteNote, "", room.ID)
+
+	// Verify that the completion summary report was immediately and proactively posted to the room
+	messages, err := srv.projectStudioRepo.ListMessagesByRoomID(ctx, room.ID)
+	if err != nil {
+		t.Fatalf("failed to list messages: %v", err)
+	}
+	found := false
+	for _, m := range messages {
+		if strings.Contains(m.Content, tItem.Summary) && strings.Contains(m.Content, taskID) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected proactive completion summary report in chat room")
 	}
 }
