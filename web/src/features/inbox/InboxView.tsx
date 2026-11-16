@@ -1735,7 +1735,7 @@ export function InboxView({
                     <div
                       data-bubble-tail={groupStart && hasSpeech ? (isOutgoing ? 'outgoing' : 'incoming') : undefined}
                       className={cn(
-                        'wa-message-bubble relative min-w-0',
+                        'wa-message-bubble relative min-w-0 rounded-2xl',
                         imageBubble && 'wa-image-bubble',
                         imageOnly && 'wa-image-only',
                         msg.is_internal && 'wa-whisper',

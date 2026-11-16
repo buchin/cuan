@@ -427,7 +427,7 @@ body:has(.task-terminal-container),
 .rounded-md,
 .rounded-lg,
 .rounded-xl,
-.rounded-2xl,
+.rounded-2xl:not(.wa-message-bubble):not(.calm-message-bubble),
 .rounded-3xl,
 .rounded-full:not(.notification-count):not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar) {
   border-radius: 0px !important;
@@ -447,8 +447,6 @@ body:has(.task-terminal-container),
   border-radius: 9999px !important;
 }
 
-.wa-message-bubble,
-.calm-message-bubble,
 .wa-input-capsule,
 .calm-input-capsule,
 [data-inbox-composer] {
