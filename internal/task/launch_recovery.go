@@ -10,6 +10,8 @@ import (
 
 const MissingWorkspaceLaunchError = "Original task workspace is missing; its branch was retained for recovery"
 const missingWorkspaceRecoveryKey = "missing-workspace-v1"
+const IsolatedWorkspaceLaunchError = "Could not prepare the isolated task workspace"
+const isolatedWorkspaceRecoveryKey = "isolated-workspace-recovery-v1"
 const StandaloneArtifactRecoveryKind = "standalone-artifact-workspace-v1"
 const InvalidRepositoryLaunchError = "invalid GitHub repository URL. Use format 'https://github.com/owner/repo' or 'owner/repo'"
 const ActiveAttemptLaunchError = "This task already has an active attempt. Check the session before retrying."
@@ -26,6 +28,9 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 	}
 	if j.SafeError == MissingWorkspaceLaunchError {
 		return missingWorkspaceRecoveryKey
+	}
+	if j.SafeError == IsolatedWorkspaceLaunchError {
+		return isolatedWorkspaceRecoveryKey
 	}
 	if j.SafeError == "create attempt: Invalid task input" {
 		switch strings.ToLower(strings.TrimPrefix(j.AgentID, "@")) {

@@ -32,9 +32,9 @@ func (s *Service) ExecutionWorkspace(ctx context.Context, taskID string, p *Proj
 	}
 	executionWorkspaceMu.Lock()
 	defer executionWorkspaceMu.Unlock()
-	source, err := filepath.EvalSymlinks(p.LocalPath)
+	source, err := s.ensureRepositorySource(ctx, p)
 	if err != nil {
-		return "", errors.New("Project repository is unavailable")
+		return "", err
 	}
 	digest := sha256.Sum256([]byte(taskID + "\x00" + source))
 	key := hex.EncodeToString(digest[:])
@@ -194,9 +194,9 @@ func (s *Service) ProjectTerminalWorkspace(ctx context.Context, projectID string
 	executionWorkspaceMu.Lock()
 	defer executionWorkspaceMu.Unlock()
 
-	source, err := filepath.EvalSymlinks(p.LocalPath)
+	source, err := s.ensureRepositorySource(ctx, p)
 	if err != nil {
-		return "", errors.New("Project repository is unavailable")
+		return "", err
 	}
 
 	digest := sha256.Sum256([]byte("terminal:" + projectID + "\x00" + source))
@@ -373,4 +373,24 @@ func syncWorkspaceEnvironment(destDir string, envText string) error {
 	}
 
 	return os.WriteFile(envPath, []byte(finalContent), 0600)
+}
+
+func (s *Service) ensureRepositorySource(ctx context.Context, p *ProjectResponse) (string, error) {
+	source, err := filepath.EvalSymlinks(p.LocalPath)
+	gitDir := filepath.Join(source, ".git")
+	fi, statErr := os.Stat(gitDir)
+	if err != nil || statErr != nil || !fi.IsDir() {
+		if p.RepoOwner != "" && p.RepoName != "" {
+			current, getErr := s.store.GetProject(ctx, p.ID)
+			if getErr == nil {
+				token, _ := s.repositoryToken(ctx, current.EncryptedToken)
+				_ = s.gitClient.CloneOrFetch(ctx, p.RepoOwner, p.RepoName, token, p.LocalPath)
+				source, err = filepath.EvalSymlinks(p.LocalPath)
+			}
+		}
+	}
+	if err != nil {
+		return "", errors.New("Project repository is unavailable")
+	}
+	return source, nil
 }

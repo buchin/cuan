@@ -448,17 +448,17 @@ class HostMigrator:
             self.dst.run(write_cmd, sudo=True)
             log_success("Saved /opt/cuan/.env on target (mode 0600).")
 
-        # Sync /opt/cuan/data (excluding unix sockets)
+        # Sync /opt/cuan/data (excluding unix sockets and git pack temporary buffers)
         log("Transferring /opt/cuan/data...")
         data_check, _, _ = self.src.run("test -d /opt/cuan/data && ls -A /opt/cuan/data 2>/dev/null || true", sudo=True)
         if data_check:
             self.src.pipe_to_remote(
-                "tar -C /opt/cuan/data --exclude='*.sock' -czf - .",
+                "tar -C /opt/cuan/data --exclude='*.sock' --exclude='tmp_pack*' -czf - .",
                 self.dst,
                 "tar -C /opt/cuan/data -xzf -",
                 sudo_src=True,
                 sudo_dst=True,
-                timeout=600,
+                timeout=900,
             )
             self.dst.run(f"chown -R {self.dst.user}:{self.dst.user} /opt/cuan/data", sudo=True)
             log_success("Synchronized /opt/cuan/data.")
@@ -468,7 +468,7 @@ class HostMigrator:
         share_check, _, _ = self.src.run(f"test -d /home/{self.src.user}/.local/share/cuan && ls -A /home/{self.src.user}/.local/share/cuan 2>/dev/null || true")
         if share_check:
             self.src.pipe_to_remote(
-                f"tar -C /home/{self.src.user}/.local/share/cuan -czf - .",
+                f"tar -C /home/{self.src.user}/.local/share/cuan --exclude='conversations' --exclude='brain' --exclude='log' --exclude='*.db*' --exclude='.cache' --exclude='go' --exclude='.npm' -czf - .",
                 self.dst,
                 f"tar -C /home/{self.dst.user}/.local/share/cuan -xzf -",
                 timeout=300,
