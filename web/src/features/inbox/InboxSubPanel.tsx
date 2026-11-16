@@ -4,7 +4,7 @@ import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListContr
 import { IconButton } from '../../components/ui/IconButton'
 import { PageHeader, PageHeaderBrand, PageTitle } from '../../components/layout/PageHeader'
 import { HairlineList } from '../../components/layout/HairlineList'
-import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
+import { taskProgressModel } from '../../components/ui/TaskProgress'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems } from '../../hooks/useArchivedItems'
@@ -144,8 +144,44 @@ export function ConversationItem({
     review: reviewTasks,
     blocked: failedTasks,
   }
-  const showProgress = !!taskProgressModel(progress)
+  const progModel = taskProgressModel(progress)
   const hasActiveWork = activeTasks > 0
+  const totalTasks = contact.task_count !== undefined
+    ? Math.max(0, contact.task_count - (contact.canceled_tasks || 0))
+    : (progModel?.total ?? 0)
+  const hasTasks = totalTasks > 0 || !!progModel
+  const allTasksDone = hasTasks && (progModel ? progModel.complete : doneTasks >= totalTasks)
+  const isResolved = Boolean(contact.resolved)
+  const isComplete = isResolved || allTasksDone
+  const isWorking = hasActiveWork
+
+  const fraction = progModel ? progModel.fraction : (totalTasks > 0 ? doneTasks / totalTasks : 0)
+  const angle = fraction * Math.PI * 2
+  const pieX = 8 + 4.5 * Math.sin(angle)
+  const pieY = 8 - 4.5 * Math.cos(angle)
+
+  const statusTitle = isResolved
+    ? t('Resolved (click to reopen)')
+    : allTasksDone
+      ? t('All tasks completed')
+      : hasTasks
+        ? (isWorking
+            ? t('Working on tasks')
+            : t('{{done}} of {{total}} tasks completed')
+                .replace('{{done}}', String(doneTasks))
+                .replace('{{total}}', String(totalTasks)))
+        : conversationHasUnfinishedTasks(contact)
+          ? t('Unfinished tasks pending')
+          : t('Unresolved (click to resolve)')
+
+  const statusAriaLabel = isResolved
+    ? t('Resolved')
+    : allTasksDone
+      ? t('All tasks completed')
+      : hasTasks
+        ? t('Task progress')
+        : t('Unresolved')
+
   const isAgentConnectionIssue =
     contact.type === 'agent' && contact.agent_id !== 'agent_cuan' &&
     !hasActiveWork &&
@@ -176,7 +212,6 @@ export function ConversationItem({
       className={cn(
         'inbox-item-row border-b border-border/40 transition-colors hover:bg-accent/40',
         isSelected && 'bg-accent/35 text-accent-foreground',
-        showProgress && '[&_.item-menu-quiet]:right-11',
         !isLast && 'has-divider',
       )}
       actions={[
@@ -215,7 +250,7 @@ export function ConversationItem({
           isSelected && 'text-accent-foreground font-medium shadow-none',
         )}
       >
-        {/* Things 3 Workflow status indicator on left: Open ring (○) for unresolved, Checkmark (✓) for resolved */}
+        {/* Things 3 Single Left Status Indicator: Open ring (○), Pie Progress, or Checkmark (✓) */}
         <span
           role="button"
           tabIndex={0}
@@ -240,25 +275,43 @@ export function ConversationItem({
               }
             }
           }}
-          title={
-            contact.resolved
-              ? t('Resolved (click to reopen)')
-              : conversationHasUnfinishedTasks(contact)
-                ? t('Unfinished tasks pending')
-                : t('Unresolved (click to resolve)')
-          }
-          aria-label={contact.resolved ? t('Resolved') : t('Unresolved')}
+          title={statusTitle}
+          aria-label={statusAriaLabel}
           data-testid="workflow-status-indicator"
           className={cn(
-            'workflow-status-toggle shrink-0 mt-2 p-0.5 rounded-full transition-colors cursor-pointer select-none',
-            contact.resolved
+            'workflow-status-toggle shrink-0 mt-2 p-0.5 rounded-full transition-colors cursor-pointer select-none inline-flex items-center justify-center',
+            isComplete
               ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
-              : 'text-muted-foreground/60 hover:text-foreground hover:bg-accent/50',
-            !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-70',
+              : isWorking
+                ? 'text-[color:var(--status-working)] hover:bg-accent/50'
+                : 'text-muted-foreground/60 hover:text-foreground hover:bg-accent/50',
+            !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-85',
           )}
         >
-          {contact.resolved ? (
+          {isComplete ? (
             <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+          ) : hasTasks ? (
+            <svg
+              viewBox="0 0 16 16"
+              className={cn("h-4 w-4", isWorking && "task-pulse-subtle")}
+              data-testid="task-pie-progress"
+            >
+              <circle
+                cx="8"
+                cy="8"
+                r="6.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                opacity={isWorking ? "0.9" : "0.65"}
+              />
+              {fraction > 0 && (
+                <path
+                  d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
+                  fill="currentColor"
+                />
+              )}
+            </svg>
           ) : (
             <Circle className="h-4 w-4" strokeWidth={1.5} />
           )}
@@ -289,7 +342,7 @@ export function ConversationItem({
 
         {/* Content Body */}
         <div className="flex-1 min-w-0 flex flex-col gap-1">
-          <div className={cn("flex items-center justify-between gap-1.5", showProgress && "pr-9")}>
+          <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
@@ -331,7 +384,6 @@ export function ConversationItem({
         </div>
 
       </button>
-      {showProgress && <div className="absolute right-0 top-0 z-10"><TaskProgress {...progress} /></div>}
       </div>
       {!isLast && (
         <div

@@ -56,6 +56,33 @@ const contacts = [
     task_count: 1,
     done_tasks: 1,
   },
+  {
+    id: 'room-4',
+    conversation_id: 'room-4',
+    name: 'Tanya Produk & Integrasi',
+    type: 'customer',
+    email: 'user@cuan.test',
+    unread_count: 0,
+    resolved: false,
+    status: 'online',
+    last_message: 'Bagaimana cara menghubungkan provider AI ke workspace?',
+    updated_at: now,
+    task_count: 0,
+  },
+  {
+    id: 'room-5',
+    conversation_id: 'room-5',
+    name: 'Deploy Script & Security',
+    type: 'agent',
+    agent_id: 'agent_cuan',
+    unread_count: 0,
+    resolved: false,
+    status: 'online',
+    last_message: 'Semua 3 task telah tuntas dikerjakan dan diverifikasi.',
+    updated_at: now,
+    task_count: 3,
+    done_tasks: 3,
+  },
 ]
 
 const agents = [{ id: 'agent_cuan', name: '@cuan', status: 'active', enabled: true, harness: 'agy', provider: 'agy', supports_vision: true }]
@@ -224,13 +251,22 @@ try {
 
     // Assert visual elements exist before screenshot
     const workflowIndicators = page.locator('[data-testid="workflow-status-indicator"]')
-    assert.ok((await workflowIndicators.count()) >= 3, 'Must render at least 3 workflow status indicators')
+    assert.ok((await workflowIndicators.count()) >= 5, 'Must render at least 5 workflow status indicators')
     const unreadDots = page.locator('[data-testid="unread-micro-dot"]')
     assert.ok((await unreadDots.count()) >= 1, 'Must render at least 1 unread micro-dot')
+    const pieProgress = page.locator('[data-testid="task-pie-progress"]')
+    assert.ok((await pieProgress.count()) >= 1, 'Must render at least 1 pie progress indicator')
+    const rightSlotProgress = page.locator('.inbox-item-row .absolute.right-0.top-0')
+    assert.equal(await rightSlotProgress.count(), 0, 'Must not render any indicator in right slot')
 
     const inboxImgName = `inbox-${config.width}-${config.mode}.png`
     await page.screenshot({ path: path.join(output, inboxImgName), fullPage: true })
     console.log(`Captured ${inboxImgName}`)
+
+    // Also save friendly named alias for clear reporting
+    const friendlyName = config.width === 390 ? `inbox-mobile-${config.mode}.png` : `inbox-desktop-${config.mode}.png`
+    await page.screenshot({ path: path.join(output, friendlyName), fullPage: true })
+    console.log(`Captured ${friendlyName}`)
 
     await context.close()
   }
