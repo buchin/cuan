@@ -124,7 +124,36 @@ func inspectGitIntegrity(ctx context.Context, dir string, liveReleaseSHA string)
 			}
 		}
 	} else {
-		report.SyncStatus = "no upstream"
+		// Fallback check against remote tracking refs if upstream branch is not explicitly set
+		for _, candidate := range []string{"origin/main", "origin/master"} {
+			if _, e := gitCmd("rev-parse", "--verify", candidate+"^{commit}"); e == nil {
+				report.Upstream = candidate
+				counts, e := gitCmd("rev-list", "--left-right", "--count", "HEAD..."+candidate)
+				if e == nil {
+					fields := strings.Fields(counts)
+					if len(fields) >= 2 {
+						ahead, _ := strconv.Atoi(fields[0])
+						behind, _ := strconv.Atoi(fields[1])
+						report.AheadCount = ahead
+						report.BehindCount = behind
+						switch {
+						case ahead == 0 && behind == 0:
+							report.SyncStatus = "in sync"
+						case ahead > 0 && behind == 0:
+							report.SyncStatus = fmt.Sprintf("ahead by %d", ahead)
+						case ahead == 0 && behind > 0:
+							report.SyncStatus = fmt.Sprintf("behind by %d", behind)
+						default:
+							report.SyncStatus = fmt.Sprintf("diverged (ahead %d, behind %d)", ahead, behind)
+						}
+					}
+				}
+				break
+			}
+		}
+		if report.SyncStatus == "" {
+			report.SyncStatus = "no upstream"
+		}
 	}
 
 	// 4. Live Release Check
@@ -152,4 +181,16 @@ func inspectGitIntegrity(ctx context.Context, dir string, liveReleaseSHA string)
 	}
 
 	return report
+}
+
+// fetchAndInspectUpstream fetches remote commits non-destructively without altering
+// working tree files, uncommitted edits, or local HEAD, and returns git integrity status.
+func fetchAndInspectUpstream(ctx context.Context, dir string, liveReleaseSHA string) GitIntegrityReport {
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, "git", "-C", dir, "fetch", "--quiet")
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	_ = cmd.Run()
+
+	return inspectGitIntegrity(ctx, dir, liveReleaseSHA)
 }

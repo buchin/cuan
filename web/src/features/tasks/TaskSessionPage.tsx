@@ -26,6 +26,7 @@ import {
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
 import { agentsApi } from '../../api/agents'
+import { projectsApi } from '../../api/projects'
 import { TaskReadyPage } from './TaskReadyPage'
 const TaskTerminal = lazy(() =>
   import('./TaskTerminal').then((m) => ({
@@ -209,6 +210,37 @@ export function TaskSessionPage({
     setFollowup('')
     following.current = false
   }, [sessionId, pinTerminal, isDedicatedTerminal])
+
+  const [upstreamStatus, setUpstreamStatus] = useState<{
+    sync_status?: string
+    upstream?: string
+    branch?: string
+    behind_count?: number
+    ahead_count?: number
+    status_summary?: string
+  } | null>(null)
+  const [upstreamLoading, setUpstreamLoading] = useState(false)
+
+  const loadUpstreamStatus = useCallback(async (fetchRemote = false) => {
+    const projId = detail?.project_id || detail?.project_ids?.[0]
+    if (!projId) return
+    setUpstreamLoading(true)
+    try {
+      const res = await projectsApi.getTerminalStatus(projId, fetchRemote)
+      if (res?.upstream) {
+        setUpstreamStatus(res.upstream)
+      }
+    } catch {}
+    finally {
+      setUpstreamLoading(false)
+    }
+  }, [detail?.project_id, detail?.project_ids])
+
+  useEffect(() => {
+    if (isDedicatedTerminal && (detail?.project_id || detail?.project_ids?.[0])) {
+      void loadUpstreamStatus(false)
+    }
+  }, [isDedicatedTerminal, detail?.project_id, detail?.project_ids, loadUpstreamStatus])
 
   const reports =
     detail?.activities.filter(
@@ -985,14 +1017,52 @@ export function TaskSessionPage({
 
           {/* Dedicated Terminal Info Card (if terminal task) */}
           {isDedicatedTerminal && (
-            <div className="rounded-xl border bg-muted/10 p-3 text-xs text-muted-foreground space-y-1.5">
-              <div className="flex items-center gap-1.5 font-medium text-foreground">
-                <Info className="h-3.5 w-3.5 text-primary" />
-                <span>{t('Dedicated Project Terminal')}</span>
+            <div className="rounded-xl border bg-muted/10 p-3 text-xs text-muted-foreground space-y-2">
+              <div className="flex items-center justify-between gap-1.5 font-medium text-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5 text-primary" />
+                  <span>{t('Dedicated Project Terminal')}</span>
+                </div>
+                {upstreamStatus?.upstream && (
+                  <button
+                    type="button"
+                    onClick={() => void loadUpstreamStatus(true)}
+                    disabled={upstreamLoading}
+                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                    title={t('Fetch remote upstream status non-destructively')}
+                  >
+                    <RefreshCw className={cn("h-3 w-3", upstreamLoading && "animate-spin")} />
+                    <span>{upstreamLoading ? t('Checking…') : t('Fetch upstream')}</span>
+                  </button>
+                )}
               </div>
               <p className="leading-relaxed">
                 {t('This session provides an interactive PTY shell directly connected to the workspace. Output is streamed live and preserved automatically.')}
               </p>
+              {upstreamStatus && (
+                <div className="pt-1.5 border-t border-border/40 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="font-medium text-foreground">
+                    {t('Upstream')}:
+                  </span>
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded text-[10px] font-mono",
+                    upstreamStatus.behind_count && upstreamStatus.behind_count > 0
+                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold"
+                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  )}>
+                    {upstreamStatus.upstream || 'origin/main'} · {upstreamStatus.sync_status || 'in sync'}
+                  </span>
+                  {upstreamStatus.branch && (
+                    <span className="text-muted-foreground font-mono">
+                      ({upstreamStatus.branch})
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="pt-1 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                <span>{t('Brain Failover: Automatic healthy model rotation on quota limit (429)')}</span>
+              </div>
             </div>
           )}
 

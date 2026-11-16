@@ -42,6 +42,7 @@ type Session struct {
 	subscribers   map[string]*Subscriber
 	historyBuffer *ringBuffer
 	closed        bool
+	isPersistent  bool
 	closeChan     chan struct{}
 	onEmpty       func(s *Session)
 	onOutput      func([]byte)
@@ -62,7 +63,7 @@ func NewSession(id, taskID string, proc *PTYProcess, defaultMode Mode, output ..
 		createdAt:     time.Now().UTC(),
 		lastActivity:  time.Now().UTC(),
 		subscribers:   make(map[string]*Subscriber),
-		historyBuffer: newRingBuffer(128 * 1024), // 128 KB scrollback retention
+		historyBuffer: newRingBuffer(256 * 1024), // 256 KB scrollback retention
 		closeChan:     make(chan struct{}),
 	}
 
@@ -108,6 +109,20 @@ func (s *Session) SetOnEmpty(fn func(s *Session)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.onEmpty = fn
+}
+
+// IsPersistent returns whether this session should outlive client disconnects.
+func (s *Session) IsPersistent() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.isPersistent
+}
+
+// SetPersistent configures whether this session should persist when clients disconnect.
+func (s *Session) SetPersistent(p bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.isPersistent = p
 }
 
 // Subscribe registers a new subscriber to receive output stream.

@@ -1,0 +1,158 @@
+package terminal
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+)
+
+// TestProjectTerminal_BackgroundPersistenceAndReattach verifies that a persistent
+// project terminal PTY session survives client disconnects (browser closed) and
+// replays its output buffer upon re-attaching.
+func TestProjectTerminal_BackgroundPersistenceAndReattach(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	workDir := t.TempDir()
+	mgr := NewManager(ManagerConfig{
+		WorkspacesDir:         workDir,
+		DefaultShell:          "/bin/sh",
+		DisconnectGracePeriod: 50 * time.Millisecond,
+		IdleTimeout:           100 * time.Millisecond,
+	})
+	defer func() { _ = mgr.CloseAll() }()
+
+	projectID := "proj_persistent_test_123"
+
+	// 1. Create persistent project terminal session
+	sess, err := mgr.GetOrCreateProjectSession(ctx, projectID, workDir, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("failed to create project session: %v", err)
+	}
+	if !sess.IsPersistent() {
+		t.Fatal("expected session to be marked persistent")
+	}
+
+	// 2. Client 1 connects (subscribes) and sends an echo command
+	sub1, _, err := sess.Subscribe("client-1", ModeInteractive)
+	if err != nil {
+		t.Fatalf("client-1 subscribe failed: %v", err)
+	}
+
+	if _, err := sess.WriteInput("client-1", []byte("echo 'HELLO_LIFELINE_PERSISTENCE'\n")); err != nil {
+		t.Fatalf("write input failed: %v", err)
+	}
+
+	// Read output from client 1
+	var out1 strings.Builder
+	timeout := time.After(2 * time.Second)
+	for !strings.Contains(out1.String(), "HELLO_LIFELINE_PERSISTENCE") {
+		select {
+		case chunk := <-sub1.SendChan:
+			out1.Write(chunk)
+		case <-timeout:
+			t.Fatalf("timed out waiting for client 1 output, got: %q", out1.String())
+		}
+	}
+
+	// 3. Client 1 disconnects (browser tab closed)
+	sess.Unsubscribe("client-1")
+	if sess.SubscriberCount() != 0 {
+		t.Fatalf("expected 0 subscribers, got %d", sess.SubscriberCount())
+	}
+
+	// Wait longer than DisconnectGracePeriod to prove session is NOT reaped
+	time.Sleep(120 * time.Millisecond)
+
+	// Clean idle sessions explicitly
+	cleaned := mgr.CleanIdleSessions(10 * time.Millisecond)
+	if cleaned != 0 {
+		t.Fatalf("expected 0 sessions cleaned for persistent session, got %d", cleaned)
+	}
+
+	if sess.IsClosed() {
+		t.Fatal("persistent session was unexpectedly closed after client disconnect")
+	}
+
+	// 4. Client 2 reconnects (re-attaches)
+	sub2, history, err := sess.Subscribe("client-2", ModeInteractive)
+	if err != nil {
+		t.Fatalf("client-2 re-attach subscribe failed: %v", err)
+	}
+	defer sess.Unsubscribe("client-2")
+
+	// Verify that history contains the output from client 1 session
+	if !strings.Contains(string(history), "HELLO_LIFELINE_PERSISTENCE") {
+		t.Fatalf("expected re-attach history buffer to contain 'HELLO_LIFELINE_PERSISTENCE', got: %q", string(history))
+	}
+
+	// Client 2 sends a new command to the same still-running PTY
+	if _, err := sess.WriteInput("client-2", []byte("echo 'RECONNECTED_WORKING'\n")); err != nil {
+		t.Fatalf("client 2 write input failed: %v", err)
+	}
+
+	var out2 strings.Builder
+	timeout2 := time.After(2 * time.Second)
+	for !strings.Contains(out2.String(), "RECONNECTED_WORKING") {
+		select {
+		case chunk := <-sub2.SendChan:
+			out2.Write(chunk)
+		case <-timeout2:
+			t.Fatalf("timed out waiting for client 2 output, got: %q", out2.String())
+		}
+	}
+
+	// Cleanly close project session
+	if err := mgr.CloseProjectSession(projectID); err != nil {
+		t.Fatalf("failed to close project session: %v", err)
+	}
+	if !sess.IsClosed() {
+		t.Fatal("expected session to be closed after explicit CloseProjectSession")
+	}
+}
+
+// TestProjectTerminal_StopQuotaAttempt_PreservesPersistentSession verifies that when
+// quota error occurs on a persistent session, the underlying bash PTY session is preserved.
+func TestProjectTerminal_StopQuotaAttempt_PreservesPersistentSession(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	workDir := t.TempDir()
+	mgr := NewManager(ManagerConfig{
+		WorkspacesDir: workDir,
+		DefaultShell:  "/bin/sh",
+	})
+	defer func() { _ = mgr.CloseAll() }()
+
+	projectID := "proj_quota_preserve_test"
+	sess, err := mgr.GetOrCreateProjectSession(ctx, projectID, workDir, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("failed to create project session: %v", err)
+	}
+
+	// Add dummy history entry to simulate running attempt
+	key := ProjectSessionKey(projectID)
+	mgr.mu.Lock()
+	mgr.histories[key] = append(mgr.histories[key], &TaskRunHistory{
+		AttemptID: "att_quota_drill",
+		SessionID: sess.ID(),
+		Status:    "running",
+	})
+	mgr.mu.Unlock()
+
+	// Calling StopQuotaAttempt on persistent session should record quota but preserve session
+	handled := mgr.StopQuotaAttempt(key, "att_quota_drill")
+	if !handled {
+		t.Fatal("expected StopQuotaAttempt to report handled=true")
+	}
+
+	if sess.IsClosed() {
+		t.Fatal("persistent session was killed by StopQuotaAttempt")
+	}
+
+	activeSess, exists := mgr.GetProjectSession(projectID)
+	if !exists || activeSess.IsClosed() {
+		t.Fatal("expected project session to remain active and uncorrupted")
+	}
+}
