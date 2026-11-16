@@ -221,3 +221,37 @@ test('10. TaskSessionPage keeps terminal open and pinned for dedicated project t
     'TaskSessionPage must display live agent banner for project terminals',
   )
 })
+
+test('11. Terminal back button cleans openTerminal state to prevent infinite back navigation loops', () => {
+  const sessionPagePath = path.join(
+    rootDir,
+    'src/features/tasks/TaskSessionPage.tsx',
+  )
+  const sessionContent = fs.readFileSync(sessionPagePath, 'utf8')
+
+  assert.match(
+    sessionContent,
+    /backState\s*=\s*state\s*\?/,
+    'TaskSessionPage must sanitize return state into backState',
+  )
+  assert.ok(
+    !sessionContent.includes('<Link to={backURL} state={state}'),
+    'TaskSessionPage must not pass raw state containing openTerminal back to backURL',
+  )
+
+  const workspacePath = path.join(
+    rootDir,
+    'src/features/projects/ProjectsWorkspace.tsx',
+  )
+  const workspaceContent = fs.readFileSync(workspacePath, 'utf8')
+
+  assert.match(
+    workspaceContent,
+    /searchParams\.delete\('terminal'\)/,
+    'ProjectsWorkspace must clean up terminal query param from history to prevent browser back loop',
+  )
+  assert.ok(
+    !workspaceContent.includes("taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,\n            openTerminal: true"),
+    'ProjectsWorkspace must not set openTerminal in task session state',
+  )
+})

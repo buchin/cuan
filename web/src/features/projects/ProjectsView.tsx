@@ -126,7 +126,6 @@ export function ProjectsView({
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-            openTerminal: true,
           },
         },
       )

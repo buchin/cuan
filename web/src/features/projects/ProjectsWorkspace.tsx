@@ -80,10 +80,40 @@ export function ProjectsWorkspace({
   }
 
   useEffect(() => {
-    const shouldOpen =
-      new URLSearchParams(location.search).get('terminal') === 'open' ||
-      (location.state as { openTerminal?: boolean } | null)?.openTerminal
-    if (shouldOpen && project?.id && !openingTerminalId && !taskId) {
+    const searchParams = new URLSearchParams(location.search)
+    const hasTerminalParam = searchParams.get('terminal') === 'open'
+    const hasTerminalState = Boolean(
+      (location.state as { openTerminal?: boolean } | null)?.openTerminal,
+    )
+
+    if (
+      (hasTerminalParam || hasTerminalState) &&
+      project?.id &&
+      !openingTerminalId &&
+      !taskId
+    ) {
+      // Clean up the URL / history state on the project workspace so that returning via back button
+      // does not re-trigger the auto-open effect.
+      if (hasTerminalParam) {
+        searchParams.delete('terminal')
+        const newSearch = searchParams.toString()
+          ? `?${searchParams.toString()}`
+          : ''
+        navigate(`${location.pathname}${newSearch}`, {
+          replace: true,
+          state: {
+            ...((location.state as object) || {}),
+            openTerminal: undefined,
+          },
+        })
+      } else if (hasTerminalState) {
+        const { openTerminal, ...cleanState } =
+          (location.state as Record<string, unknown>) || {}
+        navigate(`${location.pathname}${location.search}`, {
+          replace: true,
+          state: Object.keys(cleanState).length > 0 ? cleanState : undefined,
+        })
+      }
       void handleOpenProjectTerminal(project.id)
     }
   }, [location.search, location.state, project?.id, taskId])
@@ -172,7 +202,6 @@ export function ProjectsWorkspace({
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-            openTerminal: true,
           },
         },
       )

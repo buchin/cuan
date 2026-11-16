@@ -207,6 +207,12 @@ export function TaskSessionPage({
       : basePath.startsWith('/projects/')
         ? basePath.split('/tasks/')[0] + '/tasks'
         : '/tasks' + suffix
+  const backState = state
+    ? (() => {
+        const { openTerminal, ...rest } = state as Record<string, unknown>
+        return Object.keys(rest).length > 0 ? rest : undefined
+      })()
+    : undefined
   const detailState = {
     ...state,
     workspaceReturnTo: location.pathname + location.search,
@@ -267,7 +273,7 @@ export function TaskSessionPage({
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <Link
               to={backURL}
-              state={state}
+              state={backState}
               className="icon-action shrink-0"
               aria-label={t('Back')}
               title={t('Back')}
@@ -303,7 +309,7 @@ export function TaskSessionPage({
             </div>
             {error && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <Link to={backURL} state={state} className="action-primary text-xs px-3 py-1.5">
+                <Link to={backURL} state={backState} className="action-primary text-xs px-3 py-1.5">
                   {t('Back')}
                 </Link>
                 <button
@@ -333,7 +339,7 @@ export function TaskSessionPage({
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <Link
               to={backURL}
-              state={state}
+              state={backState}
               className="icon-action shrink-0"
               aria-label={t('Back')}
               title={t('Back')}
@@ -368,7 +374,7 @@ export function TaskSessionPage({
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              <Link to={backURL} state={state} className="action-primary text-xs px-3 py-1.5">
+              <Link to={backURL} state={backState} className="action-primary text-xs px-3 py-1.5">
                 {t('Back')}
               </Link>
               <Link to={taskURL} state={state} className="action-secondary text-xs px-3 py-1.5">
@@ -495,7 +501,7 @@ export function TaskSessionPage({
           {!isPopout ? (
             <Link
               to={backURL}
-              state={state}
+              state={backState}
               className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
               aria-label={
                 backURL.startsWith('/inbox/')
@@ -827,7 +833,7 @@ export function TaskSessionPage({
                   </button>
                   <Link
                     to={backURL}
-                    state={state}
+                    state={backState}
                     className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5 ml-auto"
                   >
                     {backURL.startsWith('/inbox/') ? (
