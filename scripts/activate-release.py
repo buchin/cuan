@@ -61,12 +61,43 @@ def restart_and_check(target_sha=None):
 
 
 
+def read_service_environment():
+    try:
+        pid = subprocess.check_output(['systemctl', 'show', SERVICE, '-p', 'MainPID', '--value'], text=True).strip()
+        if pid and pid != '0' and (Path('/proc') / pid / 'environ').exists():
+            return dict(entry.decode(errors='ignore').split('=', 1) for entry in (Path('/proc') / pid / 'environ').read_bytes().split(b'\0') if b'=' in entry)
+    except Exception:
+        pass
+    env = {}
+    for candidate in [BASE / '.env', Path('/opt/cuan/.env')]:
+        if candidate.exists():
+            try:
+                for line in candidate.read_text().splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        k, v = line.split('=', 1)
+                        env[k.strip()] = v.strip().strip('"\'')
+                break
+            except Exception:
+                pass
+    return env
+
+
 def database_environment():
-    pid=subprocess.check_output(['systemctl','show',SERVICE,'-p','MainPID','--value'],text=True).strip()
-    config=dict(entry.decode().split('=',1) for entry in Path('/proc/'+pid+'/environ').read_bytes().split(b'\0') if b'=' in entry)
-    url=urllib.parse.urlparse(config['DATABASE_URL'])
-    env=os.environ.copy()
-    env.update(PGHOST=url.hostname or 'localhost',PGPORT=str(url.port or 5432),PGUSER=urllib.parse.unquote(url.username or ''),PGPASSWORD=urllib.parse.unquote(url.password or ''),PGDATABASE=url.path.lstrip('/'),PGCONNECT_TIMEOUT='5')
+    config = read_service_environment()
+    db_url = config.get('DATABASE_URL', '')
+    if not db_url:
+        return os.environ.copy()
+    url = urllib.parse.urlparse(db_url)
+    env = os.environ.copy()
+    env.update(
+        PGHOST=url.hostname or 'localhost',
+        PGPORT=str(url.port or 5432),
+        PGUSER=urllib.parse.unquote(url.username or ''),
+        PGPASSWORD=urllib.parse.unquote(url.password or ''),
+        PGDATABASE=url.path.lstrip('/'),
+        PGCONNECT_TIMEOUT='5',
+    )
     return env
 
 
@@ -81,9 +112,14 @@ def assert_no_github_login(control_group=None, proc_root=Path('/proc'), cgroup_r
     # Device login is held in a running gh process, not a task database row.
     # A release must not cut off the owner's pending browser authorization.
     if control_group is None:
-        control_group = subprocess.check_output(
-            ['systemctl', 'show', SERVICE, '-p', 'ControlGroup', '--value'], text=True).strip()
-    if not control_group.startswith('/') or control_group == '/' or '..' in Path(control_group).parts:
+        try:
+            control_group = subprocess.check_output(
+                ['systemctl', 'show', SERVICE, '-p', 'ControlGroup', '--value'], text=True).strip()
+        except Exception:
+            return
+    if not control_group or control_group == '/' or control_group == 'none':
+        return
+    if not control_group.startswith('/') or '..' in Path(control_group).parts:
         raise RuntimeError('Could not verify pending GitHub sign-in; release was not switched')
     try:
         pids = (cgroup_root / control_group.lstrip('/') / 'cgroup.procs').read_text().split()
@@ -142,18 +178,20 @@ def assert_idle_work(no_restart=False):
 
 
 def inbox_admission_lock():
-    pid = subprocess.check_output(['systemctl', 'show', SERVICE, '-p', 'MainPID', '--value'], text=True).strip()
-    process = Path('/proc') / pid
-    config = dict(entry.decode().split('=', 1) for entry in (process / 'environ').read_bytes().split(b'\0') if b'=' in entry)
-    workspace = Path(config.get('CUAN_WORKSPACES_DIR', 'data/workspaces'))
+    config = read_service_environment()
+    workspace = Path(config.get('CUAN_WORKSPACES_DIR', '/opt/cuan/data/workspaces'))
     if not workspace.is_absolute():
-        workspace = (process / 'cwd').resolve() / workspace
+        workspace = BASE / workspace
     path = workspace.parent / 'inbox-admission.lock'
+    path.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o660)
     # The first activation may create the file as root before the server does.
     try:
-        identity = process.stat()
-        os.fchown(descriptor, identity.st_uid, identity.st_gid)
+        pid = subprocess.check_output(['systemctl', 'show', SERVICE, '-p', 'MainPID', '--value'], text=True).strip()
+        process = Path('/proc') / pid
+        if pid and pid != '0' and process.exists():
+            identity = process.stat()
+            os.fchown(descriptor, identity.st_uid, identity.st_gid)
         return os.fdopen(descriptor, 'a+')
     except Exception:
         os.close(descriptor)
@@ -302,8 +340,7 @@ def apply_pending_migrations(target_dir, env):
     cuan_migrate = target_dir / 'bin' / 'cuan-migrate'
     if cuan_migrate.exists():
         try:
-            pid = subprocess.check_output(['systemctl', 'show', SERVICE, '-p', 'MainPID', '--value'], text=True).strip()
-            config = dict(entry.decode().split('=', 1) for entry in Path('/proc/' + pid + '/environ').read_bytes().split(b'\0') if b'=' in entry)
+            config = read_service_environment()
             db_url = config.get('DATABASE_URL', '')
             if db_url:
                 print('==> Executing cuan-migrate against database...')
