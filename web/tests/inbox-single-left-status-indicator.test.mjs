@@ -25,15 +25,15 @@ const compile = async (fileUrl) => {
 
 const { taskProgressModel } = await compile(new URL('../src/components/ui/task-progress-model.ts', import.meta.url))
 
-test('DoD 1: Indikator status percakapan dan task dilebur menjadi satu indikator tunggal di sisi kiri item Inbox', () => {
-  // Indicator is on the left of the item row before avatar
+test('DoD 1: Indikator status percakapan dan task terintegrasi rapi pada sudut avatar di sisi kiri item Inbox', () => {
+  // Indicator is unified into the avatar badge on the left of the item
   assert.ok(
     subPanelSource.includes('data-testid="workflow-status-indicator"'),
-    'InboxSubPanel must contain single left workflow status indicator'
+    'InboxSubPanel must contain workflow status indicator badge'
   )
   assert.ok(
-    subPanelSource.includes('workflow-status-toggle shrink-0 mt-2 p-0.5 rounded-full'),
-    'Workflow status indicator must be positioned at the left of the item'
+    subPanelSource.includes('workflow-status-toggle absolute -bottom-1 -right-1 rounded-full'),
+    'Workflow status indicator must be positioned at the bottom-right corner of the avatar'
   )
 })
 

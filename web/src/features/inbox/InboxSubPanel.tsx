@@ -250,74 +250,7 @@ export function ConversationItem({
           isSelected && 'text-accent-foreground font-medium shadow-none',
         )}
       >
-        {/* Things 3 Single Left Status Indicator: Open ring (○), Pie Progress, or Checkmark (✓) */}
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={async (e) => {
-            e.stopPropagation()
-            if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
-            try {
-              await setConversationResolved(contact, !contact.resolved)
-            } catch (err) {
-              console.error('Failed to toggle conversation resolved state:', err)
-            }
-          }}
-          onKeyDown={async (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              e.stopPropagation()
-              if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
-              try {
-                await setConversationResolved(contact, !contact.resolved)
-              } catch (err) {
-                console.error('Failed to toggle conversation resolved state:', err)
-              }
-            }
-          }}
-          title={statusTitle}
-          aria-label={statusAriaLabel}
-          data-testid="workflow-status-indicator"
-          className={cn(
-            'workflow-status-toggle shrink-0 mt-2 p-0.5 rounded-full transition-colors cursor-pointer select-none inline-flex items-center justify-center',
-            isComplete
-              ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
-              : isWorking
-                ? 'text-[color:var(--status-working)] hover:bg-accent/50'
-                : 'text-muted-foreground/60 hover:text-foreground hover:bg-accent/50',
-            !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-85',
-          )}
-        >
-          {isComplete ? (
-            <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-          ) : hasTasks ? (
-            <svg
-              viewBox="0 0 16 16"
-              className={cn("h-4 w-4", isWorking && "task-pulse-subtle")}
-              data-testid="task-pie-progress"
-            >
-              <circle
-                cx="8"
-                cy="8"
-                r="6.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                opacity={isWorking ? "0.9" : "0.65"}
-              />
-              {fraction > 0 && (
-                <path
-                  d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
-                  fill="currentColor"
-                />
-              )}
-            </svg>
-          ) : (
-            <Circle className="h-4 w-4" strokeWidth={1.5} />
-          )}
-        </span>
-
-        {/* Circular identity avatar; task progress stays separate */}
+        {/* Unified Identity Avatar with Overlaid Status Badge */}
         <div className="relative shrink-0 mt-0.5">
           <div
             data-avatar="true"
@@ -331,13 +264,79 @@ export function ConversationItem({
               <User className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
-          {contact.type === 'customer' && contact.is_online === true && (
-            <span
-              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 rounded-full border-2 border-background status-dot"
-              aria-label="Online"
-              title="Online"
-            />
-          )}
+
+          {/* Overlaid Status Badge at Bottom-Right */}
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={async (e) => {
+              e.stopPropagation()
+              if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
+              try {
+                await setConversationResolved(contact, !contact.resolved)
+              } catch (err) {
+                console.error('Failed to toggle conversation resolved state:', err)
+              }
+            }}
+            onKeyDown={async (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
+                try {
+                  await setConversationResolved(contact, !contact.resolved)
+                } catch (err) {
+                  console.error('Failed to toggle conversation resolved state:', err)
+                }
+              }
+            }}
+            title={statusTitle}
+            aria-label={statusAriaLabel}
+            data-testid="workflow-status-indicator"
+            className={cn(
+              'workflow-status-toggle absolute -bottom-1 -right-1 rounded-full border-2 border-background bg-card flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none shadow-2xs',
+              isComplete
+                ? 'text-emerald-600 dark:text-emerald-400 bg-background'
+                : isWorking
+                  ? 'text-[color:var(--status-working)] bg-background'
+                  : 'text-muted-foreground/60 hover:text-foreground bg-background',
+              !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-85',
+            )}
+          >
+            {isComplete ? (
+              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+            ) : hasTasks ? (
+              <svg
+                viewBox="0 0 16 16"
+                className={cn("h-4 w-4", isWorking && "task-pulse-subtle")}
+                data-testid="task-pie-progress"
+              >
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  opacity={isWorking ? "0.9" : "0.65"}
+                />
+                {fraction > 0 && (
+                  <path
+                    d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
+                    fill="currentColor"
+                  />
+                )}
+              </svg>
+            ) : contact.type === 'customer' && contact.is_online === true ? (
+              <span
+                className="h-2.5 w-2.5 bg-emerald-500 rounded-full status-dot m-0.5"
+                aria-label="Online"
+                title="Online"
+              />
+            ) : (
+              <Circle className="h-4 w-4" strokeWidth={1.5} />
+            )}
+          </span>
         </div>
 
         {/* Content Body */}
