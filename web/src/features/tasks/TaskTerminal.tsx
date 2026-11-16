@@ -189,11 +189,21 @@ export function TaskTerminal({
         probeUrl.searchParams.set('session_id', liveIdRef.current)
       }
       const token = getAuthToken()
-      const res = await fetch(probeUrl.toString(), {
-        method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      return res.status
+      // Abort probe after 5 seconds so a 60s gateway timeout doesn't block reconnect
+      const controller = new AbortController()
+      const probeTimeout = setTimeout(() => controller.abort(), 5000)
+      try {
+        const res = await fetch(probeUrl.toString(), {
+          method: 'GET',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        })
+        clearTimeout(probeTimeout)
+        return res.status
+      } catch {
+        clearTimeout(probeTimeout)
+        return null
+      }
     } catch {
       return null
     }
@@ -633,10 +643,12 @@ export function TaskTerminal({
           }
 
           // If unexpected drop or initial startup on active task, retry quietly while maintaining streaming view
-          if (event.code !== 1000 && retryCount.current < 8) {
+          // Dedicated project terminals get more retries (20) to handle server restarts gracefully
+          const maxRetries = isDedicated ? 20 : 8
+          if (event.code !== 1000 && retryCount.current < maxRetries) {
             const delay = Math.min(
               1000 * Math.pow(1.3, retryCount.current),
-              4000,
+              isDedicated ? 8000 : 4000,
             )
             retryCount.current++
             isReconnecting.current = true

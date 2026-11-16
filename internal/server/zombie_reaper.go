@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 	"syscall"
 	"time"
 
@@ -79,6 +80,40 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 		}
 		if err := s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()); err != nil {
 			log.Printf("[ZombieReaper] ReconcileOrphanLaunches error: %v", err)
+		}
+	}
+
+	// Renew local attempt leases for all live local terminal and project sessions before lease reconciliation
+	if s.taskSvc != nil && s.terminalManager != nil {
+		for _, sess := range s.terminalManager.ActiveSessions() {
+			if sess == nil || sess.IsClosed() {
+				continue
+			}
+			// 1. Regular task history
+			for _, h := range s.terminalManager.GetTaskHistory(sess.TaskID()) {
+				if h != nil && h.SessionID == sess.ID() && h.AttemptID != "" && h.Status == "running" {
+					_ = s.taskSvc.RenewLocalAttemptLease(ctx, h.AttemptID)
+				}
+			}
+			// 2. Project terminal session or aliased tasks
+			sessionKey := sess.TaskID()
+			for _, taskID := range s.terminalManager.AliasedTasks(sessionKey) {
+				if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, taskID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+					_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+				}
+			}
+			if strings.HasPrefix(sessionKey, "project-term-") {
+				projID := strings.TrimPrefix(sessionKey, "project-term-")
+				if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: projID, Status: task.TaskStatusDoing}); err == nil {
+					for _, t := range tasks {
+						if strings.HasPrefix(t.Title, "Terminal ·") {
+							if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+								_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 

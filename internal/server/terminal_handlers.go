@@ -158,22 +158,13 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		if s.terminalManager != nil {
 			s.terminalManager.RegisterTaskAlias(taskID, sessionKey)
 		}
-		hasLiveTaskSession := false
-		if s.terminalManager != nil {
-			if sess, ok := s.terminalManager.GetSession(taskID); ok && !sess.IsClosed() {
-				hasLiveTaskSession = true
-			}
-			if !hasLiveTaskSession {
-				if sess, ok := s.terminalManager.GetSession(sessionKey); ok && !sess.IsClosed() {
-					hasLiveTaskSession = true
-				}
-			}
-		}
-		if !hasLiveTaskSession && s.projectSvc != nil {
+		if s.projectSvc != nil {
 			if proj, err := s.projectSvc.Get(r.Context(), targetProjID); err == nil && proj != nil {
 				doing := task.TaskStatusDoing
 				_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &doing})
+				var activeAttID string
 				if tDetail.LatestAttempt != nil && (tDetail.LatestAttempt.Status == task.AttemptStatusRunning || tDetail.LatestAttempt.Status == task.AttemptStatusQueued) {
+					activeAttID = tDetail.LatestAttempt.ID
 					if tDetail.LatestAttempt.Status != task.AttemptStatusRunning {
 						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 					}
@@ -182,12 +173,19 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 						RunnerID:  "local_terminal",
 						AgentName: tDetail.AssignedAgent,
 					}); err == nil && att != nil {
+						activeAttID = att.ID
 						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), att.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 					}
+				}
+				if activeAttID != "" {
+					_ = s.taskSvc.RenewLocalAttemptLease(r.Context(), activeAttID)
 				}
 				q := r.URL.Query()
 				q.Set("project_id", targetProjID)
 				q.Set("id", targetProjID)
+				if strings.HasPrefix(q.Get("session_id"), "att_") || q.Get("session_id") == "live" {
+					q.Del("session_id")
+				}
 				r.URL.RawQuery = q.Encode()
 				if rctx := chi.RouteContext(r.Context()); rctx != nil {
 					for i := range rctx.URLParams.Keys {

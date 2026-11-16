@@ -409,6 +409,23 @@ func (m *Manager) RegisterTaskAlias(taskID, sessionKey string) {
 	m.taskAliases[taskID] = sessionKey
 }
 
+// AliasedTasks returns all task IDs that are linked to the given session key.
+func (m *Manager) AliasedTasks(sessionKey string) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var res []string
+	for taskID, key := range m.taskAliases {
+		if key == sessionKey {
+			res = append(res, taskID)
+		}
+	}
+	return res
+}
+
 // GetSession returns the active session for a task if present.
 func (m *Manager) GetSession(taskID string) (*Session, bool) {
 	m.mu.RLock()

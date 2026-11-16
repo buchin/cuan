@@ -88,6 +88,7 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		taskVerifier: cfg.TaskVerifier,
 		taskResolver: cfg.TaskResolver,
 		upgrader: websocket.Upgrader{
+			HandshakeTimeout: 15 * time.Second,
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
 			CheckOrigin:     checkOrigin,
