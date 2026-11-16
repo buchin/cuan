@@ -11,3 +11,29 @@ func TestPHPUnitTargetsRejectOptionsAndNonTestPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestPHPUnitTargetsFlexibleFormat(t *testing.T) {
+	cases := []struct {
+		raw      string
+		expected []string
+	}{
+		{`[tests/Unit/EmailAddressHeuristicValidatorTest.php]`, []string{"tests/Unit/EmailAddressHeuristicValidatorTest.php"}},
+		{`tests/Feature/SmokeTest.php`, []string{"tests/Feature/SmokeTest.php"}},
+		{`['tests/Unit/A.php', 'tests/Feature/B.php']`, []string{"tests/Unit/A.php", "tests/Feature/B.php"}},
+		{`tests/Unit/A.php, tests/Feature/B.php`, []string{"tests/Unit/A.php", "tests/Feature/B.php"}},
+	}
+	for _, tc := range cases {
+		targets, err := PHPUnitTargets(tc.raw)
+		if err != nil {
+			t.Fatalf("expected valid targets for %q, got error: %v", tc.raw, err)
+		}
+		if len(targets) != len(tc.expected) {
+			t.Fatalf("expected %d targets for %q, got %d", len(tc.expected), tc.raw, len(targets))
+		}
+		for i, v := range targets {
+			if v != tc.expected[i] {
+				t.Fatalf("target mismatch at %d: expected %s, got %s", i, tc.expected[i], v)
+			}
+		}
+	}
+}
