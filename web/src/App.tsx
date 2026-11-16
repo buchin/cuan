@@ -794,6 +794,25 @@ export function App() {
     )
   }
 
+  // 2b. Detached Popout Window Mode: Minimal full-viewport terminal without navigation chrome
+  const isPopout = new URLSearchParams(location.search).get('popout') === 'true'
+  if (isPopout && isTerminalSession) {
+    const targetTaskId = sessionRoute ? subParam : pathSegments[3]
+    const targetSessionId = sessionRoute ? (pathSegments[3] || 'latest') : (pathSegments[5] || 'latest')
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <main className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col">
+          <TaskSessionPage
+            key={targetTaskId}
+            taskId={targetTaskId}
+            sessionId={targetSessionId}
+            isPopout={true}
+          />
+        </main>
+      </Suspense>
+    )
+  }
+
   // 3. Authenticated: Sidebar-09 App Shell
   return (
     <>

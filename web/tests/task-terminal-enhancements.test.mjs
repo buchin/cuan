@@ -338,3 +338,46 @@ test('11. Chat timeout & interrupted reply recovery handling', () => {
   assert.match(inboxActivityContent, /t\(recovering \? 'Trying again…' : 'Try again'\)/, 'Try again action must be rendered')
 })
 
+test('12. Detached / Popout Window Terminal Architecture and Sync', () => {
+  const appPath = path.join(rootDir, 'src/App.tsx')
+  const sessionPagePath = path.join(rootDir, 'src/features/tasks/TaskSessionPage.tsx')
+  const taskTerminalPath = path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx')
+  const projectsWorkspacePath = path.join(rootDir, 'src/features/projects/ProjectsWorkspace.tsx')
+  const projectsViewPath = path.join(rootDir, 'src/features/projects/ProjectsView.tsx')
+  const idLocalePath = path.join(rootDir, 'src/locales/id.json')
+  const enLocalePath = path.join(rootDir, 'src/locales/en.json')
+
+  const appContent = fs.readFileSync(appPath, 'utf8')
+  const sessionContent = fs.readFileSync(sessionPagePath, 'utf8')
+  const terminalContent = fs.readFileSync(taskTerminalPath, 'utf8')
+  const workspaceContent = fs.readFileSync(projectsWorkspacePath, 'utf8')
+  const viewContent = fs.readFileSync(projectsViewPath, 'utf8')
+  const idLocale = JSON.parse(fs.readFileSync(idLocalePath, 'utf8'))
+  const enLocale = JSON.parse(fs.readFileSync(enLocalePath, 'utf8'))
+
+  // App.tsx must support popout mode without AppShell chrome
+  assert.match(appContent, /get\('popout'\)\s*===\s*'true'/, 'App.tsx must detect popout query')
+  assert.match(appContent, /isPopout\s*&&\s*isTerminalSession/, 'App.tsx must gate on isPopout && isTerminalSession')
+
+  // TaskSessionPage must adapt header and title in popout mode
+  assert.match(sessionContent, /isPopout\s*:\s*propIsPopout/, 'TaskSessionPage must support isPopout prop')
+  assert.match(sessionContent, /document\.title\s*=/, 'TaskSessionPage must update native window title')
+  assert.match(sessionContent, /window\.close\(\)/, 'TaskSessionPage must support closing the popup window')
+
+  // TaskTerminal must support ExternalLink popout button and broadcast sync
+  assert.match(terminalContent, /handlePopout/, 'TaskTerminal must define handlePopout')
+  assert.match(terminalContent, /BroadcastChannel/, 'TaskTerminal must synchronize state across windows')
+  assert.match(terminalContent, /window\.open\(/, 'TaskTerminal must open popout window')
+
+  // Project cards must support launching popout terminal
+  assert.match(workspaceContent, /handleOpenProjectTerminal\([^)]*,\s*true\)/, 'ProjectsWorkspace must support opening popout terminal')
+  assert.match(viewContent, /handleOpenProjectTerminal\([^)]*,\s*true\)/, 'ProjectsView must support opening popout terminal')
+
+  // Locales must have all popout strings
+  assert.ok(idLocale['Open terminal in separate window'], 'id.json must contain Open terminal in separate window')
+  assert.ok(enLocale['Open terminal in separate window'], 'en.json must contain Open terminal in separate window')
+  assert.ok(idLocale['Terminal aktif di jendela terpisah'], 'id.json must contain Terminal aktif di jendela terpisah')
+  assert.ok(enLocale['Terminal aktif di jendela terpisah'], 'en.json must contain Terminal aktif di jendela terpisah')
+})
+
+

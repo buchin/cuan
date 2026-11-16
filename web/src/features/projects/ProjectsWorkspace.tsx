@@ -3,7 +3,7 @@ import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal } from 'lucide-react'
+import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal, ExternalLink } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
@@ -88,7 +88,7 @@ export function ProjectsWorkspace({
     }
   }, [location.search, location.state, project?.id, taskId])
 
-  const handleOpenProjectTerminal = async (projId: string) => {
+  const handleOpenProjectTerminal = async (projId: string, popout = false) => {
     setSaveError('')
     let projTasks: Task[]
     try { projTasks = (await tasksApi.page({ project_id: projId, search: 'Terminal ·', status: 'active', page_size: 100 })).tasks }
@@ -104,6 +104,16 @@ export function ProjectsWorkspace({
       try {
         localStorage.setItem('cuan_terminal_pin', 'true')
       } catch {}
+      if (popout) {
+        const popoutUrl = `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open&popout=true`
+        const winName = `cuan_terminal_${activeTerminalTask.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
+        const w = 980
+        const h = 680
+        const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
+        const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2))
+        window.open(popoutUrl, winName, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`)
+        return
+      }
       navigate(
         `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open`,
         {
@@ -159,28 +169,30 @@ export function ProjectsWorkspace({
         )
       } catch {}
 
+      let targetSessionId = 'latest'
       try {
         const res = await tasksApi.runAgent(created.id, launchPayload)
         if (res?.attempt?.id) {
-          navigate(
-            `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(res.attempt.id)}?terminal=open`,
-            {
-              state: {
-                taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-                openTerminal: true,
-              },
-            },
-          )
-          return
+          targetSessionId = res.attempt.id
         }
       } catch {}
 
+      if (popout) {
+        const popoutUrl = `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`
+        const winName = `cuan_terminal_${created.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
+        const w = 980
+        const h = 680
+        const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
+        const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2))
+        window.open(popoutUrl, winName, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`)
+        return
+      }
+
       navigate(
-        `/tasks/${encodeURIComponent(created.id)}/sessions/start?terminal=open`,
+        `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open`,
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-            startRequestId: launchPayload.request_id,
             openTerminal: true,
           },
         },
@@ -296,8 +308,15 @@ export function ProjectsWorkspace({
                 </button>
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
-                  <div className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
-                    {onArchiveProject && <button className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent" disabled={busy} onClick={() => void archive()}><Archive className="h-4 w-4" />{t(project.is_archived ? 'Restore project' : 'Archive project')}</button>}
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-56 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
+                    <button
+                      className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent cursor-pointer"
+                      onClick={() => void handleOpenProjectTerminal(project.id, true)}
+                    >
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      {t('Buka terminal di jendela terpisah')}
+                    </button>
+                    {onArchiveProject && <button className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent cursor-pointer" disabled={busy} onClick={() => void archive()}><Archive className="h-4 w-4" />{t(project.is_archived ? 'Restore project' : 'Archive project')}</button>}
                   </div>
                 </details>
               </div>

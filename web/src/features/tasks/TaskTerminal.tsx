@@ -15,6 +15,7 @@ import {
   Trash2,
   Maximize2,
   Minimize2,
+  ExternalLink,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { getAuthToken } from '../../api/client'
@@ -44,6 +45,7 @@ export function TaskTerminal({
   controlsTarget,
   onConnectionChange,
   isDedicatedTerminal,
+  isPopout,
 }: {
   taskId: string
   attempt: TaskAttempt
@@ -52,6 +54,7 @@ export function TaskTerminal({
   controlsTarget?: HTMLElement | null
   onConnectionChange?: (connection: string) => void
   isDedicatedTerminal?: boolean
+  isPopout?: boolean
 }) {
   const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
@@ -132,6 +135,50 @@ export function TaskTerminal({
 
   const refreshRef = useRef(onRefresh)
   refreshRef.current = onRefresh
+
+  const isPopoutMode = Boolean(
+    isPopout || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('popout') === 'true')
+  )
+  const [isPoppedOut, setIsPoppedOut] = useState(false)
+
+  // Synchronize popout state across windows via BroadcastChannel
+  useEffect(() => {
+    if (isPopoutMode || typeof BroadcastChannel === 'undefined') return
+    const channel = new BroadcastChannel('cuan_terminal_' + taskId)
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'open') {
+        setIsPoppedOut(true)
+      } else if (event.data?.type === 'close') {
+        setIsPoppedOut(false)
+      }
+    }
+    return () => {
+      channel.close()
+    }
+  }, [taskId, isPopoutMode])
+
+  useEffect(() => {
+    if (!isPopoutMode || typeof BroadcastChannel === 'undefined') return
+    const channel = new BroadcastChannel('cuan_terminal_' + taskId)
+    channel.postMessage({ type: 'open' })
+
+    const handleBeforeUnload = () => {
+      channel.postMessage({ type: 'close' })
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'focus_main') {
+        window.close()
+      }
+    }
+
+    return () => {
+      channel.postMessage({ type: 'close' })
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      channel.close()
+    }
+  }, [taskId, isPopoutMode])
 
   useEffect(() => {
     onConnectionChange?.(connection)
@@ -288,6 +335,38 @@ export function TaskTerminal({
   const handleSelectAll = useCallback(() => {
     term.current?.selectAll()
   }, [])
+
+  const handlePopout = useCallback(() => {
+    const popoutUrl = new URL(
+      `/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(attempt?.id || 'latest')}`,
+      window.location.href,
+    )
+    popoutUrl.searchParams.set('terminal', 'open')
+    popoutUrl.searchParams.set('popout', 'true')
+    const winName = `cuan_terminal_${taskId.replace(/[^a-zA-Z0-9_]/g, '_')}`
+    const w = 980
+    const h = 680
+    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
+    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2))
+    const popout = window.open(
+      popoutUrl.toString(),
+      winName,
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`,
+    )
+    if (popout) {
+      popout.focus()
+      setIsPoppedOut(true)
+    }
+  }, [taskId, attempt?.id])
+
+  const handleReturnToMain = useCallback(() => {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('cuan_terminal_' + taskId)
+      channel.postMessage({ type: 'focus_main' })
+      channel.close()
+    }
+    setIsPoppedOut(false)
+  }, [taskId])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -1232,6 +1311,19 @@ export function TaskTerminal({
 
       {/* Action Toolbar: Clean Calm Design without redundant header clutter */}
       <div className="flex items-center gap-1">
+        {/* Detach / Popout Window */}
+        {!isPopoutMode && (
+          <button
+            type="button"
+            className="icon-action text-muted-foreground hover:text-foreground hidden sm:inline-flex"
+            aria-label={t('Open terminal in separate window')}
+            title={t('Open terminal in separate window')}
+            onClick={handlePopout}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </button>
+        )}
+
         {/* Fullscreen / Maximize toggle */}
         <button
           type="button"
@@ -1271,6 +1363,20 @@ export function TaskTerminal({
               >
                 <Trash2 className="h-4 w-4" />
               </button>
+            {!isPopoutMode && (
+              <button
+                type="button"
+                className="icon-action text-muted-foreground hover:text-foreground sm:hidden"
+                aria-label={t('Open terminal in separate window')}
+                title={t('Open terminal in separate window')}
+                onClick={() => {
+                  handlePopout()
+                  if (menu.current) menu.current.open = false
+                }}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               className="icon-action"
@@ -1389,6 +1495,22 @@ export function TaskTerminal({
       {controlsTarget && !isFullscreen
         ? createPortal(controls, controlsTarget)
         : controls}
+
+      {isPoppedOut && !isPopoutMode && (
+        <div className="flex shrink-0 items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border/50 text-xs text-muted-foreground select-none">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="truncate">{t('Terminal aktif di jendela terpisah')}</span>
+          </div>
+          <button
+            type="button"
+            className="text-primary hover:underline text-xs shrink-0 ml-2 font-medium cursor-pointer"
+            onClick={handleReturnToMain}
+          >
+            {t('Tampilkan di sini')}
+          </button>
+        </div>
+      )}
 
       {showDisconnectBanner && (
         <div

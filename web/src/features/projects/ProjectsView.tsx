@@ -17,6 +17,7 @@ import {
   Archive,
   Sparkles,
   Terminal,
+  ExternalLink,
 } from 'lucide-react'
 
 interface ProjectsViewProps {
@@ -42,7 +43,7 @@ export function ProjectsView({
   const navigate = useNavigate()
   const { t } = useLanguage()
 
-  const handleOpenProjectTerminal = async (projId: string) => {
+  const handleOpenProjectTerminal = async (projId: string, popout = false) => {
     let projTasks: Task[]
     try { projTasks = (await tasksApi.page({ project_id: projId, search: 'Terminal ·', status: 'active', page_size: 100 })).tasks }
     catch { setError(t('Could not load project terminal. Try again.')); return }
@@ -57,6 +58,16 @@ export function ProjectsView({
       try {
         localStorage.setItem('cuan_terminal_pin', 'true')
       } catch {}
+      if (popout) {
+        const popoutUrl = `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open&popout=true`
+        const winName = `cuan_terminal_${activeTerminalTask.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
+        const w = 980
+        const h = 680
+        const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
+        const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2))
+        window.open(popoutUrl, winName, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`)
+        return
+      }
       navigate(
         `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open`,
         {
@@ -109,28 +120,30 @@ export function ProjectsView({
         )
       } catch {}
 
+      let targetSessionId = 'latest'
       try {
         const res = await tasksApi.runAgent(created.id, launchPayload)
         if (res?.attempt?.id) {
-          navigate(
-            `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(res.attempt.id)}?terminal=open`,
-            {
-              state: {
-                taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-                openTerminal: true,
-              },
-            },
-          )
-          return
+          targetSessionId = res.attempt.id
         }
       } catch {}
 
+      if (popout) {
+        const popoutUrl = `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`
+        const winName = `cuan_terminal_${created.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
+        const w = 980
+        const h = 680
+        const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
+        const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2))
+        window.open(popoutUrl, winName, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`)
+        return
+      }
+
       navigate(
-        `/tasks/${encodeURIComponent(created.id)}/sessions/start?terminal=open`,
+        `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open`,
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-            startRequestId: launchPayload.request_id,
             openTerminal: true,
           },
         },
@@ -347,6 +360,19 @@ export function ProjectsView({
                       >
                         <Terminal className="h-3.5 w-3.5 text-emerald-500" />
                         <span className="hidden sm:inline">{t('Terminal')}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleOpenProjectTerminal(project.id, true)
+                        }}
+                        className="icon-action text-muted-foreground hover:text-foreground hidden sm:inline-flex min-h-[36px] min-w-[36px]"
+                        title={t('Open terminal in separate window')}
+                        aria-label={t('Open terminal in separate window')}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </button>
 
                       <button

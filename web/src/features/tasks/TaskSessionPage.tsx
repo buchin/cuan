@@ -22,6 +22,7 @@ import {
   PinOff,
   ExternalLink,
   GitBranch,
+  X,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -43,9 +44,11 @@ import { useLanguage } from '../../context/LanguageContext'
 export function TaskSessionPage({
   taskId,
   sessionId,
+  isPopout: propIsPopout,
 }: {
   taskId: string
   sessionId: string
+  isPopout?: boolean
 }) {
   const { t, language } = useLanguage()
   const location = useLocation(),
@@ -95,6 +98,19 @@ export function TaskSessionPage({
     }
   }
   const [searchParams, setSearchParams] = useSearchParams()
+  const isPopout = Boolean(
+    propIsPopout || searchParams.get('popout') === 'true'
+  )
+
+  useEffect(() => {
+    if (detail?.title) {
+      const cleanTitle = detail.title.startsWith('Terminal ·')
+        ? detail.title
+        : `Terminal · ${detail.title}`
+      document.title = cleanTitle
+    }
+  }, [detail?.title])
+
   const showDetail = searchParams.get('panel') === 'detail'
   const setShowDetail = (open: boolean) => {
     setShareState('idle')
@@ -476,23 +492,35 @@ export function TaskSessionPage({
       <header className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b bg-background px-2 sm:px-3 gap-1.5 sm:gap-2 select-none">
         {/* Navigation & Task Title */}
         <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-          <Link
-            to={backURL}
-            state={state}
-            className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
-            aria-label={
-              backURL.startsWith('/inbox/')
-                ? 'Back to conversation'
-                : 'Back to tasks'
-            }
-            title={
-              backURL.startsWith('/inbox/')
-                ? 'Back to conversation'
-                : 'Back to tasks'
-            }
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+          {!isPopout ? (
+            <Link
+              to={backURL}
+              state={state}
+              className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
+              aria-label={
+                backURL.startsWith('/inbox/')
+                  ? 'Back to conversation'
+                  : 'Back to tasks'
+              }
+              title={
+                backURL.startsWith('/inbox/')
+                  ? 'Back to conversation'
+                  : 'Back to tasks'
+              }
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground cursor-pointer"
+              aria-label={t('Close window')}
+              title={t('Close window')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <span className="flex h-5 w-5 sm:h-6 sm:w-6 shrink-0 items-center justify-center rounded bg-muted/60 text-muted-foreground">
               <Terminal className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-foreground/80" />
@@ -627,6 +655,7 @@ export function TaskSessionPage({
                 controlsTarget={terminalControls}
                 onConnectionChange={setTerminalConnection}
                 isDedicatedTerminal={isDedicatedTerminal}
+                isPopout={isPopout}
               />
             </Suspense>
           </div>
