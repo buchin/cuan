@@ -774,8 +774,9 @@ export function TaskTerminal({
         if (disposed || !mount.current) return
 
         const isMobileScreen =
-          typeof window !== 'undefined' && window.innerWidth < 480
+          typeof window !== 'undefined' && window.innerWidth < 640
         const terminalFontSize = isMobileScreen ? 12 : 13
+        const scrollbackLimit = isMobileScreen ? 2000 : 20000
 
         // Font gate: wait for terminal font face to be ready before computing metrics
         try {
@@ -791,7 +792,7 @@ export function TaskTerminal({
           fontSize: terminalFontSize,
           lineHeight: 1.2,
           letterSpacing: 0,
-          scrollback: 20000,
+          scrollback: scrollbackLimit,
           convertEol: false,
           disableStdin: true,
           cursorBlink: true,
