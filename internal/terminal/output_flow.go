@@ -29,6 +29,17 @@ func (f *terminalOutputFlow) acknowledge(sequence uint64) {
 	f.ack <- struct{}{}
 }
 
+// unblock clears any waiting acknowledgement without failing the connection.
+func (f *terminalOutputFlow) unblock() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.waiting = 0
+	select {
+	case f.ack <- struct{}{}:
+	default:
+	}
+}
+
 func (f *terminalOutputFlow) write(done <-chan struct{}, timeout time.Duration, send func() error) error {
 	f.mu.Lock()
 	f.sequence++

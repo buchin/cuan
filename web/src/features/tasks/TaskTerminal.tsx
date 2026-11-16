@@ -36,6 +36,11 @@ import {
   isXtermJsAutoResponse,
 } from './terminal/xt-version'
 import { desktopWordEditSequence } from './terminal/word-keys'
+import {
+  createTerminalWriteQueue,
+  type TerminalWriteQueue,
+} from './terminal/write-queue'
+import { TerminalStreamDecoder } from './terminal/stream-decoder'
 
 export function TaskTerminal({
   taskId,
@@ -454,6 +459,8 @@ export function TaskTerminal({
   // Ref to hold connectSocket so reconnect and event listeners can call it
   const connectSocketRef = useRef<() => void>(() => {})
   const pollNextLogsRef = useRef<() => void>(() => {})
+  const writeQueueRef = useRef<TerminalWriteQueue | null>(null)
+  const streamDecoderRef = useRef<TerminalStreamDecoder>(new TerminalStreamDecoder())
 
   const handleReconnect = useCallback(() => {
     setError('')
@@ -470,6 +477,9 @@ export function TaskTerminal({
   const lastAutoRetry = useRef(0)
   useEffect(() => {
     const handleActive = () => {
+      if (document.visibilityState === 'visible') {
+        writeQueueRef.current?.resume()
+      }
       if (document.visibilityState !== 'visible') return
       if (!isTaskActiveRef.current) return
       // If task is actively streaming or connected, maintain calm Things 3 serenity
@@ -556,7 +566,9 @@ export function TaskTerminal({
         url.searchParams.set('reconnect', '1')
       }
       if (term.current) {
-        url.searchParams.set('cols', String(term.current.cols))
+        const isMobileScreen = typeof window !== 'undefined' && window.innerWidth < 640
+        const ptyCols = Math.max(isMobileScreen ? 80 : 20, term.current.cols)
+        url.searchParams.set('cols', String(ptyCols))
         url.searchParams.set('rows', String(term.current.rows))
       }
 
@@ -577,19 +589,30 @@ export function TaskTerminal({
 
         if (event.data instanceof ArrayBuffer) {
           const sequence = ++outputSequence
-          // Binary frames are raw PTY bytes, including legitimate JSON output.
-          // Preserve UTF-8 and ANSI sequences across frames for xterm to decode.
-          t.write(new Uint8Array(event.data), () => {
+          const rawBytes = new Uint8Array(event.data)
+          if (typeof writeQueueRef !== 'undefined' && writeQueueRef.current && typeof streamDecoderRef !== 'undefined' && streamDecoderRef.current) {
+            writeQueueRef.current.enqueue(streamDecoderRef.current.decode(rawBytes))
             if (following.current) t.scrollToBottom()
             if (acknowledgeOutput) {
-              // Yield between parsed output frames so keyboard events can run.
               setTimeout(() => {
                 if (!disposed && socket.current === ws && ws.readyState === WebSocket.OPEN) {
                   ws.send(JSON.stringify({ type: 'output_ack', sequence }))
                 }
               }, 0)
             }
-          })
+          } else {
+            // Direct write fallback (e.g. unit test runner without React hook refs)
+            t.write(rawBytes, () => {
+              if (following.current) t.scrollToBottom()
+              if (acknowledgeOutput) {
+                setTimeout(() => {
+                  if (!disposed && socket.current === ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'output_ack', sequence }))
+                  }
+                }, 0)
+              }
+            })
+          }
           return
         }
 
@@ -775,7 +798,7 @@ export function TaskTerminal({
 
         const isMobileScreen =
           typeof window !== 'undefined' && window.innerWidth < 640
-        const terminalFontSize = isMobileScreen ? 12 : 13
+        const terminalFontSize = isMobileScreen ? 11 : 13
         const scrollbackLimit = isMobileScreen ? 2000 : 20000
 
         // Font gate: wait for terminal font face to be ready before computing metrics
@@ -851,6 +874,9 @@ export function TaskTerminal({
 
         terminal.open(mount.current)
         term.current = terminal
+        writeQueueRef.current = createTerminalWriteQueue(terminal, {
+          isActive: () => !disposed && term.current === terminal,
+        })
 
         // Natural word-editing keys & clipboard shortcuts matching Fural / macOS Terminal / iTerm
         terminal.attachCustomKeyEventHandler((event) => {
@@ -925,7 +951,8 @@ export function TaskTerminal({
             ptyResizeTimer = setTimeout(() => {
               const ws = socket.current
               if (disposed || ws?.readyState !== WebSocket.OPEN || !terminal) return
-              resizeGate.send(ws, { cols: terminal.cols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
+              const ptyCols = Math.max(isMobileScreen ? 80 : 20, terminal.cols)
+              resizeGate.send(ws, { cols: ptyCols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
             }, 80)
           } catch {}
         }
@@ -1209,6 +1236,9 @@ export function TaskTerminal({
         socket.current.close()
         socket.current = null
       }
+      writeQueueRef.current?.clear()
+      writeQueueRef.current = null
+      streamDecoderRef.current.reset()
       terminal?.dispose()
       mobileInputFilter.current = null
       if (term.current === terminal) term.current = null

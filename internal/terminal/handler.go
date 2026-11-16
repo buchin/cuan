@@ -583,6 +583,11 @@ func (h *Handler) ProxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 				var err error
 				if ackOutput {
 					err = outputFlow.write(done, pongWait, send)
+					if err != nil && strings.Contains(err.Error(), "acknowledgement timed out") {
+						// Browser may be backgrounded or busy rendering; do not kill the connection.
+						outputFlow.unblock()
+						err = nil
+					}
 				} else {
 					err = send()
 				}
