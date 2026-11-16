@@ -530,7 +530,7 @@ export function TaskSessionPage({
             className={cn(
               'icon-action shrink-0 transition-colors hidden sm:inline-flex',
               pinTerminal
-                ? 'text-emerald-500 bg-emerald-500/15 border border-emerald-500/30 hover:bg-emerald-500/25 dark:text-emerald-400'
+                ? 'text-emerald-500 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
                 : 'text-muted-foreground hover:text-foreground'
             )}
             aria-label={pinTerminal ? t('Terminal pinned (Active)') : t('Pin terminal')}

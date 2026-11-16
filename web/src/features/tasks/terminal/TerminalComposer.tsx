@@ -800,8 +800,8 @@ export function TerminalComposer({
             onPaste={handleTextareaPaste}
             placeholder={
               uploading
-                ? 'Mengunggah file ke workspace…'
-                : 'Ketik perintah atau pesan…'
+                ? t('Uploading…')
+                : t('Type command or input...')
             }
             disabled={disabled}
             autoCapitalize="none"

@@ -12,7 +12,6 @@ import {
   RefreshCw,
   MoreHorizontal,
   WifiOff,
-  Ban,
   Trash2,
   Maximize2,
   Minimize2,
@@ -593,9 +592,9 @@ export function TaskTerminal({
             interactive.current = false
             setInput(false)
             if (term.current) term.current.options.disableStdin = true
-            // Decoupled runner daemon: quiet live log stream fallback without panicky reconnect loop
+            // Decoupled runner daemon: quiet live log stream fallback without panicky reconnect loop or banner
             setConnection('streaming')
-            setNotice(t('Terminal session unavailable. Reconnect before entering more input.'))
+            setNotice('')
             setError('')
             isReconnecting.current = false
             retryCount.current = 0
@@ -609,11 +608,11 @@ export function TaskTerminal({
             return
           }
 
-          // If real unexpected drop on active task, retry quietly while maintaining streaming view
-          if (event.code !== 1000 && retryCount.current < 5) {
+          // If unexpected drop or initial startup on active task, retry quietly while maintaining streaming view
+          if (event.code !== 1000 && retryCount.current < 8) {
             const delay = Math.min(
-              1000 * Math.pow(1.5, retryCount.current),
-              5000,
+              1000 * Math.pow(1.3, retryCount.current),
+              4000,
             )
             retryCount.current++
             isReconnecting.current = true
@@ -628,8 +627,16 @@ export function TaskTerminal({
             return
           }
 
-          setConnection(retainInput ? 'disconnected' : 'streaming')
+          // Fallback to streaming polling view only after retries exhausted
+          interactive.current = false
+          setInput(false)
+          if (term.current) term.current.options.disableStdin = true
+          setConnection('streaming')
           setNotice(retainInput ? t('Connection paused. Reconnect to send pending input to this session.') : '')
+          setError('')
+          if (!pollTimerRef.current) {
+            pollTimerRef.current = setTimeout(() => pollNextLogsRef.current(), 500)
+          }
         } else {
           setConnection('saved')
           if (refreshTimer.current) clearTimeout(refreshTimer.current)
@@ -680,8 +687,8 @@ export function TaskTerminal({
           reflowCursorLine: true,
           theme: {
             background: '#141414',
-            foreground: '#e5e5e5',
-            selectionBackground: '#3b82f655',
+            foreground: '#e4e4e7',
+            selectionBackground: '#52525b40',
             cursor: 'transparent',
             cursorAccent: 'transparent',
           },
@@ -1077,93 +1084,68 @@ export function TaskTerminal({
     <div
       className={
         controlsTarget && !isFullscreen
-          ? 'flex items-center gap-1.5'
+          ? 'flex items-center gap-1'
           : 'flex shrink-0 items-center justify-between gap-1.5 bg-background px-2 py-1'
       }
     >
-      <div className="flex items-center gap-1.5 min-w-0">
-        {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
-            role="status"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
-          </span>
-        ) : (
-          <span
-            role="status"
-            className={
-              controlsTarget && !isFullscreen
-                ? 'sr-only'
-                : 'min-w-0 flex-1 truncate text-xs text-muted-foreground'
-            }
-          >
-            {
-              (
-                {
-                  loading: t('Loading output…'),
-                  connecting: t('Connecting to existing session…'),
-                  connected: input
-                    ? t('Connected · input enabled')
-                    : t('Connected · read-only'),
-                  streaming: t('Streaming live logs…'),
-                  saved: t('Saved output'),
-                  disconnected: t(
-                    'Disconnected · task status is checked separately',
-                  ),
-                  error: t('Output unavailable'),
-                } as Record<string, string>
-              )[connection]
-            }
-          </span>
-        )}
-        {(!controlsTarget || isFullscreen) && !(isTaskActive && (connection === 'streaming' || connection === 'connected')) && (
-          <span
-            aria-hidden
-            className={
-              'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
-              (connection === 'connected' || connection === 'streaming'
-                ? 'bg-emerald-500 animate-pulse'
-                : connection === 'saved'
-                  ? 'bg-muted-foreground'
-                  : 'bg-amber-500')
-            }
-            title={connection}
-          />
-        )}
-      </div>
+      {/* Status indicator: only rendered standalone (e.g. fullscreen) because TaskSessionPage header already displays statusBadge */}
+      {(!controlsTarget || isFullscreen) && (
+        <div className="flex items-center gap-1.5 min-w-0">
+          {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
+              role="status"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
+            </span>
+          ) : (
+            <span
+              role="status"
+              className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+            >
+              {
+                (
+                  {
+                    loading: t('Loading output…'),
+                    connecting: t('Connecting to existing session…'),
+                    connected: input
+                      ? t('Connected · input enabled')
+                      : t('Connected · read-only'),
+                    streaming: t('Streaming live logs…'),
+                    saved: t('Saved output'),
+                    disconnected: t(
+                      'Disconnected · task status is checked separately',
+                    ),
+                    error: t('Output unavailable'),
+                  } as Record<string, string>
+                )[connection]
+              }
+            </span>
+          )}
+          {!(isTaskActive && (connection === 'streaming' || connection === 'connected')) && (
+            <span
+              aria-hidden
+              className={
+                'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
+                (connection === 'connected' || connection === 'streaming'
+                  ? 'bg-emerald-500 animate-pulse'
+                  : connection === 'saved'
+                    ? 'bg-muted-foreground'
+                    : 'bg-amber-500')
+              }
+              title={connection}
+            />
+          )}
+        </div>
+      )}
 
-      {/* Quick Action Toolbar */}
-      <div className="flex flex-wrap items-center gap-1">
-        {/* Quick Stop / Interrupt (Ctrl+C) - Active without legacy liveId gate */}
-        {isTaskActive && (
-          <button
-            type="button"
-            className="icon-action text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 active:bg-rose-600 active:text-white"
-            aria-label={t('Send Ctrl+C (Interrupt)')}
-            title={t('Send Ctrl+C (Interrupt)')}
-            onClick={handleStop}
-          >
-            <Ban className="h-3.5 w-3.5" />
-          </button>
-        )}
-
-        {/* Clear buffer */}
-        <button
-          type="button"
-          className="icon-action"
-          aria-label={t('Clear terminal')}
-          title={t('Clear terminal')}
-          onClick={handleClear}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-
+      {/* Action Toolbar: Clean Calm Design without redundant header clutter */}
+      <div className="flex items-center gap-1">
         {/* Fullscreen / Maximize toggle */}
         <button
           type="button"
-          className="icon-action"
+          className="icon-action text-muted-foreground hover:text-foreground"
           aria-label={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
           title={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
           onClick={() => setIsFullscreen((prev) => !prev)}
@@ -1174,20 +1156,31 @@ export function TaskTerminal({
             <Maximize2 className="h-3.5 w-3.5" />
           )}
         </button>
-
       </div>
 
       {/* Details dropdown for extra tools */}
       <details ref={menu} className="static sm:relative shrink-0">
-        <summary
-          aria-label={t('Terminal tools')}
-          title={t('Terminal tools')}
-          className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </summary>
-        <div className="absolute right-0 top-full z-20 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
-          <div className="flex flex-wrap justify-end gap-1">
+          <summary
+            aria-label={t('Terminal tools')}
+            title={t('Terminal tools')}
+            className="icon-action cursor-pointer list-none text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden"
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </summary>
+          <div className="absolute right-0 top-full z-20 w-[min(320px,calc(100vw-24px))] space-y-2 rounded-lg border bg-popover p-3 text-popover-foreground shadow-xl">
+            <div className="flex flex-wrap justify-end gap-1">
+              <button
+                type="button"
+                className="icon-action text-muted-foreground hover:text-foreground"
+                aria-label={t('Clear terminal')}
+                title={t('Clear terminal screen buffer')}
+                onClick={() => {
+                  handleClear()
+                  if (menu.current) menu.current.open = false
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             <button
               type="button"
               className="icon-action"
