@@ -3,11 +3,10 @@ import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal, ExternalLink } from 'lucide-react'
+import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal, ExternalLink, Loader2 } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
-import { workStatus } from '../tasks/task-ui'
 import { useLanguage } from '../../context/LanguageContext'
 import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
 import { ProjectIcon } from './ProjectIcon'
@@ -52,6 +51,7 @@ export function ProjectsWorkspace({
     setQuery('')
   }, [project?.id, project?.is_archived])
   const [busy, setBusy] = useState(false)
+  const [openingTerminalId, setOpeningTerminalId] = useState('')
   const [saveError, setSaveError] = useState('')
   const visible = projects.filter(
     (item) =>
@@ -83,103 +83,82 @@ export function ProjectsWorkspace({
     const shouldOpen =
       new URLSearchParams(location.search).get('terminal') === 'open' ||
       (location.state as { openTerminal?: boolean } | null)?.openTerminal
-    if (shouldOpen && project?.id && !busy && !taskId) {
+    if (shouldOpen && project?.id && !openingTerminalId && !taskId) {
       void handleOpenProjectTerminal(project.id)
     }
   }, [location.search, location.state, project?.id, taskId])
 
   const handleOpenProjectTerminal = async (projId: string, popout = false) => {
+    if (openingTerminalId) return
+    setOpeningTerminalId(projId)
     setSaveError('')
-    let projTasks: Task[]
-    try { projTasks = (await tasksApi.page({ project_id: projId, search: 'Terminal ·', status: 'active', page_size: 100 })).tasks }
-    catch { setSaveError(t('Could not load project terminal. Try again.')); return }
-    // 1. Reconnect to an already active dedicated project terminal session if alive
-    const activeTerminalTask = projTasks.find(
-      (item) =>
-        item.title.startsWith('Terminal ·') &&
-        (['Working', 'Waiting to start'].includes(workStatus(item)) ||
-          ['running', 'queued'].includes(item.latest_attempt?.status || '')),
-    )
-    if (activeTerminalTask) {
-      try {
-        localStorage.setItem('cuan_terminal_pin', 'true')
-      } catch {}
-      if (popout) {
-        const popoutUrl = `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open&popout=true`
-        const winName = `cuan_terminal_${activeTerminalTask.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
-        const w = 980
-        const h = 680
-        const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
-        const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2))
-        window.open(popoutUrl, winName, `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,toolbar=no,menubar=no,location=no`)
-        return
-      }
-      navigate(
-        `/tasks/${encodeURIComponent(activeTerminalTask.id)}/sessions/latest?terminal=open`,
-        {
-          state: {
-            taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-            openTerminal: true,
-          },
-        },
-      )
-      return
-    }
-
-    // 2. Independent from regular tasks / old completed tasks. Always launch a dedicated interactive terminal with agent.
     try {
-      setBusy(true)
-      let agentId = 'default'
-      try {
-        const agentList = await agentsApi.list()
-        const available = agentList.filter(
-          (a) => a.enabled !== false && a.status !== 'inactive',
-        )
-        const selected =
-          available.find((a) => a.connection_state === 'verified') ||
-          available[0]
-        if (selected) agentId = selected.id
-      } catch {}
-
       const targetProj =
         project?.id === projId
           ? project
           : projects.find((p) => p.id === projId)
       const projName = targetProj?.name || 'Workspace'
-      const created = await tasksApi.create({
-        title: `Terminal · ${projName}`,
-        project_ids: [projId],
-        description: `Interactive terminal workspace session with AI agent for ${projName}.`,
-      })
 
-      try {
-        localStorage.setItem('cuan_terminal_pin', 'true')
-      } catch {}
+      // 1. Reconnect to an existing dedicated project terminal task in memory if available
+      let targetTask = tasks.find(
+        (item) =>
+          (item.project_id === projId || item.project_ids?.includes(projId)) &&
+          item.title.startsWith('Terminal ·'),
+      )
 
-      const launchPayload = {
-        request_id: crypto.randomUUID(),
-        agent_id: agentId,
-        runner_id: 'local_terminal',
+      // 2. Query API if not cached in memory (without restrictive status filter so any previous terminal task is reused)
+      if (!targetTask) {
+        try {
+          const res = await tasksApi.page({
+            project_id: projId,
+            search: 'Terminal ·',
+            page_size: 20,
+          })
+          targetTask = res.tasks.find((item) =>
+            item.title.startsWith('Terminal ·'),
+          )
+        } catch {}
+      }
+
+      // 3. Create dedicated terminal task if none exists yet
+      let assignedAgentId = 'default'
+      if (!targetTask) {
+        try {
+          const agentList = await agentsApi.list()
+          const available = agentList.filter(
+            (a) => a.enabled !== false && a.status !== 'inactive',
+          )
+          const selected =
+            available.find((a) => a.connection_state === 'verified') ||
+            available[0]
+          if (selected) assignedAgentId = selected.id
+        } catch {}
+
+        targetTask = await tasksApi.create({
+          title: `Terminal · ${projName}`,
+          project_ids: [projId],
+          description: `Interactive terminal workspace session with AI agent for ${projName}.`,
+          assignee_id: assignedAgentId,
+        })
       }
 
       try {
+        localStorage.setItem('cuan_terminal_pin', 'true')
         localStorage.setItem(
-          'cuan-task-launch:' + created.id,
-          JSON.stringify(launchPayload),
+          'cuan-task-launch:' + targetTask.id,
+          JSON.stringify({
+            request_id: crypto.randomUUID(),
+            agent_id: assignedAgentId,
+            runner_id: 'local_terminal',
+          }),
         )
       } catch {}
 
-      let targetSessionId = 'latest'
-      try {
-        const res = await tasksApi.runAgent(created.id, launchPayload)
-        if (res?.attempt?.id) {
-          targetSessionId = res.attempt.id
-        }
-      } catch {}
+      const targetSessionId = targetTask.latest_attempt?.id || 'latest'
 
       if (popout) {
-        const popoutUrl = `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`
-        const winName = `cuan_terminal_${created.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
+        const popoutUrl = `/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`
+        const winName = `cuan_terminal_${targetTask.id.replace(/[^a-zA-Z0-9_]/g, '_')}`
         const w = 980
         const h = 680
         const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2))
@@ -189,7 +168,7 @@ export function ProjectsWorkspace({
       }
 
       navigate(
-        `/tasks/${encodeURIComponent(created.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open`,
+        `/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open`,
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
@@ -198,9 +177,9 @@ export function ProjectsWorkspace({
         },
       )
     } catch {
-      navigate(`/projects/${encodeURIComponent(projId)}/tasks`)
+      setSaveError(t('Could not load project terminal. Try again.'))
     } finally {
-      setBusy(false)
+      setOpeningTerminalId('')
     }
   }
   return (
@@ -299,21 +278,33 @@ export function ProjectsWorkspace({
               <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
+                  disabled={Boolean(openingTerminalId)}
                   onClick={() => void handleOpenProjectTerminal(project.id)}
                   className="action-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5"
                   title={t('Open terminal for this project')}
                 >
-                  <Terminal className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>{t('Terminal')}</span>
+                  {openingTerminalId === project.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                  ) : (
+                    <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                  )}
+                  <span>
+                    {openingTerminalId === project.id ? t('Opening…') : t('Terminal')}
+                  </span>
                 </button>
                 <details className="relative">
                   <summary className="icon-action cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={t('Project actions')}><MoreHorizontal className="h-4 w-4" /></summary>
                   <div className="absolute right-0 top-full z-20 mt-1 min-w-56 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
                     <button
-                      className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent cursor-pointer"
+                      className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent cursor-pointer disabled:opacity-50"
+                      disabled={Boolean(openingTerminalId)}
                       onClick={() => void handleOpenProjectTerminal(project.id, true)}
                     >
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      {openingTerminalId === project.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      )}
                       {t('Buka terminal di jendela terpisah')}
                     </button>
                     {onArchiveProject && <button className="flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm hover:bg-accent cursor-pointer" disabled={busy} onClick={() => void archive()}><Archive className="h-4 w-4" />{t(project.is_archived ? 'Restore project' : 'Archive project')}</button>}
