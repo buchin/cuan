@@ -38,13 +38,28 @@ export function NotificationsPopover() {
   }
   const returnState = { notificationReturnTo: location.pathname+location.search+location.hash }
   return <>
-    <button ref={trigger} type="button" className="icon-action relative" aria-label={t('Notifications')} aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => {
-      if (window.matchMedia('(max-width: 767px)').matches || !panel.current?.showPopover) { navigate('/notifications', {state:returnState}); return }
-      if (!open) void refresh()
-      panel.current.togglePopover()
-    }}>
+    <button
+      ref={trigger}
+      type="button"
+      className="icon-action relative text-muted-foreground hover:text-foreground transition-colors"
+      aria-label={t('Notifications')}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls={id}
+      onClick={() => {
+        if (window.matchMedia('(max-width: 767px)').matches || !panel.current?.showPopover) { navigate('/notifications', {state:returnState}); return }
+        if (!open) void refresh()
+        panel.current.togglePopover()
+      }}
+    >
       <Bell className="h-5 w-5" />
-      {unread > 0 && <span aria-hidden="true" className="absolute right-0 top-0 min-w-4 rounded-full bg-primary px-1 text-[10px] leading-4 text-primary-foreground">{unread > 99 ? '99+' : unread}</span>}
+      {unread > 0 && (
+        <span
+          data-testid="notification-unread-dot"
+          aria-label={t('{{count}} unread notifications').replace('{{count}}', String(unread))}
+          className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500/90 dark:bg-amber-400 shadow-sm ring-2 ring-background"
+        />
+      )}
     </button>
     <div {...{popover:'auto'}} ref={panel} id={id} hidden={typeof HTMLElement === 'undefined' || !('showPopover' in HTMLElement.prototype)} role="dialog" aria-modal="false" aria-labelledby={id+'-title'} className="fixed inset-x-0 bottom-0 top-auto m-0 max-h-[80dvh] w-full max-w-none overflow-hidden rounded-t-2xl border border-border bg-popover p-0 text-popover-foreground shadow-xl md:inset-auto md:right-4 md:top-[4.5rem] md:w-96 md:rounded-xl">
       <header className="flex items-center gap-2 border-b px-3 py-2">

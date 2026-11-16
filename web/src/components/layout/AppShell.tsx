@@ -13,6 +13,7 @@ import { CuanMark } from '../brand/CuanMark'
 import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
 import { SlideDrawer } from './SlideDrawer'
+import { NotificationsPopover } from '../../features/notifications/NotificationsPopover'
 import {
   Inbox,
   CheckSquare,
@@ -436,6 +437,7 @@ export function AppShell({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <UniversalSearch hideTrigger={shouldHideSearch} />
+            {currentTab !== 'notifications' && <NotificationsPopover />}
             {headerActions}
             {currentTab === 'inbox' && (
               <IconButton

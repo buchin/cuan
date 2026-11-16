@@ -1,7 +1,7 @@
 import React from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { LoginScreen } from './LoginScreen'
-import { RefreshCw } from 'lucide-react'
+import { CuanMark } from '../brand/CuanMark'
 
 interface AuthGateProps {
   children: React.ReactNode
@@ -13,9 +13,9 @@ export function AuthGate({ children }: AuthGateProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background bg-[#fafafa] dark:bg-[#121214] text-foreground flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <RefreshCw className="h-8 w-8 text-primary animate-spin" />
+          <CuanMark decorative className="h-10 w-10 text-foreground animate-pulse" />
           <p className="text-xs font-mono font-medium text-muted-foreground tracking-wider uppercase">
             Checking your session…
           </p>
