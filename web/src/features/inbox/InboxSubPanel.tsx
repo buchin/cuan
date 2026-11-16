@@ -15,7 +15,8 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
-import { Bot, User, CheckCircle2, CheckCheck, Plus } from 'lucide-react'
+import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle } from 'lucide-react'
+import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import './chat-calm.css'
 
@@ -214,6 +215,55 @@ export function ConversationItem({
           isSelected && 'text-accent-foreground font-medium shadow-none',
         )}
       >
+        {/* Things 3 Workflow status indicator on left: Open ring (○) for unresolved, Checkmark (✓) for resolved */}
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={async (e) => {
+            e.stopPropagation()
+            if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
+            try {
+              await setConversationResolved(contact, !contact.resolved)
+            } catch (err) {
+              console.error('Failed to toggle conversation resolved state:', err)
+            }
+          }}
+          onKeyDown={async (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
+              try {
+                await setConversationResolved(contact, !contact.resolved)
+              } catch (err) {
+                console.error('Failed to toggle conversation resolved state:', err)
+              }
+            }
+          }}
+          title={
+            contact.resolved
+              ? t('Resolved (click to reopen)')
+              : conversationHasUnfinishedTasks(contact)
+                ? t('Unfinished tasks pending')
+                : t('Unresolved (click to resolve)')
+          }
+          aria-label={contact.resolved ? t('Resolved') : t('Unresolved')}
+          data-testid="workflow-status-indicator"
+          className={cn(
+            'workflow-status-toggle shrink-0 mt-2 p-0.5 rounded-full transition-colors cursor-pointer select-none',
+            contact.resolved
+              ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+              : 'text-muted-foreground/60 hover:text-foreground hover:bg-accent/50',
+            !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-70',
+          )}
+        >
+          {contact.resolved ? (
+            <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+          ) : (
+            <Circle className="h-4 w-4" strokeWidth={1.5} />
+          )}
+        </span>
+
         {/* Circular identity avatar; task progress stays separate */}
         <div className="relative shrink-0 mt-0.5">
           <div
@@ -241,14 +291,22 @@ export function ConversationItem({
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           <div className={cn("flex items-center justify-between gap-1.5", showProgress && "pr-9")}>
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className={cn("text-sm truncate", unread > 0 ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>
+              <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
-
             </div>
-            <span className="text-xs shrink-0 tabular-nums text-muted-foreground">
-              {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {formatConversationTime(contact.last_message_at || contact.updated_at, language)}
+              </span>
+              {unread > 0 && (
+                <span
+                  data-testid="unread-micro-dot"
+                  aria-label={t('Unread')}
+                  className="h-1.5 w-1.5 rounded-full bg-foreground shrink-0 shadow-xs"
+                />
+              )}
+            </div>
             {unread > 0 && <span data-unread-count className="sr-only">{t('{{count}} unread messages').replace('{{count}}', String(unread))}</span>}
           </div>
 
@@ -258,7 +316,10 @@ export function ConversationItem({
             </div>
           )}
 
-          <p className="text-sm text-muted-foreground dark:text-zinc-400 line-clamp-1 leading-normal">
+          <p className={cn(
+            "text-sm line-clamp-1 leading-normal",
+            unread > 0 ? "font-bold text-foreground/90 dark:text-zinc-200" : "font-normal text-muted-foreground dark:text-zinc-400"
+          )}>
             {conversationPreview(contact.last_message, contact, t)}
           </p>
 
@@ -411,6 +472,7 @@ export function InboxSubPanel({
       <PageHeader>
         <div className="flex min-w-0 items-center gap-2"><PageHeaderBrand /><PageTitle>{t('Inbox')}</PageTitle></div>
         <div className="flex items-center gap-1">
+          <NotificationsPopover />
           {onNewMessage && (
             <IconButton
               type="button"

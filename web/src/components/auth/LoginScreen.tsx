@@ -31,10 +31,10 @@ export function LoginScreen() {
     }
   }
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-background p-4 text-foreground sm:p-6">
+    <div className="flex min-h-[100dvh] flex-col bg-background bg-[#fafafa] dark:bg-[#121214] p-4 text-foreground sm:p-6">
       <header className="mx-auto w-full max-w-5xl">
         <Link to="/" className="inline-flex min-h-11 items-center gap-2.5" aria-label={t('Cuan home')}>
-          <CuanMark className="h-8 w-8" />
+          <CuanMark className="h-8 w-8 text-foreground" />
           <span className="font-display text-lg font-bold tracking-tight text-foreground">
             cuan
           </span>
@@ -66,8 +66,12 @@ export function LoginScreen() {
               </div>
               {creating && <p id="owner-password-help" className="text-xs text-muted-foreground">{t('Use at least 8 characters.')}</p>}
             </div>
-            <Button type="submit" disabled={submitting} className="w-full">
-              {submitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-foreground text-background hover:bg-foreground/90 font-medium tracking-tight shadow-sm transition-colors"
+            >
+              {submitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin text-background" aria-hidden="true" />}
               {t(submitting ? (creating ? 'Creating account…' : 'Signing in…') : (creating ? 'Create account' : 'Sign in'))}
             </Button>
             {creating && <p className="text-xs leading-relaxed text-muted-foreground">{t('Next, connect your AI and tell Cuan what you want to get done.')}</p>}

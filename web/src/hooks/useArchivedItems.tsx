@@ -24,7 +24,7 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
   const refresh = useCallback(async () => {
     try {
       const data = await apiFetch<{ items: Items }>(url)
-      setItems(data.items); setLoaded(true); setError('')
+      setItems(data?.items || {}); setLoaded(true); setError('')
     } catch { setError('Could not load archived items. Try again.') }
   }, [url])
   useEffect(() => {
@@ -57,7 +57,7 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
       return updated
     },
     unreadCount: (id: string, fallback: number, latestMessage?: string) => {
-      const value = items[id]
+      const value = items?.[id]
       if (value?.unread) return Math.max(1, fallback)
       const read = Date.parse(value?.read_at || '')
       const latest = Date.parse(latestMessage || '')
@@ -67,7 +67,7 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
     undo: async () => { if (notice) await update(notice.id, !notice.archived, true) },
     dismiss,
     isArchived: (id: string, latestMessage?: string) => {
-      const at = Date.parse(items[id]?.archived_at || '')
+      const at = Date.parse(items?.[id]?.archived_at || '')
       return Number.isFinite(at) && (!latestMessage || !Number.isFinite(Date.parse(latestMessage)) || Date.parse(latestMessage) <= at)
     },
   }
