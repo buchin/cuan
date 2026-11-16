@@ -112,6 +112,7 @@ export function TaskTerminal({
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reconnectNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isDedicated = Boolean(isDedicatedTerminal)
   const isTaskActive = isDedicated || ['running', 'queued'].includes(attempt?.status || '')
@@ -510,6 +511,11 @@ export function TaskTerminal({
             // erase the rendered screen or disturb an active IME composition.
             if (handshakeReceived) return
             handshakeReceived = true
+            // Cancel any pending reconnect notice timer (from onclose of prior socket)
+            if (reconnectNoticeTimer.current) {
+              clearTimeout(reconnectNoticeTimer.current)
+              reconnectNoticeTimer.current = null
+            }
             acknowledgeOutput = data.output_ack === true
             const sameSession = Boolean(data.session_id && data.session_id === liveIdRef.current)
             const retainedInput = sameSession ? t.textarea?.value || '' : ''
@@ -539,8 +545,8 @@ export function TaskTerminal({
             const enabled = data.mode === 'interactive'
             interactive.current = enabled
             setInput(enabled)
-            t.options.disableStdin = !enabled
-            t.options.cursorBlink = false
+            if (t.options.disableStdin !== !enabled) t.options.disableStdin = !enabled
+            if (t.options.cursorBlink !== false) t.options.cursorBlink = false
             if (enabled) inputQueue.current.flush(inputGeneration, data => ws.send(encodeTerminalDataFrame(data)))
             setConnection('connected')
             setNotice('')
@@ -550,8 +556,8 @@ export function TaskTerminal({
             const enabled = data.mode === 'interactive'
             interactive.current = enabled
             setInput(enabled)
-            t.options.disableStdin = !enabled
-            t.options.cursorBlink = false
+            if (t.options.disableStdin !== !enabled) t.options.disableStdin = !enabled
+            if (t.options.cursorBlink !== false) t.options.cursorBlink = false
           } else if (data.type === 'error') {
             setError(data.message || 'Terminal request failed.')
           }
@@ -588,7 +594,17 @@ export function TaskTerminal({
           setInput(false)
           if (term.current) term.current.options.disableStdin = true
         } else {
-          setNotice(t('Reconnecting. Unsent input will wait for this terminal session.'))
+          // Soft reconnect: keep stdin enabled so the cursor stays put and
+          // keystrokes are buffered by xterm's internal queue (then drained
+          // by inputQueue on reconnect). Showing the notice immediately
+          // creates a distracting flash for short blips — delay it so it
+          // only appears if reconnect actually takes a noticeable amount of time.
+          if (reconnectNoticeTimer.current) clearTimeout(reconnectNoticeTimer.current)
+          reconnectNoticeTimer.current = setTimeout(() => {
+            if (!disposed) {
+              setNotice(t('Reconnecting. Unsent input will wait for this terminal session.'))
+            }
+          }, 900)
         }
 
         if (isTaskActiveRef.current) {
@@ -1047,6 +1063,7 @@ export function TaskTerminal({
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
+      if (reconnectNoticeTimer.current) { clearTimeout(reconnectNoticeTimer.current); reconnectNoticeTimer.current = null }
       if (socket.current) {
         socket.current.close()
         socket.current = null
