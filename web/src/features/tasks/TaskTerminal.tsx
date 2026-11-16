@@ -518,15 +518,14 @@ export function TaskTerminal({
               setAttachedSession({ generation: inputGeneration, id: data.session_id })
             }
 
-            // Always reset terminal on connect so no stale ghost lines or duplicate logs remain
-            t.reset()
-            // Screen replay must not discard Android's pending composition.
-            // Retain IME context only for the same PTY, never a new session.
-            if (sameSession) {
+            // Reset terminal only on initial connect or different session so no stale ghost lines remain.
+            // On reconnect to the same persistent PTY session, preserve screen buffer to prevent wipeouts.
+            if (!sameSession) {
+              t.reset()
+              mobileInputFilter.current?.reset()
+            } else {
               if (t.textarea) t.textarea.value = retainedInput
               mobileInputFilter.current?.sync()
-            } else {
-              mobileInputFilter.current?.reset()
             }
             isReconnecting.current = false
             retryCount.current = 0
@@ -1362,17 +1361,8 @@ export function TaskTerminal({
           {error}
         </p>
       )}
-      {notice && (
-        <p
-          role="status"
-          className="shrink-0 px-3 py-1 text-xs text-muted-foreground"
-        >
-          {notice}
-        </p>
-      )}
-
       <div
-        className={`min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain flex flex-col ${
+        className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-[#141414] p-1.5 sm:p-2 overscroll-contain flex flex-col ${
           !isTaskActive && !Boolean(activeSessionId || live?.session_id)
             ? 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
             : ''
@@ -1380,6 +1370,15 @@ export function TaskTerminal({
         aria-label="Terminal output"
         onContextMenu={handleContextMenu}
       >
+        {notice && (
+          <div
+            role="status"
+            className="pointer-events-none absolute top-3 right-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-900/90 px-3 py-1 text-xs text-neutral-300 backdrop-blur-md shadow-md transition-all animate-in fade-in"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>{notice}</span>
+          </div>
+        )}
         <div
           ref={mount}
           className="task-terminal-viewport h-full w-full overscroll-contain touch-none block"

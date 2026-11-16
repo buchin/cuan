@@ -547,8 +547,9 @@ export function TerminalComposer({
   return (
     <div
       data-attempt-id={attemptId}
-      className={`wa-chat relative shrink-0 select-none bg-background border-t border-border dark:bg-[#141414] dark:border-[#262626] px-2.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-1.5 ${className}`}
+      className={`wa-chat wa-composer relative shrink-0 select-none bg-background border-t border-border dark:bg-[#141414] dark:border-[#262626] px-2.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-1.5 ${className}`}
     >
+      <div className="mx-auto max-w-[75ch] bg-transparent space-y-1.5">
       {/* ── Slash Commands Autocomplete Popup ── */}
       {showSlashPopup && filteredCommands.length > 0 && (
         <div className="absolute left-2.5 right-2.5 bottom-full mb-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-neutral-700 bg-[#1f1f23] p-1 shadow-2xl backdrop-blur-md">
@@ -768,7 +769,7 @@ export function TerminalComposer({
       )}
 
       {/* ── Inbox-Style Capsule Composer (Div container to prevent browser/Android autofill bars) ── */}
-      <Composer role="group" aria-label="Terminal input composer">
+      <Composer role="group" aria-label="Terminal input composer" className={text.includes('\n') ? 'is-multiline' : ''}>
         {/* Attachment Picker Button (WCAG >= 44x44px touch target on mobile) */}
         <ComposerAccessory>
         <button
@@ -834,48 +835,35 @@ export function TerminalComposer({
           )}
         </div>
 
-        {/* Voice Dictation (Speech-to-Text) Button (Shown when not typing; replaces send on empty text) */}
-        {speechSupported && !text.trim() && (
-          <button
+        {/* Unified Send / Dictation Action (Yields space to Send while typing like Inbox) */}
+        {speechSupported && !text.trim() ? (
+          <ComposerSendButton
             type="button"
             disabled={disabled}
             onClick={toggleListening}
-            className={`min-h-[44px] min-w-[44px] h-11 w-11 sm:h-10 sm:w-10 rounded-full flex items-center justify-center transition-all shrink-0 mb-0.5 cursor-pointer ${
-              isListening
-                ? 'bg-rose-600 text-white animate-pulse shadow-md'
-                : 'text-neutral-400 hover:text-emerald-400 hover:bg-neutral-800'
-            }`}
             title={isListening ? 'Hentikan dikte suara' : 'Dikte suara (Speech-to-Text)'}
             aria-label="Voice input"
+            className="text-muted-foreground hover:text-foreground"
           >
-            {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </button>
-        )}
-
-        {/* Stop / Cancel Process Button (Desktop only; on mobile, header already provides prominent red stop button) */}
-        {(Boolean(onStop) || typeof onInterrupt === 'function') && (
-          <button
+            {isListening ? (
+              <MicOff className="h-5 w-5 text-rose-500 animate-pulse" />
+            ) : (
+              <Mic className="h-5 w-5" />
+            )}
+          </ComposerSendButton>
+        ) : (
+          <ComposerSendButton
             type="button"
-            disabled={disabled}
-            onClick={onStop || onInterrupt}
-            className="hidden sm:flex min-h-[44px] min-w-[44px] sm:h-10 sm:w-10 rounded-full items-center justify-center text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer shrink-0 mb-0.5"
-            title="Hentikan proses"
-            aria-label="Hentikan proses"
+            disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
+            onClick={() => handleSend()}
+            title="Kirim ke terminal (Enter)"
+            aria-label="Send input"
           >
-            <Ban className="h-5 w-5" />
-          </button>
+            <Send className="h-4 w-4" />
+          </ComposerSendButton>
         )}
-
-        <ComposerSendButton
-          type="button"
-          disabled={disabled || (!text.trim() && uploadedFiles.length === 0)}
-          onClick={() => handleSend()}
-          title="Kirim ke terminal (Enter)"
-          aria-label="Send input"
-        >
-          <Send className="h-4 w-4" />
-        </ComposerSendButton>
       </Composer>
+      </div>
 
       {/* ── Hidden File Inputs (Always mounted in DOM root to ensure mobile file pickers never unmount) ── */}
       <input

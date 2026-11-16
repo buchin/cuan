@@ -578,7 +578,7 @@ export function TaskSessionPage({
           {error || runtimeError}
         </p>
       )}
-      {attempt.error_message && (
+      {!active && attempt.error_message && (
         <button
           className="shrink-0 truncate px-3 py-1 text-left text-xs text-destructive"
           onClick={() => setShowDetail(true)}
