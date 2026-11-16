@@ -294,12 +294,12 @@ export function ConversationItem({
             aria-label={statusAriaLabel}
             data-testid="workflow-status-indicator"
             className={cn(
-              'workflow-status-toggle absolute -bottom-1 -right-1 rounded-full border-2 border-background bg-card flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none shadow-2xs',
+              'workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none',
               isComplete
-                ? 'text-emerald-600 dark:text-emerald-400 bg-background'
+                ? 'text-emerald-600 dark:text-emerald-400'
                 : isWorking
-                  ? 'text-[color:var(--status-working)] bg-background'
-                  : 'text-muted-foreground/60 hover:text-foreground bg-background',
+                  ? 'text-[color:var(--status-working)]'
+                  : 'text-muted-foreground/60 hover:text-foreground',
               !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-85',
             )}
           >

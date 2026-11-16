@@ -32,8 +32,8 @@ test('DoD 1: Indikator status percakapan dan task terintegrasi rapi pada sudut a
     'InboxSubPanel must contain workflow status indicator badge'
   )
   assert.ok(
-    subPanelSource.includes('workflow-status-toggle absolute -bottom-1 -right-1 rounded-full'),
-    'Workflow status indicator must be positioned at the bottom-right corner of the avatar'
+    subPanelSource.includes('workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent'),
+    'Workflow status indicator must be positioned at the bottom-right corner of the avatar with transparent background'
   )
 })
 
