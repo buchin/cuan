@@ -22,6 +22,7 @@ const fixtureTask={...baseTask,attempts:[attempt],activities}
 const message=(id,text,extra={})=>({id,uuid:String(id),room_id:room,sender_type:'operator',author_type:'agent',author_id:'agent_cuan',author_name:'Cuan',message:text,content:text,is_internal:true,created_at:now,...extra})
 const messages=[message('source','Tolong perbaiki tampilan website.',{author_type:'user',author_id:'operator_user'}),...Array.from({length:12},(_,i)=>message('chat-'+i,'Pembahasan kebutuhan yang tetap tersedia di percakapan.')),
  message('choices','Pilih langkah yang paling sesuai.',{prompt_choices:{question:'Bagaimana kita lanjutkan?',options:[{id:'continue',label:'Lanjutkan pemeriksaan'},{id:'adjust',label:'Sesuaikan kebutuhan'}],allow_other:true}}),
+ message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]})]
 const entry=`import React from 'react';
@@ -110,6 +111,30 @@ try{
    const style=await button.evaluate(el=>({radius:getComputedStyle(el).borderRadius,background:getComputedStyle(el).backgroundColor}))
    assert.equal(style.radius,'12px')
    assert.ok(style.background==='rgba(0, 0, 0, 0)' || style.background==='transparent',JSON.stringify(style))
+  }
+  const incomingBubble=page.locator('.wa-message-bubble.wa-incoming').first()
+  await incomingBubble.waitFor({state:'visible'})
+  const incomingRadius=await incomingBubble.evaluate(el=>({
+    tl:getComputedStyle(el).borderTopLeftRadius,
+    tr:getComputedStyle(el).borderTopRightRadius,
+    br:getComputedStyle(el).borderBottomRightRadius,
+    bl:getComputedStyle(el).borderBottomLeftRadius,
+  }))
+  assert.equal(incomingRadius.tr,'16px')
+  assert.equal(incomingRadius.br,'16px')
+  assert.equal(incomingRadius.bl,'16px')
+
+  const outgoingBubble=page.locator('.wa-message-bubble.wa-outgoing').first()
+  if(await outgoingBubble.count()>0){
+    const outgoingRadius=await outgoingBubble.evaluate(el=>({
+      tl:getComputedStyle(el).borderTopLeftRadius,
+      tr:getComputedStyle(el).borderTopRightRadius,
+      br:getComputedStyle(el).borderBottomRightRadius,
+      bl:getComputedStyle(el).borderBottomLeftRadius,
+    }))
+    assert.equal(outgoingRadius.tl,'16px')
+    assert.equal(outgoingRadius.bl,'16px')
+    assert.equal(outgoingRadius.br,'16px')
   }
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
