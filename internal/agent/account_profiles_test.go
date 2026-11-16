@@ -44,9 +44,6 @@ func TestS26AccountPersistenceOwnerAndPaths(t *testing.T) {
 		t.Fatalf("metadata roundtrip failed: %v", err)
 	}
 	expected := 1
-	if IsAntigravityLoggedIn() {
-		expected = 2
-	}
 	list, err := ListProviderAccounts("owner-a")
 	if err != nil || len(list) != expected {
 		t.Fatalf("list: %d %v (expected %d)", len(list), err, expected)

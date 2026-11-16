@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/buchin/cuan/internal/task"
 	"log"
 	"syscall"
 	"time"
+
+	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 // isTaskActiveOnHost checks whether a task has an active, live process on the host.
@@ -16,9 +18,28 @@ func (s *Server) isTaskActiveOnHost(taskID string) bool {
 	}
 	sess, exists := s.terminalManager.GetSession(taskID)
 	if !exists || sess == nil || sess.IsClosed() {
-		active, err := s.terminalManager.TaskExecutionActive(taskID)
-		if err != nil || !active {
-			return false
+		// Fallback check if task belongs to a project with an active persistent terminal session
+		if s.taskSvc != nil {
+			if td, err := s.taskSvc.GetTaskDetail(context.Background(), taskID); err == nil && td != nil {
+				targetProjID := td.ProjectID
+				if targetProjID == "" && len(td.ProjectIDs) > 0 {
+					targetProjID = td.ProjectIDs[0]
+				}
+				if targetProjID != "" {
+					projKey := terminal.ProjectSessionKey(targetProjID)
+					if pSess, ok := s.terminalManager.GetSession(projKey); ok && pSess != nil && !pSess.IsClosed() {
+						sess = pSess
+						exists = true
+						s.terminalManager.RegisterTaskAlias(taskID, projKey)
+					}
+				}
+			}
+		}
+		if !exists || sess == nil || sess.IsClosed() {
+			active, err := s.terminalManager.TaskExecutionActive(taskID)
+			if err != nil || !active {
+				return false
+			}
 		}
 	}
 	if sess != nil && sess.PTY() != nil {

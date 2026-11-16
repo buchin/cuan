@@ -181,3 +181,82 @@ func TestZombieReaper_ReconcilesHardTimeout(t *testing.T) {
 		t.Fatalf("expected project lane to be unblocked, got active=%v, err=%v", laneActive, err)
 	}
 }
+
+func TestZombieReaper_PreservesProjectTerminalTask(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projectID := "proj-preserve-test"
+	taskID := "task-preserve-1"
+
+	// 1. Create a dedicated project terminal task
+	err := s.taskSvc.Store().CreateTask(ctx, &task.Task{
+		ID:                taskID,
+		Title:             "Terminal · cuan",
+		Instructions:      "Interactive terminal",
+		Status:            task.TaskStatusDoing,
+		ProjectID:         projectID,
+		ProjectIDs:        []string{projectID},
+		ExecutionCategory: task.ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	// 2. Create an attempt with status 'running'
+	attempt, err := s.taskSvc.CreateAttempt(ctx, taskID, "tester", task.CreateAttemptRequest{
+		RunnerID: "local_terminal",
+	})
+	if err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+	_, err = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "tester", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("failed to update attempt status to running: %v", err)
+	}
+
+	// 3. Start a persistent project session under the project ID
+	tempDir := t.TempDir()
+	sess, err := s.terminalManager.GetOrCreateProjectSession(ctx, projectID, tempDir, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("failed to create project session: %v", err)
+	}
+
+	// 4. Run ReconcileZombies while project terminal PTY is alive
+	if err := s.ReconcileZombies(ctx); err != nil {
+		t.Fatalf("ReconcileZombies failed: %v", err)
+	}
+
+	// 5. Verify the attempt and task were NOT reaped
+	runningAttempt, err := s.taskSvc.GetAttempt(ctx, attempt.ID)
+	if err != nil {
+		t.Fatalf("failed to get attempt: %v", err)
+	}
+	if runningAttempt.Status != task.AttemptStatusRunning {
+		t.Fatalf("expected running attempt to be preserved, got '%s'", runningAttempt.Status)
+	}
+
+	runningTask, err := s.taskSvc.Store().GetTask(ctx, taskID)
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	if runningTask.Status != task.TaskStatusDoing {
+		t.Fatalf("expected task status to remain 'doing', got '%s'", runningTask.Status)
+	}
+
+	// 6. Now close the project session and verify it is reaped
+	_ = sess.Close()
+	if err := s.ReconcileZombies(ctx); err != nil {
+		t.Fatalf("ReconcileZombies failed: %v", err)
+	}
+
+	reapedAttempt, err := s.taskSvc.GetAttempt(ctx, attempt.ID)
+	if err != nil {
+		t.Fatalf("failed to get attempt: %v", err)
+	}
+	if reapedAttempt.Status != task.AttemptStatusFailed {
+		t.Fatalf("expected closed attempt to be marked 'failed', got '%s'", reapedAttempt.Status)
+	}
+}

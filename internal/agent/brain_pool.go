@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"errors"
+	"hash/crc32"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -22,6 +24,25 @@ func LeaseHealthyBrainForTask(owner string, excluded map[string]bool, requiresVi
 	return leaseHealthyBrain(owner, excluded, TryLeaseProviderAccountForTask, requiresVision...)
 }
 
+// LeaseHealthyBrainForProject leases a consistent brain profile for a project to ensure account stickiness
+// across project terminal sessions rather than rotating accounts randomly on each reconnect or spawn.
+func LeaseHealthyBrainForProject(owner, projectID string, excluded map[string]bool, requiresVision ...bool) (string, *ProviderAccount, func(), error) {
+	if owner == "" {
+		return "", nil, nil, ErrBrainCapacity
+	}
+	profiles, err := ListProviderAccounts(owner)
+	if err != nil || len(profiles) == 0 {
+		return "", nil, nil, ErrBrainCapacity
+	}
+	sort.Slice(profiles, func(i, j int) bool { return profiles[i].ID < profiles[j].ID })
+	var seed uint32
+	if strings.TrimSpace(projectID) != "" {
+		seed = crc32.ChecksumIEEE([]byte(strings.TrimSpace(projectID)))
+	}
+	start := int(seed) % len(profiles)
+	return leaseHealthyBrainWithStart(owner, profiles, start, excluded, TryLeaseProviderAccountForTask, requiresVision...)
+}
+
 func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string, string) (func(), error), requiresVision ...bool) (string, *ProviderAccount, func(), error) {
 	if owner == "" {
 		return "", nil, nil, ErrBrainCapacity
@@ -35,6 +56,10 @@ func leaseHealthyBrain(owner string, excluded map[string]bool, lease func(string
 		return "", nil, nil, ErrBrainCapacity
 	}
 	start := int(brainCursor.Add(1)-1) % len(profiles)
+	return leaseHealthyBrainWithStart(owner, profiles, start, excluded, lease, requiresVision...)
+}
+
+func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start int, excluded map[string]bool, lease func(string, string) (func(), error), requiresVision ...bool) (string, *ProviderAccount, func(), error) {
 	// Try every preferred-model route before any explicitly configured fallback.
 	// A quota failure excludes a model route, not all models on that account.
 	for tier := 0; tier < 2; tier++ {

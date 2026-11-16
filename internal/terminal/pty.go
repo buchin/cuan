@@ -83,9 +83,10 @@ func FindShell(preferred string) string {
 // IsSensitiveKey returns true if an environment variable key is considered sensitive.
 func IsSensitiveKey(key string) bool {
 	upper := strings.ToUpper(key)
-	// Git author identity and harness provider keys explicitly delegated to agent executions are permitted.
+	// Git author identity, harness provider keys, and antigravity profile environment explicitly delegated to agent executions are permitted.
 	switch upper {
-	case "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "COMMAND_CODE_API_KEY":
+	case "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "COMMAND_CODE_API_KEY",
+		"ANTIGRAVITY_TOKEN_PATH", "ANTIGRAVITY_CONFIG_DIR", "GEMINI_CLI_HOME":
 		return false
 	}
 

@@ -86,6 +86,7 @@ type Manager struct {
 	sessions        map[string]*Session          // taskID -> Session
 	histories       map[string][]*TaskRunHistory // taskID -> []History
 	projectSessions map[string]string            // projectID -> taskID
+	taskAliases     map[string]string            // taskID -> sessionKey
 	stopChan        chan struct{}
 	stopOnce        sync.Once
 }
@@ -113,6 +114,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		sessions:        make(map[string]*Session),
 		histories:       make(map[string][]*TaskRunHistory),
 		projectSessions: make(map[string]string),
+		taskAliases:     make(map[string]string),
 		stopChan:        make(chan struct{}),
 	}
 
@@ -381,11 +383,31 @@ func (m *Manager) CloseProjectSession(projectID string) error {
 	return sess.Close()
 }
 
+// RegisterTaskAlias links a task ID to an underlying session key (e.g. dedicated project terminal).
+func (m *Manager) RegisterTaskAlias(taskID, sessionKey string) {
+	taskID = strings.TrimSpace(taskID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if taskID == "" || sessionKey == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.taskAliases == nil {
+		m.taskAliases = make(map[string]string)
+	}
+	m.taskAliases[taskID] = sessionKey
+}
+
 // GetSession returns the active session for a task if present.
 func (m *Manager) GetSession(taskID string) (*Session, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	sess, exists := m.sessions[taskID]
+	if (!exists || sess.IsClosed()) && m.taskAliases != nil {
+		if targetKey, ok := m.taskAliases[taskID]; ok {
+			sess, exists = m.sessions[targetKey]
+		}
+	}
 	if (!exists || sess.IsClosed()) && !strings.HasPrefix(taskID, "project-term-") {
 		sess, exists = m.sessions[ProjectSessionKey(taskID)]
 	}
@@ -401,6 +423,9 @@ func (m *Manager) CloseSession(taskID string) error {
 	sess, exists := m.sessions[taskID]
 	if exists {
 		delete(m.sessions, taskID)
+	}
+	if m.taskAliases != nil {
+		delete(m.taskAliases, taskID)
 	}
 	for pID, tID := range m.projectSessions {
 		if tID == taskID {
@@ -491,6 +516,13 @@ func (m *Manager) ReconcileZombieSessions(maxDuration time.Duration, deadlines .
 	for pID, tID := range m.projectSessions {
 		if s, ok := m.sessions[tID]; !ok || s.IsClosed() {
 			delete(m.projectSessions, pID)
+		}
+	}
+	if m.taskAliases != nil {
+		for tID, key := range m.taskAliases {
+			if s, ok := m.sessions[key]; !ok || s.IsClosed() {
+				delete(m.taskAliases, tID)
+			}
 		}
 	}
 

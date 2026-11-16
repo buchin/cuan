@@ -574,3 +574,37 @@ func TestResolveProjectTerminalExecutable(t *testing.T) {
 		}
 	}
 }
+
+func TestManager_RegisterTaskAlias(t *testing.T) {
+	mgr := NewManager(ManagerConfig{})
+	sessionID := "sess-alias-1"
+	key := "project-term-my-proj"
+
+	proc, err := SpawnPTY(context.Background(), PTYConfig{Shell: "/bin/sh", WorkDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("SpawnPTY failed: %v", err)
+	}
+	defer proc.Close()
+
+	sess := NewSession(sessionID, key, proc, ModeInteractive)
+	defer sess.Close()
+	mgr.sessions[key] = sess
+
+	// 1. Task alias not yet registered
+	if _, ok := mgr.GetSession("task-alias-test"); ok {
+		t.Errorf("expected task-alias-test to not resolve before registration")
+	}
+
+	// 2. Register alias
+	mgr.RegisterTaskAlias("task-alias-test", key)
+	resolved, ok := mgr.GetSession("task-alias-test")
+	if !ok || resolved != sess {
+		t.Errorf("expected task-alias-test to resolve to sess, got ok=%v, sess=%v", ok, resolved)
+	}
+
+	// 3. CloseSession removes alias
+	_ = mgr.CloseSession("task-alias-test")
+	if _, ok := mgr.GetSession("task-alias-test"); ok {
+		t.Errorf("expected task-alias-test to be removed after CloseSession")
+	}
+}

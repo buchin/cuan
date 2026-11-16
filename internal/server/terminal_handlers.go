@@ -154,17 +154,26 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 	isDedicatedTerminalTask := tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·") && targetProjID != ""
 
 	if isDedicatedTerminalTask {
+		sessionKey := terminal.ProjectSessionKey(targetProjID)
+		if s.terminalManager != nil {
+			s.terminalManager.RegisterTaskAlias(taskID, sessionKey)
+		}
 		hasLiveTaskSession := false
 		if s.terminalManager != nil {
 			if sess, ok := s.terminalManager.GetSession(taskID); ok && !sess.IsClosed() {
 				hasLiveTaskSession = true
+			}
+			if !hasLiveTaskSession {
+				if sess, ok := s.terminalManager.GetSession(sessionKey); ok && !sess.IsClosed() {
+					hasLiveTaskSession = true
+				}
 			}
 		}
 		if !hasLiveTaskSession && s.projectSvc != nil {
 			if proj, err := s.projectSvc.Get(r.Context(), targetProjID); err == nil && proj != nil {
 				doing := task.TaskStatusDoing
 				_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &doing})
-				if tDetail.LatestAttempt != nil {
+				if tDetail.LatestAttempt != nil && (tDetail.LatestAttempt.Status == task.AttemptStatusRunning || tDetail.LatestAttempt.Status == task.AttemptStatusQueued) {
 					if tDetail.LatestAttempt.Status != task.AttemptStatusRunning {
 						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 					}
@@ -379,8 +388,22 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		}
 	}
 
+	sessionKey := terminal.ProjectSessionKey(proj.ID)
+
+	// If session already exists, re-attach directly without leasing a new brain or advancing brainCursor!
+	if existing, ok := s.terminalManager.GetSession(sessionKey); ok && existing != nil && !existing.IsClosed() {
+		q := r.URL.Query()
+		q.Set("task_id", sessionKey)
+		q.Set("session_id", existing.ID())
+		q.Set("attach", "1")
+		r.URL.RawQuery = q.Encode()
+
+		s.terminalHandler.ServeHTTP(w, r)
+		return
+	}
+
 	if ownerID != "" {
-		if home, brain, release, err := agent.LeaseHealthyBrainForTask(ownerID, nil); err == nil && home != "" {
+		if home, brain, release, err := agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil); err == nil && home != "" {
 			env = append(env, agent.AntigravityProfileEnvironment(home)...)
 			if brain != nil && brain.ModelID != "" {
 				env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
@@ -389,7 +412,6 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	sessionKey := terminal.ProjectSessionKey(proj.ID)
 	sess, err := s.terminalManager.GetOrCreateProjectSession(r.Context(), proj.ID, workDir, "", 80, 24, env...)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to start project terminal: %v", err))
