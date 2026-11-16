@@ -143,9 +143,8 @@ export function TaskSessionPage({
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
   const isDedicatedTerminal = Boolean(
-    searchParams.get('terminal') === 'open' ||
-    (location.state as { openTerminal?: boolean } | null)?.openTerminal ||
-    detail?.title?.startsWith('Terminal ·')
+    detail?.title?.startsWith('Terminal ·') ||
+    attempt?.runner_id === 'local_terminal'
   )
   const active = Boolean(isDedicatedTerminal || (attempt && ['running', 'queued'].includes(attempt.status)))
 
@@ -627,6 +626,7 @@ export function TaskSessionPage({
                 onRefresh={() => void refresh()}
                 controlsTarget={terminalControls}
                 onConnectionChange={setTerminalConnection}
+                isDedicatedTerminal={isDedicatedTerminal}
               />
             </Suspense>
           </div>

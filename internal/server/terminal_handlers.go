@@ -34,8 +34,8 @@ const maxAgentRetries = 3
 // resolveTaskID maps attempt IDs (att_...), raw message UUIDs, and room IDs into the canonical task ID.
 func (s *Server) resolveTaskID(ctx context.Context, rawID string) string {
 	raw := strings.TrimSpace(rawID)
-	if raw == "" {
-		return ""
+	if raw == "" || strings.HasPrefix(raw, "project:") {
+		return raw
 	}
 
 	// 1. If it's an attempt ID (att_...)
@@ -135,6 +135,64 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 
 	// Attempt-specific attaches may never fall through to another task's PTY.
 	expected := strings.TrimPrefix(r.URL.Query().Get("session_id"), "runner-sess-")
+
+	// Project terminal auto-route & activation:
+	// Dedicated project terminals (title "Terminal · ...") run independently without task queue delays.
+	var tDetail *task.TaskDetailResponse
+	if s.taskSvc != nil {
+		if td, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && td != nil {
+			tDetail = td
+		}
+	}
+	targetProjID := ""
+	if tDetail != nil {
+		targetProjID = tDetail.ProjectID
+		if targetProjID == "" && len(tDetail.ProjectIDs) > 0 {
+			targetProjID = tDetail.ProjectIDs[0]
+		}
+	}
+	isDedicatedTerminalTask := tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·") && targetProjID != ""
+
+	if isDedicatedTerminalTask {
+		hasLiveTaskSession := false
+		if s.terminalManager != nil {
+			if sess, ok := s.terminalManager.GetSession(taskID); ok && !sess.IsClosed() {
+				hasLiveTaskSession = true
+			}
+		}
+		if !hasLiveTaskSession && s.projectSvc != nil {
+			if proj, err := s.projectSvc.Get(r.Context(), targetProjID); err == nil && proj != nil {
+				doing := task.TaskStatusDoing
+				_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &doing})
+				if tDetail.LatestAttempt != nil {
+					if tDetail.LatestAttempt.Status != task.AttemptStatusRunning {
+						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
+					}
+				} else {
+					if att, err := s.taskSvc.CreateAttempt(r.Context(), taskID, "runner", task.CreateAttemptRequest{
+						RunnerID:  "local_terminal",
+						AgentName: tDetail.AssignedAgent,
+					}); err == nil && att != nil {
+						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), att.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
+					}
+				}
+				q := r.URL.Query()
+				q.Set("project_id", targetProjID)
+				q.Set("id", targetProjID)
+				r.URL.RawQuery = q.Encode()
+				if rctx := chi.RouteContext(r.Context()); rctx != nil {
+					for i := range rctx.URLParams.Keys {
+						if rctx.URLParams.Keys[i] == "id" {
+							rctx.URLParams.Values[i] = targetProjID
+						}
+					}
+				}
+				s.handleProjectTerminalWebSocket(w, r)
+				return
+			}
+		}
+	}
+
 	if strings.HasPrefix(expected, "att_") {
 		if s.taskSvc == nil {
 			respondJSONError(w, 503, "Task attempt lookup is unavailable")
@@ -261,12 +319,15 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	rawProjID := strings.TrimSpace(r.URL.Query().Get("project_id"))
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "project_id"))
 	}
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
 	if rawProjID == "" {
 		respondJSONError(w, http.StatusBadRequest, "project id is required")
@@ -347,12 +408,15 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 // handleGetProjectTerminalStatus returns status and upstream tracking for the project terminal.
 // GET /api/projects/{id}/terminal/status or GET /api/v1/projects/{id}/terminal/status
 func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.Request) {
-	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	rawProjID := strings.TrimSpace(r.URL.Query().Get("project_id"))
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "project_id"))
 	}
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
 	if rawProjID == "" {
 		respondJSONError(w, http.StatusBadRequest, "project id is required")
@@ -416,12 +480,15 @@ func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.R
 // handleProjectTerminalSyncUpstream triggers a non-destructive git fetch to check upstream commits.
 // POST /api/projects/{id}/terminal/sync-upstream or POST /api/v1/projects/{id}/terminal/sync-upstream
 func (s *Server) handleProjectTerminalSyncUpstream(w http.ResponseWriter, r *http.Request) {
-	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	rawProjID := strings.TrimSpace(r.URL.Query().Get("project_id"))
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "project_id"))
 	}
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
 	if rawProjID == "" {
 		respondJSONError(w, http.StatusBadRequest, "project id is required")
@@ -458,12 +525,15 @@ func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *htt
 		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
 		return
 	}
-	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	rawProjID := strings.TrimSpace(r.URL.Query().Get("project_id"))
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "project_id"))
 	}
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
 	if rawProjID == "" {
 		respondJSONError(w, http.StatusBadRequest, "project id is required")
@@ -480,12 +550,15 @@ func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *htt
 // handleRotateProjectTerminalBrain rotates the AI brain for an active project terminal session upon quota limits.
 // POST /api/projects/{id}/terminal/rotate-brain or POST /api/v1/projects/{id}/terminal/rotate-brain
 func (s *Server) handleRotateProjectTerminalBrain(w http.ResponseWriter, r *http.Request) {
-	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	rawProjID := strings.TrimSpace(r.URL.Query().Get("project_id"))
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "project_id"))
 	}
 	if rawProjID == "" {
-		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+		rawProjID = strings.TrimSpace(chi.URLParam(r, "id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
 	}
 	if rawProjID == "" {
 		respondJSONError(w, http.StatusBadRequest, "project id is required")
@@ -662,7 +735,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			projID = pt.ProjectID
 		}
 	}
-	if projID != "" && s.isProjectLaneActive(r.Context(), projID, taskCategory, taskID) {
+	isDedicatedTerminalTask := (tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·")) || strings.HasPrefix(payload.Prompt, "Terminal ·")
+	if !isDedicatedTerminalTask && projID != "" && s.isProjectLaneActive(r.Context(), projID, taskCategory, taskID) {
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
 			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
@@ -1055,7 +1129,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			if runnerID == "" {
-				if agentID == "agent_lifecycle" || agentID == "agent_queued" {
+				if agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal ·")) {
 					runnerID = "local_terminal"
 				} else {
 					runnerID = "cuan-runner"

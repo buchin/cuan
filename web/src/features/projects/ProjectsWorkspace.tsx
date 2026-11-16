@@ -149,6 +149,7 @@ export function ProjectsWorkspace({
       const launchPayload = {
         request_id: crypto.randomUUID(),
         agent_id: agentId,
+        runner_id: 'local_terminal',
       }
 
       try {

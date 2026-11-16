@@ -448,7 +448,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func extractTaskID(r *http.Request) string {
-	// 1. Try URL path /api/tasks/{id}/terminal or /api/v1/tasks/{id}/terminal
+	// 1. Try query parameter ?task_id=... first (e.g. project terminal routing or explicit task_id)
+	if qID := strings.TrimSpace(r.URL.Query().Get("task_id")); qID != "" {
+		return qID
+	}
+
+	// 2. Try URL path /api/tasks/{id}/terminal or /api/v1/tasks/{id}/terminal
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	for i, part := range parts {
@@ -460,10 +465,6 @@ func extractTaskID(r *http.Request) string {
 		}
 	}
 
-	// 2. Try query parameter ?task_id=...
-	if qID := strings.TrimSpace(r.URL.Query().Get("task_id")); qID != "" {
-		return qID
-	}
 	if qID := strings.TrimSpace(r.URL.Query().Get("id")); qID != "" {
 		return qID
 	}

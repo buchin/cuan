@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/terminal"
 )
 
@@ -412,5 +414,94 @@ func TestProjectTerminal_BrainFailoverRotation(t *testing.T) {
 	// Verify that the bash PTY session is STILL alive!
 	if sess.IsClosed() {
 		t.Fatal("terminal session was closed or interrupted during brain failover rotation")
+	}
+}
+
+func TestProjectTerminal_DedicatedTaskWebSocketAutoRoute(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, token := setupTestChatServer(t)
+
+	tempBase := t.TempDir()
+	srv.cfg.WorkspacesDir = tempBase
+	projectStore := project.NewMemoryStore()
+	projSvc := project.NewService(projectStore, nil, "fixture-secret", tempBase)
+	srv.projectSvc = projSvc
+
+	projID := "proj_auto_route"
+	_ = projSvc.Store().CreateProject(context.Background(), &project.Project{
+		ID:        projID,
+		Name:      "AutoRoute Project",
+		LocalPath: tempBase,
+	})
+
+	// Create task directly in task store without starting any runner
+	createdTask, err := srv.taskSvc.CreateTask(context.Background(), "owner", task.CreateTaskRequest{
+		Title:        "Terminal · AutoRoute Project",
+		ProjectID:    projID,
+		ProjectIDs:   []string{projID},
+		Instructions: "Interactive terminal session",
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	// Connect to /api/v1/tasks/{id}/terminal
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/tasks/" + createdTask.ID + "/terminal"
+
+	dialer := websocket.DefaultDialer
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+
+	conn, resp, err := dialer.Dial(wsURL, headers)
+	if err != nil {
+		if resp != nil {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("dial project terminal ws via task route failed: %v, status: %d, body: %s", err, resp.StatusCode, string(body))
+		}
+		t.Fatalf("dial project terminal ws via task route failed: %v", err)
+	}
+	defer conn.Close()
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("expected 101 Switching Protocols, got %d", resp.StatusCode)
+	}
+
+	// Send binary command: 0x00 echo 'PROJECT_TERMINAL_AUTO_ROUTE_OK'\n
+	cmd := append([]byte{0x00}, []byte("echo 'PROJECT_TERMINAL_AUTO_ROUTE_OK'\n")...)
+	if err := conn.WriteMessage(websocket.BinaryMessage, cmd); err != nil {
+		t.Fatalf("write command failed: %v", err)
+	}
+
+	found := false
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(payload), "PROJECT_TERMINAL_AUTO_ROUTE_OK") {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatal("expected PROJECT_TERMINAL_AUTO_ROUTE_OK in output stream")
+	}
+
+	// Verify task detail status is doing and running
+	detail, err := srv.taskSvc.GetTaskDetail(context.Background(), createdTask.ID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+	if detail.Status != task.TaskStatusDoing {
+		t.Fatalf("expected task status doing, got %s", detail.Status)
+	}
+	if detail.LatestAttempt == nil || detail.LatestAttempt.Status != task.AttemptStatusRunning {
+		t.Fatalf("expected attempt status running, got %v", detail.LatestAttempt)
 	}
 }

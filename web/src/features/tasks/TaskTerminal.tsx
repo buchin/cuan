@@ -42,6 +42,7 @@ export function TaskTerminal({
   onRefresh,
   controlsTarget,
   onConnectionChange,
+  isDedicatedTerminal,
 }: {
   taskId: string
   attempt: TaskAttempt
@@ -49,6 +50,7 @@ export function TaskTerminal({
   onRefresh: () => void
   controlsTarget?: HTMLElement | null
   onConnectionChange?: (connection: string) => void
+  isDedicatedTerminal?: boolean
 }) {
   const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
@@ -59,7 +61,8 @@ export function TaskTerminal({
   const socket = useRef<WebSocket | null>(null)
   const inputQueue = useRef(new TerminalInputBuffer())
   const mobileInputFilter = useRef<TerminalHelperTextareaInputFilter | null>(null)
-  const inputGeneration = taskId + ':' + attempt.id
+  const attemptId = attempt?.id || 'live'
+  const inputGeneration = taskId + ':' + attemptId
   inputQueue.current.bind(inputGeneration)
 
   const [connection, setConnection] = useState('loading')
@@ -110,17 +113,18 @@ export function TaskTerminal({
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const isTaskActive = ['running', 'queued'].includes(attempt.status)
+  const isDedicated = Boolean(isDedicatedTerminal)
+  const isTaskActive = isDedicated || ['running', 'queued'].includes(attempt?.status || '')
   const isTaskActiveRef = useRef(isTaskActive)
   isTaskActiveRef.current = isTaskActive
 
   const isLive =
     !!live &&
-    (!live.attempt_id || live.attempt_id === attempt.id) &&
+    (!live.attempt_id || live.attempt_id === attempt?.id) &&
     isTaskActive
   const liveId = isLive
     ? live.session_id
-    : activeSessionId || (isTaskActive ? attempt.id || 'active' : '')
+    : activeSessionId || (isDedicated ? 'project-terminal' : isTaskActive ? attempt?.id || 'active' : '')
   const liveIdRef = useRef(liveId)
   liveIdRef.current = liveId
 
@@ -431,7 +435,7 @@ export function TaskTerminal({
       const currentLiveId = liveIdRef.current
 
       // If task is not active and we don't have a liveId, nothing to attach to
-      if (!isTaskActiveRef.current && !currentLiveId) return
+      if (!isTaskActiveRef.current && !currentLiveId && !isDedicated) return
 
       if (socket.current) {
         try {
@@ -957,7 +961,9 @@ export function TaskTerminal({
             return
           }
           try {
-            const result = await tasksApi.logs(taskId, attempt.id, after)
+            const attId = attempt?.id
+            if (!attId) return
+            const result = await tasksApi.logs(taskId, attId, after)
             if (disposed) return
             const next = result.logs || []
             const activeTerm = term.current || terminal
@@ -1003,7 +1009,9 @@ export function TaskTerminal({
           // Task is finished: load saved historical output from database
           setConnection('saved')
           for (let page = 0; page < 8 && !disposed; page++) {
-            const result = await tasksApi.logs(taskId, attempt.id, after)
+            const attId = attempt?.id
+            if (!attId) break
+            const result = await tasksApi.logs(taskId, attId, after)
             if (disposed) return
             const next = result.logs || []
             logs.current.push(...next)
