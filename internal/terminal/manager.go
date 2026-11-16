@@ -227,6 +227,79 @@ func ProjectSessionKey(projectID string) string {
 	return "project-term-" + strings.TrimSpace(projectID)
 }
 
+// ResolveProjectTerminalExecutable determines the executable path, arguments, and environment
+// for launching an interactive agent CLI (agy, commandcode, claude) or shell in the project terminal.
+func ResolveProjectTerminalExecutable(workDir, requestedShell string, env []string) (string, []string, []string) {
+	if strings.TrimSpace(requestedShell) != "" {
+		return FindShell(requestedShell), nil, env
+	}
+
+	// 1. Try Antigravity (agy)
+	if agyBin, err := agent.ResolveAGYBinaryPath(); err == nil && agyBin != "" {
+		args := []string{"--dangerously-skip-permissions"}
+		if workDir != "" {
+			args = append(args, "--add-dir", workDir)
+		}
+
+		// Check for CUAN_AGENT_MODEL in environment
+		for _, e := range env {
+			if strings.HasPrefix(e, "CUAN_AGENT_MODEL=") {
+				model := strings.TrimPrefix(e, "CUAN_AGENT_MODEL=")
+				if model != "" && regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$`).MatchString(model) {
+					args = append(args, "--model", model)
+				}
+				break
+			}
+		}
+
+		// Configure SSH PTY env vars for agy
+		env = append(env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
+		var homeDir string
+		for _, e := range env {
+			if strings.HasPrefix(e, "HOME=") {
+				homeDir = strings.TrimPrefix(e, "HOME=")
+				break
+			}
+		}
+		if homeDir != "" {
+			_ = agent.PrepareAntigravitySettings(homeDir, workDir)
+			_ = agent.EnsureAntigravityOnboarding(homeDir)
+		}
+		return agyBin, args, env
+	}
+
+	// 2. Try CommandCode
+	candidates := []string{
+		"/home/dev/.local/bin/commandcode",
+		"/home/ubuntu/.local/bin/commandcode",
+		"/usr/local/bin/commandcode",
+	}
+	for _, cand := range candidates {
+		if _, err := os.Stat(cand); err == nil {
+			args := []string{"--yolo"}
+			if workDir != "" {
+				args = append(args, "--add-dir", workDir)
+			}
+			return cand, args, env
+		}
+	}
+	if ccBin, err := exec.LookPath("commandcode"); err == nil && ccBin != "" {
+		args := []string{"--yolo"}
+		if workDir != "" {
+			args = append(args, "--add-dir", workDir)
+		}
+		return ccBin, args, env
+	}
+
+	// 3. Try Claude CLI
+	if claudeBin, err := exec.LookPath("claude"); err == nil && claudeBin != "" {
+		return claudeBin, nil, env
+	}
+
+	// 4. Fallback to default shell
+	return FindShell(""), []string{"-i"}, env
+}
+
 // GetOrCreateProjectSession retrieves an active persistent session for the project, or spawns a new one.
 func (m *Manager) GetOrCreateProjectSession(ctx context.Context, projectID, workDir, shell string, cols, rows uint16, env ...string) (*Session, error) {
 	projectID = strings.TrimSpace(projectID)
@@ -250,18 +323,21 @@ func (m *Manager) GetOrCreateProjectSession(ctx context.Context, projectID, work
 	if rows == 0 {
 		rows = m.cfg.DefaultRows
 	}
-	if shell == "" {
-		shell = m.cfg.DefaultShell
+
+	execPath, args, updatedEnv := ResolveProjectTerminalExecutable(workDir, shell, env)
+	if execPath == "" {
+		execPath = FindShell(m.cfg.DefaultShell)
 	}
 
 	sessionID := generateSessionID()
 	ptyCfg := PTYConfig{
 		TaskID:      key,
 		WorkDir:     workDir,
-		Shell:       shell,
+		Shell:       execPath,
+		Args:        args,
 		InitialCols: cols,
 		InitialRows: rows,
-		Env:         env,
+		Env:         updatedEnv,
 	}
 
 	proc, err := SpawnPTY(ctx, ptyCfg)

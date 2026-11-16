@@ -518,3 +518,59 @@ func TestEnsureResourceGuardrailEnv(t *testing.T) {
 		t.Errorf("expected no additional env vars, got %v", res3)
 	}
 }
+
+func TestResolveProjectTerminalExecutable(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Explicit shell requested
+	execPath, args, _ := ResolveProjectTerminalExecutable(tempDir, "/bin/sh", nil)
+	if !strings.HasSuffix(execPath, "sh") {
+		t.Errorf("expected shell path ending with sh, got %s", execPath)
+	}
+	if len(args) != 0 {
+		t.Errorf("expected no args for explicit shell, got %v", args)
+	}
+
+	// 2. Auto-resolution without explicit shell
+	execAuto, argsAuto, envAuto := ResolveProjectTerminalExecutable(tempDir, "", []string{"CUAN_AGENT_MODEL=test-model"})
+	if execAuto == "" {
+		t.Fatalf("expected non-empty executable for auto-resolution")
+	}
+
+	// If agy is installed in the test environment, verify it was resolved with flags
+	if strings.HasSuffix(execAuto, "agy") {
+		hasSkipPerms := false
+		hasAddDir := false
+		hasModel := false
+		for i, arg := range argsAuto {
+			if arg == "--dangerously-skip-permissions" {
+				hasSkipPerms = true
+			}
+			if arg == "--add-dir" && i+1 < len(argsAuto) && argsAuto[i+1] == tempDir {
+				hasAddDir = true
+			}
+			if arg == "--model" && i+1 < len(argsAuto) && argsAuto[i+1] == "test-model" {
+				hasModel = true
+			}
+		}
+		if !hasSkipPerms {
+			t.Errorf("expected --dangerously-skip-permissions flag in agy args: %v", argsAuto)
+		}
+		if !hasAddDir {
+			t.Errorf("expected --add-dir %s in agy args: %v", tempDir, argsAuto)
+		}
+		if !hasModel {
+			t.Errorf("expected --model test-model in agy args: %v", argsAuto)
+		}
+		hasSSH := false
+		for _, e := range envAuto {
+			if strings.HasPrefix(e, "SSH_TTY=") {
+				hasSSH = true
+				break
+			}
+		}
+		if !hasSSH {
+			t.Errorf("expected SSH_TTY in env for agy PTY: %v", envAuto)
+		}
+	}
+}
