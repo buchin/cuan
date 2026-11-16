@@ -156,3 +156,56 @@ func TestProjectTerminal_StopQuotaAttempt_PreservesPersistentSession(t *testing.
 		t.Fatal("expected project session to remain active and uncorrupted")
 	}
 }
+
+// TestProjectTerminal_SurvivesRequestContextCancellation verifies that when the
+// incoming HTTP/WebSocket request context is cancelled (client disconnect / page refresh),
+// the persistent project terminal PTY process does NOT get terminated with SIGTERM.
+func TestProjectTerminal_SurvivesRequestContextCancellation(t *testing.T) {
+	reqCtx, reqCancel := context.WithCancel(context.Background())
+
+	workDir := t.TempDir()
+	mgr := NewManager(ManagerConfig{
+		WorkspacesDir: workDir,
+		DefaultShell:  "/bin/sh",
+	})
+	defer func() { _ = mgr.CloseAll() }()
+
+	projectID := "proj_req_cancel_test"
+	sess, err := mgr.GetOrCreateProjectSession(reqCtx, projectID, workDir, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("failed to create project session: %v", err)
+	}
+
+	// Subscribe client to verify session can receive and produce output
+	sub, _, err := sess.Subscribe("client-req", ModeInteractive)
+	if err != nil {
+		t.Fatalf("subscribe failed: %v", err)
+	}
+
+	// Cancel the request context (simulating client WebSocket drop or page reload)
+	reqCancel()
+
+	// Wait 100ms for any potential asynchronous cancellation propagation
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify the session is still alive and NOT closed!
+	if sess.IsClosed() {
+		t.Fatal("persistent project session was killed when request context was cancelled!")
+	}
+
+	// Verify the underlying PTY process is still responding to input
+	if _, err := sess.WriteInput("client-req", []byte("echo 'STILL_ALIVE_AFTER_REQ_CANCEL'\n")); err != nil {
+		t.Fatalf("write input after reqCancel failed: %v", err)
+	}
+
+	var out strings.Builder
+	timeout := time.After(2 * time.Second)
+	for !strings.Contains(out.String(), "STILL_ALIVE_AFTER_REQ_CANCEL") {
+		select {
+		case chunk := <-sub.SendChan:
+			out.Write(chunk)
+		case <-timeout:
+			t.Fatalf("timed out waiting for output after request cancellation, got: %q", out.String())
+		}
+	}
+}

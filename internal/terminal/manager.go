@@ -201,7 +201,12 @@ func (m *Manager) GetOrCreateSession(ctx context.Context, taskID string, mode Mo
 		InitialRows: rows,
 	}
 
-	proc, err := SpawnPTY(ctx, ptyCfg)
+	// Terminal sessions outlive an immediate HTTP disconnect within their grace period.
+	spawnCtx := context.Background()
+	if ctx != nil {
+		spawnCtx = context.WithoutCancel(ctx)
+	}
+	proc, err := SpawnPTY(spawnCtx, ptyCfg)
 	if err != nil {
 		return nil, fmt.Errorf("spawn pty for task %s: %w", taskID, err)
 	}
@@ -342,7 +347,13 @@ func (m *Manager) GetOrCreateProjectSession(ctx context.Context, projectID, work
 		Env:         updatedEnv,
 	}
 
-	proc, err := SpawnPTY(ctx, ptyCfg)
+	// Persistent project terminals outlive any single HTTP/WebSocket connection.
+	// They must never be terminated by request context cancellation on disconnect.
+	spawnCtx := context.Background()
+	if ctx != nil {
+		spawnCtx = context.WithoutCancel(ctx)
+	}
+	proc, err := SpawnPTY(spawnCtx, ptyCfg)
 	if err != nil {
 		return nil, fmt.Errorf("spawn project terminal pty for project %s: %w", projectID, err)
 	}

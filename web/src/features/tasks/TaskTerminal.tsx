@@ -34,6 +34,7 @@ import {
   encodeTerminalDataFrame,
   isXtermJsAutoResponse,
 } from './terminal/xt-version'
+import { desktopWordEditSequence } from './terminal/word-keys'
 
 export function TaskTerminal({
   taskId,
@@ -546,7 +547,7 @@ export function TaskTerminal({
             interactive.current = enabled
             setInput(enabled)
             if (t.options.disableStdin !== !enabled) t.options.disableStdin = !enabled
-            if (t.options.cursorBlink !== false) t.options.cursorBlink = false
+            if (t.options.cursorBlink !== enabled) t.options.cursorBlink = enabled
             if (enabled) inputQueue.current.flush(inputGeneration, data => ws.send(encodeTerminalDataFrame(data)))
             setConnection('connected')
             setNotice('')
@@ -557,7 +558,7 @@ export function TaskTerminal({
             interactive.current = enabled
             setInput(enabled)
             if (t.options.disableStdin !== !enabled) t.options.disableStdin = !enabled
-            if (t.options.cursorBlink !== false) t.options.cursorBlink = false
+            if (t.options.cursorBlink !== enabled) t.options.cursorBlink = enabled
           } else if (data.type === 'error') {
             setError(data.message || 'Terminal request failed.')
           }
@@ -699,21 +700,21 @@ export function TaskTerminal({
           fontSize: terminalFontSize,
           lineHeight: 1.2,
           letterSpacing: 0,
-          scrollback: 10000,
-          convertEol: true,
+          scrollback: 20000,
+          convertEol: false,
           disableStdin: true,
-          cursorBlink: false,
-          cursorStyle: 'bar',
-          cursorInactiveStyle: 'none',
-          allowProposedApi: false,
+          cursorBlink: true,
+          cursorStyle: 'block',
+          cursorInactiveStyle: 'outline',
+          allowProposedApi: true,
           scrollOnUserInput: false,
           reflowCursorLine: true,
           theme: {
             background: '#141414',
             foreground: '#e4e4e7',
             selectionBackground: '#52525b40',
-            cursor: 'transparent',
-            cursorAccent: 'transparent',
+            cursor: '#e4e4e7',
+            cursorAccent: '#141414',
           },
         })
 
@@ -758,7 +759,55 @@ export function TaskTerminal({
 
         terminal.open(mount.current)
         term.current = terminal
-        mobileInputFilter.current = navigator.maxTouchPoints > 0
+
+        // Natural word-editing keys & clipboard shortcuts matching Fural / macOS Terminal / iTerm
+        terminal.attachCustomKeyEventHandler((event) => {
+          if (event.type !== 'keydown') return true
+
+          // Ctrl+C / Cmd+C when text is selected: copy without sending SIGINT
+          if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && (event.key === 'c' || event.key === 'C')) {
+            if (terminal && terminal.hasSelection()) {
+              const text = terminal.getSelection()
+              if (text) {
+                void navigator.clipboard?.writeText(text)
+              }
+              return false
+            }
+          }
+
+          // Ctrl+Shift+C: copy selection
+          if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'c' || event.key === 'C')) {
+            if (terminal && terminal.hasSelection()) {
+              const text = terminal.getSelection()
+              if (text) {
+                void navigator.clipboard?.writeText(text)
+              }
+              return false
+            }
+          }
+
+          // Word-level editing keys (Alt+Arrow, Alt+Backspace) for natural typing in readline / bash / agy
+          const wordSeq = desktopWordEditSequence(event)
+          if (wordSeq != null) {
+            try {
+              event.preventDefault()
+              event.stopPropagation()
+              terminal?.input(wordSeq)
+            } catch {}
+            return false
+          }
+
+          return true
+        })
+
+        // Mobile predictive IME filter: ONLY activate on small mobile screens with touch.
+        // Desktop browsers (including trackpads with maxTouchPoints > 0) must never be
+        // subjected to predictive IME backspace erasing.
+        const isTouchMobile =
+          typeof window !== 'undefined' &&
+          window.innerWidth < 640 &&
+          navigator.maxTouchPoints > 0
+        mobileInputFilter.current = isTouchMobile
           ? new TerminalHelperTextareaInputFilter(() => terminal?.textarea)
           : null
 

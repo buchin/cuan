@@ -412,7 +412,7 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	sess, err := s.terminalManager.GetOrCreateProjectSession(r.Context(), proj.ID, workDir, "", 80, 24, env...)
+	sess, err := s.terminalManager.GetOrCreateProjectSession(context.WithoutCancel(r.Context()), proj.ID, workDir, "", 80, 24, env...)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to start project terminal: %v", err))
 		return
