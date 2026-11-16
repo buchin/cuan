@@ -231,7 +231,11 @@ func (m *Manager) GetOrCreateSession(ctx context.Context, taskID string, mode Mo
 
 // ProjectSessionKey returns the canonical session map key for a project terminal.
 func ProjectSessionKey(projectID string) string {
-	return "project-term-" + strings.TrimSpace(projectID)
+	p := strings.TrimSpace(projectID)
+	if strings.HasPrefix(p, "project-term-") {
+		return p
+	}
+	return "project-term-" + p
 }
 
 // ResolveProjectTerminalExecutable determines the executable path, arguments, and environment

@@ -232,7 +232,10 @@ func TestProjectTerminal_WebSocketPersistenceAndReattach(t *testing.T) {
 			_ = conn1.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 			msgType, data, err := conn1.ReadMessage()
 			if err != nil {
-				continue
+				if strings.Contains(err.Error(), "timeout") {
+					continue
+				}
+				t.Fatalf("conn1.ReadMessage error: %v", err)
 			}
 			if msgType == websocket.BinaryMessage {
 				captured.Write(data)
@@ -246,9 +249,9 @@ func TestProjectTerminal_WebSocketPersistenceAndReattach(t *testing.T) {
 	// 2. Client 1 disconnects (closes browser tab)
 	_ = conn1.Close()
 
-	// Verify that the backend persistent session is still alive in terminalManager!
+	// Verify that the backend persistent session is still alive in terminalManager or via SocketBridge!
 	sess, exists := srv.terminalManager.GetProjectSession(projID)
-	if !exists || sess == nil || sess.IsClosed() {
+	if (!exists || sess == nil || sess.IsClosed()) && !terminal.ProjectSocketExists(projID) {
 		t.Fatal("expected project terminal session to remain running in background after client disconnect")
 	}
 
@@ -281,25 +284,23 @@ func TestProjectTerminal_WebSocketPersistenceAndReattach(t *testing.T) {
 	})
 
 	var captured2 strings.Builder
-	timeout2 := time.After(3 * time.Second)
+	deadline2 := time.Now().Add(4 * time.Second)
+	_ = conn2.SetReadDeadline(deadline2)
 	found2 := false
-	for !found2 {
-		select {
-		case <-timeout2:
-			t.Fatalf("timed out waiting for second echo, got: %s", captured2.String())
-		default:
-			_ = conn2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-			msgType, data, err := conn2.ReadMessage()
-			if err != nil {
-				continue
-			}
-			if msgType == websocket.BinaryMessage {
-				captured2.Write(data)
-				if strings.Contains(captured2.String(), "PERSISTENCE_DRILL_TOKEN_2") {
-					found2 = true
-				}
+	for !found2 && time.Now().Before(deadline2) {
+		msgType, data, err := conn2.ReadMessage()
+		if err != nil {
+			t.Fatalf("conn2.ReadMessage error: %v (captured: %q)", err, captured2.String())
+		}
+		if msgType == websocket.BinaryMessage {
+			captured2.Write(data)
+			if strings.Contains(captured2.String(), "PERSISTENCE_DRILL_TOKEN_2") {
+				found2 = true
 			}
 		}
+	}
+	if !found2 {
+		t.Fatalf("timed out waiting for second echo, got: %s", captured2.String())
 	}
 
 	// Clean up project terminal session explicitly via DELETE endpoint

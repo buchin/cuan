@@ -26,9 +26,13 @@ import (
 	"github.com/buchin/cuan/internal/server"
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/taskcli"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "worker-project" {
+		os.Exit(terminal.RunProjectWorkerCLI(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "maintenance" {
 		os.Exit(diagnostics.RunMaintenanceCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}

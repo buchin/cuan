@@ -425,7 +425,8 @@ def configure_api_release(chat_worker=False):
         f'[Service]\nEnvironmentFile={BASE}/release.env\nWorkingDirectory={BASE}/current\nExecStart=\n'
         f'ExecStart={BASE}/current/bin/cuan-server{flag}\n'
         'Environment=PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n'
-        f'Environment=CUAN_STATIC_DIR={BASE}/current/web/dist\nEnvironment=CUAN_AUTO_MIGRATE=false\n')
+        f'Environment=CUAN_STATIC_DIR={BASE}/current/web/dist\nEnvironment=CUAN_AUTO_MIGRATE=false\n'
+        'KillMode=process\n')
 
 
 def chat_worker_unit(base, service, user, group=''):

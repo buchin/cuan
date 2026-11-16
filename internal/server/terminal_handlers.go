@@ -301,9 +301,9 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	}
 	taskID := s.resolveTaskID(r.Context(), rawID)
 
-	if err := s.terminalManager.CloseSession(taskID); err != nil {
-		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to close terminal session: %v", err))
-		return
+	_ = terminal.TerminateProjectWorker(taskID)
+	if s.terminalManager != nil {
+		_ = s.terminalManager.CloseSession(taskID)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -388,7 +388,8 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 
 	sessionKey := terminal.ProjectSessionKey(proj.ID)
 
-	// If session already exists, re-attach directly without leasing a new brain or advancing brainCursor!
+	// 1. If in-memory session already exists, re-attach directly without leasing a new brain or advancing brainCursor!
+	//    Check this FIRST so test harnesses and in-process sessions always win over any stale socket.
 	if existing, ok := s.terminalManager.GetSession(sessionKey); ok && existing != nil && !existing.IsClosed() {
 		q := r.URL.Query()
 		q.Set("task_id", sessionKey)
@@ -397,6 +398,17 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		r.URL.RawQuery = q.Encode()
 
 		s.terminalHandler.ServeHTTP(w, r)
+		return
+	}
+
+	// 2. If detached Unix socket bridge already exists (surviving a deploy), proxy directly!
+	if terminal.ProjectSocketExists(proj.ID) {
+		q := r.URL.Query()
+		q.Set("task_id", sessionKey)
+		q.Set("attach", "1")
+		r.URL.RawQuery = q.Encode()
+
+		s.terminalHandler.ProxySocketToWebSocket(w, r, sessionKey, nil)
 		return
 	}
 
@@ -410,6 +422,27 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		}
 	}
 
+	// 3. Try launching detached project terminal worker with SocketBridge
+	payload := terminal.ProjectWorkerPayload{
+		ProjectID: proj.ID,
+		WorkDir:   workDir,
+		Env:       env,
+	}
+	runnerBin := ""
+	if s.cfg != nil {
+		runnerBin = s.cfg.RunnerBinPath
+	}
+	if _, spawnErr := terminal.SpawnDetachedProjectWorker(payload, runnerBin); spawnErr == nil && terminal.ProjectSocketExists(proj.ID) {
+		q := r.URL.Query()
+		q.Set("task_id", sessionKey)
+		q.Set("attach", "1")
+		r.URL.RawQuery = q.Encode()
+
+		s.terminalHandler.ProxySocketToWebSocket(w, r, sessionKey, nil)
+		return
+	}
+
+	// 4. Fallback to in-process terminalManager if detached spawn failed (e.g. mock test harnesses)
 	sess, err := s.terminalManager.GetOrCreateProjectSession(context.WithoutCancel(r.Context()), proj.ID, workDir, "", 80, 24, env...)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to start project terminal: %v", err))
@@ -480,6 +513,13 @@ func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.R
 				"pid":           sess.PTY().PID(),
 				"work_dir":      sess.PTY().WorkDir(),
 			}
+		}
+	}
+	if sessSummary == nil && terminal.ProjectSocketExists(proj.ID) {
+		sessSummary = map[string]interface{}{
+			"active":     true,
+			"session_id": terminal.ProjectSessionKey(proj.ID),
+			"work_dir":   workDir,
 		}
 	}
 	if sessSummary == nil {
@@ -560,6 +600,7 @@ func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *htt
 		return
 	}
 
+	_ = terminal.TerminateProjectWorker(rawProjID)
 	_ = s.terminalManager.CloseProjectSession(rawProjID)
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     "closed",

@@ -15,11 +15,16 @@ import (
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/taskcli"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "task" {
 		os.Exit(taskcli.Run(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	// Detached project terminal worker execution (Survives deploy via SocketBridge)
+	if len(os.Args) > 1 && os.Args[1] == "worker-project" {
+		os.Exit(terminal.RunProjectWorkerCLI(os.Args[2:]))
 	}
 	// Detached worker process execution (Pola #1: Detached Worker Process)
 	if len(os.Args) > 1 && os.Args[1] == "worker-task" {

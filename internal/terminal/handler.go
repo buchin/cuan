@@ -211,7 +211,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				socketID = expected
 			}
 			if SocketExists(socketID) {
-				h.proxySocketToWebSocket(w, r, taskID, responseHeader)
+				h.ProxySocketToWebSocket(w, r, taskID, responseHeader)
 				return
 			}
 			http.Error(w, "No live session. Start a task explicitly or open saved output.", http.StatusNotFound)
@@ -228,7 +228,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if session == nil {
 		if SocketExists(taskID) {
-			h.proxySocketToWebSocket(w, r, taskID, responseHeader)
+			h.ProxySocketToWebSocket(w, r, taskID, responseHeader)
 			return
 		}
 		if err != nil {
@@ -479,18 +479,24 @@ func generateSubscriberID() string {
 	return "sub_" + hex.EncodeToString(b)
 }
 
-// proxySocketToWebSocket bridges a WebSocket client directly to a decoupled Unix domain socket.
-// This allows cuan-server to seamlessly proxy terminal connections to cuan-runner, surviving
-// web server restarts and deployments without disrupting active task agent execution.
 func (h *Handler) proxySocketToWebSocket(w http.ResponseWriter, r *http.Request, taskID string, responseHeader http.Header) {
+	h.ProxySocketToWebSocket(w, r, taskID, responseHeader)
+}
+
+// ProxySocketToWebSocket bridges a WebSocket client directly to a decoupled Unix domain socket.
+// This allows cuan-server to seamlessly proxy terminal connections to cuan-runner or detached project workers,
+// surviving web server restarts and deployments without disrupting active task agent execution or project shells.
+func (h *Handler) ProxySocketToWebSocket(w http.ResponseWriter, r *http.Request, taskID string, responseHeader http.Header) {
 	socketID := taskID
 	expected := strings.TrimPrefix(r.URL.Query().Get("session_id"), "runner-sess-")
-	if expected != "" {
-		if !strings.HasPrefix(expected, "att_") {
+	if expected != "" && !strings.HasPrefix(taskID, "project-term-") {
+		if !strings.HasPrefix(expected, "att_") && !strings.HasPrefix(expected, "proj-") {
 			http.Error(w, "The selected terminal session is no longer live", http.StatusConflict)
 			return
 		}
-		socketID = expected
+		if strings.HasPrefix(expected, "att_") {
+			socketID = expected
+		}
 	}
 	conn, err := h.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
