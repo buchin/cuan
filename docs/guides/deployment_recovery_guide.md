@@ -224,3 +224,32 @@ Jika VPS fisik mengalami kerusakan total (*hardware failure*):
 4. Jalankan installer: `./scripts/install.sh --domain cuan.domain.com`.
 5. Restore database: `./scripts/restore.sh --latest --force`.
 6. Akses kembali Cuan di `https://cuan.domain.com` — seluruh task, project, owner login, dan riwayat pekerjaan kembali utuh 100%.
+
+---
+
+## 7. Migrasi Host / VPS Otomatis Satu Langkah (`migrate-host.sh`)
+
+Untuk migrasi penuh dari server lama ke server baru secara otomatis (*one-step automated migration*) tanpa langkah manual:
+
+```bash
+# 1. Pengecekan pra-syarat & simulasi (Dry-Run):
+./scripts/migrate-host.sh --from-host 43.173.33.11 --to-host 43.173.40.62 --dry-run
+
+# 2. Eksekusi migrasi penuh end-to-end, cutover DNS, dan penghentian server lama:
+./scripts/migrate-host.sh \
+  --from-host 43.173.33.11 \
+  --to-host 43.173.40.62 \
+  --switch-dns \
+  --stop-source
+```
+
+### Tahapan yang dieksekusi secara otomatis:
+1. **Pre-flight & Konektivitas**: Menguji koneksi SSH dan hak `sudo` pada server sumber dan target, mendeteksi kapasitas RAM/CPU/disk target.
+2. **Provisioning Paket OS Target**: Menginstal `postgresql`, `nginx`, `nodejs`, `golang-go`, `bubblewrap`, `jq`, `rsync`, dsb.
+3. **Database Streaming**: Mengalirkan dump database PostgreSQL (`pg_dump | psql`) secara live antar-server tanpa membebani disk lokal, serta memastikan ekstensi `pgcrypto` aktif.
+4. **Sinkronisasi Data & Runtime**: Mentransfer konfigurasi `/opt/cuan/.env`, data persisten, kredensial provider AI (`~/.local/share/cuan/`), binary `agy` (Antigravity CLI), runtime Obscura browser, dan Playwright cache.
+5. **Systemd Resource Tuning**: Mentransfer unit service dan mengalkulasi batas memori RAM (`limits.conf`) secara dinamis sesuai total RAM server target.
+6. **Reverse Proxy Nginx & SSL**: Mentransfer sertifikat Let's Encrypt dan konfigurasi Nginx dengan dukungan WebSocket upgrade untuk terminal PTY.
+7. **Release Deployment & Verification**: Menerapkan rilis Cuan dan memverifikasi `/healthz` merespons HTTP 200 `healthy`.
+8. **Cloudflare DNS Switch & Cache Purge (Opsional)**: Memperbarui A record Cloudflare ke IP host target dan membersihkan cache edge Cloudflare.
+9. **Decommissioning Server Sumber (Opsional)**: Menghentikan dan menonaktifkan unit service Cuan di host lama setelah host baru terverifikasi sehat.
