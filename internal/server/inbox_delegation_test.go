@@ -1497,3 +1497,62 @@ func TestDefaultDelegationNeverChoosesArbitraryProject(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxDelegationNormalTurnNormalizesReconcileFlag(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "p-reconcile", Name: "Project Reconcile"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	now := time.Now().UTC()
+	roomID := db.GenerateUUID()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "p-reconcile",
+		Title:     "Room Reconcile",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msgID := db.GenerateUUID()
+	q := db.InboxRequest{
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		RoomID:      roomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   msgID,
+		ReplyID:     db.GenerateUUID(),
+		State:       "queued",
+		PayloadHash: "approval",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	plan := inboxApprovalPlan{Title: "Fix and verify", Description: "Deploy and test without regress", ProjectID: "p-reconcile"}
+	payload, _ := json.Marshal(attachmentMessage{Text: "Gas", Approval: &approvedInboxPlan{Action: "approve", MessageID: db.GenerateUUID(), Plan: plan}})
+	message := &db.ProjectMessage{ID: q.MessageID, RoomID: q.RoomID, AuthorType: "user", Content: attachmentEnvelope + string(payload), CreatedAt: now}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, q, message); err != nil {
+		t.Fatal(err)
+	}
+
+	// Coordinator mistakenly sets Reconcile: true on a normal user turn
+	raw, _ := json.Marshal(inboxDelegation{
+		Action:          "run",
+		Reconcile:       true,
+		Title:           plan.Title,
+		Description:     plan.Description,
+		ProjectID:       plan.ProjectID,
+		AuthorizationID: q.MessageID,
+	})
+	out := s.applyInboxDelegation(ctx, q, "```cuan-delegate\n"+string(raw)+"\n```")
+	if strings.Contains(out, "the retry reconciliation contract does not match this request") {
+		t.Fatalf("normal user turn was rejected due to Reconcile: true flag: %s", out)
+	}
+	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID})
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("expected 1 task to be launched, got %d (err: %v)", len(tasks), err)
+	}
+}

@@ -171,8 +171,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	fail := func(message string) string {
 		return wrapResult("I could not start the work: " + message + " No new execution was started.")
 	}
-	if d.Reconcile != db.InboxRetryNeedsReconciliation(q) {
-		return fail("the retry reconciliation contract does not match this request")
+	if db.InboxRetryNeedsReconciliation(q) {
+		if !d.Reconcile {
+			return fail("the retry reconciliation contract does not match this request")
+		}
+	} else {
+		d.Reconcile = false
 	}
 	if ctx.Err() != nil {
 		return fail("the request was canceled")
