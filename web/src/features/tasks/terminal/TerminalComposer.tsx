@@ -547,7 +547,7 @@ export function TerminalComposer({
   return (
     <div
       data-attempt-id={attemptId}
-      className={`wa-chat relative shrink-0 select-none bg-[#141414] border-t border-[#262626] px-2.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-1.5 ${className}`}
+      className={`wa-chat relative shrink-0 select-none bg-background border-t border-border dark:bg-[#141414] dark:border-[#262626] px-2.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-1.5 ${className}`}
     >
       {/* ── Slash Commands Autocomplete Popup ── */}
       {showSlashPopup && filteredCommands.length > 0 && (
@@ -825,7 +825,7 @@ export function TerminalComposer({
                   textareaRef.current.focus()
                 }
               }}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] flex items-center justify-center p-1 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="Clear input"
               aria-label="Clear input"
             >

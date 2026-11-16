@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -219,6 +220,25 @@ func (sb *SocketBridge) handleConnection(conn net.Conn) {
 				}
 				if len(pending) == 0 {
 					break
+				}
+
+				// Check if pending starts with a binary frame (Fural wire protocol)
+				if pending[0] == 0x00 { // Stdin Data
+					data := pending[1:]
+					if len(data) > 0 {
+						_, _ = sb.session.WriteInput(subID, data)
+					}
+					pending = nil
+					break
+				}
+				if pending[0] == 0x01 && len(pending) >= 5 { // Terminal Resize
+					cols := binary.BigEndian.Uint16(pending[1:3])
+					rows := binary.BigEndian.Uint16(pending[3:5])
+					if cols > 0 && rows > 0 {
+						_ = sb.session.Resize(cols, rows)
+					}
+					pending = pending[5:]
+					continue
 				}
 
 				// Check if pending starts with a JSON control frame

@@ -142,13 +142,12 @@ export function TaskSessionPage({
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
-  const active = Boolean(attempt && ['running', 'queued'].includes(attempt.status))
-
   const isDedicatedTerminal = Boolean(
     searchParams.get('terminal') === 'open' ||
     (location.state as { openTerminal?: boolean } | null)?.openTerminal ||
     detail?.title?.startsWith('Terminal ·')
   )
+  const active = Boolean(isDedicatedTerminal || (attempt && ['running', 'queued'].includes(attempt.status)))
 
   // Auto-close prevention: keep terminal open on task completion when pinned
   const prevActiveRef = useRef(active)
@@ -420,26 +419,32 @@ export function TaskSessionPage({
   const isWorking = status === 'Working'
   const isConnected = terminalConnection === 'connected' || terminalConnection === 'streaming'
   const isConnecting = (terminalConnection === 'connecting' || terminalConnection === 'loading') && !isConnected
-  const statusLabel = answer
-    ? 'Answered'
-    : !latest
-      ? attemptLabel(attempt)
-      : isWorking
+  const statusLabel = isDedicatedTerminal
+    ? (isConnected
         ? (language === 'id' ? 'Berjalan' : 'Live')
-        : status
+        : (language === 'id' ? 'Menghubungkan…' : 'Connecting…'))
+    : answer
+      ? 'Answered'
+      : !latest
+        ? attemptLabel(attempt)
+        : isWorking
+          ? (language === 'id' ? 'Berjalan' : 'Live')
+          : status
 
   const statusBadge = (
     <span
       className={cn(
         'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
-        isWorking && isConnected
+        (isDedicatedTerminal ? isConnected : isWorking && isConnected)
           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
-          : workStatusBadgeClass(status)
+          : isDedicatedTerminal && isConnecting
+            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+            : workStatusBadgeClass(status)
       )}
       title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
     >
       <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 items-center justify-center">
-        {isWorking && isConnected && (
+        {(isDedicatedTerminal ? isConnected : isWorking && isConnected) && (
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         )}
         <span

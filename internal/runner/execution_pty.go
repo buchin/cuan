@@ -23,6 +23,9 @@ import (
 // Finish one process before switching brains. Resume the same task and workspace,
 // never a native provider session or a fresh task, and reconcile partial effects.
 func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse, t *task.Task, att *task.TaskAttempt, prompt, workingDir string, env map[string]string, timeout time.Duration, count *int64) (*agent.ExecutionResult, error) {
+	if strings.HasPrefix(t.Title, "Terminal ·") && timeout < 24*time.Hour {
+		timeout = 24 * time.Hour
+	}
 	if claim.OwnerID == "" {
 		return r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeout, count)
 	}
@@ -102,8 +105,10 @@ func (r *Runner) executeWithPTY(
 
 	ptyArgs := []string{
 		"--dangerously-skip-permissions",
-		"--prompt-interactive", prompt,
 		"--add-dir", workingDir,
+	}
+	if !strings.HasPrefix(t.Title, "Terminal ·") && prompt != "" {
+		ptyArgs = append(ptyArgs, "--prompt-interactive", prompt)
 	}
 	diagnosticDir, err := os.MkdirTemp("", "cuan-provider-log-")
 	if err != nil {

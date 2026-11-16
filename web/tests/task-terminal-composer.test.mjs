@@ -160,3 +160,22 @@ test('9. Composer preserves voice affordance and atomic input delivery', () => {
   assert.match(composerContent, /speechSupported\s*&&\s*!text\.trim\(\)/, 'Mic yields space to Send while typing')
   assert.match(composerContent, /onSend\(toSend \+ '\\n'\)/, 'Input and newline remain atomic')
 })
+
+test('10. TerminalComposer adaptive light mode & dark mode theme contrast', () => {
+  const composerContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/TerminalComposer.tsx'), 'utf8')
+  assert.match(
+    composerContent,
+    /bg-background\s+border-t\s+border-border\s+dark:bg-\[#141414\]\s+dark:border-\[#262626\]/,
+    'TerminalComposer must support light mode contrast alongside dark mode'
+  )
+})
+
+test('11. Binary wire protocol & xterm.js auto-response drop guard', () => {
+  const xtVersionContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/xt-version.ts'), 'utf8')
+  assert.match(xtVersionContent, /encodeTerminalDataFrame/, 'Must export encodeTerminalDataFrame')
+  assert.match(xtVersionContent, /isXtermJsAutoResponse/, 'Must export isXtermJsAutoResponse')
+
+  const terminalContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx'), 'utf8')
+  assert.match(terminalContent, /encodeTerminalDataFrame\(data\)/, 'TaskTerminal must use binary data frame encoding')
+  assert.match(terminalContent, /isXtermJsAutoResponse\(data\)/, 'TaskTerminal must drop stock xterm probe auto-responses')
+})

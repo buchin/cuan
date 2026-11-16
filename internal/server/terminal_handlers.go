@@ -1290,7 +1290,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						isReady, e := s.taskSvc.AgentReviewReady(ctx, taskID, attempt.ID)
 						ready = e == nil && isReady
 					}
-					if h.EndReason == "agent_report" || ready {
+					if h.EndReason == "agent_report" || (ready && h.ExitCode == 0) {
 						state = task.AttemptStatusSucceeded
 						note = ""
 					} else if h.ExitCode == 0 && h.EndReason != "provider_quota" && h.EndReason != "provider_restricted" {
@@ -1310,7 +1310,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							return
 						}
 					}
-					if h.EndReason == "agent_report" || ready {
+					if h.EndReason == "agent_report" || (ready && h.ExitCode == 0) {
 						updatedAttempt, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)
 					} else {
 						updatedAttempt, e = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: state, ExitCode: &h.ExitCode, ErrorMessage: note})

@@ -30,6 +30,10 @@ import { TerminalComposer } from './terminal/TerminalComposer'
 import { formatLogLineForTerminal } from './terminal/ndjsonFormatter'
 import { FilePreviewModal } from '../../components/dialogs/FilePreviewModal'
 import type { Attachment } from '../inbox/Attachments'
+import {
+  encodeTerminalDataFrame,
+  isXtermJsAutoResponse,
+} from './terminal/xt-version'
 
 export function TaskTerminal({
   taskId,
@@ -163,7 +167,7 @@ export function TaskTerminal({
       setInput(true)
       ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
     }
-    const send = ws?.readyState === WebSocket.OPEN ? (data: string) => ws.send(JSON.stringify({ type: 'stdin', data })) : undefined
+    const send = ws?.readyState === WebSocket.OPEN ? (data: string) => ws.send(encodeTerminalDataFrame(data)) : undefined
     if (!inputQueue.current.write(inputGeneration, key, send)) setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
     if (send && following.current) terminal?.scrollToBottom()
   }, [inputGeneration, t])
@@ -534,7 +538,7 @@ export function TaskTerminal({
             setInput(enabled)
             t.options.disableStdin = !enabled
             t.options.cursorBlink = false
-            if (enabled) inputQueue.current.flush(inputGeneration, data => ws.send(JSON.stringify({ type: 'stdin', data })))
+            if (enabled) inputQueue.current.flush(inputGeneration, data => ws.send(encodeTerminalDataFrame(data)))
             setConnection('connected')
             setNotice('')
             setError('')
@@ -933,10 +937,11 @@ export function TaskTerminal({
         terminal.onData((data) => {
           const ws = socket.current
           if (!interactive.current) return
+          if (isXtermJsAutoResponse(data)) return
           const payload = mobileInputFilter.current ? mobileInputFilter.current.filter(data) : data
           if (payload === null) return
-          const send = ws?.readyState === WebSocket.OPEN ? (value: string) => ws.send(JSON.stringify({ type: 'stdin', data: value })) : undefined
-          if (!inputQueue.current.write(inputGeneration, payload, send)) setError('Terminal input is pending. Reconnect to the same session before typing more.')
+          const send = ws?.readyState === WebSocket.OPEN ? (value: string) => ws.send(encodeTerminalDataFrame(value)) : undefined
+          if (!inputQueue.current.write(inputGeneration, payload, send)) setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
         })
 
         // Incremental polling loop used exclusively as fallback when PTY socket is unavailable

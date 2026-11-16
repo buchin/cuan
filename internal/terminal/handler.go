@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -348,12 +349,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 
 		if messageType == websocket.BinaryMessage {
-			// Direct raw input bytes (interactive take-over)
-			if _, err := session.WriteInput(subID, payload); err != nil {
-				_ = writeJSON(TerminalMessage{
-					Type:    "error",
-					Message: err.Error(),
-				})
+			if len(payload) >= 5 && payload[0] == 0x01 {
+				cols := binary.BigEndian.Uint16(payload[1:3])
+				rows := binary.BigEndian.Uint16(payload[3:5])
+				if cols > 0 && rows > 0 {
+					_ = session.Resize(cols, rows)
+				}
+				continue
+			}
+			data := payload
+			if len(data) > 0 && data[0] == 0x00 {
+				data = data[1:]
+			}
+			if len(data) > 0 {
+				if _, err := session.WriteInput(subID, data); err != nil {
+					_ = writeJSON(TerminalMessage{
+						Type:    "error",
+						Message: err.Error(),
+					})
+				}
 			}
 			continue
 		}

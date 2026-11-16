@@ -313,6 +313,7 @@ func TestProjectTerminal_WebSocketPersistenceAndReattach(t *testing.T) {
 }
 
 func TestProjectTerminal_BrainFailoverRotation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	srv, token := setupTestChatServer(t)
 	owner, err := srv.authSvc.ValidateToken(context.Background(), token)
 	if err != nil {

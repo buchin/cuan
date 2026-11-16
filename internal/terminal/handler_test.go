@@ -391,3 +391,70 @@ func TestHandler_ReconnectCannotSelectReplacementSession(t *testing.T) {
 		t.Fatalf("stale reconnect must fail closed, got response=%v err=%v", response, err)
 	}
 }
+
+func TestHandler_WebSocketBinaryFraming(t *testing.T) {
+	tempBase := t.TempDir()
+
+	mgr := NewManager(ManagerConfig{
+		WorkspacesDir: tempBase,
+	})
+	defer mgr.CloseAll()
+
+	h := NewHandler(HandlerConfig{
+		Manager: mgr,
+	})
+
+	server := httptest.NewServer(h)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/tasks/task-ws-binary/terminal"
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial ws failed: %v", err)
+	}
+	defer conn.Close()
+
+	// Read initial connected handshake message
+	_, _, err = conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("read connected message: %v", err)
+	}
+
+	// 1. Send binary resize frame: 0x01 <cols: uint16> <rows: uint16> -> 100 cols, 30 rows
+	resizeFrame := []byte{0x01, 0x00, 100, 0x00, 30}
+	if err := conn.WriteMessage(websocket.BinaryMessage, resizeFrame); err != nil {
+		t.Fatalf("write binary resize frame: %v", err)
+	}
+
+	// 2. Send binary stdin frame: 0x00 <data>
+	cmdInput := append([]byte{0x00}, []byte("echo 'BINARY_FRAME_OK'\n")...)
+	if err := conn.WriteMessage(websocket.BinaryMessage, cmdInput); err != nil {
+		t.Fatalf("write binary input: %v", err)
+	}
+
+	// 3. Read output from websocket and verify session state
+	found := false
+	deadline := time.Now().Add(3 * time.Second)
+
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_, outPayload, rErr := conn.ReadMessage()
+		if rErr != nil {
+			continue
+		}
+		if strings.Contains(string(outPayload), "BINARY_FRAME_OK") {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("did not observe BINARY_FRAME_OK in WebSocket stream")
+	}
+
+	sess, ok := mgr.GetSession("task-ws-binary")
+	if !ok || sess.IsClosed() {
+		t.Fatalf("session missing or closed")
+	}
+}
