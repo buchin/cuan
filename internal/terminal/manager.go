@@ -208,8 +208,11 @@ func (m *Manager) GetOrCreateSession(ctx context.Context, taskID string, mode Mo
 
 	// Auto-cleanup hook when subscribers reach 0
 	sess.SetOnEmpty(func(s *Session) {
+		if s.IsPersistent() {
+			return
+		}
 		time.AfterFunc(m.cfg.DisconnectGracePeriod, func() {
-			if s.SubscriberCount() == 0 && !s.IsClosed() {
+			if s.SubscriberCount() == 0 && !s.IsClosed() && !s.IsPersistent() {
 				_ = m.CloseSession(s.TaskID())
 			}
 		})
@@ -219,11 +222,97 @@ func (m *Manager) GetOrCreateSession(ctx context.Context, taskID string, mode Mo
 	return sess, nil
 }
 
+// ProjectSessionKey returns the canonical session map key for a project terminal.
+func ProjectSessionKey(projectID string) string {
+	return "project-term-" + strings.TrimSpace(projectID)
+}
+
+// GetOrCreateProjectSession retrieves an active persistent session for the project, or spawns a new one.
+func (m *Manager) GetOrCreateProjectSession(ctx context.Context, projectID, workDir, shell string, cols, rows uint16, env ...string) (*Session, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, errors.New("project id is required")
+	}
+	key := ProjectSessionKey(projectID)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 1. Check existing session
+	if sess, exists := m.sessions[key]; exists && !sess.IsClosed() {
+		return sess, nil
+	}
+
+	// 2. Prepare new persistent session
+	if cols == 0 {
+		cols = m.cfg.DefaultCols
+	}
+	if rows == 0 {
+		rows = m.cfg.DefaultRows
+	}
+	if shell == "" {
+		shell = m.cfg.DefaultShell
+	}
+
+	sessionID := generateSessionID()
+	ptyCfg := PTYConfig{
+		TaskID:      key,
+		WorkDir:     workDir,
+		Shell:       shell,
+		InitialCols: cols,
+		InitialRows: rows,
+		Env:         env,
+	}
+
+	proc, err := SpawnPTY(ctx, ptyCfg)
+	if err != nil {
+		return nil, fmt.Errorf("spawn project terminal pty for project %s: %w", projectID, err)
+	}
+
+	sess := NewSession(sessionID, key, proc, ModeInteractive)
+	sess.SetPersistent(true)
+
+	m.sessions[key] = sess
+	m.projectSessions[projectID] = key
+	return sess, nil
+}
+
+// GetProjectSession retrieves the active persistent session for a project if present.
+func (m *Manager) GetProjectSession(projectID string) (*Session, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	sess, exists := m.sessions[ProjectSessionKey(projectID)]
+	if !exists || sess.IsClosed() {
+		return nil, false
+	}
+	return sess, true
+}
+
+// CloseProjectSession explicitly terminates and removes a project's terminal session.
+func (m *Manager) CloseProjectSession(projectID string) error {
+	key := ProjectSessionKey(projectID)
+	m.mu.Lock()
+	sess, exists := m.sessions[key]
+	if exists {
+		delete(m.sessions, key)
+	}
+	delete(m.projectSessions, projectID)
+	m.mu.Unlock()
+
+	if !exists {
+		return nil
+	}
+	return sess.Close()
+}
+
 // GetSession returns the active session for a task if present.
 func (m *Manager) GetSession(taskID string) (*Session, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	sess, exists := m.sessions[taskID]
+	if (!exists || sess.IsClosed()) && !strings.HasPrefix(taskID, "project-term-") {
+		sess, exists = m.sessions[ProjectSessionKey(taskID)]
+	}
 	if !exists || sess.IsClosed() {
 		return nil, false
 	}
@@ -286,7 +375,7 @@ func (m *Manager) ReconcileZombieSessions(maxDuration time.Duration, deadlines .
 				expired = now.After(deadline)
 			}
 		}
-		if !isZombie && expired {
+		if !isZombie && expired && !sess.IsPersistent() {
 			isZombie = true
 			reason = "execution_timeout"
 		}
@@ -392,8 +481,8 @@ func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 		runs := m.histories[taskID]
 		activeAgent := len(runs) > 0 && runs[len(runs)-1].Status == "running"
 		// Mid-turn activity protection: If the agent is actively running or has recent
-		// terminal activity, never sweep the session.
-		if s.IsClosed() || (!activeAgent && s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
+		// terminal activity, never sweep the session. Persistent sessions are also immune.
+		if s.IsClosed() || (!s.IsPersistent() && !activeAgent && s.SubscriberCount() == 0 && s.LastActivity().Before(threshold)) {
 			toClose = append(toClose, taskID)
 		}
 	}
@@ -770,6 +859,10 @@ func (m *Manager) stopProviderAttempt(taskID, attemptID, reason string) bool {
 		return false
 	}
 	h.EndReason = reason
+	if sess.IsPersistent() {
+		m.mu.Unlock()
+		return true
+	}
 	delete(m.sessions, taskID)
 	m.mu.Unlock()
 	_ = sess.Close()

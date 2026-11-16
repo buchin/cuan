@@ -76,6 +76,13 @@ func (s *Server) registerTasksRootRoutes(r chi.Router) {
 	r.Delete("/api/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	r.Get("/api/terminal/sessions", s.handleGetTerminalSessionsStatus)
 
+	// Project Terminal Engine
+	r.Get("/api/projects/{id}/terminal", s.handleProjectTerminalWebSocket)
+	r.Delete("/api/projects/{id}/terminal", s.handleCloseProjectTerminalSession)
+	r.Get("/api/projects/{id}/terminal/status", s.handleGetProjectTerminalStatus)
+	r.Post("/api/projects/{id}/terminal/sync-upstream", s.handleProjectTerminalSyncUpstream)
+	r.Post("/api/projects/{id}/terminal/rotate-brain", s.handleRotateProjectTerminalBrain)
+
 	// Autonomous PTY Agent Task Runner (Sprint 22 S22.2)
 	r.Post("/api/tasks/{id}/run-agent", s.handleRunTaskAgent)
 	r.Post("/api/projects/tasks/{id}/run-agent", s.handleRunTaskAgent)
@@ -106,6 +113,13 @@ func (s *Server) registerTasksV1Routes(r chi.Router) {
 	r.Get("/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 	r.Delete("/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	r.Get("/terminal/sessions", s.handleGetTerminalSessionsStatus)
+
+	// Project Terminal Engine in v1
+	r.Get("/projects/{id}/terminal", s.handleProjectTerminalWebSocket)
+	r.Delete("/projects/{id}/terminal", s.handleCloseProjectTerminalSession)
+	r.Get("/projects/{id}/terminal/status", s.handleGetProjectTerminalStatus)
+	r.Post("/projects/{id}/terminal/sync-upstream", s.handleProjectTerminalSyncUpstream)
+	r.Post("/projects/{id}/terminal/rotate-brain", s.handleRotateProjectTerminalBrain)
 
 	// Autonomous PTY Agent Task Runner (Sprint 22 S22.2)
 	r.Post("/tasks/{id}/run-agent", s.handleRunTaskAgent)

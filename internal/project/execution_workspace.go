@@ -177,6 +177,106 @@ func (s *Service) TaskExecutionWorkspace(ctx context.Context, taskID, instructio
 	return s.ExecutionWorkspace(ctx, taskID, p)
 }
 
+// ProjectTerminalWorkspace prepares a dedicated, isolated Git worktree for interactive project terminal sessions.
+// Uncommitted edits, scratch scripts, and local work are preserved and isolated from runner tasks.
+func (s *Service) ProjectTerminalWorkspace(ctx context.Context, projectID string, p *ProjectResponse) (string, error) {
+	if p == nil || p.LocalPath == "" {
+		return "", errors.New("Project workspace is unavailable")
+	}
+	if p.RepoURL == "" {
+		return p.LocalPath, nil
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return "", errors.New("Project identity is required")
+	}
+
+	executionWorkspaceMu.Lock()
+	defer executionWorkspaceMu.Unlock()
+
+	source, err := filepath.EvalSymlinks(p.LocalPath)
+	if err != nil {
+		return "", errors.New("Project repository is unavailable")
+	}
+
+	digest := sha256.Sum256([]byte("terminal:" + projectID + "\x00" + source))
+	key := hex.EncodeToString(digest[:])
+
+	root := filepath.Join(s.baseDir, "terminal-workspaces")
+	if err = os.MkdirAll(root, 0700); err != nil {
+		return "", err
+	}
+	destination, err := filepath.Abs(filepath.Join(root, key))
+	if err != nil {
+		return "", err
+	}
+
+	branch := "cuan/terminal-" + projectID
+	run := func(args ...string) (string, error) {
+		out, err := exec.CommandContext(ctx, "git", args...).Output()
+		return strings.TrimSpace(string(out)), err
+	}
+
+	// 1. If worktree directory already exists, verify its integrity and reuse it directly
+	if _, err = os.Lstat(destination); err == nil {
+		info, e := os.Lstat(destination)
+		if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return "", errors.New("Project terminal workspace is invalid")
+		}
+		common, e := run("-C", destination, "rev-parse", "--path-format=absolute", "--git-common-dir")
+		if e != nil {
+			return "", errors.New("Project terminal workspace Git state is unavailable")
+		}
+		expected, e := run("-C", source, "rev-parse", "--path-format=absolute", "--git-common-dir")
+		if e != nil || common != expected {
+			return "", errors.New("Project terminal workspace belongs to another repository")
+		}
+		current, e := run("-C", destination, "symbolic-ref", "--short", "HEAD")
+		if e == nil && current == branch {
+			settings := SettingsFromMetadata(p.Metadata)
+			s.configureWorkspaceDeployBranch(ctx, destination, p)
+			_ = syncWorkspaceEnvironment(destination, settings.Environment)
+			return destination, nil
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+
+	// 2. Determine base commit
+	base := "refs/remotes/origin/" + p.DefaultBranch
+	if _, err = run("-C", source, "rev-parse", "--verify", base+"^{commit}"); err != nil {
+		if _, localErr := run("-C", source, "rev-parse", "--verify", "refs/heads/"+p.DefaultBranch+"^{commit}"); localErr == nil {
+			base = "refs/heads/" + p.DefaultBranch
+		} else {
+			base = "HEAD"
+		}
+	}
+
+	// 3. Add worktree
+	if _, err = run("-C", source, "show-ref", "--verify", "refs/heads/"+branch); err == nil {
+		if _, addErr := run("-C", source, "worktree", "add", destination, branch); addErr != nil {
+			_, _ = run("-C", source, "worktree", "prune")
+			if _, retryErr := run("-C", source, "worktree", "add", destination, branch); retryErr != nil {
+				return "", fmt.Errorf("could not attach project terminal worktree: %w", retryErr)
+			}
+		}
+	} else {
+		if _, addErr := run("-C", source, "worktree", "add", "-b", branch, destination, base); addErr != nil {
+			return "", fmt.Errorf("could not prepare isolated project terminal workspace: %w", addErr)
+		}
+	}
+
+	// Configure upstream tracking to origin/<defaultBranch>
+	if p.DefaultBranch != "" {
+		_, _ = run("-C", destination, "branch", "--set-upstream-to=origin/"+p.DefaultBranch)
+	}
+
+	settings := SettingsFromMetadata(p.Metadata)
+	s.configureWorkspaceDeployBranch(ctx, destination, p)
+	_ = syncWorkspaceEnvironment(destination, settings.Environment)
+	return destination, nil
+}
+
 func preflightWorkspaceRebase(ctx context.Context, destination, source, defaultBranch string) {
 	if defaultBranch == "" {
 		defaultBranch = "main"

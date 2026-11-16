@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/websocket"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
 	cuangit "github.com/buchin/cuan/internal/git"
@@ -242,6 +244,284 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "closed",
 		"task_id": taskID,
+	})
+}
+
+// handleProjectTerminalWebSocket handles bidirectional WebSocket PTY streaming for dedicated project terminals.
+// Supports background persistence and re-attach without exit/timeout when client/browser closes.
+// GET /api/projects/{id}/terminal or GET /api/v1/projects/{id}/terminal
+func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.Request) {
+	if s.terminalHandler == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal engine is not configured")
+		return
+	}
+
+	if err := s.terminalHandler.ValidateRequestAuth(r); err != nil {
+		respondJSONError(w, 401, "Sign in to Cuan to open the terminal")
+		return
+	}
+
+	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+	}
+	if rawProjID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	if s.projectSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "project service is unavailable")
+		return
+	}
+
+	proj, err := s.projectSvc.Get(r.Context(), rawProjID)
+	if err != nil || proj == nil {
+		respondJSONError(w, 404, "Project not found. No terminal was created.")
+		return
+	}
+
+	workDir, err := s.projectSvc.ProjectTerminalWorkspace(r.Context(), proj.ID, proj)
+	if err != nil || workDir == "" {
+		workDir = proj.LocalPath
+	}
+
+	var env []string
+	settings := projectpkg.SettingsFromMetadata(proj.Metadata)
+	if settings.Environment != "" {
+		for k, v := range projectpkg.ParseEnvironment(settings.Environment) {
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
+	ownerID := ""
+	if s.authSvc != nil {
+		token := auth.ExtractToken(r)
+		if token == "" {
+			token = strings.TrimSpace(r.URL.Query().Get("token"))
+		}
+		if token == "" {
+			for _, p := range websocket.Subprotocols(r) {
+				if strings.HasPrefix(p, "token.") {
+					token = strings.TrimPrefix(p, "token.")
+					break
+				}
+			}
+		}
+		if token != "" {
+			if owner, err := s.authSvc.ValidateToken(r.Context(), token); err == nil && owner != nil {
+				ownerID = owner.ID
+			}
+		}
+	}
+
+	if ownerID != "" {
+		if home, brain, release, err := agent.LeaseHealthyBrainForTask(ownerID, nil); err == nil && home != "" {
+			env = append(env, agent.AntigravityProfileEnvironment(home)...)
+			if brain != nil && brain.ModelID != "" {
+				env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
+			}
+			release()
+		}
+	}
+
+	sessionKey := terminal.ProjectSessionKey(proj.ID)
+	sess, err := s.terminalManager.GetOrCreateProjectSession(r.Context(), proj.ID, workDir, "", 80, 24, env...)
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to start project terminal: %v", err))
+		return
+	}
+
+	q := r.URL.Query()
+	q.Set("task_id", sessionKey)
+	q.Set("session_id", sess.ID())
+	q.Set("attach", "1")
+	r.URL.RawQuery = q.Encode()
+
+	s.terminalHandler.ServeHTTP(w, r)
+}
+
+// handleGetProjectTerminalStatus returns status and upstream tracking for the project terminal.
+// GET /api/projects/{id}/terminal/status or GET /api/v1/projects/{id}/terminal/status
+func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.Request) {
+	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+	}
+	if rawProjID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+	if s.projectSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "project service is unavailable")
+		return
+	}
+	proj, err := s.projectSvc.Get(r.Context(), rawProjID)
+	if err != nil || proj == nil {
+		respondJSONError(w, 404, "Project not found")
+		return
+	}
+
+	workDir, err := s.projectSvc.ProjectTerminalWorkspace(r.Context(), proj.ID, proj)
+	if err != nil || workDir == "" {
+		workDir = proj.LocalPath
+	}
+
+	shouldFetch := r.URL.Query().Get("fetch") == "1" || r.URL.Query().Get("fetch") == "true"
+	var integrity GitIntegrityReport
+	if shouldFetch {
+		integrity = fetchAndInspectUpstream(r.Context(), workDir, "")
+	} else {
+		integrity = inspectGitIntegrity(r.Context(), workDir, "")
+	}
+
+	var sessSummary map[string]interface{}
+	if s.terminalManager != nil {
+		if sess, ok := s.terminalManager.GetProjectSession(proj.ID); ok && !sess.IsClosed() {
+			cols, rows := sess.PTY().GetSize()
+			sessSummary = map[string]interface{}{
+				"active":        true,
+				"session_id":    sess.ID(),
+				"subscribers":   sess.SubscriberCount(),
+				"created_at":    sess.CreatedAt().Format(time.RFC3339),
+				"last_activity": sess.LastActivity().Format(time.RFC3339),
+				"cols":          cols,
+				"rows":          rows,
+				"pid":           sess.PTY().PID(),
+				"work_dir":      sess.PTY().WorkDir(),
+			}
+		}
+	}
+	if sessSummary == nil {
+		sessSummary = map[string]interface{}{
+			"active": false,
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"project_id":   proj.ID,
+		"project_name": proj.Name,
+		"work_dir":     workDir,
+		"session":      sessSummary,
+		"upstream":     integrity,
+	})
+}
+
+// handleProjectTerminalSyncUpstream triggers a non-destructive git fetch to check upstream commits.
+// POST /api/projects/{id}/terminal/sync-upstream or POST /api/v1/projects/{id}/terminal/sync-upstream
+func (s *Server) handleProjectTerminalSyncUpstream(w http.ResponseWriter, r *http.Request) {
+	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+	}
+	if rawProjID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+	if s.projectSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "project service is unavailable")
+		return
+	}
+	proj, err := s.projectSvc.Get(r.Context(), rawProjID)
+	if err != nil || proj == nil {
+		respondJSONError(w, 404, "Project not found")
+		return
+	}
+
+	workDir, err := s.projectSvc.ProjectTerminalWorkspace(r.Context(), proj.ID, proj)
+	if err != nil || workDir == "" {
+		workDir = proj.LocalPath
+	}
+
+	// Non-destructive fetch without touching uncommitted files or HEAD
+	integrity := fetchAndInspectUpstream(r.Context(), workDir, "")
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":   "fetched",
+		"upstream": integrity,
+	})
+}
+
+// handleCloseProjectTerminalSession closes an active persistent project terminal session.
+// DELETE /api/projects/{id}/terminal or DELETE /api/v1/projects/{id}/terminal
+func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+	}
+	if rawProjID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	_ = s.terminalManager.CloseProjectSession(rawProjID)
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":     "closed",
+		"project_id": rawProjID,
+	})
+}
+
+// handleRotateProjectTerminalBrain rotates the AI brain for an active project terminal session upon quota limits.
+// POST /api/projects/{id}/terminal/rotate-brain or POST /api/v1/projects/{id}/terminal/rotate-brain
+func (s *Server) handleRotateProjectTerminalBrain(w http.ResponseWriter, r *http.Request) {
+	rawProjID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if rawProjID == "" {
+		rawProjID = strings.TrimSpace(r.URL.Query().Get("project_id"))
+	}
+	if rawProjID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	ownerID := s.accountOwner(w, r)
+	if ownerID == "" {
+		return
+	}
+
+	sess, ok := s.terminalManager.GetProjectSession(rawProjID)
+	if !ok || sess == nil || sess.IsClosed() {
+		respondJSONError(w, http.StatusNotFound, "No active terminal session for project")
+		return
+	}
+
+	// Lease healthy backup brain
+	home, brain, release, err := agent.LeaseHealthyBrainForTask(ownerID, nil)
+	if err != nil || brain == nil {
+		respondJSON(w, http.StatusConflict, map[string]string{
+			"error": "No healthy backup AI model available",
+			"code":  "provider_capacity",
+		})
+		return
+	}
+	defer release()
+
+	notice := fmt.Sprintf("\r\n\x1b[32m[cuan]\x1b[0m Rotated to healthy brain %s (%s). Terminal session remains active.\r\n", brain.ModelID, brain.ID)
+	sess.BroadcastBytes([]byte(notice))
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":     "rotated",
+		"account_id": brain.ID,
+		"model_id":   brain.ModelID,
+		"home":       home,
 	})
 }
 
@@ -932,6 +1212,21 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				<-launchSettled
 				if selectedAccountID != "" {
 					_ = output.recordQuotaCooldown(ownerID, selectedAccountID, selectedModel)
+				}
+				sess, ok := s.terminalManager.GetSession(taskID)
+				if ok && sess != nil && sess.IsPersistent() {
+					quotaHit.Store(true)
+					nextHome, nextBrain, nextRelease, err := agent.LeaseHealthyBrainForTask(ownerID, map[string]bool{selectedAccountID: true})
+					if err == nil && nextBrain != nil {
+						defer nextRelease()
+						selectedAccountID = nextBrain.ID
+						selectedModel = nextBrain.ModelID
+						profileHome = nextHome
+						_ = agent.PrepareAntigravitySettings(profileHome, workDir)
+						notice := fmt.Sprintf("\r\n\x1b[33m[cuan]\x1b[0m AI model quota limited (429). Rotated automatically to healthy brain %s (%s). Active terminal session preserved.\r\n", selectedModel, selectedAccountID)
+						sess.BroadcastBytes([]byte(notice))
+					}
+					return
 				}
 				_ = s.terminalManager.StopQuotaAttempt(taskID, attempt.ID)
 				quotaHit.Store(true)

@@ -41,7 +41,8 @@ export function ProjectsWorkspace({
 }) {
   const { t } = useLanguage()
   const navigate = useNavigate()
-  const pathSegments = useLocation().pathname.split('/').filter(Boolean)
+  const location = useLocation()
+  const pathSegments = location.pathname.split('/').filter(Boolean)
   const repositoryView = pathSegments[2] === 'repository'
   const environmentView = pathSegments[2] === 'environment'
   const [query, setQuery] = useState('')
@@ -77,6 +78,15 @@ export function ProjectsWorkspace({
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    const shouldOpen =
+      new URLSearchParams(location.search).get('terminal') === 'open' ||
+      (location.state as { openTerminal?: boolean } | null)?.openTerminal
+    if (shouldOpen && project?.id && !busy && !taskId) {
+      void handleOpenProjectTerminal(project.id)
+    }
+  }, [location.search, location.state, project?.id, taskId])
 
   const handleOpenProjectTerminal = async (projId: string) => {
     setSaveError('')

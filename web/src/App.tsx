@@ -432,6 +432,13 @@ export function App() {
           location.search,
         { replace: true, state: location.state },
       )
+    if (rootSegment === 'projects' && subParam && pathSegments[2] === 'terminal')
+      navigate(
+        '/projects/' +
+          encodeURIComponent(subParam) +
+          '/tasks?terminal=open',
+        { replace: true, state: { ...((location.state as object) || {}), openTerminal: true } },
+      )
   }, [rootSegment, subParam, location.pathname, navigate])
 
   // Deep Link Synchronization & Backward Compatibility Aliases (S59-T3):

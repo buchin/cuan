@@ -46,4 +46,53 @@ export const projectsApi = {
       },
     )
   },
+
+  getTerminalStatus: async (id: string, fetch?: boolean) => {
+    return apiFetch<{
+      project_id: string
+      project_name: string
+      work_dir: string
+      session: {
+        active: boolean
+        session_id?: string
+        subscribers?: number
+        created_at?: string
+        last_activity?: string
+        cols?: number
+        rows?: number
+        pid?: number
+        work_dir?: string
+      }
+      upstream: {
+        branch: string
+        head_sha: string
+        short_head_sha: string
+        status_summary: string
+        upstream: string
+        ahead_count: number
+        behind_count: number
+        sync_status: string
+        warnings?: string[]
+      }
+    }>(`/api/v1/projects/${encodeURIComponent(id)}/terminal/status${fetch ? '?fetch=1' : ''}`)
+  },
+
+  syncTerminalUpstream: async (id: string) => {
+    return apiFetch<{
+      status: string
+      upstream: {
+        branch: string
+        head_sha: string
+        short_head_sha: string
+        status_summary: string
+        upstream: string
+        ahead_count: number
+        behind_count: number
+        sync_status: string
+        warnings?: string[]
+      }
+    }>(`/api/v1/projects/${encodeURIComponent(id)}/terminal/sync-upstream`, {
+      method: 'POST',
+    })
+  },
 }
