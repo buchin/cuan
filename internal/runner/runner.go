@@ -40,9 +40,10 @@ type activeAttempt struct {
 type Runner struct {
 	completionMu     sync.Mutex
 	browserMu        sync.Mutex
-	browserEvidence  *task.VerificationRuntime
-	browserNextProbe time.Time
-	browserProbing   bool
+	browserEvidence      *task.VerificationRuntime
+	browserNextProbe     time.Time
+	browserLastFullProbe time.Time
+	browserProbing       bool
 	cfg              *config.Config
 	adapter          agent.Adapter
 	gitClient        *git.Client

@@ -96,6 +96,12 @@ func RunProjectWorker(ctx context.Context, payload ProjectWorkerPayload) error {
 	}
 	defer bridge.Close()
 
+	guardrailCtx, cancelGuardrail := context.WithCancel(spawnCtx)
+	defer cancelGuardrail()
+	if proc.cmd != nil && proc.cmd.Process != nil && proc.cmd.Process.Pid > 0 {
+		go RunTerminalMemoryGuardrail(guardrailCtx, proc.cmd.Process.Pid, proc.ptyFile, GetTerminalMaxRSSMB(), 5*time.Second)
+	}
+
 	// Write worker metadata/PID
 	statusDir := filepath.Join(socketDir(), "cuan-workers")
 	_ = os.MkdirAll(statusDir, 0755)

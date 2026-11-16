@@ -99,3 +99,54 @@ func TestBrowserRuntimeEvidenceCacheReturnsIndependentCopies(t *testing.T) {
 		t.Fatal("caller mutated readiness cache")
 	}
 }
+
+func TestBrowserRuntimeFastPathIntegrityCheck(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	module := filepath.Join(root, "runtime", "playwright-core")
+	for _, dir := range []string{bin, module} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cli := filepath.Join(module, "cli.js")
+	if err := os.WriteFile(cli, []byte("#!/usr/bin/env node\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(cli, filepath.Join(bin, "cuan-browser")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(module, "package.json"), []byte(`{"name":"playwright-core","version":"1.64.1"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+
+	// Quick verify should succeed for matching version
+	if !quickVerifyBrowserRuntime("1.64.1") {
+		t.Fatal("expected quickVerifyBrowserRuntime to succeed")
+	}
+	// Quick verify should fail for non-matching version
+	if quickVerifyBrowserRuntime("9.99.9") {
+		t.Fatal("expected quickVerifyBrowserRuntime to fail on version mismatch")
+	}
+
+	// Runner fast-path: updates CheckedAt without running probe
+	r := &Runner{
+		browserEvidence: &task.VerificationRuntime{
+			Fingerprint: strings.Repeat("b", 64),
+			Version:     "1.64.1",
+			CheckedAt:   time.Now().Add(-5 * time.Minute),
+		},
+		browserLastFullProbe: time.Now().Add(-10 * time.Minute),
+		browserNextProbe:     time.Now().Add(time.Hour),
+	}
+	oldChecked := r.browserEvidence.CheckedAt
+	evidence := r.browserRuntimeEvidence(context.Background())
+	if evidence == nil {
+		t.Fatal("expected evidence from fast path")
+	}
+	if !evidence.CheckedAt.After(oldChecked) {
+		t.Fatalf("expected CheckedAt to be refreshed, got %v <= %v", evidence.CheckedAt, oldChecked)
+	}
+}

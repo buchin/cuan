@@ -88,17 +88,58 @@ func probeBrowserRuntime(parent context.Context) *task.VerificationRuntime {
 	}
 	return evidence
 }
+
+const browserFullProbeInterval = 1 * time.Hour
+const browserCheckInterval = 3 * time.Minute
+
+func quickVerifyBrowserRuntime(expectedVersion string) bool {
+	env := map[string]string{}
+	browserRuntimeEnvironment(env, false)
+	module := env["CUAN_BROWSER_MODULE"]
+	if module == "" {
+		return false
+	}
+	raw, err := os.ReadFile(filepath.Join(module, "package.json"))
+	if err != nil {
+		return false
+	}
+	var pkg struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(raw, &pkg) != nil || pkg.Name != "playwright-core" || pkg.Version != expectedVersion {
+		return false
+	}
+	return true
+}
+
 func (r *Runner) browserRuntimeEvidence(ctx context.Context) *task.VerificationRuntime {
 	r.browserMu.Lock()
 	defer r.browserMu.Unlock()
 	now := time.Now()
+
+	// If verified evidence exists and was confirmed recently by full probe,
+	// fast-path: verify package integrity without re-launching Chromium.
+	if r.browserEvidence != nil && !r.browserLastFullProbe.IsZero() && now.Sub(r.browserLastFullProbe) < browserFullProbeInterval {
+		if quickVerifyBrowserRuntime(r.browserEvidence.Version) {
+			r.browserEvidence.CheckedAt = now.UTC()
+			copy := *r.browserEvidence
+			return &copy
+		}
+		// Browser uninstalled or corrupted; invalidate cache
+		r.browserEvidence = nil
+	}
+
 	if !r.browserProbing && !now.Before(r.browserNextProbe) {
 		r.browserProbing = true
-		r.browserNextProbe = now.Add(5 * time.Minute)
+		r.browserNextProbe = now.Add(browserCheckInterval)
 		go func() {
 			evidence := probeBrowserRuntime(ctx)
 			r.browserMu.Lock()
 			r.browserEvidence = evidence
+			if evidence != nil {
+				r.browserLastFullProbe = time.Now()
+			}
 			r.browserProbing = false
 			r.browserMu.Unlock()
 		}()
