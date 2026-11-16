@@ -415,8 +415,10 @@ def authorize_service_releases(base, service, current_sha, target_sha, unit_root
     Call only after native payload/ancestry gates. This is service lifecycle
     protection, not a privilege boundary against arbitrary root execution.
     """
-    if not all(re.fullmatch('[0-9a-f]{40}', sha or '') for sha in (current_sha, target_sha)):
+    if not re.fullmatch('[0-9a-f]{40}', target_sha or ''):
         raise RuntimeError('Native service authorization requires exact release identities')
+    if current_sha and not re.fullmatch('[0-9a-f]{40}', current_sha):
+        current_sha = None
     if not base.is_absolute() or base.resolve() != base or not re.fullmatch(r'/[a-zA-Z0-9_./-]+', str(base)):
         raise RuntimeError('Invalid native policy base')
     if not re.fullmatch('[a-zA-Z0-9_-]+', service):
@@ -429,9 +431,12 @@ def authorize_service_releases(base, service, current_sha, target_sha, unit_root
     source = Path(__file__).with_name('verify-authorized-release.py')
     if source.is_symlink() or not source.is_file():
         raise RuntimeError('Native service authorization verifier is unavailable')
+    allowed = [target_sha]
+    if current_sha:
+        allowed.insert(0, current_sha)
     files = {
         root / 'verify-authorized-release.py': source.read_bytes(),
-        root / 'authorized.json': (json.dumps({'version': 1, 'allowed': list(dict.fromkeys([current_sha, target_sha]))}) + '\n').encode(),
+        root / 'authorized.json': (json.dumps({'version': 1, 'allowed': list(dict.fromkeys(allowed))}) + '\n').encode(),
     }
     for destination, content in files.items():
         descriptor, temporary = tempfile.mkstemp(prefix='.policy-', dir=root)
@@ -675,9 +680,8 @@ def main():
                     pass
             # First migration retains its legacy rollback behavior. Service
             # authorization follows all native preconditions and migrations.
-            if re.fullmatch('[0-9a-f]{40}', old.name):
-                authorize_service_releases(BASE, SERVICE, old.name, target.name)
-                subprocess.run(['systemctl', 'daemon-reload'], check=True)
+            authorize_service_releases(BASE, SERVICE, old.name if re.fullmatch('[0-9a-f]{40}', old.name) else None, target.name)
+            subprocess.run(['systemctl', 'daemon-reload'], check=True)
             signal_worker_drain()
             switch(current, target)
             target_sha = (manifest.get('sha') if manifest else None) if not args.no_restart else None
