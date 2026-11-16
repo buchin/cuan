@@ -83,10 +83,14 @@ test('2. S59-T6: InboxSubPanel eliminates noisy badge stack; Things 3 dynamic in
     'InboxSubPanel eliminates bottom task badge under message snippet for airy layout'
   )
 
-  // Dynamic right-slot indicator with TaskProgress
+  // Clean right slot: no TaskProgress or pulsating badge in right slot; unified in left indicator
   assert.ok(
-    subPanelSource.includes('<TaskProgress {...progress} />'),
-    'InboxSubPanel must render TaskProgress in right slot'
+    !subPanelSource.includes('absolute right-0 top-0'),
+    'InboxSubPanel must not render task indicator in right slot'
+  )
+  assert.ok(
+    subPanelSource.includes('data-testid="workflow-status-indicator"'),
+    'InboxSubPanel integrates task progress and workflow indicator in single left indicator'
   )
   assert.ok(
     subPanelSource.includes('taskProgressModel(progress)'),

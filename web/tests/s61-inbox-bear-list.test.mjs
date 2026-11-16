@@ -138,14 +138,18 @@ test('4. Requirement 4: ConversationItem 3-Tier Apple Mail & Bear Inset List Arc
     'Tier 1 must format time with tabular-nums at the right side'
   )
 
-  // Tier 2: Clean typography Subject/Title & right-slot TaskProgress indicator
+  // Tier 2: Clean typography Subject/Title & clean right slot (unified left indicator)
   assert.ok(
-    subPanelContent.includes('<TaskProgress {...progress} />'),
-    'Tier 2 right slot must integrate TaskProgress indicator'
+    subPanelContent.includes('data-testid="workflow-status-indicator"'),
+    'InboxSubPanel integrates status indicator on the left side'
   )
   assert.ok(
     !subPanelContent.includes('data-testid="task-badge-active"'),
     'Tier 2 must eliminate noisy text badge under message snippet'
+  )
+  assert.ok(
+    !subPanelContent.includes('absolute right-0 top-0'),
+    'Tier 2 must keep right slot clean without floating task progress button'
   )
 
   // Tier 3: 1-line snippet in muted zinc-400

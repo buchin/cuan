@@ -119,10 +119,14 @@ test('Criterion 5: Tanpa Task (Slot remains clean without icon)', () => {
   assert.equal(taskProgressModel({ total: 0, done: 0 }), null)
   assert.equal(taskProgressModel({ total: 2, done: 0, active: 0 }), null)
 
-  // Subpanel hides progress slot when model is null
+  // Subpanel eliminates old right slot and uses single left indicator
   assert.ok(
-    subPanelSource.includes('{showProgress && <div className="absolute right-0 top-0 z-10"><TaskProgress {...progress} /></div>}'),
-    'InboxSubPanel conditionally renders TaskProgress only when showProgress is true'
+    !subPanelSource.includes('absolute right-0 top-0 z-10'),
+    'InboxSubPanel eliminates right slot TaskProgress button'
+  )
+  assert.ok(
+    subPanelSource.includes('data-testid="workflow-status-indicator"'),
+    'InboxSubPanel integrates single left status indicator'
   )
 })
 
@@ -143,17 +147,21 @@ test('Criterion 6: Animasi denyut halus (Zero Cognitive Fatigue standard)', () =
 })
 
 test('Criterion 7: Alignment presisi dengan timestamp di resolusi mobile maupun desktop', () => {
-  // InboxSubPanel uses absolute right-0 top-0 and pr-9 on top row for timestamp spacing
+  // Right slot is clean with direct timestamp alignment without artificial pr-9
   assert.ok(
-    subPanelSource.includes('showProgress && "pr-9"'),
-    'InboxSubPanel applies pr-9 to sender row when progress is shown'
+    !subPanelSource.includes('pr-9'),
+    'InboxSubPanel eliminates pr-9 padding on sender row'
   )
   assert.ok(
-    subPanelSource.includes('absolute right-0 top-0 z-10'),
-    'InboxSubPanel positions TaskProgress at absolute right-0 top-0'
+    !subPanelSource.includes('absolute right-0 top-0 z-10'),
+    'InboxSubPanel eliminates absolute right-0 top-0 floating element'
   )
   assert.ok(
     subPanelSource.includes('formatConversationTime'),
     'InboxSubPanel formats conversation time'
+  )
+  assert.ok(
+    subPanelSource.includes('tabular-nums'),
+    'InboxSubPanel formats timestamp with tabular-nums'
   )
 })
