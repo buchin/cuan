@@ -228,3 +228,48 @@ func TestStalledReviewRecoveryRequiresStoredOwnerApproval(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewChainAdvancesDownCompletedDerivedReviews(t *testing.T) {
+	s, d, old := stalledReviewFixture(t, "completed")
+	ctx := context.Background()
+	repo := s.projectStudioRepo.(db.InboxRequestRepository)
+
+	// Step 1: Base review is completed without ownership policy -> queues :ownership-assessment:
+	s.queueInboxTaskReview(ctx, d)
+	rows := reviewRequests(t, s, old.RoomID)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 review requests, got %d", len(rows))
+	}
+
+	// Complete the derived ownership-assessment review
+	var derived *db.InboxRequest
+	for i := range rows {
+		if rows[i].RequestID != old.RequestID {
+			derived = &rows[i]
+			break
+		}
+	}
+	if derived == nil {
+		t.Fatal("derived review not found")
+	}
+	derived.State = "completed"
+	if err := repo.FinishInboxRequest(ctx, *derived, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 2: Calling queueInboxTaskReview without evidence change should not queue anything new
+	s.queueInboxTaskReview(ctx, d)
+	rows2 := reviewRequests(t, s, old.RoomID)
+	if len(rows2) != 2 {
+		t.Fatalf("expected still 2 review requests, got %d", len(rows2))
+	}
+
+	// Step 3: Evidence changes -> chain loop must traverse completed base & ownership reviews and queue :evidence:
+	d.CompleteNote += "; updated test evidence note"
+	s.queueInboxTaskReview(ctx, d)
+	rows3 := reviewRequests(t, s, old.RoomID)
+	if len(rows3) != 3 {
+		t.Fatalf("expected 3 review requests after evidence change, got %d", len(rows3))
+	}
+}
+

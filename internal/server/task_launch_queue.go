@@ -349,7 +349,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		}
 	}
 	if problem.Code == "execution_storage" || problem.Code == "provider_capacity" || problem.Code == "provider_unavailable" || problem.Code == "provider_vision_unsupported" || problem.Code == "repository_preparing" || problem.Code == "project_concurrency_busy" {
-		if job.Checks >= 10 && problem.Code != "execution_storage" && problem.Code != "provider_capacity" && problem.Code != "provider_unavailable" && problem.Code != "project_concurrency_busy" {
+		if job.Checks >= 10 && problem.Code != "execution_storage" && problem.Code != "provider_capacity" && problem.Code != "provider_unavailable" && problem.Code != "project_concurrency_busy" && problem.Code != "repository_preparing" {
 			return finish("stopped", "The task reached maximum queue retry attempts waiting for project concurrency or provider availability. Check active work or run again.")
 		}
 		status := task.TaskStatusQueued

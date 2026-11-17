@@ -42,7 +42,7 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 		return "project-files-prepared-v1"
 	}
 	if strings.Contains(j.SafeError, "maximum queue retry attempts") || strings.Contains(j.SafeError, "being reconciled") || j.SafeError == "" {
-		return "queue-retry-exhausted-v1"
+		return "queue-retry-exhausted-v2"
 	}
 	return ""
 }
