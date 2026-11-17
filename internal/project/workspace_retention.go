@@ -11,9 +11,17 @@ import (
 )
 
 // WorkspaceRetentionPeriod returns the duration completed workspaces are retained.
-// Defaults to 7 days, configurable via CUAN_WORKSPACE_RETENTION_HOURS.
-// Setting CUAN_WORKSPACE_RETENTION_HOURS=0 allows immediate retirement.
+// Defaults to 7 days, configurable via CUAN_WORKSPACE_TTL or CUAN_WORKSPACE_RETENTION_HOURS.
+// Setting CUAN_WORKSPACE_RETENTION_HOURS=0 or CUAN_WORKSPACE_TTL=0 allows immediate retirement.
 func WorkspaceRetentionPeriod() time.Duration {
+	if val := os.Getenv("CUAN_WORKSPACE_TTL"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil && d >= 0 {
+			return d
+		}
+		if h, err := strconv.Atoi(val); err == nil && h >= 0 {
+			return time.Duration(h) * time.Hour
+		}
+	}
 	if val := os.Getenv("CUAN_WORKSPACE_RETENTION_HOURS"); val != "" {
 		if h, err := strconv.Atoi(val); err == nil && h >= 0 {
 			return time.Duration(h) * time.Hour

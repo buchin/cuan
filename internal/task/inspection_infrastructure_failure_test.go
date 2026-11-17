@@ -6,7 +6,7 @@ import (
 )
 
 func TestInspectionInfrastructureFailureRequiresSavedFailureWithoutResult(t *testing.T) {
-	for _, mode := range []string{"launch", "setup", "missing transition", "foreign author", "foreign task", "cancelled", "missing exit", "wrong exit", "running", "interrupted", "unfinished", "final report", "blocked report", "check failure", "repository observation", "unrecognized error", "empty setup diagnostic", "future transition", "setup checks ran", "setup missing checks"} {
+	for _, mode := range []string{"launch", "setup", "stale release", "missing transition", "foreign author", "foreign task", "cancelled", "missing exit", "wrong exit", "running", "interrupted", "unfinished", "final report", "blocked report", "check failure", "repository observation", "unrecognized error", "empty setup diagnostic", "future transition", "setup checks ran", "setup missing checks"} {
 		t.Run(mode, func(t *testing.T) {
 			started := time.Now().UTC().Add(-time.Second)
 			finished := started.Add(time.Second)
@@ -14,6 +14,12 @@ func TestInspectionInfrastructureFailureRequiresSavedFailureWithoutResult(t *tes
 			a := &TaskAttempt{ID: "attempt", TaskID: "task", RunnerID: "worker", Status: AttemptStatusFailed, ExitCode: &exit, StartedAt: &started, FinishedAt: &finished, ErrorMessage: "Could not save task status before starting."}
 			transition := &TaskActivity{TaskID: a.TaskID, AttemptID: &a.ID, ActivityType: ActivityTypeAttempt, Author: "runner", OldStatus: AttemptStatusRunning, NewStatus: AttemptStatusFailed, Message: "[Message: " + a.ErrorMessage + "]", CreatedAt: finished}
 			events := []*TaskActivity{transition}
+			if mode == "stale release" {
+				a.ErrorMessage = StaleInspectionReleaseMessage
+				transition.Author, transition.OldStatus, transition.NewStatus = a.RunnerID, TaskStatusDoing, TaskStatusBlocked
+				transition.Message = "Attempt attempt selesai dengan status 'failed' (exit code: 1, peak RSS: 0 bytes)."
+				events = append(events, &TaskActivity{ID: "verification:" + a.ID, TaskID: a.TaskID, AttemptID: &a.ID, ActivityType: ActivityTypeRunnerVerification, Author: a.RunnerID, Message: `{"summary":""}`})
+			}
 			if mode == "setup" || mode == "setup checks ran" || mode == "setup missing checks" || mode == "empty setup diagnostic" {
 				a.ErrorMessage = InspectionDependencyFailurePrefix + ": npm ERR! ENOSPC"
 				transition.Author, transition.OldStatus, transition.NewStatus = a.RunnerID, TaskStatusDoing, TaskStatusBlocked
@@ -63,7 +69,7 @@ func TestInspectionInfrastructureFailureRequiresSavedFailureWithoutResult(t *tes
 				}
 				events = append(events, e)
 			}
-			if got, want := InspectionInfrastructureFailure(a, events), mode == "launch" || mode == "setup"; got != want {
+			if got, want := InspectionInfrastructureFailure(a, events), mode == "launch" || mode == "setup" || mode == "stale release"; got != want {
 				t.Fatalf("failure classified=%v want=%v", got, want)
 			}
 		})

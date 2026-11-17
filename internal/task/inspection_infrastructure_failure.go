@@ -62,7 +62,8 @@ func InspectionInfrastructureFailure(a *TaskAttempt, events []*TaskActivity) boo
 	}
 	legacyLaunch := a.ErrorMessage == "Could not save task status before starting."
 	setup := strings.HasPrefix(a.ErrorMessage, InspectionDependencyFailurePrefix+": ")
-	if !legacyLaunch && !setup {
+	staleRelease := a.ErrorMessage == StaleInspectionReleaseMessage
+	if !legacyLaunch && !setup && !staleRelease {
 		return false
 	}
 	transition, emptyChecks := false, false
@@ -77,7 +78,7 @@ func InspectionInfrastructureFailure(a *TaskAttempt, events []*TaskActivity) boo
 		}
 		if event.ActivityType == ActivityTypeRunnerVerification {
 			var checks RunnerVerificationRecord
-			if !setup || event.ID != "verification:"+a.ID || event.Author != a.RunnerID || json.Unmarshal([]byte(event.Message), &checks) != nil || checks.Summary != "" || checks.Changes != nil {
+			if (!setup && !staleRelease) || event.ID != "verification:"+a.ID || event.Author != a.RunnerID || json.Unmarshal([]byte(event.Message), &checks) != nil || checks.Summary != "" || checks.Changes != nil {
 				return false
 			}
 			emptyChecks = true
@@ -88,9 +89,9 @@ func InspectionInfrastructureFailure(a *TaskAttempt, events []*TaskActivity) boo
 		if legacyLaunch && event.OldStatus == AttemptStatusRunning && event.NewStatus == AttemptStatusFailed && event.Author == "runner" && strings.Contains(event.Message, "[Message: "+a.ErrorMessage+"]") {
 			transition = true
 		}
-		if setup && event.OldStatus == TaskStatusDoing && event.NewStatus == TaskStatusBlocked && event.Author == a.RunnerID && strings.Contains(event.Message, "selesai dengan status 'failed' (exit code: 1,") {
+		if (setup || staleRelease) && event.OldStatus == TaskStatusDoing && event.NewStatus == TaskStatusBlocked && event.Author == a.RunnerID && strings.Contains(event.Message, "selesai dengan status 'failed' (exit code: 1,") {
 			transition = true
 		}
 	}
-	return transition && (!setup || emptyChecks)
+	return transition && (!setup || emptyChecks) && (!staleRelease || emptyChecks)
 }

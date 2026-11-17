@@ -38,6 +38,12 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 			return "legacy-agent-routing-v1"
 		}
 	}
+	if strings.Contains(j.SafeError, "Project files could not be") {
+		return "project-files-prepared-v1"
+	}
+	if strings.Contains(j.SafeError, "maximum queue retry attempts") {
+		return "queue-retry-exhausted-v1"
+	}
 	return ""
 }
 
@@ -61,7 +67,7 @@ func (m *MemoryStore) RecoverUnstartedLaunch(_ context.Context, id string, expec
 	t := m.tasks[j.TaskID]
 	kind := UnstartedLaunchRecoveryKind(*j, t)
 	key := id + "\x00" + kind
-	if m.launchRecoveries[key] || j.State != "stopped" || kind == "" || !j.UpdatedAt.Equal(expected) || !j.ExpiresAt.After(now) || (j.Revision == "" && kind != StandaloneArtifactRecoveryKind) || t == nil || (t.Status != TaskStatusQueued && t.Status != TaskStatusBlocked) || t.ProjectID != j.ProjectID || LaunchInstructionsHash(t.Instructions) != j.InstructionsHash {
+	if m.launchRecoveries[key] || j.State != "stopped" || kind == "" || !j.UpdatedAt.Equal(expected) || !j.ExpiresAt.After(now) || t == nil || (t.Status != TaskStatusQueued && t.Status != TaskStatusBlocked) || t.ProjectID != j.ProjectID || LaunchInstructionsHash(t.Instructions) != j.InstructionsHash {
 		return false, nil
 	}
 	for _, other := range m.launches {
@@ -121,7 +127,7 @@ func (s *DBStore) RecoverUnstartedLaunch(ctx context.Context, id string, expecte
 	var recovered string
 	err = tx.QueryRowContext(ctx, `WITH eligible AS (
  SELECT j.id,j.task_id FROM task_launches j JOIN tasks t ON t.id=j.task_id
- WHERE j.id=$1 AND j.updated_at=$2 AND j.state='stopped' AND j.safe_error=$3 AND j.expires_at>$4 AND ($5='standalone-artifact-workspace-v1' OR btrim(j.revision)<>'')
+ WHERE j.id=$1 AND j.updated_at=$2 AND j.state='stopped' AND j.safe_error=$3 AND j.expires_at>$4
  AND t.status IN ('queued','blocked') AND COALESCE(t.project_id,'')=j.project_id
  AND j.instructions_hash=encode(digest(t.instructions,'sha256'),'hex')
  AND j.id=(SELECT id FROM task_launches WHERE task_id=j.task_id ORDER BY created_at DESC,id DESC LIMIT 1)

@@ -80,6 +80,7 @@ import { ComposerTasks } from './ComposerTasks'
 import { isTaskActive } from './task-progress'
 import { cacheTasks } from './TaskCard'
 import { notifyTaskCompleted } from './task-notifications'
+import { isComposerWhisper, extractMentionHandle } from './mention-whisper'
 import { cn } from '../../lib/utils'
 import { InboxSubPanel, ContactFilterTab } from './InboxSubPanel'
 
@@ -472,31 +473,42 @@ export function InboxView({
   )
   const [showCannedManageModal, setShowCannedManageModal] = useState(false)
   const [isMultiline, setIsMultiline] = useState(false)
-  const [whisperMode, setWhisperMode] = useState(false)
-  const [whisperHandle, setWhisperHandle] = useState<string>('@cuan')
+
+  // Real-time auto-whisper when mentioning an agent in customer conversations
+  const isWhisper = isComposerWhisper(activeContact?.type, inputMessage)
+  const detectedMention = activeContact?.type === 'customer' ? extractMentionHandle(inputMessage) : ''
+  const whisperHandle = detectedMention || '@cuan'
+
+  const setWhisperMode = useCallback((val: boolean) => {
+    if (val && activeContact?.type === 'customer') {
+      setInputMessage((current) => {
+        const trimmed = current.trim()
+        if (!trimmed.startsWith('@')) {
+          return trimmed ? `@cuan ${trimmed}` : '@cuan '
+        }
+        return current
+      })
+    } else if (!val && activeContact?.type === 'customer') {
+      setInputMessage((current) => {
+        if (current.trim().startsWith('@')) {
+          return current.replace(/^@(cuan|team|sm|dev|[a-zA-Z0-9_-]+)\s*/i, '')
+        }
+        return current
+      })
+    }
+  }, [activeContact?.type])
 
   const handleTaskDiscussion = useCallback((draftText: string) => {
     if (!draftText) return
-    if (activeContact?.type === 'customer') setWhisperMode(true)
-    setInputMessage(current => current.trim() ? current + '\n\n' + draftText : draftText)
+    const textToInsert = activeContact?.type === 'customer' && !draftText.trim().startsWith('@')
+      ? `@cuan ${draftText}`
+      : draftText
+    setInputMessage(current => current.trim() ? current + '\n\n' + textToInsert : textToInsert)
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
       if (textareaRef.current) autoResizeTextarea(textareaRef.current)
     })
   }, [activeContact?.type])
-
-  useEffect(() => {
-    if (activeContact?.type === 'customer') {
-      const trimmed = inputMessage.trim().toLowerCase()
-      if (trimmed.startsWith('@cuan')) {
-        setWhisperMode(true)
-        setWhisperHandle('@cuan')
-      } else if (trimmed.startsWith('@team') || trimmed.startsWith('@sm') || trimmed.startsWith('@dev')) {
-        setWhisperMode(true)
-        setWhisperHandle('@cuan')
-      }
-    }
-  }, [inputMessage, activeContact?.type])
 
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
   const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
@@ -1054,7 +1066,7 @@ export function InboxView({
     const convId = activeContact.conversation_id || activeContact.id
     const pending = pendingRef.current?.convId === convId ? pendingRef.current : null
     let text = pending?.convId === convId ? pending.text : overrideText ? overrideText : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
-    if (!pending && !regenerateReplyId && !approveMessageId && activeContact.type === 'customer' && whisperMode && text && !text.startsWith('@')) {
+    if (!pending && !regenerateReplyId && !approveMessageId && activeContact.type === 'customer' && isWhisper && text && !extractMentionHandle(text) && !text.startsWith('@')) {
       text = `${whisperHandle} ${text}`
     }
     if (!text && !uploads.items.length && !pending?.attachmentIds?.length)
@@ -1719,8 +1731,6 @@ export function InboxView({
                         run: () => {
                           const body = msg.content || msg.message || ''
                           const snippet = body.length > 80 ? body.slice(0, 77) + '…' : body
-                          setWhisperMode(true)
-                          setWhisperHandle('@cuan')
                           setInputMessage(`@cuan regarding "${snippet}": `)
                           textareaRef.current?.focus()
                           if (textareaRef.current) autoResizeTextarea(textareaRef.current)
@@ -1932,8 +1942,6 @@ export function InboxView({
                         regenerating={!!msg.uuid && regeneratingDrafts.has(msg.uuid)}
                         onRegenerate={msg.uuid ? () => { void handleSendMessage(undefined, undefined, undefined, 'Regenerate draft', msg.uuid) } : undefined}
                         onUse={(draft) => {
-                        setWhisperMode(false)
-                        setWhisperHandle('')
                         setInputMessage(draft)
                         textareaRef.current?.focus()
                         if (textareaRef.current) autoResizeTextarea(textareaRef.current)
@@ -2109,82 +2117,27 @@ export function InboxView({
               onDragOver={uploads.onDragOver}
             >
               <div className="mx-auto max-w-[75ch] bg-transparent">
-                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@'))} />
+                <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && isWhisper} />
                 <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}
                   tasks={linkedTasks}
                   onDetails={task => handleOpenTaskDrawer(task)}
                   onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
-                  modes={activeContact.type === 'customer' && (
-                  <div className="flex items-end justify-between text-xs">
-                    <div className="flex min-w-0 items-center">
-                      <div role="tablist" aria-label={t('Reply mode')} className="composer-mode-tabs inline-flex bg-transparent" onKeyDown={event => {
-                        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-                        event.preventDefault()
-                        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
-                        const current = tabs.indexOf(document.activeElement as HTMLButtonElement)
-                        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
-                        tabs[next]?.click()
-                        tabs[next]?.focus()
-                      }}>
-                        <button
-                          role="tab"
-                          id="compose-public-tab"
-                          aria-selected={!whisperMode}
-                          aria-controls="compose-panel"
-                          tabIndex={!whisperMode ? 0 : -1}
-                          type="button"
-                          onClick={() => {
-                            setWhisperMode(false)
-                            if (inputMessage.trim().startsWith('@')) {
-                              setInputMessage(inputMessage.replace(/^@(cuan|team|sm|dev)\s*/i, ''))
-                            }
-                          }}
-                          className={cn(
-                            'composer-mode-tab inline-flex min-h-11 items-center px-3 text-xs cursor-pointer',
-                            'font-medium'
-                          )}
-                        >
-                          {t('Public reply')}
-                        </button>
-                        <button
-                          role="tab"
-                          id="compose-internal-tab"
-                          aria-selected={whisperMode}
-                          aria-controls="compose-panel"
-                          tabIndex={whisperMode ? 0 : -1}
-                          type="button"
-                          onClick={() => {
-                            setWhisperMode(true)
-                            setWhisperHandle('@cuan')
-                            const trimmed = inputMessage.trim()
-                            if (!trimmed.startsWith('@')) {
-                              setInputMessage(trimmed ? `@cuan ${trimmed}` : '@cuan ')
-                            }
-                            textareaRef.current?.focus()
-                            if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-                          }}
-                          className={cn(
-                            'composer-mode-tab inline-flex min-h-11 items-center gap-1.5 px-3 text-xs cursor-pointer',
-                            'font-medium'
-                          )}
-                        >
-                          <Lock className="h-3 w-3 text-amber-500" />
-                          <span>{t('Whisper @cuan')}</span>
-                        </button>
-                      </div>
+                  modes={activeContact.type === 'customer' && isWhisper ? (
+                    <div className="flex items-center gap-1.5 py-1 px-1 text-xs text-amber-600 dark:text-amber-400 font-medium animate-in fade-in duration-150">
+                      <Lock className="h-3 w-3 shrink-0" />
+                      <span>{detectedMention && detectedMention !== '@cuan' ? `${t('Whisper AI:')} ${detectedMention}` : t('Whisper @cuan')}</span>
+                      <span className="text-[11px] text-muted-foreground font-normal">({t('Internal · Invisible to visitor')})</span>
                     </div>
-                  </div>
-                )}
+                  ) : undefined}
                 />
                 <Composer
                   id="compose-panel"
-                  role={activeContact.type === 'customer' ? 'tabpanel' : undefined}
-                  aria-labelledby={activeContact.type === 'customer' ? (whisperMode ? 'compose-internal-tab' : 'compose-public-tab') : undefined}
+                  aria-description={activeContact.type === 'customer' ? (isWhisper ? t('Whisper @cuan') : t('Public reply')) : undefined}
                   className={`${
                     isMultiline ? 'is-multiline' : ''
                   } ${
-                    activeContact.type === 'customer' && (whisperMode || inputMessage.trim().startsWith('@')) ? 'ring-1 ring-amber-500/50 border-amber-500/40' : ''
+                    activeContact.type === 'customer' && isWhisper ? 'ring-1 ring-amber-500/50 border-amber-500/40 bg-amber-500/[0.02]' : ''
                   }`}
                 >
                   <ComposerAccessory>
@@ -2212,7 +2165,7 @@ export function InboxView({
                     placeholder={
                       activeContact.type === 'agent'
                         ? t('Write a message…')
-                        : whisperMode || inputMessage.trim().startsWith('@')
+                        : isWhisper
                         ? t('Internal message…')
                         : t('Write a reply…')
                     }
@@ -2245,10 +2198,11 @@ export function InboxView({
                       sending ||
                       uploads.busy
                     }
-                    title={inputMessage.trim().startsWith('@') ? t('Send internal whisper to AI') : t('Send message (Enter)')}
-                    aria-label={inputMessage.trim().startsWith('@') ? t('Send internal whisper to AI') : t('Send message')}
+                    className={isWhisper ? 'text-amber-500 hover:text-amber-400 bg-amber-500/15 hover:bg-amber-500/25' : undefined}
+                    title={isWhisper ? t('Send internal whisper to AI') : `${t('Send message (Enter)')} (${t('Public reply')})`}
+                    aria-label={isWhisper ? t('Send internal whisper to AI') : t('Send message')}
                   >
-                    {inputMessage.trim().startsWith('@') ? (
+                    {isWhisper ? (
                       <Lock className="h-4 w-4" />
                     ) : (
                       <Send className="h-[18px] w-[18px]" />

@@ -279,8 +279,8 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 			}
 			j.UpdatedAt = now
 		}
-		// Auto-cancel abandoned interactive terminal tasks queued > 5 min
-		if t != nil && t.Status == TaskStatusQueued && strings.HasPrefix(t.Title, "Terminal · ") && t.CreatedAt.Before(now.Add(-5*time.Minute)) {
+		// Auto-cancel abandoned interactive terminal tasks queued or blocked > 5 min
+		if t != nil && (t.Status == TaskStatusQueued || t.Status == TaskStatusBlocked || t.Status == TaskStatusBacklog) && strings.HasPrefix(t.Title, "Terminal · ") && (t.CreatedAt.Before(now.Add(-5*time.Minute)) || t.UpdatedAt.Before(now.Add(-5*time.Minute))) {
 			t.Status = "cancelled"
 			t.UpdatedAt = now
 			if j.State == "queued" || j.State == "claimed" || j.State == "started" {

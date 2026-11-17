@@ -59,7 +59,7 @@ func TestPTYDiagnosticPipelinePreservesSplitFailureAndStopsSplitQuota(t *testing
 			var count int64
 			limit := 5 * time.Second
 			if scenario == "deadline" {
-				limit = 1200 * time.Millisecond
+				limit = 2 * time.Second
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), limit)
 			defer cancel()

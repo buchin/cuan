@@ -38,3 +38,14 @@ func (c *Client) FetchVerificationCommit(ctx context.Context, path, repoURL, com
 	}
 	return nil
 }
+
+// FetchLocalCommit obtains one exact revision from another local repository or worktree on disk.
+// It imports object data directly into the destination repository without network calls.
+func (c *Client) FetchLocalCommit(ctx context.Context, destPath, localSourcePath, commit string) error {
+	if !snapshotObjectID.MatchString(commit) {
+		return errors.New("verification requires an exact repository commit")
+	}
+	cmd := exec.CommandContext(ctx, c.gitBinary, "-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-C", destPath, "fetch", "--no-tags", "--no-auto-maintenance", "--no-write-fetch-head", "--recurse-submodules=no", "--", localSourcePath, commit)
+	cmd.Env = verificationGitEnvironment()
+	return cmd.Run()
+}

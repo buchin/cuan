@@ -79,7 +79,7 @@ func (s *Server) recoverUnstartedInboxTask(ctx context.Context, d *task.TaskDeta
 		return false
 	}
 	kind := task.UnstartedLaunchRecoveryKind(j, &d.Task)
-	if j.State != "stopped" || kind == "" || (j.Revision == "" && kind != task.StandaloneArtifactRecoveryKind) || !j.ExpiresAt.After(time.Now()) || (d.Status != task.TaskStatusQueued && d.Status != task.TaskStatusBlocked) {
+	if j.State != "stopped" || kind == "" || !j.ExpiresAt.After(time.Now()) || (d.Status != task.TaskStatusQueued && d.Status != task.TaskStatusBlocked) {
 		return false
 	}
 	if kind == "legacy-agent-routing-v1" {

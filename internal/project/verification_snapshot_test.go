@@ -207,3 +207,76 @@ func TestRelevantVerificationChangeCreatesNoSnapshotAndPreservesPendingWork(t *t
 		t.Fatal("irrelevant deployment created a snapshot")
 	}
 }
+
+func TestVerificationTargetFallbackToLocalWorkspaces(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	cache := filepath.Join(root, "data", "projects", "proj1")
+	if err := os.MkdirAll(cache, 0700); err != nil {
+		t.Fatal(err)
+	}
+	run := func(dir string, args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatal(err, string(out))
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run(cache, "init", "--initial-branch=main")
+	if err := os.WriteFile(filepath.Join(cache, "file.txt"), []byte("c1"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run(cache, "add", ".")
+	run(cache, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Commit 1")
+	c1 := run(cache, "rev-parse", "HEAD")
+
+	// Create a separate task workspace under root/data/workspaces/task_abc
+	taskWorkspace := filepath.Join(root, "data", "workspaces", "task_abc")
+	if err := os.MkdirAll(taskWorkspace, 0700); err != nil {
+		t.Fatal(err)
+	}
+	run(taskWorkspace, "init", "--initial-branch=cuan/task-abc")
+	run(taskWorkspace, "remote", "add", "origin", cache)
+	run(taskWorkspace, "pull", "origin", "main")
+	if err := os.WriteFile(filepath.Join(taskWorkspace, "file.txt"), []byte("c2-local-work"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run(taskWorkspace, "add", ".")
+	run(taskWorkspace, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "Commit 2 in local workspace")
+	c2 := run(taskWorkspace, "rev-parse", "HEAD")
+
+	// Verify c2 does NOT exist in cache
+	cmd := exec.Command("git", "-C", cache, "cat-file", "-e", c2+"^{commit}")
+	if cmd.Run() == nil {
+		t.Fatal("c2 should not exist in cache initially")
+	}
+
+	store := NewMemoryStore()
+	if err := store.CreateProject(ctx, &Project{
+		ID:            "proj1",
+		Name:          "Project 1",
+		RepoURL:       "https://github.com/fixture/nonexistent-remote.git",
+		LocalPath:     cache,
+		DefaultBranch: "main",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	baseDir := filepath.Join(root, "data", "projects")
+	service := NewService(store, nil, "fixture-key", baseDir)
+
+	// Call VerificationSnapshot requesting c1 and c2.
+	// Remote fetch will fail (nonexistent remote), but it must find c2 in root/data/workspaces/task_abc!
+	snapPath, err := service.VerificationSnapshot(ctx, "proj1", "task_abc", c1, c2)
+	if err != nil {
+		t.Fatalf("expected VerificationSnapshot to succeed via local workspace fallback, got error: %v", err)
+	}
+	if snapPath == "" {
+		t.Fatal("expected non-empty snapshot path")
+	}
+	headCommit := run(snapPath, "rev-parse", "HEAD")
+	if headCommit != c2 {
+		t.Fatalf("expected snapshot HEAD to be c2 (%s), got: %s", c2, headCommit)
+	}
+}

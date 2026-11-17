@@ -33,6 +33,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "worker-project" {
 		os.Exit(terminal.RunProjectWorkerCLI(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && (os.Args[1] == "admin" || os.Args[1] == "backup" || os.Args[1] == "restore") {
+		os.Exit(diagnostics.RunAdminCLI(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "maintenance" {
 		os.Exit(diagnostics.RunMaintenanceCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
@@ -320,6 +323,7 @@ func main() {
 	srv.StartWorkspaceRetention(inboxCtx)
 	srv.StartGitHubRecovery(inboxCtx)
 	srv.StartRunnerSupervisor(inboxCtx)
+	srv.StartProactiveWatchdog(inboxCtx)
 	go server.EnsureRuntimePrerequisites(inboxCtx)
 
 	addr := ":" + cfg.ServerPort

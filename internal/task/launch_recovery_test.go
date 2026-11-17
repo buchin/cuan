@@ -130,7 +130,7 @@ func unstartedWorkspaceRecoveryContract(t *testing.T, store Store, project strin
 				expected = expected.Add(-time.Second)
 			}
 			recovered, err := recovery.RecoverUnstartedLaunch(ctx, j.ID, expected, at)
-			if err != nil || recovered != (scenario == "recover" || scenario == "active-collision" || scenario == "legacy-agent" || scenario == "artifact") {
+			if err != nil || recovered != (scenario == "recover" || scenario == "active-collision" || scenario == "legacy-agent" || scenario == "artifact" || scenario == "no-revision") {
 				t.Fatalf("recovery %v: %v", recovered, err)
 			}
 			if !recovered {
