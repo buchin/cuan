@@ -122,14 +122,41 @@ export function TaskSessionPage({
   const following = useRef(false)
   const refresh = useCallback(async () => {
     try {
-      setDetail(await tasksApi.get(taskId))
+      const nextDetail = await tasksApi.get(taskId)
+      setDetail((prev) => {
+        if (
+          prev &&
+          nextDetail &&
+          prev.id === nextDetail.id &&
+          prev.status === nextDetail.status &&
+          prev.latest_attempt?.id === nextDetail.latest_attempt?.id &&
+          prev.latest_attempt?.status === nextDetail.latest_attempt?.status &&
+          prev.activities?.length === nextDetail.activities?.length
+        ) {
+          return prev
+        }
+        return nextDetail
+      })
       setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this session.')
     }
     try {
       const runtime = await tasksApi.runtime(taskId)
-      setLive(runtime.live_session || null)
+      const nextLive = runtime.live_session || null
+      setLive((prev) => {
+        if (!prev && !nextLive) return prev
+        if (
+          prev &&
+          nextLive &&
+          prev.session_id === nextLive.session_id &&
+          prev.attempt_id === nextLive.attempt_id &&
+          prev.agent_id === nextLive.agent_id
+        ) {
+          return prev
+        }
+        return nextLive
+      })
       setRuntimeError('')
     } catch {
       setLive(null)
@@ -241,12 +268,12 @@ export function TaskSessionPage({
   } | null>(null)
   const [upstreamLoading, setUpstreamLoading] = useState(false)
 
+  const targetProjId = detail?.project_id || detail?.project_ids?.[0]
   const loadUpstreamStatus = useCallback(async (fetchRemote = false) => {
-    const projId = detail?.project_id || detail?.project_ids?.[0]
-    if (!projId) return
+    if (!targetProjId) return
     setUpstreamLoading(true)
     try {
-      const res = await projectsApi.getTerminalStatus(projId, fetchRemote)
+      const res = await projectsApi.getTerminalStatus(targetProjId, fetchRemote)
       if (res?.upstream) {
         setUpstreamStatus(res.upstream)
       }
@@ -254,13 +281,15 @@ export function TaskSessionPage({
     finally {
       setUpstreamLoading(false)
     }
-  }, [detail?.project_id, detail?.project_ids])
+  }, [targetProjId])
 
+  const upstreamFetchedProjRef = useRef<string>('')
   useEffect(() => {
-    if (isDedicatedTerminal && (detail?.project_id || detail?.project_ids?.[0])) {
+    if (isDedicatedTerminal && targetProjId && upstreamFetchedProjRef.current !== targetProjId) {
+      upstreamFetchedProjRef.current = targetProjId
       void loadUpstreamStatus(false)
     }
-  }, [isDedicatedTerminal, detail?.project_id, detail?.project_ids, loadUpstreamStatus])
+  }, [isDedicatedTerminal, targetProjId, loadUpstreamStatus])
 
   const reports =
     detail?.activities.filter(
@@ -653,7 +682,7 @@ export function TaskSessionPage({
           <div className="min-h-0 flex-1 overscroll-contain">
             <Suspense fallback={<div className="h-full w-full bg-black/90 flex items-center justify-center text-xs font-mono text-muted-foreground">Connecting terminal...</div>}>
               <TaskTerminal
-                key={sessionId}
+                key={isDedicatedTerminal ? taskId : taskId}
                 taskId={taskId}
                 attempt={attempt}
                 live={live}

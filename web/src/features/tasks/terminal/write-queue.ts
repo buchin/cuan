@@ -89,8 +89,11 @@ export function createTerminalWriteQueue(
         return
       }
 
+      // When large backlog accumulates (e.g. initial connection history replay),
+      // drain in fast bulk chunks (TERMINAL_WRITE_CHUNK_CHARS = 8000) so the screen stabilizes
+      // immediately without an artificial slow typewriter replay effect.
       const adaptiveChunk =
-        pending.length > visibleCap ? TERMINAL_WRITE_CHUNK_CHARS : chunkSize
+        pending.length > 512 ? TERMINAL_WRITE_CHUNK_CHARS : chunkSize
       const chunk =
         pending.length <= adaptiveChunk ? pending : pending.slice(0, adaptiveChunk)
       pending =

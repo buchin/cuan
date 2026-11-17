@@ -168,6 +168,9 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 					if tDetail.LatestAttempt.Status != task.AttemptStatusRunning {
 						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 					}
+				} else if tDetail.LatestAttempt != nil && terminal.ProjectSocketExists(targetProjID) {
+					activeAttID = tDetail.LatestAttempt.ID
+					_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 				} else {
 					if att, err := s.taskSvc.CreateAttempt(r.Context(), taskID, "runner", task.CreateAttemptRequest{
 						RunnerID:  "local_terminal",
@@ -1140,7 +1143,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							}
 						}
 						workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
-						if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) && revision != "" && detail.LatestAttempt != nil {
+						if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) {
 							workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), taskID, project)
 						}
 						if e != nil {
@@ -1652,12 +1655,41 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-	// The decoupled runner owns its PTY; only expose the current attempt socket.
+	// The decoupled runner owns its PTY; check for active project socket or attempt socket.
 	if live == nil && s.taskSvc != nil {
-		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && detail != nil && detail.LatestAttempt != nil {
-			att := detail.LatestAttempt
-			if att.Status == task.AttemptStatusRunning && terminal.SocketExists(att.ID) {
-				live = map[string]any{"session_id": "runner-sess-" + att.ID, "attempt_id": att.ID, "agent_id": att.AgentName, "started_at": att.StartedAt}
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && detail != nil {
+			targetProjID := detail.ProjectID
+			if targetProjID == "" && len(detail.ProjectIDs) > 0 {
+				targetProjID = detail.ProjectIDs[0]
+			}
+			if targetProjID != "" && terminal.ProjectSocketExists(targetProjID) {
+				sessionKey := terminal.ProjectSessionKey(targetProjID)
+				attID := ""
+				agentName := detail.AssignedAgent
+				var startedAt time.Time
+				if detail.LatestAttempt != nil {
+					attID = detail.LatestAttempt.ID
+					if agentName == "" {
+						agentName = detail.LatestAttempt.AgentName
+					}
+					if detail.LatestAttempt.StartedAt != nil {
+						startedAt = *detail.LatestAttempt.StartedAt
+					}
+				}
+				if startedAt.IsZero() {
+					startedAt = detail.CreatedAt
+				}
+				live = map[string]any{
+					"session_id": sessionKey,
+					"attempt_id": attID,
+					"agent_id":   agentName,
+					"started_at": startedAt,
+				}
+			} else if detail.LatestAttempt != nil {
+				att := detail.LatestAttempt
+				if att.Status == task.AttemptStatusRunning && terminal.SocketExists(att.ID) {
+					live = map[string]any{"session_id": "runner-sess-" + att.ID, "attempt_id": att.ID, "agent_id": att.AgentName, "started_at": att.StartedAt}
+				}
 			}
 		}
 	}

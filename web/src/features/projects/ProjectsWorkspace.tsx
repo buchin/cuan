@@ -1,7 +1,7 @@
 import { ListSearch, ListTabs, ListTab, ListRowContent } from '../../components/layout/ListControls'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal, ExternalLink, Loader2 } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
@@ -79,6 +79,7 @@ export function ProjectsWorkspace({
     }
   }
 
+  const terminalAutoOpenedRef = useRef(false)
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const hasTerminalParam = searchParams.get('terminal') === 'open'
@@ -90,8 +91,10 @@ export function ProjectsWorkspace({
       (hasTerminalParam || hasTerminalState) &&
       project?.id &&
       !openingTerminalId &&
-      !taskId
+      !taskId &&
+      !terminalAutoOpenedRef.current
     ) {
+      terminalAutoOpenedRef.current = true
       // Clean up the URL / history state on the project workspace so that returning via back button
       // does not re-trigger the auto-open effect.
       if (hasTerminalParam) {
@@ -99,20 +102,15 @@ export function ProjectsWorkspace({
         const newSearch = searchParams.toString()
           ? `?${searchParams.toString()}`
           : ''
-        navigate(`${location.pathname}${newSearch}`, {
-          replace: true,
-          state: {
-            ...((location.state as object) || {}),
-            openTerminal: undefined,
-          },
-        })
+        try {
+          window.history.replaceState(null, '', `${location.pathname}${newSearch}`)
+        } catch {}
       } else if (hasTerminalState) {
         const { openTerminal, ...cleanState } =
           (location.state as Record<string, unknown>) || {}
-        navigate(`${location.pathname}${location.search}`, {
-          replace: true,
-          state: Object.keys(cleanState).length > 0 ? cleanState : undefined,
-        })
+        try {
+          window.history.replaceState(cleanState, '', `${location.pathname}${location.search}`)
+        } catch {}
       }
       void handleOpenProjectTerminal(project.id)
     }

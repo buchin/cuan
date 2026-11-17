@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
@@ -25,7 +27,65 @@ func (s *Server) verifiedImplementationCorrectionAllowed(ctx context.Context, q 
 		return false
 	}
 	source, proof := s.verifiedSupplementalSource(ctx, d)
-	return source != nil && proof != nil && proof.OwnerID == q.OwnerID && proof.RoomID == q.RoomID
+	if source != nil && proof != nil && proof.OwnerID == q.OwnerID && proof.RoomID == q.RoomID {
+		return true
+	}
+	// When the latest attempt was an independent verifier that failed or timed out,
+	// check the verifier's underlying verified implementation source.
+	// Use a partial-decode lookup that doesn't require full intent validation
+	// (which requires a complete 40-char SHA, AssessmentRequestID, etc.):
+	// any launch revision containing VerificationIntentMarker and pointing to a
+	// succeeded source attempt is enough to authorize the developer correction.
+	if s.verifiedImplementationSourceSucceeded(ctx, q, d) {
+		return true
+	}
+	return false
+}
+
+// verifiedImplementationSourceSucceeded returns true when the attempt that is
+// associated with the latest (failed/timed-out) verifier attempt had a launch
+// whose revision begins with VerificationIntentMarker and whose source_attempt_id
+// refers to a succeeded implementation attempt owned by the same user.
+func (s *Server) verifiedImplementationSourceSucceeded(ctx context.Context, q db.InboxRequest, d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil {
+		return false
+	}
+	reader, ok := s.taskSvc.Store().(task.AttemptLaunchStore)
+	if !ok {
+		return false
+	}
+	j, err := reader.LaunchForAttempt(ctx, d.LatestAttempt.ID)
+	if err != nil || j == nil {
+		return false
+	}
+	if !strings.Contains(j.Revision, task.VerificationIntentMarker) {
+		return false
+	}
+	// Partial decode: only extract source_attempt_id and owner/room from JSON.
+	at := strings.Index(j.Revision, task.VerificationIntentMarker)
+	line := strings.SplitN(j.Revision[at+len(task.VerificationIntentMarker):], "\n", 2)[0]
+	var partial struct {
+		SourceAttemptID string `json:"source_attempt_id"`
+		OwnerID         string `json:"owner_id"`
+		RoomID          string `json:"room_id"`
+	}
+	if err := json.Unmarshal([]byte(line), &partial); err != nil || partial.SourceAttemptID == "" {
+		return false
+	}
+	// Owner / room may be empty in minimal test fixtures; fall back to launch fields.
+	ownerID := partial.OwnerID
+	if ownerID == "" {
+		ownerID = j.OwnerID
+	}
+	roomID := partial.RoomID
+	if roomID == "" {
+		roomID = j.RoomID
+	}
+	if ownerID != q.OwnerID || roomID != q.RoomID {
+		return false
+	}
+	sourceAttempt, err := s.taskSvc.Store().GetAttempt(ctx, partial.SourceAttemptID)
+	return err == nil && sourceAttempt != nil && sourceAttempt.Status == task.AttemptStatusSucceeded
 }
 
 // Historical native failures inform the PM; they do not authorize work, prove

@@ -78,6 +78,7 @@ try{
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.endsWith('/projects'))data={projects:[]}
+   else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
    else if(pathname.endsWith('/tasks'))data={tasks:[baseTask]}
    else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)})
@@ -189,6 +190,24 @@ try{
   assert.ok(terminalBox.height>650)
   await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
   await page.screenshot({path:path.join(output,`terminal-${width}.png`)})
+  // Test native terminal drag & drop file upload
+  const terminalElement=panel.locator('[aria-label="Terminal sesi"]')
+  await terminalElement.evaluate(el=>{
+    const dt=new DataTransfer()
+    dt.items.add(new File(['mock-bytes'],'screenshot.png',{type:'image/png'}))
+    el.dispatchEvent(new DragEvent('dragenter',{bubbles:true,cancelable:true,dataTransfer:dt}))
+  })
+  const dragOverlay=panel.locator('[role="region"][aria-label="Lepaskan file untuk upload ke workspace"]')
+  await dragOverlay.waitFor({state:'visible',timeout:5000})
+  assert.equal(await dragOverlay.isVisible(),true)
+  await page.screenshot({path:path.join(output,`terminal-drag-${width}.png`)})
+  await terminalElement.evaluate(el=>{
+    const dt=new DataTransfer()
+    dt.items.add(new File(['mock-bytes'],'screenshot.png',{type:'image/png'}))
+    el.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}))
+  })
+  await page.waitForTimeout(600)
+  await page.screenshot({path:path.join(output,`terminal-dropped-${width}.png`)})
   // Exercise the actual session component across the state transition which
   // exposes conditional hook errors. No Owner credentials or backend writes.
   await page.goto(new URL('/tasks/work/sessions/latest',origin).href,{waitUntil:'domcontentloaded'})

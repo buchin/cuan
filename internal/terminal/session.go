@@ -126,8 +126,14 @@ func (s *Session) SetPersistent(p bool) {
 }
 
 // Subscribe registers a new subscriber to receive output stream.
-// It immediately pushes any buffered terminal history to the subscriber channel.
+// It immediately pushes bounded historical terminal history (up to DefaultAttachSeedMaxBytes) to the subscriber.
 func (s *Session) Subscribe(subID string, clientMode Mode) (*Subscriber, []byte, error) {
+	return s.SubscribeWithSeedCap(subID, clientMode, DefaultAttachSeedMaxBytes)
+}
+
+// SubscribeWithSeedCap registers a new subscriber with a configurable history seed cap in bytes.
+// If maxBytes <= 0, DefaultAttachSeedMaxBytes is used.
+func (s *Session) SubscribeWithSeedCap(subID string, clientMode Mode, maxBytes int) (*Subscriber, []byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -149,10 +155,21 @@ func (s *Session) Subscribe(subID string, clientMode Mode) (*Subscriber, []byte,
 	s.subscribers[subID] = sub
 	s.lastActivity = time.Now().UTC()
 
-	// Snapshot historical buffer for the new client
-	history := s.historyBuffer.Bytes()
+	// Snapshot historical buffer for the new client, bounded & sanitized for instant reload
+	rawHistory := s.historyBuffer.Bytes()
+	history := SanitizePTYReplay(rawHistory, maxBytes)
 
 	return sub, history, nil
+}
+
+// RawHistory returns the complete unbounded historical buffer.
+func (s *Session) RawHistory() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.historyBuffer == nil {
+		return nil
+	}
+	return s.historyBuffer.Bytes()
 }
 
 // Unsubscribe removes a client subscriber.

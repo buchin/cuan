@@ -29,6 +29,7 @@ type Service struct {
 	attemptMu             sync.Mutex
 	store                 Store
 	projectFinder         ProjectFinder
+	isLocalAttemptActive  func(taskID string) bool
 	listenerMu            sync.RWMutex
 	taskCreationListeners []TaskCreationListener
 }
@@ -38,6 +39,10 @@ func NewService(store Store, projectFinder ProjectFinder) *Service {
 		store:         store,
 		projectFinder: projectFinder,
 	}
+}
+
+func (s *Service) SetLocalAttemptActiveChecker(fn func(taskID string) bool) {
+	s.isLocalAttemptActive = fn
 }
 
 func (s *Service) OnTaskCreated(fn TaskCreationListener) {

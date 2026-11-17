@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 func TestZombieReaper_ReconcilesDeadProcessAndUnblocksProjectLane(t *testing.T) {
@@ -36,7 +39,7 @@ func TestZombieReaper_ReconcilesDeadProcessAndUnblocksProjectLane(t *testing.T) 
 	if err != nil {
 		t.Fatalf("failed to create attempt: %v", err)
 	}
-	_, err = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "tester", task.UpdateAttemptRequest{
+	attempt, err = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "tester", task.UpdateAttemptRequest{
 		Status: task.AttemptStatusRunning,
 	})
 	if err != nil {
@@ -210,12 +213,18 @@ func TestZombieReaper_PreservesProjectTerminalTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create attempt: %v", err)
 	}
-	_, err = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "tester", task.UpdateAttemptRequest{
+	attempt, err = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "tester", task.UpdateAttemptRequest{
 		Status: task.AttemptStatusRunning,
 	})
 	if err != nil {
 		t.Fatalf("failed to update attempt status to running: %v", err)
 	}
+
+	// Simulate expired execution deadline (created hours ago)
+	past := time.Now().UTC().Add(-2 * time.Hour)
+	attempt.CreatedAt = past
+	attempt.ExecutionDeadline = &past
+	_ = s.taskSvc.Store().UpdateAttempt(ctx, attempt)
 
 	// 3. Start a persistent project session under the project ID
 	tempDir := t.TempDir()
@@ -258,5 +267,81 @@ func TestZombieReaper_PreservesProjectTerminalTask(t *testing.T) {
 	}
 	if reapedAttempt.Status != task.AttemptStatusFailed {
 		t.Fatalf("expected closed attempt to be marked 'failed', got '%s'", reapedAttempt.Status)
+	}
+}
+
+func TestZombieReaper_PreservesDecoupledProjectSocketWorker(t *testing.T) {
+	s, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	projectID := "proj-preserve-sock-test"
+	taskID := "task-preserve-sock-1"
+
+	// 1. Create a dedicated project terminal task
+	err := s.taskSvc.Store().CreateTask(ctx, &task.Task{
+		ID:                taskID,
+		Title:             "Terminal · test",
+		Instructions:      "Interactive terminal",
+		Status:            task.TaskStatusDoing,
+		ProjectID:         projectID,
+		ProjectIDs:        []string{projectID},
+		ExecutionCategory: task.ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	// 2. Create an attempt with status 'running'
+	attempt, err := s.taskSvc.CreateAttempt(ctx, taskID, "tester", task.CreateAttemptRequest{
+		RunnerID: "local_terminal",
+	})
+	if err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+	attempt, err = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "tester", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("failed to update attempt status to running: %v", err)
+	}
+
+	// Simulate expired execution deadline (created hours ago)
+	past := time.Now().UTC().Add(-2 * time.Hour)
+	attempt.CreatedAt = past
+	attempt.ExecutionDeadline = &past
+	_ = s.taskSvc.Store().UpdateAttempt(ctx, attempt)
+
+	// 3. Simulate decoupled project runner Unix domain socket
+	sockPath := terminal.ProjectSocketPath(projectID)
+	_ = os.Remove(sockPath)
+	listener, err := net.Listen("unix", sockPath)
+	if err != nil {
+		t.Fatalf("failed to create fake decoupled socket: %v", err)
+	}
+	defer func() {
+		_ = listener.Close()
+		_ = os.Remove(sockPath)
+	}()
+
+	// 4. Run ReconcileZombies while decoupled Unix socket is active
+	if err := s.ReconcileZombies(ctx); err != nil {
+		t.Fatalf("ReconcileZombies failed: %v", err)
+	}
+
+	// 5. Verify attempt was NOT reaped
+	runningAttempt, err := s.taskSvc.GetAttempt(ctx, attempt.ID)
+	if err != nil {
+		t.Fatalf("failed to get attempt: %v", err)
+	}
+	if runningAttempt.Status != task.AttemptStatusRunning {
+		t.Fatalf("expected running attempt to be preserved for decoupled socket, got '%s'", runningAttempt.Status)
+	}
+
+	runningTask, err := s.taskSvc.Store().GetTask(ctx, taskID)
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	if runningTask.Status != task.TaskStatusDoing {
+		t.Fatalf("expected task status to remain 'doing', got '%s'", runningTask.Status)
 	}
 }

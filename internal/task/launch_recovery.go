@@ -9,7 +9,7 @@ import (
 )
 
 const MissingWorkspaceLaunchError = "Original task workspace is missing; its branch was retained for recovery"
-const missingWorkspaceRecoveryKey = "missing-workspace-v1"
+const missingWorkspaceRecoveryKey = "missing-workspace-v3"
 const IsolatedWorkspaceLaunchError = "Could not prepare the isolated task workspace"
 const isolatedWorkspaceRecoveryKey = "isolated-workspace-recovery-v1"
 const StandaloneArtifactRecoveryKind = "standalone-artifact-workspace-v1"

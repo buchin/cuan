@@ -1,6 +1,6 @@
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../../components/ui/ComposerInput'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
   Camera,
   Images,
@@ -27,6 +27,11 @@ import { useLanguage } from '../../../context/LanguageContext'
 import { isImageFile } from '../../../components/dialogs/filePreviewUtils'
 import '../../inbox/chat-calm.css'
 
+export interface TerminalComposerHandle {
+  uploadFiles: (files: FileList | File[]) => Promise<void>
+  focus: () => void
+}
+
 export type TerminalComposerProps = {
   taskId: string
   attemptId?: string
@@ -38,6 +43,7 @@ export type TerminalComposerProps = {
   showQuickActions?: boolean
   disabled?: boolean
   className?: string
+  composerRef?: React.Ref<TerminalComposerHandle>
 }
 
 interface SlashCommand {
@@ -63,6 +69,7 @@ export function TerminalComposer({
   showQuickActions = false,
   disabled = false,
   className = '',
+  composerRef,
 }: TerminalComposerProps) {
   const { t } = useLanguage()
 
@@ -468,7 +475,7 @@ export function TerminalComposer({
   }
 
   // Upload handler for Camera, Photos, or Files
-  const handleFileUpload = async (files: FileList | File[]) => {
+  const handleFileUpload = useCallback(async (files: FileList | File[]) => {
     if (!files || files.length === 0) return
 
     setUploading(true)
@@ -513,8 +520,10 @@ export function TerminalComposer({
 
       setUploadedFiles((prev) => [...prev, ...newUploaded])
 
-      // Automatically append uploaded paths into composer input
-      const paths = newUploaded.map((f) => `./${f.name}`).join(' ')
+      // Automatically append uploaded paths into composer input (quote if filename contains spaces)
+      const paths = newUploaded
+        .map((f) => (f.name.includes(' ') ? `"./${f.name}"` : `./${f.name}`))
+        .join(' ')
       setText((prev) => (prev ? `${prev.trim()} ${paths} ` : `${paths} `))
       if (textareaRef.current) {
         setTimeout(() => {
@@ -530,7 +539,20 @@ export function TerminalComposer({
     } finally {
       setUploading(false)
     }
-  }
+  }, [taskId])
+
+  useImperativeHandle(
+    composerRef,
+    () => ({
+      uploadFiles: handleFileUpload,
+      focus: () => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+        }
+      },
+    }),
+    [handleFileUpload, composerRef]
+  )
 
   const handleRemoveFile = (idx: number) => {
     setUploadedFiles((prev) => {
@@ -548,6 +570,23 @@ export function TerminalComposer({
     <div
       data-attempt-id={attemptId}
       className={`wa-chat wa-composer relative shrink-0 select-none bg-background border-t border-border dark:bg-[#141414] dark:border-[#262626] px-2.5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-1.5 ${className}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer?.types?.includes('Files')) {
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'copy'
+        }
+      }}
+      onDrop={(e) => {
+        if (e.dataTransfer?.types?.includes('Files')) {
+          e.preventDefault()
+          e.stopPropagation()
+          const files = e.dataTransfer.files
+          if (files && files.length > 0) {
+            void handleFileUpload(files)
+          }
+        }
+      }}
     >
       <div className="mx-auto max-w-[75ch] bg-transparent space-y-1.5">
       {/* ── Slash Commands Autocomplete Popup ── */}

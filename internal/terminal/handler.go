@@ -267,7 +267,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 7. Register subscriber
 	subID := generateSubscriberID()
-	sub, history, err := session.Subscribe(subID, clientMode)
+	seedMaxBytes := DefaultAttachSeedMaxBytes
+	if q.Get("skip_seed") == "1" || q.Get("seed") == "0" {
+		seedMaxBytes = 0
+	} else if val := q.Get("seed_max_bytes"); val != "" {
+		if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+			seedMaxBytes = n
+		}
+	}
+	sub, history, err := session.SubscribeWithSeedCap(subID, clientMode, seedMaxBytes)
 	if err != nil {
 		_ = writeJSON(TerminalMessage{
 			Type:    "error",
@@ -417,6 +425,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							})
 						case "ping":
 							_ = writeJSON(TerminalMessage{Type: "pong"})
+						case "pong":
+							continue
 						}
 					}
 				}
@@ -544,6 +554,16 @@ func (h *Handler) ProxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 		_, _ = unixConn.Write(append(resizePayload, '\n'))
 	}
 
+	skipSeed := q.Get("skip_seed") == "1" || q.Get("seed") == "0"
+	if skipSeed {
+		// On soft reconnect with skip_seed=1, drain the initial seed synchronously written by SocketBridge
+		// so an already-painted client terminal does not receive duplicate history output.
+		_ = unixConn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+		seedBuf := make([]byte, 64*1024)
+		_, _ = unixConn.Read(seedBuf)
+		_ = unixConn.SetReadDeadline(time.Time{})
+	}
+
 	var writeMu sync.Mutex
 	writeWS := func(kind int, data []byte) error {
 		writeMu.Lock()
@@ -625,18 +645,32 @@ func (h *Handler) ProxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 	// Goroutine 2: WebSocket -> Runner Unix Socket
 	defer closeBoth()
 	for {
+		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 		msgType, data, rErr := conn.ReadMessage()
 		if rErr != nil {
 			break
 		}
-		if msgType == websocket.TextMessage || msgType == websocket.BinaryMessage {
-			if ackOutput && msgType == websocket.TextMessage {
-				var control TerminalMessage
-				if json.Unmarshal(data, &control) == nil && control.Type == "output_ack" {
-					outputFlow.acknowledge(control.Sequence)
+		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
+
+		if msgType == websocket.TextMessage {
+			var control TerminalMessage
+			if json.Unmarshal(data, &control) == nil && control.Type != "" {
+				switch control.Type {
+				case "ping":
+					_ = writeWS(websocket.TextMessage, []byte(`{"type":"pong"}`))
+					continue // Consumed, never forward to shell stdin
+				case "pong":
+					continue // Consumed
+				case "output_ack":
+					if ackOutput {
+						outputFlow.acknowledge(control.Sequence)
+					}
 					continue // Browser paint credit is never PTY input.
 				}
 			}
+		}
+
+		if msgType == websocket.TextMessage || msgType == websocket.BinaryMessage {
 			toWrite := data
 			trimmed := bytes.TrimLeft(data, " \t\r\n")
 			if len(trimmed) > 0 && trimmed[0] == '{' && !bytes.HasSuffix(data, []byte("\n")) {

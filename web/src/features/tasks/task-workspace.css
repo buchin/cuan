@@ -1,3 +1,20 @@
+/* JetBrains Mono Nerd Font Mono (NFM) for rich CLI glyphs (powerline, devicons, git status) */
+@font-face {
+  font-family: 'JetBrainsMono NFM';
+  src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrainsMono NFM';
+  src: url('/fonts/JetBrainsMonoNerdFontMono-Bold.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 .task-workspace {
   z-index: 40;
 }
@@ -37,16 +54,9 @@
   }
 }
 
-/* Suppress redundant xterm physical cursor (we use bottom composer bar + CLI native virtual cursors) */
-.task-terminal-container .xterm-cursor,
-.task-terminal-container .xterm-cursor-blink,
-.task-terminal-container .xterm-cursor-block,
-.task-terminal-container .xterm-cursor-outline,
-.task-terminal-container .xterm-cursor-bar,
-.task-terminal-container .xterm-cursor-underline {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
+/* Native-feeling terminal cursor with subtle smooth blink */
+.task-terminal-container .xterm-cursor {
+  outline: none;
 }
 .task-workspace .task-prose .chat-markdown {
   font-size: 15px;
