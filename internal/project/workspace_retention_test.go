@@ -95,6 +95,7 @@ func TestWorkspaceRetentionProtectsLocalFiles(t *testing.T) {
 
 func TestWorkspaceRetentionPeriodConfigurable(t *testing.T) {
 	os.Unsetenv("CUAN_WORKSPACE_RETENTION_HOURS")
+	os.Unsetenv("CUAN_WORKSPACE_TTL")
 	if p := WorkspaceRetentionPeriod(); p != 7*24*time.Hour {
 		t.Fatalf("expected default 7 days, got %v", p)
 	}
@@ -105,5 +106,13 @@ func TestWorkspaceRetentionPeriodConfigurable(t *testing.T) {
 	t.Setenv("CUAN_WORKSPACE_RETENTION_HOURS", "0")
 	if p := WorkspaceRetentionPeriod(); p != 0 {
 		t.Fatalf("expected 0 duration for immediate retention, got %v", p)
+	}
+	t.Setenv("CUAN_WORKSPACE_TTL", "12h")
+	if p := WorkspaceRetentionPeriod(); p != 12*time.Hour {
+		t.Fatalf("expected 12 hours from TTL, got %v", p)
+	}
+	t.Setenv("CUAN_WORKSPACE_TTL", "48")
+	if p := WorkspaceRetentionPeriod(); p != 48*time.Hour {
+		t.Fatalf("expected 48 hours from integer TTL, got %v", p)
 	}
 }

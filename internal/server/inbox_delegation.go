@@ -173,7 +173,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	}
 	if db.InboxRetryNeedsReconciliation(q) {
 		if !d.Reconcile {
-			return fail("the retry reconciliation contract does not match this request")
+			return fail("the previous request state could not be verified automatically; please submit a new instruction.")
 		}
 	} else {
 		d.Reconcile = false
