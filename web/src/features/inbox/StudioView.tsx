@@ -6,15 +6,20 @@ import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 import { TeamView } from '../team/TeamView'
 import { agentsApi, type Agent, isModelVisionCapable } from '../../api/agents'
+import { projectsApi } from '../../api/projects'
+import type { Project } from '../../api/types'
+import { StudioProjectSelector } from './StudioProjectSelector'
 
 export function StudioView({
   onAccepted,
   onConversationCreated,
   agentSetup,
   onAgentConnected,
+  onCreateProject,
   onRetrySetup,
   checkRuntime = true,
   autoFocus = false,
+  projects: initialProjects,
 }: {
   onAccepted: () => void
   onConversationCreated?: (conversationId: string) => void
@@ -26,6 +31,7 @@ export function StudioView({
   checkRuntime?: boolean
   onRetrySetup: () => void
   autoFocus?: boolean
+  projects?: Project[]
 }) {
   const { t } = useLanguage()
   const [connectRequested, setConnectRequested] = useState(false)
@@ -79,7 +85,68 @@ export function StudioView({
   const [agents, setAgents] = useState<Agent[]>([])
   const [searchParams] = useSearchParams()
   const selectedAgentId = agents.find((a) => a.id === 'agent_cuan')?.id || ''
-  const selectedProjectId = searchParams.get('project') || ''
+
+  const [projects, setProjects] = useState<Project[]>(initialProjects || [])
+  useEffect(() => {
+    if (initialProjects && initialProjects.length > 0) {
+      setProjects(initialProjects)
+      return
+    }
+    let active = true
+    projectsApi.list()
+      .then((list) => { if (active && Array.isArray(list)) setProjects(list) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [initialProjects])
+
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(() => {
+    const projectParam = searchParams.get('project')
+    if (projectParam) return [projectParam]
+    try {
+      const stored = localStorage.getItem('cuan-studio-last-projects')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch {}
+    return []
+  })
+
+  // When projects load, default to first project if nothing selected or stored project no longer exists
+  useEffect(() => {
+    if (projects.length > 0) {
+      setSelectedProjectIds((prev) => {
+        if (prev.length > 0 && prev.some((id) => projects.some((p) => p.id === id))) {
+          return prev
+        }
+        const defaultId = projects[0].id
+        try {
+          localStorage.setItem('cuan-studio-last-projects', JSON.stringify([defaultId]))
+        } catch {}
+        return [defaultId]
+      })
+    }
+  }, [projects])
+
+  const handleToggleProject = (id: string) => {
+    setSelectedProjectIds((prev) => {
+      let next: string[]
+      if (prev.includes(id)) {
+        next = prev.filter((p) => p !== id)
+        if (next.length === 0 && projects.length > 0) {
+          next = [id]
+        }
+      } else {
+        next = [...prev, id]
+      }
+      try {
+        localStorage.setItem('cuan-studio-last-projects', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }
+
+  const selectedProjectId = selectedProjectIds[0] || ''
 
   useEffect(() => {
     const projectParam = searchParams.get('project')
@@ -153,6 +220,7 @@ export function StudioView({
         saved?.goal === goal.trim() &&
         (saved?.agent_id || '') === selectedAgentId &&
         (saved?.project_id || '') === selectedProjectId &&
+        JSON.stringify(saved?.project_ids || []) === JSON.stringify(selectedProjectIds) &&
         JSON.stringify(saved.attachment_ids || []) ===
           JSON.stringify(uploads.items.map((a) => a.id))
           ? saved
@@ -162,6 +230,7 @@ export function StudioView({
               attachment_ids: uploads.items.map((a) => a.id),
               ...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
               ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
+              ...(selectedProjectIds.length > 0 ? { project_ids: selectedProjectIds } : {}),
             }
       try {
         localStorage.setItem('cuan-studio-pending', JSON.stringify(request))
@@ -289,6 +358,15 @@ export function StudioView({
                   disableImages={!supportsVision}
                   compact={true}
                 />
+                {projects.length > 0 && (
+                  <StudioProjectSelector
+                    projects={projects}
+                    selectedProjectIds={selectedProjectIds}
+                    onToggleProject={handleToggleProject}
+                    onConnectProjectClick={onCreateProject}
+                    disabled={busy}
+                  />
+                )}
               </div>
               <button
                 type="submit"

@@ -918,6 +918,7 @@ export function App() {
                   ['codex', 'claude'].includes(a.harness || a.provider || '')
                 )}
                 autoFocus={true}
+                projects={projects}
               />
             </div>
           )}
