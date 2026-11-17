@@ -33,11 +33,14 @@ docker compose up -d
 ```
 Buka browser ke `http://localhost:8080` untuk masuk ke wizard aktivasi akun Owner pertama.
 
-### Opsi 2: 1 Baris Perintah Linux (VPS)
+### Opsi 2: 1 Baris Perintah Linux (VPS + Domain Pribadi)
+
+Arahkan DNS A-Record (misal `cuan.bisnisanda.com`) ke IP VPS Anda, lalu jalankan:
 
 ```bash
-curl -fsSL https://cuan.work/install.sh | bash
+curl -fsSL https://cuan.work/install.sh | bash -s -- --domain cuan.bisnisanda.com --email anda@bisnisanda.com
 ```
+*(Cuan otomatis mengonfigurasi Caddy reverse proxy & sertifikat HTTPS gratis Let's Encrypt).*
 
 ### Opsi 3: Build dari Source (Developer)
 
@@ -54,6 +57,7 @@ go run ./cmd/server
 Panduan lengkap, konfigurasi AI, dan operasional server dipusatkan di **[cuan.work/docs](https://cuan.work/docs)**:
 
 - 🚀 [Panduan Memulai & Instalasi](https://cuan.work/docs/getting-started)
+- 🌐 [Menghubungkan Domain Pribadi (cuan.bisnisanda.com) & HTTPS](https://cuan.work/docs/getting-started#domain-setup)
 - 🤖 [Menghubungkan AI (Claude Pro, ChatGPT Plus, DeepSeek, OpenAI)](https://cuan.work/docs/ai-providers)
 - 👥 [Kolaborasi Tim & Undangan WhatsApp 1-Klik (RBAC)](https://cuan.work/docs/team)
 - 💬 [Customer Inbox & Live Chat Widget Website](https://cuan.work/docs/inbox)
