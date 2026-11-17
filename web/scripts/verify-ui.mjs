@@ -53,6 +53,8 @@ try {
   if (workflow.error || workflow.status !== 0)
     throw new Error('Application workflow verification failed; diagrams alone do not establish UI coverage', {cause: workflow.error})
   captures.push('workflow/inbox-390.png', 'workflow/inbox-1440.png',
+                'workflow/inbox-composer-390.png', 'workflow/inbox-composer-1440.png',
+                'workflow/inbox-whisper-390.png', 'workflow/inbox-whisper-1440.png',
                 'workflow/session-running-390.png', 'workflow/session-running-1440.png')
   for (const capture of captures) {
     const stat = await fs.stat(path.join(output, capture))
