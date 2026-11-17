@@ -548,6 +548,72 @@ func TestReconcileStaleQueuedTerminalTasks(t *testing.T) {
 	}
 }
 
+func TestBlockedTerminalTaskAutoCancelled(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+
+	terminalTask, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Terminal · cuan",
+		ProjectIDs:   []string{"p_terminal"},
+		Instructions: "Interactive terminal session",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bStatus := TaskStatusBlocked
+	_, err = svc.UpdateTask(ctx, terminalTask.ID, "user", UpdateTaskRequest{Status: &bStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := svc.SaveLaunch(ctx, TaskLaunch{
+		TaskID:           terminalTask.ID,
+		ProjectID:        "p_terminal",
+		RequestID:        "term-req-blocked",
+		SourceRequestID:  "term-source-blocked",
+		OwnerID:          "user",
+		RoomID:           "room-term",
+		AgentID:          "agent-term",
+		InstructionsHash: "hash-term",
+		AvailableAt:      now.Add(-10 * time.Minute),
+		ExpiresAt:        now.Add(time.Hour),
+		CreatedAt:        now.Add(-10 * time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store.mu.Lock()
+	if tt := store.tasks[terminalTask.ID]; tt != nil {
+		tt.CreatedAt = now.Add(-10 * time.Minute)
+		tt.UpdatedAt = now.Add(-10 * time.Minute)
+	}
+	store.mu.Unlock()
+
+	if err := svc.ReconcileOrphanLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileOrphanLaunches failed: %v", err)
+	}
+
+	updatedTask, err := svc.GetTaskDetail(ctx, terminalTask.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedTask.Status != "cancelled" {
+		t.Fatalf("expected blocked terminal task status 'cancelled', got '%s'", updatedTask.Status)
+	}
+
+	updatedLaunch, err := svc.GetLaunch(ctx, l.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedLaunch.State != "stopped" {
+		t.Fatalf("expected launch state 'stopped', got '%s'", updatedLaunch.State)
+	}
+}
+
 func TestIsProjectActiveQueuedTaskDoesNotBlock(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemoryStore()

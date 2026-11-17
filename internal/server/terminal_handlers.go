@@ -1140,7 +1140,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							}
 						}
 						workDir, e = s.projectSvc.TaskExecutionWorkspace(r.Context(), taskID, detail.Instructions, project)
-						if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) && revision != "" && detail.LatestAttempt != nil {
+						if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) {
 							workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), taskID, project)
 						}
 						if e != nil {
