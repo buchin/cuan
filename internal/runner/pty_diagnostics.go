@@ -74,7 +74,17 @@ func (c *ptyDiagnosticCollector) Feed(chunk []byte) ([]string, string) {
 		c.quotaWindow = c.quotaWindow[len(c.quotaWindow)-maxPTYQuotaOverlap:]
 	}
 	quota := ""
-	for _, signal := range []string{"Individual quota reached", "Resource has been exhausted", "Quota exceeded", "rate_limit_exceeded"} {
+	for _, signal := range []string{
+		"Individual quota reached",
+		"Resource has been exhausted",
+		"Quota exceeded",
+		"rate_limit_exceeded",
+		"RESOURCE_EXHAUSTED",
+		"No capacity available",
+		"capacity available for model",
+		"high traffic right now",
+		"UNAVAILABLE (code 503)",
+	} {
 		if strings.Contains(probe, signal) {
 			quota = probe
 			break

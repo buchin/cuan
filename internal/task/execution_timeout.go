@@ -25,7 +25,7 @@ const (
 // has this run?" but not "is it still working?", and production evidence showed
 // almost every attempt killed by the wall clock was still producing real output
 // at the moment it died. Stall detection answers the question that matters.
-const DefaultProgressIdleTimeout = 15 * time.Minute
+const DefaultProgressIdleTimeout = 7 * time.Minute
 
 // ProgressIdleTimeout is the longest silence tolerated before execution stops.
 func ProgressIdleTimeout() time.Duration {
