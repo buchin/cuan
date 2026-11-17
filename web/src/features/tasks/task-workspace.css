@@ -22,6 +22,21 @@
   touch-action: none;
 }
 
+/* Suppress heavy mobile xterm scrollbar overlays matching Fural standards */
+@media (max-width: 640px) {
+  .task-terminal-container .xterm-viewport {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    overflow-x: hidden !important;
+  }
+  .task-terminal-container .xterm-viewport::-webkit-scrollbar {
+    display: none !important;
+  }
+  .task-terminal-container .xterm-scrollable-element > .scrollbar {
+    display: none !important;
+  }
+}
+
 /* Suppress redundant xterm physical cursor (we use bottom composer bar + CLI native virtual cursors) */
 .task-terminal-container .xterm-cursor,
 .task-terminal-container .xterm-cursor-blink,

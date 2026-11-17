@@ -565,10 +565,8 @@ export function TaskTerminal({
       if (isReconnecting.current) {
         url.searchParams.set('reconnect', '1')
       }
-      if (term.current) {
-        const isMobileScreen = typeof window !== 'undefined' && window.innerWidth < 640
-        const ptyCols = Math.max(isMobileScreen ? 80 : 20, term.current.cols)
-        url.searchParams.set('cols', String(ptyCols))
+      if (term.current && term.current.cols > 0 && term.current.rows > 0) {
+        url.searchParams.set('cols', String(term.current.cols))
         url.searchParams.set('rows', String(term.current.rows))
       }
 
@@ -798,7 +796,7 @@ export function TaskTerminal({
 
         const isMobileScreen =
           typeof window !== 'undefined' && window.innerWidth < 640
-        const terminalFontSize = isMobileScreen ? 11 : 13
+        const terminalFontSize = isMobileScreen ? 12 : 13
         const scrollbackLimit = isMobileScreen ? 2000 : 20000
 
         // Font gate: wait for terminal font face to be ready before computing metrics
@@ -951,8 +949,7 @@ export function TaskTerminal({
             ptyResizeTimer = setTimeout(() => {
               const ws = socket.current
               if (disposed || ws?.readyState !== WebSocket.OPEN || !terminal) return
-              const ptyCols = Math.max(isMobileScreen ? 80 : 20, terminal.cols)
-              resizeGate.send(ws, { cols: ptyCols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
+              resizeGate.send(ws, { cols: terminal.cols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
             }, 80)
           } catch {}
         }
