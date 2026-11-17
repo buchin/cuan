@@ -38,6 +38,12 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 			return "legacy-agent-routing-v1"
 		}
 	}
+	if strings.Contains(j.SafeError, "Project files could not be") {
+		return "project-files-prepared-v1"
+	}
+	if strings.Contains(j.SafeError, "maximum queue retry attempts") {
+		return "queue-retry-exhausted-v1"
+	}
 	return ""
 }
 
