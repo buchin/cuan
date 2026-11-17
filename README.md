@@ -1,6 +1,7 @@
 # Cuan
 
-> The self-hosted agentic workspace and operating system for creators, solopreneurs, and small businesses. Run autonomous AI agents on your own server with zero token markups, zero vendor lock-in, and built-in team collaboration.
+> **AI untuk Kelola Aset Digital dari Ide sampai Cuan.**  
+> The self-hosted agentic workspace to run digital projects on your own server with zero token markup.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/buchin/cuan?color=green)](https://github.com/buchin/cuan/releases)
@@ -8,25 +9,37 @@
 
 ---
 
-## ⚡ 30-Second Quick Start
+## 🎯 Bukan Sekadar Chatbot. Bukan Tool Rumit Programmer.
 
-The fastest way to get Cuan running on your server or local machine:
+Punya segudang ide proyek digital — dari website, toko online, script otomatis, sampai landing page — tapi sering mentok di urusan teknis?
 
-### Option 1: Docker (Recommended)
+| Yang Biasa Anda Temui | Masalahnya | Solusi Cuan |
+| :--- | :--- | :--- |
+| **Chatbot Biasa**<br>*(ChatGPT / Claude Web)* | Cuma bisa kasih teks obrolan & saran; tidak bisa login ke server, tidak bisa mengeksekusi file langsung sampai selesai. | **Eksekusi Nyata:** Asisten AI bekerja mandiri di server Anda, menyelesaikan kode, menguji, dan membuktikan hasilnya secara nyata. |
+| **Tool Koding Programmer**<br>*(Cursor / Copilot / CLI)* | Sangat rumit, wajib paham terminal, git, dan konfigurasi environment yang bikin pusing non-developer. | **Zero Cognitive Fatigue:** Antarmuka tenang ala Things 3 & Bear Notes. Kelola pekerjaan semudah berkirim pesan, bisa dari laptop maupun HP. |
+| **Platform SaaS AI Pihak Ketiga** | Biaya token dimarkup 2x–5x lipat, data tersimpan di server orang lain, dan fitur dibatasi kuota bulanan. | **100% Milik Anda:** Self-hosted di server sendiri. Pakai langganan resmi Anda (Claude Pro, ChatGPT Plus, Antigravity) tanpa markup sepeser pun. |
+
+---
+
+## ⚡ Coba dalam 30 Detik (Quick Start)
+
+Jalankan Cuan di server pribadi (VPS) atau komputer lokal:
+
+### Opsi 1: Docker Compose (Disarankan)
 
 ```bash
 curl -fsSL https://cuan.work/docker-compose.yml -o docker-compose.yml
 docker compose up -d
 ```
-Visit `http://localhost:8080` to complete the initial setup wizard.
+Buka browser ke `http://localhost:8080` untuk masuk ke wizard aktivasi akun Owner pertama.
 
-### Option 2: 1-Line Native Linux Install
+### Opsi 2: 1 Baris Perintah Linux (VPS)
 
 ```bash
 curl -fsSL https://cuan.work/install.sh | bash
 ```
 
-### Option 3: Build from Source
+### Opsi 3: Build dari Source (Developer)
 
 ```bash
 git clone https://github.com/buchin/cuan.git
@@ -36,28 +49,19 @@ go run ./cmd/server
 
 ---
 
-## 📖 Documentation
+## 📖 Panduan & Dokumentasi Resmi
 
-All guides, architecture references, and API documentation are maintained at **[cuan.work/docs](https://cuan.work/docs)**:
+Panduan lengkap, konfigurasi AI, dan operasional server dipusatkan di **[cuan.work/docs](https://cuan.work/docs)**:
 
-- [🚀 Getting Started Guide](https://cuan.work/docs/getting-started)
-- [🤖 Connecting AI Providers (Claude, OpenAI, DeepSeek, AGY)](https://cuan.work/docs/ai-providers)
-- [👥 Multi-User Team & Staff Onboarding (RBAC)](https://cuan.work/docs/team)
-- [💬 Customer Inbox & Live Chat Widget](https://cuan.work/docs/inbox)
-- [🛠️ Self-Hosting, Backup & Disaster Recovery](https://cuan.work/docs/self-hosting)
-
----
-
-## 💡 Why Cuan?
-
-- **Zero Token Markup:** Bring your own API keys or official CLI subscriptions (`claude`, `codex`, `agy`) directly at cost.
-- **Self-Contained & Private:** Standalone Go binary with SQLite/PostgreSQL. Your credentials, databases, and customer chats never leave your server.
-- **Autonomous & Self-Healing:** Task execution with live terminal streaming, automatic error diagnosis, and verified outcomes.
-- **Calm Interface:** Designed for zero cognitive fatigue inspired by Things 3 and Bear Notes.
+- 🚀 [Panduan Memulai & Instalasi](https://cuan.work/docs/getting-started)
+- 🤖 [Menghubungkan AI (Claude Pro, ChatGPT Plus, DeepSeek, OpenAI)](https://cuan.work/docs/ai-providers)
+- 👥 [Kolaborasi Tim & Undangan WhatsApp 1-Klik (RBAC)](https://cuan.work/docs/team)
+- 💬 [Customer Inbox & Live Chat Widget Website](https://cuan.work/docs/inbox)
+- 🛠️ [Spesifikasi Server VPS & Backup/Restore 1-Langkah](https://cuan.work/docs/self-hosting)
 
 ---
 
-## 🤝 Community & Sponsors
+## 🤝 Founding Backers & Sponsors
 
 <!-- SPONSORS:START -->
 
@@ -119,11 +123,12 @@ Terima kasih kepada seluruh founding backer yang mendukung independensi dan kebe
 
 <!-- SPONSORS:END -->
 
-Want to support open-source development? Back Cuan on [cuan.work/sponsor](https://cuan.work/sponsor).
+Ingin brand atau nama Anda tercantum permanen di README resmi GitHub dan website cuan.work?  
+Dukung pengembangan Cuan di **[cuan.work/sponsor](https://cuan.work/sponsor)**.
 
 ---
 
-## 📄 License
+## 📄 Lisensi
 
-Cuan is open-source software licensed under the [Apache License 2.0](LICENSE).  
-Copyright © 2026 Buchin and Cuan contributors.
+Cuan adalah perangkat lunak open-source berlisensi [Apache License 2.0](LICENSE).  
+Hak Cipta © 2026 Buchin dan kontributor Cuan.
