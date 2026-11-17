@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -32,7 +33,14 @@ func (s *Service) VerificationSnapshot(ctx context.Context, projectID, taskID, s
 	if err := s.fetchVerificationTarget(ctx, projectID, targetCommit); err != nil {
 		return "", err
 	}
-	return s.gitClient.PrepareVerificationSnapshot(ctx, p.LocalPath, destination, sourceCommit, targetCommit)
+	path, err = s.gitClient.PrepareVerificationSnapshot(ctx, p.LocalPath, destination, sourceCommit, targetCommit)
+	if errors.Is(err, git.ErrVerificationCommitUnavailable) {
+		if errSource := s.fetchVerificationTarget(ctx, projectID, sourceCommit); errSource != nil {
+			return "", errSource
+		}
+		path, err = s.gitClient.PrepareVerificationSnapshot(ctx, p.LocalPath, destination, sourceCommit, targetCommit)
+	}
+	return path, err
 }
 
 // Location is derived only from native project/task/revision identities. It
@@ -74,7 +82,40 @@ func (s *Service) fetchVerificationTarget(ctx context.Context, projectID, target
 	}
 	fetch, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	return s.gitClient.FetchVerificationCommit(fetch, registered.LocalPath, registered.RepoURL, targetCommit, token)
+	fetchErr := s.gitClient.FetchVerificationCommit(fetch, registered.LocalPath, registered.RepoURL, targetCommit, token)
+	if fetchErr == nil {
+		return nil
+	}
+
+	// If remote fetch failed (e.g. unadvertised local commit on GitHub), search local workspace checkouts.
+	searchDirs := []string{
+		filepath.Join(s.baseDir, "task-workspaces"),
+		filepath.Join(s.baseDir, "verification-snapshots"),
+		filepath.Join(s.baseDir, "verification-checkouts"),
+		filepath.Join(s.baseDir, "workspaces"),
+		filepath.Join(s.baseDir, "workspaces", "verification"),
+		filepath.Join(filepath.Dir(s.baseDir), "task-workspaces"),
+		filepath.Join(filepath.Dir(s.baseDir), "verification-snapshots"),
+		filepath.Join(filepath.Dir(s.baseDir), "verification-checkouts"),
+		filepath.Join(filepath.Dir(s.baseDir), "workspaces"),
+		filepath.Join(filepath.Dir(s.baseDir), "workspaces", "verification"),
+	}
+	for _, dir := range searchDirs {
+		entries, readErr := os.ReadDir(dir)
+		if readErr != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			candidate := filepath.Join(dir, entry.Name())
+			if err := s.gitClient.FetchLocalCommit(ctx, registered.LocalPath, candidate, targetCommit); err == nil {
+				return nil
+			}
+		}
+	}
+	return fetchErr
 }
 
 // PublishedCommitContained proves only immutable Git ancestry. The caller must
