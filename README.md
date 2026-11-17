@@ -56,12 +56,13 @@ go run ./cmd/server
 
 Panduan lengkap, konfigurasi AI, dan operasional server dipusatkan di **[cuan.work/docs](https://cuan.work/docs)**:
 
-- 🚀 [Panduan Memulai & Instalasi](https://cuan.work/docs/getting-started)
+- 🚀 [Panduan Memulai & Instalasi 30 Detik](https://cuan.work/docs/getting-started)
 - 🌐 [Menghubungkan Domain Pribadi (cuan.bisnisanda.com) & HTTPS](https://cuan.work/docs/getting-started#domain-setup)
 - 🤖 [Menghubungkan AI (Claude Pro, ChatGPT Plus, DeepSeek, OpenAI)](https://cuan.work/docs/ai-providers)
-- 👥 [Kolaborasi Tim & Undangan WhatsApp 1-Klik (RBAC)](https://cuan.work/docs/team)
+- 📁 [Proyek & Task Otonom (Pendelegasian & Human Approval)](https://cuan.work/docs/projects-tasks)
 - 💬 [Customer Inbox & Live Chat Widget Website](https://cuan.work/docs/inbox)
-- 🛠️ [Spesifikasi Server VPS & Backup/Restore 1-Langkah](https://cuan.work/docs/self-hosting)
+- 👥 [Kolaborasi Tim & Undangan WhatsApp 1-Klik (RBAC)](https://cuan.work/docs/team)
+- 🛠️ [Spesifikasi Server VPS, Backup, Restore & Update Versi](https://cuan.work/docs/self-hosting)
 
 ---
 
