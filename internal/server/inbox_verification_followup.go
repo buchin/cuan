@@ -210,7 +210,7 @@ func (s *Server) testedSourceAfterFailedInspection(ctx context.Context, d *task.
 }
 
 func (s *Server) testedSourceAfterFailedVerification(ctx context.Context, d *task.TaskDetailResponse, prior *task.VerificationIntent) *task.TaskDetailResponse {
-	if d == nil || d.LatestAttempt == nil || prior == nil || prior.SourceAttemptID == "" || prior.SourceCommit == "" || prior.SourceCommit != d.CommitSHA {
+	if d == nil || d.LatestAttempt == nil || prior == nil || prior.SourceAttemptID == "" || !releaseObjectID.MatchString(prior.SourceCommit) {
 		return nil
 	}
 	a := d.LatestAttempt
