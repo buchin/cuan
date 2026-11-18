@@ -9,12 +9,8 @@
 [![Docs](https://img.shields.io/badge/docs-cuan.work-blue)](https://cuan.work/docs)
 
 > [!WARNING]
-> **Status Proyek: Alpha / Early Preview (Tahap Pengembangan Aktif)**  
-> Cuan saat ini sedang dalam fase pengembangan pesat (*rapid active development*). Fitur inti dan eksekusi otonom sudah berfungsi nyata, namun **perubahan arsitektur, format konfigurasi, dan skema data (*breaking changes*) masih dapat terjadi sewaktu-waktu antar rilis**.  
-> - **Ideal untuk**: Evaluasi, otomasi tim kecil, riset alur kerja AI agent, dan lingkungan non-kritis.  
-> - **Penggunaan Produksi**: Gunakan dengan bijak (*use with caution*). Selalu lakukan pencadangan data berkala melalui `./scripts/backup.sh` sebelum memperbarui versi.  
->  
-> *Active Development Notice: Cuan is currently in early preview. Expect rapid iterations and breaking changes between updates. Test and explore freely, but use caution for mission-critical production and back up data regularly.*
+> **Fase Alpha (Masih Tahap Awal)**: Cuan masih dalam pengembangan aktif dan belum siap untuk operasional bisnis utama. Fitur, data, dan alur kerja masih bisa berubah sewaktu-waktu. Disarankan untuk uji coba dan selalu cadangkan data berkala (`./scripts/backup.sh`).  
+> *Alpha Notice: Cuan is in early development and not yet ready for primary production. Features and data schemas may change. Best for testing; please keep regular backups.*
 
 ---
 
