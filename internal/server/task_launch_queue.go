@@ -244,7 +244,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	// that attempt exists, it is no longer supposed to match its predecessor.
 	// Reconcile ownership rather than declaring the active inspection stale or
 	// replaying it; completion/acceptance still belongs to the ordinary pipeline.
-	if (liveInspection != nil || recoverySource != nil || nativeRelease != nil) && detail.LatestAttempt != nil {
+	if detail.LatestAttempt != nil {
 		recorded, err := s.launchOwnsLatestAttempt(ctx, &job, detail)
 		if err != nil {
 			return finish("queued", "Saved execution identity is temporarily unavailable.")
@@ -257,7 +257,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			}
 			save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 			defer cancel()
-			if err := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC(), ""); err != nil {
+			if err := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC(), "This request already has a recorded execution."); err != nil {
 				return "The saved execution is being reconciled. No replacement was started." + link
 			}
 			return "This request already has a recorded execution. No replacement was started." + link
@@ -324,6 +324,20 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	ownerAuthorized := job.SourceRequestID != "" && job.SourceRequestID != job.RequestID
 	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID, OwnerAuthorized: ownerAuthorized}, job.OwnerID)
 	if response.code == 200 {
+		var payload struct {
+			Replayed bool              `json:"replayed"`
+			Status   string            `json:"status"`
+			Attempt  *task.TaskAttempt `json:"attempt"`
+		}
+		if json.Unmarshal(response.body.Bytes(), &payload) == nil && payload.Replayed {
+			state := "stopped"
+			if payload.Attempt != nil && !payload.Attempt.CancelRequested && payload.Attempt.CanceledAt == nil && (payload.Attempt.Status == task.AttemptStatusRunning || payload.Attempt.Status == task.AttemptStatusQueued) {
+				state = "started"
+			}
+			if state == "stopped" {
+				return finish("stopped", "This request already has a recorded execution.")
+			}
+		}
 		return finish("started", "")
 	}
 	var problem struct {

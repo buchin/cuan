@@ -152,38 +152,65 @@ func (s *Server) verificationReviewContext(ctx context.Context, d *task.TaskDeta
 // verifier's native source/unchanged-state receipts. This is not acceptance or
 // permission to replay implementation; callers retain the current review grant.
 func (s *Server) verifiedSupplementalSource(ctx context.Context, d *task.TaskDetailResponse) (*task.TaskDetailResponse, *task.VerificationIntent) {
-	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+	if d == nil || d.LatestAttempt == nil {
 		return nil, nil
 	}
-	a := d.LatestAttempt
-	if a.CancelRequested || a.CanceledAt != nil || a.ExitCode == nil || *a.ExitCode != 0 || a.FinishedAt == nil || a.ErrorMessage != "" {
-		return nil, nil
-	}
-	proof, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || proof == nil {
-		return nil, nil
-	}
-	_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
-	if err != nil || !unchanged {
-		return nil, nil
-	}
-	receipt := false
-	for _, a := range d.Activities {
-		if a != nil && a.TaskID == d.ID && a.AttemptID != nil && *a.AttemptID == d.LatestAttempt.ID && a.Author == d.LatestAttempt.RunnerID && a.ActivityType == "verification_source_verified" && a.Message == proof.SourceCommit {
-			receipt = true
-			break
+	var candidates []*task.TaskAttempt
+	if d.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		candidates = append(candidates, d.LatestAttempt)
+	} else if intent, err := task.NativeReleaseIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); err == nil && intent != nil && intent.SourceReviewAttemptID != "" {
+		if verifier, err := s.taskSvc.Store().GetAttempt(ctx, intent.SourceReviewAttemptID); err == nil && verifier != nil && verifier.TaskID == d.ID {
+			candidates = append(candidates, verifier)
 		}
 	}
-	if !receipt {
-		return nil, nil
+	for i := len(d.Attempts) - 1; i >= 0; i-- {
+		att := d.Attempts[i]
+		if att == nil || att.ID == d.LatestAttempt.ID {
+			continue
+		}
+		found := false
+		for _, c := range candidates {
+			if c.ID == att.ID {
+				found = true
+				break
+			}
+		}
+		if !found && att.Status == task.AttemptStatusSucceeded {
+			candidates = append(candidates, att)
+		}
 	}
-	source, err := s.taskSvc.Store().GetAttempt(ctx, proof.SourceAttemptID)
-	if err != nil || source == nil {
-		return nil, nil
+
+	for _, a := range candidates {
+		if a == nil || a.CancelRequested || a.CanceledAt != nil || a.ExitCode == nil || *a.ExitCode != 0 || a.FinishedAt == nil || a.ErrorMessage != "" {
+			continue
+		}
+		proof, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &d.Task, a.ID)
+		if err != nil || proof == nil {
+			continue
+		}
+		_, unchanged, err := s.inboxReviewRepositoryScope(ctx, d)
+		if err != nil || !unchanged {
+			return nil, nil
+		}
+		receipt := false
+		for _, act := range d.Activities {
+			if act != nil && act.TaskID == d.ID && act.AttemptID != nil && *act.AttemptID == a.ID && act.Author == a.RunnerID && act.ActivityType == "verification_source_verified" && act.Message == proof.SourceCommit {
+				receipt = true
+				break
+			}
+		}
+		if !receipt {
+			continue
+		}
+		source, err := s.taskSvc.Store().GetAttempt(ctx, proof.SourceAttemptID)
+		if err != nil || source == nil {
+			continue
+		}
+		original := *d
+		original.LatestAttempt = source
+		return &original, proof
 	}
-	original := *d
-	original.LatestAttempt = source
-	return &original, proof
+	return nil, nil
 }
 
 // A failed production inspection does not erase the tested unpublished source

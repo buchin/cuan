@@ -24,8 +24,18 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	}()
 	// Accepted work is final until a fresh user instruction reopens it. A late
 	// review or repaired provider must never reject an already accepted result.
-	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" || detail.Status == task.TaskStatusQueued || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
+	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
 		return
+	}
+	if detail.Status == task.TaskStatusQueued {
+		if detail.Launch == nil || detail.Launch.State == "stopped" || detail.Launch.State == "cancelled" {
+			reviewStatus := task.TaskStatusReview
+			if _, err := s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err == nil {
+				detail.Status = reviewStatus
+			}
+		} else {
+			return
+		}
 	}
 
 	gate = "finalization_artifacts"

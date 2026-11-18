@@ -170,7 +170,7 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 		return err
 	}
 	// 1b. Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart, terminal status false alarm, or expired window), revive it back to queued with refreshed window
-	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error IN ('Task is in terminal status.', 'Execution stopped during server restart.', 'Recorded execution is terminal; launch reconciled.') AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); err != nil {
+	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error IN ('Task is in terminal status.', 'Execution stopped during server restart.') AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); err != nil {
 		return err
 	}
 	// 2. Reconcile zombie started launches without any active running attempt
