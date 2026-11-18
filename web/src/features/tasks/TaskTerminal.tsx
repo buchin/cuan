@@ -1015,7 +1015,7 @@ export function TaskTerminal({
         const isMobileScreen =
           typeof window !== 'undefined' && window.innerWidth < 640
         const terminalFontSize = isMobileScreen ? 12 : 13
-        const scrollbackLimit = isMobileScreen ? 2000 : 20000
+        const scrollbackLimit = isMobileScreen ? 2000 : 8000
 
         // Font gate: wait for terminal font face to be ready before computing metrics
         try {
@@ -1068,6 +1068,10 @@ export function TaskTerminal({
                 return
               }
               const lineText = line.translateToString(true)
+              if (!lineText.includes('.')) {
+                callback(undefined)
+                return
+              }
               fileRegex.lastIndex = 0
               const found: any[] = []
               let m: RegExpExecArray | null
@@ -1091,6 +1095,18 @@ export function TaskTerminal({
 
         terminal.open(mount.current)
         term.current = terminal
+
+        // WebGL GPU acceleration with graceful fallback to standard DOM renderer
+        try {
+          const { WebglAddon } = await import('@xterm/addon-webgl')
+          const webgl = new WebglAddon()
+          webgl.onContextLoss(() => {
+            webgl.dispose()
+          })
+          terminal.loadAddon(webgl)
+        } catch {
+          // WebGL unsupported or context limit reached: xterm continues seamlessly with DOM renderer
+        }
         writeQueueRef.current = createTerminalWriteQueue(terminal, {
           isActive: () => !disposed && term.current === terminal,
           onDrained: () => {
