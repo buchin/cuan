@@ -18,7 +18,7 @@ self.addEventListener('push', event => {
   const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
   const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
   const icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : '/icons/cuan-192.png'
-  const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-192.png'
+  const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
   const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
   let href = '/inbox'

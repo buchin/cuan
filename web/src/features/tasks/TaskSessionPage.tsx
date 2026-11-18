@@ -157,11 +157,13 @@ export function TaskSessionPage({
         }
         return nextLive
       })
-      setRuntimeError('')
+      setRuntimeError((prev) => (prev ? '' : prev))
     } catch {
-      setLive(null)
-      setRuntimeError(
-        'Live session status is unavailable. Saved output remains available.',
+      setLive((prev) => (prev ? null : prev))
+      setRuntimeError((prev) =>
+        prev === 'Live session status is unavailable. Saved output remains available.'
+          ? prev
+          : 'Live session status is unavailable. Saved output remains available.',
       )
     }
   }, [taskId])

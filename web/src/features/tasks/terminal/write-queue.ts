@@ -108,14 +108,8 @@ export function createTerminalWriteQueue(
           opts.onDrained?.()
           return
         }
-        if (pending.length <= adaptiveChunk) {
-          if (typeof queueMicrotask === 'function') {
-            queueMicrotask(step)
-          } else {
-            setTimeout(step, 0)
-          }
-          return
-        }
+        // Always yield to the browser event loop via MessageChannel macrotask (scheduleTerminalWriteTask)
+        // so hardware keyboard events and UI frame paints are never starved by microtask chaining.
         scheduleTerminalWriteTask(step)
       }
 
