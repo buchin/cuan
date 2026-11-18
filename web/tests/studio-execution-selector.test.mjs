@@ -46,10 +46,6 @@ test('1. StudioExecutionSelector: Single unified smart pill & tabbed popover', (
 
 test('2. StudioView: Clean single-row composer toolbar on mobile and desktop', () => {
   assert.ok(
-    !studioViewSource.includes('<StudioProjectSelector'),
-    'Studio leaves project discovery to the conversation'
-  )
-  assert.ok(
     studioViewSource.includes('flex items-center justify-between'),
     'Toolbar must use items-center justify-between for single-row alignment'
   )

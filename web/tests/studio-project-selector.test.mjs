@@ -23,16 +23,8 @@ test('1. StudioProjectSelector: Compact pill button & modern popover structure',
     'Pill button must have rounded-full compact styling matching StudioAgentSelector'
   )
   assert.ok(
-    selectorSource.includes("t('Project: Auto')"),
-    'StudioProjectSelector must display Project: Auto by default'
-  )
-  assert.ok(
-    selectorSource.includes("t('Auto (Default Project)')"),
-    'StudioProjectSelector must provide Auto (Default Project) option'
-  )
-  assert.ok(
-    selectorSource.includes("t('Recommended')"),
-    'Auto option must display Recommended badge'
+    selectorSource.includes("t('Select project')"),
+    'StudioProjectSelector must display Select project or project name'
   )
   assert.ok(
     selectorSource.includes("t('+ Connect new project…')"),
@@ -48,9 +40,8 @@ test('1. StudioProjectSelector: Compact pill button & modern popover structure',
   )
 })
 
-test('2. Studio retains explicit project context without asking users to choose a project', () => {
-  assert.ok(!studioViewSource.includes('<StudioProjectSelector'))
-  assert.ok(!studioViewSource.includes('projectsApi.list()'))
+test('2. Studio integrates StudioProjectSelector and preserves explicit project context', () => {
+  assert.ok(studioViewSource.includes('<StudioProjectSelector'))
   assert.ok(studioViewSource.includes("searchParams.get('project')"))
   assert.ok(studioViewSource.includes('project_id: selectedProjectId'))
 })
