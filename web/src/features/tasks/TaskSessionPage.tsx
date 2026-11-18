@@ -686,7 +686,7 @@ export function TaskSessionPage({
                 taskId={taskId}
                 attempt={attempt}
                 live={live}
-                onRefresh={() => void refresh()}
+                onRefresh={refresh}
                 controlsTarget={terminalControls}
                 onConnectionChange={setTerminalConnection}
                 isDedicatedTerminal={isDedicatedTerminal}
