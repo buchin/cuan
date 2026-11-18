@@ -116,7 +116,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 			":retry:resume:retry:resume",
 		}
 		for _, digest := range inboxReviewEvidenceDigests(d) {
-			for _, suffix := range []string{
+			baseSuffixes := []string{
 				":owner-resume:" + digest,
 				":verifier-correction-v6:" + digest,
 				":verifier-correction-v6:" + digest + ":retry",
@@ -141,7 +141,6 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				"",
 				":snapshot",
 				":snapshot:evaluation",
-				":evaluation:" + digest,
 				":evidence:" + digest,
 				":evidence:" + digest + ":retry",
 				":reconcile:" + digest,
@@ -160,12 +159,28 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				":publication-assessment:" + digest + ":retry",
 				":operational-assessment:" + digest,
 				":operational-assessment:" + digest + ":retry",
-			} {
-				key := "task-review:" + d.LatestAttempt.ID + suffix
-				for _, v := range variations {
-					k := key + v
-					if (q.RequestID == delegationMessageID(k) || q.RequestID == delegationMessageID(k+":resume")) && (q.MessageID == delegationMessageID(k+":input") || q.MessageID == delegationMessageID(k+":resume:input")) {
-						return d
+			}
+			evalSuffixes := []string{
+				"",
+				":evaluation:" + digest,
+				":evaluation-v2:" + digest,
+			}
+			for _, s1 := range baseSuffixes {
+				for _, v1 := range variations {
+					for _, s2 := range evalSuffixes {
+						if s1 == "" && v1 != "" && s2 == "" {
+							continue
+						}
+						v2s := []string{""}
+						if s2 != "" {
+							v2s = variations
+						}
+						for _, v2 := range v2s {
+							key := "task-review:" + d.LatestAttempt.ID + s1 + v1 + s2 + v2
+							if (q.RequestID == delegationMessageID(key) || q.RequestID == delegationMessageID(key+":resume")) && (q.MessageID == delegationMessageID(key+":input") || q.MessageID == delegationMessageID(key+":resume:input")) {
+								return d
+							}
+						}
 					}
 				}
 			}

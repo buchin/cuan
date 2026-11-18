@@ -755,6 +755,10 @@ func TestInboxReviewedTask_RetryResumeVariations(t *testing.T) {
 		":reconcile:" + digest + ":retry:resume:retry",
 		":evaluation:" + digest,
 		":evaluation:" + digest + ":retry:resume",
+		":evidence:" + digest + ":evaluation:" + digest,
+		":reconcile:" + digest + ":retry:resume:retry:evaluation:" + digest,
+		":evidence:" + digest + ":evaluation-v2:" + digest,
+		":reconcile:" + digest + ":retry:resume:retry:evaluation-v2:" + digest,
 	} {
 		key := "task-review:" + d.LatestAttempt.ID + suffix
 		req := db.InboxRequest{
