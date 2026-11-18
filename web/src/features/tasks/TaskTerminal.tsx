@@ -741,7 +741,8 @@ export function TaskTerminal({
       )
       url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
       url.searchParams.set('mode', 'interactive')
-      url.searchParams.set('output_ack', '1')
+      // NOTE: Do not request output_ack. Client-side createTerminalWriteQueue handles
+      // render task yielding via MessageChannel, eliminating WAN stop-and-wait stalling.
       if (currentLiveId) {
         url.searchParams.set('attach', '1')
         url.searchParams.set('session_id', currentLiveId)
@@ -1003,12 +1004,17 @@ export function TaskTerminal({
 
     const initTerminal = async () => {
       try {
-        const [{ Terminal: XtermTerminal }, { FitAddon }, { WebLinksAddon }] =
-          await Promise.all([
-            import('@xterm/xterm'),
-            import('@xterm/addon-fit'),
-            import('@xterm/addon-web-links'),
-          ])
+        const [
+          { Terminal: XtermTerminal },
+          { FitAddon },
+          { WebLinksAddon },
+          webglModule,
+        ] = await Promise.all([
+          import('@xterm/xterm'),
+          import('@xterm/addon-fit'),
+          import('@xterm/addon-web-links'),
+          import('@xterm/addon-webgl').catch(() => null),
+        ])
 
         if (disposed || !mount.current) return
 
@@ -1097,15 +1103,16 @@ export function TaskTerminal({
         term.current = terminal
 
         // WebGL GPU acceleration with graceful fallback to standard DOM renderer
-        try {
-          const { WebglAddon } = await import('@xterm/addon-webgl')
-          const webgl = new WebglAddon()
-          webgl.onContextLoss(() => {
-            webgl.dispose()
-          })
-          terminal.loadAddon(webgl)
-        } catch {
-          // WebGL unsupported or context limit reached: xterm continues seamlessly with DOM renderer
+        if (webglModule && webglModule.WebglAddon && typeof window !== 'undefined' && !window.navigator.webdriver) {
+          try {
+            const webgl = new webglModule.WebglAddon()
+            webgl.onContextLoss(() => {
+              webgl.dispose()
+            })
+            terminal.loadAddon(webgl)
+          } catch {
+            // WebGL unsupported or context limit reached: xterm continues seamlessly with DOM renderer
+          }
         }
         writeQueueRef.current = createTerminalWriteQueue(terminal, {
           isActive: () => !disposed && term.current === terminal,
