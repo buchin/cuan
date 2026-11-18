@@ -711,6 +711,15 @@ func (s *DBStore) CreateActivity(ctx context.Context, act *TaskActivity) error {
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9
 		)
+		ON CONFLICT (id) DO UPDATE SET
+			task_id = EXCLUDED.task_id,
+			attempt_id = EXCLUDED.attempt_id,
+			activity_type = EXCLUDED.activity_type,
+			author = EXCLUDED.author,
+			old_status = EXCLUDED.old_status,
+			new_status = EXCLUDED.new_status,
+			message = EXCLUDED.message,
+			created_at = EXCLUDED.created_at
 	`
 	_, err := s.db.ExecContext(ctx, query,
 		act.ID,
