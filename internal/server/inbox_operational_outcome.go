@@ -15,6 +15,13 @@ func requireOperationalOutcome(d *task.TaskDetailResponse, decision inboxReviewE
 	if d == nil || (d.ExecutionCategory != task.ExecutionCategoryOps && !task.SupportsAccountOutcomeInspection(&d.Task)) {
 		return decision
 	}
+	if len(task.AcceptanceGaps(&d.Task)) == 0 && inboxReviewExecutionSucceeded(d) && decision.Decision == "pass" {
+		decision.RequestedOutcome = "completed"
+		decision.RemainingWork = "none"
+		decision.ManagerAction = ""
+		decision.ManagerReason = ""
+		return decision
+	}
 	if decision.RequestedOutcome == "unfinished" && decision.Decision == "pass" {
 		decision.Decision = "revise"
 		decision.RemainingWork = "implementation"

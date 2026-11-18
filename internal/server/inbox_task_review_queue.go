@@ -240,6 +240,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			} else if recoverSnapshot && inboxReviewEvidenceChanged(detail, previous.Content) {
 				key += ":evidence:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
+			} else if recoverSnapshot && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) && !strings.Contains(key, ":evaluation:") {
+				key += ":evaluation:" + inboxReviewEvidenceDigest(detail)
+				requestID = delegationMessageID(key)
 			} else {
 				return
 			}
@@ -251,7 +254,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			}
 			requestID = delegationMessageID(key)
 		} else if (matched.State == "failed" || matched.State == "interrupted") && recoverSnapshot {
-			if strings.Contains(key, ":verifier-correction-v6:") || strings.Contains(key, ":verifier-correction-v5:") || strings.Contains(key, ":source-assessment:") || strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:") || strings.Contains(key, ":provider-assessment:") || strings.Contains(key, ":evidence:") {
+			if strings.Contains(key, ":verifier-correction-v6:") || strings.Contains(key, ":verifier-correction-v5:") || strings.Contains(key, ":source-assessment:") || strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:") || strings.Contains(key, ":provider-assessment:") || strings.Contains(key, ":evidence:") || strings.Contains(key, ":evaluation:") {
 				if strings.HasSuffix(key, ":retry") {
 					if matched.State == "interrupted" && !strings.HasSuffix(key, ":resume") {
 						key += ":resume"
