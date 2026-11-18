@@ -241,11 +241,14 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				key += ":evidence:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
-				if !strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") {
+				if !strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
 					key += ":evaluation:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
-				} else if strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") {
+				} else if strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
 					key = strings.Replace(key, ":evaluation:", ":evaluation-v2:", 1)
+					requestID = delegationMessageID(key)
+				} else if strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
+					key = strings.Replace(key, ":evaluation-v2:", ":evaluation-v3:", 1)
 					requestID = delegationMessageID(key)
 				} else {
 					return
@@ -261,7 +264,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			}
 			requestID = delegationMessageID(key)
 		} else if (matched.State == "failed" || matched.State == "interrupted") && recoverSnapshot {
-			if strings.Contains(key, ":verifier-correction-v6:") || strings.Contains(key, ":verifier-correction-v5:") || strings.Contains(key, ":source-assessment:") || strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:") || strings.Contains(key, ":provider-assessment:") || strings.Contains(key, ":evidence:") || strings.Contains(key, ":evaluation:") || strings.Contains(key, ":evaluation-v2:") {
+			if strings.Contains(key, ":verifier-correction-v6:") || strings.Contains(key, ":verifier-correction-v5:") || strings.Contains(key, ":source-assessment:") || strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:") || strings.Contains(key, ":provider-assessment:") || strings.Contains(key, ":evidence:") || strings.Contains(key, ":evaluation:") || strings.Contains(key, ":evaluation-v2:") || strings.Contains(key, ":evaluation-v3:") {
 				if strings.HasSuffix(key, ":retry") {
 					if matched.State == "interrupted" && !strings.HasSuffix(key, ":resume") {
 						key += ":resume"

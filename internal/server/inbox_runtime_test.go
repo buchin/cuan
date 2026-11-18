@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/buchin/cuan/internal/db"
 )
 
 func TestInboxRuntimeStreamObservedEventsAndRedaction(t *testing.T) {
@@ -395,5 +397,73 @@ func TestPublicWebRecoveryRetainsObservedFactsWithoutPrivateReads(t *testing.T) 
 	}
 	if strings.Contains(notes, "private-file-sentinel") || strings.Contains(notes, "private-sentinel-credential") {
 		t.Fatal("private output entered research recovery")
+	}
+}
+
+func TestInboxRuntimeStreamCapturesFinishPayload(t *testing.T) {
+	s := &inboxRuntimeStream{}
+	event := `{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"finish","tool_info":{"parameters":{"decision":"pass","explanation":"All good"}}}}`
+	s.Write([]byte(event + "\n"))
+
+	raw, failure, reason := s.finish()
+	if failure != "" || reason != "" {
+		t.Fatalf("expected clean finish from captured finish payload, got failure=%q reason=%q", failure, reason)
+	}
+	var res inboxAgyResult
+	if err := json.Unmarshal([]byte(raw), &res); err != nil || res.Status != "SUCCESS" {
+		t.Fatalf("expected successful inboxAgyResult, got raw=%s, err=%v", raw, err)
+	}
+	if !strings.Contains(res.Response, "All good") {
+		t.Fatalf("expected response to contain All good, got %s", res.Response)
+	}
+}
+
+func TestDecodeInboxAgyResultUsesFinishPayloadOnTimeout(t *testing.T) {
+	raw := `{"status":"ERROR","reason":"print_timeout","response":""}`
+	finishPayload := `{"decision":"pass","explanation":"Finished successfully"}`
+
+	out, failure, reason := decodeInboxAgyResult(raw, "", finishPayload)
+	if failure != "" || reason != "success" {
+		t.Fatalf("expected success with finishPayload, got failure=%q reason=%q", failure, reason)
+	}
+	if out != finishPayload {
+		t.Fatalf("expected %s, got %s", finishPayload, out)
+	}
+}
+
+func TestParseInboxReviewEvaluationUnquotesValues(t *testing.T) {
+	raw := `{"decision":"\"pass\"","explanation":"\"Semua kriteria terpenuhi.\"","finding":"\"Lulus\"","remaining_work":"\"none\"","requested_outcome":"\"completed\"","revision":"\"\"","source_review":"\"pass\"","visual_inspection":"\"Tampilan normal\""}`
+	eval, err := parseInboxReviewEvaluation(raw)
+	if err != nil {
+		t.Fatalf("parseInboxReviewEvaluation failed: %v", err)
+	}
+	if eval.Decision != "pass" {
+		t.Fatalf("expected decision pass, got %q", eval.Decision)
+	}
+	if eval.Explanation != "Semua kriteria terpenuhi." {
+		t.Fatalf("expected unquoted explanation, got %q", eval.Explanation)
+	}
+}
+
+func TestMatchInboxRequestIDOrRetry(t *testing.T) {
+	original := "req-12345"
+	retry1 := db.InboxRetryID(original)
+	retry2 := db.InboxRetryID(retry1)
+	retry3 := db.InboxRetryID(retry2)
+
+	if !matchInboxRequestIDOrRetry(original, original) {
+		t.Fatal("failed to match original")
+	}
+	if !matchInboxRequestIDOrRetry(retry1, original) {
+		t.Fatal("failed to match retry level 1")
+	}
+	if !matchInboxRequestIDOrRetry(retry2, original) {
+		t.Fatal("failed to match retry level 2")
+	}
+	if !matchInboxRequestIDOrRetry(retry3, original) {
+		t.Fatal("failed to match retry level 3")
+	}
+	if matchInboxRequestIDOrRetry("random-id", original) {
+		t.Fatal("matched random id")
 	}
 }

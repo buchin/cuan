@@ -87,6 +87,22 @@ type inboxReviewEvaluation struct {
 
 var inboxReviewTaskLink = regexp.MustCompile(`/tasks/([A-Za-z0-9_-]+)`)
 
+func matchInboxRequestIDOrRetry(actual string, targets ...string) bool {
+	for _, target := range targets {
+		if target == "" {
+			continue
+		}
+		cur := target
+		for i := 0; i <= 5; i++ {
+			if actual == cur {
+				return true
+			}
+			cur = db.InboxRetryID(cur)
+		}
+	}
+	return false
+}
+
 // Bind every decision to a current application-generated review and its actual
 // attempt. Model text never supplies task IDs, project IDs or authorization.
 func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task.TaskDetailResponse {
@@ -164,6 +180,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				"",
 				":evaluation:" + digest,
 				":evaluation-v2:" + digest,
+				":evaluation-v3:" + digest,
 			}
 			for _, s1 := range baseSuffixes {
 				for _, v1 := range variations {
@@ -177,7 +194,9 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 						}
 						for _, v2 := range v2s {
 							key := "task-review:" + d.LatestAttempt.ID + s1 + v1 + s2 + v2
-							if (q.RequestID == delegationMessageID(key) || q.RequestID == delegationMessageID(key+":resume")) && (q.MessageID == delegationMessageID(key+":input") || q.MessageID == delegationMessageID(key+":resume:input")) {
+							reqMatches := matchInboxRequestIDOrRetry(q.RequestID, delegationMessageID(key), delegationMessageID(key+":resume"))
+							msgMatches := q.MessageID == delegationMessageID(key+":input") || q.MessageID == delegationMessageID(key+":resume:input")
+							if reqMatches && msgMatches {
 								return d
 							}
 						}
@@ -326,6 +345,28 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 	if decoder.Decode(&result) != nil {
 		return result, bad
 	}
+	unquote := func(s string) string {
+		s = strings.TrimSpace(s)
+		if strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"") && len(s) >= 2 {
+			var unquoted string
+			if err := json.Unmarshal([]byte(s), &unquoted); err == nil {
+				return strings.TrimSpace(unquoted)
+			}
+			return strings.Trim(s, "\"")
+		}
+		return s
+	}
+	result.Decision = unquote(result.Decision)
+	result.SourceReview = unquote(result.SourceReview)
+	result.RequestedOutcome = unquote(result.RequestedOutcome)
+	result.RemainingWork = unquote(result.RemainingWork)
+	result.ManagerAction = unquote(result.ManagerAction)
+	result.VisualInspection = unquote(result.VisualInspection)
+	result.Finding = unquote(result.Finding)
+	result.Explanation = unquote(result.Explanation)
+	result.Revision = unquote(result.Revision)
+	result.CustomerReplyDraft = unquote(result.CustomerReplyDraft)
+	result.ManagerReason = unquote(result.ManagerReason)
 	var duplicate inboxReviewEvaluation
 	if err := decoder.Decode(&duplicate); err != io.EOF {
 		if err != nil || duplicate != result || decoder.Decode(new(any)) != io.EOF {
@@ -402,7 +443,7 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 			extractedRev = strings.TrimSpace(rev)
 		}
 		if d, ok := jsonObj["decision"].(string); ok && strings.TrimSpace(d) != "" && extractedDec == "" {
-			extractedDec = strings.ToLower(strings.TrimSpace(d))
+			extractedDec = strings.Trim(strings.ToLower(strings.TrimSpace(d)), "\"")
 		}
 	}
 
@@ -414,6 +455,12 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 			if exp, ok := jsonObj["explanation"].(string); ok && strings.TrimSpace(exp) != "" {
 				cleanExplanation = strings.TrimSpace(exp)
 			}
+		}
+	}
+	if strings.HasPrefix(cleanExplanation, "\"") && strings.HasSuffix(cleanExplanation, "\"") && len(cleanExplanation) >= 2 {
+		var unquoted string
+		if err := json.Unmarshal([]byte(cleanExplanation), &unquoted); err == nil {
+			cleanExplanation = strings.TrimSpace(unquoted)
 		}
 	}
 
