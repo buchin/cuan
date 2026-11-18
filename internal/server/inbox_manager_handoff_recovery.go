@@ -45,10 +45,14 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 	}
 	sourceCorrection := false
 	if proof != nil {
-		source, verified := s.verifiedSupplementalSource(ctx, d)
-		sourceCorrection = source != nil && verified != nil && verified.OwnerID == origin.OwnerID
-		if !sourceCorrection {
-			return false
+		if tested := s.testedSourceAfterFailedVerification(ctx, d, proof); tested != nil {
+			d = tested
+		} else {
+			source, verified := s.verifiedSupplementalSource(ctx, d)
+			sourceCorrection = source != nil && verified != nil && verified.OwnerID == origin.OwnerID
+			if !sourceCorrection {
+				return false
+			}
 		}
 	}
 	decision, found := reviewAssessment(d, "")

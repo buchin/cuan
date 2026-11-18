@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	projectpkg "github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -47,6 +49,9 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 			project, pErr := s.projectSvc.TaskContext(ctx, detail.ProjectID, detail.Instructions)
 			if pErr == nil && project != nil && (project.RepoURL != "" || project.LocalPath != "") {
 				workDir, e := s.projectSvc.TaskExecutionWorkspace(ctx, taskID, detail.Instructions, project)
+				if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) {
+					workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(ctx, taskID, project)
+				}
 				if e == nil && workDir != "" {
 					_ = os.MkdirAll(workDir, 0755)
 					return taskID, workDir, nil

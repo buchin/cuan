@@ -1105,6 +1105,7 @@
   "Fullscreen": "Layar penuh",
   "Exit fullscreen": "Keluar layar penuh",
   "Toggle fullscreen": "Beralih layar penuh",
+  "Toggle input composer": "Tampilkan/sembunyikan input composer",
   "Copy selection": "Salin pilihan",
   "Copy all output": "Salin semua output",
   "Paste into terminal": "Tempel ke terminal",
@@ -2144,5 +2145,10 @@
   "Belum ada 5 backer terdaftar. Dukungan mulai Rp 100.000 hari ini langsung mengamankan posisi Anda di Top 5 Besar (Logo Utama, Slogan, dan Tautan Website permanen).": "Belum ada 5 backer terdaftar. Dukungan mulai Rp 100.000 hari ini langsung mengamankan posisi Anda di Top 5 Besar (Logo Utama, Slogan, dan Tautan Website permanen).",
   "Slot logo compact (ukuran sedang dengan link terverifikasi) terbuka untuk dukungan mulai Rp 300.000. Urutan posisi otomatis diatur berdasarkan nominal kontribusi.": "Slot logo compact (ukuran sedang dengan link terverifikasi) terbuka untuk dukungan mulai Rp 300.000. Urutan posisi otomatis diatur berdasarkan nominal kontribusi.",
   "Dukungan mulai Rp 100.000 tercantum permanen di Community Supporters Wall dan repositori resmi GitHub Cuan.": "Dukungan mulai Rp 100.000 tercantum permanen di Community Supporters Wall dan repositori resmi GitHub Cuan.",
-  "Tentukan nominal kontribusi yang nyaman bagi Anda. Kontribusi Anda langsung dicatat dan menentukan posisi di Leaderboard.": "Tentukan nominal kontribusi yang nyaman bagi Anda. Kontribusi Anda langsung dicatat dan menentukan posisi di Leaderboard."
+  "Tentukan nominal kontribusi yang nyaman bagi Anda. Kontribusi Anda langsung dicatat dan menentukan posisi di Leaderboard.": "Tentukan nominal kontribusi yang nyaman bagi Anda. Kontribusi Anda langsung dicatat dan menentukan posisi di Leaderboard.",
+  "Drop files to upload to workspace": "Lepaskan file untuk upload ke workspace",
+  "Files will be uploaded and path inserted": "File akan diunggah dan path dimasukkan otomatis",
+  "Uploading file to workspace…": "Mengunggah file ke workspace…",
+  "File uploaded to workspace": "File berhasil diunggah ke workspace",
+  "Failed to upload file to workspace": "Gagal mengunggah file ke workspace"
 }

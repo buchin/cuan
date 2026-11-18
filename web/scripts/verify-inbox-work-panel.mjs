@@ -78,6 +78,7 @@ try{
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.endsWith('/projects'))data={projects:[]}
+   else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
    else if(pathname.endsWith('/tasks'))data={tasks:[baseTask]}
    else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)})
@@ -98,7 +99,25 @@ try{
   assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
   await card.getByText(baseTask.latest_progress,{exact:true}).waitFor()
   const composer=page.locator('[data-primary-composer]')
+  // Verify elimination of composer mode tabs (DoD 1)
+  assert.equal(await page.locator('#compose-public-tab').count(), 0)
+  assert.equal(await page.locator('#compose-internal-tab').count(), 0)
+
+  // Verify auto-whisper on @agent mention and instant visual feedback (DoD 2, 3, 4)
+  await composer.fill('@cuan tolong periksa laporan ini')
+  const whisperButton = page.locator('button[aria-label*="whisper" i], button[aria-label*="bisikan" i]')
+  await whisperButton.waitFor({state:'visible'})
+  assert.equal(await whisperButton.count(), 1)
+  assert.equal(await page.getByText('Bisikkan ke @cuan', { exact: false }).count(), 1)
+  await page.screenshot({path:path.join(output,`inbox-whisper-${width}.png`)})
+
+  // Verify deletion of mention restores public reply mode instantly
   await composer.fill('Draft tetap tersimpan')
+  const sendButton = page.locator('button[aria-label*="Kirim pesan" i], button[aria-label*="Send message" i]')
+  await sendButton.waitFor({state:'visible'})
+  assert.equal(await sendButton.count(), 1)
+  assert.equal(await whisperButton.count(), 0)
+  await page.screenshot({path:path.join(output,`inbox-composer-${width}.png`)})
   const list=page.locator('.inbox-message-list')
   await list.evaluate(el=>{el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-40)})
   await card.scrollIntoViewIfNeeded()
@@ -189,6 +208,24 @@ try{
   assert.ok(terminalBox.height>650)
   await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
   await page.screenshot({path:path.join(output,`terminal-${width}.png`)})
+  // Test native terminal drag & drop file upload
+  const terminalElement=panel.locator('[aria-label="Terminal sesi"]')
+  await terminalElement.evaluate(el=>{
+    const dt=new DataTransfer()
+    dt.items.add(new File(['mock-bytes'],'screenshot.png',{type:'image/png'}))
+    el.dispatchEvent(new DragEvent('dragenter',{bubbles:true,cancelable:true,dataTransfer:dt}))
+  })
+  const dragOverlay=panel.locator('[role="region"][aria-label="Lepaskan file untuk upload ke workspace"]')
+  await dragOverlay.waitFor({state:'visible',timeout:5000})
+  assert.equal(await dragOverlay.isVisible(),true)
+  await page.screenshot({path:path.join(output,`terminal-drag-${width}.png`)})
+  await terminalElement.evaluate(el=>{
+    const dt=new DataTransfer()
+    dt.items.add(new File(['mock-bytes'],'screenshot.png',{type:'image/png'}))
+    el.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt}))
+  })
+  await page.waitForTimeout(600)
+  await page.screenshot({path:path.join(output,`terminal-dropped-${width}.png`)})
   // Exercise the actual session component across the state transition which
   // exposes conditional hook errors. No Owner credentials or backend writes.
   await page.goto(new URL('/tasks/work/sessions/latest',origin).href,{waitUntil:'domcontentloaded'})

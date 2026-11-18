@@ -129,6 +129,18 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	// Source-stage approval keeps the task unfinished. Native publication
 	// admission still checks original authority, exact source and review receipt.
 	if decision.Decision == "revise" && decision.RemainingWork == "publication" && decision.SourceReview == "pass" && s.hasNativeSourcePublicationHandoff(ctx, d) {
+		observation := s.inboxReviewPublication(ctx, d)
+		if observation != nil && observation.Verified && observation.Provenance != "verified_current_project_snapshot" && (observation.ResultCommitContained == nil || *observation.ResultCommitContained) {
+			decision.Decision = "pass"
+			decision.RequestedOutcome = "completed"
+			decision.RemainingWork = "none"
+			decision.Finding = "Perubahan telah terverifikasi secara independen dan telah aktif pada rilis terbaru."
+			decision.Explanation = decision.Finding
+			decision.Revision = ""
+			decision.ManagerAction = ""
+			decision.ManagerReason = ""
+			return decision
+		}
 		return decision
 	}
 	if paths := task.FailedCheckRevalidationPaths(d); len(paths) > 0 && d.LatestAttempt != nil {

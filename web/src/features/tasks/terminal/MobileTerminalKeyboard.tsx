@@ -26,6 +26,16 @@ export type MobileTerminalKeyboardProps = {
   className?: string
 }
 
+function triggerHaptic(durationMs = 8) {
+  if (typeof window !== 'undefined' && 'navigator' in window && typeof navigator.vibrate === 'function') {
+    try {
+      navigator.vibrate(durationMs)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export function MobileTerminalKeyboard({
   onInject,
   onCopy,
@@ -111,6 +121,7 @@ export function MobileTerminalKeyboard({
   const fireKey = useCallback(
     (key: MobileKeyDef) => {
       if (disabled) return
+      triggerHaptic(8)
 
       if (key.kind === 'mod' && key.mod) {
         setMods((prev) => toggleStickyMod(prev, key.mod!))
@@ -237,6 +248,7 @@ export function MobileTerminalKeyboard({
             disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault()
+              triggerHaptic(8)
               setShowExtended((prev) => !prev)
             }}
             className={`inline-flex h-8 shrink-0 items-center gap-1 rounded border px-2.5 font-mono text-xs font-semibold transition-colors disabled:opacity-40 ${
@@ -263,6 +275,7 @@ export function MobileTerminalKeyboard({
             disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault()
+              triggerHaptic(8)
               onInject('\x03')
             }}
             className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-rose-500/30 bg-rose-500/15 px-2.5 font-mono text-xs font-semibold text-rose-300 transition-colors active:bg-rose-600 active:text-white disabled:opacity-40"
@@ -279,6 +292,7 @@ export function MobileTerminalKeyboard({
           disabled={disabled}
           onPointerDown={(e) => {
             e.preventDefault()
+            triggerHaptic(8)
             onInject('\r')
           }}
           className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-[#333] bg-[#222] px-2.5 font-mono text-xs font-medium text-neutral-200 transition-colors active:bg-primary active:text-primary-foreground disabled:opacity-40"
@@ -295,6 +309,7 @@ export function MobileTerminalKeyboard({
             disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault()
+              triggerHaptic(8)
               onCopy()
             }}
             className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-[#333] bg-[#222] px-2 font-mono text-xs font-medium text-neutral-300 transition-colors active:bg-zinc-700 disabled:opacity-40"
@@ -312,6 +327,7 @@ export function MobileTerminalKeyboard({
             disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault()
+              triggerHaptic(8)
               onPaste()
             }}
             className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-[#333] bg-[#222] px-2 font-mono text-xs font-medium text-neutral-300 transition-colors active:bg-zinc-700 disabled:opacity-40"
@@ -329,6 +345,7 @@ export function MobileTerminalKeyboard({
             disabled={disabled}
             onPointerDown={(e) => {
               e.preventDefault()
+              triggerHaptic(8)
               onClear()
             }}
             className="inline-flex h-8 shrink-0 items-center gap-1 rounded border border-[#333] bg-[#222] px-2 font-mono text-xs font-medium text-neutral-400 transition-colors active:bg-zinc-700 disabled:opacity-40"

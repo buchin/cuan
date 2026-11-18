@@ -33,10 +33,18 @@ func (s *Server) isTaskActiveOnHost(taskID string) bool {
 						exists = true
 						s.terminalManager.RegisterTaskAlias(taskID, projKey)
 					}
+					// Also check if decoupled project worker has an active Unix domain socket!
+					if !exists && terminal.ProjectSocketExists(targetProjID) {
+						s.terminalManager.RegisterTaskAlias(taskID, projKey)
+						return true
+					}
 				}
 			}
 		}
 		if !exists || sess == nil || sess.IsClosed() {
+			if terminal.SocketExists(taskID) {
+				return true
+			}
 			active, err := s.terminalManager.TaskExecutionActive(taskID)
 			if err != nil || !active {
 				return false
@@ -109,6 +117,25 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 						if strings.HasPrefix(t.Title, "Terminal ·") {
 							if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
 								_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Renew local attempt leases for project tasks whose persistent worker runs via Unix socket bridge
+		if s.projectSvc != nil {
+			if projects, err := s.projectSvc.List(ctx); err == nil {
+				for _, p := range projects {
+					if terminal.ProjectSocketExists(p.ID) {
+						if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: p.ID, Status: task.TaskStatusDoing}); err == nil {
+							for _, t := range tasks {
+								if strings.HasPrefix(t.Title, "Terminal ·") {
+									if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+										_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+									}
+								}
 							}
 						}
 					}

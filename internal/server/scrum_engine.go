@@ -57,9 +57,15 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 		return
 	}
 
-	// A stale completion must not review another attempt or restart queued work.
-	if detail.LatestAttempt.ID != attemptID || detail.LatestAttempt.Status != status || detail.Status == task.TaskStatusQueued || detail.Status == "cancelled" {
+	// A stale completion must not review another attempt or canceled work.
+	if detail.LatestAttempt.ID != attemptID || detail.LatestAttempt.Status != status || detail.Status == "cancelled" || detail.Status == "canceled" {
 		return
+	}
+	if detail.Status == task.TaskStatusQueued {
+		reviewStatus := task.TaskStatusReview
+		if _, err := s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err == nil {
+			detail.Status = reviewStatus
+		}
 	}
 
 	// Resolve the target discussion/chat room
@@ -212,21 +218,50 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 // nonzero exit is reviewable only with a matching final report, never a manually
 // changed success state or an older attempt's report. Acceptance still needs DoD.
 func inboxReviewExecutionSucceeded(d *task.TaskDetailResponse) bool {
-	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+	if d == nil || d.LatestAttempt == nil {
 		return false
 	}
-	a := d.LatestAttempt
-	var final *task.TaskActivity
-	for _, activity := range d.Activities {
-		if activity != nil && activity.AttemptID != nil && *activity.AttemptID == a.ID && activity.ActivityType == "agent_report" && (final == nil || activity.CreatedAt.After(final.CreatedAt)) {
-			final = activity
+	if d.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		a := d.LatestAttempt
+		var final *task.TaskActivity
+		for _, activity := range d.Activities {
+			if activity != nil && activity.AttemptID != nil && *activity.AttemptID == a.ID && activity.ActivityType == "agent_report" && (final == nil || activity.CreatedAt.After(final.CreatedAt)) {
+				final = activity
+			}
+		}
+		if final != nil && final.NewStatus == task.TaskStatusBlocked {
+			return false
+		}
+		if a.ExitCode == nil || *a.ExitCode == 0 {
+			return true
+		}
+		return final != nil && (final.NewStatus == task.TaskStatusReview || final.NewStatus == task.TaskStatusDone) && strings.TrimSpace(d.Summary) != "" && strings.TrimSpace(d.CompleteNote) != ""
+	}
+
+	// If the latest attempt is not succeeded (e.g. native release workspace preparation failure),
+	// check if a prior implementation attempt succeeded and has an approved source review or verification receipt.
+	for i := len(d.Attempts) - 1; i >= 0; i-- {
+		a := d.Attempts[i]
+		if a == nil || a.Status != task.AttemptStatusSucceeded || a.CancelRequested || a.CanceledAt != nil {
+			continue
+		}
+		if a.ExitCode != nil && *a.ExitCode != 0 {
+			continue
+		}
+		var final *task.TaskActivity
+		for _, activity := range d.Activities {
+			if activity != nil && activity.AttemptID != nil && *activity.AttemptID == a.ID && activity.ActivityType == "agent_report" && (final == nil || activity.CreatedAt.After(final.CreatedAt)) {
+				final = activity
+			}
+		}
+		if final != nil && final.NewStatus == task.TaskStatusBlocked {
+			continue
+		}
+		for _, act := range d.Activities {
+			if act != nil && (act.ActivityType == "native_source_review_approved" || act.ActivityType == "verification_source_verified") {
+				return true
+			}
 		}
 	}
-	if final != nil && final.NewStatus == task.TaskStatusBlocked {
-		return false
-	}
-	if a.ExitCode == nil || *a.ExitCode == 0 {
-		return true
-	}
-	return final != nil && (final.NewStatus == task.TaskStatusReview || final.NewStatus == task.TaskStatusDone) && strings.TrimSpace(d.Summary) != "" && strings.TrimSpace(d.CompleteNote) != ""
+	return false
 }

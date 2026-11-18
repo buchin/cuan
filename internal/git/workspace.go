@@ -275,6 +275,19 @@ func (c *Client) bindWorkspaceBase(ctx context.Context, source, destination, bra
 		return c.bindWorkspaceBase(ctx, "", destination, branch)
 	}
 	if exec.CommandContext(ctx, c.gitBinary, "-C", destination, "rev-parse", "--verify", "HEAD^{commit}").Run() == nil {
+		if out, err := exec.CommandContext(ctx, c.gitBinary, "-C", destination, "for-each-ref", "--format=%(refname:short)", "refs/heads").Output(); err == nil {
+			heads := strings.Fields(string(out))
+			allTaskBranches := len(heads) > 0
+			for _, h := range heads {
+				if !strings.HasPrefix(h, "task/") {
+					allTaskBranches = false
+					break
+				}
+			}
+			if allTaskBranches {
+				return "", nil
+			}
+		}
 		return "", errors.New("selected project base branch is unavailable; retained task files were preserved")
 	}
 	return "", nil // Empty/new repositories retain their initial branch behavior.

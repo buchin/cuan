@@ -192,8 +192,18 @@ func (s *Service) ReconstructTaskExecutionWorkspace(ctx context.Context, taskID 
 		return "", err
 	}
 	work := filepath.Join(dir, "worktree")
-	if err = exec.CommandContext(ctx, "git", "-C", source, "worktree", "add", "-b", r.Branch, work, r.Head).Run(); err != nil {
-		return "", errors.New("Could not reconstruct the retained committed tree; recovery evidence was preserved")
+	branchExists := exec.CommandContext(ctx, "git", "-C", source, "show-ref", "--verify", "refs/heads/"+r.Branch).Run() == nil
+	addArgs := []string{"-C", source, "worktree", "add"}
+	if !branchExists {
+		addArgs = append(addArgs, "-b", r.Branch, work, r.Head)
+	} else {
+		addArgs = append(addArgs, work, r.Branch)
+	}
+	if err = exec.CommandContext(ctx, "git", addArgs...).Run(); err != nil {
+		_ = exec.CommandContext(ctx, "git", "-C", source, "worktree", "prune").Run()
+		if err = exec.CommandContext(ctx, "git", addArgs...).Run(); err != nil {
+			return "", errors.New("Could not reconstruct the retained committed tree; recovery evidence was preserved")
+		}
 	}
 	s.configureWorkspaceDeployBranch(ctx, work, p)
 	if err = syncWorkspaceEnvironment(work, SettingsFromMetadata(p.Metadata).Environment); err != nil {

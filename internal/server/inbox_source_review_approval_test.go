@@ -398,6 +398,89 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 			t.Fatal("lost response duplicated execution")
 		}
 	})
+
+	t.Run("failed verifier attempt allows implementation correction to underlying source", func(t *testing.T) {
+		current, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		sourceAttempt := current.LatestAttempt
+		reqID := db.GenerateUUID()
+		att, e := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{
+			RunnerID:  "cuan-runner",
+			AgentName: "agent_cuan",
+			RequestID: reqID,
+		})
+		must(e)
+		att.Status = task.AttemptStatusFailed
+		exitCode := 124
+		att.ExitCode = &exitCode
+		att.ErrorMessage = task.InspectionReportingTimeout
+		must(store.UpdateAttempt(ctx, att))
+
+		intent := &task.VerificationIntent{
+			SourceAttemptID: sourceAttempt.ID,
+			SourceCommit:    "f8d59358",
+			OwnerID:         q.OwnerID,
+			RoomID:          d.SourceRoomID,
+		}
+		intentData, _ := json.Marshal(intent)
+		now := time.Now().UTC()
+		_, err = s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
+			ID:               task.LaunchID(d.ID, reqID),
+			TaskID:           d.ID,
+			ProjectID:        d.ProjectID,
+			RequestID:        reqID,
+			OwnerID:          q.OwnerID,
+			RoomID:           d.SourceRoomID,
+			SourceRequestID:  d.SourceMessageID,
+			AgentID:          "agent_cuan",
+			Revision:         task.VerificationIntentMarker + string(intentData),
+			InstructionsHash: task.LaunchInstructionsHash(d.Instructions),
+			State:            "stopped",
+			SafeError:        "Recorded execution is terminal; launch reconciled.",
+			CreatedAt:        now,
+			AvailableAt:      now,
+			UpdatedAt:        now,
+			ExpiresAt:        now.Add(24 * time.Hour),
+		})
+		must(err)
+
+		taskWithFailedVerifier, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		correction := inboxReviewEvaluation{
+			Decision:         "revise",
+			RequestedOutcome: "unfinished",
+			RemainingWork:    "implementation",
+			Finding:          "Verifier timed out",
+			Explanation:      "Replan implementation",
+			Revision:         "Reconcile and complete missing work.",
+			ManagerAction:    "replan",
+			ManagerReason:    "Verifier hit deadline",
+		}
+		key := "task-review:" + att.ID + ":verifier-correction-v6:" + inboxReviewEvidenceDigest(taskWithFailedVerifier)
+		review := db.InboxRequest{
+			OwnerID:     q.OwnerID,
+			AgentID:     q.AgentID,
+			RoomID:      d.SourceRoomID,
+			RequestID:   delegationMessageID(key),
+			MessageID:   delegationMessageID(key + ":input"),
+			ReplyID:     delegationMessageID(key + ":reply"),
+			CreatedAt:   time.Now().UTC(),
+			Deadline:    time.Now().Add(time.Hour),
+			State:       "queued",
+			PayloadHash: delegationMessageID(key),
+		}
+		_, _, e = s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, review, &db.ProjectMessage{
+			ID: review.MessageID, RoomID: review.RoomID, AuthorType: "system", AuthorID: "cuan_work_review", Content: inboxOwnershipPolicy + "\nReview [/tasks/" + d.ID + "].", CreatedAt: review.CreatedAt,
+		})
+		must(e)
+		_, e = s.saveReviewAssessment(ctx, taskWithFailedVerifier, review, correction)
+		must(e)
+		reloaded, e := s.taskSvc.GetTaskDetail(ctx, d.ID)
+		must(e)
+		if !s.verifiedImplementationCorrectionAllowed(ctx, review, reloaded, correction.Revision) {
+			t.Fatal("failed verifier did not allow implementation correction to underlying source")
+		}
+	})
 	changed := d.Task
 	changed.CommitSHA = strings.Repeat("c", 40)
 	if _, err := task.NativeSourceReviewForAttempt(ctx, store, &changed, att.ID); err == nil {

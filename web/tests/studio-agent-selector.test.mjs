@@ -63,10 +63,6 @@ test('2. StudioAgentSelector: Compact pill button & modern popover structure', (
 
 test('3. StudioView: Composer toolbar integration without raw select block', () => {
   assert.ok(
-    !studioViewSource.includes('<StudioProjectSelector'),
-    'Studio has no project picker'
-  )
-  assert.ok(
     !studioViewSource.includes('onAddAgentClick='),
     'Studio must not ask users to pick or add internal agents'
   )

@@ -122,19 +122,48 @@ export function TaskSessionPage({
   const following = useRef(false)
   const refresh = useCallback(async () => {
     try {
-      setDetail(await tasksApi.get(taskId))
+      const nextDetail = await tasksApi.get(taskId)
+      setDetail((prev) => {
+        if (
+          prev &&
+          nextDetail &&
+          prev.id === nextDetail.id &&
+          prev.status === nextDetail.status &&
+          prev.latest_attempt?.id === nextDetail.latest_attempt?.id &&
+          prev.latest_attempt?.status === nextDetail.latest_attempt?.status &&
+          prev.activities?.length === nextDetail.activities?.length
+        ) {
+          return prev
+        }
+        return nextDetail
+      })
       setError('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this session.')
     }
     try {
       const runtime = await tasksApi.runtime(taskId)
-      setLive(runtime.live_session || null)
-      setRuntimeError('')
+      const nextLive = runtime.live_session || null
+      setLive((prev) => {
+        if (!prev && !nextLive) return prev
+        if (
+          prev &&
+          nextLive &&
+          prev.session_id === nextLive.session_id &&
+          prev.attempt_id === nextLive.attempt_id &&
+          prev.agent_id === nextLive.agent_id
+        ) {
+          return prev
+        }
+        return nextLive
+      })
+      setRuntimeError((prev) => (prev ? '' : prev))
     } catch {
-      setLive(null)
-      setRuntimeError(
-        'Live session status is unavailable. Saved output remains available.',
+      setLive((prev) => (prev ? null : prev))
+      setRuntimeError((prev) =>
+        prev === 'Live session status is unavailable. Saved output remains available.'
+          ? prev
+          : 'Live session status is unavailable. Saved output remains available.',
       )
     }
   }, [taskId])
@@ -207,6 +236,12 @@ export function TaskSessionPage({
       : basePath.startsWith('/projects/')
         ? basePath.split('/tasks/')[0] + '/tasks'
         : '/tasks' + suffix
+  const backState = state
+    ? (() => {
+        const { openTerminal, ...rest } = state as Record<string, unknown>
+        return Object.keys(rest).length > 0 ? rest : undefined
+      })()
+    : undefined
   const detailState = {
     ...state,
     workspaceReturnTo: location.pathname + location.search,
@@ -235,12 +270,12 @@ export function TaskSessionPage({
   } | null>(null)
   const [upstreamLoading, setUpstreamLoading] = useState(false)
 
+  const targetProjId = detail?.project_id || detail?.project_ids?.[0]
   const loadUpstreamStatus = useCallback(async (fetchRemote = false) => {
-    const projId = detail?.project_id || detail?.project_ids?.[0]
-    if (!projId) return
+    if (!targetProjId) return
     setUpstreamLoading(true)
     try {
-      const res = await projectsApi.getTerminalStatus(projId, fetchRemote)
+      const res = await projectsApi.getTerminalStatus(targetProjId, fetchRemote)
       if (res?.upstream) {
         setUpstreamStatus(res.upstream)
       }
@@ -248,13 +283,15 @@ export function TaskSessionPage({
     finally {
       setUpstreamLoading(false)
     }
-  }, [detail?.project_id, detail?.project_ids])
+  }, [targetProjId])
 
+  const upstreamFetchedProjRef = useRef<string>('')
   useEffect(() => {
-    if (isDedicatedTerminal && (detail?.project_id || detail?.project_ids?.[0])) {
+    if (isDedicatedTerminal && targetProjId && upstreamFetchedProjRef.current !== targetProjId) {
+      upstreamFetchedProjRef.current = targetProjId
       void loadUpstreamStatus(false)
     }
-  }, [isDedicatedTerminal, detail?.project_id, detail?.project_ids, loadUpstreamStatus])
+  }, [isDedicatedTerminal, targetProjId, loadUpstreamStatus])
 
   const reports =
     detail?.activities.filter(
@@ -267,7 +304,7 @@ export function TaskSessionPage({
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <Link
               to={backURL}
-              state={state}
+              state={backState}
               className="icon-action shrink-0"
               aria-label={t('Back')}
               title={t('Back')}
@@ -303,7 +340,7 @@ export function TaskSessionPage({
             </div>
             {error && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <Link to={backURL} state={state} className="action-primary text-xs px-3 py-1.5">
+                <Link to={backURL} state={backState} className="action-primary text-xs px-3 py-1.5">
                   {t('Back')}
                 </Link>
                 <button
@@ -333,7 +370,7 @@ export function TaskSessionPage({
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
             <Link
               to={backURL}
-              state={state}
+              state={backState}
               className="icon-action shrink-0"
               aria-label={t('Back')}
               title={t('Back')}
@@ -368,7 +405,7 @@ export function TaskSessionPage({
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              <Link to={backURL} state={state} className="action-primary text-xs px-3 py-1.5">
+              <Link to={backURL} state={backState} className="action-primary text-xs px-3 py-1.5">
                 {t('Back')}
               </Link>
               <Link to={taskURL} state={state} className="action-secondary text-xs px-3 py-1.5">
@@ -495,7 +532,7 @@ export function TaskSessionPage({
           {!isPopout ? (
             <Link
               to={backURL}
-              state={state}
+              state={backState}
               className="icon-action shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
               aria-label={
                 backURL.startsWith('/inbox/')
@@ -647,11 +684,11 @@ export function TaskSessionPage({
           <div className="min-h-0 flex-1 overscroll-contain">
             <Suspense fallback={<div className="h-full w-full bg-black/90 flex items-center justify-center text-xs font-mono text-muted-foreground">Connecting terminal...</div>}>
               <TaskTerminal
-                key={sessionId}
+                key={isDedicatedTerminal ? taskId : taskId}
                 taskId={taskId}
                 attempt={attempt}
                 live={live}
-                onRefresh={() => void refresh()}
+                onRefresh={refresh}
                 controlsTarget={terminalControls}
                 onConnectionChange={setTerminalConnection}
                 isDedicatedTerminal={isDedicatedTerminal}
@@ -827,7 +864,7 @@ export function TaskSessionPage({
                   </button>
                   <Link
                     to={backURL}
-                    state={state}
+                    state={backState}
                     className="action-primary text-xs px-3 py-1 inline-flex items-center gap-1.5 ml-auto"
                   >
                     {backURL.startsWith('/inbox/') ? (

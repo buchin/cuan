@@ -515,6 +515,9 @@ func (s *Service) RecoverStartupLocalAttempts(ctx context.Context) error {
 		if err != nil || a == nil || a.RunnerID != "local_terminal" {
 			continue
 		}
+		if s.isLocalAttemptActive != nil && s.isLocalAttemptActive(t.ID) {
+			continue
+		}
 		if a.Status == AttemptStatusRunning || a.Status == AttemptStatusQueued {
 			if _, err = s.UpdateAttemptStatus(ctx, a.ID, "recovery", UpdateAttemptRequest{
 				Status:       AttemptStatusInterrupted,
@@ -551,6 +554,9 @@ func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
 			continue
 		}
 		if a.LeaseExpiresAt != nil && time.Now().Before(*a.LeaseExpiresAt) {
+			continue
+		}
+		if s.isLocalAttemptActive != nil && s.isLocalAttemptActive(t.ID) {
 			continue
 		}
 		if _, err = s.UpdateAttemptStatus(ctx, a.ID, "recovery", UpdateAttemptRequest{Status: AttemptStatusInterrupted, ErrorMessage: "The local session was interrupted or its lease expired. The result is unknown. It will not be rerun automatically."}); err != nil {
@@ -592,6 +598,15 @@ func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Dura
 		if a.Status == AttemptStatusQueued {
 			continue
 		}
+
+		// Interactive project terminal sessions remain active as long as their
+		// underlying host process or socket is alive. They must not be reaped by batch execution timeouts.
+		if strings.HasPrefix(t.Title, "Terminal ·") {
+			if isTaskActiveOnHost != nil && isTaskActiveOnHost(t.ID) {
+				continue
+			}
+		}
+
 		deadline := AttemptDeadline(t, a)
 		exceededTimeout := now.After(deadline.Add(GetGracePeriod()))
 

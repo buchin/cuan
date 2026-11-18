@@ -105,8 +105,18 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 		if isCustomerReplyDelivery(q, d) {
 			return d
 		}
+		variations := []string{
+			"",
+			":resume",
+			":retry",
+			":retry:resume",
+			":resume:retry",
+			":retry:resume:retry",
+			":resume:retry:resume",
+			":retry:resume:retry:resume",
+		}
 		for _, digest := range inboxReviewEvidenceDigests(d) {
-			for _, suffix := range []string{
+			baseSuffixes := []string{
 				":owner-resume:" + digest,
 				":verifier-correction-v6:" + digest,
 				":verifier-correction-v6:" + digest + ":retry",
@@ -132,6 +142,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				":snapshot",
 				":snapshot:evaluation",
 				":evidence:" + digest,
+				":evidence:" + digest + ":retry",
 				":reconcile:" + digest,
 				":reconcile:" + digest + ":retry",
 				":report-provenance:" + digest,
@@ -140,16 +151,37 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				":assessment:" + digest + ":retry",
 				":verification-assessment:" + digest,
 				":verification-assessment:" + digest + ":retry",
+				":visual-assessment-v2:" + digest,
+				":visual-assessment-v2:" + digest + ":retry",
 				":visual-assessment:" + digest,
 				":visual-assessment:" + digest + ":retry",
 				":publication-assessment:" + digest,
 				":publication-assessment:" + digest + ":retry",
 				":operational-assessment:" + digest,
 				":operational-assessment:" + digest + ":retry",
-			} {
-				key := "task-review:" + d.LatestAttempt.ID + suffix
-				if q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input") {
-					return d
+			}
+			evalSuffixes := []string{
+				"",
+				":evaluation:" + digest,
+				":evaluation-v2:" + digest,
+			}
+			for _, s1 := range baseSuffixes {
+				for _, v1 := range variations {
+					for _, s2 := range evalSuffixes {
+						if s1 == "" && v1 != "" && s2 == "" {
+							continue
+						}
+						v2s := []string{""}
+						if s2 != "" {
+							v2s = variations
+						}
+						for _, v2 := range v2s {
+							key := "task-review:" + d.LatestAttempt.ID + s1 + v1 + s2 + v2
+							if (q.RequestID == delegationMessageID(key) || q.RequestID == delegationMessageID(key+":resume")) && (q.MessageID == delegationMessageID(key+":input") || q.MessageID == delegationMessageID(key+":resume:input")) {
+								return d
+							}
+						}
+					}
 				}
 			}
 		}
@@ -298,6 +330,16 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 	if err := decoder.Decode(&duplicate); err != io.EOF {
 		if err != nil || duplicate != result || decoder.Decode(new(any)) != io.EOF {
 			return result, bad
+		}
+	}
+	if result.Decision == "pass" {
+		result.ManagerAction = ""
+		result.ManagerReason = ""
+		if result.RemainingWork == "external" || result.RemainingWork == "" {
+			result.RemainingWork = "none"
+		}
+		if result.RequestedOutcome == "needs_input" || result.RequestedOutcome == "" {
+			result.RequestedOutcome = "completed"
 		}
 	}
 	if result.SourceReview != "" && result.SourceReview != "not_checked" && result.SourceReview != "pass" && result.SourceReview != "revise" {
@@ -603,7 +645,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	if d.Status == task.TaskStatusDone {
 		return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
 	}
-	if decision.ManagerAction == "wait" || decision.ManagerAction == "needs_owner" {
+	if (decision.ManagerAction == "wait" || decision.ManagerAction == "needs_owner") && decision.Decision != "pass" {
 		decision.Decision = "blocked"
 	}
 	if decision.Decision == "revise" {

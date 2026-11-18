@@ -631,3 +631,17 @@ func TestReadOnlyRecoveryNeverSalvagesApplicationMarkers(t *testing.T) {
 		}
 	}
 }
+
+func TestCoordinatorInstructionProjectManagerBurdenRelief(t *testing.T) {
+	for _, required := range []string{
+		"when a user request combines research with multi-step creation",
+		"never expose raw technical errors like 'project is ambiguous'",
+		"supply project_name to initialize a clean managed workspace automatically",
+		"never use default when multiple projects exist and the room is unpinned",
+	} {
+		if !strings.Contains(strings.ToLower(inboxCoordinatorInstruction), required) {
+			t.Fatalf("inboxCoordinatorInstruction missing required PM burden relief directive: %q", required)
+		}
+	}
+}
+

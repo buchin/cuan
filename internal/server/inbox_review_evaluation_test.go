@@ -683,3 +683,102 @@ func TestParseFallbackTextReview_NoRawJSONLeak(t *testing.T) {
 		t.Errorf("expected explanation to contain markdown text, got: %s", eval.Explanation)
 	}
 }
+
+func TestParseInboxReviewEvaluation_PassNormalizesWaitAndNeedsInput(t *testing.T) {
+	raw := `{"decision":"pass","explanation":"All DoD passed. Draft reply provided.","finding":"All DoD passed.","revision":"","manager_action":"wait","manager_reason":"Waiting for customer response","remaining_work":"external","requested_outcome":"needs_input"}`
+	eval, err := parseInboxReviewEvaluation(raw)
+	if err != nil {
+		t.Fatalf("unexpected error parsing pass evaluation with manager_action: %v", err)
+	}
+	if eval.Decision != "pass" {
+		t.Fatalf("expected decision pass, got %s", eval.Decision)
+	}
+	if eval.ManagerAction != "" || eval.ManagerReason != "" {
+		t.Fatalf("expected manager action to be cleared on pass, got %s", eval.ManagerAction)
+	}
+	if eval.RemainingWork != "none" {
+		t.Fatalf("expected remaining work none on pass, got %s", eval.RemainingWork)
+	}
+	if eval.RequestedOutcome != "completed" {
+		t.Fatalf("expected requested outcome completed on pass, got %s", eval.RequestedOutcome)
+	}
+}
+
+func TestRequireOperationalOutcome_PassWithAllDoDSatisfiedPreservesPass(t *testing.T) {
+	exitZero := 0
+	d := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:                "op-task",
+			ExecutionCategory: task.ExecutionCategoryOps,
+			Summary:           "Work summary",
+			CompleteNote:      "Verification note",
+			DoDChecklist: []task.DoDItem{
+				{Text: "Criterion 1", Evidence: "Evidence 1", Completed: true},
+				{Text: "Criterion 2", Evidence: "Evidence 2", Completed: true},
+			},
+		},
+		LatestAttempt: &task.TaskAttempt{
+			ID:       "att-1",
+			Status:   task.AttemptStatusSucceeded,
+			ExitCode: &exitZero,
+		},
+	}
+	input := inboxReviewEvaluation{
+		Decision:         "pass",
+		RequestedOutcome: "needs_input",
+		RemainingWork:    "external",
+		ManagerAction:    "wait",
+		ManagerReason:    "Waiting for customer",
+		Explanation:      "Completed all work",
+	}
+	got := requireOperationalOutcome(d, input)
+	if got.Decision != "pass" {
+		t.Fatalf("expected decision pass, got %s", got.Decision)
+	}
+	if got.RequestedOutcome != "completed" {
+		t.Fatalf("expected requested outcome completed, got %s", got.RequestedOutcome)
+	}
+	if got.RemainingWork != "none" {
+		t.Fatalf("expected remaining work none, got %s", got.RemainingWork)
+	}
+	if got.ManagerAction != "" {
+		t.Fatalf("expected manager action empty, got %s", got.ManagerAction)
+	}
+}
+
+func TestInboxReviewedTask_RetryResumeVariations(t *testing.T) {
+	s, d, old := stalledReviewFixture(t, "completed", task.AttemptStatusSucceeded)
+	ctx := context.Background()
+	digest := inboxReviewEvidenceDigest(d)
+
+	for _, suffix := range []string{
+		":reconcile:" + digest + ":retry:resume:retry",
+		":evaluation:" + digest,
+		":evaluation:" + digest + ":retry:resume",
+		":evidence:" + digest + ":evaluation:" + digest,
+		":reconcile:" + digest + ":retry:resume:retry:evaluation:" + digest,
+		":evidence:" + digest + ":evaluation-v2:" + digest,
+		":reconcile:" + digest + ":retry:resume:retry:evaluation-v2:" + digest,
+	} {
+		key := "task-review:" + d.LatestAttempt.ID + suffix
+		req := db.InboxRequest{
+			RoomID:    old.RoomID,
+			RequestID: delegationMessageID(key),
+			MessageID: delegationMessageID(key + ":input"),
+		}
+		msg := &db.ProjectMessage{
+			ID:         req.MessageID,
+			RoomID:     req.RoomID,
+			AuthorType: "system",
+			AuthorID:   "cuan_work_review",
+			Content:    "Review the result for [" + d.Title + "](/tasks/" + d.ID + ").",
+		}
+		if err := s.projectStudioRepo.CreateMessage(ctx, msg); err != nil {
+			t.Fatal(err)
+		}
+		bound := s.inboxReviewedTask(ctx, req)
+		if bound == nil || bound.ID != d.ID {
+			t.Fatalf("suffix %s failed to bind task: got %+v", suffix, bound)
+		}
+	}
+}

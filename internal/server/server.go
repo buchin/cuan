@@ -655,6 +655,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 
 	termHandler.SetTaskResolver(s.resolveTaskID)
 	tSvc.SetProjectFinder(liveProjectFinder{server: s})
+	tSvc.SetLocalAttemptActiveChecker(s.isTaskActiveOnHost)
 	if s.runnerSvc != nil {
 		s.runnerSvc.SetChatNotifier(runner.NewDefaultBusinessChatNotifier(func(ctx context.Context, roomID, messageContent string) error {
 			if s.projectStudioRepo == nil || roomID == "" {

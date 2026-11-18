@@ -380,4 +380,49 @@ test('12. Detached / Popout Window Terminal Architecture and Sync', () => {
   assert.ok(enLocale['Terminal aktif di jendela terpisah'], 'en.json must contain Terminal aktif di jendela terpisah')
 })
 
+test('13. Smooth Mobile Terminal Tap and Session Buffer Preservation', () => {
+  const taskTerminalPath = path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx')
+  const projectsWorkspacePath = path.join(rootDir, 'src/features/projects/ProjectsWorkspace.tsx')
+  const taskSessionPath = path.join(rootDir, 'src/features/tasks/TaskSessionPage.tsx')
+
+  const terminalContent = fs.readFileSync(taskTerminalPath, 'utf8')
+  const workspaceContent = fs.readFileSync(projectsWorkspacePath, 'utf8')
+  const sessionContent = fs.readFileSync(taskSessionPath, 'utf8')
+
+  // 1. ProjectsWorkspace must guard auto-open to prevent back-button loops
+  assert.match(workspaceContent, /terminalAutoOpenedRef/, 'ProjectsWorkspace must use terminalAutoOpenedRef to prevent back loops')
+
+  // 2. TaskSessionPage must not destroy TaskTerminal on attempt id update
+  assert.match(sessionContent, /key=\{isDedicatedTerminal\s*\?\s*taskId\s*:\s*taskId\}/, 'TaskSessionPage must preserve TaskTerminal across attempt transitions')
+
+  // 3. TaskTerminal must support project-term session preservation and tap-to-focus on mobile
+  assert.match(terminalContent, /project-term-/, 'TaskTerminal must recognize project-term sessions')
+  assert.match(terminalContent, /inputmode.*text/, 'TaskTerminal must set inputmode text on short touch tap')
+})
+
+test('14. Mobile Haptic Feedback & Nerd Font CLI Glyphs Support', () => {
+  const keyboardPath = path.join(rootDir, 'src/features/tasks/terminal/MobileTerminalKeyboard.tsx')
+  const terminalPath = path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx')
+  const cssPath = path.join(rootDir, 'src/features/tasks/task-workspace.css')
+  const regularFont = path.join(rootDir, 'public/fonts/JetBrainsMonoNerdFontMono-Regular.woff2')
+  const boldFont = path.join(rootDir, 'public/fonts/JetBrainsMonoNerdFontMono-Bold.woff2')
+
+  const keyboardContent = fs.readFileSync(keyboardPath, 'utf8')
+  const terminalContent = fs.readFileSync(terminalPath, 'utf8')
+  const cssContent = fs.readFileSync(cssPath, 'utf8')
+
+  // 1. MobileTerminalKeyboard must have haptic vibration helper
+  assert.match(keyboardContent, /triggerHaptic/, 'MobileTerminalKeyboard must define triggerHaptic')
+  assert.match(keyboardContent, /navigator\.vibrate/, 'MobileTerminalKeyboard must use navigator.vibrate')
+
+  // 2. TaskTerminal and CSS must configure JetBrainsMono NFM
+  assert.match(terminalContent, /JetBrainsMono NFM/, 'TaskTerminal must load JetBrainsMono NFM')
+  assert.match(cssContent, /JetBrainsMono NFM/, 'task-workspace.css must define JetBrainsMono NFM @font-face')
+
+  // 3. Font asset woff2 files must exist
+  assert.ok(fs.existsSync(regularFont), 'JetBrainsMonoNerdFontMono-Regular.woff2 must exist in public/fonts')
+  assert.ok(fs.existsSync(boldFont), 'JetBrainsMonoNerdFontMono-Bold.woff2 must exist in public/fonts')
+})
+
+
 

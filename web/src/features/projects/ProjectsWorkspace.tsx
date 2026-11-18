@@ -1,7 +1,7 @@
 import { ListSearch, ListTabs, ListTab, ListRowContent } from '../../components/layout/ListControls'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal, ExternalLink, Loader2 } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
@@ -79,11 +79,39 @@ export function ProjectsWorkspace({
     }
   }
 
+  const terminalAutoOpenedRef = useRef(false)
   useEffect(() => {
-    const shouldOpen =
-      new URLSearchParams(location.search).get('terminal') === 'open' ||
-      (location.state as { openTerminal?: boolean } | null)?.openTerminal
-    if (shouldOpen && project?.id && !openingTerminalId && !taskId) {
+    const searchParams = new URLSearchParams(location.search)
+    const hasTerminalParam = searchParams.get('terminal') === 'open'
+    const hasTerminalState = Boolean(
+      (location.state as { openTerminal?: boolean } | null)?.openTerminal,
+    )
+
+    if (
+      (hasTerminalParam || hasTerminalState) &&
+      project?.id &&
+      !openingTerminalId &&
+      !taskId &&
+      !terminalAutoOpenedRef.current
+    ) {
+      terminalAutoOpenedRef.current = true
+      // Clean up the URL / history state on the project workspace so that returning via back button
+      // does not re-trigger the auto-open effect.
+      if (hasTerminalParam) {
+        searchParams.delete('terminal')
+        const newSearch = searchParams.toString()
+          ? `?${searchParams.toString()}`
+          : ''
+        try {
+          window.history.replaceState(null, '', `${location.pathname}${newSearch}`)
+        } catch {}
+      } else if (hasTerminalState) {
+        const { openTerminal, ...cleanState } =
+          (location.state as Record<string, unknown>) || {}
+        try {
+          window.history.replaceState(cleanState, '', `${location.pathname}${location.search}`)
+        } catch {}
+      }
       void handleOpenProjectTerminal(project.id)
     }
   }, [location.search, location.state, project?.id, taskId])
@@ -172,7 +200,6 @@ export function ProjectsWorkspace({
         {
           state: {
             taskReturnTo: `/projects/${encodeURIComponent(projId)}/tasks`,
-            openTerminal: true,
           },
         },
       )

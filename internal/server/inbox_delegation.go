@@ -523,6 +523,11 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			// The durable launch must retain the original root request as well.
 			sourceRequestID = phase.Request.RequestID
 		}
+		if t != nil && len(t.Attempts) > 0 {
+			if launch, err := s.taskSvc.LatestLaunch(ctx, t.ID); err == nil && launch != nil && launch.RequestID == launchID {
+				launchID = delegationMessageID(fmt.Sprintf("task-continuation:%s:%s:%d", d.TaskID, q.RequestID, len(t.Attempts)+1))
+			}
+		}
 	} else {
 		launchID = delegationMessageID("task-run:" + q.RoomID + ":" + d.AuthorizationID)
 	}

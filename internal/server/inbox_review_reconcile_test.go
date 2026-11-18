@@ -228,3 +228,110 @@ func TestStalledReviewRecoveryRequiresStoredOwnerApproval(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewChainAdvancesDownCompletedDerivedReviews(t *testing.T) {
+	s, d, old := stalledReviewFixture(t, "completed")
+	ctx := context.Background()
+	repo := s.projectStudioRepo.(db.InboxRequestRepository)
+
+	// Step 1: Base review is completed without ownership policy -> queues :ownership-assessment:
+	s.queueInboxTaskReview(ctx, d)
+	rows := reviewRequests(t, s, old.RoomID)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 review requests, got %d", len(rows))
+	}
+
+	// Complete the derived ownership-assessment review
+	var derived *db.InboxRequest
+	for i := range rows {
+		if rows[i].RequestID != old.RequestID {
+			derived = &rows[i]
+			break
+		}
+	}
+	if derived == nil {
+		t.Fatal("derived review not found")
+	}
+	derived.State = "completed"
+	if err := repo.FinishInboxRequest(ctx, *derived, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 2: Calling queueInboxTaskReview without evidence change should not queue anything new
+	s.queueInboxTaskReview(ctx, d)
+	rows2 := reviewRequests(t, s, old.RoomID)
+	if len(rows2) != 2 {
+		t.Fatalf("expected still 2 review requests, got %d", len(rows2))
+	}
+
+	// Step 3: Evidence changes -> chain loop must traverse completed base & ownership reviews and queue :evidence:
+	d.CompleteNote += "; updated test evidence note"
+	s.queueInboxTaskReview(ctx, d)
+	rows3 := reviewRequests(t, s, old.RoomID)
+	if len(rows3) != 3 {
+		t.Fatalf("expected 3 review requests after evidence change, got %d", len(rows3))
+	}
+}
+
+func TestQueueInboxTaskReview_ChainedEvaluationV2(t *testing.T) {
+	s, d, old := stalledReviewFixture(t, "completed", task.AttemptStatusSucceeded)
+	ctx := context.Background()
+	repo := s.projectStudioRepo.(db.InboxRequestRepository)
+
+	// Update old message so it has ownership policy
+	oldMsg, err := s.projectStudioRepo.GetMessageByID(ctx, old.MessageID)
+	if err != nil || oldMsg == nil {
+		t.Fatal("failed to get old message")
+	}
+	digest := inboxReviewEvidenceDigest(d)
+	oldMsg.Content = "Review the result for [" + d.Title + "](/tasks/" + d.ID + ").\nReview evidence digest: " + digest + "\n" + inboxOwnershipPolicy
+	if err := s.projectStudioRepo.UpdateMessage(ctx, oldMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	// First queue call: queues :evaluation:
+	s.queueInboxTaskReview(ctx, d)
+
+	reqs, err := repo.ListInboxRequests(ctx, old.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var evalReq *db.InboxRequest
+	for i := range reqs {
+		if reqs[i].State == "queued" {
+			evalReq = &reqs[i]
+			break
+		}
+	}
+	if evalReq == nil {
+		t.Fatalf("expected queued :evaluation: request, got none among %d requests", len(reqs))
+	}
+
+	// Mark the :evaluation: request as completed
+	evalReq.State = "completed"
+	if err := repo.FinishInboxRequest(ctx, *evalReq, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second queue call: chain loop encounters completed :evaluation: and must advance to :evaluation-v2:
+	s.queueInboxTaskReview(ctx, d)
+
+	reqs2, err := repo.ListInboxRequests(ctx, old.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v2Req *db.InboxRequest
+	for i := range reqs2 {
+		if reqs2[i].State == "queued" && reqs2[i].RequestID != evalReq.RequestID {
+			v2Req = &reqs2[i]
+			break
+		}
+	}
+	if v2Req == nil {
+		t.Fatalf("expected queued :evaluation-v2: request, got none among %d requests", len(reqs2))
+	}
+	if bound := s.inboxReviewedTask(ctx, *v2Req); bound == nil || bound.ID != d.ID {
+		t.Fatalf("evaluation-v2 request failed to bind task: got %+v", bound)
+	}
+}
+

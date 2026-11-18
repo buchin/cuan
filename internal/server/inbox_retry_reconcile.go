@@ -101,6 +101,15 @@ func (s *Server) prepareReconciliationDelegation(ctx context.Context, q db.Inbox
 		plan := decodeApprovedInboxPlan(original.Content)
 		bound := strings.Contains(original.Content, existing.ID) || (plan != nil && plan.Plan.Continuation != nil && plan.Plan.Continuation.TaskID == existing.ID)
 		if !bound {
+			// A follow-up turn in the same room that did not authorize a different task
+			// may reconcile the existing authorized task in this conversation.
+			if existing.SourceRoomID == q.RoomID && existing.SourceMessageID == d.AuthorizationID {
+				if otherExisting, err := s.taskSvc.GetTaskDetail(ctx, "msg_"+q.MessageID); errors.Is(err, task.ErrTaskNotFound) || otherExisting == nil {
+					bound = true
+				}
+			}
+		}
+		if !bound {
 			return "", errors.New("the saved retry does not identify this task")
 		}
 	}

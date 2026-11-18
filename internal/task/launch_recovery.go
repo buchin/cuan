@@ -9,7 +9,7 @@ import (
 )
 
 const MissingWorkspaceLaunchError = "Original task workspace is missing; its branch was retained for recovery"
-const missingWorkspaceRecoveryKey = "missing-workspace-v2"
+const missingWorkspaceRecoveryKey = "missing-workspace-v3"
 const IsolatedWorkspaceLaunchError = "Could not prepare the isolated task workspace"
 const isolatedWorkspaceRecoveryKey = "isolated-workspace-recovery-v1"
 const StandaloneArtifactRecoveryKind = "standalone-artifact-workspace-v1"
@@ -29,7 +29,7 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 	if j.SafeError == MissingWorkspaceLaunchError {
 		return missingWorkspaceRecoveryKey
 	}
-	if j.SafeError == IsolatedWorkspaceLaunchError {
+	if j.SafeError == IsolatedWorkspaceLaunchError || strings.Contains(j.SafeError, "Reconstructed workspace") {
 		return isolatedWorkspaceRecoveryKey
 	}
 	if j.SafeError == "create attempt: Invalid task input" {
@@ -41,8 +41,8 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 	if strings.Contains(j.SafeError, "Project files could not be") {
 		return "project-files-prepared-v1"
 	}
-	if strings.Contains(j.SafeError, "maximum queue retry attempts") {
-		return "queue-retry-exhausted-v1"
+	if strings.Contains(j.SafeError, "maximum queue retry attempts") || strings.Contains(j.SafeError, "being reconciled") || j.SafeError == "" {
+		return "queue-retry-exhausted-v2"
 	}
 	return ""
 }
@@ -84,6 +84,7 @@ func (m *MemoryStore) RecoverUnstartedLaunch(_ context.Context, id string, expec
 		m.launchRecoveries = make(map[string]bool)
 	}
 	m.launchRecoveries[key] = true
+	j.Checks = 0
 	j.State = "queued"
 	j.SafeError = ""
 	j.LeaseToken = ""
@@ -137,7 +138,7 @@ func (s *DBStore) RecoverUnstartedLaunch(ctx context.Context, id string, expecte
  INSERT INTO task_launch_recoveries(launch_id,recovery_key,created_at)
  SELECT id,$5,$4 FROM eligible ON CONFLICT DO NOTHING RETURNING launch_id
  ), resumed AS (
- UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$4,updated_at=$4
+ UPDATE task_launches SET state='queued',safe_error='',checks=0,lease_token='',lease_until=NULL,available_at=$4,updated_at=$4
  WHERE id IN (SELECT launch_id FROM receipt) RETURNING task_id
  ) UPDATE tasks SET status='queued',execution_category=CASE WHEN $5='standalone-artifact-workspace-v1' THEN 'ops' ELSE execution_category END,updated_at=$4 WHERE id IN (SELECT task_id FROM resumed) AND status IN ('queued','blocked') RETURNING id`, id, expected, observed.SafeError, now, kind).Scan(&recovered)
 	if err == sql.ErrNoRows {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/cuan/internal/taskcli"
@@ -142,6 +143,9 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			path, workspaceErr := s.projectSvc.TaskExecutionWorkspace(r.Context(), resp.Task.ID, resp.Task.Instructions, projectContext)
+			if errors.Is(workspaceErr, project.ErrExecutionWorkspaceMissing) {
+				path, workspaceErr = s.projectSvc.ReconstructTaskExecutionWorkspace(r.Context(), resp.Task.ID, projectContext)
+			}
 			if workspaceErr != nil {
 				respondJSONError(w, 503, "The task output workspace could not be prepared")
 				return

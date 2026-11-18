@@ -18,7 +18,7 @@ self.addEventListener('push', event => {
   const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
   const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
   const icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : '/icons/cuan-192.png'
-  const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-192.png'
+  const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
   const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
   let href = '/inbox'
@@ -59,12 +59,13 @@ self.addEventListener('notificationclick', event => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async windows => {
       for (const client of windows) {
         if (new URL(client.url).origin === self.location.origin) {
-          if ('navigate' in client) {
+          if ('focus' in client) {
+            await client.focus()
+          }
+          if ('navigate' in client && client.url !== fullUrl) {
             await client.navigate(fullUrl)
           }
-          if ('focus' in client) {
-            return client.focus()
-          }
+          return
         }
       }
       if (self.clients.openWindow) {

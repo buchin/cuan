@@ -323,3 +323,83 @@ func TestInboxReconciliationInvalidFormatDoesNotRepeatEvaluation(t *testing.T) {
 		}
 	}
 }
+
+func TestInboxReconciliationAllowsFollowUpQuestionInSameRoom(t *testing.T) {
+	s, room, _, home := inboxFixture(t)
+	store := s.projectStudioRepo.(db.InboxRequestRepository)
+	now := time.Now().UTC()
+	ctx := context.Background()
+
+	// 1. Initial task approved and created
+	authMsgID := db.GenerateUUID()
+	originalTask := &task.Task{
+		ID:                "msg_" + authMsgID,
+		ProjectID:         "default",
+		SourceRoomID:      room,
+		SourceMessageID:   authMsgID,
+		Title:             "Original approved task",
+		Instructions:      "Implement the original feature",
+		Status:            task.TaskStatusBlocked,
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-time.Hour),
+		UpdatedAt:         now.Add(-time.Hour),
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, originalTask); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. User sends follow-up chat message in the same room ("Kenapa belum selesai?")
+	followUpMsgID := db.GenerateUUID()
+	followUpReqID := db.GenerateUUID()
+	followUpReq := db.InboxRequest{
+		RoomID:      room,
+		RequestID:   followUpReqID,
+		MessageID:   followUpMsgID,
+		ReplyID:     db.GenerateUUID(),
+		OwnerID:     "owner",
+		AgentID:     "agent_lifecycle",
+		State:       "interrupted",
+		PayloadHash: "chat-followup",
+		CreatedAt:   now.Add(-5 * time.Minute),
+		Deadline:    now.Add(time.Hour),
+	}
+	followUpMsg := &db.ProjectMessage{
+		ID:         followUpMsgID,
+		RoomID:     room,
+		AuthorType: "user",
+		Content:    "Kenapa masih belum selesai?",
+		CreatedAt:  now.Add(-5 * time.Minute),
+	}
+	if _, _, err := store.AcceptInboxRequest(ctx, followUpReq, followUpMsg); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.FinishInboxRequest(ctx, followUpReq, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. Follow-up turn times out and is retried with reconciliation
+	retry, _, err := s.projectStudioRepo.(db.InboxRetryRepository).RetryInboxRequest(ctx, room, followUpReq.RequestID, "owner")
+	if err != nil || !db.InboxRetryNeedsReconciliation(retry) {
+		t.Fatalf("expected retry with reconciliation: err=%v, retry=%+v", err, retry)
+	}
+
+	// 4. Coordinator delegates to reconcile the original unfinished task
+	d := inboxDelegation{
+		Reconcile:       true,
+		TaskID:          originalTask.ID,
+		ProjectID:       "default",
+		AuthorizationID: authMsgID,
+		Revision:        "Check current state and finish missing acceptance criteria.",
+	}
+	status, err := s.prepareReconciliationDelegation(ctx, retry, &d)
+	if err != nil {
+		t.Fatalf("prepareReconciliationDelegation failed: %v", err)
+	}
+	if status != "" {
+		t.Fatalf("unexpected status returned: %s", status)
+	}
+	if d.TaskID != originalTask.ID || d.ProjectID != "default" {
+		t.Fatalf("unexpected delegation mutation: %+v", d)
+	}
+	_ = home
+}

@@ -285,6 +285,7 @@
   "Clear terminal": "Clear terminal",
   "Exit fullscreen": "Exit fullscreen",
   "Fullscreen": "Fullscreen",
+  "Toggle input composer": "Toggle input composer",
   "Show keyboard": "Show keyboard",
   "Terminal tools": "Terminal tools",
   "1-Tap Interactive Prompt Chips & Zero Clue Dependency Context.": "1-Tap Interactive Prompt Chips & Zero Clue Dependency Context.",
@@ -692,5 +693,10 @@
   "Terminal aktif di jendela terpisah": "Terminal is active in a separate window",
   "Terminal is active in separate window": "Terminal is active in a separate window",
   "Tampilkan di sini": "Bring back here",
-  "Close window": "Close window"
+  "Close window": "Close window",
+  "Drop files to upload to workspace": "Drop files to upload to workspace",
+  "Files will be uploaded and path inserted": "Files will be uploaded and path inserted",
+  "Uploading file to workspace…": "Uploading file to workspace…",
+  "File uploaded to workspace": "File uploaded to workspace",
+  "Failed to upload file to workspace": "Failed to upload file to workspace"
 }
