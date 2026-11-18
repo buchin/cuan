@@ -5,12 +5,21 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/buchin/cuan?color=green)](https://github.com/buchin/cuan/releases)
-[![Status: Alpha](https://img.shields.io/badge/status-alpha%20%2F%20early%20preview-orange.svg)](https://github.com/buchin/cuan)
+[![Status: Public Alpha](https://img.shields.io/badge/status-public%20alpha%20%2F%20developer%20preview-orange.svg)](https://github.com/buchin/cuan)
 [![Docs](https://img.shields.io/badge/docs-cuan.work-blue)](https://cuan.work/docs)
 
-> [!WARNING]
-> **Fase Alpha (Masih Tahap Awal)**: Cuan masih dalam pengembangan aktif dan belum siap untuk operasional bisnis utama. Fitur, data, dan alur kerja masih bisa berubah sewaktu-waktu. Disarankan untuk uji coba dan selalu cadangkan data berkala (`./scripts/backup.sh`).  
-> *Alpha Notice: Cuan is in early development and not yet ready for primary production. Features and data schemas may change. Best for testing; please keep regular backups.*
+> [!IMPORTANT]
+> ### 🚀 Komitmen Sponsorware Terpenuhi: Rilis Public Alpha (Developer Preview)
+> Berkat dukungan luar biasa dari **100 Founding Backers**, repositori Cuan resmi dibuka untuk publik!
+>
+> ⚠️ **Status Kestabilan: Masih Belum Stabil (Fase Alpha / Early Preview v0.9.x)**  
+> Cuan saat ini masih dalam tahap pengembangan aktif dan **belum stabil untuk operasional bisnis utama (*production*)**. Fitur, alur kerja, dan skema database masih dapat mengalami perubahan (*breaking changes*).
+>
+> 💡 **Tujuan Rilis Ini & Ajakan Kolaborasi Komunitas**:  
+> Kode ini dibuka agar Anda dan komunitas perintis dapat ikut mencoba, mengeksplorasi, melaporkan kendala/bug di berbagai setup VPS, dan mematangkan Cuan bersama-sama.  
+> - **Gunakan untuk**: Uji coba, eksplorasi fitur, riset otomasi, dan kontribusi komunitas.
+> - **Jangan gunakan untuk**: Sistem bisnis kritis yang menuntut kestabilan 100% tanpa backup berkala (`./scripts/backup.sh`).
+> - **Menemukan bug atau error?** Bantu laporkan langsung melalui [GitHub Issues](https://github.com/buchin/cuan/issues) agar tim bisa segera mematangkannya.
 
 ---
 
@@ -75,61 +84,39 @@ Panduan lengkap, konfigurasi AI, dan operasional server dipusatkan di **[cuan.wo
 
 <!-- SPONSORS:START -->
 
-### v1.0 Founding Backers
+### 🌟 Founding Titans (Top Sponsors)
 
-Terima kasih kepada seluruh founding backer yang mendukung independensi dan keberlanjutan pengembangan Cuan open-source:
+Terima kasih tak terhingga kepada seluruh perintis yang mendanai rilis open-source Cuan v1.0 melalui model *Sponsorware*:
 
-| Peringkat | Brand & Tautan | Slogan | Kontribusi | Tier |
+| Peringkat | Brand & Tautan | Slogan / Layanan | Kontribusi | Kategori |
 | :---: | :--- | :--- | :---: | :--- |
-| 🥇 #1 | **[Jeon.Id](https://jeon.id)** | Satu platform untuk membangun identitas digital, menciptakan konten dengan AI, menjual produk, dan mengembangkan bisnis Anda. | `Rp 2.499.115` | 🌟 Platinum Founding Backer |
-| 🥈 #2 | **[Matematika.id](https://www.matematika.id/)** | Les Privat & Kursus Matematika Online Lengkap | `Rp 299.768` | 🥇 Gold Founding Backer |
-| 🥉 #3 | **[Printjavasport](https://printjavasport.net/)** | We're your team in difficult times | `Rp 299.757` | 🥈 Silver Founding Backer |
-| ⭐ #4 | **[KedaiMu](https://kedaimu.com)** | Belanja lebih dekat. | `Rp 299.556` | 🥉 Bronze Founding Backer |
-| ⭐ #5 | **[DigitalMarket.id](https://digitalmarket.id)** | Marketplace Produk Digital, Ebook & Tools Bisnis Online | `Rp 299.034` | 🥉 Bronze Founding Backer |
-| #6 | **Hendy Mahardhika** | - | `Rp 99.923` | 🥉 Bronze Backer |
-| #7 | **tedjo2021** | - | `Rp 99.891` | 🥉 Bronze Backer |
-| #8 | **Anjrah Susanto** | - | `Rp 99.824` | 🥉 Bronze Backer |
-| #9 | **rizky05** | - | `Rp 99.807` | 🥉 Bronze Backer |
-| #10 | **sdrfakri** | - | `Rp 99.725` | 🥉 Bronze Backer |
-| #11 | **[Fasitel](https://fasitel.co.id)** | Solusi Teknologi Digital, Produk SaaS & Platform AI | `Rp 99.716` | 🥉 Bronze Backer |
-| #12 | **Lia Novita** | - | `Rp 99.716` | 🥉 Bronze Backer |
-| #13 | **Zayinul Muharom** | - | `Rp 99.693` | 🥉 Bronze Backer |
-| #14 | **arief Widodo** | - | `Rp 99.691` | 🥉 Bronze Backer |
-| #15 | **Sam Priatna** | - | `Rp 99.678` | 🥉 Bronze Backer |
-| #16 | **[Pasti Hebat Teknologi](https://pastihebat.com/)** | Platform Layanan Edukasi & Teknologi Digital | `Rp 99.668` | 🥉 Bronze Backer |
-| #17 | **pwanto98** | - | `Rp 99.634` | 🥉 Bronze Backer |
-| #18 | **[Websites.id](https://www.websites.id)** | Jasa Pembuatan Website Profesional | `Rp 99.625` | 🥉 Bronze Backer |
-| #19 | **rafki_** | - | `Rp 99.610` | 🥉 Bronze Backer |
-| #20 | **** | - | `Rp 99.606` | 🥉 Bronze Backer |
-| #21 | **Santo Gunawan** | - | `Rp 99.588` | 🥉 Bronze Backer |
-| #22 | **Kornelius Agustinus** | - | `Rp 99.564` | 🥉 Bronze Backer |
-| #23 | **fajarvalentine14** | - | `Rp 99.564` | 🥉 Bronze Backer |
-| #24 | **Yuli Aji Prabowo** | - | `Rp 99.559` | 🥉 Bronze Backer |
-| #25 | **Tri Sunarso** | - | `Rp 99.525` | 🥉 Bronze Backer |
-| #26 | **arygaseboai** | - | `Rp 99.523` | 🥉 Bronze Backer |
-| #27 | **papajosiasean** | - | `Rp 99.520` | 🥉 Bronze Backer |
-| #28 | **Muji burrahman** | - | `Rp 99.502` | 🥉 Bronze Backer |
-| #29 | **angga dwi s** | - | `Rp 99.442` | 🥉 Bronze Backer |
-| #30 | **[APK Extractor](https://extractor.termoradev.com)** | Extract, Save & Share Android Apps | `Rp 99.417` | 🥉 Bronze Backer |
-| #31 | **Muchlisin** | - | `Rp 99.415` | 🥉 Bronze Backer |
-| #32 | **Muhammad Ihsan** | - | `Rp 99.411` | 🥉 Bronze Backer |
-| #33 | **[TataKarya](https://tatakarya.id)** | Kerja rumit, jadi tertata. | `Rp 99.384` | 🥉 Bronze Backer |
-| #34 | **pediadigitalniaga** | - | `Rp 99.368` | 🥉 Bronze Backer |
-| #35 | **Jersey Mason** | - | `Rp 99.339` | 🥉 Bronze Backer |
-| #36 | **Rachmat Ajis** | - | `Rp 99.310` | 🥉 Bronze Backer |
-| #37 | **Abd Azis** | - | `Rp 99.288` | 🥉 Bronze Backer |
-| #38 | **Fazrie Said** | - | `Rp 99.286` | 🥉 Bronze Backer |
-| #39 | **rachman8** | - | `Rp 99.264` | 🥉 Bronze Backer |
-| #40 | **Verta Ferry** | - | `Rp 99.257` | 🥉 Bronze Backer |
-| #41 | **serbacuanclass** | - | `Rp 99.242` | 🥉 Bronze Backer |
-| #42 | **[Penerbit Uwais](https://penerbituwais.id/)** | Jasa Penerbitan dan Cetak Buku Murah | `Rp 99.238` | 🥉 Bronze Backer |
-| #43 | **Imam HA** | - | `Rp 99.223` | 🥉 Bronze Backer |
-| #44 | **taurida Adinda** | - | `Rp 99.201` | 🥉 Bronze Backer |
-| #45 | **Aulia Ridwan** | - | `Rp 99.173` | 🥉 Bronze Backer |
-| #46 | **agus yulian** | - | `Rp 99.136` | 🥉 Bronze Backer |
-| #47 | **[mbesjisp](https://github.com/mbesjisp)** | Web Programing | `Rp 99.088` | 🥉 Bronze Backer |
-| #48 | **Bamzdepok** | - | `Rp 99.051` | 🥉 Bronze Backer |
-| #49 | **budi mulyana mulyana** | - | `Rp 99.041` | 🥉 Bronze Backer |
+| 🏆 #1 | **[Jeon.Id](https://jeon.id)** | Satu platform untuk membangun identitas digital, menciptakan konten dengan AI, menjual produk, dan mengembangkan bisnis Anda. | `Rp 2.499.115` | 🌟 Platinum Titan |
+| 🏆 #2 | **[Tentaklik](https://tentaklik.com/)** | Sewa akun Whitelist Meta, Google, dan TikTok untuk membantu campaign kamu berjalan lebih lancar. | `Rp 999.844` | 🥇 Gold Titan |
+| 🏆 #3 | **[Masterily](https://masterily.com)** | Learn More, Do Better, Grow Faster. | `Rp 999.460` | 🥇 Gold Titan |
+| 🏆 #4 | **[Matematika.id](https://www.matematika.id/)** | Les Privat & Kursus Matematika Online Lengkap | `Rp 299.768` | 🥈 Silver Titan |
+| 🏆 #5 | **[Printjavasport](https://printjavasport.net/)** | We're your team in difficult times | `Rp 299.757` | 🥈 Silver Titan |
+| 🏆 #6 | **[KedaiMu](https://kedaimu.com)** | Belanja lebih dekat. | `Rp 299.556` | 🥈 Silver Titan |
+| 🏆 #7 | **[Devid Ekha Hidayat](https://masdev.id/)** | masdev.id | `Rp 299.202` | 🥈 Silver Titan |
+| 🏆 #8 | **[DigitalMarket.id](https://digitalmarket.id)** | Marketplace Produk Digital, Ebook & Tools Bisnis Online | `Rp 299.034` | 🥈 Silver Titan |
+
+### 🌐 Mitra Bisnis & Proyek Terverifikasi
+
+| Peringkat | Brand / Bisnis | Slogan | Kontribusi | Tautan Resmi |
+| :---: | :--- | :--- | :---: | :--- |
+| #9 | **Nurjaya bin Musa** | - | `Rp 99.955` | [legit.co.id](https://legit.co.id) |
+| #10 | **Fasitel** | Solusi Teknologi Digital, Produk SaaS & Platform AI | `Rp 99.716` | [fasitel.co.id](https://fasitel.co.id) |
+| #11 | **Pasti Hebat Teknologi** | Platform Layanan Edukasi & Teknologi Digital | `Rp 99.668` | [pastihebat.com](https://pastihebat.com/) |
+| #12 | **Websites.id** | Jasa Pembuatan Website Profesional | `Rp 99.625` | [websites.id](https://www.websites.id) |
+| #13 | **Dian Hadinata** | - | `Rp 99.606` | [web.facebook.com/nata.dinata2](https://web.facebook.com/nata.dinata2/) |
+| #14 | **satubeasiswa** | Informasi Beasiswa Terbaru | `Rp 99.520` | [satubeasiswa.com](https://satubeasiswa.com) |
+| #15 | **APK Extractor** | Extract, Save & Share Android Apps | `Rp 99.417` | [extractor.termoradev.com](https://extractor.termoradev.com) |
+| #16 | **Ronal Egi Ernest** | Medis, Catur, dan Hidup | `Rp 99.395` | [Https://www.Egijournal.com](Https://www.Egijournal.com) |
+| #17 | **TataKarya** | Kerja rumit, jadi tertata. | `Rp 99.384` | [tatakarya.id](https://tatakarya.id) |
+| #18 | **Penerbit Uwais** | Jasa Penerbitan dan Cetak Buku Murah | `Rp 99.238` | [penerbituwais.id](https://penerbituwais.id/) |
+| #19 | **Bani Risset** | Digital and AI Spesialis | `Rp 99.108` | [banirisset.com](https://banirisset.com) |
+| #20 | **mbesjisp** | Web Programing | `Rp 99.088` | [github.com/mbesjisp](https://github.com/mbesjisp) |
+
+> 📜 **[Lihat Daftar Lengkap 100 Founding Backers & Komunitas di SPONSORS.md](SPONSORS.md)**
 
 <!-- SPONSORS:END -->
 
