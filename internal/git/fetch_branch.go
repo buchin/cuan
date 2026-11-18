@@ -21,6 +21,7 @@ func (c *Client) FetchBoundBranch(ctx context.Context, path, repoURL, branch, to
 	if branch == "" || strings.HasPrefix(branch, "-") || exec.CommandContext(ctx, c.gitBinary, "check-ref-format", "--branch", branch).Run() != nil {
 		return errors.New("This project's saved repository version is invalid. Check its repository settings.")
 	}
+	_ = exec.CommandContext(ctx, c.gitBinary, "-C", path, "config", "--unset-all", "http.https://github.com/.extraheader").Run()
 	command := exec.CommandContext(ctx, c.gitBinary, "-C", path, "fetch", "--no-tags", "--", c.repoURL(owner, repo), "+refs/heads/"+branch+":refs/remotes/origin/"+branch)
 	command.Env = repositoryEnvironment(token)
 	var stderr bytes.Buffer

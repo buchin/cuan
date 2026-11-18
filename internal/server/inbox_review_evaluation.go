@@ -132,6 +132,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				":snapshot",
 				":snapshot:evaluation",
 				":evidence:" + digest,
+				":evidence:" + digest + ":retry",
 				":reconcile:" + digest,
 				":reconcile:" + digest + ":retry",
 				":report-provenance:" + digest,
@@ -140,6 +141,8 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				":assessment:" + digest + ":retry",
 				":verification-assessment:" + digest,
 				":verification-assessment:" + digest + ":retry",
+				":visual-assessment-v2:" + digest,
+				":visual-assessment-v2:" + digest + ":retry",
 				":visual-assessment:" + digest,
 				":visual-assessment:" + digest + ":retry",
 				":publication-assessment:" + digest,
@@ -148,7 +151,7 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 				":operational-assessment:" + digest + ":retry",
 			} {
 				key := "task-review:" + d.LatestAttempt.ID + suffix
-				if q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input") {
+				if (q.RequestID == delegationMessageID(key) || q.RequestID == delegationMessageID(key+":resume")) && (q.MessageID == delegationMessageID(key+":input") || q.MessageID == delegationMessageID(key+":resume:input")) {
 					return d
 				}
 			}
