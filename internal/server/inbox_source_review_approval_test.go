@@ -520,3 +520,79 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 		t.Fatal("source approval accepted task")
 	}
 }
+
+func TestNativeSourceReviewContinuationAttemptPreservesVerification(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	verificationFollowupQueueContract(t, s, d, q)
+	ctx := context.Background()
+	store := s.taskSvc.Store()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = store.DeleteTask(ctx, "phase-blocker")
+	must(store.DeleteTask(ctx, "busy"))
+	source, err := store.GetAttempt(ctx, d.LatestAttempt.ID)
+	must(err)
+	start, finish, exit := time.Now().Add(-2*time.Minute), time.Now().Add(-time.Minute), 0
+	source.CreatedAt, source.StartedAt, source.FinishedAt, source.ExitCode = start.Add(-time.Minute), &start, &finish, &exit
+	must(store.UpdateAttempt(ctx, source))
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	must(err)
+	job, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, d.CommitSHA, d.LatestAttempt.ID)))
+	must(err)
+	_, err = store.(task.LaunchStore).ClaimLaunch(ctx, time.Now(), "source-review-launch", job.ID)
+	must(err)
+	att, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{RunnerID: "source-reviewer", AgentName: d.AssignedAgent, RequestID: job.RequestID})
+	must(err)
+	service := runner.NewService(runner.NewMemoryStore(store), store, nil)
+	claim, err := service.Claim(ctx, runner.ClaimTaskRequest{RunnerID: "source-reviewer"}, time.Minute)
+	must(err)
+	if !claim.Claimed {
+		t.Fatal("verifier not claimed")
+	}
+	_, err = service.Complete(ctx, att.ID, runner.CompleteAttemptRequest{RunnerID: "source-reviewer", Status: task.AttemptStatusSucceeded, VerifiedSourceCommit: d.CommitSHA, AgentReportRequired: true, AgentReportConfirmed: true, RepositoryVerification: &runner.RepositoryVerification{Baseline: strings.Repeat("b", 64), Final: strings.Repeat("b", 64)}})
+	must(err)
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	must(err)
+	assessment := inboxReviewEvaluation{Decision: "revise", SourceReview: "pass", RemainingWork: "publication", Explanation: "Source checked independently; publication pending.", Revision: "Publish the reviewed source only."}
+	report := &task.TaskActivity{ID: "independent-final-report", TaskID: d.ID, AttemptID: &att.ID, ActivityType: "agent_report", NewStatus: task.TaskStatusReview, Author: "agent", Message: "Observed source and targeted regression checks passed; publication remains pending.", CreatedAt: d.LatestAttempt.FinishedAt.Add(-time.Nanosecond)}
+	must(store.CreateActivity(ctx, report))
+	d, err = s.taskSvc.GetTaskDetail(ctx, d.ID)
+	must(err)
+	_, err = s.saveReviewAssessment(ctx, d, q, assessment)
+	must(err)
+	approved, err := task.NativeSourceReviewForAttempt(ctx, store, &d.Task, att.ID)
+	must(err)
+	if approved == nil || approved.SourceCommit != d.CommitSHA {
+		t.Fatal("review lost source binding", approved)
+	}
+
+	continuationReqID := "99999999-9999-4999-8999-999999999999"
+	continuation, err := s.taskSvc.CreateAttempt(ctx, d.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "continuation-runner",
+		AgentName: d.AssignedAgent,
+		RequestID: continuationReqID,
+	})
+	must(err)
+	currentDetail, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	must(err)
+	if currentDetail.LatestAttempt.ID != continuation.ID {
+		t.Fatalf("expected latest attempt %s, got %s", continuation.ID, currentDetail.LatestAttempt.ID)
+	}
+
+	continuationAssessment := inboxReviewEvaluation{
+		Decision:      "revise",
+		SourceReview:  "pass",
+		RemainingWork: "publication",
+		Explanation:   "Continuation preserved source review without failure.",
+		Revision:      "Publish the reviewed source only.",
+	}
+	continuationQ := q
+	continuationQ.RequestID = continuationReqID
+	if _, err := s.saveReviewAssessment(ctx, currentDetail, continuationQ, continuationAssessment); err != nil {
+		t.Fatalf("saveReviewAssessment on continuation attempt failed: %v", err)
+	}
+}

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/buchin/cuan/internal/task"
+	"strings"
 	"time"
+
+	"github.com/buchin/cuan/internal/task"
 )
 
 const inboxSourceReviewPolicy = "Source review policy: v1"
@@ -57,6 +59,20 @@ func (s *Server) saveNativeSourceReview(ctx context.Context, d *task.TaskDetailR
 	// Backend visual requirements still apply to source-stage approval.
 	if gate := s.requireVisualReview(ctx, d, inboxReviewEvaluation{Decision: "pass", VisualInspection: assessment.VisualInspection}); gate.Decision != "pass" {
 		return fmt.Errorf("%w: source visual review is incomplete", task.ErrInvalidTaskInput)
+	}
+	for _, act := range d.Activities {
+		if act != nil && strings.HasPrefix(act.ID, "native-source-review:") && act.AttemptID != nil && *act.AttemptID != "" {
+			if verified, err := task.NativeSourceReviewForAttempt(ctx, s.taskSvc.Store(), &d.Task, *act.AttemptID); err == nil && verified != nil && verified.SourceCommit == proof.SourceCommit {
+				return nil
+			}
+		}
+	}
+	for _, a := range d.Attempts {
+		if a != nil && a.ID != "" {
+			if verified, err := task.NativeSourceReviewForAttempt(ctx, s.taskSvc.Store(), &d.Task, a.ID); err == nil && verified != nil && verified.SourceCommit == proof.SourceCommit {
+				return nil
+			}
+		}
 	}
 	receipt := task.NativeSourceReview{Version: 1, TaskID: d.ID, ReviewAttemptID: d.LatestAttempt.ID, SourceAttemptID: proof.SourceAttemptID, SourceCommit: proof.SourceCommit, InstructionsHash: proof.InstructionsHash, ReportHash: task.SourceReviewReportHash(d.Activities, d.ID, d.LatestAttempt.ID), AssessmentHash: task.SourceReviewAssessmentHash(d.Activities, d.ID, d.LatestAttempt.ID, proof.InstructionsHash)}
 	if receipt.ReportHash == "" || receipt.AssessmentHash == "" {
