@@ -89,7 +89,8 @@ def clean(cache, identity, kind="go"):
                     raise ValueError('Composer maintenance runtime unavailable')
                 subprocess.run([executable, '--no-plugins', '--no-scripts', 'clear-cache'],
                                cwd=home, env={'PATH': os.defpath, 'HOME': str(home),
-                                              'COMPOSER_HOME': str(home), 'COMPOSER_CACHE_DIR': str(cache)},
+                                              'COMPOSER_HOME': str(home), 'COMPOSER_CACHE_DIR': str(cache),
+                                              'COMPOSER_ALLOW_SUPERUSER': '1', 'COMPOSER_NO_INTERACTION': '1'},
                                capture_output=True, timeout=60, check=True, **credentials)
             return
         with tempfile.TemporaryDirectory(prefix='cuan-cache-maintenance-') as temporary:
@@ -205,6 +206,9 @@ def prune_legacy_npm(accounts, *, apply=False, free=available, in_use=referenced
         if cache.stat().st_uid != account.stat().st_uid:
             continue
         if time.time() - (cache / '_cacache').stat().st_mtime < 3600:
+            continue
+        gate = account / '.execution.lock'
+        if not gate.is_file() or gate.is_symlink():
             continue
         with provider.idle_account(account) as idle:
             if not idle or in_use(account):
