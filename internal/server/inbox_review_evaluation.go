@@ -130,6 +130,8 @@ func (s *Server) inboxReviewedTask(ctx context.Context, q db.InboxRequest) *task
 			":retry:resume:retry",
 			":resume:retry:resume",
 			":retry:resume:retry:resume",
+			":retry:resume:retry:resume:retry",
+			":resume:retry:resume:retry:resume",
 		}
 		for _, digest := range inboxReviewEvidenceDigests(d) {
 			baseSuffixes := []string{

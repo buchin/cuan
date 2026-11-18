@@ -179,12 +179,14 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	requestID := delegationMessageID(key)
 	// Reconcile terminal legacy reviews using current snapshots, with deterministic
 	// keys and a bounded retry. Never replay the original provider or user execution.
-	for step := 0; step < 10; step++ {
+	for step := 0; step < 30; step++ {
 		var matched *db.InboxRequest
 		for _, q := range requests {
-			if q.RequestID == requestID {
+			if q.RequestID == requestID || matchInboxRequestIDOrRetry(q.RequestID, requestID) {
 				matched = &q
-				break
+				if q.State == "completed" || q.State == "running" || q.State == "queued" {
+					break
+				}
 			}
 		}
 		if matched == nil {
@@ -245,10 +247,12 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 					key += ":evaluation:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else if strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
-					key = strings.Replace(key, ":evaluation:", ":evaluation-v2:", 1)
+					idx := strings.Index(key, ":evaluation:")
+					key = key[:idx] + ":evaluation-v2:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else if strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
-					key = strings.Replace(key, ":evaluation-v2:", ":evaluation-v3:", 1)
+					idx := strings.Index(key, ":evaluation-v2:")
+					key = key[:idx] + ":evaluation-v3:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else {
 					return
@@ -269,6 +273,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 					if matched.State == "interrupted" && !strings.HasSuffix(key, ":resume") {
 						key += ":resume"
 						requestID = delegationMessageID(key)
+					} else if strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") && inboxReviewExecutionSucceeded(detail) {
+						idx := strings.Index(key, ":evaluation-v2:")
+						key = key[:idx] + ":evaluation-v3:" + inboxReviewEvidenceDigest(detail)
+						requestID = delegationMessageID(key)
 					} else {
 						return
 					}
@@ -285,7 +293,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	for _, q := range requests {
-		if q.RequestID == requestID {
+		if q.RequestID == requestID || matchInboxRequestIDOrRetry(q.RequestID, requestID) {
 			return
 		}
 	}
