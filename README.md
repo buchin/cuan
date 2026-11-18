@@ -84,39 +84,26 @@ Panduan lengkap, konfigurasi AI, dan operasional server dipusatkan di **[cuan.wo
 
 <!-- SPONSORS:START -->
 
-### 🌟 Founding Titans (Top Sponsors)
+Pengembangan awal Cuan terwujud berkat komitmen **100 Founding Backers** yang mendanai rilis open-source melalui model *Sponsorware*. Apresiasi khusus kepada mitra perintis:
 
-Terima kasih tak terhingga kepada seluruh perintis yang mendanai rilis open-source Cuan v1.0 melalui model *Sponsorware*:
+| Mitra / Brand | Fokus & Layanan |
+| :--- | :--- |
+| **[Jeon.Id](https://jeon.id)** | Platform Identitas Digital & Konten AI |
+| **[Tentaklik](https://tentaklik.com/)** | Whitelist Ads Account Solutions (Meta, Google, TikTok) |
+| **[Masterily](https://masterily.com)** | Online Learning & Business Skill Growth |
+| **[Matematika.id](https://www.matematika.id/)** | Kursus & Edukasi Matematika Online |
+| **[Printjavasport](https://printjavasport.net/)** | Custom Sportswear Apparel |
+| **[KedaiMu](https://kedaimu.com)** | Local Commerce Platform |
+| **[Devid Ekha Hidayat](https://masdev.id/)** | Software Engineering & Tech Solutions |
+| **[DigitalMarket.id](https://digitalmarket.id)** | Marketplace Produk Digital & Tools Bisnis Online |
+| **[Fasitel](https://fasitel.co.id)** | SaaS & Solusi Teknologi Digital |
+| **[Pasti Hebat Teknologi](https://pastihebat.com/)** | Layanan Edukasi & Platform Digital |
+| **[Websites.id](https://www.websites.id)** | Jasa Pembuatan Website Profesional |
+| **[TataKarya](https://tatakarya.id)** | Workspace & Productivity Management |
+| **[APK Extractor](https://extractor.termoradev.com)** | Android Utility & Application Tools |
+| **[Penerbit Uwais](https://penerbituwais.id/)** | Jasa Penerbitan & Percetakan Buku |
 
-| Peringkat | Brand & Tautan | Slogan / Layanan | Kontribusi | Kategori |
-| :---: | :--- | :--- | :---: | :--- |
-| 🏆 #1 | **[Jeon.Id](https://jeon.id)** | Satu platform untuk membangun identitas digital, menciptakan konten dengan AI, menjual produk, dan mengembangkan bisnis Anda. | `Rp 2.499.115` | 🌟 Platinum Titan |
-| 🏆 #2 | **[Tentaklik](https://tentaklik.com/)** | Sewa akun Whitelist Meta, Google, dan TikTok untuk membantu campaign kamu berjalan lebih lancar. | `Rp 999.844` | 🥇 Gold Titan |
-| 🏆 #3 | **[Masterily](https://masterily.com)** | Learn More, Do Better, Grow Faster. | `Rp 999.460` | 🥇 Gold Titan |
-| 🏆 #4 | **[Matematika.id](https://www.matematika.id/)** | Les Privat & Kursus Matematika Online Lengkap | `Rp 299.768` | 🥈 Silver Titan |
-| 🏆 #5 | **[Printjavasport](https://printjavasport.net/)** | We're your team in difficult times | `Rp 299.757` | 🥈 Silver Titan |
-| 🏆 #6 | **[KedaiMu](https://kedaimu.com)** | Belanja lebih dekat. | `Rp 299.556` | 🥈 Silver Titan |
-| 🏆 #7 | **[Devid Ekha Hidayat](https://masdev.id/)** | masdev.id | `Rp 299.202` | 🥈 Silver Titan |
-| 🏆 #8 | **[DigitalMarket.id](https://digitalmarket.id)** | Marketplace Produk Digital, Ebook & Tools Bisnis Online | `Rp 299.034` | 🥈 Silver Titan |
-
-### 🌐 Mitra Bisnis & Proyek Terverifikasi
-
-| Peringkat | Brand / Bisnis | Slogan | Kontribusi | Tautan Resmi |
-| :---: | :--- | :--- | :---: | :--- |
-| #9 | **Nurjaya bin Musa** | - | `Rp 99.955` | [legit.co.id](https://legit.co.id) |
-| #10 | **Fasitel** | Solusi Teknologi Digital, Produk SaaS & Platform AI | `Rp 99.716` | [fasitel.co.id](https://fasitel.co.id) |
-| #11 | **Pasti Hebat Teknologi** | Platform Layanan Edukasi & Teknologi Digital | `Rp 99.668` | [pastihebat.com](https://pastihebat.com/) |
-| #12 | **Websites.id** | Jasa Pembuatan Website Profesional | `Rp 99.625` | [websites.id](https://www.websites.id) |
-| #13 | **Dian Hadinata** | - | `Rp 99.606` | [web.facebook.com/nata.dinata2](https://web.facebook.com/nata.dinata2/) |
-| #14 | **satubeasiswa** | Informasi Beasiswa Terbaru | `Rp 99.520` | [satubeasiswa.com](https://satubeasiswa.com) |
-| #15 | **APK Extractor** | Extract, Save & Share Android Apps | `Rp 99.417` | [extractor.termoradev.com](https://extractor.termoradev.com) |
-| #16 | **Ronal Egi Ernest** | Medis, Catur, dan Hidup | `Rp 99.395` | [Https://www.Egijournal.com](Https://www.Egijournal.com) |
-| #17 | **TataKarya** | Kerja rumit, jadi tertata. | `Rp 99.384` | [tatakarya.id](https://tatakarya.id) |
-| #18 | **Penerbit Uwais** | Jasa Penerbitan dan Cetak Buku Murah | `Rp 99.238` | [penerbituwais.id](https://penerbituwais.id/) |
-| #19 | **Bani Risset** | Digital and AI Spesialis | `Rp 99.108` | [banirisset.com](https://banirisset.com) |
-| #20 | **mbesjisp** | Web Programing | `Rp 99.088` | [github.com/mbesjisp](https://github.com/mbesjisp) |
-
-> 📜 **[Lihat Daftar Lengkap 100 Founding Backers & Komunitas di SPONSORS.md](SPONSORS.md)**
+> 📜 Seluruh 100 Founding Backers dan kontributor komunitas tercatat abadi di **[SPONSORS.md](SPONSORS.md)** dan direktori resmi **[cuan.work/sponsor](https://cuan.work/sponsor)**.
 
 <!-- SPONSORS:END -->
 
