@@ -66,3 +66,17 @@ test('output credit waits for xterm parsing and yields without touching pending 
   assert.equal(sent.length,1,'replaced socket cannot receive stale credit')
   assert.equal(term.current.textarea.value,'pending composition')
 })
+
+test('initial terminal attach bounds seed_max_bytes to avoid freeze', () => {
+  assert.match(source, /url\.searchParams\.set\('seed_max_bytes',\s*'16384'\)/)
+})
+
+test('terminal lifecycle effect is decoupled from attempt id', () => {
+  assert.match(source, /}, \[taskId, isDedicatedTerminal\]\)/)
+  assert.doesNotMatch(source, /}, \[taskId, attempt\.id\]\)/)
+})
+
+test('input buffer generation remains stable across attempt updates', () => {
+  assert.match(source, /const inputGeneration = taskId/)
+  assert.doesNotMatch(source, /const inputGeneration = taskId \+ ':' \+ attemptId/)
+})

@@ -73,9 +73,12 @@ export function TaskTerminal({
   const socket = useRef<WebSocket | null>(null)
   const inputQueue = useRef(new TerminalInputBuffer())
   const mobileInputFilter = useRef<TerminalHelperTextareaInputFilter | null>(null)
-  const attemptId = attempt?.id || 'live'
-  const inputGeneration = taskId + ':' + attemptId
-  inputQueue.current.bind(inputGeneration)
+  const attemptRef = useRef(attempt)
+  attemptRef.current = attempt
+  const inputGeneration = taskId
+  const inputGenerationRef = useRef(taskId)
+  inputGenerationRef.current = taskId
+  inputQueue.current.bind(taskId)
 
   const [connection, setConnection] = useState('loading')
   const [error, setError] = useState('')
@@ -85,8 +88,8 @@ export function TaskTerminal({
   const [search, setSearch] = useState('')
   const [match, setMatch] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [attachedSession, setAttachedSession] = useState({ generation: inputGeneration, id: '' })
-  const activeSessionId = attachedSession.generation === inputGeneration ? attachedSession.id : ''
+  const [attachedSession, setAttachedSession] = useState({ generation: taskId, id: '' })
+  const activeSessionId = attachedSession.generation === taskId ? attachedSession.id : ''
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean
     x: number
@@ -239,9 +242,11 @@ export function TaskTerminal({
       ws.send(JSON.stringify({ type: 'mode', mode: 'interactive' }))
     }
     const send = ws?.readyState === WebSocket.OPEN ? (data: string) => ws.send(encodeTerminalDataFrame(data)) : undefined
-    if (!inputQueue.current.write(inputGeneration, normalizedKey, send)) setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
-    if (send && following.current) terminal?.scrollToBottom()
-  }, [inputGeneration, t])
+    if (!inputQueue.current.write(inputGenerationRef.current, normalizedKey, send)) {
+      setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
+    }
+    if (send && following.current) term.current?.scrollToBottom()
+  }, [t])
 
   const probeTerminalAvailability = useCallback(async (): Promise<number | null> => {
     try {
@@ -601,7 +606,8 @@ export function TaskTerminal({
       const editing = active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement || (active instanceof HTMLElement && active.isContentEditable)
       const isTouchMobile = navigator.maxTouchPoints > 0 || (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches)
       const isKeyboardShrunk = baseline - height > Math.max(100, baseline * 0.15)
-      const open = isTouchMobile && (isTerminalHelper || (editing && Boolean(active && terminalRoot.current?.contains(active)) && isKeyboardShrunk))
+      const isWithinTerminal = Boolean(active && terminalRoot.current?.contains(active))
+      const open = isTouchMobile && isKeyboardShrunk && (isTerminalHelper || editing || isWithinTerminal)
 
       setIsMobileKeyboardActive(Boolean(open))
 
@@ -621,15 +627,16 @@ export function TaskTerminal({
     window.addEventListener('resize', update)
     window.screen.orientation?.addEventListener('change', rotate)
     document.addEventListener('focusin', update)
-    document.addEventListener('focusout', () => {
+    const handleFocusOut = () => {
       setTimeout(update, 50)
-    })
+    }
+    document.addEventListener('focusout', handleFocusOut)
     return () => {
       viewport?.removeEventListener('resize', update)
       window.removeEventListener('resize', update)
       window.screen.orientation?.removeEventListener('change', rotate)
       document.removeEventListener('focusin', update)
-      document.removeEventListener('focusout', update)
+      document.removeEventListener('focusout', handleFocusOut)
     }
   }, [])
 
@@ -743,6 +750,9 @@ export function TaskTerminal({
         url.searchParams.set('reconnect', '1')
         url.searchParams.set('skip_seed', '1')
         url.searchParams.set('seed', '0')
+      } else {
+        // Bound initial attach seed to 16 KiB (clean, instant paint without UI freeze)
+        url.searchParams.set('seed_max_bytes', '16384')
       }
       if (term.current && term.current.cols > 0 && term.current.rows > 0) {
         url.searchParams.set('cols', String(term.current.cols))
@@ -779,7 +789,6 @@ export function TaskTerminal({
           const rawBytes = new Uint8Array(event.data)
           if (typeof writeQueueRef !== 'undefined' && writeQueueRef.current && typeof streamDecoderRef !== 'undefined' && streamDecoderRef.current) {
             writeQueueRef.current.enqueue(streamDecoderRef.current.decode(rawBytes))
-            if (following.current) t.scrollToBottom()
             if (acknowledgeOutput) {
               setTimeout(() => {
                 if (!disposed && socket.current === ws && ws.readyState === WebSocket.OPEN) {
@@ -861,7 +870,7 @@ export function TaskTerminal({
             setInput(enabled)
             if (t.options.disableStdin !== !enabled) t.options.disableStdin = !enabled
             if (t.options.cursorBlink !== enabled) t.options.cursorBlink = enabled
-            if (enabled) inputQueue.current.flush(inputGeneration, data => ws.send(encodeTerminalDataFrame(data)))
+            if (enabled) inputQueue.current.flush(inputGenerationRef.current, data => ws.send(encodeTerminalDataFrame(data)))
             setConnection('connected')
             setNotice('')
             setError('')
@@ -1084,6 +1093,11 @@ export function TaskTerminal({
         term.current = terminal
         writeQueueRef.current = createTerminalWriteQueue(terminal, {
           isActive: () => !disposed && term.current === terminal,
+          onDrained: () => {
+            if (following.current && term.current) {
+              term.current.scrollToBottom()
+            }
+          },
         })
 
         // Natural word-editing keys & clipboard shortcuts matching Fural / macOS Terminal / iTerm
@@ -1360,7 +1374,9 @@ export function TaskTerminal({
           const payload = mobileInputFilter.current ? mobileInputFilter.current.filter(data) : data
           if (payload === null) return
           const send = ws?.readyState === WebSocket.OPEN ? (value: string) => ws.send(encodeTerminalDataFrame(value)) : undefined
-          if (!inputQueue.current.write(inputGeneration, payload, send)) setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
+          if (!inputQueue.current.write(inputGenerationRef.current, payload, send)) {
+            setError(t('Terminal input is pending. Reconnect to the same session before typing more.'))
+          }
         })
 
         // Incremental polling loop used exclusively as fallback when PTY socket is unavailable
@@ -1376,7 +1392,7 @@ export function TaskTerminal({
             return
           }
           try {
-            const attId = attempt?.id
+            const attId = attemptRef.current?.id
             if (!attId) return
             const result = await tasksApi.logs(taskId, attId, after)
             if (disposed) return
@@ -1424,7 +1440,7 @@ export function TaskTerminal({
           // Task is finished: load saved historical output from database
           setConnection('saved')
           for (let page = 0; page < 8 && !disposed; page++) {
-            const attId = attempt?.id
+            const attId = attemptRef.current?.id
             if (!attId) break
             const result = await tasksApi.logs(taskId, attId, after)
             if (disposed) return
@@ -1480,7 +1496,7 @@ export function TaskTerminal({
       if (term.current === terminal) term.current = null
       fitTerminalRef.current = () => {}
     }
-  }, [taskId, attempt.id])
+  }, [taskId, isDedicatedTerminal])
 
   // Context menu click-outside / escape
   useEffect(() => {
@@ -1957,7 +1973,7 @@ export function TaskTerminal({
         <TerminalComposer
           composerRef={composerRef}
           taskId={taskId}
-          attemptId={attempt.id}
+          attemptId={attempt?.id || ''}
           onSend={sendKey}
           onSteer={handleSteer}
           onStop={handleStop}

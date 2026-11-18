@@ -23,9 +23,10 @@ import (
 )
 
 const (
-	defaultPingInterval = 15 * time.Second
-	writeWait           = 10 * time.Second
-	pongWait            = 60 * time.Second
+	defaultPingInterval     = 15 * time.Second
+	writeWait               = 10 * time.Second
+	pongWait                = 60 * time.Second
+	defaultOutputAckTimeout = 1500 * time.Millisecond
 )
 
 // TerminalMessage represents control payloads exchanged over the WebSocket connection.
@@ -268,7 +269,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 7. Register subscriber
 	subID := generateSubscriberID()
 	seedMaxBytes := DefaultAttachSeedMaxBytes
-	if q.Get("skip_seed") == "1" || q.Get("seed") == "0" {
+	if q.Get("skip_seed") == "1" || q.Get("seed") == "0" || q.Get("seed_max_bytes") == "0" {
 		seedMaxBytes = 0
 	} else if val := q.Get("seed_max_bytes"); val != "" {
 		if n, err := strconv.Atoi(val); err == nil && n >= 0 {
@@ -554,7 +555,7 @@ func (h *Handler) ProxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 		_, _ = unixConn.Write(append(resizePayload, '\n'))
 	}
 
-	skipSeed := q.Get("skip_seed") == "1" || q.Get("seed") == "0"
+	skipSeed := q.Get("skip_seed") == "1" || q.Get("seed") == "0" || q.Get("seed_max_bytes") == "0"
 	if skipSeed {
 		// On soft reconnect with skip_seed=1, drain the initial seed synchronously written by SocketBridge
 		// so an already-painted client terminal does not receive duplicate history output.
@@ -602,7 +603,7 @@ func (h *Handler) ProxySocketToWebSocket(w http.ResponseWriter, r *http.Request,
 				send := func() error { return writeWS(websocket.BinaryMessage, buf[:n]) }
 				var err error
 				if ackOutput {
-					err = outputFlow.write(done, pongWait, send)
+					err = outputFlow.write(done, defaultOutputAckTimeout, send)
 					if err != nil && strings.Contains(err.Error(), "acknowledgement timed out") {
 						// Browser may be backgrounded or busy rendering; do not kill the connection.
 						outputFlow.unblock()
