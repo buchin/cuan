@@ -77,7 +77,7 @@ test('4. TaskSidePeek and ProjectsWorkspace: Section navigation enforces bg-tran
 })
 
 test('5. Generate Visual Report for Tab Section Transparency (Desktop 1440px & Mobile 390px)', () => {
-  const artifactsDir = process.env.CUAN_TASK_ARTIFACTS_DIR || os.tmpdir()
+  const artifactsDir = process.env.CUAN_TASK_ARTIFACTS_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'cuan-tab-report-'))
   const reportPath = path.join(artifactsDir, 'tab-transparency-visual-report.html')
   const html = `<!DOCTYPE html>
 <html lang="id">
