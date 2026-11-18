@@ -43,7 +43,9 @@ func isCustomerReplyDelivery(q db.InboxRequest, d *task.TaskDetailResponse) bool
 		return false
 	}
 	key := customerReplyKey(d)
-	return (q.RequestID == delegationMessageID(key) && q.MessageID == delegationMessageID(key+":input")) || (q.RequestID == delegationMessageID(key+":retry") && q.MessageID == delegationMessageID(key+":retry:input"))
+	reqMatches := matchInboxRequestIDOrRetry(q.RequestID, delegationMessageID(key), delegationMessageID(key+":retry"))
+	msgMatches := q.MessageID == delegationMessageID(key+":input") || q.MessageID == delegationMessageID(key+":retry:input")
+	return reqMatches && msgMatches
 }
 
 func (s *Server) acceptedCustomerReplyEligible(ctx context.Context, d *task.TaskDetailResponse) bool {

@@ -70,6 +70,30 @@ func TestNativeSourceReviewRequiresBoundIndependentEvidence(t *testing.T) {
 	}
 	must(s.saveNativeSourceReview(ctx, d, q.RequestID, assessment))
 
+	t.Run("subsequent assessment with pass updates native source review", func(t *testing.T) {
+		updatedAssessment := inboxReviewEvaluation{
+			Decision:      "revise",
+			SourceReview:  "pass",
+			RemainingWork: "publication",
+			Explanation:   "Updated evaluation explanation for re-review.",
+			Revision:      "Publish the reviewed source only.",
+		}
+		newReqID := "updated-review-req"
+		newQ := q
+		newQ.RequestID = newReqID
+		_, err := s.saveReviewAssessment(ctx, d, newQ, updatedAssessment)
+		if err != nil {
+			t.Fatalf("saveReviewAssessment on second review: %v", err)
+		}
+		if err := s.saveNativeSourceReview(ctx, d, newReqID, updatedAssessment); err != nil {
+			t.Fatalf("saveNativeSourceReview on second review: %v", err)
+		}
+		approved, err := task.NativeSourceReviewForAttempt(ctx, store, &d.Task, att.ID)
+		if err != nil || approved == nil {
+			t.Fatalf("NativeSourceReviewForAttempt failed: %v", err)
+		}
+	})
+
 	t.Run("rejected source returns to implementation before publication", func(t *testing.T) {
 		p, e := s.projectSvc.Store().GetProject(ctx, d.ProjectID)
 		must(e)

@@ -69,9 +69,9 @@ func GetCuanConfig() CuanAPIConfig {
 		}
 	}
 
-	// 3. Current or system .env
+	// 3. System or local .env
 	if cfg.BaseURL == "" || cfg.AuthToken == "" {
-		for _, envPath := range []string{".env", "/opt/cuan/.env", "/opt/cuan/current/.env"} {
+		for _, envPath := range []string{"/opt/cuan/.env", "/opt/cuan/current/.env", ".env"} {
 			if data, err := os.ReadFile(envPath); err == nil {
 				for _, line := range strings.Split(string(data), "\n") {
 					line = strings.TrimSpace(line)
