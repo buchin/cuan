@@ -65,6 +65,18 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
     swSrc.includes('icon'),
     'sw.js must handle notification icon',
   )
+  assert.ok(
+    swSrc.includes('badge'),
+    'sw.js must handle notification badge',
+  )
+  assert.ok(
+    swSrc.includes('/icons/cuan-badge-96.png'),
+    'sw.js must fallback to transparent monochrome badge /icons/cuan-badge-96.png for Android alpha mask stencil',
+  )
+  assert.ok(
+    fs.existsSync(path.join(webDir, 'public/icons/cuan-badge-96.png')),
+    'web/public/icons/cuan-badge-96.png must exist',
+  )
 
   // showNotification uses dynamic title and body
   assert.ok(
@@ -123,7 +135,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
     const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
     const icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : '/icons/cuan-192.png'
-    const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-192.png'
+    const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
     const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
     let href = '/inbox'
@@ -170,6 +182,8 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
   const parsed3 = parsePushPayload({ json: () => ({}) }, origin)
   assert.equal(parsed3.title, 'Cuan')
   assert.equal(parsed3.body, '')
+  assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
+  assert.equal(parsed3.icon, '/icons/cuan-192.png')
   assert.equal(parsed3.href, '/inbox')
 })
 

@@ -174,6 +174,8 @@ func buildPushPayload(item ownerNotification) map[string]string {
 		"body":  body,
 		"href":  href,
 		"tag":   tag,
+		"badge": "/icons/cuan-badge-96.png",
+		"icon":  "/icons/cuan-192.png",
 	}
 }
 
