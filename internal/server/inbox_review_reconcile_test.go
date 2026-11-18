@@ -333,5 +333,31 @@ func TestQueueInboxTaskReview_ChainedEvaluationV2(t *testing.T) {
 	if bound := s.inboxReviewedTask(ctx, *v2Req); bound == nil || bound.ID != d.ID {
 		t.Fatalf("evaluation-v2 request failed to bind task: got %+v", bound)
 	}
+
+	// Third queue call: complete :evaluation-v2: and ensure chain loop advances to :evaluation-v3:
+	v2Req.State = "completed"
+	if err := repo.FinishInboxRequest(ctx, *v2Req, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	s.queueInboxTaskReview(ctx, d)
+
+	reqs3, err := repo.ListInboxRequests(ctx, old.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v3Req *db.InboxRequest
+	for i := range reqs3 {
+		if reqs3[i].State == "queued" && reqs3[i].RequestID != evalReq.RequestID && reqs3[i].RequestID != v2Req.RequestID {
+			v3Req = &reqs3[i]
+			break
+		}
+	}
+	if v3Req == nil {
+		t.Fatalf("expected queued :evaluation-v3: request, got none among %d requests", len(reqs3))
+	}
+	if bound := s.inboxReviewedTask(ctx, *v3Req); bound == nil || bound.ID != d.ID {
+		t.Fatalf("evaluation-v3 request failed to bind task: got %+v", bound)
+	}
 }
 
