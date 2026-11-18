@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -487,6 +488,8 @@ func (s *Service) CreateManagedWorkspace(ctx context.Context, id, name string) (
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
+	initCmd := exec.CommandContext(ctx, "git", "-C", dir, "init", "-b", "main")
+	_ = initCmd.Run()
 	now := time.Now().UTC()
 	p := &Project{ID: id, Name: name, ProjectType: "custom", DefaultBranch: "main", LocalPath: dir, CreatedAt: now, UpdatedAt: now}
 	if err = s.store.CreateProject(ctx, p); err != nil {
