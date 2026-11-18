@@ -587,8 +587,14 @@ export function TaskTerminal({
   useEffect(() => {
     const viewport = window.visualViewport
     let baseline = Math.max(window.innerHeight, viewport?.height || 0)
+    let lastHeight = 0
+    let lastWidth = 0
     const update = () => {
-      const height = viewport?.height || window.innerHeight
+      const height = Math.round(viewport?.height || window.innerHeight)
+      const width = Math.round(viewport?.width || window.innerWidth)
+      if (Math.abs(height - lastHeight) < 8 && Math.abs(width - lastWidth) < 8) return
+      lastHeight = height
+      lastWidth = width
       baseline = Math.max(baseline, height)
       const active = document.activeElement
       const isTerminalHelper = active === term.current?.textarea
@@ -609,10 +615,9 @@ export function TaskTerminal({
         fitTerminalRef.current?.()
       }
     }
-    const rotate = () => { baseline = viewport?.height || window.innerHeight; update() }
+    const rotate = () => { baseline = viewport?.height || window.innerHeight; lastHeight = 0; lastWidth = 0; update() }
     update()
     viewport?.addEventListener('resize', update)
-    viewport?.addEventListener('scroll', update)
     window.addEventListener('resize', update)
     window.screen.orientation?.addEventListener('change', rotate)
     document.addEventListener('focusin', update)
@@ -621,7 +626,6 @@ export function TaskTerminal({
     })
     return () => {
       viewport?.removeEventListener('resize', update)
-      viewport?.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
       window.screen.orientation?.removeEventListener('change', rotate)
       document.removeEventListener('focusin', update)
@@ -1150,13 +1154,15 @@ export function TaskTerminal({
             const measured = cell ? terminalGrid(mount.current.clientWidth, mount.current.clientHeight, cell.width, cell.height) : null
             const next = measured || fit.proposeDimensions()
             if (!next || next.cols < 2 || next.rows < 1) return
-            if (terminal.cols !== next.cols || terminal.rows !== next.rows) terminal.resize(next.cols, next.rows)
-            if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
-            ptyResizeTimer = setTimeout(() => {
-              const ws = socket.current
-              if (disposed || ws?.readyState !== WebSocket.OPEN || !terminal) return
-              resizeGate.send(ws, { cols: terminal.cols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
-            }, 80)
+            if (terminal.cols !== next.cols || terminal.rows !== next.rows) {
+              terminal.resize(next.cols, next.rows)
+              if (ptyResizeTimer) clearTimeout(ptyResizeTimer)
+              ptyResizeTimer = setTimeout(() => {
+                const ws = socket.current
+                if (disposed || ws?.readyState !== WebSocket.OPEN || !terminal) return
+                resizeGate.send(ws, { cols: terminal.cols, rows: terminal.rows }, grid => ws.send(JSON.stringify({ type: 'resize', ...grid })))
+              }, 120)
+            }
           } catch {}
         }
         const scheduleFit = () => {
@@ -1222,9 +1228,6 @@ export function TaskTerminal({
           if (!isTouchDragging) {
             if (Math.abs(totalY) > 3 && Math.abs(totalY) >= Math.abs(totalX)) {
               isTouchDragging = true
-              if (terminal.textarea) {
-                terminal.textarea.setAttribute('inputmode', 'none')
-              }
             }
           }
 
@@ -1259,7 +1262,6 @@ export function TaskTerminal({
             if (tapDuration < 450) {
               setIsMobileKeyboardActive(true)
               if (terminal.textarea) {
-                terminal.textarea.setAttribute('inputmode', 'text')
                 try {
                   terminal.textarea.focus({ preventScroll: true })
                 } catch {

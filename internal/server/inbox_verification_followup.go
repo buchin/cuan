@@ -50,6 +50,13 @@ func (s *Server) startVerificationFollowup(ctx context.Context, q db.InboxReques
 			return "This attempt already belongs to a live-result inspection.", false
 		}
 	}
+	if sourceDetail == d {
+		if priorVerification, _ := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID); priorVerification != nil {
+			if tested := s.testedSourceAfterFailedVerification(ctx, d, priorVerification); tested != nil {
+				sourceDetail = tested
+			}
+		}
+	}
 	if sourceDetail.ResultKind != "implementation" {
 		return "The source is not an implemented result.", false
 	}
@@ -195,6 +202,23 @@ func (s *Server) testedSourceAfterFailedInspection(ctx context.Context, d *task.
 	}
 	source, err := s.taskSvc.Store().GetAttempt(ctx, live.SourceAttemptID)
 	if err != nil || source == nil || source.TaskID != d.ID || !task.IsPublicationReconciliationOutcome(&d.Task, source, d.Activities) {
+		return nil
+	}
+	original := *d
+	original.LatestAttempt, original.ResultKind = source, "implementation"
+	return &original
+}
+
+func (s *Server) testedSourceAfterFailedVerification(ctx context.Context, d *task.TaskDetailResponse, prior *task.VerificationIntent) *task.TaskDetailResponse {
+	if d == nil || d.LatestAttempt == nil || prior == nil || prior.SourceAttemptID == "" || prior.SourceCommit == "" || prior.SourceCommit != d.CommitSHA {
+		return nil
+	}
+	a := d.LatestAttempt
+	if (a.Status != task.AttemptStatusFailed && a.Status != task.AttemptStatusCanceled) || a.FinishedAt == nil {
+		return nil
+	}
+	source, err := s.taskSvc.Store().GetAttempt(ctx, prior.SourceAttemptID)
+	if err != nil || source == nil || source.TaskID != d.ID || source.Status != task.AttemptStatusSucceeded {
 		return nil
 	}
 	original := *d

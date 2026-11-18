@@ -14,7 +14,7 @@ import { sanitizeTerminalOutput } from './sanitize-output'
  */
 
 export const TERMINAL_WRITE_CHUNK_CHARS = 8_000
-export const TERMINAL_LIVE_WRITE_CHUNK_CHARS = 64
+export const TERMINAL_LIVE_WRITE_CHUNK_CHARS = 1_024
 export const TERMINAL_HIDDEN_BACKLOG_CAP = 96_000
 export const TERMINAL_VISIBLE_BACKLOG_CAP = 256_000
 

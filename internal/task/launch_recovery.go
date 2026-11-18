@@ -29,7 +29,7 @@ func UnstartedLaunchRecoveryKind(j TaskLaunch, tasks ...*Task) string {
 	if j.SafeError == MissingWorkspaceLaunchError {
 		return missingWorkspaceRecoveryKey
 	}
-	if j.SafeError == IsolatedWorkspaceLaunchError {
+	if j.SafeError == IsolatedWorkspaceLaunchError || strings.Contains(j.SafeError, "Reconstructed workspace") {
 		return isolatedWorkspaceRecoveryKey
 	}
 	if j.SafeError == "create attempt: Invalid task input" {
