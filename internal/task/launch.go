@@ -183,7 +183,7 @@ func LaunchInstructionsHash(text string) string {
 // Only interrupted infrastructure recovery may revive a stopped launch.
 // Validation, cancellation and authorization failures remain terminal.
 func recoverableStoppedLaunch(reason string) bool {
-	return reason == "Task is in terminal status." || reason == "Execution stopped during server restart."
+	return reason == "Task is in terminal status." || reason == "Execution stopped during server restart." || reason == "Recorded execution is terminal; launch reconciled."
 }
 
 // Presentation only: these envelopes are saved by the native handoff. This enum
