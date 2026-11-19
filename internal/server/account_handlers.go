@@ -15,14 +15,22 @@ import (
 
 var fetchSettingsModelUsage = agent.FetchAccountModelUsage
 
-func (s *Server) accountOwner(w http.ResponseWriter, r *http.Request) string {
+func (s *Server) authenticateOwner(w http.ResponseWriter, r *http.Request) *auth.Owner {
 	if s.authSvc == nil {
 		respondJSONError(w, 503, "Owner authentication is unavailable")
-		return ""
+		return nil
 	}
 	owner, err := s.authSvc.ValidateToken(r.Context(), auth.ExtractToken(r))
 	if err != nil {
 		respondJSONError(w, 401, "Masuk ke Cuan terlebih dahulu")
+		return nil
+	}
+	return owner
+}
+
+func (s *Server) accountOwner(w http.ResponseWriter, r *http.Request) string {
+	owner := s.authenticateOwner(w, r)
+	if owner == nil {
 		return ""
 	}
 	return owner.ID

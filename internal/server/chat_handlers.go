@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -141,9 +142,11 @@ func isLegacyInternalAgent(id string) bool {
 
 // GET /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r *http.Request) {
-	if s.accountOwner(w, r) == "" {
+	owner := s.authenticateOwner(w, r)
+	if owner == nil {
 		return
 	}
+	r = r.WithContext(auth.ContextWithOwner(r.Context(), owner))
 	convID := chi.URLParam(r, "id")
 	if convID == "" {
 		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
@@ -309,6 +312,23 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	contact.FailedTasks = failedTasks
 	contact.CanceledTasks = c.Canceled
 
+	visibleIDs := make(map[string]bool, len(messages))
+	for _, m := range messages {
+		if m.UUID != "" {
+			visibleIDs[m.UUID] = true
+		}
+	}
+	prunedRequests := make([]db.InboxRequest, len(requests))
+	copy(prunedRequests, requests)
+	for i := range prunedRequests {
+		q := &prunedRequests[i]
+		if q.State == "completed" || q.State == "cancelled" {
+			if !visibleIDs[q.MessageID] && !visibleIDs[q.ReplyID] {
+				q.Steps = nil
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,
 		"task_count":      c.Total,
@@ -318,7 +338,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		"done_tasks":      doneTasks,
 		"failed_tasks":    failedTasks,
 		"canceled_tasks":  c.Canceled,
-		"requests":        inboxRecoveryRequests(requests),
+		"requests":        inboxRecoveryRequests(prunedRequests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
 		"contact":         contact,

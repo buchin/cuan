@@ -166,6 +166,13 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			return nil, err
 		}
 	}
+	var defaultGroundingTastes []GroundingTaste
+	for _, m := range rawMsgs {
+		if m.AuthorType == "agent" {
+			defaultGroundingTastes = s.activeBrandGroundingTastesForRoom(ctx, roomID)
+			break
+		}
+	}
 	for _, m := range rawMsgs {
 		// Filter out internal synthetic review trigger prompts from client chat timeline
 		if internalInboxReviewInput(m) {
@@ -255,7 +262,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			if recorded, ok := s.GetMessageGrounding(m.ID); ok && len(recorded) > 0 {
 				groundingTastes = recorded
 			} else {
-				groundingTastes = s.activeBrandGroundingTastesForRoom(ctx, roomID)
+				groundingTastes = defaultGroundingTastes
 			}
 		}
 
