@@ -135,11 +135,6 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		return "", "Inbox execution is handled by the chat worker. Your saved request remains in its chat queue."
 	}
 	reconcileRetry, _ := ctx.Value(inboxRetryReconcileKey{}).(bool)
-	if reconcileRetry {
-		// The task receives original attachments from durable storage. Tool-free
-		// reconciliation must not mount receipts or advertise file inspection.
-		attachmentPaths = nil
-	}
 	normHarness := db.NormalizeHarness(harness, "")
 	for _, file := range attachmentPaths {
 		ext := strings.ToLower(filepath.Ext(file))
@@ -349,7 +344,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		binary = "codex"
 		args = []string{"exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", system}
 	case "", "agy", "antigravity":
-		timeout := "360s"
+		timeout := "900s"
 		if v := os.Getenv("INBOX_CLI_TIMEOUT"); v != "" {
 			timeout = v
 		}
@@ -407,7 +402,10 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp" {
 				args = append(args, "--image", file)
 			}
-		} else {
+		} else if !directCoordinator && !formatRepair {
+			// Reconcile/direct-coordinator turns do not advertise file inspection:
+			// attachments are still sandbox-mounted for context but the CLI must
+			// not discover them through --add-dir to prevent replay of old work.
 			args = append(args, "--add-dir", filepath.Dir(file))
 		}
 	}
@@ -516,7 +514,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	var runtime *inboxRuntimeStream
 	if binary == "agy" {
 		maxTools := 0
-		if snapshotReview {
+		if snapshotReview || (directCoordinator && len(attachmentPaths) > 0) {
 			maxTools = len(attachmentPaths) + 1
 		}
 		if coordinator && !directCoordinator {
@@ -527,7 +525,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			maxToolCalls:          maxTools,
 			adaptiveBatching:      !snapshotReview,
 			inspectionBatchFactor: getChatInspectionBatchFactor(),
-			disallowTools:         directCoordinator || formatRepair || (snapshotReview && len(attachmentPaths) == 0),
+			disallowTools:         (directCoordinator && len(attachmentPaths) == 0) || formatRepair || (snapshotReview && len(attachmentPaths) == 0),
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()

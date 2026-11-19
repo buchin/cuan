@@ -80,19 +80,17 @@ export function StudioProjectSelector({
           className="absolute bottom-full left-0 mb-2 z-50 w-72 sm:w-80 rounded-2xl border border-border bg-popover p-1.5 shadow-2xl outline-none max-h-[min(380px,calc(100vh-180px))] overflow-y-auto"
         >
           {/* Section Header: Projects */}
-          <div className="px-2.5 pt-1.5 pb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <div className="px-3 pt-2 pb-1.5 flex items-center justify-between text-xs font-medium text-muted-foreground border-b border-border/40 mb-1">
             <span>{t('Projects')}</span>
-            <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded font-normal">
+            <span className="text-[11px] text-muted-foreground/60 font-normal">
               {projects.length}
             </span>
           </div>
 
-          {/* Individual Projects List with Checkbox */}
+          {/* Individual Projects List */}
           <div className="space-y-0.5 py-0.5">
             {projects.map((project) => {
               const isSelected = selectedProjectIds.includes(project.id)
-              const isSynced =
-                project.clone_status === 'connected' || project.clone_status === 'synced'
               const isFailed = project.clone_status === 'failed'
 
               return (
@@ -102,47 +100,34 @@ export function StudioProjectSelector({
                   role="option"
                   aria-selected={isSelected}
                   onClick={() => onToggleProject(project.id)}
-                  className={`w-full flex items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground ${
-                    isSelected ? 'bg-accent/50 font-medium' : 'text-muted-foreground hover:text-foreground'
+                  className={`group w-full min-h-[44px] flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-xs transition-colors hover:bg-accent/80 hover:text-accent-foreground ${
+                    isSelected ? 'bg-accent/50 text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    {/* Checkbox box */}
-                    <div
-                      className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                        isSelected
-                          ? 'bg-primary border-primary text-primary-foreground'
-                          : 'border-muted-foreground/40 bg-muted/30 dark:border-muted-foreground/50'
-                      }`}
-                    >
-                      {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                    </div>
-
-                    {/* Status dot */}
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        isFailed
-                          ? 'bg-rose-500'
-                          : isSynced
-                          ? 'bg-emerald-500 ring-2 ring-emerald-500/20'
-                          : 'bg-zinc-400'
-                      }`}
-                    />
-
+                    <FolderGit2 className={`h-4 w-4 shrink-0 transition-colors ${isSelected ? 'text-primary' : 'text-muted-foreground/60'}`} aria-hidden="true" />
                     <span className="truncate text-foreground font-medium">
                       {project.name}
                     </span>
+                    {isFailed && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" title={t('Sync failed')} />
+                    )}
                   </div>
 
-                  {project.default_branch && (
-                    <span
-                      className="inline-flex items-center gap-0.5 rounded bg-muted/80 px-1.5 py-0.5 text-[10px] text-muted-foreground shrink-0"
-                      title={project.default_branch}
-                    >
-                      <GitBranch className="h-2.5 w-2.5 mr-0.5" />
-                      <span className="max-w-[70px] truncate">{project.default_branch}</span>
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {project.default_branch && (
+                      <span
+                        className="text-[11px] text-muted-foreground/50 hidden group-hover:inline-flex items-center gap-1 transition-opacity"
+                        title={project.default_branch}
+                      >
+                        <GitBranch className="h-2.5 w-2.5" />
+                        <span className="max-w-[70px] truncate">{project.default_branch}</span>
+                      </span>
+                    )}
+                    {isSelected && (
+                      <Check className="h-4 w-4 text-primary shrink-0 stroke-[2.5]" aria-hidden="true" />
+                    )}
+                  </div>
                 </button>
               )
             })}

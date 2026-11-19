@@ -139,7 +139,9 @@ func buildPushPayload(item ownerNotification) map[string]string {
 			}
 		}
 	} else if item.Kind == "approval" || item.Kind == "completed" || strings.HasPrefix(tag, "agent:") {
-		title = "Asisten AI"
+		if title == "" {
+			title = "Asisten AI"
+		}
 	}
 	if title == "" {
 		title = "Cuan"

@@ -170,9 +170,7 @@ export function ConversationItem({
             : t('{{done}} of {{total}} tasks completed')
                 .replace('{{done}}', String(doneTasks))
                 .replace('{{total}}', String(totalTasks)))
-        : conversationHasUnfinishedTasks(contact)
-          ? t('Unfinished tasks pending')
-          : t('Unresolved (click to resolve)')
+        : t('Unresolved (click to resolve)')
 
   const statusAriaLabel = isResolved
     ? t('Resolved')
@@ -195,11 +193,21 @@ export function ConversationItem({
     onSelectContact(contact)
     void archive.markRead(id, true, contact.last_message_at).catch(() => {})
   }
+
+  const handleResolveAction = async () => {
+    if (!contact.resolved && (contact.active_tasks || 0) > 0) {
+      const confirmMessage = t('Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?')
+        .replace('{{count}}', String(contact.active_tasks))
+      if (!window.confirm(confirmMessage)) return
+    }
+    await setConversationResolved(contact, !contact.resolved, { cancelUnfinished: true })
+  }
+
   const archiveAction = {
     label: contact.resolved ? 'Reopen conversation' : 'Resolve conversation',
     previewLabel: contact.resolved ? 'Reopen' : 'Resolve',
-    disabled: !contact.resolved && conversationHasUnfinishedTasks(contact),
-    run: async () => { await setConversationResolved(contact, !contact.resolved) },
+    disabled: false,
+    run: handleResolveAction,
   }
 
 
@@ -271,9 +279,8 @@ export function ConversationItem({
             tabIndex={0}
             onClick={async (e) => {
               e.stopPropagation()
-              if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
               try {
-                await setConversationResolved(contact, !contact.resolved)
+                await handleResolveAction()
               } catch (err) {
                 console.error('Failed to toggle conversation resolved state:', err)
               }
@@ -282,9 +289,8 @@ export function ConversationItem({
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
                 e.stopPropagation()
-                if (!contact.resolved && conversationHasUnfinishedTasks(contact)) return
                 try {
-                  await setConversationResolved(contact, !contact.resolved)
+                  await handleResolveAction()
                 } catch (err) {
                   console.error('Failed to toggle conversation resolved state:', err)
                 }
@@ -300,7 +306,6 @@ export function ConversationItem({
                 : isWorking
                   ? 'text-[color:var(--status-working)]'
                   : 'text-muted-foreground/60 hover:text-foreground',
-              !contact.resolved && conversationHasUnfinishedTasks(contact) && 'cursor-default opacity-85',
             )}
           >
             {isComplete ? (

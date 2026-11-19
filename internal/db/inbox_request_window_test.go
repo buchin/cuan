@@ -10,7 +10,7 @@ import (
 // destroyed: production evidence showed a stage still reading files at 346.8s
 // of a 346.97s budget.
 func TestInboxRequestWindowOutlastsProviderPrintTimeout(t *testing.T) {
-	const providerPrintTimeout = 360 * time.Second
+	const providerPrintTimeout = 900 * time.Second
 	if InboxRequestWindow <= providerPrintTimeout {
 		t.Fatalf("request window %v must exceed the provider print timeout %v", InboxRequestWindow, providerPrintTimeout)
 	}

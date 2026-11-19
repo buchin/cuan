@@ -189,7 +189,7 @@ func (s *Server) drainInboxRoom(room string) {
 	}
 }
 func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRequest) {
-	lifecycleTimeout := 10 * time.Minute
+	lifecycleTimeout := 16 * time.Minute
 	if v := os.Getenv("INBOX_LIFECYCLE_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			lifecycleTimeout = d

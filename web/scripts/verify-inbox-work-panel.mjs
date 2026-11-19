@@ -24,6 +24,7 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('choices','Pilih langkah yang paling sesuai.',{prompt_choices:{question:'Bagaimana kita lanjutkan?',options:[{id:'continue',label:'Lanjutkan pemeriksaan'},{id:'adjust',label:'Sesuaikan kebutuhan'}],allow_other:true}}),
  message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
+  message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]})]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
@@ -78,6 +79,7 @@ try{
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.endsWith('/projects'))data={projects:[]}
+   else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
    else if(pathname.endsWith('/tasks'))data={tasks:[baseTask]}
    else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
@@ -155,6 +157,21 @@ try{
     assert.equal(outgoingRadius.bl,'16px')
     assert.equal(outgoingRadius.br,'16px')
   }
+  const draftCard = page.locator('[data-card="reply-draft"]')
+  await draftCard.waitFor({state:'visible'})
+  assert.equal(await draftCard.count(), 1)
+  const sendEmailBtn = draftCard.locator('[data-send-email-action]')
+  await sendEmailBtn.waitFor({state:'visible'})
+  assert.equal(await sendEmailBtn.count(), 1)
+  assert.ok((await sendEmailBtn.boundingBox()).height >= 44)
+  await draftCard.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`customer-reply-card-${width}.png`)})
+  await sendEmailBtn.click()
+  const sentBadge = draftCard.locator('[data-email-sent-badge]')
+  await sentBadge.waitFor({state:'visible'})
+  assert.equal(await sentBadge.count(), 1)
+  await page.screenshot({path:path.join(output,`customer-reply-sent-${width}.png`)})
+
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
   const previousScroll=await list.evaluate(el=>el.scrollTop)

@@ -64,6 +64,19 @@ func TestConversationResolutionRequiresCompletedWorkAndPreservesReadState(t *tes
 	if w := call(path, body, token); w.Code != 409 {
 		t.Fatal("unfinished task resolved", w.Code, w.Body.String())
 	}
+	// Resolving with cancel_unfinished: true cancels the pending task and succeeds.
+	cancelBody := `{"resolved":true,"observed_at":"` + at.Format(time.RFC3339Nano) + `","cancel_unfinished":true}`
+	if w := call(path, cancelBody, token); w.Code != 200 {
+		t.Fatal("cancel_unfinished resolution failed", w.Code, w.Body.String())
+	}
+	cancelledTask, err := s.taskSvc.Store().GetTask(ctx, item.ID)
+	if err != nil || (cancelledTask.Status != "cancelled" && cancelledTask.Status != "canceled") {
+		t.Fatal("task was not cancelled on resolution", err, cancelledTask)
+	}
+	// Reopen for the rest of the test
+	if w := call(path, `{"resolved":false}`, token); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
 	item.Status = "done"
 	if err := s.taskSvc.Store().UpdateTask(ctx, item); err != nil {
 		t.Fatal(err)

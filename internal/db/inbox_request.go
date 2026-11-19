@@ -12,11 +12,11 @@ import (
 var ErrInboxQueueFull = errors.New("inbox queue full")
 
 // InboxRequestWindow bounds one claimed chat request. It must outlast the
-// provider's own print timeout (360s) or the request deadline always wins the
+// provider's own print timeout (900s) or the request deadline always wins the
 // race: production showed a stage still reading files at 346.8s of a 346.97s
 // budget, so its answer was destroyed before the provider could finish. The
 // extra minute lets the provider stop on its own terms and report what it has.
-const InboxRequestWindow = 420 * time.Second
+const InboxRequestWindow = 960 * time.Second
 
 var ErrInboxRequestConflict = errors.New("request key already belongs to different content")
 
