@@ -17,7 +17,7 @@ import {
   Minimize2,
   ExternalLink,
   Keyboard,
-  SquarePen,
+  MessageSquare,
   LoaderCircle,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -100,7 +100,7 @@ export function TaskTerminal({
     y: 0,
   })
   const [isMobileKeyboardActive, setIsMobileKeyboardActive] = useState(false)
-  const [showComposer, setShowComposer] = useState(false)
+  const [showComposer, setShowComposer] = useState(true)
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null)
   const composerRef = useRef<TerminalComposerHandle>(null)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -1579,7 +1579,7 @@ export function TaskTerminal({
       className={
         controlsTarget && !isFullscreen
           ? 'flex items-center gap-1'
-          : 'flex shrink-0 items-center justify-between gap-1.5 bg-background px-2 py-1'
+          : 'flex shrink-0 items-center justify-between gap-1.5 border-b border-border/40 bg-background px-2 py-1'
       }
     >
       {/* Status indicator: only rendered standalone (e.g. fullscreen) because TaskSessionPage header already displays statusBadge */}
@@ -1674,15 +1674,17 @@ export function TaskTerminal({
         </button>
 
         {/* Toggle Composer button */}
-        <button
-          type="button"
-          className={`icon-action ${showComposer ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}
-          aria-label={t('Toggle input composer')}
-          title={t('Toggle input composer capsule')}
-          onClick={() => setShowComposer((prev) => !prev)}
-        >
-          <SquarePen className="h-3.5 w-3.5" />
-        </button>
+        {(isTaskActive || Boolean(activeSessionId || live?.session_id)) && (
+          <button
+            type="button"
+            className={`icon-action ${showComposer ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}
+            aria-label={t('Toggle input composer')}
+            title={showComposer ? (language === 'id' ? 'Sembunyikan bar input' : 'Hide composer') : (language === 'id' ? 'Tampilkan bar input' : 'Show composer')}
+            onClick={() => setShowComposer((prev) => !prev)}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         {/* Fullscreen / Maximize toggle */}
         <button
