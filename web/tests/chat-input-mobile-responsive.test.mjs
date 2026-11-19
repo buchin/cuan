@@ -173,3 +173,42 @@ test('4. Mobile Viewport Responsiveness at 360px, 390px, and 412px', () => {
     assert.strictEqual(36 >= 36, true, 'Touch target meets mobile ergonomics standards')
   })
 })
+
+test('5. Zero-Lag Mobile Typing & IME Composition Preservation', () => {
+  const currentInboxSource = fs.readFileSync(inboxViewPath, 'utf8')
+  const currentComposerInput = fs.readFileSync(path.join(__dirname, '../src/components/ui/ComposerInput.tsx'), 'utf8')
+
+  // 1. InboxView must not re-attach resize listeners or force autoResize on every keystroke
+  assert.doesNotMatch(
+    currentInboxSource,
+    /\},\s*\[inputMessage,\s*activeContact\?\.id\]\)/,
+    'InboxView must not include inputMessage in the visualViewport/window resize listener dependency array',
+  )
+
+  // 2. ComposerInput must track composition events to avoid clobbering Gboard / mobile IME autocorrect
+  assert.match(
+    currentInboxSource,
+    /onCompositionStart/,
+    'ComposerInput must handle onCompositionStart to track mobile IME composition',
+  )
+  assert.match(
+    currentInboxSource,
+    /onCompositionEnd/,
+    'ComposerInput must handle onCompositionEnd to commit final autocorrect / composition value',
+  )
+
+  // 3. Messages stream must be memoized with useMemo to isolate chat history from typing keystrokes
+  assert.match(
+    currentInboxSource,
+    /useMemo\(\(\)\s*=>\s*\{\s*let previousBubbleMessage.*return messages\.map/s,
+    'InboxView must memoize messages rendering to decouple message list tree from composer keystrokes',
+  )
+
+  // 4. resizeComposerInput must avoid forced reflows on single-line typing
+  assert.match(
+    currentComposerInput,
+    /!input\.value\.includes\('\\n'\)/,
+    'resizeComposerInput must check for single-line content before forcing height reflow',
+  )
+})
+

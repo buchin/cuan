@@ -8,10 +8,18 @@ export const ComposerInput = forwardRef<HTMLTextAreaElement, TextareaHTMLAttribu
 )
 
 export function resizeComposerInput(input: HTMLTextAreaElement): boolean {
-  input.style.height = 'auto'
   const minimum = 44
-  const height = input.value.length ? input.scrollHeight : minimum
   const cap = Math.max(minimum, Math.min(140, Math.max(120, (window.visualViewport?.height || window.innerHeight) * 0.35)))
+  // Avoid forced reflow on single-line typing if height is already standard minimum
+  if (!input.value.includes('\n') && input.value.length < 60 && input.scrollHeight <= minimum) {
+    if (input.style.height !== `${minimum}px`) {
+      input.style.height = `${minimum}px`
+    }
+    input.style.overflowY = 'hidden'
+    return false
+  }
+  input.style.height = 'auto'
+  const height = input.value.length ? input.scrollHeight : minimum
   const next = Math.min(Math.max(height, minimum), cap)
   input.style.height = `${next}px`
   input.style.overflowY = height > cap ? 'auto' : 'hidden'
