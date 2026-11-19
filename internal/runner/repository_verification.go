@@ -233,8 +233,8 @@ func verifySourceRepository(parent context.Context, root, commit string) error {
 	return nil
 }
 func verificationDeadline(existing, started time.Time, enabled bool) time.Time {
-	if enabled && started.Add(10*time.Minute).Before(existing) {
-		return started.Add(10 * time.Minute)
+	if enabled && started.Add(25*time.Minute).Before(existing) {
+		return started.Add(25 * time.Minute)
 	}
 	return existing
 }

@@ -15,8 +15,8 @@ func TestClaimDeadlineMatchesVerificationExecutionAndReaper(t *testing.T) {
 		cap            time.Duration
 	}{
 		{"ordinary", "", 0},
-		{"live", task.LiveInspectionMarker + `{}`, 10 * time.Minute},
-		{"verification", task.VerificationIntentMarker + `{}`, 10 * time.Minute},
+		{"live", task.LiveInspectionMarker + `{}`, 25 * time.Minute},
+		{"verification", task.VerificationIntentMarker + `{}`, 25 * time.Minute},
 		{"finalizer", task.VerificationIntentMarker + `{"finalize_attempt_id":"source"}`, 30 * time.Second},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

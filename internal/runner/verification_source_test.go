@@ -41,7 +41,7 @@ func TestVerificationDeadlineNeverExtendsExecution(t *testing.T) {
 		existing time.Duration
 		enabled  bool
 		want     time.Duration
-	}{{time.Hour, true, 10 * time.Minute}, {time.Minute, true, time.Minute}, {time.Hour, false, time.Hour}} {
+	}{{time.Hour, true, 25 * time.Minute}, {time.Minute, true, time.Minute}, {time.Hour, false, time.Hour}} {
 		if got := verificationDeadline(start.Add(c.existing), start, c.enabled); !got.Equal(start.Add(c.want)) {
 			t.Fatalf("deadline %v", got)
 		}
