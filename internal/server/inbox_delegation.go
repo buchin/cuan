@@ -594,7 +594,8 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		examined++
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		stage = "task_recovery"
-		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
+		if err == nil && detail.Status == task.TaskStatusDone {
+			_ = s.PostTaskCompletionMessage(ctx, &detail.Task)
 			continue
 		}
 		if err == nil {

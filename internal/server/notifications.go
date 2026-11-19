@@ -643,6 +643,7 @@ func (s *Server) DispatchTaskCompletedPush(ctx context.Context, t *task.Task) {
 	if t == nil || t.Status != task.TaskStatusDone {
 		return
 	}
+	_ = s.PostTaskCompletionMessage(ctx, t)
 	href := "/tasks/" + url.PathEscape(t.ID)
 	if t.ProjectID != "" {
 		href = "/projects/" + url.PathEscape(t.ProjectID) + "/tasks/" + url.PathEscape(t.ID)
