@@ -496,3 +496,151 @@ func TestBroadcastUnsubscribe_RFC8058AndWeb(t *testing.T) {
 		t.Fatalf("expected 400 for invalid token, got %d", wInvalid.Code)
 	}
 }
+
+func TestBroadcastHistory_ListAndDetail(t *testing.T) {
+	s, token := setupTestChatServer(t)
+	call := func(method, path, body string, authed bool) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+		if authed {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		s.Router().ServeHTTP(w, r)
+		return w
+	}
+
+	// 1. Unauthenticated request must return 401
+	wUnauth := call("GET", "/api/v1/contacts/broadcast/history", "", false)
+	if wUnauth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated history request, got %d", wUnauth.Code)
+	}
+
+	// 2. Initial empty history returns 200 with empty slice
+	wEmpty := call("GET", "/api/v1/contacts/broadcast/history", "", true)
+	if wEmpty.Code != http.StatusOK {
+		t.Fatalf("expected 200 for empty history, got %d: %s", wEmpty.Code, wEmpty.Body.String())
+	}
+	var emptyResp struct {
+		Broadcasts []CRMBroadcastSession `json:"broadcasts"`
+	}
+	if err := json.Unmarshal(wEmpty.Body.Bytes(), &emptyResp); err != nil {
+		t.Fatalf("failed parsing empty history response: %v", err)
+	}
+	if len(emptyResp.Broadcasts) != 0 {
+		t.Fatalf("expected 0 initial broadcast sessions, got %d", len(emptyResp.Broadcasts))
+	}
+
+	// 3. Dispatch broadcast with 1 success and 1 failed recipient
+	mockResend := &mockBroadcastResendClient{
+		failEmail: "fail@domain.com",
+	}
+	s.resendClient = mockResend
+
+	idempotencyKey := "hist-test-" + db.GenerateUUID()
+	sendPayload := map[string]any{
+		"tags":            []string{},
+		"custom_emails":   []string{"success@domain.com", "fail@domain.com"},
+		"subject":         "Pengumuman Audit Riwayat",
+		"content":         "Halo pelanggan,\n\nIni adalah pesan pengujian riwayat log.\n\nTerima kasih.",
+		"idempotency_key": idempotencyKey,
+	}
+	payloadBytes, _ := json.Marshal(sendPayload)
+
+	wSend := call("POST", "/api/v1/contacts/broadcast/send", string(payloadBytes), true)
+	if wSend.Code != http.StatusOK {
+		t.Fatalf("expected 200 for send, got %d: %s", wSend.Code, wSend.Body.String())
+	}
+
+	var sendResp BroadcastSendResponse
+	if err := json.Unmarshal(wSend.Body.Bytes(), &sendResp); err != nil {
+		t.Fatalf("failed parsing send response: %v", err)
+	}
+	if sendResp.Status != "partial" {
+		t.Errorf("expected partial status, got %q", sendResp.Status)
+	}
+	if sendResp.BroadcastID == "" {
+		t.Fatalf("expected non-empty broadcast_id in send response")
+	}
+
+	// 4. Test GET /api/v1/contacts/broadcast/history
+	wHist := call("GET", "/api/v1/contacts/broadcast/history", "", true)
+	if wHist.Code != http.StatusOK {
+		t.Fatalf("expected 200 for history list, got %d: %s", wHist.Code, wHist.Body.String())
+	}
+	var histResp struct {
+		Broadcasts []CRMBroadcastSession `json:"broadcasts"`
+	}
+	if err := json.Unmarshal(wHist.Body.Bytes(), &histResp); err != nil {
+		t.Fatalf("failed parsing history list response: %v", err)
+	}
+	if len(histResp.Broadcasts) != 1 {
+		t.Fatalf("expected 1 broadcast session in history, got %d", len(histResp.Broadcasts))
+	}
+
+	sess := histResp.Broadcasts[0]
+	if sess.ID != sendResp.BroadcastID {
+		t.Errorf("expected session ID %s, got %s", sendResp.BroadcastID, sess.ID)
+	}
+	if sess.Subject != "Pengumuman Audit Riwayat" {
+		t.Errorf("expected subject 'Pengumuman Audit Riwayat', got %q", sess.Subject)
+	}
+	if sess.TotalRecipients != 2 || sess.SentCount != 1 || sess.FailedCount != 1 {
+		t.Errorf("expected 2 total, 1 sent, 1 failed, got total=%d sent=%d failed=%d",
+			sess.TotalRecipients, sess.SentCount, sess.FailedCount)
+	}
+	if sess.Status != "partial" {
+		t.Errorf("expected status 'partial', got %q", sess.Status)
+	}
+
+	// 5. Test GET /api/v1/contacts/broadcast/history/{id}
+	wDetail := call("GET", "/api/v1/contacts/broadcast/history/"+sess.ID, "", true)
+	if wDetail.Code != http.StatusOK {
+		t.Fatalf("expected 200 for history detail, got %d: %s", wDetail.Code, wDetail.Body.String())
+	}
+	var detailResp struct {
+		Broadcast CRMBroadcastSession `json:"broadcast"`
+		Logs      []CRMBroadcastLog   `json:"logs"`
+	}
+	if err := json.Unmarshal(wDetail.Body.Bytes(), &detailResp); err != nil {
+		t.Fatalf("failed parsing history detail response: %v", err)
+	}
+	if detailResp.Broadcast.ID != sess.ID {
+		t.Errorf("expected detail broadcast ID %s, got %s", sess.ID, detailResp.Broadcast.ID)
+	}
+	if len(detailResp.Logs) != 2 {
+		t.Fatalf("expected 2 recipient logs, got %d", len(detailResp.Logs))
+	}
+
+	foundSuccess := false
+	foundFailed := false
+	for _, l := range detailResp.Logs {
+		if l.Email == "success@domain.com" {
+			foundSuccess = true
+			if l.Status != "sent" {
+				t.Errorf("expected status 'sent' for success recipient, got %q", l.Status)
+			}
+			if l.ErrorMessage != "" {
+				t.Errorf("expected empty error message for success recipient, got %q", l.ErrorMessage)
+			}
+		}
+		if l.Email == "fail@domain.com" {
+			foundFailed = true
+			if l.Status != "failed" {
+				t.Errorf("expected status 'failed' for fail recipient, got %q", l.Status)
+			}
+			if !strings.Contains(l.ErrorMessage, "simulated provider rejection") {
+				t.Errorf("expected error message to contain simulated rejection, got %q", l.ErrorMessage)
+			}
+		}
+	}
+	if !foundSuccess || !foundFailed {
+		t.Errorf("missing expected logs (foundSuccess=%v, foundFailed=%v)", foundSuccess, foundFailed)
+	}
+
+	// 6. Test 404 for non-existent session ID
+	wNotFound := call("GET", "/api/v1/contacts/broadcast/history/non-existent-uuid-1234", "", true)
+	if wNotFound.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for non-existent session, got %d", wNotFound.Code)
+	}
+}
