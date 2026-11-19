@@ -16,11 +16,11 @@ import { teamApi, type TeamMember, type UserInvitation } from '../../api/team'
 import { InviteMemberModal } from './InviteMemberModal'
 import { HairlineList } from '../../components/layout/HairlineList'
 
-function formatJoinedDate(isoString?: string): string {
+function formatJoinedDate(isoString?: string, language: string = 'id'): string {
   if (!isoString) return '-'
   const date = new Date(isoString)
   if (isNaN(date.getTime())) return isoString
-  return date.toLocaleDateString('id-ID', {
+  return date.toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -28,7 +28,7 @@ function formatJoinedDate(isoString?: string): string {
 }
 
 export function TeamMembersView({ showHeading = true }: { showHeading?: boolean }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { user, isOwner } = useAuth()
 
   const [members, setMembers] = useState<TeamMember[]>([])
@@ -64,16 +64,14 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
     if (!isOwner) return
     if (
       !window.confirm(
-        t(
-          `Hapus akses untuk ${memberName}? Akun staf ini tidak akan dapat masuk lagi.`
-        )
+        t('Hapus akses untuk {name}? Akun staf ini tidak akan dapat masuk lagi.').replace('{name}', memberName)
       )
     )
       return
     setBusyId(memberId)
     try {
       await teamApi.deleteMember(memberId)
-      setNotice(t(`Akses untuk ${memberName} berhasil dihapus.`))
+      setNotice(t('Akses untuk {name} berhasil dihapus.').replace('{name}', memberName))
       await loadTeamMembers()
     } catch (err) {
       setError(
@@ -90,16 +88,14 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
     if (!isOwner) return
     if (
       !window.confirm(
-        t(
-          `Cabut undangan untuk ${inviteEmail}? Tautan undangan ini akan kedaluwarsa seketika.`
-        )
+        t('Cabut undangan untuk {email}? Tautan undangan ini akan kedaluwarsa seketika.').replace('{email}', inviteEmail)
       )
     )
       return
     setBusyId(inviteId)
     try {
       await teamApi.deleteInvite(inviteId)
-      setNotice(t(`Undangan untuk ${inviteEmail} berhasil dicabut.`))
+      setNotice(t('Undangan untuk {email} berhasil dicabut.').replace('{email}', inviteEmail))
       await loadTeamMembers()
     } catch (err) {
       setError(
@@ -294,7 +290,7 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                             <span>{member.email}</span>
                             <span aria-hidden="true">·</span>
-                            <span>{t('Bergabung')} {formatJoinedDate(member.created_at)}</span>
+                            <span>{t('Bergabung')} {formatJoinedDate(member.created_at, language)}</span>
                           </div>
                         </div>
                       </div>
@@ -354,7 +350,7 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {t('Dikirim')} {formatJoinedDate(invite.created_at)}
+                            {t('Dikirim')} {formatJoinedDate(invite.created_at, language)}
                           </p>
                         </div>
                       </div>

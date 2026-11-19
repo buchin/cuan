@@ -44,11 +44,11 @@ function getAgentHandle(agent: { name: string; id: string }): string {
   return `@${agent.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '')}`
 }
 
-function formatJoinedDate(isoString?: string): string {
+function formatJoinedDate(isoString?: string, language: string = 'id'): string {
   if (!isoString) return '-'
   const date = new Date(isoString)
   if (isNaN(date.getTime())) return isoString
-  return date.toLocaleDateString('id-ID', {
+  return date.toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -182,7 +182,7 @@ export function TeamView({
   onAgentAdded?: () => void
   onAgentConnected?: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { user, isOwner } = useAuth()
   const canManageAgents = isOwner
   const [activeTab, setActiveTab] = useState<'agents' | 'members'>('agents')
@@ -220,16 +220,14 @@ export function TeamView({
     if (!isOwner) return
     if (
       !window.confirm(
-        t(
-          `Hapus akses untuk ${memberName}? Akun staf ini tidak akan dapat masuk lagi.`
-        )
+        t('Hapus akses untuk {name}? Akun staf ini tidak akan dapat masuk lagi.').replace('{name}', memberName)
       )
     )
       return
     setMemberActionBusy(memberId)
     try {
       await teamApi.deleteMember(memberId)
-      setNotice(t(`Akses untuk ${memberName} berhasil dihapus.`))
+      setNotice(t('Akses untuk {name} berhasil dihapus.').replace('{name}', memberName))
       await loadTeamMembers()
     } catch (err) {
       setTeamError(
@@ -246,16 +244,14 @@ export function TeamView({
     if (!isOwner) return
     if (
       !window.confirm(
-        t(
-          `Cabut undangan untuk ${inviteEmail}? Tautan undangan ini akan kedaluwarsa seketika.`
-        )
+        t('Cabut undangan untuk {email}? Tautan undangan ini akan kedaluwarsa seketika.').replace('{email}', inviteEmail)
       )
     )
       return
     setMemberActionBusy(inviteId)
     try {
       await teamApi.deleteInvite(inviteId)
-      setNotice(t(`Undangan untuk ${inviteEmail} berhasil dicabut.`))
+      setNotice(t('Undangan untuk {email} berhasil dicabut.').replace('{email}', inviteEmail))
       await loadTeamMembers()
     } catch (err) {
       setTeamError(
@@ -1916,7 +1912,7 @@ export function TeamView({
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                               <span>{member.email}</span>
                               <span aria-hidden="true">·</span>
-                              <span>{t('Bergabung')} {formatJoinedDate(member.created_at)}</span>
+                              <span>{t('Bergabung')} {formatJoinedDate(member.created_at, language)}</span>
                             </div>
                           </div>
                         </div>
@@ -1992,7 +1988,7 @@ export function TeamView({
                               </div>
 
                               <div className="text-xs text-muted-foreground">
-                                <span>{t('Berlaku hingga')} {formatJoinedDate(invite.expires_at)}</span>
+                                <span>{t('Berlaku hingga')} {formatJoinedDate(invite.expires_at, language)}</span>
                               </div>
                             </div>
                           </div>
