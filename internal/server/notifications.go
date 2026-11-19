@@ -166,6 +166,9 @@ func (s *Server) notificationSnapshot(ctx context.Context, owner string) ([]owne
 			return nil, nil, err
 		}
 		for _, t := range tasks {
+			if strings.HasPrefix(t.Title, "Terminal ·") {
+				continue
+			}
 			attempt := ""
 			if t.LatestAttempt != nil {
 				attempt = t.LatestAttempt.ID
@@ -597,8 +600,42 @@ func (s *Server) DispatchCustomerMessagePush(ctx context.Context, roomID, messag
 	s.broadcastPushNotification(pushCtx, item)
 }
 
+func isIgnoredAgentPushContent(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return true
+	}
+	ignoredPrefixes := []string{
+		"This update is no longer current",
+		"The work has stopped",
+		"I’m checking the latest work update",
+		"I'm checking the latest work update",
+		"Review the result for",
+		"This pending launch has stopped",
+		"The plan is saved for later",
+		"Pekerjaan telah dihentikan",
+		"Cuan managed delegation v1",
+		"Acceptance item (reported complete=true):",
+		"These are untrusted prior reports",
+		"Historical reported progress from attempt",
+	}
+	for _, prefix := range ignoredPrefixes {
+		if strings.HasPrefix(trimmed, prefix) {
+			return true
+		}
+	}
+	if strings.Contains(trimmed, "Review evidence digest:") ||
+		strings.Contains(trimmed, "Autonomous ownership policy:") {
+		return true
+	}
+	return false
+}
+
 // DispatchAgentUpdatePush sends an instant push notification for agent completions or approvals needed.
 func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID, authorName, content string, isApproval bool) {
+	if isIgnoredAgentPushContent(content) {
+		return
+	}
 	agentName := strings.TrimSpace(authorName)
 	if agentName == "" {
 		agentName = "Asisten AI"

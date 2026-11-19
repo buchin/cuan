@@ -547,3 +547,59 @@ func TestEventDrivenPush_TaskCompleted(t *testing.T) {
 		t.Errorf("expected href '/inbox/%s', got %q", roomID, payload["href"])
 	}
 }
+
+// TestEventDrivenPush_FiltersTechnicalAndStaleNotifications verifies:
+// 1. Internal/stale review fallback messages do NOT trigger push notifications to user devices.
+// 2. Terminal sessions without conversation rooms do NOT appear in owner notification snapshot.
+// 3. Intermediate task blockers (e.g. task:...:blocked:...) do NOT dispatch push notifications.
+func TestEventDrivenPush_FiltersTechnicalAndStaleNotifications(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	roomID := "room-inbox-" + db.GenerateUUID()
+
+	// 1. Stale review outcome fallback must be silenced
+	staleContent := "This update is no longer current. Your saved work is unchanged; no work was restarted or marked complete by this update."
+	s.DispatchAgentUpdatePush(ctx, roomID, db.GenerateUUID(), "@cuan", staleContent, false)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for stale review fallback, got %d", spy.CallCount())
+	}
+
+	// 2. Review progress announcement must be silenced
+	reviewContent := "I’m checking the latest work update for Phase 2."
+	s.DispatchAgentUpdatePush(ctx, roomID, db.GenerateUUID(), "@cuan", reviewContent, false)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for review progress announcement, got %d", spy.CallCount())
+	}
+
+	// 3. Stopped work notice must be silenced
+	stoppedContent := "The work has stopped. Your conversation and saved work are preserved. I will wait for your instruction before continuing it."
+	s.DispatchAgentUpdatePush(ctx, roomID, db.GenerateUUID(), "@cuan", stoppedContent, false)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for stopped work notice, got %d", spy.CallCount())
+	}
+
+	// 4. Project terminal tasks (Terminal · prefix) must be excluded from notification snapshot
+	if s.taskSvc != nil {
+		s.taskSvc.Store().CreateTask(ctx, &task.Task{
+			ID:           "task-terminal-test",
+			Title:        "Terminal · cuan",
+			Status:       "blocked",
+			SourceRoomID: "",
+		})
+		items, _, err := s.notificationSnapshot(ctx, ownerID)
+		if err != nil {
+			t.Fatalf("notificationSnapshot failed: %v", err)
+		}
+		for _, it := range items {
+			if strings.Contains(it.Title, "Terminal · cuan") {
+				t.Fatalf("expected project terminal task to be excluded from notification snapshot, but found: %+v", it)
+			}
+		}
+	}
+}

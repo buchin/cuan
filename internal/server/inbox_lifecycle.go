@@ -534,7 +534,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		if reply != nil && q.SafeError == "" && q.State == "completed" {
 			s.updateAgentTopicTitle(save, q, topicTitle)
 		}
-		if reply != nil && q.SafeError == "" {
+		if reply != nil && q.SafeError == "" && reply.AuthorID != "cuan_work_review" && reply.AuthorType != "system" && !isIgnoredAgentPushContent(reply.Content) {
 			_, approvalTitle := splitInboxApproval(reply.AuthorType, reply.Content)
 			if approvalTitle != "" {
 				s.DispatchAgentUpdatePush(save, q.RoomID, reply.ID, reply.AuthorName, reply.Content, true)
