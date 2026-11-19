@@ -19,7 +19,9 @@ import (
 
 func (s *Server) registerSystemRoutes(r chi.Router) {
 	r.Get("/healthz", s.handleHealthz)
+	r.Head("/healthz", s.handleHealthz)
 	r.Get("/readyz", s.handleReadyz)
+	r.Head("/readyz", s.handleReadyz)
 	r.Get("/api/info", s.handleInfo)
 	r.Get("/api/mode", s.handleGetSystemMode)
 	r.Get("/api/system/mode", s.handleGetSystemMode)

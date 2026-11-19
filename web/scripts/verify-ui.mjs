@@ -77,7 +77,7 @@ try {
   await fs.writeFile(path.join(output, 'visual-evidence.json'),
     JSON.stringify({ components, captures }), { flag: 'wx', mode: 0o600 })
 } finally {
-  server?.httpServer.closeAllConnections()
-  server?.httpServer.close()
+  server?.httpServer?.closeAllConnections?.()
+  await server?.close?.()
   await fs.rm(temporary, { recursive: true, force: true })
 }

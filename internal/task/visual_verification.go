@@ -35,7 +35,7 @@ type VisualVerification struct {
 }
 
 func (v *VisualVerification) Valid() bool {
-	if v == nil || !v.Recipe.Valid() || !validVerificationHash(v.Baseline) || len(v.Components) == 0 || len(v.Components) > 16 || len(v.Captures) == 0 || len(v.Captures) > 8 {
+	if v == nil || !v.Recipe.Valid() || !validVerificationHash(v.Baseline) || len(v.Components) == 0 || len(v.Components) > 32 || len(v.Captures) == 0 || len(v.Captures) > 32 {
 		return false
 	}
 	seen := map[string]bool{}

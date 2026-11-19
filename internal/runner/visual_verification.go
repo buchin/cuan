@@ -124,7 +124,7 @@ func runNativeVisualVerification(ctx context.Context, root, artifacts, baseline 
 	}
 	decoder := json.NewDecoder(io.LimitReader(file, 64<<10+1))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&manifest) != nil || decoder.Decode(new(any)) != io.EOF || len(manifest.Captures) == 0 || len(manifest.Captures) > 8 {
+	if decoder.Decode(&manifest) != nil || decoder.Decode(new(any)) != io.EOF || len(manifest.Captures) == 0 || len(manifest.Captures) > 32 {
 		return nil, errors.New("native visual manifest could not be verified")
 	}
 	receipt := &task.VisualVerification{Recipe: *recipe, Baseline: baseline, Components: manifest.Components}

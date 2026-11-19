@@ -74,7 +74,11 @@ func TestNativeVisualRecipeAndCaptureIntegrity(t *testing.T) {
 			case "missing component":
 				os.Remove(filepath.Join(root, "component.tsx"))
 			case "too many captures":
-				raw = bytes.ReplaceAll(raw, []byte(`"captures":["capture.png"]`), []byte(`"captures":["capture.png","capture.png","capture.png","capture.png","capture.png","capture.png","capture.png","capture.png","capture.png"]`))
+				captures := make([]string, 33)
+				for i := range captures {
+					captures[i] = `"capture.png"`
+				}
+				raw = bytes.ReplaceAll(raw, []byte(`"captures":["capture.png"]`), []byte(`"captures":[`+strings.Join(captures, ",")+`]`))
 			case "script failure":
 				raw = []byte("#!/bin/sh\nexit 7\n")
 			}

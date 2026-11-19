@@ -72,9 +72,8 @@ func (s *Server) inboxReviewImages(ctx context.Context, d *task.TaskDetailRespon
 	receipt := task.VisualVerificationForAttempt(d.Activities, d.ID, d.LatestAttempt.ID, d.LatestAttempt.RunnerID)
 	var images []reviewImage
 	for _, id := range ids {
-		// Native regression captures (at most eight) must not crowd out
-		// the supplemental feature evidence from the same attempt.
-		if len(images) >= 16 {
+		// Native regression captures and supplemental feature evidence from the same attempt.
+		if len(images) >= 32 {
 			break
 		}
 		a, path, err := loadAttachment(owner, id)
