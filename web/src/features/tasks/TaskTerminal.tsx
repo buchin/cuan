@@ -594,10 +594,11 @@ export function TaskTerminal({
     let baseline = Math.max(window.innerHeight, viewport?.height || 0)
     let lastHeight = 0
     let lastWidth = 0
-    const update = () => {
+    const update = (source?: string) => {
       const height = Math.round(viewport?.height || window.innerHeight)
       const width = Math.round(viewport?.width || window.innerWidth)
-      if (Math.abs(height - lastHeight) < 8 && Math.abs(width - lastWidth) < 8) return
+      const isDimensionChange = Math.abs(height - lastHeight) >= 8 || Math.abs(width - lastWidth) >= 8
+      if (!isDimensionChange && source === 'resize') return
       lastHeight = height
       lastWidth = width
       baseline = Math.max(baseline, height)
@@ -607,7 +608,10 @@ export function TaskTerminal({
       const isTouchMobile = navigator.maxTouchPoints > 0 || (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches)
       const isKeyboardShrunk = baseline - height > Math.max(100, baseline * 0.15)
       const isWithinTerminal = Boolean(active && terminalRoot.current?.contains(active))
-      const open = isTouchMobile && isKeyboardShrunk && (isTerminalHelper || editing || isWithinTerminal)
+      const open = isTouchMobile && (
+        isTerminalHelper ||
+        (isKeyboardShrunk && (editing || isWithinTerminal || !active || active === document.body))
+      )
 
       setIsMobileKeyboardActive(Boolean(open))
 
@@ -621,21 +625,23 @@ export function TaskTerminal({
         fitTerminalRef.current?.()
       }
     }
-    const rotate = () => { baseline = viewport?.height || window.innerHeight; lastHeight = 0; lastWidth = 0; update() }
-    update()
-    viewport?.addEventListener('resize', update)
-    window.addEventListener('resize', update)
+    const rotate = () => { baseline = viewport?.height || window.innerHeight; lastHeight = 0; lastWidth = 0; update('rotate') }
+    update('init')
+    const handleResize = () => update('resize')
+    viewport?.addEventListener('resize', handleResize)
+    window.addEventListener('resize', handleResize)
     window.screen.orientation?.addEventListener('change', rotate)
-    document.addEventListener('focusin', update)
+    const handleFocusIn = () => update('focusin')
+    document.addEventListener('focusin', handleFocusIn)
     const handleFocusOut = () => {
-      setTimeout(update, 50)
+      setTimeout(() => update('focusout'), 50)
     }
     document.addEventListener('focusout', handleFocusOut)
     return () => {
-      viewport?.removeEventListener('resize', update)
-      window.removeEventListener('resize', update)
+      viewport?.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', handleResize)
       window.screen.orientation?.removeEventListener('change', rotate)
-      document.removeEventListener('focusin', update)
+      document.removeEventListener('focusin', handleFocusIn)
       document.removeEventListener('focusout', handleFocusOut)
     }
   }, [])
@@ -1174,12 +1180,23 @@ export function TaskTerminal({
           ? new TerminalHelperTextareaInputFilter(() => terminal?.textarea)
           : null
 
-        // Prevent iOS Safari auto-zoom on textarea focus
+        // Prevent iOS Safari auto-zoom on textarea focus and position helper within viewport
         if (terminal.textarea) {
           terminal.textarea.style.fontSize = '16px'
           terminal.textarea.setAttribute('autocorrect', 'off')
           terminal.textarea.setAttribute('autocapitalize', 'none')
           terminal.textarea.setAttribute('spellcheck', 'false')
+          terminal.textarea.setAttribute('autocomplete', 'off')
+          terminal.textarea.setAttribute('inputmode', 'text')
+          terminal.textarea.setAttribute('enterkeyhint', 'send')
+          terminal.textarea.style.position = 'absolute'
+          terminal.textarea.style.top = '0px'
+          terminal.textarea.style.left = '0px'
+          terminal.textarea.style.width = '1px'
+          terminal.textarea.style.height = '1px'
+          terminal.textarea.style.opacity = '0.01'
+          terminal.textarea.style.pointerEvents = 'none'
+          terminal.textarea.style.zIndex = '0'
         }
 
         // Match Fural's single measured-cell path. Mixing fit() with a
@@ -1294,11 +1311,12 @@ export function TaskTerminal({
         const onTouchEnd = () => {
           if (!isTouchDragging && terminal) {
             // User did not drag: this was a short tap!
-            // Focus xterm helper textarea with preventScroll so soft keyboard opens cleanly
+            // Focus xterm helper textarea synchronously with preventScroll so soft keyboard opens cleanly on single tap
             const tapDuration = Date.now() - touchStartTime
             if (tapDuration < 450) {
-              setIsMobileKeyboardActive(true)
               if (terminal.textarea) {
+                terminal.textarea.setAttribute('inputmode', 'text')
+                terminal.textarea.setAttribute('enterkeyhint', 'send')
                 try {
                   terminal.textarea.focus({ preventScroll: true })
                 } catch {
@@ -1307,6 +1325,7 @@ export function TaskTerminal({
               } else {
                 terminal.focus()
               }
+              setIsMobileKeyboardActive(true)
               setTimeout(() => {
                 terminal?.scrollToBottom()
               }, 50)
@@ -1641,9 +1660,13 @@ export function TaskTerminal({
             setIsMobileKeyboardActive(next)
             if (next && term.current?.textarea) {
               term.current.textarea.setAttribute('inputmode', 'text')
+              term.current.textarea.setAttribute('enterkeyhint', 'send')
               try {
                 term.current.textarea.focus({ preventScroll: true })
               } catch {}
+            } else if (!next) {
+              term.current?.textarea?.blur()
+              term.current?.blur()
             }
           }}
         >
@@ -2003,11 +2026,7 @@ export function TaskTerminal({
           onClearScreen={handleClear}
           onInterrupt={handleInterrupt}
           disabled={false}
-          className={
-            isMobileKeyboardActive
-              ? 'hidden sm:flex'
-              : 'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
-          }
+          className="pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         />
       )}
 
@@ -2018,9 +2037,13 @@ export function TaskTerminal({
           onCopy={handleCopy}
           onPaste={handlePaste}
           onClear={handleClear}
-          onClose={() => setIsMobileKeyboardActive(false)}
+          onClose={() => {
+            setIsMobileKeyboardActive(false)
+            term.current?.textarea?.blur()
+            term.current?.blur()
+          }}
           disabled={false}
-          compact={false}
+          compact={Boolean(showComposer)}
           className="pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-border/40 bg-[#18181b]"
         />
       )}

@@ -573,8 +573,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 
 		if failure == "" {
 			var reply string
-			reply, failure, reason = decodeInboxAgyResult(raw, stderr.String())
-			if failure == "" && runErr != nil {
+			reply, failure, reason = decodeInboxAgyResult(raw, stderr.String(), string(runtime.finishPayload))
+			if failure == "" && runErr != nil && len(runtime.finishPayload) == 0 {
 				failure = safeInboxProviderFailure(ctx.Err(), stderr.String())
 				reason = "runtime_process_failure"
 			}
@@ -738,16 +738,29 @@ func providerTurnDeadlineExceeded(result inboxAgyResult, diagnostic string) bool
 // Only the final response of a successful CLI result is user-visible. Never
 // publish JSON envelopes, stderr, reasoning, authentication material or partial
 // responses from failed turns. Exit zero alone does not establish success.
-func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
+func decodeInboxAgyResult(raw, stderr string, finishPayload ...string) (string, string, string) {
+	fallbackPayload := ""
+	if len(finishPayload) > 0 && strings.TrimSpace(finishPayload[0]) != "" && json.Valid([]byte(finishPayload[0])) {
+		fallbackPayload = strings.TrimSpace(finishPayload[0])
+	}
 	var result inboxAgyResult
 	if strings.TrimSpace(raw) == "" {
+		if fallbackPayload != "" {
+			return fallbackPayload, "", "success"
+		}
 		return "", safeInboxProviderFailure(nil, stderr), "empty_output"
 	}
 	if json.Unmarshal([]byte(raw), &result) != nil {
+		if fallbackPayload != "" {
+			return fallbackPayload, "", "success"
+		}
 		return "", "Could not read the agent's result. Your message is saved. Check the agent connection. This message will not be resent automatically.", "invalid_result"
 	}
 	if strings.ToUpper(strings.TrimSpace(result.Status)) != "SUCCESS" {
 		diagnostic := result.Status + "\n" + string(result.Error) + "\n" + result.Message + "\n" + stderr
+		if fallbackPayload != "" && (providerTurnDeadlineExceeded(result, diagnostic) || strings.Contains(strings.ToLower(result.Status), "timeout") || strings.Contains(strings.ToLower(stderr), "timeout") || strings.ToUpper(strings.TrimSpace(result.Status)) == "ERROR") {
+			return fallbackPayload, "", "success"
+		}
 		// agy reports its own print timeout as DEADLINE_EXCEEDED with partial
 		// output, which is distinct from Cuan cancelling the turn. Treat it as a
 		// retryable provider wait so another account/model can answer instead of
@@ -761,6 +774,9 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 		return "", safeInboxProviderFailure(nil, diagnostic), "provider_failure"
 	}
 	if strings.Contains(strings.ToLower(stderr), "timeout") {
+		if fallbackPayload != "" {
+			return fallbackPayload, "", "success"
+		}
 		return "", safeInboxProviderFailure(context.DeadlineExceeded, stderr), "provider_timeout"
 	}
 	if len(result.DeniedActions) > 0 {
@@ -768,6 +784,9 @@ func decodeInboxAgyResult(raw, stderr string) (string, string, string) {
 	}
 	reply := strings.TrimSpace(result.Response)
 	if reply == "" {
+		if fallbackPayload != "" {
+			return fallbackPayload, "", "success"
+		}
 		if strings.TrimSpace(stderr) != "" {
 			return "", safeInboxProviderFailure(nil, stderr), "empty_response"
 		}

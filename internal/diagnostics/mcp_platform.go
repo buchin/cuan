@@ -33,40 +33,43 @@ func getPlatformDB() *sql.DB {
 		if platformDB != nil {
 			return
 		}
-		dbURL := os.Getenv("DATABASE_URL")
-		if dbURL == "" {
-			for _, envPath := range []string{
-				".env",
-				"/opt/cuan/.env",
-				"/opt/cuan/current/.env",
-			} {
-				if data, err := os.ReadFile(envPath); err == nil {
-					for _, line := range strings.Split(string(data), "\n") {
-						line = strings.TrimSpace(line)
-						if strings.HasPrefix(line, "DATABASE_URL=") {
-							dbURL = strings.TrimPrefix(line, "DATABASE_URL=")
-							dbURL = strings.Trim(dbURL, "\"'")
-							break
+		var candidates []string
+		if envURL := os.Getenv("DATABASE_URL"); envURL != "" {
+			candidates = append(candidates, envURL)
+		}
+		for _, envPath := range []string{
+			"/opt/cuan/.env",
+			"/opt/cuan/current/.env",
+			".env",
+		} {
+			if data, err := os.ReadFile(envPath); err == nil {
+				for _, line := range strings.Split(string(data), "\n") {
+					line = strings.TrimSpace(line)
+					if strings.HasPrefix(line, "DATABASE_URL=") {
+						u := strings.Trim(strings.TrimPrefix(line, "DATABASE_URL="), "\"'")
+						if u != "" {
+							candidates = append(candidates, u)
 						}
-					}
-					if dbURL != "" {
 						break
 					}
 				}
 			}
 		}
-		if dbURL == "" {
-			dbURL = "postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable"
-		}
+		candidates = append(candidates, "postgres://cuan:cuan@localhost:5432/cuan?sslmode=disable")
 
-		conn, err := sql.Open("pgx", dbURL)
-		if err != nil {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if err := conn.PingContext(ctx); err == nil {
-			platformDB = conn
+		for _, candidate := range candidates {
+			conn, err := sql.Open("pgx", candidate)
+			if err != nil {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			err = conn.PingContext(ctx)
+			cancel()
+			if err == nil {
+				platformDB = conn
+				return
+			}
+			conn.Close()
 		}
 	})
 	return platformDB

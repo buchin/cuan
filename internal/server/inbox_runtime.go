@@ -43,6 +43,7 @@ type inboxRuntimeStream struct {
 	exitSignal                              int
 	details                                 *inboxToolDetailRecorder
 	publicWebNotes                          map[int]string
+	finishPayload                           []byte
 }
 
 func (s *inboxRuntimeStream) emit(kind, text string) {
@@ -191,10 +192,34 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			s.emit("runtime_permission_denied", "Tool permission denied by the runtime. Activity ending does not mean the command succeeded.")
 		}
 	case "step_update":
+		cleanTool := e.Update.Tool
+		if idx := strings.LastIndex(cleanTool, "/"); idx != -1 {
+			cleanTool = cleanTool[idx+1:]
+		} else if idx := strings.LastIndex(cleanTool, ":"); idx != -1 {
+			cleanTool = cleanTool[idx+1:]
+		}
+		if (cleanTool == "finish" || e.Update.Type == "finish") && len(e.Update.Info) > 0 {
+			for _, k := range []string{"parameters", "arguments", "input"} {
+				if val, ok := e.Update.Info[k]; ok && len(val) > 0 && string(val) != "null" {
+					var sVal string
+					if err := json.Unmarshal(val, &sVal); err == nil && json.Valid([]byte(sVal)) {
+						s.finishPayload = []byte(sVal)
+					} else {
+						s.finishPayload = append([]byte(nil), val...)
+					}
+					break
+				}
+			}
+			if len(s.finishPayload) == 0 {
+				if raw, err := json.Marshal(e.Update.Info); err == nil && len(raw) > 2 {
+					s.finishPayload = raw
+				}
+			}
+		}
 		// Native AGY also emits input/finish lifecycle steps. They are not
 		// tools, and must not make a schema-only reply look like execution.
 		if e.Update.Type == "user_input" || e.Update.Type == "finish" || e.Update.Type == "error_message" {
-			if e.Update.Tool != "" {
+			if e.Update.Tool != "" && cleanTool != "finish" {
 				s.unsafeTool = true
 			}
 			return
@@ -420,6 +445,13 @@ func (s *inboxRuntimeStream) finish() (string, string, string) {
 		return "", "Invalid runtime event format. Your message is saved. The request was not rerun.", "runtime_invalid"
 	}
 	if len(s.result) == 0 {
+		if len(s.finishPayload) > 0 && json.Valid(s.finishPayload) {
+			fakeResult, _ := json.Marshal(inboxAgyResult{
+				Status:   "SUCCESS",
+				Response: string(s.finishPayload),
+			})
+			return string(fakeResult), "", ""
+		}
 		return "", "The process stopped before a final result. Your message is saved, but the result is unknown. The request was not rerun.", "runtime_missing_result"
 	}
 	return strings.TrimSpace(string(s.result)), "", ""

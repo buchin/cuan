@@ -49,7 +49,7 @@ export function MobileTerminalKeyboard({
   className = '',
 }: MobileTerminalKeyboardProps) {
   const [mods, setMods] = useState<StickyMods>(EMPTY_STICKY_MODS)
-  const [showExtended, setShowExtended] = useState(compact ? true : false)
+  const [showExtended, setShowExtended] = useState(true)
   const [promptText, setPromptText] = useState('')
   const [history, setHistory] = useState<string[]>([])
   const [historyIdx, setHistoryIdx] = useState(-1)
@@ -238,8 +238,8 @@ export function MobileTerminalKeyboard({
         </form>
       )}
 
-      {/* Quick Actions Row - Hidden in compact mode (embedded with TerminalComposer) to eliminate redundancy */}
-      {!compact && (
+      {/* Quick Actions Row - Hidden when extended keys are auto-opened or in compact mode to eliminate redundant top bar */}
+      {!compact && !showExtended && (
         <div className="flex items-center gap-1 overflow-x-auto px-1.5 pt-1 pb-0.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Kbd Drawer / Extended Keys Toggle - hidden in compact mode to avoid duplicate with composer */}
         {!compact && (
@@ -448,23 +448,6 @@ export function MobileTerminalKeyboard({
       {/* Extended Drawer Keys: Row 1 & Row 2 */}
       {showExtended && (
         <div className="space-y-0.5 pt-0.5">
-          {compact && onClose && (
-            <div className="flex items-center justify-between px-2 pt-0.5 pb-0.5 text-[11px] text-neutral-400 font-mono select-none">
-              <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-semibold">Tombol Terminal</span>
-              <button
-                type="button"
-                onPointerDown={(e) => {
-                  e.preventDefault()
-                  onClose()
-                }}
-                className="inline-flex items-center gap-1 text-neutral-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-neutral-800 transition-colors"
-                title="Tutup tombol terminal"
-              >
-                <span>Tutup</span>
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </div>
-          )}
           {/* Row 1 Keys: ESC, TAB, /, -, ↑, END, PGUP */}
           <div className="grid grid-cols-7 gap-1 px-1.5 py-0.5">
             {MOBILE_KEYBOARD_ROW1.map((key) => (
