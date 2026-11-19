@@ -663,6 +663,13 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 							// reconciliation needs both facts kept separately.
 							compReq.CommitSHA = commit
 							if claim.ManagedRelease != nil && ws != nil {
+								// Always preserve the workspace branch identity so DB task row
+								// retains branch_name even if release handoff verification fails.
+								// Without this, native_release_initial.go rejects the merge with
+								// "native developer source workspace identity unavailable".
+								if compReq.BranchName == "" {
+									compReq.BranchName = ws.BranchName
+								}
 								source, sourceErr := observeManagedReleaseSource(ctx, workingDir, commit, ws.BranchName, compReq.TestSummary)
 								if sourceErr != nil {
 									errNote = "Managed release source could not be verified; local work is preserved"

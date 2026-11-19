@@ -368,3 +368,48 @@ test('5. Localization Completeness: 100% of new Notification Settings strings ex
     )
   }
 })
+
+test('6. Push Notification Deep-Link & Focus Synchronization: instant chat loading and SSE refresh', () => {
+  const swSrc = fs.readFileSync(swPath, 'utf8')
+  const appSrc = fs.readFileSync(appPath, 'utf8')
+  const inboxViewPath = path.join(webDir, 'src/features/inbox/InboxView.tsx')
+  const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
+
+  // 1. Service Worker posts message to client on notification click
+  assert.ok(
+    swSrc.includes("'cuan:notification-click'"),
+    'sw.js must postMessage cuan:notification-click to client windows',
+  )
+
+  // 2. App.tsx receives service worker postMessage and dispatches notification navigation
+  assert.ok(
+    appSrc.includes("'cuan:notification-click'"),
+    'App.tsx must listen to service worker messages for cuan:notification-click',
+  )
+  assert.ok(
+    appSrc.includes("'cuan:notification-navigate'"),
+    'App.tsx must dispatch cuan:notification-navigate custom event upon notification click',
+  )
+
+  // 3. App.tsx provides instant deep-link fallback contact for subParam so chat never renders blank
+  assert.ok(
+    appSrc.includes('// Fallback placeholder contact derived from subParam'),
+    'App.tsx must provide fallback placeholder contact for deep-links when contacts list is not yet loaded',
+  )
+
+  // 4. InboxView initializes mobileView directly to chat when activeContact is defined
+  assert.ok(
+    inboxViewSrc.includes("useState<'contacts' | 'chat'>(() => activeContact ? 'chat' : 'contacts')"),
+    'InboxView must initialize mobileView to chat when activeContact is provided',
+  )
+
+  // 5. InboxView listens to focus and notification navigation for instant refresh & SSE reconnect
+  assert.ok(
+    inboxViewSrc.includes("window.addEventListener('focus', onFocusOrResume)"),
+    'InboxView must re-fetch conversation messages and reconnect SSE when window is focused',
+  )
+  assert.ok(
+    inboxViewSrc.includes("window.addEventListener('cuan:notification-navigate', onNotificationNavigate)"),
+    'InboxView must listen to cuan:notification-navigate to load conversation immediately',
+  )
+})

@@ -161,12 +161,16 @@ func buildPushPayload(item ownerNotification) map[string]string {
 	}
 	body = cleanNotificationSnippet(body)
 
-	href := item.Href
-	if href == "" || !strings.HasPrefix(href, "/inbox") {
+	href := strings.TrimSpace(item.Href)
+	if href == "" {
 		parts := strings.Split(tag, ":")
 		if len(parts) >= 2 && parts[1] != "" {
-			href = "/inbox/" + url.PathEscape(parts[1])
-		} else if href == "" {
+			if strings.HasPrefix(tag, "task:") {
+				href = "/tasks/" + url.PathEscape(parts[1])
+			} else {
+				href = "/inbox/" + url.PathEscape(parts[1])
+			}
+		} else {
 			href = "/inbox"
 		}
 	}
