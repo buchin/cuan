@@ -424,5 +424,24 @@ test('14. Mobile Haptic Feedback & Nerd Font CLI Glyphs Support', () => {
   assert.ok(fs.existsSync(boldFont), 'JetBrainsMonoNerdFontMono-Bold.woff2 must exist in public/fonts')
 })
 
+test('15. Single-Tap Mobile Virtual Keyboard Focus and Non-Collapsing Composer', () => {
+  const taskTerminalPath = path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx')
+  const content = fs.readFileSync(taskTerminalPath, 'utf8')
+
+  // 1. Textarea must be positioned within the viewport with inputmode and enterkeyhint
+  assert.match(content, /terminal\.textarea\.setAttribute\('inputmode',\s*'text'\)/, 'Must set inputmode text on xterm textarea')
+  assert.match(content, /terminal\.textarea\.setAttribute\('enterkeyhint',\s*'send'\)/, 'Must set enterkeyhint send on xterm textarea')
+  assert.match(content, /terminal\.textarea\.style\.position\s*=\s*'absolute'/, 'Must position textarea in viewport to avoid offscreen soft-keyboard suppression')
+
+  // 2. onTouchEnd must synchronously invoke .focus({ preventScroll: true })
+  assert.match(content, /terminal\.textarea\.focus\(\{\s*preventScroll:\s*true\s*\}\)/, 'Must call preventScroll focus on touch gesture')
+
+  // 3. update() must keep accessory open for terminal helper focus without premature isKeyboardShrunk collapse
+  assert.match(content, /isTouchMobile\s*&&\s*\(\s*isTerminalHelper\s*\|\|\s*\(isKeyboardShrunk/, 'Must keep terminal helper active during keyboard slide-in')
+
+  // 4. TerminalComposer must not collapse with hidden sm:flex when focused on mobile
+  assert.doesNotMatch(content, /isMobileKeyboardActive\s*\?\s*['"]hidden sm:flex['"]/, 'TerminalComposer must not be hidden when mobile keyboard is active')
+})
+
 
 
