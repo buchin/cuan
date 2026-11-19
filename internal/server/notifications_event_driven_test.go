@@ -572,14 +572,114 @@ func TestEventDrivenPush_TaskCompleted(t *testing.T) {
 	item := ownerPrefs.Items[0]
 	payload := buildPushPayload(item)
 
-	if payload["title"] != "Auto-scroll ke tugas terakhir" {
-		t.Errorf("expected title 'Auto-scroll ke tugas terakhir', got %q", payload["title"])
+	if payload["title"] != "✓ Selesai: Auto-scroll ke tugas terakhir" {
+		t.Errorf("expected title '✓ Selesai: Auto-scroll ke tugas terakhir', got %q", payload["title"])
+	}
+	if payload["icon"] != "/icons/task-done.png" {
+		t.Errorf("expected icon '/icons/task-done.png', got %q", payload["icon"])
 	}
 	if !strings.Contains(payload["body"], "Fitur auto scroll berhasil diuji") {
 		t.Errorf("expected body to contain task summary, got %q", payload["body"])
 	}
 	if payload["href"] != "/inbox/"+roomID {
 		t.Errorf("expected href '/inbox/%s', got %q", roomID, payload["href"])
+	}
+}
+
+// TestPushPayload_ContextualIconsAndLockscreenFormatting verifies:
+// 1. Task done supplies contextual checkmark icon (/icons/task-done.png) and '✓ Selesai: <Nama Singkat>' title.
+// 2. Long task title (>42 chars) is concisely truncated with ellipsis to fit lockscreens without cutoff.
+// 3. Task review supplies amber contextual icon (/icons/task-review.png).
+// 4. Task blocker supplies warning contextual icon (/icons/task-blocker.png).
+// 5. Chat message from agent/customer retains /icons/cuan-192.png, eliminating duplicate Cuan logo on task cards.
+func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
+	// 1. Task Done - standard short title
+	doneItem := ownerNotification{
+		ID:      "task:task-done-1:done",
+		Kind:    "completed",
+		Title:   "Update payment webhook",
+		Summary: "Webhook verifikasi pembayaran berhasil terintegrasi.",
+		Href:    "/tasks/task-done-1",
+	}
+	pDone := buildPushPayload(doneItem)
+	if pDone["icon"] != "/icons/task-done.png" {
+		t.Errorf("expected task done icon '/icons/task-done.png', got %q", pDone["icon"])
+	}
+	if pDone["title"] != "✓ Selesai: Update payment webhook" {
+		t.Errorf("expected title '✓ Selesai: Update payment webhook', got %q", pDone["title"])
+	}
+
+	// 2. Task Done - long title (matching user screenshot)
+	longTitle := "Penyempurnaan Notifikasi Selesai Task di Chat dan Indikator Status Task di Composer Work Panel"
+	longDoneItem := ownerNotification{
+		ID:      "task:task-done-long:done",
+		Kind:    "completed",
+		Title:   longTitle,
+		Summary: "Memperbaiki silent finish saat background task selesai.",
+		Href:    "/tasks/task-done-long",
+	}
+	pLong := buildPushPayload(longDoneItem)
+	if !strings.HasPrefix(pLong["title"], "✓ Selesai: ") {
+		t.Errorf("expected title prefix '✓ Selesai: ', got %q", pLong["title"])
+	}
+	if len([]rune(pLong["title"])) > 55 {
+		t.Errorf("expected concise title <= 55 runes for lockscreen readability, got %d: %q", len([]rune(pLong["title"])), pLong["title"])
+	}
+	if !strings.HasSuffix(pLong["title"], "...") {
+		t.Errorf("expected long title to end with ellipsis, got %q", pLong["title"])
+	}
+
+	// 3. Task Done - empty title
+	emptyTitleDoneItem := ownerNotification{
+		ID:   "task:task-done-empty:done",
+		Kind: "completed",
+		Href: "/tasks/task-done-empty",
+	}
+	pEmptyDone := buildPushPayload(emptyTitleDoneItem)
+	if pEmptyDone["title"] != "✓ Selesai" {
+		t.Errorf("expected '✓ Selesai' for empty done title, got %q", pEmptyDone["title"])
+	}
+
+	// 4. Task Review
+	reviewItem := ownerNotification{
+		ID:      "task:task-rev-1:review:attempt1",
+		Kind:    "approval",
+		Title:   "Konfigurasi DNS Cloudflare",
+		Summary: "Pekerjaan siap ditinjau.",
+		Href:    "/tasks/task-rev-1",
+	}
+	pRev := buildPushPayload(reviewItem)
+	if pRev["icon"] != "/icons/task-review.png" {
+		t.Errorf("expected task review icon '/icons/task-review.png', got %q", pRev["icon"])
+	}
+
+	// 5. Task Blocker
+	blockerItem := ownerNotification{
+		ID:      "task:task-blk-1:blocked:attempt1",
+		Kind:    "blocker",
+		Title:   "Migrasi Database PostgreSQL",
+		Summary: "Pekerjaan tertahan dan memerlukan perhatian Anda.",
+		Href:    "/tasks/task-blk-1",
+	}
+	pBlk := buildPushPayload(blockerItem)
+	if pBlk["icon"] != "/icons/task-blocker.png" {
+		t.Errorf("expected task blocker icon '/icons/task-blocker.png', got %q", pBlk["icon"])
+	}
+
+	// 6. Conversational Chat message (should use cuan-192.png, no duplicate Cuan logo on task)
+	agentMsgItem := ownerNotification{
+		ID:      "agent:room-123:msg-456",
+		Kind:    "completed",
+		Title:   "@cuan",
+		Summary: "Ada yang bisa saya bantu terkait proyek ini?",
+		Href:    "/inbox/room-123",
+	}
+	pAgent := buildPushPayload(agentMsgItem)
+	if pAgent["icon"] != "/icons/cuan-192.png" {
+		t.Errorf("expected agent chat icon '/icons/cuan-192.png', got %q", pAgent["icon"])
+	}
+	if pAgent["title"] != "@cuan" {
+		t.Errorf("expected agent chat title '@cuan', got %q", pAgent["title"])
 	}
 }
 

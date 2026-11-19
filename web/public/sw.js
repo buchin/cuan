@@ -17,7 +17,28 @@ self.addEventListener('push', event => {
 
   const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
   const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
-  const icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : '/icons/cuan-192.png'
+
+  let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
+  if (!icon || icon === '/icons/cuan-192.png') {
+    const kind = typeof data.kind === 'string' ? data.kind : ''
+    const status = typeof data.status === 'string' ? data.status : ''
+    const tag = typeof data.tag === 'string' ? data.tag : ''
+    const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
+
+    if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
+      if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai')) {
+        icon = '/icons/task-done.png'
+      } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review')) {
+        icon = '/icons/task-review.png'
+      } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
+        icon = '/icons/task-blocker.png'
+      }
+    }
+  }
+  if (!icon) {
+    icon = '/icons/cuan-192.png'
+  }
+
   const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
   const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
