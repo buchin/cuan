@@ -180,24 +180,33 @@ func (s *Server) notificationSnapshot(ctx context.Context, owner string) ([]owne
 			action := "View work"
 			if t.SourceRoomID != "" {
 				href = "/inbox/" + url.PathEscape(t.SourceRoomID)
+				if t.Status == "review" || t.Status == "blocked" {
+					href += "?work=" + url.PathEscape(t.ID)
+				}
 				action = "Open conversation"
 			}
 			state := notificationTaskState{Status: t.Status, Attempt: attempt, Title: notificationText(t.Title, 160), Context: notificationText(t.ProjectName, 120), Href: href}
 			states[t.ID] = state
-			kind, status := "", ""
+			kind, status, summary := "", "", ""
 			switch t.Status {
 			case "done":
 				kind = "completed"
 				status = "Completed"
+				summary = "Pekerjaan telah selesai dan aktif berjalan."
 			case "review":
 				kind = "approval"
 				status = "Review requested"
+				summary = "Hasil pekerjaan siap ditinjau."
 			case "blocked":
 				kind = "blocker"
 				status = "Needs attention"
+				summary = "Pekerjaan tertahan dan memerlukan perhatian Anda."
+			}
+			if strings.TrimSpace(t.Summary) != "" {
+				summary = cleanNotificationSnippet(t.Summary)
 			}
 			if kind != "" {
-				items = append(items, ownerNotification{ID: "task:" + t.ID + ":" + t.Status + ":" + attempt, Kind: kind, Title: state.Title, Context: state.Context, Status: status, ActionLabel: action, Href: href, At: t.UpdatedAt})
+				items = append(items, ownerNotification{ID: "task:" + t.ID + ":" + t.Status + ":" + attempt, Kind: kind, Title: state.Title, Context: state.Context, Summary: summary, Status: status, ActionLabel: action, Href: href, At: t.UpdatedAt})
 			}
 		}
 	}

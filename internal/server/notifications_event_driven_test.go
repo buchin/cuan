@@ -603,3 +603,45 @@ func TestEventDrivenPush_FiltersTechnicalAndStaleNotifications(t *testing.T) {
 		}
 	}
 }
+
+// TestPushPayload_TaskReviewNotMisleading verifies that background task review
+// notifications do not claim "butuh persetujuan" with blank chat routing, but clearly
+// describe review readiness and include ?work=<task-id> parameter when linked to a room.
+func TestPushPayload_TaskReviewNotMisleading(t *testing.T) {
+	roomID := "room-inbox-" + db.GenerateUUID()
+	taskID := "task-review-456"
+
+	// Case 1: Task review with room and summary
+	reviewItem := ownerNotification{
+		ID:      "task:" + taskID + ":review:attempt1",
+		Kind:    "approval",
+		Title:   "Phase 2: Draf Pesan & Pengiriman Batch Broadcast Email CRM",
+		Summary: "Verifikasi independen Phase 2 selesai dengan status lulus.",
+		Href:    "/inbox/" + roomID + "?work=" + taskID,
+	}
+	payload1 := buildPushPayload(reviewItem)
+	if payload1["title"] != "Phase 2: Draf Pesan & Pengiriman Batch Broadcast Email CRM" {
+		t.Errorf("expected title to match task, got %q", payload1["title"])
+	}
+	if !strings.Contains(payload1["body"], "Verifikasi independen Phase 2") {
+		t.Errorf("expected body to contain task summary, got %q", payload1["body"])
+	}
+	if payload1["href"] != "/inbox/"+roomID+"?work="+taskID {
+		t.Errorf("expected href with ?work parameter, got %q", payload1["href"])
+	}
+
+	// Case 2: Task review with empty summary should use human-friendly default
+	emptySummaryReview := ownerNotification{
+		ID:    "task:" + taskID + ":review:attempt2",
+		Kind:  "approval",
+		Title: "Phase 2: Draf Pesan",
+		Href:  "/inbox/" + roomID + "?work=" + taskID,
+	}
+	payload2 := buildPushPayload(emptySummaryReview)
+	if strings.Contains(payload2["body"], "Asisten AI membutuhkan persetujuan") {
+		t.Errorf("task review push body must NOT claim 'Asisten AI membutuhkan persetujuan Anda', got %q", payload2["body"])
+	}
+	if !strings.Contains(payload2["body"], "siap ditinjau") {
+		t.Errorf("expected body to indicate ready for review, got %q", payload2["body"])
+	}
+}

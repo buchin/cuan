@@ -84,3 +84,46 @@ test('4. InboxView.tsx: Instant reload and SSE reconnect on window focus and not
     'InboxView must initialize mobileView to chat when activeContact is provided',
   )
 })
+
+test('5. InboxView.tsx: Route transition anti-race condition preserves loaded messages and decouples HTTP fetch version from SSE', () => {
+  const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
+
+  // Preserves messages when convId is the same (placeholder to resolved contact transition)
+  assert.ok(
+    inboxViewSrc.includes('const isDifferentConv = prevLoadedConvId.current !== convId'),
+    'InboxView must detect whether conversation actually changed before clearing messages',
+  )
+  assert.ok(
+    inboxViewSrc.includes('if (isDifferentConv) {\n        setMessages([])'),
+    'InboxView must only clear messages when navigating to a genuinely different conversation',
+  )
+
+  // Separated HTTP fetch version from SSE stream
+  assert.ok(
+    inboxViewSrc.includes('const httpFetchVersion = useRef(0)'),
+    'InboxView must use dedicated httpFetchVersion for HTTP requests',
+  )
+  assert.ok(
+    inboxViewSrc.includes('const version = ++httpFetchVersion.current'),
+    'InboxView loadConversation must increment httpFetchVersion',
+  )
+
+  // Robust notification navigation handler
+  assert.ok(
+    inboxViewSrc.includes("setMobileView('chat')"),
+    'onNotificationNavigate must immediately activate mobile chat view',
+  )
+  assert.ok(
+    inboxViewSrc.includes("href.match(/\\/inbox\\/([^/?#]+)/)"),
+    'onNotificationNavigate must parse target room ID from navigation href',
+  )
+})
+
+test('6. InboxView.tsx: ApprovalCard renders reliably for agent messages without requiring loaded contact type', () => {
+  const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
+
+  assert.ok(
+    inboxViewSrc.includes("(isAgentMessage || msg.author_type === 'agent') && msg.approval_plan"),
+    'InboxView must render ApprovalCard for agent proposals regardless of contact resolution state',
+  )
+})
