@@ -528,6 +528,9 @@ export function InboxView({
 
   const messageListRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const isComposingRef = useRef(false)
+  const handleSendMessageRef = useRef<(approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string, regenerateReplyId?: string) => Promise<void>>(() => Promise.resolve())
+  const handle1ClickApproveRef = useRef<(card: AgentActionCard, convId: string) => Promise<void>>(() => Promise.resolve())
 
   const loadConversation = useCallback(
     async (convId: string, showSpinner = false, all = false) => {
@@ -700,9 +703,10 @@ export function InboxView({
   }, [loadingOlder, activeContact, messages])
 
   // Auto-resize textarea
-  const autoResizeTextarea = (el: HTMLTextAreaElement) => {
-    setIsMultiline(resizeComposerInput(el))
-  }
+  const autoResizeTextarea = useCallback((el: HTMLTextAreaElement) => {
+    const next = resizeComposerInput(el)
+    setIsMultiline((prev) => (prev !== next ? next : prev))
+  }, [])
 
   useEffect(() => {
     const resize = () => {
@@ -715,7 +719,7 @@ export function InboxView({
       window.visualViewport?.removeEventListener('resize', resize)
       window.removeEventListener('resize', resize)
     }
-  }, [inputMessage, activeContact?.id])
+  }, [activeContact?.id, autoResizeTextarea])
 
   // Load conversation when activeContact changes
   useEffect(() => {
@@ -1177,8 +1181,10 @@ export function InboxView({
     return () => window.removeEventListener('online', reconnect)
   }, [sending, activeContact?.id])
 
+  handleSendMessageRef.current = handleSendMessage
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !isComposingRef.current) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -1207,6 +1213,7 @@ export function InboxView({
       setApproving(null)
     }
   }
+  handle1ClickApproveRef.current = handle1ClickApprove
 
   const formatMessageTime = (iso?: string) => {
     if (!iso) return ''
@@ -1287,7 +1294,6 @@ export function InboxView({
       olderAnchor.current = null
     }
   }, [messages.length])
-  let previousBubbleMessage: ChatMessage | undefined
 
   return (
     <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
@@ -1556,7 +1562,9 @@ export function InboxView({
                   </button>
                 </div>
               )}
-              {messages.map((msg, index) => {
+              {useMemo(() => {
+                let previousBubbleMessage: ChatMessage | undefined
+                return messages.map((msg, index) => {
                 // In WhatsApp/Telegram: User/Operator is right-aligned, Contact (Agent/Customer) is left-aligned
                 const isUserInAgentRoom =
                   msg.author_type === 'user' && activeContact.type === 'agent'
@@ -1814,12 +1822,12 @@ export function InboxView({
                           accepted={msg.approval_accepted}
                           deferred={msg.plan_deferred}
                           disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
-                          onApprove={() => handleSendMessage(msg.uuid, msg.approval_request_id)}
+                          onApprove={() => handleSendMessageRef.current(msg.uuid, msg.approval_request_id)}
                           onChangePlan={() => {
                             setInputMessage(current => (current ? current + '\n\n' : '') + t('Changes to this plan') + ' — ' + msg.approval_plan!.title + ': ')
                             textareaRef.current?.focus()
                           }}
-                          onDefer={() => handleSendMessage(msg.uuid, msg.plan_defer_request_id, 'defer')}
+                          onDefer={() => handleSendMessageRef.current(msg.uuid, msg.plan_defer_request_id, 'defer')}
                         />
                       )}
 
@@ -1869,7 +1877,7 @@ export function InboxView({
                                   approving === msg.action_card.task_title
                                 }
                                 onClick={() =>
-                                  handle1ClickApprove(
+                                  handle1ClickApproveRef.current(
                                     msg.action_card!,
                                     activeContact.conversation_id ||
                                       activeContact.id,
@@ -1916,7 +1924,7 @@ export function InboxView({
                           if (activeContact.type === 'customer') setWhisperMode(true)
                         }}
                         disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
-                        onSelect={(option) => handleSendMessage(undefined, undefined, undefined, activeContact.type === 'customer' ? '@cuan ' + option.label : option.label)}
+                        onSelect={(option) => handleSendMessageRef.current(undefined, undefined, undefined, activeContact.type === 'customer' ? '@cuan ' + option.label : option.label)}
                         className={hasBubbleContent ? 'mt-2.5' : 'mt-0.5'}
                       />
                     )}
@@ -1947,7 +1955,7 @@ export function InboxView({
                         emailDelivery={msg.email_delivery}
                         regenerateDisabled={sending || uploads.busy || !!pendingRef.current || requests.some((q) => ['queued', 'running', 'retrying'].includes(q.state))}
                         regenerating={!!msg.uuid && regeneratingDrafts.has(msg.uuid)}
-                        onRegenerate={msg.uuid ? () => { void handleSendMessage(undefined, undefined, undefined, 'Regenerate draft', msg.uuid) } : undefined}
+                        onRegenerate={msg.uuid ? () => { void handleSendMessageRef.current(undefined, undefined, undefined, 'Regenerate draft', msg.uuid) } : undefined}
                         onUse={(draft) => {
                           setInputMessage(draft)
                           textareaRef.current?.focus()
@@ -2004,7 +2012,30 @@ export function InboxView({
                     })}
                   </div>
                 )
-              })}
+              })
+              }, [
+                messages,
+                activeContact,
+                linkedTasks,
+                latestMessageIdPerTask,
+                approving,
+                approvedTasks,
+                regeneratingDrafts,
+                requestsByMessage,
+                requestAttempts,
+                sending,
+                uploads.busy,
+                retryCount,
+                requestedMessageId,
+                language,
+                t,
+                handleTaskDetailsClick,
+                handleTaskTerminalClick,
+                handleUseDraft,
+                handleTaskRetry,
+                handleTaskDiscussion,
+                handleOpenTaskDrawer,
+              ])}
 
               {sendError && (
                 <div
@@ -2169,6 +2200,16 @@ export function InboxView({
                     aria-label={t('Message')}
                     rows={1}
                     value={inputMessage}
+                    onCompositionStart={() => {
+                      isComposingRef.current = true
+                    }}
+                    onCompositionEnd={(e) => {
+                      isComposingRef.current = false
+                      const val = (e.target as HTMLTextAreaElement).value
+                      unsentDrafts.current[activeConvRef.current] = val
+                      setInputMessage(val)
+                      autoResizeTextarea(e.target as HTMLTextAreaElement)
+                    }}
                     onChange={(e) => {
                       unsentDrafts.current[activeConvRef.current] =
                         e.target.value
