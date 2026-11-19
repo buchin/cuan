@@ -77,6 +77,30 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
     fs.existsSync(path.join(webDir, 'public/icons/cuan-badge-96.png')),
     'web/public/icons/cuan-badge-96.png must exist',
   )
+  assert.ok(
+    fs.existsSync(path.join(webDir, 'public/icons/task-done.png')),
+    'web/public/icons/task-done.png must exist',
+  )
+  assert.ok(
+    fs.existsSync(path.join(webDir, 'public/icons/task-review.png')),
+    'web/public/icons/task-review.png must exist',
+  )
+  assert.ok(
+    fs.existsSync(path.join(webDir, 'public/icons/task-blocker.png')),
+    'web/public/icons/task-blocker.png must exist',
+  )
+  assert.ok(
+    swSrc.includes('/icons/task-done.png'),
+    'sw.js must support contextual task-done icon',
+  )
+  assert.ok(
+    swSrc.includes('/icons/task-review.png'),
+    'sw.js must support contextual task-review icon',
+  )
+  assert.ok(
+    swSrc.includes('/icons/task-blocker.png'),
+    'sw.js must support contextual task-blocker icon',
+  )
 
   // showNotification uses dynamic title and body
   assert.ok(
@@ -134,7 +158,28 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
 
     const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
     const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
-    const icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : '/icons/cuan-192.png'
+
+    let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
+    if (!icon || icon === '/icons/cuan-192.png') {
+      const kind = typeof data.kind === 'string' ? data.kind : ''
+      const status = typeof data.status === 'string' ? data.status : ''
+      const tag = typeof data.tag === 'string' ? data.tag : ''
+      const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
+
+      if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
+        if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai')) {
+          icon = '/icons/task-done.png'
+        } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review')) {
+          icon = '/icons/task-review.png'
+        } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
+          icon = '/icons/task-blocker.png'
+        }
+      }
+    }
+    if (!icon) {
+      icon = '/icons/cuan-192.png'
+    }
+
     const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
     const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
@@ -185,6 +230,40 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
   assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
   assert.equal(parsed3.icon, '/icons/cuan-192.png')
   assert.equal(parsed3.href, '/inbox')
+
+  // Case 4: Task done payload (contextual checkmark icon)
+  const taskDonePayload = {
+    title: '✓ Selesai: Fitur Pembayaran',
+    body: 'Integrasi payment gateway selesai diverifikasi.',
+    href: '/tasks/task_done_123',
+    tag: 'task:task_done_123:done',
+    kind: 'completed',
+  }
+  const parsedDone = parsePushPayload({ json: () => taskDonePayload }, origin)
+  assert.equal(parsedDone.icon, '/icons/task-done.png')
+  assert.equal(parsedDone.title, '✓ Selesai: Fitur Pembayaran')
+
+  // Case 5: Task review payload (contextual amber review icon)
+  const taskReviewPayload = {
+    title: 'Phase 2: Review Code',
+    body: 'Hasil pekerjaan siap ditinjau.',
+    href: '/tasks/task_rev_456',
+    tag: 'task:task_rev_456:review',
+    kind: 'approval',
+  }
+  const parsedReview = parsePushPayload({ json: () => taskReviewPayload }, origin)
+  assert.equal(parsedReview.icon, '/icons/task-review.png')
+
+  // Case 6: Task blocker payload (contextual warning icon)
+  const taskBlockerPayload = {
+    title: 'Perhatian Diperlukan',
+    body: 'Pekerjaan tertahan dan memerlukan perhatian Anda.',
+    href: '/tasks/task_blk_789',
+    tag: 'task:task_blk_789:blocked',
+    kind: 'blocker',
+  }
+  const parsedBlocker = parsePushPayload({ json: () => taskBlockerPayload }, origin)
+  assert.equal(parsedBlocker.icon, '/icons/task-blocker.png')
 })
 
 test('3. UI Component: NotificationSettings.tsx supports role Member, personal quiet hours, and device registration', () => {

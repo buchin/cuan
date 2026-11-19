@@ -121,6 +121,73 @@ func enabledNotification(p notificationPreferences, kind string) bool {
 
 var notificationHTTPClient = &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 
+func formatTaskPushTitle(rawTitle string, kind string) string {
+	raw := strings.TrimSpace(rawTitle)
+	if raw == "" || raw == "Pekerjaan Selesai" || raw == "Tugas Selesai" {
+		switch kind {
+		case "completed":
+			return "✓ Selesai"
+		case "approval":
+			return "Tinjauan Tugas"
+		case "blocker":
+			return "Perhatian Diperlukan"
+		default:
+			return "Pekerjaan Selesai"
+		}
+	}
+	raw = strings.Join(strings.Fields(raw), " ")
+
+	if kind == "completed" {
+		clean := raw
+		for _, pfx := range []string{"✓ Selesai:", "✓ Selesai", "Selesai:"} {
+			if strings.HasPrefix(clean, pfx) {
+				clean = strings.TrimSpace(strings.TrimPrefix(clean, pfx))
+				break
+			}
+		}
+		if clean == "" {
+			return "✓ Selesai"
+		}
+		shortName := clean
+		runes := []rune(clean)
+		if len(runes) > 42 {
+			shortName = strings.TrimSpace(string(runes[:39])) + "..."
+		}
+		return "✓ Selesai: " + shortName
+	}
+
+	runes := []rune(raw)
+	if len(runes) > 60 {
+		return strings.TrimSpace(string(runes[:57])) + "..."
+	}
+	return raw
+}
+
+func pushIconForNotification(item ownerNotification, tag string) string {
+	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
+	if isTask {
+		switch {
+		case item.Kind == "completed" || strings.Contains(item.ID, ":done") || item.Status == "Completed":
+			return "/icons/task-done.png"
+		case item.Kind == "approval" || strings.Contains(item.ID, ":review") || item.Status == "Review requested":
+			return "/icons/task-review.png"
+		case item.Kind == "blocker" || strings.Contains(item.ID, ":blocked") || item.Status == "Needs attention":
+			return "/icons/task-blocker.png"
+		default:
+			return "/icons/task-done.png"
+		}
+	}
+
+	switch item.Kind {
+	case "approval":
+		return "/icons/task-review.png"
+	case "blocker":
+		return "/icons/task-blocker.png"
+	default:
+		return "/icons/cuan-192.png"
+	}
+}
+
 func buildPushPayload(item ownerNotification) map[string]string {
 	tag := item.ID
 	if strings.HasPrefix(item.ID, "approval:") {
@@ -128,6 +195,8 @@ func buildPushPayload(item ownerNotification) map[string]string {
 	} else if strings.HasPrefix(item.ID, "request:") {
 		tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
 	}
+
+	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
 
 	title := item.Title
 	if item.Kind == "customer" {
@@ -138,20 +207,14 @@ func buildPushPayload(item ownerNotification) map[string]string {
 				title = "Pesan Baru dari Pengunjung"
 			}
 		}
+	} else if isTask {
+		title = formatTaskPushTitle(title, item.Kind)
 	} else if item.Kind == "completed" {
-		if strings.HasPrefix(tag, "task:") {
-			if title == "" {
-				title = "Pekerjaan Selesai"
-			}
-		} else if title == "" {
+		if title == "" {
 			title = "Asisten AI"
 		}
 	} else if item.Kind == "approval" || strings.HasPrefix(tag, "agent:") {
-		if strings.HasPrefix(tag, "task:") {
-			if title == "" {
-				title = "Tinjauan Tugas"
-			}
-		} else if title == "" {
+		if title == "" {
 			title = "Asisten AI"
 		}
 	} else if item.Kind == "blocker" {
@@ -165,7 +228,7 @@ func buildPushPayload(item ownerNotification) map[string]string {
 
 	body := item.Summary
 	if body == "" {
-		if strings.HasPrefix(tag, "task:") {
+		if isTask {
 			if item.Kind == "approval" {
 				body = "Hasil pekerjaan siap ditinjau."
 			} else if item.Kind == "completed" {
@@ -205,13 +268,17 @@ func buildPushPayload(item ownerNotification) map[string]string {
 		}
 	}
 
+	icon := pushIconForNotification(item, tag)
+
 	return map[string]string{
-		"title": title,
-		"body":  body,
-		"href":  href,
-		"tag":   tag,
-		"badge": "/icons/cuan-badge-96.png",
-		"icon":  "/icons/cuan-192.png",
+		"title":  title,
+		"body":   body,
+		"href":   href,
+		"tag":    tag,
+		"badge":  "/icons/cuan-badge-96.png",
+		"icon":   icon,
+		"kind":   item.Kind,
+		"status": item.Status,
 	}
 }
 
