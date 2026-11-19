@@ -206,6 +206,8 @@ export function InboxView({
 
   const unsentDrafts = useRef<Record<string, string>>({})
   const loadVersion = useRef(0)
+  const httpFetchVersion = useRef(0)
+  const prevLoadedConvId = useRef<string | null>(null)
   const readReceipts = useRef(new Map<string, string>())
   const latestLoaded = useRef<{ id: string; messages: ChatMessage[] }>()
   function markConversationSeen(id: string, next: ChatMessage[]) {
@@ -539,14 +541,15 @@ export function InboxView({
   const loadConversation = useCallback(
     async (convId: string, showSpinner = false, all = false) => {
       if (showSpinner) setLoading(true)
-      const version = ++loadVersion.current
+      const version = ++httpFetchVersion.current
       try {
         const data = await chatApi.getConversation(
           convId,
           all ? { all: true } : { limit: 50 },
         )
-        if (activeConvRef.current !== convId || version !== loadVersion.current)
+        if (activeConvRef.current !== convId || version !== httpFetchVersion.current)
           return
+        setLoading(false)
         setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
         setHasMoreOlder(!!data.has_more)
         markConversationSeen(convId, data.messages || [])
@@ -743,6 +746,9 @@ export function InboxView({
   useEffect(() => {
     if (activeContact) {
       const convId = activeContact.conversation_id || activeContact.id
+      const isDifferentConv = prevLoadedConvId.current !== convId
+      prevLoadedConvId.current = convId
+
       followTail.current = !requestedMessageId
       setHasNewMessages(false)
       const draft = unsentDrafts.current[convId] || ''
@@ -753,12 +759,14 @@ export function InboxView({
       setUnreadCount(0)
       isScrollingToBottomRef.current = false
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
-      setMessages([])
-      setRequests([])
-      setLinkedTasks([])
-      setSendError('')
-      setRetryCount(0)
-      pendingRef.current = null
+      if (isDifferentConv) {
+        setMessages([])
+        setRequests([])
+        setLinkedTasks([])
+        setSendError('')
+        setRetryCount(0)
+        pendingRef.current = null
+      }
       try {
         const saved = localStorage.getItem('cuan_inbox_pending:' + convId)
         if (saved) {
@@ -776,7 +784,7 @@ export function InboxView({
           ),
         )
       }
-      loadConversation(convId, true)
+      loadConversation(convId, isDifferentConv)
     }
   }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
 
@@ -925,7 +933,14 @@ export function InboxView({
     }
     const onNotificationNavigate = (e: Event) => {
       const custom = e as CustomEvent<{ href?: string }>
-      if (custom?.detail?.href && custom.detail.href.includes(convId)) {
+      const href = custom?.detail?.href || ''
+      setMobileView('chat')
+      const match = href.match(/\/inbox\/([^/?#]+)/)
+      const targetRoomId = match ? decodeURIComponent(match[1]) : convId
+      const hasTargetMessage = href.includes('message=') || href.includes('msg=')
+      if (targetRoomId && (targetRoomId === convId || !convId)) {
+        void loadConversation(targetRoomId, true, hasTargetMessage)
+      } else if (custom?.detail?.href && custom.detail.href.includes(convId)) {
         void loadConversation(convId, true)
       }
     }
@@ -1576,7 +1591,7 @@ export function InboxView({
                         </div>
                       )}
 
-                      {isAgentMessage && msg.approval_plan && (
+                      {(isAgentMessage || msg.author_type === 'agent') && msg.approval_plan && (
                         <ApprovalCard
                           plan={msg.approval_plan}
                           accepted={msg.approval_accepted}

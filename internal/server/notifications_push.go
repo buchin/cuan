@@ -147,7 +147,11 @@ func buildPushPayload(item ownerNotification) map[string]string {
 			title = "Asisten AI"
 		}
 	} else if item.Kind == "approval" || strings.HasPrefix(tag, "agent:") {
-		if title == "" {
+		if strings.HasPrefix(tag, "task:") {
+			if title == "" {
+				title = "Tinjauan Tugas"
+			}
+		} else if title == "" {
 			title = "Asisten AI"
 		}
 	} else if item.Kind == "blocker" {
@@ -161,7 +165,17 @@ func buildPushPayload(item ownerNotification) map[string]string {
 
 	body := item.Summary
 	if body == "" {
-		if item.Title != "" && item.Title != title {
+		if strings.HasPrefix(tag, "task:") {
+			if item.Kind == "approval" {
+				body = "Hasil pekerjaan siap ditinjau."
+			} else if item.Kind == "completed" {
+				body = "Pekerjaan telah selesai dan aktif berjalan."
+			} else if item.Kind == "blocker" {
+				body = "Pekerjaan tertahan dan memerlukan perhatian Anda."
+			} else {
+				body = "Ada pembaruan pada tugas Anda."
+			}
+		} else if item.Title != "" && item.Title != title {
 			body = item.Title
 		} else if item.Kind == "customer" {
 			body = "Pesan baru dari pelanggan di Live Chat."
