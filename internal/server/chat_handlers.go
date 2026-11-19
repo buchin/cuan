@@ -96,12 +96,12 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 		return
 	}
 
-	// 0. Ensure default project exists first so foreign key constraints on project_rooms pass
+	// 0. Ensure neutral default project placeholder exists for foreign key constraints on project_rooms
 	if s.db != nil {
 		_, _ = s.db.ExecContext(ctx, `
-			INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, created_at, updated_at)
-			VALUES ('default', 'Default', '', 'main', 'pending', 'custom', NOW(), NOW())
-			ON CONFLICT (id) DO NOTHING;
+			INSERT INTO projects (id, name, repo_url, default_branch, clone_status, project_type, is_archived, created_at, updated_at)
+			VALUES ('default', 'Default', '', '', 'pending', 'custom', TRUE, NOW(), NOW())
+			ON CONFLICT (id) DO UPDATE SET is_archived = TRUE, default_branch = '' WHERE projects.id = 'default' AND (projects.repo_url = '' OR projects.repo_url IS NULL);
 		`)
 	}
 	if s.projectRepo != nil {
@@ -110,7 +110,7 @@ func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
 				ID:            "default",
 				Name:          "Default",
 				RepoURL:       "",
-				DefaultBranch: "main",
+				DefaultBranch: "",
 				CloneStatus:   "pending",
 				ProjectType:   "custom",
 			})

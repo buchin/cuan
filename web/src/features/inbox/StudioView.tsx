@@ -86,15 +86,31 @@ export function StudioView({
   const [searchParams] = useSearchParams()
   const selectedAgentId = agents.find((a) => a.id === 'agent_cuan')?.id || ''
 
-  const [projects, setProjects] = useState<Project[]>(initialProjects || [])
+  const [projects, setProjects] = useState<Project[]>(() =>
+    (initialProjects || []).filter(
+      (p) => !p.is_archived && p.id !== 'default' && p.name?.toLowerCase() !== 'default'
+    )
+  )
   useEffect(() => {
     if (initialProjects && initialProjects.length > 0) {
-      setProjects(initialProjects)
+      setProjects(
+        initialProjects.filter(
+          (p) => !p.is_archived && p.id !== 'default' && p.name?.toLowerCase() !== 'default'
+        )
+      )
       return
     }
     let active = true
     projectsApi.list()
-      .then((list) => { if (active && Array.isArray(list)) setProjects(list) })
+      .then((list) => {
+        if (active && Array.isArray(list)) {
+          setProjects(
+            list.filter(
+              (p) => !p.is_archived && p.id !== 'default' && p.name?.toLowerCase() !== 'default'
+            )
+          )
+        }
+      })
       .catch(() => {})
     return () => { active = false }
   }, [initialProjects])

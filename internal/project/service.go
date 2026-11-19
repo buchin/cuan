@@ -436,7 +436,7 @@ func (s *Service) EnsureDefault(ctx context.Context) (*ProjectResponse, error) {
 		return nil, err
 	}
 	now := time.Now().UTC()
-	p := &Project{ID: "default", Name: "Default", ProjectType: "custom", DefaultBranch: "main", CreatedAt: now, UpdatedAt: now}
+	p := &Project{ID: "default", Name: "Default", ProjectType: "custom", DefaultBranch: "", IsArchived: true, CreatedAt: now, UpdatedAt: now}
 	if err := s.store.CreateProject(ctx, p); err != nil {
 		return s.Get(ctx, "default")
 	}

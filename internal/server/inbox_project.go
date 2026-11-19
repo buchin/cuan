@@ -176,14 +176,6 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 						}
 					}
 				}
-				if selected == nil && room != nil && strings.EqualFold(room.ProjectID, "default") {
-					for _, p := range active {
-						if strings.EqualFold(p.Name, "cuan") || strings.Contains(p.LocalPath, "/default") {
-							selected = p
-							break
-						}
-					}
-				}
 				if selected == nil {
 					var withRepo []*project.ProjectResponse
 					for _, p := range active {
@@ -220,15 +212,9 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				}
 			}
 		}
-		// If analyzing an internal link and still unselected, select Default if available
+		// If analyzing an internal link and still unselected, select single active project if available
 		if selected == nil && linkedContext != "" {
-			for _, p := range active {
-				if strings.EqualFold(p.ID, "default") || strings.EqualFold(p.Name, "default") {
-					selected = p
-					break
-				}
-			}
-			if selected == nil && len(active) == 1 {
+			if len(active) == 1 {
 				selected = active[0]
 			}
 		}
@@ -250,13 +236,8 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				}
 				settings := project.SettingsFromMetadata(p.Metadata)
 				desc := settings.Goal
-				pNameLower := strings.ToLower(p.Name)
 				if desc == "" {
-					if strings.Contains(pNameLower, "cuan") {
-						desc = "Cuan agentic platform UI & server (Studio, Inbox, Tasks, Account, Settings, Go, React, Vite)"
-					} else if strings.Contains(pNameLower, "dojo") {
-						desc = "Dojo portal (Shuriken licenses, customer portal, checkout, support, Laravel)"
-					}
+					desc = fmt.Sprintf("Project %s workspace", p.Name)
 				}
 				fmt.Fprintf(&b, "- %s [%s]: Repository %s. %s\n", p.Name, p.ID, repo, desc)
 			}

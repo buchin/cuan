@@ -905,10 +905,10 @@ export function App() {
                   directoryAgents.some((a) => a.enabled !== false && a.status !== 'inactive')
                     ? 'ready' : 'needed'
                 }
-                firstGoal={!projectsLoading && !projectsError && projects.every(project => project.task_progress?.total === 0)}
+                firstGoal={!projectsLoading && !projectsError && projects.filter((p) => !p.is_archived && p.id !== 'default').every(project => project.task_progress?.total === 0)}
                 hasProject={
                   projectsLoading || !!projectsError ||
-                  projects.some((p) => p.id !== 'default' || !!p.repo_url)
+                  projects.some((p) => !p.is_archived && p.id !== 'default')
                 }
                 onAgentConnected={() => void refreshContacts()}
                 onCreateProject={() => setIsCreateProjectOpen(true)}
@@ -918,7 +918,7 @@ export function App() {
                   ['codex', 'claude'].includes(a.harness || a.provider || '')
                 )}
                 autoFocus={true}
-                projects={projects}
+                projects={projects.filter((p) => !p.is_archived && p.id !== 'default')}
               />
             </div>
           )}

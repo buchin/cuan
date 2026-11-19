@@ -1,14 +1,19 @@
 // Capture StudioProjectSelector in action on desktop and mobile (light & dark mode)
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
+import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 import { createServer } from 'vite'
-import { chromium } from '/Users/buchin/Repos/cuan-landing/node_modules/playwright/index.mjs'
+
+const require = createRequire(import.meta.url)
+const { chromium } = require(process.env.CUAN_BROWSER_MODULE || path.join(os.homedir(), '.local/lib/node_modules/playwright'))
 
 const webRoot = path.resolve('web')
 process.chdir(webRoot)
 
-const outputDir = '/Users/buchin/.gemini/antigravity-cli/brain/7caad0f1-212c-4a22-960f-48ac044a12c4/screenshots'
-await fs.mkdir(outputDir, { recursive: true })
+const outputDir = path.resolve(process.env.CUAN_TASK_ARTIFACTS_DIR || process.argv[2] || 'artifacts')
+await fs.mkdir(outputDir, { recursive: true, mode: 0o700 })
 
 const projects = [
   {
@@ -34,6 +39,12 @@ const projects = [
     git_remote: 'github.com/cuan/cuan-docs',
     clone_status: 'connected',
     task_progress: { total: 1, completed: 0 },
+  },
+  {
+    id: 'default',
+    name: 'Default',
+    default_branch: 'main',
+    is_archived: true,
   },
 ]
 
@@ -204,6 +215,19 @@ try {
     await pill.click()
     await page.waitForTimeout(300)
 
+    // Assert that Default is NOT rendered and no duplicate plus icon in connect label
+    const defaultOptionCount = await page.locator('button[role="option"]:has-text("Default")').count()
+    assert.equal(defaultOptionCount, 0, 'Dropdown must NOT render Default project')
+    const cuanOptionCount = await page.locator('button[role="option"]:has-text("cuan")').count()
+    assert.ok(cuanOptionCount > 0, 'Dropdown must render registered cuan project')
+
+    const connectButton = page.locator('div[role="listbox"] a[href="/projects"], div[role="listbox"] button')
+    const connectText = (await connectButton.first().textContent() || '').trim()
+    assert.ok(
+      !connectText.startsWith('+'),
+      `Connect button label must not start with duplicate +: "${connectText}"`
+    )
+
     // Capture dropdown open state
     await page.screenshot({
       path: path.join(outputDir, `studio-02-open-${theme}-desktop.png`),
@@ -280,6 +304,19 @@ try {
     await pill.waitFor({ state: 'visible' })
     await pill.click()
     await page.waitForTimeout(300)
+
+    // Assert that Default is NOT rendered and no duplicate plus icon in connect label
+    const defaultOptionCount = await page.locator('button[role="option"]:has-text("Default")').count()
+    assert.equal(defaultOptionCount, 0, 'Mobile dropdown must NOT render Default project')
+    const cuanOptionCount = await page.locator('button[role="option"]:has-text("cuan")').count()
+    assert.ok(cuanOptionCount > 0, 'Mobile dropdown must render registered cuan project')
+
+    const connectButton = page.locator('div[role="listbox"] a[href="/projects"], div[role="listbox"] button')
+    const connectText = (await connectButton.first().textContent() || '').trim()
+    assert.ok(
+      !connectText.startsWith('+'),
+      `Mobile connect button label must not start with duplicate +: "${connectText}"`
+    )
 
     // Capture mobile dropdown open
     await page.screenshot({

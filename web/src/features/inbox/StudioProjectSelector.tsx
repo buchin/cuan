@@ -21,6 +21,11 @@ export function StudioProjectSelector({
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Normalize project list: filter out any archived, neutral default placeholder, or invalid projects
+  const validProjects = projects.filter(
+    (p) => !p.is_archived && p.id !== 'default' && p.name?.toLowerCase() !== 'default'
+  )
+
   // Close when clicking outside or pressing Escape
   useEffect(() => {
     if (!isOpen) return
@@ -43,12 +48,12 @@ export function StudioProjectSelector({
   // Derive trigger pill label
   let pillLabel = t('Select project')
   if (selectedProjectIds.length === 1) {
-    const p = projects.find((item) => item.id === selectedProjectIds[0])
+    const p = validProjects.find((item) => item.id === selectedProjectIds[0])
     pillLabel = p ? p.name : selectedProjectIds[0]
   } else if (selectedProjectIds.length > 1) {
     pillLabel = `${selectedProjectIds.length} ${t('Projects')}`
-  } else if (projects.length > 0) {
-    pillLabel = projects[0].name
+  } else if (validProjects.length > 0) {
+    pillLabel = validProjects[0].name
   }
 
   return (
@@ -83,13 +88,13 @@ export function StudioProjectSelector({
           <div className="px-3 pt-2 pb-1.5 flex items-center justify-between text-xs font-medium text-muted-foreground border-b border-border/40 mb-1">
             <span>{t('Projects')}</span>
             <span className="text-[11px] text-muted-foreground/60 font-normal">
-              {projects.length}
+              {validProjects.length}
             </span>
           </div>
 
           {/* Individual Projects List */}
           <div className="space-y-0.5 py-0.5">
-            {projects.map((project) => {
+            {validProjects.map((project) => {
               const isSelected = selectedProjectIds.includes(project.id)
               const isFailed = project.clone_status === 'failed'
 
@@ -148,7 +153,7 @@ export function StudioProjectSelector({
                 <div className="flex h-5 w-5 items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors">
                   <Plus className="h-3 w-3" />
                 </div>
-                <span>{t('+ Connect new project…')}</span>
+                <span>{t('Connect new project…')}</span>
               </button>
             ) : (
               <Link
@@ -159,7 +164,7 @@ export function StudioProjectSelector({
                 <div className="flex h-5 w-5 items-center justify-center rounded-md border border-dashed border-border bg-muted/40 text-muted-foreground group-hover:border-primary/50 group-hover:text-primary transition-colors">
                   <Plus className="h-3 w-3" />
                 </div>
-                <span>{t('+ Connect new project…')}</span>
+                <span>{t('Connect new project…')}</span>
               </Link>
             )}
             <Link

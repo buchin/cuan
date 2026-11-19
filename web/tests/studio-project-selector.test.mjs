@@ -27,8 +27,8 @@ test('1. StudioProjectSelector: Compact pill button & modern popover structure',
     'StudioProjectSelector must display Select project or project name'
   )
   assert.ok(
-    selectorSource.includes("t('+ Connect new project…')"),
-    'StudioProjectSelector must render + Connect new project… action button in footer'
+    selectorSource.includes("t('Connect new project…')"),
+    'StudioProjectSelector must render Connect new project… action button in footer without duplicate plus icon'
   )
   assert.ok(
     selectorSource.includes('to="/projects"'),
@@ -44,4 +44,23 @@ test('2. Studio integrates StudioProjectSelector and preserves explicit project 
   assert.ok(studioViewSource.includes('<StudioProjectSelector'))
   assert.ok(studioViewSource.includes("searchParams.get('project')"))
   assert.ok(studioViewSource.includes('project_id: selectedProjectId'))
+})
+
+test('3. StudioProjectSelector and StudioView eliminate Default redundancy and filter to active registered projects', () => {
+  assert.ok(
+    selectorSource.includes("p.id !== 'default'"),
+    'StudioProjectSelector must filter out neutral default placeholder'
+  )
+  assert.ok(
+    selectorSource.includes('!p.is_archived'),
+    'StudioProjectSelector must filter out archived projects'
+  )
+  assert.ok(
+    studioViewSource.includes("p.id !== 'default'"),
+    'StudioView must filter out neutral default placeholder from its projects state'
+  )
+  assert.ok(
+    studioViewSource.includes('!p.is_archived'),
+    'StudioView must filter out archived projects from its projects state'
+  )
 })

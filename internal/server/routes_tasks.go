@@ -13,6 +13,7 @@ import (
 
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -220,17 +221,32 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, 503, "Projects are unavailable")
 			return
 		}
-		p, err := s.projectSvc.EnsureDefault(r.Context())
+		projects, err := s.projectSvc.List(r.Context())
 		if err != nil {
-			respondJSONError(w, 503, "Default project is unavailable")
+			respondJSONError(w, 503, "Projects are unavailable")
 			return
 		}
-		if p.IsArchived {
-			respondJSONError(w, 409, "Default project is archived. Choose an active project.")
-			return
+		var active []*project.ProjectResponse
+		for _, p := range projects {
+			if !p.IsArchived && p.ID != "default" && !strings.EqualFold(p.Name, "default") {
+				active = append(active, p)
+			}
 		}
-		req.ProjectID = "default"
-		req.ProjectIDs = []string{"default"}
+		if len(active) == 1 {
+			req.ProjectID = active[0].ID
+			req.ProjectIDs = []string{active[0].ID}
+		} else if len(active) > 1 {
+			respondJSONError(w, 400, "Multiple active projects found. Choose an active project.")
+			return
+		} else {
+			p, err := s.projectSvc.EnsureDefault(r.Context())
+			if err != nil {
+				respondJSONError(w, 503, "Default project is unavailable")
+				return
+			}
+			req.ProjectID = p.ID
+			req.ProjectIDs = []string{p.ID}
+		}
 	}
 
 	author := "owner"
