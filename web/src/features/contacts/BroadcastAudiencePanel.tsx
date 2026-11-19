@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { Radio, Users, Mail, X, Check, AlertCircle } from 'lucide-react'
+import {
+  Radio,
+  Users,
+  Mail,
+  X,
+  Check,
+  AlertCircle,
+  Send,
+  Loader2,
+  ShieldCheck,
+  PenLine,
+} from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
 import { BackAction } from '../../components/layout/DetailLayout'
@@ -25,6 +36,17 @@ export type BroadcastTagSummary = {
   count: number
 }
 
+export type BroadcastSendResponse = {
+  status: 'success' | 'partial' | 'failed'
+  total_recipients: number
+  sent_count: number
+  failed_count: number
+  errors?: string[]
+  idempotency_key: string
+  already_sent?: boolean
+  message: string
+}
+
 interface BroadcastAudiencePanelProps {
   onClose?: () => void
   initialTags?: string[]
@@ -40,6 +62,14 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Message composer & sending state
+  const [subject, setSubject] = useState('')
+  const [content, setContent] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
+  const [sendSuccess, setSendSuccess] = useState<BroadcastSendResponse | null>(null)
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID())
 
   // Load CRM tags summary
   useEffect(() => {
@@ -72,7 +102,6 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
     abortControllerRef.current = controller
 
     const timer = setTimeout(() => {
-      // If neither tags nor custom emails, resolve with empty payload to get 0 count
       setLoading(true)
       setError('')
 
@@ -118,7 +147,58 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
   const clearAll = () => {
     setSelectedTags([])
     setCustomEmails('')
+    setSubject('')
+    setContent('')
+    setSendSuccess(null)
+    setSendError('')
+    idempotencyKeyRef.current = crypto.randomUUID()
   }
+
+  const handleSendBroadcast = async () => {
+    if (sending || !audience || audience.total_unique === 0) return
+    const trimmedSubject = subject.trim()
+    const trimmedContent = content.trim()
+    if (!trimmedSubject || !trimmedContent) return
+
+    setSending(true)
+    setSendError('')
+
+    try {
+      const res = await apiFetch<BroadcastSendResponse>('/api/v1/contacts/broadcast/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tags: selectedTags,
+          custom_emails: customEmails,
+          subject: trimmedSubject,
+          content: trimmedContent,
+          idempotency_key: idempotencyKeyRef.current,
+        }),
+      })
+      setSendSuccess(res)
+      setSendError('')
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : t('Gagal mengirim broadcast email'))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleNewDraft = () => {
+    setSubject('')
+    setContent('')
+    setSendSuccess(null)
+    setSendError('')
+    idempotencyKeyRef.current = crypto.randomUUID()
+  }
+
+  const canSend =
+    !sending &&
+    !sendSuccess &&
+    !!audience &&
+    audience.total_unique > 0 &&
+    subject.trim().length > 0 &&
+    content.trim().length > 0
 
   return (
     <aside
@@ -150,11 +230,11 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
           </div>
 
           <div className="flex items-center gap-2">
-            {(selectedTags.length > 0 || customEmails.trim()) && (
+            {(selectedTags.length > 0 || customEmails.trim() || subject || content || sendSuccess) && (
               <button
                 type="button"
                 onClick={clearAll}
-                className="action-secondary text-xs px-2.5 py-1"
+                className="action-secondary text-xs px-2.5 py-1 min-h-[32px]"
               >
                 {t('Reset')}
               </button>
@@ -266,7 +346,7 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
           />
         </section>
 
-        {/* Error notification */}
+        {/* Error notification for audience */}
         {error && (
           <div
             role="alert"
@@ -329,7 +409,7 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
                 </span>
               </div>
 
-              <div className="divide-y divide-border/30 rounded-lg border border-border/40 overflow-hidden bg-card/30">
+              <div className="divide-y divide-border/30 rounded-lg border border-border/40 overflow-hidden bg-card/30 max-h-56 overflow-y-auto">
                 {audience.recipients.map((rec) => {
                   const initial = (rec.name || rec.email || '?')
                     .slice(0, 2)
@@ -394,6 +474,191 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [] }: BroadcastA
               </div>
             </div>
           ) : null}
+        </section>
+
+        {/* Section 4: Message Composer */}
+        <section aria-labelledby="message-composer-heading" className="border-t border-border/40 pt-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3
+              id="message-composer-heading"
+              className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              <span>{t('Draf Pesan Broadcast')}</span>
+            </h3>
+            <span className="text-[11px] text-muted-foreground">
+              {t('Editor Pesan')}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label
+                htmlFor="broadcast-subject-input"
+                className="block text-xs font-medium text-foreground mb-1"
+              >
+                {t('Subjek Pesan')}
+              </label>
+              <input
+                id="broadcast-subject-input"
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder={t('misal: Update Rilis Fitur & Berita Penting')}
+                disabled={sending || !!sendSuccess}
+                className="field-control text-xs"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="broadcast-content-textarea"
+                className="block text-xs font-medium text-foreground mb-1"
+              >
+                {t('Isi Pesan')}
+              </label>
+              <textarea
+                id="broadcast-content-textarea"
+                rows={6}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder={t('Tulis isi pengumuman broadcast di sini…')}
+                disabled={sending || !!sendSuccess}
+                className="field-control text-xs resize-y min-h-[140px] leading-relaxed"
+              />
+            </div>
+
+            {/* Quiet RFC 8058 notice */}
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                {t(
+                  'Header List-Unsubscribe (RFC 8058) dan link unsubscribe standar disematkan otomatis pada setiap email.',
+                )}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 5: Send Action & Live Status Indicator */}
+        <section aria-labelledby="send-action-heading" className="border-t border-border/40 pt-5 space-y-4">
+          {/* Sending live indicator */}
+          {sending && (
+            <div
+              role="status"
+              className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3.5 text-xs text-foreground"
+            >
+              <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-primary">
+                  {t('Sedang mengirim broadcast…')}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {t('Memproses pengiriman batch ke')} {audience?.total_unique || 0} {t('penerima. Mohon tunggu…')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Success status card */}
+          {sendSuccess && (
+            <div
+              role="status"
+              className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium text-xs">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <span>
+                    {t('Sukses terkirim ke')} {sendSuccess.sent_count} {t('penerima')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNewDraft}
+                  className="action-secondary text-xs px-2.5 py-1 min-h-[28px]"
+                >
+                  {t('Tulis Broadcast Baru')}
+                </button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {sendSuccess.message}
+              </p>
+
+              {sendSuccess.already_sent && (
+                <p className="text-[11px] text-muted-foreground italic">
+                  {t('Permintaan pengiriman ini telah diproses sebelumnya (terlindungi idempotency).')}
+                </p>
+              )}
+
+              {sendSuccess.failed_count > 0 && sendSuccess.errors && (
+                <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                  <p className="font-medium">
+                    {t('Perhatian:')} {sendSuccess.failed_count} {t('email gagal dikirim:')}
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    {sendSuccess.errors.slice(0, 5).map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Error notification */}
+          {sendError && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="font-medium">{t('Gagal mengirim broadcast')}</p>
+                <p className="text-[11px] opacity-90">{t(sendError)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Action button row */}
+          {!sendSuccess && (
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+              <div className="text-[11px] text-muted-foreground">
+                {!audience || audience.total_unique === 0 ? (
+                  <span>{t('Pilih minimal 1 penerima untuk mengaktifkan pengiriman.')}</span>
+                ) : !subject.trim() || !content.trim() ? (
+                  <span>{t('Lengkapi subjek dan isi pesan sebelum mengirim.')}</span>
+                ) : (
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    {t('Siap dikirim ke')} {audience.total_unique} {t('penerima unik.')}
+                  </span>
+                )}
+              </div>
+
+              <button
+                id="send-broadcast-button"
+                type="button"
+                onClick={handleSendBroadcast}
+                disabled={!canSend}
+                className="action-primary text-xs px-4 py-2 font-medium min-h-10 disabled:opacity-40"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>{t('Sedang mengirim…')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-3.5 w-3.5" />
+                    <span>
+                      {t('Kirim Broadcast ke')} {audience?.total_unique || 0} {t('Penerima')}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </aside>
