@@ -175,6 +175,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	analysisRecovery, _ := ctx.Value(inboxAnalysisRecoveryKey{}).(bool)
 	alreadyRepaired, _ := ctx.Value(inboxSchemaRetryKey{}).(bool)
 	formatCandidate, formatRepair := ctx.Value(inboxFormatRepairKey{}).(string)
+	if !snapshotReview {
+		model, _ := ctx.Value(inboxModelKey{}).(string)
+		if model == "" || model == "gemini-1.5-pro" || model == "gemini-1.5-flash" || model == "gemini-3.8-flash-high" {
+			ctx = context.WithValue(ctx, inboxModelKey{}, "gemini-3.8-flash-medium")
+		}
+	}
 	parentStageContext := ctx
 	if formatRepair {
 		var cancel context.CancelFunc
@@ -376,11 +382,13 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			args = append(args, "--json-schema", inboxCoordinatorSchema)
 		}
 		model, _ := ctx.Value(inboxModelKey{}).(string)
-		if model == "" || model == "gemini-1.5-pro" || model == "gemini-1.5-flash" {
-			if snapshotReview {
-				model = "gemini-3.8-flash-high"
-			} else {
+		if !snapshotReview {
+			if model == "" || model == "gemini-1.5-pro" || model == "gemini-1.5-flash" || model == "gemini-3.8-flash-high" {
 				model = "gemini-3.8-flash-medium"
+			}
+		} else {
+			if model == "" || model == "gemini-1.5-pro" || model == "gemini-1.5-flash" {
+				model = "gemini-3.8-flash-high"
 			}
 		}
 		if agent.IsTextModel(model) {

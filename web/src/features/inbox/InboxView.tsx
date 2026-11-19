@@ -1286,285 +1286,11 @@ export function InboxView({
     if (pending?.convId === activeConvRef.current && pending.regenerateReplyId && (sending || retryCount < 3)) active.add(pending.regenerateReplyId)
     return active
   }, [messages, requests, sending, retryCount, regenerationStart, sendError])
-  useLayoutEffect(() => {
-    const list = messageListRef.current
-    if (list && olderAnchor.current) {
-      list.scrollTop =
-        olderAnchor.current.top + list.scrollHeight - olderAnchor.current.height
-      olderAnchor.current = null
-    }
-  }, [messages.length])
 
-  return (
-    <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
-      {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
-      <div
-        className={cn(
-          'w-full h-full min-[1200px]:hidden flex-col relative',
-          mobileView === 'contacts' ? 'flex' : 'hidden',
-        )}
-      >
-        <InboxSubPanel
-          contacts={contacts}
-          agents={agents}
-          now={now}
-          loading={contactsLoading}
-          error={contactsError}
-          onRetry={onRetry}
-          activeContactId={activeContact?.id}
-          onSelectContact={handleSelectContactInternal}
-          onNewStudio={handleOpenStudio}
-          onNewMessage={handleOpenStudio}
-          selectedTab={contactTab}
-          onTabChange={onContactTabChange}
-          searchQuery={contactSearch}
-          onSearchChange={onContactSearchChange}
-        />
-      </div>
-
-      {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
-      <div
-        className={cn(
-          'wa-chat flex-1 min-h-0 min-w-0 flex-col h-full overflow-hidden',
-          mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
-          peekTask && 'min-[1200px]:hidden min-[1600px]:flex',
-        )}
-      >
-        {canvasMode === 'studio' ? (
-          <div className="flex h-full flex-1 flex-col overflow-hidden">
-            <PageHeader className="wa-studio-header"><PageTitle>{t('New work')}</PageTitle></PageHeader>
-            <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
-              <div className="calm-stream-constraint max-w-2xl mx-auto">
-                <StudioView
-                  onAccepted={() => onContactUpdated?.()}
-                  onConversationCreated={handleStudioConversationCreated}
-                  agentSetup={agentSetup}
-                  firstGoal={firstGoal}
-                  hasProject={hasProject}
-                  onAgentConnected={onAgentConnected ?? (() => {})}
-                  onCreateProject={onCreateProject ?? (() => {})}
-                  onRetrySetup={onRetrySetup ?? (() => {})}
-                  checkRuntime={checkRuntime}
-                  autoFocus={true}
-                />
-              </div>
-            </div>
-          </div>
-        ) : !activeContact ? (
-          <div className="flex h-full flex-1 flex-col items-center justify-center p-8 text-center bg-background select-none">
-            <div className="h-16 w-16 mb-4 flex items-center justify-center border border-border/60 bg-muted/20 text-muted-foreground">
-              <InboxIcon className="h-8 w-8 stroke-[1.25]" />
-            </div>
-            <h3 className="text-xl font-bold tracking-tight text-foreground">{t('Select a conversation')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground max-w-sm">
-              {t('Choose a conversation from your inbox to read the full thread, view customer details, and reply.')}
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
-            <PageHeader className="wa-chat-header border-b-0 min-[1200px]:border-b">
-              <div className="flex flex-1 items-center gap-1.5 sm:gap-2.5 min-w-0">
-                {/* Mobile Back Button (<) */}
-                <IconButton label={t('Back to conversations')} onClick={handleBackToContacts} className="min-[1200px]:hidden"><ChevronLeft /></IconButton>
-
-                <div className="relative shrink-0">
-                  <div
-                    data-avatar="true"
-                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
-                  >
-                    {activeContact.avatar ? (
-                      <span>{activeContact.avatar}</span>
-                    ) : activeContact.type === 'agent' ? (
-                      <Bot className="h-4 w-4 text-primary" />
-                    ) : (
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </div>
-
-                <div className="min-w-0 flex-1 flex flex-col justify-center">
-                  <div className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-2">
-                    <h2 className="truncate text-base font-semibold leading-tight text-foreground">
-                      {contactDisplayName || activeContact.name}
-                    </h2>
-                    {activeContact.type === 'customer' && activeContact.email && (
-                      <div className="flex items-center gap-1 min-w-0" data-testid="customer-email-header">
-                        <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">·</span>
-                        <span
-                          className="truncate text-xs text-muted-foreground font-normal max-w-full sm:max-w-[200px]"
-                          title={activeContact.email}
-                          data-testid="customer-email-text"
-                        >
-                          {activeContact.email}
-                        </span>
-
-                      </div>
-                    )}
-                  </div>
-                  {activeContact.type !== 'customer' && !(activeContact.type === 'agent' && agents.some(a => a.id === 'agent_cuan')) && <ContactStatus
-                    contact={activeContact}
-                    agents={agents}
-                    now={now}
-                  />}
-                </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-1">
-                <ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} compact onChanged={onContactUpdated} />
-                {activeContact.type === 'customer' && activeContact.email && (
-                        <button
-                          type="button"
-                          onClick={handleCopyCustomerEmail}
-                          aria-label={copiedEmail ? t('Disalin!') : t('Copy email')}
-                          title={copiedEmail ? t('Disalin!') : `${t('Copy email')}: ${activeContact.email}`}
-                          data-testid="copy-customer-email-button"
-                          className={cn(
-                            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1.5 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
-                            copiedEmail
-                              ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                          )}
-                        >
-                          {copiedEmail ? (
-                            <span className="inline-flex items-center text-emerald-600 dark:text-emerald-400">
-                              <Check className="h-3.5 w-3.5 shrink-0" />
-                            </span>
-                          ) : (
-                            <Copy className="h-3.5 w-3.5 shrink-0" />
-                          )}
-                        </button>
-                )}
-                {activeContact.type === 'customer' && activeContact.contact_id && (
-                  <Link
-                    className="icon-action text-muted-foreground hover:text-foreground"
-                    aria-label="View contact details"
-                    title={t('View contact details & memory')}
-                    to={`/contacts?contact=${encodeURIComponent(activeContact.contact_id)}`}
-                  >
-                    <User className="h-4 w-4" />
-                  </Link>
-                )}
-                {/* Hidden New Studio button preserved for test contracts */}
-                <button
-                  type="button"
-                  data-testid="header-new-studio-btn"
-                  onClick={handleOpenStudio}
-                  className="hidden"
-                  aria-hidden="true"
-                />
-              </div>
-            </PageHeader>
-
-            {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
-
-            {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
-            <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
-              <div
-                ref={messageListRef}
-                onScroll={handleScroll}
-                onClick={handleMessageContainerClick}
-                className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
-              >
-                <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2 pb-4">
-              {messages.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
-                  {activeContact?.type === 'customer' ? (
-                    <>
-                      <div className="relative">
-                        <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border shadow-xs">
-                          {activeContact.avatar ? (
-                            <span>{activeContact.avatar}</span>
-                          ) : (
-                            <User className="h-6 w-6 text-muted-foreground" />
-                          )}
-                        </div>
-                        {activeContact.is_online && (
-                          <span
-                            className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background"
-                            title={t('Online on website')}
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-foreground">
-                          {activeContact.is_online
-                            ? `${activeContact.name} ${t('is online right now')}`
-                            : activeContact.name}
-                        </p>
-                        {activeContact.page_title || activeContact.current_url || activeContact.product ? (
-                          <p className="text-xs text-muted-foreground inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted/60 border border-border/40">
-                            <span className="truncate max-w-[240px]">
-                              {activeContact.page_title || activeContact.current_url || activeContact.product}
-                            </span>
-                          </p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            {t('No messages with this contact yet.')}
-                          </p>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground/80">
-                        {t('Send a greeting to start a proactive chat with this visitor.')}
-                      </p>
-                      {/* Quick proactive greetings */}
-                      <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInputMessage(t('Hello! Anything we can help you with today?'))
-                            textareaRef.current?.focus()
-                          }}
-                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
-                        >
-                          👋 {t('Say hello')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setInputMessage(t('Hi there! Looking for specific information or need help?'))
-                            textareaRef.current?.focus()
-                          }}
-                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
-                        >
-                          💬 {t('Offer assistance')}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Bot className="h-8 w-8 text-muted-foreground/60" />
-                      <p className="text-xs">
-                        {t('No messages with this contact yet.')}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground/80">
-                        {t('Type a message below to start a conversation.')}
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {hasMoreOlder && (
-                <div className="flex justify-center py-2">
-                  <button
-                    type="button"
-                    disabled={loadingOlder}
-                    className="min-h-11 rounded-md border border-border bg-card px-4 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-95 transition-all inline-flex items-center gap-2 shadow-sm disabled:opacity-50"
-                    onClick={loadOlderMessages}
-                  >
-                    {loadingOlder && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                    <span>
-                      {loadingOlder
-                        ? t('Loading older messages…')
-                        : t('Load older messages')}
-                    </span>
-                  </button>
-                </div>
-              )}
-              {useMemo(() => {
-                let previousBubbleMessage: ChatMessage | undefined
-                return messages.map((msg, index) => {
+  const renderedMessages = useMemo(() => {
+    let previousBubbleMessage: ChatMessage | undefined
+    if (!activeContact) return null
+    return messages.map((msg, index) => {
                 // In WhatsApp/Telegram: User/Operator is right-aligned, Contact (Agent/Customer) is left-aligned
                 const isUserInAgentRoom =
                   msg.author_type === 'user' && activeContact.type === 'agent'
@@ -2035,7 +1761,284 @@ export function InboxView({
                 handleTaskRetry,
                 handleTaskDiscussion,
                 handleOpenTaskDrawer,
-              ])}
+  ])
+  useLayoutEffect(() => {
+    const list = messageListRef.current
+    if (list && olderAnchor.current) {
+      list.scrollTop =
+        olderAnchor.current.top + list.scrollHeight - olderAnchor.current.height
+      olderAnchor.current = null
+    }
+  }, [messages.length])
+
+  return (
+    <div className="h-full min-h-0 min-w-0 w-full flex overflow-hidden">
+      {/* ── Mobile Contacts List View (100% width on < md when in 'contacts' state) ── */}
+      <div
+        className={cn(
+          'w-full h-full min-[1200px]:hidden flex-col relative',
+          mobileView === 'contacts' ? 'flex' : 'hidden',
+        )}
+      >
+        <InboxSubPanel
+          contacts={contacts}
+          agents={agents}
+          now={now}
+          loading={contactsLoading}
+          error={contactsError}
+          onRetry={onRetry}
+          activeContactId={activeContact?.id}
+          onSelectContact={handleSelectContactInternal}
+          onNewStudio={handleOpenStudio}
+          onNewMessage={handleOpenStudio}
+          selectedTab={contactTab}
+          onTabChange={onContactTabChange}
+          searchQuery={contactSearch}
+          onSearchChange={onContactSearchChange}
+        />
+      </div>
+
+      {/* ── Main Chat Stream Container (100% width on mobile when 'chat', flex-1 on desktop >= md) ── */}
+      <div
+        className={cn(
+          'wa-chat flex-1 min-h-0 min-w-0 flex-col h-full overflow-hidden',
+          mobileView === 'chat' ? 'flex' : 'hidden min-[1200px]:flex',
+          peekTask && 'min-[1200px]:hidden min-[1600px]:flex',
+        )}
+      >
+        {canvasMode === 'studio' ? (
+          <div className="flex h-full flex-1 flex-col overflow-hidden">
+            <PageHeader className="wa-studio-header"><PageTitle>{t('New work')}</PageTitle></PageHeader>
+            <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+              <div className="calm-stream-constraint max-w-2xl mx-auto">
+                <StudioView
+                  onAccepted={() => onContactUpdated?.()}
+                  onConversationCreated={handleStudioConversationCreated}
+                  agentSetup={agentSetup}
+                  firstGoal={firstGoal}
+                  hasProject={hasProject}
+                  onAgentConnected={onAgentConnected ?? (() => {})}
+                  onCreateProject={onCreateProject ?? (() => {})}
+                  onRetrySetup={onRetrySetup ?? (() => {})}
+                  checkRuntime={checkRuntime}
+                  autoFocus={true}
+                />
+              </div>
+            </div>
+          </div>
+        ) : !activeContact ? (
+          <div className="flex h-full flex-1 flex-col items-center justify-center p-8 text-center bg-background select-none">
+            <div className="h-16 w-16 mb-4 flex items-center justify-center border border-border/60 bg-muted/20 text-muted-foreground">
+              <InboxIcon className="h-8 w-8 stroke-[1.25]" />
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-foreground">{t('Select a conversation')}</h3>
+            <p className="mt-1 text-sm text-muted-foreground max-w-sm">
+              {t('Choose a conversation from your inbox to read the full thread, view customer details, and reply.')}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* ── Top Header (aligning with shadcn Mail h-13) ── */}
+            <PageHeader className="wa-chat-header border-b-0 min-[1200px]:border-b">
+              <div className="flex flex-1 items-center gap-1.5 sm:gap-2.5 min-w-0">
+                {/* Mobile Back Button (<) */}
+                <IconButton label={t('Back to conversations')} onClick={handleBackToContacts} className="min-[1200px]:hidden"><ChevronLeft /></IconButton>
+
+                <div className="relative shrink-0">
+                  <div
+                    data-avatar="true"
+                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
+                  >
+                    {activeContact.avatar ? (
+                      <span>{activeContact.avatar}</span>
+                    ) : activeContact.type === 'agent' ? (
+                      <Bot className="h-4 w-4 text-primary" />
+                    ) : (
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="min-w-0 flex-1 flex flex-col justify-center">
+                  <div className="flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-2">
+                    <h2 className="truncate text-base font-semibold leading-tight text-foreground">
+                      {contactDisplayName || activeContact.name}
+                    </h2>
+                    {activeContact.type === 'customer' && activeContact.email && (
+                      <div className="flex items-center gap-1 min-w-0" data-testid="customer-email-header">
+                        <span className="text-muted-foreground text-xs hidden sm:inline" aria-hidden="true">·</span>
+                        <span
+                          className="truncate text-xs text-muted-foreground font-normal max-w-full sm:max-w-[200px]"
+                          title={activeContact.email}
+                          data-testid="customer-email-text"
+                        >
+                          {activeContact.email}
+                        </span>
+
+                      </div>
+                    )}
+                  </div>
+                  {activeContact.type !== 'customer' && !(activeContact.type === 'agent' && agents.some(a => a.id === 'agent_cuan')) && <ContactStatus
+                    contact={activeContact}
+                    agents={agents}
+                    now={now}
+                  />}
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                <ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} compact onChanged={onContactUpdated} />
+                {activeContact.type === 'customer' && activeContact.email && (
+                        <button
+                          type="button"
+                          onClick={handleCopyCustomerEmail}
+                          aria-label={copiedEmail ? t('Disalin!') : t('Copy email')}
+                          title={copiedEmail ? t('Disalin!') : `${t('Copy email')}: ${activeContact.email}`}
+                          data-testid="copy-customer-email-button"
+                          className={cn(
+                            "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-1.5 py-1 text-xs font-medium transition-colors cursor-pointer shrink-0",
+                            copiedEmail
+                              ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          )}
+                        >
+                          {copiedEmail ? (
+                            <span className="inline-flex items-center text-emerald-600 dark:text-emerald-400">
+                              <Check className="h-3.5 w-3.5 shrink-0" />
+                            </span>
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 shrink-0" />
+                          )}
+                        </button>
+                )}
+                {activeContact.type === 'customer' && activeContact.contact_id && (
+                  <Link
+                    className="icon-action text-muted-foreground hover:text-foreground"
+                    aria-label="View contact details"
+                    title={t('View contact details & memory')}
+                    to={`/contacts?contact=${encodeURIComponent(activeContact.contact_id)}`}
+                  >
+                    <User className="h-4 w-4" />
+                  </Link>
+                )}
+                {/* Hidden New Studio button preserved for test contracts */}
+                <button
+                  type="button"
+                  data-testid="header-new-studio-btn"
+                  onClick={handleOpenStudio}
+                  className="hidden"
+                  aria-hidden="true"
+                />
+              </div>
+            </PageHeader>
+
+            {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
+
+            {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
+            <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
+              <div
+                ref={messageListRef}
+                onScroll={handleScroll}
+                onClick={handleMessageContainerClick}
+                className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
+              >
+                <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2 pb-4">
+              {messages.length === 0 && !loading && (
+                <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
+                  {activeContact?.type === 'customer' ? (
+                    <>
+                      <div className="relative">
+                        <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border shadow-xs">
+                          {activeContact.avatar ? (
+                            <span>{activeContact.avatar}</span>
+                          ) : (
+                            <User className="h-6 w-6 text-muted-foreground" />
+                          )}
+                        </div>
+                        {activeContact.is_online && (
+                          <span
+                            className="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background"
+                            title={t('Online on website')}
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {activeContact.is_online
+                            ? `${activeContact.name} ${t('is online right now')}`
+                            : activeContact.name}
+                        </p>
+                        {activeContact.page_title || activeContact.current_url || activeContact.product ? (
+                          <p className="text-xs text-muted-foreground inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted/60 border border-border/40">
+                            <span className="truncate max-w-[240px]">
+                              {activeContact.page_title || activeContact.current_url || activeContact.product}
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            {t('No messages with this contact yet.')}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground/80">
+                        {t('Send a greeting to start a proactive chat with this visitor.')}
+                      </p>
+                      {/* Quick proactive greetings */}
+                      <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputMessage(t('Hello! Anything we can help you with today?'))
+                            textareaRef.current?.focus()
+                          }}
+                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
+                        >
+                          👋 {t('Say hello')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputMessage(t('Hi there! Looking for specific information or need help?'))
+                            textareaRef.current?.focus()
+                          }}
+                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
+                        >
+                          💬 {t('Offer assistance')}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="h-8 w-8 text-muted-foreground/60" />
+                      <p className="text-xs">
+                        {t('No messages with this contact yet.')}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground/80">
+                        {t('Type a message below to start a conversation.')}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {hasMoreOlder && (
+                <div className="flex justify-center py-2">
+                  <button
+                    type="button"
+                    disabled={loadingOlder}
+                    className="min-h-11 rounded-md border border-border bg-card px-4 py-2 text-xs font-medium text-foreground hover:bg-muted active:scale-95 transition-all inline-flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    onClick={loadOlderMessages}
+                  >
+                    {loadingOlder && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                    <span>
+                      {loadingOlder
+                        ? t('Loading older messages…')
+                        : t('Load older messages')}
+                    </span>
+                  </button>
+                </div>
+              )}
+              {renderedMessages}
 
               {sendError && (
                 <div
