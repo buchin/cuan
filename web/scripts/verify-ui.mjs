@@ -55,7 +55,8 @@ try {
   captures.push('workflow/inbox-390.png', 'workflow/inbox-1440.png',
                 'workflow/session-running-390.png', 'workflow/session-running-1440.png',
                 'workflow/customer-reply-card-390.png', 'workflow/customer-reply-card-1440.png',
-                'workflow/customer-reply-sent-390.png', 'workflow/customer-reply-sent-1440.png')
+                'workflow/customer-reply-sent-390.png', 'workflow/customer-reply-sent-1440.png',
+                'workflow/composer-tasks-expanded-390.png', 'workflow/composer-tasks-expanded-1440.png')
   for (const capture of captures) {
     const stat = await fs.stat(path.join(output, capture))
     if (!stat.isFile() || stat.size === 0) throw new Error(`Missing visual evidence: ${capture}`)
