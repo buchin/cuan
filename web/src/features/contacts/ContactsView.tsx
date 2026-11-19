@@ -5,6 +5,7 @@ import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
 import { ContactMemoryPanel } from './ContactMemoryPanel'
+import { BroadcastAudiencePanel } from './BroadcastAudiencePanel'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -15,6 +16,7 @@ import {
   X,
   FileText,
   Tag,
+  Radio,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
@@ -187,6 +189,24 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
     if (selectedId) detailRef.current?.focus({ preventScroll: true })
     else lastOpened.current?.focus({ preventScroll: true })
   }, [selectedId, loading])
+  const isBroadcast = params.get('view') === 'broadcast'
+  const toggleBroadcast = () => {
+    const next = new URLSearchParams(params)
+    if (isBroadcast) {
+      next.delete('view')
+    } else {
+      next.set('view', 'broadcast')
+      next.delete('contact')
+      next.delete('note')
+      next.delete('note_query')
+    }
+    setParams(next)
+  }
+  const closeBroadcast = () => {
+    const next = new URLSearchParams(params)
+    next.delete('view')
+    setParams(next)
+  }
   function select(id: string) {
     if (
       id !== selectedId &&
@@ -196,6 +216,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
       return
     noteDirty.current = false
     const next = new URLSearchParams(params)
+    next.delete('view')
     if (id) next.set('contact', id)
     else next.delete('contact')
     const match = filtered.find((c) => c.id === id)?.search_note
@@ -272,7 +293,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
       {/* Left List: Clean Scanning Canvas without Tag Badge Clutter */}
       <aside
         aria-label={t('Contact list')}
-        className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r border-border/40 ${selectedId ? 'hidden min-[1200px]:flex' : 'flex'}`}
+        className={`min-h-0 min-w-0 w-full flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r border-border/40 ${selectedId || isBroadcast ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div className="shrink-0 border-b border-border/40 p-4">
           <ListCreateAction label="New contact" kind="contacts" onClick={onNewContact} />
@@ -304,6 +325,16 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                 onClick={() => setShowArchived((value) => !value)}
               >
                 <Archive className="h-4 w-4" aria-hidden="true" />
+              </IconButton>
+              <IconButton
+                type="button"
+                active={isBroadcast}
+                label={t('Broadcast')}
+                title={t('Broadcast')}
+                aria-pressed={isBroadcast}
+                onClick={toggleBroadcast}
+              >
+                <Radio className="h-4 w-4" />
               </IconButton>
             </div>
 
@@ -483,10 +514,15 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
       {/* Right Detail: Serene Bear Note Pad Canvas (65-80ch Typographic Constraint, Zero Nested Cards) */}
       <div
         className={`min-h-0 min-w-0 flex-1 overflow-y-auto p-4 md:p-6 bg-background ${
-          selectedId ? '' : 'hidden min-[1200px]:block'
+          selectedId || isBroadcast ? '' : 'hidden min-[1200px]:block'
         }`}
       >
-        {selectedId ? (
+        {isBroadcast ? (
+          <BroadcastAudiencePanel
+            onClose={closeBroadcast}
+            initialTags={tag ? [tag] : []}
+          />
+        ) : selectedId ? (
           <aside
             ref={detailRef}
             tabIndex={-1}
@@ -715,6 +751,14 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
             <p className="text-xs text-muted-foreground">
               {t('Select a contact to view their details, tags, and conversation.')}
             </p>
+            <button
+              type="button"
+              className="action-secondary mt-4 inline-flex items-center gap-1.5 text-xs min-h-[36px] px-3.5 rounded-full"
+              onClick={toggleBroadcast}
+            >
+              <Radio className="h-3.5 w-3.5" />
+              <span>{t('New broadcast')}</span>
+            </button>
           </aside>
         )}
       </div>
