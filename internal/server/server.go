@@ -48,6 +48,7 @@ type Server struct {
 	publicationVerifier         func(context.Context, publication.Config, string) error
 	publicationObserver         func(context.Context, publication.Config) (string, error)
 	releaseObservations         sync.Map
+	broadcastUnsubscribes       sync.Map
 	scopeAuditNext              atomic.Int64
 	inboxDeliveryDiagnosticNext atomic.Int64
 	extensions                  *extensionSDK.Registry
