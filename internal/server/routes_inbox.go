@@ -69,6 +69,8 @@ func (s *Server) registerInboxRoutes(pr chi.Router) {
 	pr.Post("/contacts/broadcast/audience", s.handleBroadcastAudience)
 	pr.Post("/contacts/broadcast/preview", s.handleBroadcastAudience)
 	pr.Post("/contacts/broadcast/send", s.handleBroadcastSend)
+	pr.Get("/contacts/broadcast/history", s.handleBroadcastHistory)
+	pr.Get("/contacts/broadcast/history/{id}", s.handleBroadcastHistoryDetail)
 	pr.Get("/chat/contacts", s.handleInternalListContacts)
 	pr.Get("/chat/conversations", s.handleInternalListContacts)
 	pr.Get("/inbox/conversations", s.handleInternalListContacts)
