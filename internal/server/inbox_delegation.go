@@ -747,6 +747,9 @@ func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID st
 		} else if m.AuthorType == "system" {
 			author = "System"
 			maxAllowed = maxAgentRunes
+		} else if m.AuthorType == "user" && (strings.HasPrefix(m.AuthorName, "Visitor") || (m.AuthorID != "" && m.AuthorID != "operator_user" && m.AuthorName != "Owner" && m.AuthorName != "You")) {
+			author = "Visitor"
+			maxAllowed = maxUserRunes
 		}
 		text, ids := decodeAttachmentMessage(m.Content)
 		text = strings.TrimSpace(text)

@@ -1362,6 +1362,9 @@ export function InboxView({
                 const isFormattedMessage = true
 
                 const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
+                const isInternalNote = Boolean(
+                  msg.is_internal && (activeContact.type !== 'customer' || isOutgoing || msg.author_type === 'agent')
+                )
                 const msgContent = msg.content || msg.message || ''
 
                 // Suppress internal system cues (e.g. cuan_work_review) and stale notices
@@ -1532,12 +1535,12 @@ export function InboxView({
                         'wa-message-bubble relative min-w-0 rounded-2xl',
                         imageBubble && 'wa-image-bubble',
                         imageOnly && 'wa-image-only',
-                        msg.is_internal && 'wa-whisper',
+                        isInternalNote && 'wa-whisper',
                         msg.uuid === requestedMessageId && 'ring-2 ring-ring',
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
-                      {msg.is_internal && !imageBubble && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
+                      {isInternalNote && !imageBubble && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
                         <div className="-ml-3 -mt-2 -mb-1 w-fit"><InternalVisibility /></div>
                       )}
                       {msg.approval_title && !msg.approval_plan && (
@@ -1546,13 +1549,13 @@ export function InboxView({
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
-                        <div key={a.id} className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}><AttachmentFile attachment={a} imagePreview internal={msg.is_internal === true} /></div>
+                        <div key={a.id} className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}><AttachmentFile attachment={a} imagePreview internal={isInternalNote} /></div>
                       ))}
                       {msg.attachment_url && !msg.attachments?.length && (
                         <div className={imageBubble ? 'wa-image-attachment' : undefined}>
                         <AttachmentFile
                           imagePreview
-                          internal={msg.is_internal === true}
+                          internal={isInternalNote}
                           attachment={{
                             id: msg.attachment_url,
                             name: msg.attachment_name || 'Customer file',

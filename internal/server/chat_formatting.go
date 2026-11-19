@@ -255,10 +255,17 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 		if m.AuthorType == "user" && m.AuthorID == "operator_user" {
 			regenerateID = decodeRegenerateReplyID(m.Content)
 		}
-		mention := extractMentionHandle(m.Content)
+		mention := ""
+		if senderType == "operator" {
+			mention = extractMentionHandle(m.Content)
+		}
 		isInternal := false
 		if isCustomer {
-			isInternal = customerMessageInternal(&m)
+			if senderType == "visitor" {
+				isInternal = false
+			} else {
+				isInternal = customerMessageInternal(&m)
+			}
 		}
 		messageContent := m.Content
 		replyDraft := ""

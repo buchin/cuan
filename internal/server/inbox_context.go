@@ -83,7 +83,11 @@ func (s *Server) inboxContext(ctx context.Context, q db.InboxRequest, reconcilia
 		if m.ID != q.MessageID && len(text) > 4000 {
 			text = append(text[:4000], []rune("… [truncated]")...)
 		}
-		entry, _ := json.Marshal(map[string]string{"id": m.ID, "author": m.AuthorType, "content": string(text)})
+		authorRole := m.AuthorType
+		if m.AuthorType == "user" && (strings.HasPrefix(m.AuthorName, "Visitor") || (m.AuthorID != "" && m.AuthorID != "operator_user" && m.AuthorName != "Owner" && m.AuthorName != "You")) {
+			authorRole = "visitor"
+		}
+		entry, _ := json.Marshal(map[string]string{"id": m.ID, "author": authorRole, "content": string(text)})
 		if m.ID != q.MessageID && len(entry) > budget {
 			continue
 		}
