@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -68,7 +69,11 @@ func (r *Runner) runNativeReleaseAttempt(ctx context.Context, claim ClaimTaskRes
 					req.ErrorMessage = "Native release process finished; independent production observation is still missing"
 				}
 			} else {
-				req.ErrorMessage = "Native release process did not finish successfully; current release must be reconciled before retrying"
+				if result.Error != "" {
+					req.ErrorMessage = fmt.Sprintf("Native release process did not finish successfully: %s; current release must be reconciled before retrying", result.Error)
+				} else {
+					req.ErrorMessage = "Native release process did not finish successfully; current release must be reconciled before retrying"
+				}
 			}
 		}
 		cancel()
