@@ -539,7 +539,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 			if approvalTitle != "" {
 				s.DispatchAgentUpdatePush(save, q.RoomID, reply.ID, reply.AuthorName, reply.Content, true)
 			} else if q.State == "completed" {
-				s.DispatchAgentUpdatePush(save, q.RoomID, reply.ID, reply.AuthorName, reply.Content, false)
+				if !isIntermediateRunnerMessage(reply.AuthorName, reply.Content) {
+					s.DispatchAgentUpdatePush(save, q.RoomID, reply.ID, reply.AuthorName, reply.Content, false)
+				}
 			}
 		}
 	}

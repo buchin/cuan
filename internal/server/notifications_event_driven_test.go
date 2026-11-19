@@ -370,6 +370,8 @@ func TestEventDrivenPush_QuietHoursAndNotificationPreferences(t *testing.T) {
 // 1. Sensitive secrets in message content are masked before push dispatch.
 // 2. Raw HTML tags are stripped.
 // 3. Messages exceeding limit are cleanly truncated.
+// 4. Markdown link syntax [text](url) is stripped to plain text.
+// 5. Markdown image syntax ![alt](url) is stripped to alt text.
 func TestPushPayload_SanitizationAndMasking(t *testing.T) {
 	rawSecretMsg := "Halo admin, token rahasia saya adalah sk-1234567890abcdef1234567890abcdef dan password rahasia123"
 	snippet := cleanNotificationSnippet(rawSecretMsg)
@@ -395,6 +397,39 @@ func TestPushPayload_SanitizationAndMasking(t *testing.T) {
 	}
 	if !strings.HasSuffix(longSnippet, "...") {
 		t.Errorf("expected ellipsis suffix, got: %s", longSnippet)
+	}
+
+	// Markdown link syntax: [text](url) → "text" (no raw URL or bracket syntax in body)
+	mdLinkMsg := "Rilis hasil yang diperiksa belum tuntas. [View work](/tasks/msg_7a60e50c-c4f3-4285)"
+	mdLinkSnippet := cleanNotificationSnippet(mdLinkMsg)
+	if strings.Contains(mdLinkSnippet, "[View work]") {
+		t.Errorf("markdown link bracket syntax must be stripped, got: %s", mdLinkSnippet)
+	}
+	if strings.Contains(mdLinkSnippet, "(/tasks/") {
+		t.Errorf("markdown link URL must be stripped from push body, got: %s", mdLinkSnippet)
+	}
+	if !strings.Contains(mdLinkSnippet, "View work") {
+		t.Errorf("markdown link text should be preserved in body, got: %s", mdLinkSnippet)
+	}
+	if !strings.Contains(mdLinkSnippet, "Rilis hasil") {
+		t.Errorf("text before markdown link should be preserved, got: %s", mdLinkSnippet)
+	}
+
+	// Markdown image syntax: ![alt](url) → "alt"
+	mdImgMsg := "Lihat screenshot: ![tampilan mobile](/ui/mobile.png) untuk detail."
+	mdImgSnippet := cleanNotificationSnippet(mdImgMsg)
+	if strings.Contains(mdImgSnippet, "![") || strings.Contains(mdImgSnippet, "(/ui/") {
+		t.Errorf("markdown image syntax must be stripped, got: %s", mdImgSnippet)
+	}
+	if !strings.Contains(mdImgSnippet, "tampilan mobile") {
+		t.Errorf("markdown image alt text should be preserved, got: %s", mdImgSnippet)
+	}
+
+	// Plain text without markdown must pass through unchanged (modulo whitespace/masking)
+	plainMsg := "Pekerjaan telah selesai dan aktif berjalan."
+	plainSnippet := cleanNotificationSnippet(plainMsg)
+	if plainSnippet != plainMsg {
+		t.Errorf("plain text must be preserved unchanged, got: %q", plainSnippet)
 	}
 }
 
@@ -643,5 +678,107 @@ func TestPushPayload_TaskReviewNotMisleading(t *testing.T) {
 	}
 	if !strings.Contains(payload2["body"], "siap ditinjau") {
 		t.Errorf("expected body to indicate ready for review, got %q", payload2["body"])
+	}
+}
+
+// TestPushNotification_FilterIntermediateRunnerEvents verifies that:
+// 1. Intermediate coordinator messages (e.g. from @cuan, or containing [View work] / review gap findings) do NOT trigger push.
+// 2. Inbox task intermediate states ('review' and 'blocked') do NOT trigger push via periodic dispatcher.
+// 3. Genuine conversational agent responses DO trigger push.
+// 4. Genuine task completion (DispatchTaskCompletedPush) DOES trigger push.
+// 5. Genuine approval requests (isApproval = true) DO trigger push.
+func TestPushNotification_FilterIntermediateRunnerEvents(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	roomID := "room-inbox-" + db.GenerateUUID()
+
+	// 1. Intermediate coordinator message with review finding & markdown task link must NOT dispatch push
+	coordMsg := "Rilis hasil yang diperiksa belum tuntas. [View work](/tasks/msg_7a60e50c-c4f3-4285)"
+	s.DispatchAgentUpdatePush(ctx, roomID, "msg-coord-1", "@cuan", coordMsg, false)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for coordinator review finding, got %d", spy.CallCount())
+	}
+
+	// 2. Intermediate queue progress message with [View work] must NOT dispatch push
+	queueMsg := "The work is queued waiting for the active project task to complete. I’ll start it automatically. [View work](/tasks/msg_123)"
+	s.DispatchAgentUpdatePush(ctx, roomID, "msg-queue-1", "Asisten AI", queueMsg, false)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for queue progress with [View work], got %d", spy.CallCount())
+	}
+
+	// 3. Inbox task with status 'review' in periodic dispatch must NOT be pushed
+	inboxTaskReview, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		Title:        "Phase 2: Draf Pesan & Pengiriman Batch Broadcast Email CRM",
+		Instructions: "Fixture instructions",
+		ProjectID:    "default",
+		SourceRoomID: roomID,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	reviewStatus := "review"
+	_, err = s.taskSvc.UpdateTask(ctx, inboxTaskReview.ID, "owner", task.UpdateTaskRequest{Status: &reviewStatus})
+	if err != nil {
+		t.Fatalf("update task: %v", err)
+	}
+
+	s.dispatchOwnerNotifications(ctx, ownerID)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for inbox task in 'review' state, got %d", spy.CallCount())
+	}
+
+	// 4. Inbox task with status 'blocked' in periodic dispatch must NOT be pushed
+	blockedStatus := "blocked"
+	_, err = s.taskSvc.UpdateTask(ctx, inboxTaskReview.ID, "owner", task.UpdateTaskRequest{Status: &blockedStatus})
+	if err != nil {
+		t.Fatalf("update task: %v", err)
+	}
+
+	s.dispatchOwnerNotifications(ctx, ownerID)
+	if spy.CallCount() != 0 {
+		t.Fatalf("expected 0 push calls for inbox task in 'blocked' state, got %d", spy.CallCount())
+	}
+
+	// 5. Genuine plan approval request (isApproval = true) MUST dispatch push
+	approvalPlanText := "Halo, berikut proposal rencana kerja:\n```cuan-approval\n{\"title\":\"Broadcast Email Phase 2\",\"description\":\"Kirim batch broadcast email\",\"project_id\":\"default\"}\n```"
+	s.DispatchAgentUpdatePush(ctx, roomID, "msg-approval-1", "Asisten AI", approvalPlanText, true)
+	if spy.CallCount() != 2 { // owner + member
+		t.Fatalf("expected 2 push calls for genuine approval request, got %d", spy.CallCount())
+	}
+
+	// Reset spy count
+	spy.mu.Lock()
+	spy.calls = 0
+	spy.mu.Unlock()
+
+	// 6. Genuine conversational agent reply (no [View work], no coordinator status) MUST dispatch push
+	chatReply := "Baik, kampanye broadcast email Anda sudah siap dijadwalkan."
+	s.DispatchAgentUpdatePush(ctx, roomID, "msg-chat-1", "Asisten AI", chatReply, false)
+	if spy.CallCount() != 2 {
+		t.Fatalf("expected 2 push calls for conversational agent completion, got %d", spy.CallCount())
+	}
+
+	// Reset spy count
+	spy.mu.Lock()
+	spy.calls = 0
+	spy.mu.Unlock()
+
+	// 7. Genuine task completion (TaskStatusDone) MUST dispatch push
+	doneTask := &task.Task{
+		ID:           inboxTaskReview.ID,
+		Title:        "Phase 2: Draf Pesan & Pengiriman Batch Broadcast Email CRM",
+		Status:       task.TaskStatusDone,
+		Summary:      "Broadcast email batch sending berhasil diselesaikan dan diverifikasi.",
+		SourceRoomID: roomID,
+	}
+	s.DispatchTaskCompletedPush(ctx, doneTask)
+	if spy.CallCount() != 2 {
+		t.Fatalf("expected 2 push calls for task completion, got %d", spy.CallCount())
 	}
 }

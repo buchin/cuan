@@ -106,26 +106,78 @@ func cleanNotificationSnippet(content string) string {
 		text, _ := decodeAttachmentMessage(content)
 		content = text
 	}
+	// Strip HTML tags and markdown link/image syntax in a single pass.
+	// HTML: <tag> → omitted
+	// Markdown links: [text](url) → text
+	// Markdown images: ![alt](url) → alt
 	var b strings.Builder
 	inTag := false
-	for _, r := range content {
+	i := 0
+	runes := []rune(content)
+	n := len(runes)
+	for i < n {
+		r := runes[i]
 		if r == '<' {
 			inTag = true
+			i++
 			continue
 		}
 		if r == '>' {
 			inTag = false
+			i++
 			continue
 		}
-		if !inTag {
-			b.WriteRune(r)
+		if inTag {
+			i++
+			continue
 		}
+		// Markdown image: ![alt](url) — skip the leading '!' before '['
+		imgPrefix := false
+		if r == '!' && i+1 < n && runes[i+1] == '[' {
+			imgPrefix = true
+			i++ // skip '!'
+			r = runes[i]
+		}
+		// Markdown link or image alt: [text](url)
+		if r == '[' {
+			// Scan for matching ']'
+			j := i + 1
+			depth := 1
+			for j < n && depth > 0 {
+				if runes[j] == '[' {
+					depth++
+				} else if runes[j] == ']' {
+					depth--
+				}
+				j++
+			}
+			// j now points one past ']'. Check if followed by '('
+			if depth == 0 && j < n && runes[j] == '(' {
+				// Find matching ')'
+				k := j + 1
+				for k < n && runes[k] != ')' {
+					k++
+				}
+				// Write the link text (between '[' and ']'), skip the '(url)' part
+				linkText := string(runes[i+1 : j-1])
+				b.WriteString(linkText)
+				i = k + 1 // skip past ')'
+				_ = imgPrefix
+				continue
+			}
+			// Not a valid markdown link — emit the '[' (and '!' if image prefix) literally
+			if imgPrefix {
+				b.WriteRune('!')
+			}
+		}
+		b.WriteRune(r)
+		i++
 	}
 	cleaned := strings.Join(strings.Fields(b.String()), " ")
 	cleaned = agent.MaskSecrets(cleaned, nil)
-	runes := []rune(cleaned)
-	if len(runes) > 100 {
-		return string(runes[:97]) + "..."
+	runesOut := []rune(cleaned)
+	if len(runesOut) > 100 {
+		return string(runesOut[:97]) + "..."
 	}
 	return cleaned
 }
@@ -531,6 +583,14 @@ func (s *Server) dispatchItemToStaff(ctx context.Context, staffID string, item o
 		if !sub.Since.IsZero() && item.At.Before(sub.Since.Add(-1*time.Minute)) {
 			continue
 		}
+		// Filter out intermediate/internal runner task progress from push notifications:
+		// Task review is an internal coordinator/verifier check, not a user approval.
+		// Task blocked on an inbox-linked task is internal coordinator retry/recovery.
+		if strings.HasPrefix(item.ID, "task:") && strings.Contains(item.Href, "/inbox/") {
+			if strings.Contains(item.ID, ":review:") || strings.Contains(item.ID, ":blocked:") {
+				continue
+			}
+		}
 		code, err := sendOwnerPush(ctx, p, sub.Subscription, item)
 		if err != nil {
 			continue
@@ -640,9 +700,37 @@ func isIgnoredAgentPushContent(content string) bool {
 	return false
 }
 
+// isIntermediateRunnerMessage checks if a chat message is an internal coordination,
+// task runner progress update, review finding, or queue status that should not be pushed to the user.
+func isIntermediateRunnerMessage(authorName, content string) bool {
+	trimmedAuthor := strings.TrimSpace(authorName)
+	if trimmedAuthor == "@cuan" || trimmedAuthor == "coordinator" {
+		return true
+	}
+	if strings.Contains(content, "/tasks/") || strings.Contains(content, "[View work]") || strings.Contains(content, "[Tinjau rincian") {
+		return true
+	}
+	lower := strings.ToLower(content)
+	if strings.Contains(lower, "rilis hasil yang diperiksa belum tuntas") ||
+		strings.Contains(lower, "bukti rilis hasil pekerjaan belum lengkap") ||
+		strings.Contains(lower, "the work is queued waiting") ||
+		strings.Contains(lower, "cuan memeriksa hasil pekerjaan") ||
+		strings.Contains(lower, "hasil kode tersimpan") ||
+		strings.Contains(lower, "pekerjaan dalam antrean") ||
+		strings.Contains(lower, "pekerjaan telah dihentikan") ||
+		strings.Contains(lower, "keputusan review belum tersimpan") ||
+		strings.Contains(lower, "hasil perubahan sudah diperiksa secara independen") ||
+		strings.Contains(lower, "hasil dan bukti tersimpan") ||
+		strings.Contains(lower, "hasil belum bisa ditandai diterima") ||
+		strings.Contains(lower, "approval for the next phase could not be verified") {
+		return true
+	}
+	return isIgnoredAgentPushContent(content)
+}
+
 // DispatchAgentUpdatePush sends an instant push notification for agent completions or approvals needed.
 func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID, authorName, content string, isApproval bool) {
-	if isIgnoredAgentPushContent(content) {
+	if !isApproval && (isIgnoredAgentPushContent(content) || isIntermediateRunnerMessage(authorName, content)) {
 		return
 	}
 	agentName := strings.TrimSpace(authorName)
@@ -708,7 +796,7 @@ func (s *Server) DispatchTaskCompletedPush(ctx context.Context, t *task.Task) {
 	}
 	summary := "Pekerjaan telah selesai dan aktif berjalan."
 	if strings.TrimSpace(t.Summary) != "" {
-		summary = t.Summary
+		summary = cleanNotificationSnippet(t.Summary)
 	}
 
 	item := ownerNotification{
@@ -773,6 +861,14 @@ func (s *Server) dispatchOwnerNotifications(ctx context.Context, owner string) {
 			}
 			if item.Read || item.Resolved || sub.Sent[item.ID] || (tag != "" && sub.Sent[tag]) || !item.At.After(sub.Since) || time.Since(item.At) > 24*time.Hour || !enabledNotification(p.Notifications, item.Kind) {
 				continue
+			}
+			// Filter out intermediate/internal runner task progress from push notifications:
+			// Task review is an internal coordinator/verifier check, not a user approval.
+			// Task blocked on an inbox-linked task is internal coordinator retry/recovery.
+			if strings.HasPrefix(item.ID, "task:") && strings.Contains(item.Href, "/inbox/") {
+				if strings.Contains(item.ID, ":review:") || strings.Contains(item.ID, ":blocked:") {
+					continue
+				}
 			}
 			code, e := sendOwnerPush(ctx, p, sub.Subscription, item)
 			if e != nil {
