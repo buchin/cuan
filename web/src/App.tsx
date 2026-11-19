@@ -837,9 +837,9 @@ export function App() {
           currentTab === 'notifications' ||
           projectDetail ||
           (currentTab === 'inbox' && (!!subParam || isMobileChatActive)) ||
-          (currentTab === 'contacts' && !!new URLSearchParams(location.search).get('contact')) ||
+          (currentTab === 'contacts' && (!!new URLSearchParams(location.search).get('contact') || new URLSearchParams(location.search).get('view') === 'broadcast')) ||
           ((currentTab === 'settings' || currentTab === 'account') && subParam !== 'contacts') ||
-          (currentTab === 'account' && subParam === 'contacts' && !!new URLSearchParams(location.search).get('contact'))
+          (currentTab === 'account' && subParam === 'contacts' && (!!new URLSearchParams(location.search).get('contact') || new URLSearchParams(location.search).get('view') === 'broadcast'))
             ? undefined
             : {
                 label:
