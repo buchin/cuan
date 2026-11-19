@@ -437,3 +437,47 @@ export async function retryInboxRequest(conversationId: string, requestId: strin
     { method: 'POST' },
   )
 }
+
+export interface SendCustomerEmailPayload {
+  recipient?: string
+  subject?: string
+  draft?: string
+  content?: string
+  idempotency_key?: string
+}
+
+export interface SendCustomerEmailResponse {
+  status: string
+  email_id: string
+  delivery_status: string
+  recipient?: string
+  message?: string
+  already_sent?: boolean
+}
+
+export async function sendCustomerReplyEmail(
+  conversationId: string,
+  messageId: string,
+  payload: SendCustomerEmailPayload = {}
+): Promise<SendCustomerEmailResponse> {
+  return apiFetch<SendCustomerEmailResponse>(
+    `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/email`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export async function sendConversationEmail(
+  conversationId: string,
+  payload: SendCustomerEmailPayload & { message_id?: string }
+): Promise<SendCustomerEmailResponse> {
+  return apiFetch<SendCustomerEmailResponse>(
+    `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/send-email`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
+}
