@@ -705,5 +705,6 @@
   "Files will be uploaded and path inserted": "Files will be uploaded and path inserted",
   "Uploading file to workspace…": "Uploading file to workspace…",
   "File uploaded to workspace": "File uploaded to workspace",
-  "Failed to upload file to workspace": "Failed to upload file to workspace"
+  "Failed to upload file to workspace": "Failed to upload file to workspace",
+  "Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?": "There are {{count}} active tasks running in the background. Cancel running tasks and resolve conversation?"
 }

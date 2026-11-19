@@ -22,8 +22,9 @@ func (s *Server) handleConversationResolution(w http.ResponseWriter, r *http.Req
 		return
 	}
 	var req struct {
-		Resolved   *bool      `json:"resolved"`
-		ObservedAt *time.Time `json:"observed_at"`
+		Resolved         *bool      `json:"resolved"`
+		ObservedAt       *time.Time `json:"observed_at"`
+		CancelUnfinished *bool      `json:"cancel_unfinished"`
 	}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 	decoder.DisallowUnknownFields()
@@ -40,7 +41,15 @@ func (s *Server) handleConversationResolution(w http.ResponseWriter, r *http.Req
 	var at *time.Time
 	if *req.Resolved {
 		now := time.Now().UTC()
-		if req.ObservedAt == nil || req.ObservedAt.IsZero() || req.ObservedAt.After(now) {
+		if req.CancelUnfinished != nil && *req.CancelUnfinished {
+			if req.ObservedAt == nil || req.ObservedAt.IsZero() || req.ObservedAt.After(now) {
+				req.ObservedAt = &now
+			}
+			if err := s.cancelUnfinishedConversationTasks(r.Context(), id); err != nil {
+				respondJSONError(w, 500, "Could not cancel unfinished conversation tasks")
+				return
+			}
+		} else if req.ObservedAt == nil || req.ObservedAt.IsZero() || req.ObservedAt.After(now) {
 			respondJSONError(w, 400, "Review the latest conversation before resolving it")
 			return
 		}
@@ -149,4 +158,58 @@ func (s *Server) resolutionTaskStatus(ctx context.Context, item *task.Task) (str
 		attempt = latest.Status
 	}
 	return task.EffectiveStatus(item.Status, attempt, ""), nil
+}
+
+// cancelUnfinishedConversationTasks cancels any unfinished tasks, attempts, and requests
+// linked to this room so that a user who considers the issue no longer relevant can resolve
+// the conversation cleanly without cognitive friction.
+func (s *Server) cancelUnfinishedConversationTasks(ctx context.Context, id string) error {
+	now := time.Now().UTC()
+	items, err := s.taskSvc.Store().ListTasks(ctx, task.TaskFilter{SourceRoomID: id})
+	if err == nil {
+		for _, item := range items {
+			status, _ := s.resolutionTaskStatus(ctx, item)
+			if status != "done" && status != "cancelled" && status != "canceled" {
+				attempts, _ := s.taskSvc.Store().ListAttempts(ctx, item.ID)
+				for _, attempt := range attempts {
+					if attempt.Status == "queued" || attempt.Status == "running" {
+						_, _ = s.taskSvc.CancelTask(ctx, item.ID, "user")
+						break
+					}
+				}
+				item.Status = "cancelled"
+				item.UpdatedAt = now
+				_ = s.taskSvc.Store().UpdateTask(ctx, item)
+				for _, attempt := range attempts {
+					if attempt.Status != "succeeded" && attempt.Status != "canceled" && attempt.Status != "cancelled" {
+						attempt.Status = "canceled"
+						attempt.CancelRequested = true
+						attempt.CanceledAt = &now
+						attempt.FinishedAt = &now
+						_ = s.taskSvc.Store().UpdateAttempt(ctx, attempt)
+					}
+				}
+			}
+		}
+	}
+	legacy, err := s.projectStudioRepo.ListTasksByRoomID(ctx, id)
+	if err == nil {
+		for _, item := range legacy {
+			if item.Status != "done" && item.Status != "cancelled" && item.Status != "canceled" {
+				item.Status = "cancelled"
+				_ = s.projectStudioRepo.UpdateTask(ctx, &item)
+			}
+		}
+	}
+	if store, ok := s.projectStudioRepo.(db.InboxLifecycleRepository); ok {
+		requests, err := store.ListInboxRequests(ctx, id)
+		if err == nil {
+			for _, request := range requests {
+				if request.State == "queued" || request.State == "running" {
+					_, _ = store.CancelInboxRequest(ctx, id, request.RequestID)
+				}
+			}
+		}
+	}
+	return nil
 }

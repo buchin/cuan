@@ -1872,6 +1872,7 @@
   "No resolved conversations.": "Belum ada percakapan tuntas.",
   "Inbox zero. Nothing needs attention.": "Inbox bersih. Semua sudah ditangani.",
   "Finish or cancel the remaining tasks before resolving this conversation": "Selesaikan atau batalkan sisa pekerjaan sebelum menuntaskan percakapan",
+  "Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?": "Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?",
   "Could not save conversation status": "Status percakapan belum tersimpan",
   "unresolved conversations": "percakapan belum tuntas",
   "Resolve conversations": "Tuntaskan percakapan",
