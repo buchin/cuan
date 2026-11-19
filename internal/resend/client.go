@@ -76,13 +76,14 @@ func NewClient(apiKey string, opts ...ClientOption) *HTTPClient {
 
 // EmailRequest represents a payload for sending an email via Resend.
 type EmailRequest struct {
-	IdempotencyKey string   `json:"-"`
-	From           string   `json:"from"`
-	To             []string `json:"to"`
-	Subject        string   `json:"subject"`
-	HTML           string   `json:"html,omitempty"`
-	Text           string   `json:"text,omitempty"`
-	ReplyTo        string   `json:"reply_to,omitempty"`
+	IdempotencyKey string            `json:"-"`
+	From           string            `json:"from"`
+	To             []string          `json:"to"`
+	Subject        string            `json:"subject"`
+	HTML           string            `json:"html,omitempty"`
+	Text           string            `json:"text,omitempty"`
+	ReplyTo        string            `json:"reply_to,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"`
 }
 
 // EmailResponse represents the response from Resend's send email endpoint.

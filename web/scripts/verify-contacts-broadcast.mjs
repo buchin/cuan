@@ -181,6 +181,8 @@ try {
     const errors = []
     page.on('pageerror', (err) => errors.push(err.stack || err.message))
 
+    let lastBroadcastSendPayload = null
+
     await page.route('**/api/**', async (route) => {
       const url = new URL(route.request().url())
       const pathname = url.pathname
@@ -197,6 +199,22 @@ try {
       }
       if (pathname === '/api/v1/contacts/broadcast/audience') {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(audienceResult) })
+      }
+      if (pathname === '/api/v1/contacts/broadcast/send') {
+        lastBroadcastSendPayload = JSON.parse(route.request().postData())
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            status: 'success',
+            total_recipients: 3,
+            sent_count: 3,
+            failed_count: 0,
+            idempotency_key: lastBroadcastSendPayload.idempotency_key,
+            already_sent: false,
+            message: 'Berhasil mengirim broadcast ke 3 penerima',
+          }),
+        })
       }
       if (pathname === '/api/v1/contacts') {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contacts: mockContacts }) })
@@ -240,12 +258,47 @@ try {
     await broadcastPanel.getByText(/penerima unik/).waitFor({ state: 'visible', timeout: 10000 })
     await broadcastPanel.getByText('alice@example.com').waitFor({ state: 'visible', timeout: 10000 })
 
-    const screenshotPath = path.join(
+    // Fill message subject and content (Phase 2 composer)
+    const subjectInput = page.locator('#broadcast-subject-input')
+    await subjectInput.waitFor({ state: 'visible', timeout: 5000 })
+    await subjectInput.fill('Pembaruan Fitur Terkini & Komunitas')
+
+    const contentTextarea = page.locator('#broadcast-content-textarea')
+    await contentTextarea.waitFor({ state: 'visible', timeout: 5000 })
+    await contentTextarea.fill('Halo semuanya,\n\nTerima kasih telah mendukung kami. Berikut rangkuman pembaruan penting rilis terbaru.\n\nSalam,\nTim Cuan')
+
+    // Verify RFC 8058 standard notice is visible
+    await broadcastPanel.getByText(/List-Unsubscribe \(RFC 8058\)/).waitFor({ state: 'visible', timeout: 5000 })
+
+    // Capture pre-send screenshot showing composer and preview
+    const preScreenshotPath = path.join(
       outputDir,
       `broadcast-${isMobile ? 'mobile-390' : 'desktop-1440'}.png`,
     )
-    await page.screenshot({ path: screenshotPath, fullPage: false })
-    console.log(`Saved screenshot: ${screenshotPath}`)
+    await page.screenshot({ path: preScreenshotPath, fullPage: false })
+    console.log(`Saved screenshot: ${preScreenshotPath}`)
+
+    // Click 1-tap Send Broadcast button
+    const sendButton = page.locator('#send-broadcast-button')
+    await sendButton.waitFor({ state: 'visible', timeout: 5000 })
+    await sendButton.click()
+
+    // Wait for delivery success status indicator
+    await broadcastPanel.getByText(/Sukses terkirim ke 3 penerima/).waitFor({ state: 'visible', timeout: 10000 })
+
+    // Verify sent payload captured by mock
+    assert.ok(lastBroadcastSendPayload, 'broadcast send payload must be captured')
+    assert.equal(lastBroadcastSendPayload.subject, 'Pembaruan Fitur Terkini & Komunitas')
+    assert.ok(lastBroadcastSendPayload.idempotency_key, 'idempotency_key must be present')
+    assert.ok(lastBroadcastSendPayload.tags.includes('backer'), 'tags must include backer')
+
+    // Capture post-send screenshot showing success state
+    const sentScreenshotPath = path.join(
+      outputDir,
+      `broadcast-sent-${isMobile ? 'mobile-390' : 'desktop-1440'}.png`,
+    )
+    await page.screenshot({ path: sentScreenshotPath, fullPage: false })
+    console.log(`Saved screenshot: ${sentScreenshotPath}`)
 
     assert.equal(errors.length, 0, `Page errors encountered: ${errors.join(', ')}`)
     await context.close()
