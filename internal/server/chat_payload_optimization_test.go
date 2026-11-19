@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -127,4 +128,101 @@ func TestChatMessagesPayloadOptimization_PrunesOldCompletedSteps(t *testing.T) {
 	if req3 == nil || len(req3.Steps) != 2 {
 		t.Errorf("expected req-3 (running active) to preserve steps, got %d steps", len(req3.Steps))
 	}
+}
+
+func TestChatMessages_GetFormattedMessagesResultPaged(t *testing.T) {
+	srv, _ := setupTestChatServer(t)
+	repo := cuanDB.NewMemoryProjectStudioRepository()
+	srv.SetProjectStudioRepository(repo)
+
+	roomID := "660e8400-e29b-41d4-a716-446655440000"
+	_ = repo.CreateRoom(context.Background(), &cuanDB.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Paging Room",
+	})
+
+	var msgIDs []string
+	for i := 1; i <= 10; i++ {
+		id := "00000000-0000-0000-0000-" + format12Digit(i)
+		msgIDs = append(msgIDs, id)
+		_ = repo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+			ID:         id,
+			RoomID:     roomID,
+			AuthorType: "user",
+			Content:    "Message " + format12Digit(i),
+		})
+	}
+
+	ctx := context.Background()
+
+	// 1. Fetch latest page of 3
+	page1, hasMore1, err := srv.getFormattedMessagesResultPaged(ctx, roomID, "", 3, "")
+	if err != nil {
+		t.Fatalf("page 1 failed: %v", err)
+	}
+	if len(page1) != 3 {
+		t.Fatalf("expected 3 items in page 1, got %d", len(page1))
+	}
+	if !hasMore1 {
+		t.Errorf("expected hasMore1 = true")
+	}
+	if page1[0].ID != 8 || page1[1].ID != 9 || page1[2].ID != 10 {
+		t.Errorf("expected IDs 8, 9, 10, got %d, %d, %d", page1[0].ID, page1[1].ID, page1[2].ID)
+	}
+	if page1[0].UUID != msgIDs[7] || page1[2].UUID != msgIDs[9] {
+		t.Errorf("mismatched UUIDs in page 1")
+	}
+
+	// 2. Fetch page before message 8
+	page2, hasMore2, err := srv.getFormattedMessagesResultPaged(ctx, roomID, "", 3, msgIDs[7])
+	if err != nil {
+		t.Fatalf("page 2 failed: %v", err)
+	}
+	if len(page2) != 3 {
+		t.Fatalf("expected 3 items in page 2, got %d", len(page2))
+	}
+	if !hasMore2 {
+		t.Errorf("expected hasMore2 = true")
+	}
+	if page2[0].ID != 5 || page2[1].ID != 6 || page2[2].ID != 7 {
+		t.Errorf("expected IDs 5, 6, 7, got %d, %d, %d", page2[0].ID, page2[1].ID, page2[2].ID)
+	}
+
+	// 3. Fetch page before message 2 (boundary reaching top)
+	page3, hasMore3, err := srv.getFormattedMessagesResultPaged(ctx, roomID, "", 3, msgIDs[1])
+	if err != nil {
+		t.Fatalf("page 3 failed: %v", err)
+	}
+	if len(page3) != 1 {
+		t.Fatalf("expected 1 item in page 3, got %d", len(page3))
+	}
+	if hasMore3 {
+		t.Errorf("expected hasMore3 = false when reaching start")
+	}
+	if page3[0].ID != 1 {
+		t.Errorf("expected ID 1, got %d", page3[0].ID)
+	}
+
+	// 4. Fetch all (limit = 0)
+	pageAll, hasMoreAll, err := srv.getFormattedMessagesResultPaged(ctx, roomID, "", 0, "")
+	if err != nil {
+		t.Fatalf("page all failed: %v", err)
+	}
+	if len(pageAll) != 10 {
+		t.Fatalf("expected 10 items in page all, got %d", len(pageAll))
+	}
+	if hasMoreAll {
+		t.Errorf("expected hasMoreAll = false")
+	}
+	for i, m := range pageAll {
+		if m.ID != int64(i+1) {
+			t.Errorf("expected msg[%d].ID = %d, got %d", i, i+1, m.ID)
+		}
+	}
+}
+
+func format12Digit(n int) string {
+	s := "000000000000" + fmt.Sprintf("%d", n)
+	return s[len(s)-12:]
 }

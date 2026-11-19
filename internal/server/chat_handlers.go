@@ -241,12 +241,6 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			return
 		}
 	}
-	messages, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, product)
-	if err != nil {
-		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
-		return
-	}
-
 	limit := 50
 	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
@@ -265,31 +259,10 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		beforeID = strings.TrimSpace(r.URL.Query().Get("before"))
 	}
 
-	hasMore := false
-	if limit > 0 && len(messages) > limit {
-		if beforeID != "" {
-			idx := -1
-			for i, m := range messages {
-				if m.UUID == beforeID || strconv.FormatInt(m.ID, 10) == beforeID {
-					idx = i
-					break
-				}
-			}
-			if idx > 0 {
-				start := idx - limit
-				if start < 0 {
-					start = 0
-				}
-				hasMore = start > 0
-				messages = messages[start:idx]
-			} else {
-				hasMore = false
-				messages = []ChatMessageDTO{}
-			}
-		} else {
-			hasMore = len(messages) > limit
-			messages = messages[len(messages)-limit:]
-		}
+	messages, hasMore, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, product, limit, beforeID)
+	if err != nil {
+		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
+		return
 	}
 
 	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID, requests)
