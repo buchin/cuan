@@ -82,6 +82,10 @@ func TestClient_SendEmail(t *testing.T) {
 			Subject:        "Notifikasi Live Chat",
 			HTML:           "<p>Halo ada pesan baru</p>",
 			Text:           "Halo ada pesan baru",
+			Headers: map[string]string{
+				"List-Unsubscribe":      "<https://app.cuan.work/unsubscribe?token=abc>",
+				"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+			},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -94,6 +98,9 @@ func TestClient_SendEmail(t *testing.T) {
 		}
 		if receivedReq.From != "Cuan Support <support@cuan.id>" {
 			t.Errorf("expected sender %s, got %s", "Cuan Support <support@cuan.id>", receivedReq.From)
+		}
+		if receivedReq.Headers["List-Unsubscribe-Post"] != "List-Unsubscribe=One-Click" {
+			t.Errorf("expected List-Unsubscribe-Post header to be passed, got %v", receivedReq.Headers)
 		}
 	})
 

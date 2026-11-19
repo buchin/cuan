@@ -140,3 +140,88 @@ test('3. Backend: Route registration and strict audience resolver invariants', (
     'Backend response must include breakdown of CRMCount and CustomCount'
   )
 })
+
+test('4. Phase 2 UI: Message composer, 1-tap confirmation, and delivery status indicators', () => {
+  const broadcastPanelSrc = fs.readFileSync(broadcastPanelPath, 'utf8')
+
+  // Subject and Content inputs
+  assert.ok(
+    broadcastPanelSrc.includes('broadcast-subject-input'),
+    'BroadcastAudiencePanel must have broadcast subject input field'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('broadcast-content-textarea'),
+    'BroadcastAudiencePanel must have broadcast message content textarea'
+  )
+
+  // Standard RFC 8058 & Unsubscribe notification in UI
+  assert.ok(
+    broadcastPanelSrc.includes('List-Unsubscribe (RFC 8058)'),
+    'BroadcastAudiencePanel must explain automatic RFC 8058 unsubscribe header embedding'
+  )
+
+  // 1-tap send button with idempotency protection
+  assert.ok(
+    broadcastPanelSrc.includes('send-broadcast-button'),
+    'BroadcastAudiencePanel must feature send-broadcast-button'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('/api/v1/contacts/broadcast/send'),
+    'BroadcastAudiencePanel must dispatch POST to /api/v1/contacts/broadcast/send'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('idempotencyKeyRef'),
+    'BroadcastAudiencePanel must maintain client-side idempotency key'
+  )
+
+  // Status indicators: sending, success, errors
+  assert.ok(
+    broadcastPanelSrc.includes('Sedang mengirim broadcast…'),
+    'BroadcastAudiencePanel must display sending in-progress indicator'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('Sukses terkirim ke'),
+    'BroadcastAudiencePanel must display transparent success indicator with sent count'
+  )
+})
+
+test('5. Phase 2 Backend: Batch sending, idempotency protection, and RFC 8058 unsubscribe endpoints', () => {
+  const routesInboxSrc = fs.readFileSync(routesInboxPath, 'utf8')
+  const crmBroadcastSrc = fs.readFileSync(crmBroadcastPath, 'utf8')
+
+  // Batch send route registered under protected router
+  assert.ok(
+    routesInboxSrc.includes('pr.Post("/contacts/broadcast/send", s.handleBroadcastSend)'),
+    'Batch send endpoint must be mounted on POST /contacts/broadcast/send'
+  )
+
+  // Public RFC 8058 unsubscribe endpoints
+  assert.ok(
+    routesInboxSrc.includes('r.Get("/api/v1/contacts/broadcast/unsubscribe", s.handleBroadcastUnsubscribe)'),
+    'Unsubscribe GET endpoint must be mounted on /api/v1/contacts/broadcast/unsubscribe'
+  )
+  assert.ok(
+    routesInboxSrc.includes('r.Post("/api/v1/contacts/broadcast/unsubscribe", s.handleBroadcastUnsubscribe)'),
+    'Unsubscribe POST endpoint (RFC 8058) must be mounted on /api/v1/contacts/broadcast/unsubscribe'
+  )
+
+  // In-flight locking and idempotency cache
+  assert.ok(
+    crmBroadcastSrc.includes('sentBroadcastCache'),
+    'Backend must maintain sent broadcast cache for duplicate protection'
+  )
+  assert.ok(
+    crmBroadcastSrc.includes('inFlightBroadcasts'),
+    'Backend must maintain in-flight concurrency lock'
+  )
+
+  // RFC 8058 headers
+  assert.ok(
+    crmBroadcastSrc.includes('"List-Unsubscribe"'),
+    'Backend must embed List-Unsubscribe header'
+  )
+  assert.ok(
+    crmBroadcastSrc.includes('"List-Unsubscribe-Post": "List-Unsubscribe=One-Click"'),
+    'Backend must embed RFC 8058 List-Unsubscribe-Post header'
+  )
+})
