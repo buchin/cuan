@@ -225,8 +225,12 @@ export function InboxView({
       const loaded = latestLoaded.current
       if (loaded) markConversationSeen(loaded.id, loaded.messages)
     }
+    window.addEventListener('focus', visible)
     document.addEventListener('visibilitychange', visible)
-    return () => document.removeEventListener('visibilitychange', visible)
+    return () => {
+      window.removeEventListener('focus', visible)
+      document.removeEventListener('visibilitychange', visible)
+    }
   }, [])
 
   const followTail = useRef(true)
@@ -512,7 +516,7 @@ export function InboxView({
   }, [activeContact?.type])
 
   // Mobile Single-View WhatsApp/Telegram state: 'contacts' | 'chat'
-  const [mobileView, setMobileView] = useState<'contacts' | 'chat'>('contacts')
+  const [mobileView, setMobileView] = useState<'contacts' | 'chat'>(() => activeContact ? 'chat' : 'contacts')
 
   useEffect(() => {
     setMobileView(activeContact ? 'chat' : 'contacts')
@@ -584,14 +588,28 @@ export function InboxView({
           return next
         })
         if (data.tasks) cacheTasks(data.tasks)
-        if (data.contact?.name && activeContact && activeContact.name !== data.contact.name) {
-          activeContact.name = data.contact.name
-          window.dispatchEvent(
-            new CustomEvent('cuan-conversation-updated', {
-              detail: { roomId: convId, title: data.contact.name },
-            }),
-          )
-          onContactUpdated?.()
+        if (data.contact && activeContact) {
+          let updatedMeta = false
+          if (data.contact.name && activeContact.name !== data.contact.name) {
+            activeContact.name = data.contact.name
+            updatedMeta = true
+            window.dispatchEvent(
+              new CustomEvent('cuan-conversation-updated', {
+                detail: { roomId: convId, title: data.contact.name },
+              }),
+            )
+          }
+          if (data.contact.type && activeContact.type !== data.contact.type) {
+            activeContact.type = data.contact.type
+            updatedMeta = true
+          }
+          if (data.contact.avatar && activeContact.avatar !== data.contact.avatar) {
+            activeContact.avatar = data.contact.avatar
+            updatedMeta = true
+          }
+          if (updatedMeta) {
+            onContactUpdated?.()
+          }
         }
         if (activeContact && data.tasks) {
           const states = data.tasks.map(task => task.status === 'done' ? 'Completed' : workStatus(task))
@@ -896,15 +914,31 @@ export function InboxView({
     const poll = setInterval(() => {
       if (!connected) void loadConversation(convId)
     }, 10000)
-    const visible = () => {
-      if (document.visibilityState === 'visible') void loadConversation(convId)
+    const onFocusOrResume = () => {
+      if (document.visibilityState === 'visible') {
+        void loadConversation(convId)
+        if (!connected) {
+          clearTimeout(retry)
+          void connect()
+        }
+      }
     }
-    document.addEventListener('visibilitychange', visible)
+    const onNotificationNavigate = (e: Event) => {
+      const custom = e as CustomEvent<{ href?: string }>
+      if (custom?.detail?.href && custom.detail.href.includes(convId)) {
+        void loadConversation(convId, true)
+      }
+    }
+    window.addEventListener('focus', onFocusOrResume)
+    document.addEventListener('visibilitychange', onFocusOrResume)
+    window.addEventListener('cuan:notification-navigate', onNotificationNavigate)
     return () => {
       abort.abort()
       clearTimeout(retry)
       clearInterval(poll)
-      document.removeEventListener('visibilitychange', visible)
+      window.removeEventListener('focus', onFocusOrResume)
+      document.removeEventListener('visibilitychange', onFocusOrResume)
+      window.removeEventListener('cuan:notification-navigate', onNotificationNavigate)
     }
   }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
 

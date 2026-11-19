@@ -48,9 +48,10 @@ export function useMessageReceipts(room: string | undefined, enabled: boolean, m
       const el = document.querySelector(`[data-message-id="${CSS.escape(m.uuid!)}"]`)
       if (el) observer.observe(el)
     }
+    window.addEventListener('focus', acknowledgeVisible)
     document.addEventListener('visibilitychange', acknowledgeVisible)
     void flush()
     const retry = window.setInterval(() => void flush(), 3500)
-    return () => { stopped = true; observer.disconnect(); clearInterval(retry); document.removeEventListener('visibilitychange', acknowledgeVisible) }
+    return () => { stopped = true; observer.disconnect(); clearInterval(retry); window.removeEventListener('focus', acknowledgeVisible); document.removeEventListener('visibilitychange', acknowledgeVisible) }
   }, [room, enabled, messages])
 }

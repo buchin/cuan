@@ -443,3 +443,63 @@ func TestEventDrivenPush_InboxLifecycleEndToEnd(t *testing.T) {
 		t.Fatalf("expected at least 2 push calls on inbox goal completion, got %d", spy.CallCount())
 	}
 }
+
+// TestPushPayload_HrefPreservationAndRouting verifies that buildPushPayload
+// preserves explicit task/project/inbox deep links and routes empty Href fallbacks accurately.
+func TestPushPayload_HrefPreservationAndRouting(t *testing.T) {
+	// Case 1: Explicit task deep link must NOT be rewritten to /inbox/<task_id>
+	taskNotification := ownerNotification{
+		ID:    "task:task-abc-123:done:attempt1",
+		Kind:  "completed",
+		Title: "Penyelesaian Tugas",
+		Href:  "/tasks/task-abc-123",
+	}
+	payload1 := buildPushPayload(taskNotification)
+	if payload1["href"] != "/tasks/task-abc-123" {
+		t.Errorf("expected href '/tasks/task-abc-123', got %q", payload1["href"])
+	}
+
+	// Case 2: Explicit project task deep link must be preserved
+	projTaskNotification := ownerNotification{
+		ID:    "task:task-xyz-789:review:attempt2",
+		Kind:  "approval",
+		Title: "Review Required",
+		Href:  "/projects/proj-1/tasks/task-xyz-789",
+	}
+	payload2 := buildPushPayload(projTaskNotification)
+	if payload2["href"] != "/projects/proj-1/tasks/task-xyz-789" {
+		t.Errorf("expected href '/projects/proj-1/tasks/task-xyz-789', got %q", payload2["href"])
+	}
+
+	// Case 3: Conversation room deep link preserved
+	roomNotification := ownerNotification{
+		ID:    "request:room-555:req-1",
+		Kind:  "blocker",
+		Title: "Reply could not finish",
+		Href:  "/inbox/room-555",
+	}
+	payload3 := buildPushPayload(roomNotification)
+	if payload3["href"] != "/inbox/room-555" {
+		t.Errorf("expected href '/inbox/room-555', got %q", payload3["href"])
+	}
+
+	// Case 4: Empty Href on task tag falls back to /tasks/<task_id>
+	emptyTaskNotification := ownerNotification{
+		ID:   "task:task-fallback-999:blocked:attempt1",
+		Kind: "blocker",
+	}
+	payload4 := buildPushPayload(emptyTaskNotification)
+	if payload4["href"] != "/tasks/task-fallback-999" {
+		t.Errorf("expected fallback href '/tasks/task-fallback-999', got %q", payload4["href"])
+	}
+
+	// Case 5: Empty Href on agent tag falls back to /inbox/<room_id>
+	emptyAgentNotification := ownerNotification{
+		ID:   "approval:room-agent-777:msg-1",
+		Kind: "approval",
+	}
+	payload5 := buildPushPayload(emptyAgentNotification)
+	if payload5["href"] != "/inbox/room-agent-777" {
+		t.Errorf("expected fallback href '/inbox/room-agent-777', got %q", payload5["href"])
+	}
+}

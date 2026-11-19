@@ -62,8 +62,15 @@ self.addEventListener('notificationclick', event => {
           if ('focus' in client) {
             await client.focus()
           }
+          if ('postMessage' in client) {
+            client.postMessage({
+              type: 'cuan:notification-click',
+              href: targetHref,
+              url: fullUrl,
+            })
+          }
           if ('navigate' in client && client.url !== fullUrl) {
-            await client.navigate(fullUrl)
+            await client.navigate(fullUrl).catch(() => {})
           }
           return
         }

@@ -353,18 +353,52 @@ export function App() {
   // Read the visible conversation directly from the URL. Back/forward and
   // responsive list mode cannot race against an effect restoring old selection.
   const wide = useMediaQuery('(min-width: 1200px)')
-  const visibleContact =
-    subParam && (rootSegment === 'inbox' || rootSegment === 'chat')
-      ? contacts.find(
-          (c) =>
-            c.conversation_id === subParam ||
-            c.id === subParam ||
-            c.id === 'contact_' + subParam ||
-            c.name.toLowerCase() === subParam.toLowerCase(),
+  const visibleContact = useMemo(() => {
+    if (subParam && (rootSegment === 'inbox' || rootSegment === 'chat')) {
+      const found = contacts.find(
+        (c) =>
+          c.conversation_id === subParam ||
+          c.id === subParam ||
+          c.id === 'contact_' + subParam ||
+          c.id === 'topic_' + subParam ||
+          c.id === 'cust_' + subParam ||
+          c.name.toLowerCase() === subParam.toLowerCase(),
+      )
+      if (found) return found
+      // Fallback placeholder contact derived from subParam so deep-links directly render chat and load messages
+      return {
+        id: subParam,
+        conversation_id: subParam,
+        name: 'Conversation',
+        type: 'agent' as const,
+        avatar: '',
+        unread_count: 0,
+        status: 'online' as const,
+        updated_at: new Date().toISOString(),
+      }
+    }
+    return wide && rootSegment === 'inbox'
+      ? contacts.find((c) => c.id === activeContact?.id) || contacts[0]
+      : undefined
+  }, [subParam, rootSegment, contacts, wide, activeContact?.id])
+
+  // Listen for service worker notification click navigation events
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+    const handleSWMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'cuan:notification-click' && event.data?.href) {
+        const target = event.data.href
+        navigate(target)
+        window.dispatchEvent(
+          new CustomEvent('cuan:notification-navigate', { detail: { href: target } }),
         )
-      : wide && rootSegment === 'inbox'
-        ? contacts.find((c) => c.id === activeContact?.id) || contacts[0]
-        : undefined
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', handleSWMessage)
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSWMessage)
+    }
+  }, [navigate])
 
   // URL drives the SidePeek so refresh/back/forward cannot leave a stale panel.
   const activeDetailTaskId = useMemo(() => {
