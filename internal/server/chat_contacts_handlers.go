@@ -52,8 +52,8 @@ type ChatContact struct {
 // GET /api/v1/chat/contacts
 func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Request) {
 	inboxRoomResolutionMu.Lock()
-	defer inboxRoomResolutionMu.Unlock()
 	s.ensureDefaultAgentRooms(r.Context())
+	inboxRoomResolutionMu.Unlock()
 
 	typeFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
 	searchQuery := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
@@ -99,6 +99,17 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		return count
 	}
 	contacts := make([]ChatContact, 0)
+
+	// Single batch load of rooms and all messages to eliminate N+1 query storms
+	var allRooms []db.ProjectRoom
+	var allMessages map[string][]db.ProjectMessage
+	if s.projectStudioRepo != nil {
+		allRooms, _ = s.projectStudioRepo.ListAllRooms(r.Context())
+		allMessages, _ = s.projectStudioRepo.ListAllMessages(r.Context())
+	}
+	if allMessages == nil {
+		allMessages = make(map[string][]db.ProjectMessage)
+	}
 
 	// Count active tasks and total tasks per conversation room
 	counts, err := s.readTaskCounts(r.Context())
@@ -146,33 +157,31 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 					lastMsg := "No conversations yet."
 					lastAt := a.UpdatedAt
 					unread := 0
-					if s.projectStudioRepo != nil {
-						if allRooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-							for _, rm := range allRooms {
-								if rm.Topic == "agent:"+a.ID || rm.Title == a.Name {
-									roomID = rm.ID
-									break
-								}
+					if len(allRooms) > 0 {
+						for _, rm := range allRooms {
+							if rm.Topic == "agent:"+a.ID || rm.Title == a.Name {
+								roomID = rm.ID
+								break
 							}
 						}
-						if roomID == "" {
-							deterministicID := db.GenerateDeterministicUUID("agent", a.ID)
-							for _, candidateID := range []string{deterministicID, "contact_" + a.ID, a.ID} {
-								if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), candidateID); len(msgs) > 0 {
-									roomID = candidateID
-									break
-								}
+					}
+					if roomID == "" {
+						deterministicID := db.GenerateDeterministicUUID("agent", a.ID)
+						for _, candidateID := range []string{deterministicID, "contact_" + a.ID, a.ID} {
+							if len(allMessages[candidateID]) > 0 {
+								roomID = candidateID
+								break
 							}
 						}
-						if roomID != "" {
-							if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), roomID); len(msgs) > 0 {
-								observeResolution(roomID, msgs)
-								msgs = visibleInboxMessages(msgs)
-								if len(msgs) > 0 {
-									lastMsg = msgs[len(msgs)-1].Content
-									lastAt = msgs[len(msgs)-1].CreatedAt
-									unread = countUnread(roomID, msgs, true)
-								}
+					}
+					if roomID != "" {
+						if msgs := allMessages[roomID]; len(msgs) > 0 {
+							observeResolution(roomID, msgs)
+							msgs = visibleInboxMessages(msgs)
+							if len(msgs) > 0 {
+								lastMsg = msgs[len(msgs)-1].Content
+								lastAt = msgs[len(msgs)-1].CreatedAt
+								unread = countUnread(roomID, msgs, true)
 							}
 						}
 					}
@@ -211,31 +220,29 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	if typeFilter != "customers" && s.projectStudioRepo != nil && s.agentRepo != nil {
-		if rooms, err := s.projectStudioRepo.ListAllRooms(r.Context()); err == nil {
-			for _, room := range rooms {
-				if !strings.HasPrefix(room.Topic, "agent-topic:") {
-					continue
-				}
-				a, err := s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
-				if err != nil || a == nil || !a.Enabled {
-					continue
-				}
-				last := "No messages yet."
-				at := room.UpdatedAt
-				unread := 0
-				if messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), room.ID); err == nil && len(messages) > 0 {
-					observeResolution(room.ID, messages)
-					messages = visibleInboxMessages(messages)
-					if len(messages) > 0 {
-						last = messages[len(messages)-1].Content
-						at = messages[len(messages)-1].CreatedAt
-						unread = countUnread(room.ID, messages, true)
-					}
-				}
-				tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt, canceledCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
-				contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt, CanceledTasks: canceledCnt})
+	if typeFilter != "customers" && len(allRooms) > 0 && s.agentRepo != nil {
+		for _, room := range allRooms {
+			if !strings.HasPrefix(room.Topic, "agent-topic:") {
+				continue
 			}
+			a, err := s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
+			if err != nil || a == nil || !a.Enabled {
+				continue
+			}
+			last := "No messages yet."
+			at := room.UpdatedAt
+			unread := 0
+			if messages := allMessages[room.ID]; len(messages) > 0 {
+				observeResolution(room.ID, messages)
+				messages = visibleInboxMessages(messages)
+				if len(messages) > 0 {
+					last = messages[len(messages)-1].Content
+					at = messages[len(messages)-1].CreatedAt
+					unread = countUnread(room.ID, messages, true)
+				}
+			}
+			tc, activeCnt, queuedCnt, doneCnt, failedCnt, reviewCnt, canceledCnt := getRoomTaskCounts(room.ID, "topic_"+room.ID, room.Topic)
+			contacts = append(contacts, ChatContact{ID: "topic_" + room.ID, AgentID: a.ID, AgentName: a.Name, Type: "agent", Name: room.Title, Avatar: a.Avatar, Status: "idle", ConversationID: room.ID, UnreadCount: unread, LastMessage: attachmentPreview(last), LastMessageAt: at, UpdatedAt: at, HasMessages: true, MessageCount: 1, IsOnline: true, TaskCount: tc, ActiveTasks: activeCnt, QueuedTasks: queuedCnt, DoneTasks: doneCnt, FailedTasks: failedCnt, ReviewTasks: reviewCnt, CanceledTasks: canceledCnt})
 		}
 	}
 
@@ -248,28 +255,28 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			respondJSONError(w, 503, "Could not load customer conversations")
 			return
 		}
-		for _, c := range saved {
-			if c.IsManual {
+		crmBySession := make(map[string]*CRMContact, len(saved))
+		for i := range saved {
+			crmBySession[saved[i].SessionUUID] = &saved[i]
+			if saved[i].IsManual {
 				continue
 			}
-			contactIDs[c.SessionUUID] = c.ID
-			name := c.Name
+			contactIDs[saved[i].SessionUUID] = saved[i].ID
+			name := saved[i].Name
 			if name == "" {
-				name = "Visitor #" + c.ID[:6]
+				name = "Visitor #" + saved[i].ID[:6]
 			}
-			sessionList = append(sessionList, &LiveChatSession{UUID: c.SessionUUID, GuestUUID: c.GuestUUID, Product: c.Product, Name: name, Email: c.Email, Status: "offline", CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt})
+			sessionList = append(sessionList, &LiveChatSession{UUID: saved[i].SessionUUID, GuestUUID: saved[i].GuestUUID, Product: saved[i].Product, Name: name, Email: saved[i].Email, Status: "offline", CreatedAt: saved[i].CreatedAt, UpdatedAt: saved[i].UpdatedAt})
 		}
 
-		if s.projectStudioRepo != nil {
+		if len(allRooms) > 0 {
 			known := map[string]bool{}
 			for _, v := range sessionList {
 				known[v.UUID] = true
 			}
-			if rooms, e := s.projectStudioRepo.ListAllRooms(r.Context()); e == nil {
-				for _, rm := range rooms {
-					if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && roomAgentID(rm.Topic) == "" && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
-						sessionList = append(sessionList, &LiveChatSession{UUID: rm.ID, GuestUUID: rm.ID, Product: rm.Topic, Name: rm.Title, Status: "offline", CreatedAt: rm.CreatedAt, UpdatedAt: rm.UpdatedAt})
-					}
+			for _, rm := range allRooms {
+				if !known[rm.ID] && rm.ID != defaultScrumMasterRoomID && rm.ID != defaultAntigravityRoomID && !strings.Contains(strings.ToLower(rm.Title), "scrum") && roomAgentID(rm.Topic) == "" && !strings.Contains(rm.Topic, "Interactive Agent Chat") {
+					sessionList = append(sessionList, &LiveChatSession{UUID: rm.ID, GuestUUID: rm.ID, Product: rm.Topic, Name: rm.Title, Status: "offline", CreatedAt: rm.CreatedAt, UpdatedAt: rm.UpdatedAt})
 				}
 			}
 		}
@@ -285,17 +292,15 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			hasMessages := false
 			msgCount := 0
 
-			if s.projectStudioRepo != nil {
-				if msgs, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), sess.UUID); len(msgs) > 0 {
-					observeResolution(sess.UUID, msgs)
-					msgs = visibleInboxMessages(msgs)
-					if len(msgs) > 0 {
-						msgCount = len(msgs)
-						hasMessages = true
-						lastMsg = msgs[len(msgs)-1].Content
-						lastAt = msgs[len(msgs)-1].CreatedAt
-						unread = countUnread(sess.UUID, msgs, false)
-					}
+			if msgs := allMessages[sess.UUID]; len(msgs) > 0 {
+				observeResolution(sess.UUID, msgs)
+				msgs = visibleInboxMessages(msgs)
+				if len(msgs) > 0 {
+					msgCount = len(msgs)
+					hasMessages = true
+					lastMsg = msgs[len(msgs)-1].Content
+					lastAt = msgs[len(msgs)-1].CreatedAt
+					unread = countUnread(sess.UUID, msgs, false)
 				}
 			}
 
@@ -343,8 +348,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				contactEmail = liveSess.Email
 			}
 			if contactEmail == "" {
-				if crmS, err := s.crmSession(r.Context(), sess.UUID); err == nil && crmS != nil && crmS.Email != "" {
-					contactEmail = crmS.Email
+				if crmC := crmBySession[sess.UUID]; crmC != nil && crmC.Email != "" {
+					contactEmail = crmC.Email
 				}
 			}
 
@@ -406,26 +411,19 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Shared resolution is independent from each operator's read marker.
-	if s.projectStudioRepo != nil {
-		rooms, err := s.projectStudioRepo.ListAllRooms(r.Context())
-		if err != nil {
-			respondJSONError(w, 503, "Could not load conversation status")
-			return
+	byID := make(map[string]db.ProjectRoom, len(allRooms))
+	for _, room := range allRooms {
+		byID[room.ID] = room
+	}
+	for i := range contacts {
+		room := byID[contacts[i].ConversationID]
+		contacts[i].ResolvedAt = room.ResolvedAt
+		observed := resolutionObserved[contacts[i].ConversationID]
+		if observed.IsZero() {
+			observed = contacts[i].LastMessageAt
 		}
-		byID := make(map[string]db.ProjectRoom, len(rooms))
-		for _, room := range rooms {
-			byID[room.ID] = room
-		}
-		for i := range contacts {
-			room := byID[contacts[i].ConversationID]
-			contacts[i].ResolvedAt = room.ResolvedAt
-			observed := resolutionObserved[contacts[i].ConversationID]
-			if observed.IsZero() {
-				observed = contacts[i].LastMessageAt
-			}
-			contacts[i].ResolutionObservedAt = observed
-			contacts[i].Resolved = room.IsResolved(observed) && contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
-		}
+		contacts[i].ResolutionObservedAt = observed
+		contacts[i].Resolved = room.IsResolved(observed) && contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
 	}
 	for i := range contacts {
 		if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {

@@ -330,6 +330,7 @@ type ProjectStudioRepository interface {
 	CreateMessage(ctx context.Context, msg *ProjectMessage) error
 	GetMessageByID(ctx context.Context, id string) (*ProjectMessage, error)
 	ListMessagesByRoomID(ctx context.Context, roomID string) ([]ProjectMessage, error)
+	ListAllMessages(ctx context.Context) (map[string][]ProjectMessage, error)
 	UpdateMessage(ctx context.Context, msg *ProjectMessage) error
 	DeleteMessage(ctx context.Context, id string) error
 
@@ -702,6 +703,43 @@ func (r *SQLProjectStudioRepository) ListMessagesByRoomID(ctx context.Context, r
 			return nil, fmt.Errorf("scan project message: %w", err)
 		}
 		list = append(list, msg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project messages: %w", err)
+	}
+	return list, nil
+}
+
+// ListAllMessages lists all messages grouped by room_id chronologically in a single query.
+func (r *SQLProjectStudioRepository) ListAllMessages(ctx context.Context) (map[string][]ProjectMessage, error) {
+	query := `
+		SELECT id, room_id, author_type, author_id, author_name, content, reply_to_id, created_at, updated_at
+		FROM project_messages
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list all project messages: %w", err)
+	}
+	defer rows.Close()
+
+	list := make(map[string][]ProjectMessage)
+	for rows.Next() {
+		var msg ProjectMessage
+		if err := rows.Scan(
+			&msg.ID,
+			&msg.RoomID,
+			&msg.AuthorType,
+			&msg.AuthorID,
+			&msg.AuthorName,
+			&msg.Content,
+			&msg.ReplyToID,
+			&msg.CreatedAt,
+			&msg.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan project message: %w", err)
+		}
+		list[msg.RoomID] = append(list[msg.RoomID], msg)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate project messages: %w", err)
@@ -1625,6 +1663,23 @@ func (m *MemoryProjectStudioRepository) ListMessagesByRoomID(ctx context.Context
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
 	})
 	return list, nil
+}
+
+// ListAllMessages lists all messages grouped by room_id from memory.
+func (m *MemoryProjectStudioRepository) ListAllMessages(ctx context.Context) (map[string][]ProjectMessage, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string][]ProjectMessage)
+	for _, msg := range m.messages {
+		result[msg.RoomID] = append(result[msg.RoomID], *cloneMessage(msg))
+	}
+	for roomID := range result {
+		sort.Slice(result[roomID], func(i, j int) bool {
+			return result[roomID][i].CreatedAt.Before(result[roomID][j].CreatedAt)
+		})
+	}
+	return result, nil
 }
 
 // UpdateMessage updates a message's content in memory.

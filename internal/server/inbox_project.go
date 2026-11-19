@@ -307,10 +307,10 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 			fmt.Fprintf(&b, "Sprint & Backlog Metrics: Total=%d, Done=%d, Review=%d, Doing=%d, Blocked=%d, Backlog=%d.\n", total, doneCount, reviewCount, doingCount, blockedCount, backlogCount)
 
 			var activeBlockers []string
-			if len(items) > 40 {
-				items = items[:40]
+			if len(items) > 10 {
+				items = items[:10]
 			}
-			fmt.Fprintf(&b, "Project backlog: %d tasks; up to 40 most recent.\n", total)
+			fmt.Fprintf(&b, "Project backlog: %d tasks; up to 10 most recent.\n", total)
 			for _, t := range items {
 				fields := map[string]string{"id": t.ID, "title": truncateProjectText(t.Title, 300), "status": t.Status, "priority": t.Priority}
 				var taskLogs string

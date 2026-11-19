@@ -339,6 +339,15 @@ func TestMemoryProjectStudioRepository_Messages(t *testing.T) {
 		t.Errorf("unexpected message list order/content: %+v", list)
 	}
 
+	// 5b. ListAllMessages batch query
+	all, err := repo.ListAllMessages(ctx)
+	if err != nil {
+		t.Fatalf("failed to list all messages: %v", err)
+	}
+	if len(all[roomID]) != 2 {
+		t.Fatalf("expected 2 messages in room from ListAllMessages, got %d", len(all[roomID]))
+	}
+
 	// 6. Update message
 	fetched.Content = "Updated reply content"
 	if err := repo.UpdateMessage(ctx, fetched); err != nil {

@@ -309,7 +309,7 @@ export function App() {
           refreshing = false
         }
       }
-      const interval = setInterval(() => void refresh(), 5000)
+      const interval = setInterval(() => void refresh(), 15000)
       const agentInterval = setInterval(() => { if (!document.hidden) void refreshAgents() }, 60000)
       document.addEventListener('visibilitychange', refresh)
       return () => {
