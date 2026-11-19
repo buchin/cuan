@@ -1,4 +1,11 @@
 {
+  "Send Email": "Kirim Email",
+  "Sending email…": "Mengirim email…",
+  "Email sent": "Email terkirim",
+  "To:": "Kepada:",
+  "Recipient email is required.": "Alamat email penerima wajib diisi.",
+  "Invalid recipient email format.": "Format email penerima tidak valid.",
+  "Failed to send email. Please try again.": "Gagal mengirim email. Silakan coba lagi.",
   "Masalah": "Masalah",
   "Cara kerja": "Cara kerja",
   "Fitur": "Fitur",

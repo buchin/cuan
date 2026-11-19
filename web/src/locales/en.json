@@ -1,4 +1,11 @@
 {
+  "Send Email": "Send Email",
+  "Sending email…": "Sending email…",
+  "Email sent": "Email sent",
+  "To:": "To:",
+  "Recipient email is required.": "Recipient email is required.",
+  "Invalid recipient email format.": "Invalid recipient email format.",
+  "Failed to send email. Please try again.": "Failed to send email. Please try again.",
   "Masalah": "The Problem",
   "Cara kerja": "How it works",
   "Fitur": "Features",

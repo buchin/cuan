@@ -44,6 +44,7 @@ import {
   streamConversation,
   cancelInboxRequest,
   retryInboxRequest,
+  sendCustomerReplyEmail,
 } from '../../api/chat'
 import {
   Send,
@@ -1937,15 +1938,28 @@ export function InboxView({
                         />
                       )}
                     {msg.reply_draft && (
-                      <ReplyDraftCard draft={msg.reply_draft} internal={msg.is_internal === true}
+                      <ReplyDraftCard
+                        draft={msg.reply_draft}
+                        internal={msg.is_internal === true}
+                        messageId={msg.uuid}
+                        conversationId={activeContact.conversation_id || activeContact.id}
+                        defaultRecipient={activeContact.email}
+                        emailDelivery={msg.email_delivery}
                         regenerateDisabled={sending || uploads.busy || !!pendingRef.current || requests.some((q) => ['queued', 'running', 'retrying'].includes(q.state))}
                         regenerating={!!msg.uuid && regeneratingDrafts.has(msg.uuid)}
                         onRegenerate={msg.uuid ? () => { void handleSendMessage(undefined, undefined, undefined, 'Regenerate draft', msg.uuid) } : undefined}
                         onUse={(draft) => {
-                        setInputMessage(draft)
-                        textareaRef.current?.focus()
-                        if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-                      }} />
+                          setInputMessage(draft)
+                          textareaRef.current?.focus()
+                          if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+                        }}
+                        onSendEmail={async (recipient) => {
+                          if (!msg.uuid) return
+                          const convId = activeContact.conversation_id || activeContact.id
+                          await sendCustomerReplyEmail(convId, msg.uuid, { recipient, draft: msg.reply_draft })
+                          await loadConversation(convId)
+                        }}
+                      />
                     )}
                     {(!msg.work_update ? requestsByMessage.get(msg.uuid || '') || [] : []).map((q) => {
                       const placeholder =
