@@ -607,7 +607,7 @@ export function TaskTerminal({
       const isTouchMobile = navigator.maxTouchPoints > 0 || (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches)
       const isKeyboardShrunk = baseline - height > Math.max(100, baseline * 0.15)
       const isWithinTerminal = Boolean(active && terminalRoot.current?.contains(active))
-      const open = isTouchMobile && isKeyboardShrunk && (isTerminalHelper || editing || isWithinTerminal)
+      const open = isTouchMobile && isKeyboardShrunk && (isTerminalHelper || editing || isWithinTerminal || !active || active === document.body)
 
       setIsMobileKeyboardActive(Boolean(open))
 
