@@ -390,6 +390,9 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	if req.Status != nil {
 		s.kickTaskLaunches()
+		if updated != nil && updated.Status == task.TaskStatusDone {
+			s.DispatchTaskCompletedPush(r.Context(), updated)
+		}
 	}
 
 	respondJSON(w, http.StatusOK, updated)

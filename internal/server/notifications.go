@@ -643,6 +643,44 @@ func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID,
 	s.broadcastPushNotification(pushCtx, item)
 }
 
+// DispatchTaskCompletedPush sends an instant push notification when a task reaches 'done'.
+func (s *Server) DispatchTaskCompletedPush(ctx context.Context, t *task.Task) {
+	if t == nil || t.Status != task.TaskStatusDone {
+		return
+	}
+	href := "/tasks/" + url.PathEscape(t.ID)
+	if t.ProjectID != "" {
+		href = "/projects/" + url.PathEscape(t.ProjectID) + "/tasks/" + url.PathEscape(t.ID)
+	}
+	if t.SourceRoomID != "" {
+		href = "/inbox/" + url.PathEscape(t.SourceRoomID)
+	}
+
+	title := "Pekerjaan Selesai"
+	if strings.TrimSpace(t.Title) != "" {
+		title = t.Title
+	}
+	summary := "Pekerjaan telah selesai dan aktif berjalan."
+	if strings.TrimSpace(t.Summary) != "" {
+		summary = t.Summary
+	}
+
+	item := ownerNotification{
+		ID:          "task:" + t.ID + ":done",
+		Kind:        "completed",
+		Title:       title,
+		Context:     t.ProjectID,
+		Summary:     summary,
+		Status:      "Completed",
+		ActionLabel: "View work",
+		Href:        href,
+		At:          time.Now().UTC(),
+	}
+	pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	s.broadcastPushNotification(pushCtx, item)
+}
+
 func (s *Server) dispatchAllStaff(ctx context.Context) {
 	staffIDs := s.activeStaffIDs(ctx)
 	for _, staffID := range staffIDs {

@@ -17,6 +17,7 @@ import (
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 type pushPayloadSpyClient struct {
@@ -501,5 +502,48 @@ func TestPushPayload_HrefPreservationAndRouting(t *testing.T) {
 	payload5 := buildPushPayload(emptyAgentNotification)
 	if payload5["href"] != "/inbox/room-agent-777" {
 		t.Errorf("expected fallback href '/inbox/room-agent-777', got %q", payload5["href"])
+	}
+}
+
+// TestEventDrivenPush_TaskCompleted verifies instant push when a task reaches 'done'.
+func TestEventDrivenPush_TaskCompleted(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	roomID := "room-inbox-" + db.GenerateUUID()
+	completedTask := &task.Task{
+		ID:           "task-completed-123",
+		Title:        "Auto-scroll ke tugas terakhir",
+		Status:       task.TaskStatusDone,
+		Summary:      "Fitur auto scroll berhasil diuji dan aktif.",
+		SourceRoomID: roomID,
+	}
+
+	s.DispatchTaskCompletedPush(ctx, completedTask)
+
+	if spy.CallCount() != 2 {
+		t.Fatalf("expected 2 instant pushes for task completion (owner + member), got %d", spy.CallCount())
+	}
+
+	ownerPrefs, _ := readOwnerPreferences(ownerID)
+	if len(ownerPrefs.Items) == 0 {
+		t.Fatal("expected owner notification recorded")
+	}
+	item := ownerPrefs.Items[0]
+	payload := buildPushPayload(item)
+
+	if payload["title"] != "Auto-scroll ke tugas terakhir" {
+		t.Errorf("expected title 'Auto-scroll ke tugas terakhir', got %q", payload["title"])
+	}
+	if !strings.Contains(payload["body"], "Fitur auto scroll berhasil diuji") {
+		t.Errorf("expected body to contain task summary, got %q", payload["body"])
+	}
+	if payload["href"] != "/inbox/"+roomID {
+		t.Errorf("expected href '/inbox/%s', got %q", roomID, payload["href"])
 	}
 }

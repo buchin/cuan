@@ -99,6 +99,8 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("[Server] Task %s merged but status update note error: %v", taskID, err)
+	} else if updated != nil && updated.Status == task.TaskStatusDone {
+		s.DispatchTaskCompletedPush(r.Context(), updated)
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{

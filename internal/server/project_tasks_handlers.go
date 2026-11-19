@@ -494,6 +494,9 @@ func (s *Server) handleUpdateProjectTask(w http.ResponseWriter, r *http.Request)
 		if t, err := s.taskSvc.Store().GetTask(r.Context(), task.ID); err == nil && t != nil {
 			t.Status = task.Status
 			_ = s.taskSvc.Store().UpdateTask(r.Context(), t)
+			if task.Status == "done" && oldStatus != "done" {
+				s.DispatchTaskCompletedPush(r.Context(), t)
+			}
 		}
 		if task.Status == "done" || task.Status == "review" || task.Status == "blocked" || task.Status == "cancelled" || task.Status == "failed" {
 			_ = s.taskSvc.FinishTaskLaunches(r.Context(), task.ID, "stopped")
@@ -593,6 +596,9 @@ func (s *Server) handlePatchProjectTaskStatus(w http.ResponseWriter, r *http.Req
 		if t, err := s.taskSvc.Store().GetTask(r.Context(), taskID); err == nil && t != nil {
 			t.Status = normStatus
 			_ = s.taskSvc.Store().UpdateTask(r.Context(), t)
+			if normStatus == "done" && oldStatus != "done" {
+				s.DispatchTaskCompletedPush(r.Context(), t)
+			}
 		}
 		if normStatus == "done" || normStatus == "review" || normStatus == "blocked" || normStatus == "cancelled" || normStatus == "failed" {
 			_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "stopped")

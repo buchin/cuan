@@ -138,9 +138,21 @@ func buildPushPayload(item ownerNotification) map[string]string {
 				title = "Pesan Baru dari Pengunjung"
 			}
 		}
-	} else if item.Kind == "approval" || item.Kind == "completed" || strings.HasPrefix(tag, "agent:") {
+	} else if item.Kind == "completed" {
+		if strings.HasPrefix(tag, "task:") {
+			if title == "" {
+				title = "Pekerjaan Selesai"
+			}
+		} else if title == "" {
+			title = "Asisten AI"
+		}
+	} else if item.Kind == "approval" || strings.HasPrefix(tag, "agent:") {
 		if title == "" {
 			title = "Asisten AI"
+		}
+	} else if item.Kind == "blocker" {
+		if title == "" {
+			title = "Perhatian Diperlukan"
 		}
 	}
 	if title == "" {
@@ -155,6 +167,10 @@ func buildPushPayload(item ownerNotification) map[string]string {
 			body = "Pesan baru dari pelanggan di Live Chat."
 		} else if item.Kind == "approval" {
 			body = "Asisten AI membutuhkan persetujuan Anda."
+		} else if item.Kind == "completed" {
+			body = "Pekerjaan telah selesai dan aktif berjalan."
+		} else if item.Kind == "blocker" {
+			body = "Pekerjaan tertahan dan memerlukan perhatian Anda."
 		} else {
 			body = "Ada pembaruan yang memerlukan perhatian Anda."
 		}
