@@ -11,10 +11,17 @@ const output=process.argv[2]
 if(!output)throw Error('Supply a new private evidence directory')
 await fs.mkdir(output,{mode:0o700})
 const now='2026-11-06T05:00:00Z',room='work-fixture'
-const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:1,active_tasks:1}
+const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:5,active_tasks:1}
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
 const attempt={id:'attempt',task_id:'work',status:'running',agent_name:'agent_cuan',runner_id:'runner',attempt_number:2,created_at:now,started_at:now}
 const baseTask={id:'work',title:'Perbaiki tampilan website pelanggan dan periksa hasilnya pada desktop maupun ponsel sebelum menyatakan pekerjaan selesai',status:'doing',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,source_message_id:'source',repo_url:'https://github.com/example/site',created_at:now,updated_at:now,latest_attempt:attempt,latest_progress:'Memeriksa tampilan mobile setelah perbaikan.',instructions:'Perbaiki tampilan pada desktop dan mobile. Verifikasi hasil sebenarnya.',summary:'Laporan sebelumnya belum diterima.',dod_checklist:[{text:'Tampilan stabil pada mobile dan desktop',completed:false}]}
+const earlierTasks=[
+  {id:'task-1',title:'Diagnosa Operasional Kendala Login Magic Link Nerd di Server Baru',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-40000).toISOString(),updated_at:now},
+  {id:'task-2',title:'Remediasi dan Perbaikan Pengiriman Magic Link Login Nerd di Server Baru',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-30000).toISOString(),updated_at:now},
+  {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now},
+  {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now},
+]
+const allTasks=[...earlierTasks,baseTask]
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
 activities.push({id:'long-review',task_id:'work',attempt_id:'attempt',activity_type:'coordinator_review_assessment',author:'coordinator',message:JSON.stringify({assessment:{decision:'revise',finding:('Pemeriksaan hasil perlu membandingkan perilaku aplikasi dengan permintaan awal dan bukti yang tersimpan. ').repeat(12)+'Akhir laporan asli.'}}),created_at:new Date(Date.parse(now)+31000).toISOString()})
 activities.push({id:'provider-note',task_id:'work',activity_type:'comment',author:'runner',message:'Provider preflight selected allowed backup account',created_at:now})
@@ -69,7 +76,7 @@ try{
    let data={}
    if(pathname.endsWith('/auth/status'))data={setup_required:false}
    else if(pathname.endsWith('/auth/me'))data={user:{id:'owner',email:'owner@example.test',name:'Owner',role:'owner'}}
-   else if(pathname.endsWith('/messages'))data={messages,tasks:[baseTask],contact,requests:[]}
+   else if(pathname.endsWith('/messages'))data={messages,tasks:allTasks,contact,requests:[]}
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
     data=sessionStatus==='running'?fixtureTask:{...fixtureTask,status:'review',latest_attempt:{...attempt,status:'succeeded',finished_at:now},attempts:[{...attempt,status:'succeeded',finished_at:now}]}
@@ -81,7 +88,7 @@ try{
    else if(pathname.endsWith('/projects'))data={projects:[]}
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
-   else if(pathname.endsWith('/tasks'))data={tasks:[baseTask]}
+   else if(pathname.endsWith('/tasks'))data={tasks:allTasks}
    else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)})
   })
@@ -92,11 +99,26 @@ try{
   await tasks.waitFor({state:'visible'})
   assert.equal(await tasks.getAttribute('aria-expanded'),'false')
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
+  const initialChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
   await tasks.click()
   assert.equal(await tasks.getAttribute('aria-expanded'),'true')
+  const afterOpenChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
+  assert.equal(afterOpenChatScroll,initialChatScroll,'Main chat history scroll must remain undisturbed')
+  const panelEl=page.locator('.composer-tasks-panel')
+  // Verify auto-scroll to bottom reached the end
+  await page.waitForFunction(() => {
+    const p = document.querySelector('.composer-tasks-panel')
+    return p && p.scrollTop >= p.scrollHeight - p.clientHeight - 2
+  }, null, { timeout: 10000 })
   const card=page.locator('.composer-tasks-panel [data-timeline-item="work"]')
   try{await card.waitFor({state:'visible',timeout:20000})}catch(error){await page.screenshot({path:path.join(output,'failed-'+width+'.png')});console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(0,1500)}));throw error}
   assert.equal(await card.count(),1)
+  const cardBox=await card.boundingBox()
+  const panelBox=await panelEl.boundingBox()
+  assert.ok(cardBox && panelBox)
+  assert.ok(cardBox.y + cardBox.height <= panelBox.y + panelBox.height + 2, 'Last task must not be clipped at bottom')
+  assert.ok(cardBox.y >= panelBox.y - 2, 'Last task must be within visible panel height')
+  await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
   assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
   await card.getByText(baseTask.latest_progress,{exact:true}).waitFor()
@@ -259,7 +281,7 @@ try{
   await page.screenshot({path:path.join(output,`session-result-${width}.png`)})
   assert.equal(await page.getByText('Something went wrong',{exact:true}).count(),0)
   assert.deepEqual(errors,[])
-  checks.push({width,composer_task_disclosure:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
   await context.close()
   await browser.close()
   browser=null

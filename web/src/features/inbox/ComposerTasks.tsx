@@ -26,10 +26,54 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   const { t } = useLanguage()
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const prevOpenRef = useRef(false)
+  const prevCountRef = useRef(0)
   const [open, setOpen] = useState(false)
-  if (!tasks.length && !modes) return null
+
   const ordered = [...new Map(tasks.map(task => [task.id, task])).values()]
     .sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0) || a.id.localeCompare(b.id))
+
+  useEffect(() => {
+    const wasOpened = open && !prevOpenRef.current
+    const taskAdded = open && ordered.length > prevCountRef.current
+    prevOpenRef.current = open
+    prevCountRef.current = ordered.length
+
+    if (!wasOpened && !taskAdded) return
+    const panel = panelRef.current
+    if (!panel) return
+
+    let canceled = false
+    let frame2: number | null = null
+
+    const scrollToBottom = () => {
+      if (canceled || !panelRef.current) return
+      const el = panelRef.current
+      const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      const behavior = prefersReducedMotion ? 'auto' : 'smooth'
+      if (typeof el.scrollTo === 'function') {
+        el.scrollTo({ top: el.scrollHeight, behavior })
+      } else {
+        el.scrollTop = el.scrollHeight
+      }
+    }
+
+    const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb: FrameRequestCallback) => setTimeout(cb, 16) as unknown as number
+    const caf = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : (id: number) => clearTimeout(id)
+
+    const frame1 = raf(() => {
+      frame2 = raf(scrollToBottom)
+    })
+
+    return () => {
+      canceled = true
+      caf(frame1)
+      if (frame2 !== null) caf(frame2)
+    }
+  }, [open, ordered.length])
+
+  if (!tasks.length && !modes) return null
   const runningTasks = ordered.filter(running)
   const defaultExpandedIds = runningTasks.length ? runningTasks.map(task => task.id) : ordered.slice(-1).map(task => task.id)
   return <section className="composer-tasks bg-transparent" aria-label={t('Conversation tasks')} onKeyDown={event => {
@@ -55,8 +99,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       {ordered.some(taskExecutionActive) && <StatusDot status="working" size="xs" label={t('In progress')} />}
     </button>}
     </div>
-    {tasks.length > 0 && <div hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30">
-      <AccordionTimeline label={t('Conversation tasks')} defaultExpandedIds={defaultExpandedIds} className="px-3" items={ordered.map(task => {
+    {tasks.length > 0 && <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30 scroll-pb-2">
+      <AccordionTimeline label={t('Conversation tasks')} defaultExpandedIds={defaultExpandedIds} className="px-3 pb-2.5 pt-1" items={ordered.map(task => {
         const work = workStatus(task)
         const status = workDisplayStatus(task)
         const progress = work === 'Needs attention' ? task.review_finding || ''
