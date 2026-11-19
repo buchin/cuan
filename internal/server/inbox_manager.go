@@ -75,7 +75,16 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 			continue
 		}
 		seen[*e.AttemptID] = true
-		if normalized(old.Assessment.Revision) != normalized(saved.Revision) {
+		oldFinding := normalized(old.Assessment.Finding)
+		savedFinding := normalized(saved.Finding)
+		sameFinding := oldFinding != "" && oldFinding == savedFinding
+		sameRemaining := old.Assessment.RemainingWork != "" && old.Assessment.RemainingWork == saved.RemainingWork
+		samePrefix := false
+		if strings.HasPrefix(saved.Revision, "First reconcile the registered project's existing release") &&
+			strings.HasPrefix(old.Assessment.Revision, "First reconcile the registered project's existing release") {
+			samePrefix = true
+		}
+		if normalized(old.Assessment.Revision) != normalized(saved.Revision) && !(sameFinding && sameRemaining) && !samePrefix {
 			break
 		}
 		repeats++

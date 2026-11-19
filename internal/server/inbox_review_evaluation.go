@@ -376,8 +376,9 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 		}
 	}
 	if result.Decision == "pass" {
-		result.ManagerAction = ""
-		result.ManagerReason = ""
+		if result.ManagerAction != "" || result.ManagerReason != "" {
+			return result, bad
+		}
 		if result.RemainingWork == "external" || result.RemainingWork == "" {
 			result.RemainingWork = "none"
 		}
