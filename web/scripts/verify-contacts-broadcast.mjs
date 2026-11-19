@@ -80,6 +80,92 @@ const audienceResult = {
   ],
 }
 
+const mockBroadcastSessions = [
+  {
+    id: 'bc-session-1',
+    idempotency_key: 'bc-key-1',
+    subject: 'Pembaruan Fitur Terkini & Komunitas',
+    content: 'Halo semuanya,\n\nTerima kasih telah mendukung kami. Berikut rangkuman pembaruan penting rilis terbaru.\n\nSalam,\nTim Cuan',
+    tags: ['backer', 'vip'],
+    custom_emails: ['david@investor.test'],
+    total_recipients: 3,
+    sent_count: 3,
+    failed_count: 0,
+    status: 'success',
+    message: 'Berhasil mengirim broadcast ke 3 penerima',
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: 'bc-session-2',
+    idempotency_key: 'bc-key-2',
+    subject: 'Pemberitahuan Maintenance Server',
+    content: 'Halo pengguna,\n\nAkan dilakukan pemeliharaan sistem pada hari Minggu pukul 02:00 WIB.\n\nTerima kasih atas pengertiannya.',
+    tags: ['leads'],
+    custom_emails: ['external@partner.test'],
+    total_recipients: 2,
+    sent_count: 1,
+    failed_count: 1,
+    status: 'partial',
+    message: 'Terkirim ke 1 penerima, 1 gagal',
+    created_at: '2026-11-18T10:15:00Z',
+    updated_at: '2026-11-18T10:15:00Z',
+  },
+]
+
+const mockSessionLogs = {
+  'bc-session-1': [
+    {
+      id: 'log-1',
+      broadcast_id: 'bc-session-1',
+      email: 'alice@example.com',
+      name: 'Alice Smith',
+      source: 'both',
+      status: 'sent',
+      sent_at: now,
+    },
+    {
+      id: 'log-2',
+      broadcast_id: 'bc-session-1',
+      email: 'charlie@example.com',
+      name: 'Charlie Doe',
+      source: 'crm',
+      status: 'sent',
+      sent_at: now,
+    },
+    {
+      id: 'log-3',
+      broadcast_id: 'bc-session-1',
+      email: 'david@investor.test',
+      name: 'David Investor',
+      source: 'custom',
+      status: 'sent',
+      sent_at: now,
+    },
+  ],
+  'bc-session-2': [
+    {
+      id: 'log-21',
+      broadcast_id: 'bc-session-2',
+      email: 'bob@example.com',
+      name: 'Bob Jones',
+      source: 'crm',
+      status: 'sent',
+      sent_at: '2026-11-18T10:15:00Z',
+    },
+    {
+      id: 'log-22',
+      broadcast_id: 'bc-session-2',
+      email: 'external@partner.test',
+      name: 'external@partner.test',
+      source: 'custom',
+      status: 'failed',
+      error_message: '550 5.1.1 Recipient mailbox not found',
+      sent_at: '2026-11-18T10:15:00Z',
+    },
+  ],
+}
+
 const entry = `import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -216,6 +302,23 @@ try {
           }),
         })
       }
+      if (pathname === '/api/v1/contacts/broadcast/history') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ broadcasts: mockBroadcastSessions }),
+        })
+      }
+      if (pathname.startsWith('/api/v1/contacts/broadcast/history/')) {
+        const id = pathname.split('/').pop()
+        const session = mockBroadcastSessions.find((s) => s.id === id) || mockBroadcastSessions[0]
+        const logs = mockSessionLogs[session.id] || mockSessionLogs['bc-session-1']
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ broadcast: session, logs }),
+        })
+      }
       if (pathname === '/api/v1/contacts') {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contacts: mockContacts }) })
       }
@@ -299,6 +402,50 @@ try {
     )
     await page.screenshot({ path: sentScreenshotPath, fullPage: false })
     console.log(`Saved screenshot: ${sentScreenshotPath}`)
+
+    // --- Phase 3 Visual Verification: Broadcast History & SlideDrawer Logs ---
+    // 1. Switch to Riwayat Pengiriman tab
+    const historyTab = page.locator('#broadcast-tab-history')
+    await historyTab.waitFor({ state: 'visible', timeout: 5000 })
+    await historyTab.click()
+
+    // 2. Wait for the history panel and sessions to load
+    const historyPanel = page.locator('#broadcast-panel-history')
+    await historyPanel.waitFor({ state: 'visible', timeout: 5000 })
+    await historyPanel.getByText('Daftar Riwayat Pengiriman').waitFor({ state: 'visible', timeout: 5000 })
+    await historyPanel.getByText('Pemberitahuan Maintenance Server').waitFor({ state: 'visible', timeout: 5000 })
+
+    // Capture history list screenshot (desktop & mobile)
+    const historyScreenshotPath = path.join(
+      outputDir,
+      `broadcast-history-${isMobile ? 'mobile-390' : 'desktop-1440'}.png`,
+    )
+    await page.screenshot({ path: historyScreenshotPath, fullPage: false })
+    console.log(`Saved screenshot: ${historyScreenshotPath}`)
+
+    // 3. Open SlideDrawer for session details (DoD 4)
+    // Click session card "Pemberitahuan Maintenance Server" (partial delivery session)
+    const sessionCard = historyPanel.getByText('Pemberitahuan Maintenance Server')
+    await sessionCard.click()
+
+    // 4. Wait for SlideDrawer dialog to appear
+    const detailDrawer = page.locator('[data-testid="broadcast-history-detail-drawer"]')
+    await detailDrawer.waitFor({ state: 'visible', timeout: 10000 })
+
+    // Assert session detail elements inside SlideDrawer
+    await detailDrawer.getByText('Total Penerima').waitFor({ state: 'visible', timeout: 5000 })
+    await detailDrawer.getByText('Status Tiap Penerima').waitFor({ state: 'visible', timeout: 5000 })
+    await detailDrawer.getByText('Bob Jones').waitFor({ state: 'visible', timeout: 5000 })
+    await detailDrawer.getByText('external@partner.test').waitFor({ state: 'visible', timeout: 5000 })
+    await detailDrawer.getByText('550 5.1.1 Recipient mailbox not found').waitFor({ state: 'visible', timeout: 5000 })
+
+    // Capture SlideDrawer screenshot (desktop & mobile)
+    const drawerScreenshotPath = path.join(
+      outputDir,
+      `broadcast-drawer-${isMobile ? 'mobile-390' : 'desktop-1440'}.png`,
+    )
+    await page.screenshot({ path: drawerScreenshotPath, fullPage: false })
+    console.log(`Saved screenshot: ${drawerScreenshotPath}`)
 
     assert.equal(errors.length, 0, `Page errors encountered: ${errors.join(', ')}`)
     await context.close()

@@ -53,6 +53,7 @@ type Server struct {
 	inboxDeliveryDiagnosticNext atomic.Int64
 	extensions                  *extensionSDK.Registry
 	crm                         *crmStore
+	broadcastHistory            *broadcastHistoryStore
 	canned                      *cannedStore
 	taste                       *tasteStore
 	cfg                         *config.Config
@@ -529,6 +530,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	s := &Server{
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
+		broadcastHistory:       &broadcastHistoryStore{logs: make(map[string][]CRMBroadcastLog)},
 		canned:                 newCannedStore(),
 		taste:                  newTasteStore(),
 		cfg:                    cfg,

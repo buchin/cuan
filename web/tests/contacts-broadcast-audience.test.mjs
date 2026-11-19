@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const webDir = path.resolve(__dirname, '..')
+const repoRoot = path.resolve(webDir, '..')
 
 const contactsViewPath = path.join(webDir, 'src/features/contacts/ContactsView.tsx')
 const broadcastPanelPath = path.join(webDir, 'src/features/contacts/BroadcastAudiencePanel.tsx')
@@ -224,4 +225,103 @@ test('5. Phase 2 Backend: Batch sending, idempotency protection, and RFC 8058 un
     crmBroadcastSrc.includes('"List-Unsubscribe-Post": "List-Unsubscribe=One-Click"'),
     'Backend must embed RFC 8058 List-Unsubscribe-Post header'
   )
+})
+
+test('6. Phase 3 UI: Broadcast history tab, session list, and SlideDrawer recipient logs', () => {
+  const broadcastPanelSrc = fs.readFileSync(broadcastPanelPath, 'utf8')
+
+  // Tab navigation between Compose and History
+  assert.ok(
+    broadcastPanelSrc.includes('id="broadcast-tab-compose"'),
+    'BroadcastAudiencePanel must have Tulis Broadcast tab'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('id="broadcast-tab-history"'),
+    'BroadcastAudiencePanel must have Riwayat Pengiriman tab'
+  )
+
+  // Queries broadcast history endpoint
+  assert.ok(
+    broadcastPanelSrc.includes('/api/v1/contacts/broadcast/history'),
+    'BroadcastAudiencePanel must fetch history from /api/v1/contacts/broadcast/history'
+  )
+
+  // History list panel with calm software aesthetics
+  assert.ok(
+    broadcastPanelSrc.includes('id="broadcast-panel-history"'),
+    'BroadcastAudiencePanel must have history panel container'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('Daftar Riwayat Pengiriman'),
+    'BroadcastAudiencePanel must display Daftar Riwayat Pengiriman'
+  )
+
+  // SlideDrawer integration for detailed session inspection (DoD 4)
+  assert.ok(
+    broadcastPanelSrc.includes('SlideDrawer'),
+    'BroadcastAudiencePanel must integrate SlideDrawer for session details'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('data-testid="broadcast-history-detail-drawer"'),
+    'BroadcastAudiencePanel must mount broadcast-history-detail-drawer SlideDrawer'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('Status Tiap Penerima'),
+    'BroadcastAudiencePanel must display recipient delivery status section'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('recipientFilter'),
+    'BroadcastAudiencePanel must allow filtering recipient logs by status'
+  )
+  assert.ok(
+    broadcastPanelSrc.includes('error_message'),
+    'BroadcastAudiencePanel must display error message on delivery failures'
+  )
+})
+
+test('7. Phase 3 Backend: SQL schema migration 000043, session storage, and history endpoints', () => {
+  const routesInboxSrc = fs.readFileSync(routesInboxPath, 'utf8')
+  const crmBroadcastSrc = fs.readFileSync(crmBroadcastPath, 'utf8')
+
+  // History endpoints mounted in routes_inbox
+  assert.ok(
+    routesInboxSrc.includes('pr.Get("/contacts/broadcast/history", s.handleBroadcastHistory)'),
+    'History list endpoint must be mounted on GET /contacts/broadcast/history'
+  )
+  assert.ok(
+    routesInboxSrc.includes('pr.Get("/contacts/broadcast/history/{id}", s.handleBroadcastHistoryDetail)'),
+    'History detail endpoint must be mounted on GET /contacts/broadcast/history/{id}'
+  )
+
+  // Data structures and storage methods
+  assert.ok(
+    crmBroadcastSrc.includes('type CRMBroadcastSession struct'),
+    'Backend must define CRMBroadcastSession struct'
+  )
+  assert.ok(
+    crmBroadcastSrc.includes('type CRMBroadcastLog struct'),
+    'Backend must define CRMBroadcastLog struct'
+  )
+  assert.ok(
+    crmBroadcastSrc.includes('saveBroadcastSession'),
+    'Backend must implement saveBroadcastSession'
+  )
+  assert.ok(
+    crmBroadcastSrc.includes('listBroadcastSessions'),
+    'Backend must implement listBroadcastSessions'
+  )
+  assert.ok(
+    crmBroadcastSrc.includes('getBroadcastSessionDetail'),
+    'Backend must implement getBroadcastSessionDetail'
+  )
+
+  // Migration 000043 files exist and create tables
+  const upSqlPath = path.join(repoRoot, 'migrations/000043_crm_broadcast_history.up.sql')
+  const downSqlPath = path.join(repoRoot, 'migrations/000043_crm_broadcast_history.down.sql')
+  assert.ok(fs.existsSync(upSqlPath), '000043_crm_broadcast_history.up.sql must exist')
+  assert.ok(fs.existsSync(downSqlPath), '000043_crm_broadcast_history.down.sql must exist')
+
+  const upSql = fs.readFileSync(upSqlPath, 'utf8')
+  assert.ok(upSql.includes('crm_broadcast_sessions'), 'up.sql must create crm_broadcast_sessions')
+  assert.ok(upSql.includes('crm_broadcast_logs'), 'up.sql must create crm_broadcast_logs')
 })

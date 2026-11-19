@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/resend"
+	"github.com/go-chi/chi/v5"
 )
 
 var (
@@ -69,6 +71,7 @@ type BroadcastSendRequest struct {
 
 // BroadcastSendResponse is the result returned after dispatching an email broadcast.
 type BroadcastSendResponse struct {
+	BroadcastID     string   `json:"broadcast_id,omitempty"`
 	Status          string   `json:"status"` // "success", "partial", "failed"
 	TotalRecipients int      `json:"total_recipients"`
 	SentCount       int      `json:"sent_count"`
@@ -77,6 +80,42 @@ type BroadcastSendResponse struct {
 	IdempotencyKey  string   `json:"idempotency_key"`
 	AlreadySent     bool     `json:"already_sent,omitempty"`
 	Message         string   `json:"message"`
+}
+
+// CRMBroadcastSession represents a recorded broadcast email dispatch session.
+type CRMBroadcastSession struct {
+	ID              string            `json:"id"`
+	IdempotencyKey  string            `json:"idempotency_key"`
+	Subject         string            `json:"subject"`
+	Content         string            `json:"content"`
+	Tags            []string          `json:"tags"`
+	CustomEmails    []string          `json:"custom_emails,omitempty"`
+	TotalRecipients int               `json:"total_recipients"`
+	SentCount       int               `json:"sent_count"`
+	FailedCount     int               `json:"failed_count"`
+	Status          string            `json:"status"` // "success", "partial", "failed"
+	Message         string            `json:"message"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	Logs            []CRMBroadcastLog `json:"logs,omitempty"`
+}
+
+// CRMBroadcastLog represents the delivery log for a single recipient in a broadcast session.
+type CRMBroadcastLog struct {
+	ID           string    `json:"id"`
+	BroadcastID  string    `json:"broadcast_id"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	Source       string    `json:"source"` // "crm", "custom", "both"
+	Status       string    `json:"status"` // "sent", "failed"
+	ErrorMessage string    `json:"error_message,omitempty"`
+	SentAt       time.Time `json:"sent_at"`
+}
+
+type broadcastHistoryStore struct {
+	sync.RWMutex
+	sessions []CRMBroadcastSession
+	logs     map[string][]CRMBroadcastLog
 }
 
 func normalizeTagKey(tag string) string {
@@ -601,6 +640,21 @@ func (s *Server) handleBroadcastSend(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, resp)
 		return
 	}
+	if existingSess, _, err := s.getBroadcastSessionDetail(r.Context(), idempotencyKey); err == nil && existingSess != nil {
+		resp := BroadcastSendResponse{
+			BroadcastID:     existingSess.ID,
+			Status:          existingSess.Status,
+			TotalRecipients: existingSess.TotalRecipients,
+			SentCount:       existingSess.SentCount,
+			FailedCount:     existingSess.FailedCount,
+			IdempotencyKey:  existingSess.IdempotencyKey,
+			AlreadySent:     true,
+			Message:         "Broadcast sudah pernah dikirim sebelumnya (idempotent)",
+		}
+		sentBroadcastCache.Store(idempotencyKey, resp)
+		respondJSON(w, http.StatusOK, resp)
+		return
+	}
 
 	// 2. Concurrency Lock: In-flight check
 	broadcastSendMu.Lock()
@@ -660,10 +714,12 @@ func (s *Server) handleBroadcastSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 5. Batch dispatch loop
+	sessionID := db.GenerateUUID()
 	baseURL := s.broadcastBaseURL(r)
 	sentCount := 0
 	failedCount := 0
 	var sendErrors []string
+	var recipientLogs []CRMBroadcastLog
 
 	for _, recipient := range audience.Recipients {
 		token := s.generateUnsubscribeToken(recipient.Email)
@@ -683,13 +739,26 @@ func (s *Server) handleBroadcastSend(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
+		log := CRMBroadcastLog{
+			ID:          db.GenerateUUID(),
+			BroadcastID: sessionID,
+			Email:       recipient.Email,
+			Name:        recipient.Name,
+			Source:      recipient.Source,
+			Status:      "sent",
+			SentAt:      time.Now().UTC(),
+		}
+
 		_, sendErr := client.SendEmail(r.Context(), emailReq)
 		if sendErr != nil {
 			failedCount++
+			log.Status = "failed"
+			log.ErrorMessage = sendErr.Error()
 			sendErrors = append(sendErrors, fmt.Sprintf("%s: %s", recipient.Email, sendErr.Error()))
 		} else {
 			sentCount++
 		}
+		recipientLogs = append(recipientLogs, log)
 	}
 
 	status := "success"
@@ -704,7 +773,27 @@ func (s *Server) handleBroadcastSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	customEmailsList, _ := extractCustomEmailStrings(req.CustomEmails)
+	sess := CRMBroadcastSession{
+		ID:              sessionID,
+		IdempotencyKey:  idempotencyKey,
+		Subject:         subject,
+		Content:         content,
+		Tags:            req.Tags,
+		CustomEmails:    customEmailsList,
+		TotalRecipients: audience.TotalUnique,
+		SentCount:       sentCount,
+		FailedCount:     failedCount,
+		Status:          status,
+		Message:         message,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+		Logs:            recipientLogs,
+	}
+	_ = s.saveBroadcastSession(r.Context(), sess, recipientLogs)
+
 	resp := BroadcastSendResponse{
+		BroadcastID:     sessionID,
 		Status:          status,
 		TotalRecipients: audience.TotalUnique,
 		SentCount:       sentCount,
@@ -798,3 +887,195 @@ const unsubscribeHTMLTemplate = `<!DOCTYPE html>
   </div>
 </body>
 </html>`
+
+func (s *Server) getBroadcastHistoryStore() *broadcastHistoryStore {
+	if s.broadcastHistory == nil {
+		s.broadcastHistory = &broadcastHistoryStore{
+			logs: make(map[string][]CRMBroadcastLog),
+		}
+	}
+	return s.broadcastHistory
+}
+
+func (s *Server) saveBroadcastSession(ctx context.Context, session CRMBroadcastSession, logs []CRMBroadcastLog) error {
+	if s.db != nil {
+		tagsJSON, _ := json.Marshal(session.Tags)
+		customEmailsJSON, _ := json.Marshal(session.CustomEmails)
+		_, _ = s.db.ExecContext(ctx, `
+			INSERT INTO crm_broadcast_sessions (
+				id, idempotency_key, subject, content, tags, custom_emails,
+				total_recipients, sent_count, failed_count, status, message, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			ON CONFLICT (idempotency_key) DO UPDATE SET
+				updated_at = NOW(),
+				sent_count = EXCLUDED.sent_count,
+				failed_count = EXCLUDED.failed_count,
+				status = EXCLUDED.status,
+				message = EXCLUDED.message
+		`, session.ID, session.IdempotencyKey, session.Subject, session.Content, string(tagsJSON), string(customEmailsJSON),
+			session.TotalRecipients, session.SentCount, session.FailedCount, session.Status, session.Message, session.CreatedAt, session.UpdatedAt)
+
+		for _, l := range logs {
+			_, _ = s.db.ExecContext(ctx, `
+				INSERT INTO crm_broadcast_logs (
+					id, broadcast_id, email, name, source, status, error_message, sent_at
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			`, l.ID, l.BroadcastID, l.Email, l.Name, l.Source, l.Status, l.ErrorMessage, l.SentAt)
+		}
+	}
+
+	store := s.getBroadcastHistoryStore()
+	store.Lock()
+	defer store.Unlock()
+
+	found := false
+	for i, existing := range store.sessions {
+		if existing.IdempotencyKey == session.IdempotencyKey || existing.ID == session.ID {
+			store.sessions[i] = session
+			found = true
+			break
+		}
+	}
+	if !found {
+		store.sessions = append([]CRMBroadcastSession{session}, store.sessions...)
+	}
+	store.logs[session.ID] = logs
+
+	return nil
+}
+
+func (s *Server) listBroadcastSessions(ctx context.Context) ([]CRMBroadcastSession, error) {
+	if s.db != nil {
+		rows, err := s.db.QueryContext(ctx, `
+			SELECT id, idempotency_key, subject, content, tags, custom_emails,
+			       total_recipients, sent_count, failed_count, status, message, created_at, updated_at
+			FROM crm_broadcast_sessions
+			ORDER BY created_at DESC
+			LIMIT 100
+		`)
+		if err == nil {
+			defer rows.Close()
+			var sessions []CRMBroadcastSession
+			for rows.Next() {
+				var sess CRMBroadcastSession
+				var tagsRaw, customEmailsRaw []byte
+				if err := rows.Scan(
+					&sess.ID, &sess.IdempotencyKey, &sess.Subject, &sess.Content,
+					&tagsRaw, &customEmailsRaw, &sess.TotalRecipients, &sess.SentCount,
+					&sess.FailedCount, &sess.Status, &sess.Message, &sess.CreatedAt, &sess.UpdatedAt,
+				); err == nil {
+					_ = json.Unmarshal(tagsRaw, &sess.Tags)
+					_ = json.Unmarshal(customEmailsRaw, &sess.CustomEmails)
+					sessions = append(sessions, sess)
+				}
+			}
+			return sessions, nil
+		}
+	}
+
+	store := s.getBroadcastHistoryStore()
+	store.RLock()
+	defer store.RUnlock()
+	res := make([]CRMBroadcastSession, len(store.sessions))
+	copy(res, store.sessions)
+	return res, nil
+}
+
+func (s *Server) getBroadcastSessionDetail(ctx context.Context, id string) (*CRMBroadcastSession, []CRMBroadcastLog, error) {
+	if s.db != nil {
+		var sess CRMBroadcastSession
+		var tagsRaw, customEmailsRaw []byte
+		row := s.db.QueryRowContext(ctx, `
+			SELECT id, idempotency_key, subject, content, tags, custom_emails,
+			       total_recipients, sent_count, failed_count, status, message, created_at, updated_at
+			FROM crm_broadcast_sessions
+			WHERE id::text = $1 OR idempotency_key = $1
+		`, id)
+		err := row.Scan(
+			&sess.ID, &sess.IdempotencyKey, &sess.Subject, &sess.Content,
+			&tagsRaw, &customEmailsRaw, &sess.TotalRecipients, &sess.SentCount,
+			&sess.FailedCount, &sess.Status, &sess.Message, &sess.CreatedAt, &sess.UpdatedAt,
+		)
+		if err == nil {
+			_ = json.Unmarshal(tagsRaw, &sess.Tags)
+			_ = json.Unmarshal(customEmailsRaw, &sess.CustomEmails)
+
+			rows, logErr := s.db.QueryContext(ctx, `
+				SELECT id, broadcast_id, email, name, source, status, error_message, sent_at
+				FROM crm_broadcast_logs
+				WHERE broadcast_id::text = $1
+				ORDER BY sent_at ASC, email ASC
+			`, sess.ID)
+			var logs []CRMBroadcastLog
+			if logErr == nil {
+				defer rows.Close()
+				for rows.Next() {
+					var l CRMBroadcastLog
+					if err := rows.Scan(
+						&l.ID, &l.BroadcastID, &l.Email, &l.Name, &l.Source,
+						&l.Status, &l.ErrorMessage, &l.SentAt,
+					); err == nil {
+						logs = append(logs, l)
+					}
+				}
+			}
+			sess.Logs = logs
+			return &sess, logs, nil
+		}
+	}
+
+	store := s.getBroadcastHistoryStore()
+	store.RLock()
+	defer store.RUnlock()
+	for _, sess := range store.sessions {
+		if sess.ID == id || sess.IdempotencyKey == id {
+			copySess := sess
+			logs := store.logs[sess.ID]
+			copyLogs := make([]CRMBroadcastLog, len(logs))
+			copy(copyLogs, logs)
+			copySess.Logs = copyLogs
+			return &copySess, copyLogs, nil
+		}
+	}
+
+	return nil, nil, sql.ErrNoRows
+}
+
+// handleBroadcastHistory returns a list of past email broadcast sessions.
+func (s *Server) handleBroadcastHistory(w http.ResponseWriter, r *http.Request) {
+	if s.accountOwner(w, r) == "" {
+		return
+	}
+	sessions, err := s.listBroadcastSessions(r.Context())
+	if err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Gagal memuat riwayat broadcast: "+err.Error())
+		return
+	}
+	if sessions == nil {
+		sessions = []CRMBroadcastSession{}
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"broadcasts": sessions})
+}
+
+// handleBroadcastHistoryDetail returns detailed info for a single broadcast session including recipient logs.
+func (s *Server) handleBroadcastHistoryDetail(w http.ResponseWriter, r *http.Request) {
+	if s.accountOwner(w, r) == "" {
+		return
+	}
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "ID riwayat broadcast tidak valid")
+		return
+	}
+
+	session, logs, err := s.getBroadcastSessionDetail(r.Context(), id)
+	if err != nil || session == nil {
+		respondJSONError(w, http.StatusNotFound, "Riwayat sesi broadcast tidak ditemukan")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"broadcast": session,
+		"logs":      logs,
+	})
+}

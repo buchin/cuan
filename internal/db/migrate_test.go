@@ -455,6 +455,26 @@ func TestLoadMigrations(t *testing.T) {
 	if !strings.Contains(multiUserMig30.DownSQL, "ALTER TABLE owners DROP COLUMN IF EXISTS role") {
 		t.Errorf("expected 000030 DownSQL to drop role column")
 	}
+
+	if len(migs) < 43 {
+		t.Fatalf("expected at least 43 migrations, got %d", len(migs))
+	}
+	broadcastHistMig43 := migs[42]
+	if broadcastHistMig43.Version != "000043" {
+		t.Errorf("expected version 000043, got %s", broadcastHistMig43.Version)
+	}
+	if broadcastHistMig43.Name != "crm_broadcast_history" {
+		t.Errorf("expected name crm_broadcast_history, got %s", broadcastHistMig43.Name)
+	}
+	if !strings.Contains(broadcastHistMig43.UpSQL, "CREATE TABLE IF NOT EXISTS crm_broadcast_sessions") {
+		t.Errorf("expected 000043 UpSQL to create crm_broadcast_sessions table")
+	}
+	if !strings.Contains(broadcastHistMig43.UpSQL, "CREATE TABLE IF NOT EXISTS crm_broadcast_logs") {
+		t.Errorf("expected 000043 UpSQL to create crm_broadcast_logs table")
+	}
+	if !strings.Contains(broadcastHistMig43.DownSQL, "DROP TABLE IF EXISTS crm_broadcast_sessions") {
+		t.Errorf("expected 000043 DownSQL to drop crm_broadcast_sessions table")
+	}
 }
 
 func TestDryRun(t *testing.T) {
