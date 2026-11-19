@@ -706,5 +706,14 @@
   "Uploading file to workspace…": "Uploading file to workspace…",
   "File uploaded to workspace": "File uploaded to workspace",
   "Failed to upload file to workspace": "Failed to upload file to workspace",
-  "Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?": "There are {{count}} active tasks running in the background. Cancel running tasks and resolve conversation?"
+  "Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?": "There are {{count}} active tasks running in the background. Cancel running tasks and resolve conversation?",
+  "Cuan Assistant": "Cuan Assistant",
+  "Sampaikan kebutuhan operasional atau pilih contoh tugas di bawah:": "Share your operational goals or pick an example task below:",
+  "Analisis CRM & Draf Broadcast": "CRM Analysis & Broadcast Draft",
+  "Tolong analisis segmen kontak pelanggan CRM dan siapkan draf email broadcast promosi yang relevan.": "Please analyze CRM customer contact segments and prepare a relevant promotional broadcast email draft.",
+  "Webhook & Bot WhatsApp": "Webhook & WhatsApp Bot",
+  "Kesehatan Server & Antrean": "Server Health & Task Queue",
+  "Tolong periksa status kesehatan daemon runner, antrean tugas yang berjalan, dan metrik sistem VPS saat ini.": "Please check the health status of the runner daemon, running task queues, and current VPS system metrics.",
+  "Fitur Baru & Kriteria Selesai (DoD)": "New Feature & Definition of Done (DoD)",
+  "Saya ingin membuat peningkatan fitur baru di project. Tolong pelajari codebase, buatkan Approval Card dengan rencana kerja dan kriteria pengujian (DoD) sebelum eksekusi.": "I want to build a new feature improvement in the project. Please inspect the codebase and prepare an Approval Card with work scope and verification criteria (DoD) before execution."
 }

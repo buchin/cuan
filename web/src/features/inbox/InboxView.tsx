@@ -2058,13 +2058,55 @@ export function InboxView({
                     </>
                   ) : (
                     <>
-                      <Bot className="h-8 w-8 text-muted-foreground/60" />
-                      <p className="text-xs">
-                        {t('No messages with this contact yet.')}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground/80">
-                        {t('Type a message below to start a conversation.')}
-                      </p>
+                      <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border/50 shadow-2xs">
+                        <Bot className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {activeContact?.name || t('Cuan Assistant')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t('Sampaikan kebutuhan operasional atau pilih contoh tugas di bawah:')}
+                        </p>
+                      </div>
+                      <div data-testid="agent-prompt-starters" className="flex flex-wrap justify-center gap-1.5 pt-1 max-w-md">
+                        {[
+                          {
+                            emoji: '🎯',
+                            label: t('Analisis CRM & Draf Broadcast'),
+                            text: t('Tolong analisis segmen kontak pelanggan CRM dan siapkan draf email broadcast promosi yang relevan.'),
+                          },
+                          {
+                            emoji: '🛠️',
+                            label: t('Webhook & Bot WhatsApp'),
+                            text: t('Tolong hubungkan webhook form order ke bot WhatsApp notifikasi admin.'),
+                          },
+                          {
+                            emoji: '⚡',
+                            label: t('Kesehatan Server & Antrean'),
+                            text: t('Tolong periksa status kesehatan daemon runner, antrean tugas yang berjalan, dan metrik sistem VPS saat ini.'),
+                          },
+                          {
+                            emoji: '📋',
+                            label: t('Fitur Baru & Kriteria Selesai (DoD)'),
+                            text: t('Saya ingin membuat peningkatan fitur baru di project. Tolong pelajari codebase, buatkan Approval Card dengan rencana kerja dan kriteria pengujian (DoD) sebelum eksekusi.'),
+                          },
+                        ].map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            data-testid="starter-chip"
+                            onClick={() => {
+                              setInputMessage(item.text)
+                              textareaRef.current?.focus()
+                            }}
+                            className="px-2.5 py-1 text-xs rounded-full border border-border/60 bg-muted/20 hover:bg-muted/50 text-foreground transition active:scale-95 text-left inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span>{item.emoji}</span>
+                            <span>{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </>
                   )}
                 </div>
