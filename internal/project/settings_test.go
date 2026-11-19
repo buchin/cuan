@@ -350,6 +350,21 @@ DOJO_VPS_PASSWORD="falcon-27%-panda"
 	}
 }
 
+func TestRewriteEnvironmentKey(t *testing.T) {
+	raw := "FOO=bar\nCUAN_PUBLICATION_HEALTH_URL=https://cuan.dojo.cc/healthz\nBAZ=qux"
+	rewritten := rewriteEnvironmentKey(raw, "CUAN_PUBLICATION_HEALTH_URL", "https://app.cuan.work/healthz")
+	expected := "FOO=bar\nCUAN_PUBLICATION_HEALTH_URL=https://app.cuan.work/healthz\nBAZ=qux"
+	if rewritten != expected {
+		t.Errorf("expected %q, got %q", expected, rewritten)
+	}
+
+	// Key not found returns unchanged
+	unchanged := rewriteEnvironmentKey(raw, "NON_EXISTENT", "value")
+	if unchanged != raw {
+		t.Errorf("expected unchanged %q, got %q", raw, unchanged)
+	}
+}
+
 func TestProjectSettingsEnvironment(t *testing.T) {
 	ctx := context.Background()
 	store := NewMemoryStore()

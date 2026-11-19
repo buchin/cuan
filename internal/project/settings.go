@@ -173,12 +173,22 @@ func (s *Service) TaskContext(ctx context.Context, id, instructions string) (*Pr
 	if !historicalProjectID(p, snapshot.ProjectID) {
 		return p, nil
 	}
-	settings := SettingsFromMetadata(p.Metadata)
+	liveSettings := SettingsFromMetadata(p.Metadata)
+	settings := liveSettings
 	settings.Goal, settings.Instructions = snapshot.Goal, snapshot.Instructions
 	settings.Environment, settings.DeployBranch, settings.DeployScript = snapshot.Environment, snapshot.DeployBranch, snapshot.DeployScript
 	settings.WorkspaceRevision = snapshot.Revision
 	if snapshot.AutoDeploy != nil {
 		settings.AutoDeploy = snapshot.AutoDeploy
+	}
+	// Rewrite stale CUAN_PUBLICATION_HEALTH_URL from frozen snapshot when the
+	// live project has an updated value. Avoids tasks re-executing against a
+	// defunct health URL that was valid at task-creation time but is now gone.
+	if liveURL := ParseEnvironment(liveSettings.Environment)["CUAN_PUBLICATION_HEALTH_URL"]; liveURL != "" {
+		snapshotURL := ParseEnvironment(settings.Environment)["CUAN_PUBLICATION_HEALTH_URL"]
+		if snapshotURL != liveURL && snapshotURL != "" {
+			settings.Environment = rewriteEnvironmentKey(settings.Environment, "CUAN_PUBLICATION_HEALTH_URL", liveURL)
+		}
 	}
 	metadata := map[string]json.RawMessage{}
 	if len(p.Metadata) > 0 && string(p.Metadata) != "null" {
@@ -431,6 +441,27 @@ func PreserveProjectGuidance(previous, next string) string {
 		next = next[:at]
 	}
 	return strings.TrimSpace(next) + saved
+}
+
+// rewriteEnvironmentKey returns a copy of the raw KEY=VALUE block with the
+// given key's value replaced by newVal. All other lines are preserved verbatim.
+// If the key is not present the block is returned unchanged.
+func rewriteEnvironmentKey(raw, key, newVal string) string {
+	var out []string
+	prefix := key + "="
+	replaced := false
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			out = append(out, key+"="+newVal)
+			replaced = true
+		} else {
+			out = append(out, line)
+		}
+	}
+	if !replaced {
+		return raw
+	}
+	return strings.Join(out, "\n")
 }
 
 // ParseEnvironment parses standard KEY=VALUE lines into a map[string]string.
