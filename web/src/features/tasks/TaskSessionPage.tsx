@@ -695,6 +695,7 @@ export function TaskSessionPage({
                 onConnectionChange={setTerminalConnection}
                 isDedicatedTerminal={isDedicatedTerminal}
                 isPopout={isPopout}
+                hideStatus
               />
             </Suspense>
           </div>
