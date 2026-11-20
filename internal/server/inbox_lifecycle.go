@@ -483,8 +483,23 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							}
 							output = deduplicateWorkLinks(output)
 							now := time.Now().UTC()
-							reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
-							s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
+							if snapshotReview && output != "" && s.projectStudioRepo != nil {
+								if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID); err == nil && len(msgs) > 0 {
+									last := msgs[len(msgs)-1]
+									if strings.TrimSpace(last.Content) == strings.TrimSpace(output) {
+										reply = nil
+									} else {
+										reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
+										s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
+									}
+								} else {
+									reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
+									s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
+								}
+							} else {
+								reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
+								s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
+							}
 						}
 					}
 				}
