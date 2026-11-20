@@ -1862,8 +1862,8 @@ export function InboxView({
         {canvasMode === 'studio' ? (
           <div className="flex h-full flex-1 flex-col overflow-hidden">
             <PageHeader className="wa-studio-header"><PageTitle>{t('New work')}</PageTitle></PageHeader>
-            <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
-              <div className="calm-stream-constraint max-w-2xl mx-auto">
+            <div data-testid="studio-dynamic-canvas" className="h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background">
+              <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
                 <StudioView
                   onAccepted={() => onContactUpdated?.()}
                   onConversationCreated={handleStudioConversationCreated}
@@ -2275,7 +2275,7 @@ export function InboxView({
               }}
               onDragOver={uploads.onDragOver}
             >
-              <div className="mx-auto max-w-[75ch] bg-transparent">
+              <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full bg-transparent">
                 <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && isWhisper} />
                 <ComposerTasks
                   key={activeContact.conversation_id || activeContact.id}

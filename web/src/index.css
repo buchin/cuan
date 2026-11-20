@@ -192,7 +192,7 @@ body:has(.task-terminal-container),
 }
 
 .app-shell [data-inbox-composer] textarea {
-  max-height: min(140px, 25dvh);
+  max-height: min(200px, 35dvh);
 }
 
 /* Shared interaction and type scale. Metadata stays 12px; content uses 14–16px. */

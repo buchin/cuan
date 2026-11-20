@@ -1,6 +1,6 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
@@ -195,12 +195,31 @@ export function StudioView({
 
   const update = (text: string) => {
     setGoal(text)
+    if (goalInput.current) {
+      autoResizeGoal(goalInput.current)
+    }
     try {
       localStorage.setItem('cuan-studio-draft', text)
     } catch {
       /* Submission surfaces unavailable storage. */
     }
   }
+
+  const autoResizeGoal = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    const minimum = 104
+    const cap = 320
+    const next = Math.min(Math.max(el.scrollHeight, minimum), cap)
+    el.style.height = `${next}px`
+    el.style.overflowY = el.scrollHeight > cap ? 'auto' : 'hidden'
+  }, [])
+
+  useEffect(() => {
+    if (goalInput.current) {
+      autoResizeGoal(goalInput.current)
+    }
+  }, [goal, autoResizeGoal])
 
   useEffect(() => {
     let active = true
@@ -348,7 +367,10 @@ export function StudioView({
               value={goal}
               maxLength={6000}
               disabled={busy}
-              onChange={(e) => update(e.target.value)}
+              onChange={(e) => {
+                update(e.target.value)
+                autoResizeGoal(e.target)
+              }}
               onKeyDown={(e) => {
                 if (
                   !e.nativeEvent.isComposing &&
