@@ -71,17 +71,17 @@ export function ApprovalCard({
       data-testid="approval-card"
       data-status={accepted ? 'accepted' : deferred ? 'deferred' : 'pending'}
       className={cn(
-        'approval-card mt-3 rounded-xl border p-3.5 sm:p-4 space-y-3 shadow-none transition-all duration-200 min-w-0 max-w-full overflow-hidden',
+        'approval-card mt-3 border-0 border-l-2 pl-3.5 sm:pl-4 py-0.5 space-y-3 bg-transparent shadow-none transition-all duration-200 min-w-0 max-w-full overflow-hidden',
         accepted
-          ? 'border-border/30 bg-card/20 dark:bg-card/10 border-l-2 border-l-emerald-500'
+          ? 'border-l-2 border-l-emerald-500'
           : deferred
-            ? 'border-border/40 bg-muted/10 border-l-2 border-l-muted-foreground'
-            : 'border-border/60 bg-card/60 dark:bg-card/40 border-l-2 border-l-primary shadow-2xs',
+            ? 'border-l-2 border-l-muted-foreground'
+            : 'border-l-2 border-l-primary',
         className,
       )}
     >
       {/* Header Badge & Project Tag */}
-      <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2">
         <div className="flex items-center gap-1.5 min-w-0">
           {accepted ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -137,7 +137,7 @@ export function ApprovalCard({
           >
             <ChatMarkdown content={plan.description} className="text-sm" />
             {!planExpanded && isLongPlan && (
-              <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-card/95 via-card/60 to-transparent pointer-events-none" />
+              <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[var(--wa-incoming,transparent)] via-[var(--wa-incoming,transparent)]/60 to-transparent pointer-events-none" />
             )}
           </div>
           {isLongPlan && (
@@ -161,7 +161,7 @@ export function ApprovalCard({
 
       {/* Action Buttons (Touch target min-h-11, mobile responsive wrap) */}
       {!accepted && (
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40">
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/30">
           <Button
             size="sm"
             className="min-h-11 text-xs gap-1.5 font-semibold px-3.5 py-2 cursor-pointer shadow-xs bg-primary text-primary-foreground"
