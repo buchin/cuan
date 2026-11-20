@@ -15,20 +15,35 @@ self.addEventListener('push', event => {
     if (text) data = { body: text }
   }
 
-  const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
+  let title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : ''
+  const kind = typeof data.kind === 'string' ? data.kind : ''
+  const status = typeof data.status === 'string' ? data.status : ''
+  const tag = typeof data.tag === 'string' ? data.tag : ''
+
+  if (!title || title === '@cuan' || title.startsWith('@') || title === 'Cuan' || title === 'Asisten AI') {
+    if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:')) {
+      title = 'Butuh Persetujuan'
+    } else if (kind === 'completed' || status.toLowerCase().includes('complete') || tag.includes(':done')) {
+      title = 'Pekerjaan Selesai'
+    } else if (kind === 'blocker' || status.toLowerCase().includes('attention') || tag.includes(':blocked')) {
+      title = 'Perhatian Diperlukan'
+    } else if (kind === 'customer') {
+      title = 'Pesan Baru'
+    } else {
+      title = 'Pesan Baru'
+    }
+  }
+
   const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
 
   let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
   if (!icon || icon === '/icons/cuan-192.png') {
-    const kind = typeof data.kind === 'string' ? data.kind : ''
-    const status = typeof data.status === 'string' ? data.status : ''
-    const tag = typeof data.tag === 'string' ? data.tag : ''
     const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
 
     if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
-      if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai')) {
+      if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai') || title.includes('Pekerjaan Selesai')) {
         icon = '/icons/task-done.png'
-      } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review')) {
+      } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review') || status.toLowerCase().includes('approval') || title.includes('Persetujuan')) {
         icon = '/icons/task-review.png'
       } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
         icon = '/icons/task-blocker.png'

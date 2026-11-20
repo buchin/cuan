@@ -6,9 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -261,8 +263,8 @@ func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 	agentItem := ownerPrefs.Items[0]
 	payload := buildPushPayload(agentItem)
 
-	if payload["title"] != "Asisten AI" {
-		t.Errorf("expected title 'Asisten AI', got %q", payload["title"])
+	if payload["title"] != "Pesan Baru" {
+		t.Errorf("expected title 'Pesan Baru', got %q", payload["title"])
 	}
 	if !strings.Contains(payload["body"], "Pesanan Anda sedang diproses") {
 		t.Errorf("expected body snippet from agent response, got %q", payload["body"])
@@ -290,8 +292,8 @@ func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 	approvalItem := ownerPrefs.Items[0]
 	approvalPayload := buildPushPayload(approvalItem)
 
-	if approvalPayload["title"] != "Asisten AI" {
-		t.Errorf("expected title 'Asisten AI', got %q", approvalPayload["title"])
+	if approvalPayload["title"] != "Butuh Persetujuan" {
+		t.Errorf("expected title 'Butuh Persetujuan', got %q", approvalPayload["title"])
 	}
 	if !strings.Contains(approvalPayload["body"], "Konfirmasi diskon 10% produk sepatu") {
 		t.Errorf("expected body to reflect approval plan title, got %q", approvalPayload["body"])
@@ -733,8 +735,8 @@ func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
 	if pAgent["icon"] != "/icons/cuan-192.png" {
 		t.Errorf("expected agent chat icon '/icons/cuan-192.png', got %q", pAgent["icon"])
 	}
-	if pAgent["title"] != "@cuan" {
-		t.Errorf("expected agent chat title '@cuan', got %q", pAgent["title"])
+	if pAgent["title"] != "Pesan Baru" {
+		t.Errorf("expected agent chat title 'Pesan Baru', got %q", pAgent["title"])
 	}
 }
 
@@ -879,5 +881,110 @@ func TestPushNotification_FilterIntermediateRunnerEvents(t *testing.T) {
 	s.DispatchTaskCompletedPush(ctx, doneTask)
 	if spy.CallCount() != 2 {
 		t.Fatalf("expected 2 push calls for task completion, got %d", spy.CallCount())
+	}
+}
+
+// TestPushPayload_DynamicActionTitlesAndHumanizedSnippets verifies:
+// 1. Dynamic action/status titles ('Butuh Persetujuan', 'Pekerjaan Selesai', 'Pesan Baru')
+// 2. Stripping internal technical jargon and developer clutter from push snippets
+// 3. Maskable notification icons (/icons/task-done.png, /icons/task-review.png, /icons/task-blocker.png) without dark mode black background corners
+func TestPushPayload_DynamicActionTitlesAndHumanizedSnippets(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	roomID := "room-inbox-" + db.GenerateUUID()
+
+	// 1. Approval proposal with internal developer jargon (as reported in user screenshot)
+	jargonTitle := "Perbaikan Alur Pembatalan Sesi (Cancel Session) di Frontend dan Backend Runner"
+	rawProposal := "Rencana Penyelarasan:\n```cuan-approval\n" + `{"title":"` + jargonTitle + `","description":"Alur pembatalan diperbaiki.","project_id":"default"}` + "\n```"
+
+	s.DispatchAgentUpdatePush(ctx, roomID, "msg-approval-jargon", "@cuan", rawProposal, true)
+
+	ownerPrefs, _ := readOwnerPreferences(ownerID)
+	if len(ownerPrefs.Items) == 0 {
+		t.Fatal("expected owner notification for approval proposal")
+	}
+	apprItem := ownerPrefs.Items[0]
+	apprPayload := buildPushPayload(apprItem)
+
+	// DoD 1: Dynamic title based on action/status
+	if apprPayload["title"] != "Butuh Persetujuan" {
+		t.Errorf("expected dynamic action title 'Butuh Persetujuan', got %q", apprPayload["title"])
+	}
+	// DoD 2: Humanized body free of technical jargon
+	if strings.Contains(apprPayload["body"], "Cancel Session") || strings.Contains(apprPayload["body"], "Frontend dan Backend Runner") {
+		t.Errorf("expected push body to be free of technical jargon, got %q", apprPayload["body"])
+	}
+	if !strings.Contains(apprPayload["body"], "Perbaikan Alur Pembatalan Sesi") {
+		t.Errorf("expected body to contain cleaned human title, got %q", apprPayload["body"])
+	}
+	// DoD 3: Maskable review icon
+	if apprPayload["icon"] != "/icons/task-review.png" {
+		t.Errorf("expected icon '/icons/task-review.png', got %q", apprPayload["icon"])
+	}
+
+	// 2. Chat message from @cuan facade (DoD 1: Dynamic title 'Pesan Baru', never '@cuan')
+	chatMsgItem := ownerNotification{
+		ID:      "agent:room-test:msg-1",
+		Kind:    "completed",
+		Title:   "@cuan",
+		Summary: "Halo! Pekerjaan sudah saya siapkan.",
+		Href:    "/inbox/room-test",
+	}
+	chatPayload := buildPushPayload(chatMsgItem)
+	if chatPayload["title"] != "Pesan Baru" {
+		t.Errorf("expected dynamic action title 'Pesan Baru', got %q", chatPayload["title"])
+	}
+
+	// 3. Completed work (DoD 1: Dynamic title 'Pekerjaan Selesai')
+	doneItem := ownerNotification{
+		ID:      "task:work-123:done",
+		Kind:    "completed",
+		Title:   "Pekerjaan Selesai",
+		Summary: "Pekerjaan penyesuaian telah selesai.",
+		Href:    "/tasks/work-123",
+	}
+	donePayload := buildPushPayload(doneItem)
+	if donePayload["title"] != "✓ Selesai" {
+		t.Errorf("expected dynamic action title '✓ Selesai', got %q", donePayload["title"])
+	}
+	if donePayload["icon"] != "/icons/task-done.png" {
+		t.Errorf("expected icon '/icons/task-done.png', got %q", donePayload["icon"])
+	}
+
+	// 4. Verify physical icon assets on disk have zero black (#191919) corner pixels
+	iconPaths := []string{
+		"../../web/public/icons/task-done.png",
+		"../../web/public/icons/task-review.png",
+		"../../web/public/icons/task-blocker.png",
+	}
+	for _, p := range iconPaths {
+		f, err := os.Open(p)
+		if err != nil {
+			t.Fatalf("failed to open icon %s: %v", p, err)
+		}
+		img, err := png.Decode(f)
+		_ = f.Close()
+		if err != nil {
+			t.Fatalf("failed to decode png %s: %v", p, err)
+		}
+		b := img.Bounds()
+		if b.Dx() != 192 || b.Dy() != 192 {
+			t.Errorf("icon %s expected 192x192, got %dx%d", p, b.Dx(), b.Dy())
+		}
+		// Check 4 corner pixels: must NOT be #191919 black
+		corners := [][2]int{{0, 0}, {b.Dx() - 1, 0}, {0, b.Dy() - 1}, {b.Dx() - 1, b.Dy() - 1}}
+		for _, c := range corners {
+			r, g, b, _ := img.At(c[0], c[1]).RGBA()
+			r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
+			if r8 == 0x19 && g8 == 0x19 && b8 == 0x19 {
+				t.Errorf("icon %s at (%d,%d) has rigid black corner #191919", p, c[0], c[1])
+			}
+		}
 	}
 }

@@ -602,19 +602,27 @@ func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID,
 	status := "Completed"
 	actionLabel := "View conversation"
 	summary := cleanNotificationSnippet(content)
-	title := agentName
+	title := "Pesan Baru"
 	if isApproval {
 		kind = "approval"
 		status = "Needs approval"
 		actionLabel = "Review proposal"
+		title = "Butuh Persetujuan"
 		_, approvalTitle := splitInboxApproval("agent", content)
 		if approvalTitle != "" {
-			summary = cleanNotificationSnippet(approvalTitle)
+			cleanTitle := humanizeTaskTitle(approvalTitle)
+			if cleanTitle != "" {
+				summary = "Rencana pekerjaan siap ditinjau: " + cleanTitle
+			} else {
+				summary = "Rencana pekerjaan baru telah disiapkan dan siap ditinjau."
+			}
+		} else {
+			summary = "Rencana pekerjaan baru telah disiapkan dan siap ditinjau."
 		}
 	}
 	if summary == "" {
 		if isApproval {
-			summary = "Asisten AI membutuhkan persetujuan Anda."
+			summary = "Rencana pekerjaan baru telah disiapkan dan siap ditinjau."
 		} else {
 			summary = "Asisten AI telah menyelesaikan respons."
 		}
