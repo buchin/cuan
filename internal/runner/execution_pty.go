@@ -167,6 +167,15 @@ func (r *Runner) executeWithPTY(
 	}
 	defer proc.Close()
 
+	// Terminate process group promptly when execution context is canceled
+	go func() {
+		select {
+		case <-execCtx.Done():
+			_ = proc.Close()
+		case <-proc.Done():
+		}
+	}()
+
 	sessionID := "runner-sess-" + att.ID
 	sess := terminal.NewSession(sessionID, t.ID, proc, terminal.ModeInteractive)
 	defer sess.Close()
@@ -190,6 +199,7 @@ func (r *Runner) executeWithPTY(
 	r.mu.Lock()
 	var steerCh <-chan string
 	if act, ok := r.activeAttempts[att.ID]; ok {
+		act.pid = proc.PID()
 		act.steerFunc = steerFunc
 		steerCh = act.steerChan
 	}

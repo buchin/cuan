@@ -355,9 +355,9 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 	// task back to the queue keeps it runnable, which is what "cancel" means to
 	// the person who asked; only a genuine failure may block a task.
 	oldTaskStatus := t.Status
-	t.Status = TaskStatusBacklog
+	t.Status = TaskStatusCancelled
 	t.UpdatedAt = now
-	_ = s.FinishTaskLaunches(ctx, taskID, "stopped")
+	_ = s.FinishTaskLaunches(ctx, taskID, "cancelled")
 	if err := s.store.UpdateTask(ctx, t); err == nil {
 		snapshot := *t
 		transitionEvent, previousStatus = &snapshot, oldTaskStatus
@@ -371,8 +371,8 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 		ActivityType: ActivityTypeCancelRequested,
 		Author:       author,
 		OldStatus:    oldTaskStatus,
-		NewStatus:    TaskStatusBacklog,
-		Message:      fmt.Sprintf("Cancellation of attempt %s requested by %s. The task is back in the queue and can run again.", latest.ID, author),
+		NewStatus:    TaskStatusCancelled,
+		Message:      fmt.Sprintf("Cancellation of attempt %s requested by %s. The session has been cancelled.", latest.ID, author),
 		CreatedAt:    now,
 	}
 	_ = s.store.CreateActivity(ctx, act)

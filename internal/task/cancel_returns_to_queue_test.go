@@ -24,8 +24,8 @@ func TestCancelReturnsTaskToQueueNotBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Status != TaskStatusBacklog {
-		t.Fatalf("cancelled task should return to the queue, got %q", detail.Status)
+	if detail.Status != TaskStatusCancelled {
+		t.Fatalf("cancelled task should be recorded as cancelled, got %q", detail.Status)
 	}
 	if detail.LatestAttempt.Status != AttemptStatusCanceled {
 		t.Fatalf("attempt should be recorded as cancelled, got %q", detail.LatestAttempt.Status)

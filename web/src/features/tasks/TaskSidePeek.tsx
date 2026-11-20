@@ -1618,11 +1618,10 @@ function TaskDetailView({
                 await tasksApi.cancel(initial.id)
                 setModal(null)
                 await reload()
-                await onRunAgent(initial.id)
               })
             }
           >
-            Cancel session
+            {busy ? 'Cancelling…' : 'Cancel session'}
           </button>
         </div>
       </ActionDialog>
