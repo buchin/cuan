@@ -207,6 +207,9 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 			isCandidateMigration := task.IsTaskSchemaMigration(t)
 
 			for _, otherTask := range tasks {
+				if strings.HasPrefix(otherTask.Title, "Terminal · ") {
+					continue
+				}
 				if otherTask.ID != t.ID && (otherTask.ProjectID == t.ProjectID || containsString(otherTask.ProjectIDs, t.ProjectID)) {
 					isOtherActive := false
 					if otherTask.Status == task.TaskStatusDoing || otherTask.Status == "working" {

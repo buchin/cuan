@@ -837,7 +837,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 			// Readonly: shared reader pool! Only blocked by active migration lock (checked above)
 		} else {
 			// Code lane: git deployment lock
-			if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID {
+			if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID && !strings.HasPrefix(activeTaskID, "project-term-") {
 				if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
 					m.mu.Unlock()
 					return nil, taskprocess.ErrActive
@@ -1138,7 +1138,7 @@ func (m *Manager) ProjectLaneActive(projectID string, lane string) (bool, error)
 
 	// Code lane: check git deployment lock
 	m.mu.RLock()
-	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" {
+	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" && !strings.HasPrefix(activeTaskID, "project-term-") {
 		if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
 			m.mu.RUnlock()
 			return true, nil

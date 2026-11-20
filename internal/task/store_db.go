@@ -946,6 +946,7 @@ func (s *DBStore) IsProjectLaneActive(ctx context.Context, projectID string, lan
 		SELECT 1 FROM tasks t
 		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
 		  AND ($2 = '' OR t.id != $2)
+		  AND t.title NOT LIKE 'Terminal · %'
 		  AND t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 		  AND (
 			  t.status IN ('doing', 'working')
@@ -978,6 +979,7 @@ func (s *DBStore) IsProjectLaneActive(ctx context.Context, projectID string, lan
 		SELECT 1 FROM tasks t
 		WHERE (t.project_id = $1 OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = t.id AND tp.project_id = $1))
 		  AND ($2 = '' OR t.id != $2)
+		  AND t.title NOT LIKE 'Terminal · %'
 		  AND COALESCE(t.execution_category, 'code') = $3
  AND ((t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued') AND (
 			  t.status IN ('doing', 'working')

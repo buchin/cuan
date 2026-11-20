@@ -277,6 +277,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		              WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                AND active_att.status = 'running'
 		                AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                AND active_t.title NOT LIKE 'Terminal · %'
 		                AND (
 		                    active_t.instructions ILIKE '%migration%' OR active_t.instructions ILIKE '%migrate%' OR active_t.title ILIKE '%migration%' OR active_t.title ILIKE '%migrate%'
 		                )
@@ -291,12 +292,14 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                      JOIN tasks active_t ON active_att.task_id = active_t.id
 		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                        AND active_att.status = 'running'
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                  )
 		                  AND NOT EXISTS (
 		                      SELECT 1 FROM tasks active_t
 		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                        AND active_t.id != t.id
 		                        AND active_t.status IN ('doing', 'working')
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                  )
 		              )
 		          )
@@ -310,6 +313,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                        AND active_att.status = 'running'
 		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                  )
 		                  AND NOT EXISTS (
 		                      SELECT 1 FROM tasks active_t
@@ -317,6 +321,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_t.id != t.id
 		                        AND active_t.status IN ('doing', 'working')
 		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                  )
 		                  AND NOT EXISTS (
 		                      SELECT 1 FROM task_launches active_tl
@@ -325,6 +330,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_tl.task_id != t.id
 		                        AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review')
 		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                        AND (
 		                            (active_tl.state = 'started' AND NOT EXISTS (
 		                                SELECT 1 FROM task_attempts pending_att
@@ -347,6 +353,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                      WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                        AND active_att.status = 'running'
 		                        AND COALESCE(active_t.execution_category, 'code') = 'ops'
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                  )
 		                  AND NOT EXISTS (
 		                      SELECT 1 FROM tasks active_t
@@ -354,6 +361,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_t.id != t.id
 		                        AND active_t.status IN ('doing', 'working')
 		                        AND COALESCE(active_t.execution_category, 'code') = 'ops'
+		                        AND active_t.title NOT LIKE 'Terminal · %'
 		                  )
 		              )
 		          )
