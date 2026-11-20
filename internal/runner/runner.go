@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
@@ -591,6 +590,11 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}(claimResp, lane)
 }
 
+// CancelCurrentExecution terminates all actively running attempts on this runner.
+func (r *Runner) CancelCurrentExecution() {
+	r.cancelCurrentExecution()
+}
+
 func (r *Runner) cancelCurrentExecution() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -602,10 +606,14 @@ func (r *Runner) cancelCurrentExecution() {
 			act.cancel()
 		}
 		if act.pid > 0 {
-			_ = syscall.Kill(-act.pid, syscall.SIGTERM)
-			_ = syscall.Kill(act.pid, syscall.SIGTERM)
+			terminal.TerminateProcessGroup(act.pid)
 		}
 	}
+}
+
+// CancelSpecificAttempt cancels and terminates a specific attempt by ID.
+func (r *Runner) CancelSpecificAttempt(attemptID string) {
+	r.cancelSpecificAttempt(attemptID)
 }
 
 func (r *Runner) cancelSpecificAttempt(attemptID string) {
@@ -616,14 +624,12 @@ func (r *Runner) cancelSpecificAttempt(attemptID string) {
 			act.cancel()
 		}
 		if act.pid > 0 {
-			_ = syscall.Kill(-act.pid, syscall.SIGTERM)
-			_ = syscall.Kill(act.pid, syscall.SIGTERM)
+			terminal.TerminateProcessGroup(act.pid)
 		}
 	}
 	if r.registry != nil {
 		if rec, err := r.registry.Get(attemptID); err == nil && rec != nil && rec.PID > 0 {
-			_ = syscall.Kill(-rec.PID, syscall.SIGTERM)
-			_ = syscall.Kill(rec.PID, syscall.SIGTERM)
+			terminal.TerminateProcessGroup(rec.PID)
 		}
 	}
 }

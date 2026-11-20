@@ -582,8 +582,11 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 	}
 	att, err := s.taskSvc.CancelTask(r.Context(), taskID, author)
 	if cancelledLaunches > 0 && (errors.Is(err, task.ErrAttemptNotFound) || errors.Is(err, task.ErrInvalidTaskInput)) {
-		blocked := task.TaskStatusBlocked
-		_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, author, task.UpdateTaskRequest{Status: &blocked})
+		cancelled := task.TaskStatusCancelled
+		_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, author, task.UpdateTaskRequest{Status: &cancelled})
+		if s.projectStudioRepo != nil {
+			_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "cancelled")
+		}
 		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil {
 			s.publishInbox(detail.SourceRoomID)
 		}
@@ -603,8 +606,20 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.projectStudioRepo != nil {
+		_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "cancelled")
+	}
+	if s.runnerSupervisor != nil && att != nil {
+		s.runnerSupervisor.CancelAttempt(att.ID)
+	}
+	if s.runnerSvc != nil && att != nil {
+		_ = s.runnerSvc.CancelAttempt(r.Context(), att.ID)
+	}
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)
+		if att != nil && att.ID != "" && att.ID != taskID {
+			_ = s.terminalManager.CloseSession(att.ID)
+		}
 	}
 	if s.taskSvc != nil {
 		_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "cancelled")

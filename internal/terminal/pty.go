@@ -222,7 +222,10 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 		if cmd.Process == nil {
 			return nil
 		}
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+		_ = syscall.Kill(cmd.Process.Pid, syscall.SIGINT)
 		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		_ = syscall.Kill(cmd.Process.Pid, syscall.SIGTERM)
 		if err == syscall.ESRCH {
 			return os.ErrProcessDone
 		}
@@ -374,7 +377,12 @@ func (p *PTYProcess) Wait() error {
 	return p.waitErr
 }
 
-// Kill terminates the process group gracefully with SIGHUP/SIGTERM, followed by SIGKILL if required.
+// Done returns a channel that is closed when the process has exited.
+func (p *PTYProcess) Done() <-chan struct{} {
+	return p.waitDone
+}
+
+// Kill terminates the process group gracefully with SIGINT/SIGTERM, followed by SIGKILL if required.
 func (p *PTYProcess) Kill() error {
 	p.mu.Lock()
 	if p.closed {
@@ -388,9 +396,13 @@ func (p *PTYProcess) Kill() error {
 	ptyFile := p.ptyFile
 	p.mu.Unlock()
 
-	// 1. Signal process group SIGHUP
+	// 1. Signal process group with SIGINT and SIGTERM
 	if cmd != nil && cmd.Process != nil {
 		pid := cmd.Process.Pid
+		_ = syscall.Kill(-pid, syscall.SIGINT)
+		_ = cmd.Process.Signal(syscall.SIGINT)
+		_ = syscall.Kill(-pid, syscall.SIGTERM)
+		_ = cmd.Process.Signal(syscall.SIGTERM)
 		_ = syscall.Kill(-pid, syscall.SIGHUP)
 		_ = cmd.Process.Signal(syscall.SIGHUP)
 	}
@@ -416,21 +428,31 @@ func (p *PTYProcess) Kill() error {
 	return nil
 }
 
-// Only the fresh session/process group created by SpawnPTY is signalled. This
-// does not discover daemonized children that explicitly leave that group.
-func terminateOwnedPTYGroup(pid int) {
-	if pid <= 0 || syscall.Kill(-pid, 0) == syscall.ESRCH {
+// TerminateProcessGroup terminates an entire process group gracefully with SIGINT and SIGTERM,
+// escalating to SIGKILL if processes remain alive.
+func TerminateProcessGroup(pid int) {
+	if pid <= 0 {
 		return
 	}
+	if syscall.Kill(-pid, 0) == syscall.ESRCH && syscall.Kill(pid, 0) == syscall.ESRCH {
+		return
+	}
+	_ = syscall.Kill(-pid, syscall.SIGINT)
+	_ = syscall.Kill(pid, syscall.SIGINT)
 	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	_ = syscall.Kill(pid, syscall.SIGTERM)
 	if waitPTYGroupExit(pid, 200*time.Millisecond) {
 		return
 	}
 	_ = syscall.Kill(-pid, syscall.SIGKILL)
-	// Signal delivery is asynchronous. Give the owned group a bounded period to
-	// exit before the caller can release its execution slot. Orphan zombies may
-	// still await OS/PID1 reaping; they cannot continue task work.
+	_ = syscall.Kill(pid, syscall.SIGKILL)
 	waitPTYGroupExit(pid, 200*time.Millisecond)
+}
+
+// Only the fresh session/process group created by SpawnPTY is signalled. This
+// does not discover daemonized children that explicitly leave that group.
+func terminateOwnedPTYGroup(pid int) {
+	TerminateProcessGroup(pid)
 }
 
 func waitPTYGroupExit(pid int, timeout time.Duration) bool {
@@ -439,7 +461,7 @@ func waitPTYGroupExit(pid int, timeout time.Duration) bool {
 	poll := time.NewTicker(10 * time.Millisecond)
 	defer poll.Stop()
 	for {
-		if syscall.Kill(-pid, 0) == syscall.ESRCH {
+		if syscall.Kill(-pid, 0) == syscall.ESRCH && syscall.Kill(pid, 0) == syscall.ESRCH {
 			return true
 		}
 		select {
