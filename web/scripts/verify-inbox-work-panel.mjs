@@ -32,7 +32,31 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
- message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]})]
+ message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
+ message('proposal-pending','Siap, ane susun proposal untuk Riwayat & Log Pengiriman (Phase 3).\n\nDi fase ini, setiap sesi broadcast yang dikirim akan otomatis tercatat di menu Kontak—lengkap dengan waktu pengiriman, subjek pesan, jumlah penerima sukses, dan rincian error jika ada email yang gagal terkirim. Tampilannya dirancang minimalis dan rapi mengikuti standar Things 3 / Bear Notes agar mudah dipantau tanpa menambah beban visual.\n\nDetail rencana dan kriteria tuntasnya sudah ane cantumkan pada kartu persetujuan berikut. Silakan dikonfirmasi jika cakupannya sudah sesuai.',{
+   author_type:'agent',
+   is_internal:true,
+   approval_plan:{
+     title:'Phase 3: Riwayat & Log Pengiriman Broadcast Email CRM',
+     description:'Problem Statement:\nSetelah Phase 1 (resolver audiens & preview) dan Phase 2 (draf pesan, batch sender, idempotency, dan RFC 8058) selesai terverifikasi, sistem belum memiliki pencatatan riwayat broadcast. Operator membutuhkan visibilitas riwayat pengiriman lampau beserta detail status keberhasilan, log kegagalan, dan metadata pengiriman untuk audit serta transparansi operasional.',
+     project_name:'cuan'
+   },
+   approval_request_id:'plan-approve-1',
+   plan_defer_request_id:'plan-defer-1',
+   approval_accepted:false
+ }),
+ message('proposal-accepted','Berikut proposal rencana yang telah disetujui:',{
+   author_type:'agent',
+   is_internal:true,
+   approval_plan:{
+     title:'Penyelarasan Desain Kartu Approval Chat: Eliminasi Nested Box Cards',
+     description:'Merapikan struktur visual komponen kartu proposal/approval di linimasa percakapan agar menyatu secara seamless dengan bubble pesan chat tanpa efek kotak dalam kotak.',
+     project_name:'cuan'
+   },
+   approval_request_id:'plan-approve-2',
+   plan_defer_request_id:'plan-defer-2',
+   approval_accepted:true
+ })]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter,useLocation} from 'react-router-dom';
@@ -193,6 +217,28 @@ try{
   await sentBadge.waitFor({state:'visible'})
   assert.equal(await sentBadge.count(), 1)
   await page.screenshot({path:path.join(output,`customer-reply-sent-${width}.png`)})
+
+  // Verify Approval Card Seamless Integration (No Nested Box Cards)
+  const pendingCard = page.locator('[data-testid="approval-card"][data-status="pending"]')
+  await pendingCard.waitFor({state:'visible'})
+  assert.equal(await pendingCard.count(), 1)
+  // Verify no nested calm-message-bubble inside wa-message-bubble
+  assert.equal(await page.locator('.wa-message-bubble .calm-message-bubble').count(), 0, 'No nested bubble inside message bubble')
+  // Verify ApprovalCard is borderless/transparent (no stacked box card)
+  const pendingClass = await pendingCard.getAttribute('class')
+  assert.ok(pendingClass.includes('border-0') && pendingClass.includes('border-l-2') && pendingClass.includes('bg-transparent'), 'Approval card must be border-0 border-l-2 bg-transparent')
+  assert.ok(!pendingClass.includes('bg-card'), 'Approval card must eliminate stacked bg-card')
+  // Check action button touch target (min-h-11)
+  const approveBtn = pendingCard.getByRole('button', {name: /Approve|Setujui/i})
+  assert.ok((await approveBtn.boundingBox()).height >= 44, 'Approve button must meet 44px touch target')
+
+  await pendingCard.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`approval-card-pending-${width}.png`)})
+
+  const acceptedCard = page.locator('[data-testid="approval-card"][data-status="accepted"]')
+  await acceptedCard.waitFor({state:'visible'})
+  await acceptedCard.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`approval-card-accepted-${width}.png`)})
 
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
