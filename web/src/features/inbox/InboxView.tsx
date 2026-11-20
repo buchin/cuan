@@ -1581,7 +1581,7 @@ export function InboxView({
                           onRetry={handleTaskRetry}
                           onContinueChat={handleTaskDiscussion}
                           isCustomerRoom={activeContact.type === 'customer'}
-                          hasSiblingCard={!!(isAgentMessage && msg.approval_plan) || !!msg.action_card}
+                          hasSiblingCard={false}
                           isOutgoing={isOutgoing}
                         />
                       ) : (
