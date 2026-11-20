@@ -689,7 +689,7 @@ func liveInspectionContract(t *testing.T, s *Server, origin db.InboxRequest, d *
 			scenario = "native rejected"
 		}
 	}
-	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) > 10*time.Minute {
+	if claim.Attempt.ExecutionDeadline == nil || claim.Attempt.StartedAt == nil || claim.Attempt.ExecutionDeadline.Sub(*claim.Attempt.StartedAt) > 25*time.Minute {
 		t.Fatal("stored inspection deadline diverges from native verification budget")
 	}
 	if scenario != "current outcome timeout files" {

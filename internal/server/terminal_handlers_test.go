@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -570,6 +571,13 @@ func TestServer_TaskTerminal_RunTaskAgent_CommandCodeHarness(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
+	binDir := t.TempDir()
+	fakeCmd := filepath.Join(binDir, "commandcode")
+	if err := os.WriteFile(fakeCmd, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+
 	repo := cuanDB.NewMemoryAgentRepository()
 	studioRepo := cuanDB.NewMemoryProjectStudioRepository()
 

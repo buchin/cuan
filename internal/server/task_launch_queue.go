@@ -257,7 +257,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			}
 			save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 			defer cancel()
-			if err := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC(), "This request already has a recorded execution."); err != nil {
+			if err := s.taskSvc.FinishLaunch(save, job.ID, job.LeaseToken, state, time.Now().UTC(), ""); err != nil {
 				return "The saved execution is being reconciled. No replacement was started." + link
 			}
 			return "This request already has a recorded execution. No replacement was started." + link

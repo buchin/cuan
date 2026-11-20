@@ -467,3 +467,62 @@ func TestMatchInboxRequestIDOrRetry(t *testing.T) {
 		t.Fatal("matched random id")
 	}
 }
+
+func TestInboxRuntimeStreamAllowsNativeSystemMessagesAndThoughts(t *testing.T) {
+	stream := &inboxRuntimeStream{
+		step: func(string, string) {},
+	}
+	events := []string{
+		`{"event":"init","conversation_id":"11111111-2222-3333-4444-555555555555"}`,
+		`{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}`,
+		`{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"system_message","text":"You have read 7 files in this turn."}}`,
+		`{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"thought","text":"Thinking about user request..."}}`,
+		`{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"system","text":"System event notification."}}`,
+		`{"event":"step_update","step_update":{"step_index":4,"state":"DONE","step_type":"tool","tool_name":"read_file","tool_info":{"parameters":{"Path":"web/src/features/inbox/InboxView.tsx"}}}}`,
+		`{"event":"step_update","step_update":{"step_index":5,"state":"DONE","step_type":"tool","tool_name":"finish","tool_info":{"parameters":{"reply":"Jawaban lengkap","topic_title":"","action":null}}}}`,
+		`{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Jawaban lengkap\",\"topic_title\":\"\",\"action\":null}"}}`,
+	}
+	for _, ev := range events {
+		stream.Write([]byte(ev + "\n"))
+	}
+	raw, failure, reason := stream.finish()
+	if stream.unsafeTool {
+		t.Fatalf("expected unsafeTool=false for benign system/thought events, got unsafeTool=true")
+	}
+	if failure != "" {
+		t.Fatalf("expected clean finish, got failure=%s, reason=%s", failure, reason)
+	}
+	reply, decodeFail, _ := decodeInboxAgyResult(raw, "")
+	if decodeFail != "" || reply == "" {
+		t.Fatalf("failed to decode valid reply: %s", decodeFail)
+	}
+}
+
+func TestInboxRuntimeStreamDirectCoordinatorAllowsAttachmentsAndFinish(t *testing.T) {
+	// Scenario: directCoordinator with 1 attachment => maxToolCalls = 2, disallowTools = false
+	stream := &inboxRuntimeStream{
+		step:         func(string, string) {},
+		maxToolCalls: 2,
+	}
+	events := []string{
+		`{"event":"init","conversation_id":"11111111-2222-3333-4444-555555555555"}`,
+		`{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}`,
+		`{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"read_file","tool_info":{"parameters":{"Path":"attachment.jpg"}}}}`,
+		`{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"finish","tool_info":{"parameters":{"reply":"Jawaban visual","topic_title":"","action":null}}}}`,
+		`{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Jawaban visual\",\"topic_title\":\"\",\"action\":null}"}}`,
+	}
+	for _, ev := range events {
+		stream.Write([]byte(ev + "\n"))
+	}
+	raw, failure, reason := stream.finish()
+	if stream.unsafeTool || stream.toolBudgetExceeded {
+		t.Fatalf("expected valid execution, got unsafeTool=%v, toolBudgetExceeded=%v", stream.unsafeTool, stream.toolBudgetExceeded)
+	}
+	if failure != "" {
+		t.Fatalf("expected clean finish, got failure=%s, reason=%s", failure, reason)
+	}
+	reply, decodeFail, _ := decodeInboxAgyResult(raw, "")
+	if decodeFail != "" || reply == "" {
+		t.Fatalf("failed to decode valid reply: %s", decodeFail)
+	}
+}

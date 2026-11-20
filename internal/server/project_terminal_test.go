@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -428,7 +431,10 @@ func TestProjectTerminal_DedicatedTaskWebSocketAutoRoute(t *testing.T) {
 	projSvc := project.NewService(projectStore, nil, "fixture-secret", tempBase)
 	srv.projectSvc = projSvc
 
-	projID := "proj_auto_route"
+	projID := fmt.Sprintf("proj_auto_route_%d", time.Now().UnixNano())
+	_ = terminal.TerminateProjectWorker(projID)
+	defer terminal.TerminateProjectWorker(projID)
+
 	_ = projSvc.Store().CreateProject(context.Background(), &project.Project{
 		ID:        projID,
 		Name:      "AutoRoute Project",
@@ -482,7 +488,11 @@ func TestProjectTerminal_DedicatedTaskWebSocketAutoRoute(t *testing.T) {
 		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 		_, payload, err := conn.ReadMessage()
 		if err != nil {
-			continue
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				continue
+			}
+			break
 		}
 		if strings.Contains(string(payload), "PROJECT_TERMINAL_AUTO_ROUTE_OK") {
 			found = true

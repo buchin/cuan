@@ -76,6 +76,23 @@ func (c *Client) pushExactBranch(ctx context.Context, path, repoURL, branch, tok
 	return strings.TrimSpace(string(head)), nil
 }
 
+// PushCommitToBranch pushes an exact commit to a remote branch using the project token.
+func (c *Client) PushCommitToBranch(ctx context.Context, path, repoURL, branch, commit, token string) error {
+	if !IsCommitHash(commit) || strings.TrimSpace(token) == "" || branch == "" {
+		return errors.New("exact commit, branch and saved token required")
+	}
+	owner, repo, err := ParseGitHubURL(repoURL)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, c.gitBinary, "-C", path, "push", "--porcelain", "--", c.repoURL(owner, repo), commit+":refs/heads/"+branch)
+	cmd.Env = repositoryEnvironment(token)
+	if output, pushErr := cmd.CombinedOutput(); pushErr != nil {
+		return classifyPushFailure(ctx, output)
+	}
+	return nil
+}
+
 // Never expose Git output: remote URLs and credential-helper failures may carry
 // secrets. Stable categories let the coordinator choose a concrete recovery.
 var ErrRemoteBranchDiverged = errors.New("GitHub push was not confirmed: remote branch has diverged; compare existing commits and preserve both histories; do not force push. Local commits are preserved")

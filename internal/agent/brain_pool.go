@@ -65,7 +65,7 @@ func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start
 	for tier := 0; tier < 2; tier++ {
 		for i := 0; i < len(profiles); i++ {
 			p := profiles[(start+i)%len(profiles)]
-			if p.Provider != "agy" && p.Provider != "antigravity" && p.Provider != "google" {
+			if p.Legacy || p.Provider == "" {
 				continue
 			}
 			model := p.ModelID
@@ -79,7 +79,7 @@ func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start
 			if p.Legacy || excluded[p.ID] || excluded[BrainRouteKey(p.ID, model)] || excluded[BrainRouteKey(p.ID, normModel)] || !p.CredentialsPresent || p.State == "login_required" || p.State == "unavailable" || p.State == "setup_incomplete" {
 				continue
 			}
-			if len(requiresVision) > 0 && requiresVision[0] && model != "" && !IsModelVisionCapable("agy", model) && !IsModelVisionCapable("agy", normModel) {
+			if len(requiresVision) > 0 && requiresVision[0] && model != "" && !IsModelVisionCapable(p.Provider, model) && !IsModelVisionCapable(p.Provider, normModel) {
 				continue
 			}
 			if p.State == "quota_limited" && !p.AllowModelFallback && (p.QuotaRetryAt == nil || time.Now().Before(*p.QuotaRetryAt)) {
@@ -88,7 +88,7 @@ func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start
 			if time.Now().Before(p.ModelCooldowns[model]) || time.Now().Before(p.ModelCooldowns[normModel]) {
 				continue
 			}
-			if tier == 1 {
+			if tier == 1 && (p.Provider == "agy" || p.Provider == "antigravity" || (p.Provider == "google" && !strings.HasPrefix(p.ID, "byok_"))) {
 				// Discover supported IDs, never infer runnable models from quota labels.
 				catalog, ok := nativeAccountModelCatalog(context.Background(), owner, p.ID)
 				if !ok || (!catalog[model] && !catalog[normModel]) {
@@ -112,9 +112,15 @@ func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start
 				continue
 			}
 			home, err := ProviderAccountHome(owner, p.ID)
-			if err != nil || !IsAntigravityLoggedInInDir(home) {
+			if err != nil {
 				release()
 				continue
+			}
+			if (p.Provider == "agy" || p.Provider == "antigravity" || (p.Provider == "google" && !strings.HasPrefix(p.ID, "byok_"))) {
+				if !IsAntigravityLoggedInInDir(home) {
+					release()
+					continue
+				}
 			}
 			// The selected preference is immutable; only this lease chooses fallback.
 			current.RuntimeModelID = model

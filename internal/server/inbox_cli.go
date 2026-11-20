@@ -248,7 +248,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		}
 		system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + cuanPrompt.GetCoordinatorPromptAdditions(workspace) + "\n\nYour display name: " + name + "\n\nContext data:\n" + prompt
 		if directCoordinator {
-			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + cuanPrompt.GetCoordinatorPromptAdditions(workspace) + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted during project analysis. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. DO NOT CALL ANY TOOLS (zero file/search tools). For read-only website evaluations, synthesize the supplied completed public web observations and state any unavailable detail honestly; do not delegate research solely because the tool budget ended. Delegate only actual implementation or execution requested in the original scope. As Scrum Master, manage the dev team directly:\n- NEVER ask the user to provide manual screenshots, inspect runner status, copy-paste code, or manually inspect repository files. You have live runner and queue state visibility in Project Runner State & Concurrency Lock.\n- Delegate when the original scope actually requests implementation, repair or another application-managed execution. A read-only website/provider question remains chat research: report the completed observations and unavailable details rather than creating a development task for the same fetch. A tool-budget limit alone is not authority to change the user's requested workflow.\n- If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user.\n- Delegate corrections and verification within an already approved mandate directly. Emit approval or prompt_choices only for a genuine new user decision beyond that mandate. An internal retry threshold is not a reason to ask for another gas. Never tell the user to manually open, create or run tasks.\n- If the user asked about git commits, commit history, or repository status, answer directly using the Recent commits or Git Working State data in the supplied context; do not claim lack of access or deflect to a task.\n- If the user reports that previously approved work or Definition of Done criteria were incomplete, missing, or not finished ('belum selesai', 'ada yang belum terpenuhi', 'tidak semua kesepakatan terpenuhi'), DO NOT emit an approval card for a new plan; directly emit a delegation action with task_id, project_id, authorization_message_id, and revision to resume/return the task to the dev runner immediately.\n\nContext data:\n" + prompt
+			directGuidance := "DO NOT CALL ANY TOOLS (zero file/search tools)."
+			if len(attachmentPaths) > 0 {
+				directGuidance = "DO NOT CALL ANY CODE, WORKSPACE OR SEARCH TOOLS. You may ONLY inspect the supplied user attachments using read_file to directly evaluate the user's question, then finish your reply."
+			}
+			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + "\n\n" + cuanPrompt.GetCoordinatorPromptAdditions(workspace) + "\n\nYour display name: " + name + "\n\nDirect coordinator response mode: The previous tool attempt exceeded the time budget or was interrupted during project analysis. Answer the target message directly using ONLY the supplied conversation context, recorded request outcomes, and task evidence. " + directGuidance + " For read-only website evaluations, synthesize the supplied completed public web observations and state any unavailable detail honestly; do not delegate research solely because the tool budget ended. Delegate only actual implementation or execution requested in the original scope. As Scrum Master, manage the dev team directly:\n- NEVER ask the user to provide manual screenshots, inspect runner status, copy-paste code, or manually inspect repository files. You have live runner and queue state visibility in Project Runner State & Concurrency Lock.\n- Delegate when the original scope actually requests implementation, repair or another application-managed execution. A read-only website/provider question remains chat research: report the completed observations and unavailable details rather than creating a development task for the same fetch. A tool-budget limit alone is not authority to change the user's requested workflow.\n- If the user uses affirmative triggers or reminds you of your role ('kan ente sm'), never ask '\"Gas\" ke mana?' or deflect; proactively synthesize the discussed topics into a plan with Scope & DoD and emit an approval or delegation action. Never deflect or give manual troubleshooting checklists to the user.\n- Delegate corrections and verification within an already approved mandate directly. Emit approval or prompt_choices only for a genuine new user decision beyond that mandate. An internal retry threshold is not a reason to ask for another gas. Never tell the user to manually open, create or run tasks.\n- If the user asked about git commits, commit history, or repository status, answer directly using the Recent commits or Git Working State data in the supplied context; do not claim lack of access or deflect to a task.\n- If the user reports that previously approved work or Definition of Done criteria were incomplete, missing, or not finished ('belum selesai', 'ada yang belum terpenuhi', 'tidak semua kesepakatan terpenuhi'), DO NOT emit an approval card for a new plan; directly emit a delegation action with task_id, project_id, authorization_message_id, and revision to resume/return the task to the dev runner immediately.\n\nContext data:\n" + prompt
 		}
 		if analysisRecovery {
 			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxDeniedToolRecoverySchema + "\n\n" + cuanPrompt.GetCoordinatorPromptAdditions(workspace) + "\n\n" + inboxAnalysisRecoveryInstruction + "\n\nContext data:\n" + prompt
@@ -401,7 +405,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			args = append(args, "-m", model)
 		}
 	default:
-		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, Codex, or CommandCode agent."
+		binary = normHarness
 	}
 	if snapshotReview && len(attachmentPaths) > 0 && binary == "claude" {
 		args = []string{"-p", "--tools", "Read", "--allowedTools", "Read", "--output-format", "text", system}
@@ -447,9 +451,88 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 					break
 				}
 			}
+		} else if binary == "claude" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/claude",
+				"/home/ubuntu/.local/bin/claude",
+				"/usr/local/bin/claude",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
+			}
+		} else if binary == "codex" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/codex",
+				"/home/ubuntu/.local/bin/codex",
+				"/usr/local/bin/codex",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
+			}
 		}
 	}
-	if err != nil {
+	if err != nil || path == "" {
+		byokType := normHarness
+		switch byokType {
+		case "claude":
+			byokType = agent.ProviderAnthropic
+		case "codex":
+			byokType = agent.ProviderOpenAI
+		case "gemini":
+			byokType = "google"
+		case "xai":
+			byokType = agent.ProviderGrok
+		}
+
+		apiKey, _ := s.AIProviderStore().GetDecryptedAPIKey(byokType)
+		cfg := s.AIProviderStore().GetConfig(byokType)
+		if apiKey != "" || byokType == agent.ProviderOllama {
+			byokClient := agent.NewUniversalBYOKProvider(byokType)
+			if cfg.BaseURL != "" {
+				byokClient.SetBaseURL(cfg.BaseURL)
+			}
+			model, _ := ctx.Value(inboxModelKey{}).(string)
+			if model == "" {
+				model = cfg.DefaultModel
+			}
+			if model == "" {
+				defModels := agent.DefaultBYOKModels(byokType)
+				if len(defModels) > 0 {
+					model = defModels[0].ID
+				}
+			}
+			if step != nil {
+				step("ai_generation", fmt.Sprintf("Generating reply with %s (%s)...", byokClient.Name(), model))
+			}
+			if retrySafe != nil {
+				*retrySafe = true
+			}
+			req := agent.AIProviderRequest{
+				Model:        model,
+				SystemPrompt: system,
+				Prompt:       prompt,
+			}
+			resp, genErr := byokClient.Generate(ctx, apiKey, req)
+			if genErr != nil {
+				errStr := strings.ToLower(genErr.Error())
+				if strings.Contains(errStr, "429") || strings.Contains(errStr, "quota") || strings.Contains(errStr, "rate limit") {
+					return "", inboxProviderCapacityWait
+				}
+				return "", fmt.Sprintf("AI provider (%s) error: %v", byokClient.Name(), genErr)
+			}
+			content := strings.TrimSpace(resp.Content)
+			if content == "" {
+				return "", "The provider returned an empty response. Your message is saved."
+			}
+			return validateReply(content)
+		}
+
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	executionWorkspace := workspace

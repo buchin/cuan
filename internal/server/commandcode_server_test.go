@@ -20,6 +20,13 @@ import (
 func setupCommandCodeTestServer(t *testing.T) (*Server, db.AgentRepository, string) {
 	t.Helper()
 
+	binDir := t.TempDir()
+	fakeCmd := filepath.Join(binDir, "commandcode")
+	if err := os.WriteFile(fakeCmd, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+
 	cfg := &config.Config{
 		Environment: "testing",
 		AppMode:     "development",
