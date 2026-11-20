@@ -77,6 +77,7 @@ import { PromptChoiceChips } from './PromptChoiceChips'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import { InboxWorkPanel } from './InboxWorkPanel'
 import { ComposerTasks } from './ComposerTasks'
+import { StatusDot } from '../../components/ui/StatusDot'
 
 import { isTaskActive } from './task-progress'
 import { cacheTasks } from './TaskCard'
@@ -1362,6 +1363,9 @@ export function InboxView({
                 const isFormattedMessage = true
 
                 const isOutgoing = isUserInAgentRoom || isOperatorInCustomerRoom
+                const isInternalNote = Boolean(
+                  msg.is_internal && (activeContact.type !== 'customer' || isOutgoing || msg.author_type === 'agent')
+                )
                 const msgContent = msg.content || msg.message || ''
 
                 // Suppress internal system cues (e.g. cuan_work_review) and stale notices
@@ -1532,12 +1536,12 @@ export function InboxView({
                         'wa-message-bubble relative min-w-0 rounded-2xl',
                         imageBubble && 'wa-image-bubble',
                         imageOnly && 'wa-image-only',
-                        msg.is_internal && 'wa-whisper',
+                        isInternalNote && 'wa-whisper',
                         msg.uuid === requestedMessageId && 'ring-2 ring-ring',
                         isOutgoing ? 'wa-outgoing' : 'wa-incoming',
                       )}
                     >
-                      {msg.is_internal && !imageBubble && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
+                      {isInternalNote && !imageBubble && (msgContent.trim() || !(msg.attachments?.length || msg.attachment_url)) && (
                         <div className="-ml-3 -mt-2 -mb-1 w-fit"><InternalVisibility /></div>
                       )}
                       {msg.approval_title && !msg.approval_plan && (
@@ -1546,13 +1550,13 @@ export function InboxView({
                         </p>
                       )}
                       {msg.attachments?.map((a) => (
-                        <div key={a.id} className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}><AttachmentFile attachment={a} imagePreview internal={msg.is_internal === true} /></div>
+                        <div key={a.id} className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}><AttachmentFile attachment={a} imagePreview internal={isInternalNote} /></div>
                       ))}
                       {msg.attachment_url && !msg.attachments?.length && (
                         <div className={imageBubble ? 'wa-image-attachment' : undefined}>
                         <AttachmentFile
                           imagePreview
-                          internal={msg.is_internal === true}
+                          internal={isInternalNote}
                           attachment={{
                             id: msg.attachment_url,
                             name: msg.attachment_name || 'Customer file',
@@ -1935,7 +1939,23 @@ export function InboxView({
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1.5">
+                {activeConversationTasks.length > 0 && (
+                  <button
+                    type="button"
+                    data-testid="header-active-task-pill"
+                    onClick={() => handleOpenTaskDrawer(activeConversationTasks[0])}
+                    className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/25 transition-colors cursor-pointer max-w-[160px] sm:max-w-[220px] truncate"
+                    title={t('View active task details')}
+                  >
+                    <StatusDot status="working" size="xs" label={t('In progress')} />
+                    <span className="truncate">
+                      {activeConversationTasks.length === 1
+                        ? activeConversationTasks[0].title || t('Task in progress')
+                        : t('{{count}} tasks in progress').replace('{{count}}', String(activeConversationTasks.length))}
+                    </span>
+                  </button>
+                )}
                 <ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} compact onChanged={onContactUpdated} />
                 {activeContact.type === 'customer' && activeContact.email && (
                         <button
@@ -2058,13 +2078,55 @@ export function InboxView({
                     </>
                   ) : (
                     <>
-                      <Bot className="h-8 w-8 text-muted-foreground/60" />
-                      <p className="text-xs">
-                        {t('No messages with this contact yet.')}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground/80">
-                        {t('Type a message below to start a conversation.')}
-                      </p>
+                      <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border/50 shadow-2xs">
+                        <Bot className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                          {activeContact?.name || t('Cuan Assistant')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t('Sampaikan kebutuhan operasional atau pilih contoh tugas di bawah:')}
+                        </p>
+                      </div>
+                      <div data-testid="agent-prompt-starters" className="flex flex-wrap justify-center gap-1.5 pt-1 max-w-md">
+                        {[
+                          {
+                            emoji: '🎯',
+                            label: t('Analisis CRM & Draf Broadcast'),
+                            text: t('Tolong analisis segmen kontak pelanggan CRM dan siapkan draf email broadcast promosi yang relevan.'),
+                          },
+                          {
+                            emoji: '🛠️',
+                            label: t('Webhook & Bot WhatsApp'),
+                            text: t('Tolong hubungkan webhook form order ke bot WhatsApp notifikasi admin.'),
+                          },
+                          {
+                            emoji: '⚡',
+                            label: t('Kesehatan Server & Antrean'),
+                            text: t('Tolong periksa status kesehatan daemon runner, antrean tugas yang berjalan, dan metrik sistem VPS saat ini.'),
+                          },
+                          {
+                            emoji: '📋',
+                            label: t('Fitur Baru & Kriteria Selesai (DoD)'),
+                            text: t('Saya ingin membuat peningkatan fitur baru di project. Tolong pelajari codebase, buatkan Approval Card dengan rencana kerja dan kriteria pengujian (DoD) sebelum eksekusi.'),
+                          },
+                        ].map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            data-testid="starter-chip"
+                            onClick={() => {
+                              setInputMessage(item.text)
+                              textareaRef.current?.focus()
+                            }}
+                            className="px-2.5 py-1 text-xs rounded-full border border-border/60 bg-muted/20 hover:bg-muted/50 text-foreground transition active:scale-95 text-left inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span>{item.emoji}</span>
+                            <span>{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
                     </>
                   )}
                 </div>

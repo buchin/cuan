@@ -594,7 +594,8 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		examined++
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		stage = "task_recovery"
-		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
+		if err == nil && detail.Status == task.TaskStatusDone {
+			_ = s.PostTaskCompletionMessage(ctx, &detail.Task)
 			continue
 		}
 		if err == nil {
@@ -746,6 +747,9 @@ func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID st
 		} else if m.AuthorType == "system" {
 			author = "System"
 			maxAllowed = maxAgentRunes
+		} else if m.AuthorType == "user" && (strings.HasPrefix(m.AuthorName, "Visitor") || (m.AuthorID != "" && m.AuthorID != "operator_user" && m.AuthorName != "Owner" && m.AuthorName != "You")) {
+			author = "Visitor"
+			maxAllowed = maxUserRunes
 		}
 		text, ids := decodeAttachmentMessage(m.Content)
 		text = strings.TrimSpace(text)

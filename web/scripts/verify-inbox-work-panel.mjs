@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url)
 const {chromium}=require(process.env.CUAN_BROWSER_MODULE||path.join(os.homedir(),'.local/lib/node_modules/playwright'))
 const output=process.argv[2]
 if(!output)throw Error('Supply a new private evidence directory')
-await fs.mkdir(output,{mode:0o700})
+await fs.mkdir(output,{recursive:true,mode:0o700})
 const now='2026-11-06T05:00:00Z',room='work-fixture'
 const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:5,active_tasks:1}
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]

@@ -17,7 +17,7 @@ import {
   Minimize2,
   ExternalLink,
   Keyboard,
-  SquarePen,
+  MessageSquare,
   LoaderCircle,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -54,6 +54,7 @@ export function TaskTerminal({
   onConnectionChange,
   isDedicatedTerminal,
   isPopout,
+  hideStatus = false,
 }: {
   taskId: string
   attempt: TaskAttempt
@@ -63,6 +64,7 @@ export function TaskTerminal({
   onConnectionChange?: (connection: string) => void
   isDedicatedTerminal?: boolean
   isPopout?: boolean
+  hideStatus?: boolean
 }) {
   const { t, language } = useLanguage()
   const menu = useRef<HTMLDetailsElement>(null)
@@ -100,7 +102,7 @@ export function TaskTerminal({
     y: 0,
   })
   const [isMobileKeyboardActive, setIsMobileKeyboardActive] = useState(false)
-  const [showComposer, setShowComposer] = useState(false)
+  const [showComposer, setShowComposer] = useState(true)
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null)
   const composerRef = useRef<TerminalComposerHandle>(null)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -1574,16 +1576,21 @@ export function TaskTerminal({
     retryCount.current > 0 &&
     !logs.current.length
 
+  const isInline = !controlsTarget || isFullscreen
+  const btnClass = isInline
+    ? 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors'
+    : 'icon-action'
+
   const controls = (
     <div
       className={
         controlsTarget && !isFullscreen
           ? 'flex items-center gap-1'
-          : 'flex shrink-0 items-center justify-between gap-1.5 bg-background px-2 py-1'
+          : 'flex shrink-0 items-center justify-between gap-1.5 border-b border-border/40 bg-background/95 px-2.5 py-1 text-xs'
       }
     >
-      {/* Status indicator: only rendered standalone (e.g. fullscreen) because TaskSessionPage header already displays statusBadge */}
-      {(!controlsTarget || isFullscreen) && (
+      {/* Status indicator: only rendered in fullscreen, or when standalone without an external status badge */}
+      {(isFullscreen || (!controlsTarget && !hideStatus)) && (
         <div className="flex items-center gap-1.5 min-w-0">
           {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
             <span
@@ -1635,12 +1642,12 @@ export function TaskTerminal({
       )}
 
       {/* Action Toolbar: Clean Calm Design without redundant header clutter */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 ml-auto">
         {/* Detach / Popout Window */}
         {!isPopoutMode && (
           <button
             type="button"
-            className="icon-action text-muted-foreground hover:text-foreground hidden sm:inline-flex"
+            className={`${btnClass} text-muted-foreground hover:text-foreground hover:bg-muted/40 hidden sm:inline-flex`}
             aria-label={t('Open terminal in separate window')}
             title={t('Open terminal in separate window')}
             onClick={handlePopout}
@@ -1652,7 +1659,7 @@ export function TaskTerminal({
         {/* Mobile Keyboard Accessory Bar Toggle */}
         <button
           type="button"
-          className={`icon-action sm:hidden ${isMobileKeyboardActive ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`${btnClass} sm:hidden ${isMobileKeyboardActive ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'}`}
           aria-label={t('Toggle mobile keyboard')}
           title={t('Toggle mobile keyboard accessory keys')}
           onClick={() => {
@@ -1674,20 +1681,22 @@ export function TaskTerminal({
         </button>
 
         {/* Toggle Composer button */}
-        <button
-          type="button"
-          className={`icon-action ${showComposer ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}
-          aria-label={t('Toggle input composer')}
-          title={t('Toggle input composer capsule')}
-          onClick={() => setShowComposer((prev) => !prev)}
-        >
-          <SquarePen className="h-3.5 w-3.5" />
-        </button>
+        {(isTaskActive || Boolean(activeSessionId || live?.session_id)) && (
+          <button
+            type="button"
+            className={`${btnClass} ${showComposer ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'}`}
+            aria-label={t('Toggle input composer')}
+            title={showComposer ? (language === 'id' ? 'Sembunyikan bar input' : 'Hide composer') : (language === 'id' ? 'Tampilkan bar input' : 'Show composer')}
+            onClick={() => setShowComposer((prev) => !prev)}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         {/* Fullscreen / Maximize toggle */}
         <button
           type="button"
-          className="icon-action text-muted-foreground hover:text-foreground"
+          className={`${btnClass} text-muted-foreground hover:text-foreground hover:bg-muted/40`}
           aria-label={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
           title={isFullscreen ? t('Exit fullscreen') : t('Fullscreen')}
           onClick={() => setIsFullscreen((prev) => !prev)}
@@ -1705,7 +1714,7 @@ export function TaskTerminal({
           <summary
             aria-label={t('Terminal tools')}
             title={t('Terminal tools')}
-            className="icon-action cursor-pointer list-none text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden"
+            className={`${btnClass} cursor-pointer list-none text-muted-foreground hover:text-foreground hover:bg-muted/40 [&::-webkit-details-marker]:hidden`}
           >
             <MoreHorizontal className="h-4 w-4" />
           </summary>

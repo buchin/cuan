@@ -465,27 +465,45 @@ func rewriteEnvironmentKey(raw, key, newVal string) string {
 }
 
 // ParseEnvironment parses standard KEY=VALUE lines into a map[string]string.
-// Handles comments (#), empty lines, quoted values ("val" or 'val'), and trims whitespace.
+// Handles comments (#), empty lines, quoted values ("val" or 'val'), trims whitespace,
+// and normalizes CRLF and escaped newline sequences (\n) often found in serialized metadata.
 func ParseEnvironment(raw string) map[string]string {
 	result := make(map[string]string)
-	lines := strings.Split(raw, "\n")
+	normalized := strings.ReplaceAll(raw, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, `\r\n`, "\n")
+	if !strings.Contains(normalized, "\n") && strings.Contains(normalized, `\n`) {
+		normalized = strings.ReplaceAll(normalized, `\n`, "\n")
+	}
+	lines := strings.Split(normalized, "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		if strings.Contains(trimmed, `\n`) && strings.Count(trimmed, "=") > 1 {
+			sublines := strings.Split(trimmed, `\n`)
+			for _, sub := range sublines {
+				parseEnvLine(sub, result)
+			}
 			continue
 		}
-		parts := strings.SplitN(trimmed, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.TrimSpace(parts[1])
-		if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
-			val = val[1 : len(val)-1]
-		}
-		if key != "" {
-			result[key] = val
-		}
+		parseEnvLine(trimmed, result)
 	}
 	return result
+}
+
+func parseEnvLine(line string, result map[string]string) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return
+	}
+	parts := strings.SplitN(trimmed, "=", 2)
+	if len(parts) != 2 {
+		return
+	}
+	key := strings.TrimSpace(parts[0])
+	val := strings.TrimSpace(parts[1])
+	if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+		val = val[1 : len(val)-1]
+	}
+	if key != "" {
+		result[key] = val
+	}
 }

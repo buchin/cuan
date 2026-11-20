@@ -235,23 +235,39 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	// inspection is different: when it has established that the result commit
 	// is absent, do not convert a concrete implementation handoff back into
 	// another read-only audit. This classifies work, never grants execution.
-	if decision.Decision == "revise" && decision.RemainingWork == "implementation" &&
+	isPriorVerification := s.isPriorVerificationAttempt(ctx, d)
+	if (decision.Decision == "revise" || decision.Decision == "pass") &&
+		(decision.RemainingWork == "implementation" || decision.RemainingWork == "publication" || isPriorVerification) &&
 		observation.ResultCommitContained != nil && !*observation.ResultCommitContained &&
 		releaseObjectID.MatchString(observation.ObservedRelease) {
 		approved, _ := s.inboxApprovedTaskScope(ctx, d)
 		if approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy {
 			const prefix = "Native publication reconciliation: "
-			if !strings.HasPrefix(decision.Revision, prefix) {
+			revisionText := decision.Revision
+			if revisionText == "" && decision.Explanation != "" {
+				revisionText = decision.Explanation
+			}
+			if !strings.HasPrefix(revisionText, prefix) {
 				decision.Revision = prefix + "the observed registered release " + observation.ObservedRelease +
 					" does not contain result commit " + observation.Commit +
-					". This establishes commit non-inclusion, not feature absence or permission to repeat effects. Reconcile equivalent or overlapping changes and saved publication effects before modifying anything. Continue only the concrete remaining original work through a separately authorized execution; preserve original owner restrictions, existing files and independent acceptance gates. Reviewer correction: " + decision.Revision
+					". This establishes commit non-inclusion, not feature absence or permission to repeat effects. Reconcile equivalent or overlapping changes and saved publication effects before modifying anything. Continue only the concrete remaining original work through a separately authorized execution; preserve original owner restrictions, existing files and independent acceptance gates. Reviewer correction: " + revisionText
+			} else {
+				decision.Revision = revisionText
 			}
+			decision.Decision = "revise"
+			decision.RemainingWork = "implementation"
 			decision.RequestedOutcome = "unfinished"
+			if decision.Finding == "" {
+				decision.Finding = publicationGapFinding(observation)
+			}
+			if decision.Explanation == "" {
+				decision.Explanation = decision.Finding
+			}
 			return decision
 		}
 	}
 	// Reapplying the guard preserves the exact saved continuation identity.
-	if decision.Decision == "revise" && (strings.HasPrefix(decision.Revision, "First reconcile the registered project's existing release and saved deployment effects.") || strings.HasPrefix(decision.Revision, "Gap: the original project's required production publication is not verified")) {
+	if decision.Decision == "revise" && !isPriorVerification && (strings.HasPrefix(decision.Revision, "First reconcile the registered project's existing release and saved deployment effects.") || strings.HasPrefix(decision.Revision, "Gap: the original project's required production publication is not verified")) {
 		decision.RemainingWork = "verification"
 		decision.RequestedOutcome = "unfinished"
 		return decision
@@ -391,4 +407,24 @@ func verifiedSourceIntegrationRequired(decision inboxReviewEvaluation, publicati
 	knownVerification := decision.RemainingWork == "verification" && (decision.ManagerAction == "continue" || decision.ManagerAction == "replan")
 	knownIntegration := decision.RemainingWork == "implementation" && (strings.HasPrefix(decision.Revision, "Native publication reconciliation: native source integration finding:") || decision.ManagerAction == "continue" || decision.ManagerAction == "replan")
 	return decision.Decision == "revise" && decision.RequestedOutcome != "needs_input" && (decision.RemainingWork == "publication" || knownVerification || knownIntegration) && publication != nil && publication.Required && !publication.Verified && (publication.ResultCommitContained == nil || !*publication.ResultCommitContained) && releaseObjectID.MatchString(failedTarget) && publication.ObservedRelease == failedTarget && approved != nil && !approved.ReadOnlyRepository && !approved.DenyDeploy
+}
+
+func (s *Server) isPriorVerificationAttempt(ctx context.Context, d *task.TaskDetailResponse) bool {
+	if d == nil || d.LatestAttempt == nil || s.taskSvc == nil {
+		return false
+	}
+	limits, err := s.taskSvc.AttemptPublicationPolicy(ctx, d.ID, d.LatestAttempt.ID)
+	if err == nil && limits.ReadOnlyRepository {
+		return true
+	}
+	if reader, ok := s.taskSvc.Store().(task.AttemptLaunchStore); ok {
+		if launch, err := reader.LaunchForAttempt(ctx, d.LatestAttempt.ID); err == nil && launch != nil {
+			if strings.HasPrefix(launch.Revision, "Scope: read-only repository") ||
+				strings.Contains(launch.Revision, "First reconcile the registered project's existing release") ||
+				strings.Contains(launch.Revision, "Gap: the original project's required production publication") {
+				return true
+			}
+		}
+	}
+	return false
 }

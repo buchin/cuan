@@ -40,6 +40,7 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { attemptLabel, taskRef, workStatus, relativeTime, workStatusBadgeClass } from './task-ui'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 
 export function TaskSessionPage({
   taskId,
@@ -51,6 +52,7 @@ export function TaskSessionPage({
   isPopout?: boolean
 }) {
   const { t, language } = useLanguage()
+  const isDesktop = useMediaQuery('(min-width: 640px)')
   const location = useLocation(),
     navigate = useNavigate()
   const [detail, setDetail] = useState<TaskDetail | null>(null),
@@ -689,10 +691,11 @@ export function TaskSessionPage({
                 attempt={attempt}
                 live={live}
                 onRefresh={refresh}
-                controlsTarget={terminalControls}
+                controlsTarget={isDesktop ? terminalControls : null}
                 onConnectionChange={setTerminalConnection}
                 isDedicatedTerminal={isDedicatedTerminal}
                 isPopout={isPopout}
+                hideStatus
               />
             </Suspense>
           </div>

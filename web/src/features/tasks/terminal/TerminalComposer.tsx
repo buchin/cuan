@@ -967,7 +967,7 @@ export function TerminalComposer({
             },
             {
               label: t('Choose files'),
-              description: 'Unggah file kode, teks, dokumen, dsb.',
+              description: 'Unggah file / video / dokumen (maks 32MB)',
               Icon: FolderOpen,
               ref: filesInputRef,
             },

@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/agent"
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 )
 
@@ -141,9 +142,11 @@ func isLegacyInternalAgent(id string) bool {
 
 // GET /api/v1/chat/conversations/{id}/messages
 func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r *http.Request) {
-	if s.accountOwner(w, r) == "" {
+	owner := s.authenticateOwner(w, r)
+	if owner == nil {
 		return
 	}
+	r = r.WithContext(auth.ContextWithOwner(r.Context(), owner))
 	convID := chi.URLParam(r, "id")
 	if convID == "" {
 		respondJSONError(w, http.StatusBadRequest, "conversation id is required")
@@ -238,12 +241,6 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			return
 		}
 	}
-	messages, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, product)
-	if err != nil {
-		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
-		return
-	}
-
 	limit := 50
 	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
@@ -262,31 +259,10 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		beforeID = strings.TrimSpace(r.URL.Query().Get("before"))
 	}
 
-	hasMore := false
-	if limit > 0 && len(messages) > limit {
-		if beforeID != "" {
-			idx := -1
-			for i, m := range messages {
-				if m.UUID == beforeID || strconv.FormatInt(m.ID, 10) == beforeID {
-					idx = i
-					break
-				}
-			}
-			if idx > 0 {
-				start := idx - limit
-				if start < 0 {
-					start = 0
-				}
-				hasMore = start > 0
-				messages = messages[start:idx]
-			} else {
-				hasMore = false
-				messages = []ChatMessageDTO{}
-			}
-		} else {
-			hasMore = len(messages) > limit
-			messages = messages[len(messages)-limit:]
-		}
+	messages, hasMore, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, product, limit, beforeID)
+	if err != nil {
+		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
+		return
 	}
 
 	linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID, requests)
@@ -309,6 +285,23 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	contact.FailedTasks = failedTasks
 	contact.CanceledTasks = c.Canceled
 
+	visibleIDs := make(map[string]bool, len(messages))
+	for _, m := range messages {
+		if m.UUID != "" {
+			visibleIDs[m.UUID] = true
+		}
+	}
+	prunedRequests := make([]db.InboxRequest, len(requests))
+	copy(prunedRequests, requests)
+	for i := range prunedRequests {
+		q := &prunedRequests[i]
+		if q.State == "completed" || q.State == "cancelled" {
+			if !visibleIDs[q.MessageID] && !visibleIDs[q.ReplyID] {
+				q.Steps = nil
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks":           linked,
 		"task_count":      c.Total,
@@ -318,7 +311,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		"done_tasks":      doneTasks,
 		"failed_tasks":    failedTasks,
 		"canceled_tasks":  c.Canceled,
-		"requests":        inboxRecoveryRequests(requests),
+		"requests":        inboxRecoveryRequests(prunedRequests),
 		"conversation_id": convID,
 		"room_id":         resolved.RoomID,
 		"contact":         contact,

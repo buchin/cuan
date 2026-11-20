@@ -17,6 +17,11 @@ import (
 func managerFixture(t *testing.T) (*Server, *task.TaskDetailResponse) {
 	t.Helper()
 	s, d, _ := stalledReviewFixture(t, "completed")
+	projects := project.NewMemoryStore()
+	if err := projects.CreateProject(context.Background(), &project.Project{ID: d.ProjectID, Name: "Default"}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 	for _, id := range []string{"earlier-one", "earlier-two"} {
 		if err := s.taskSvc.Store().CreateAttempt(context.Background(), &task.TaskAttempt{ID: id, TaskID: d.ID, Status: task.AttemptStatusFailed, CreatedAt: d.LatestAttempt.CreatedAt.Add(-time.Hour)}); err != nil {
 			t.Fatal(err)
