@@ -112,6 +112,9 @@ func (s *Server) recoverNativeReleaseVerifier(ctx context.Context, d *task.TaskD
 	if observed == nil || observed.Repository != previous.Repository {
 		return false
 	}
+	if d.LatestAttempt.ErrorMessage == task.StaleInspectionReleaseMessage && observed.Commit == previous.TargetCommit {
+		return false
+	}
 	// A newer release must contain the delivered target as well as its original
 	// implementation (enforced again by native snapshot preparation).
 	contained, err := s.projectSvc.PublishedCommitContained(ctx, d.ProjectID, previous.TargetCommit, observed.Commit)

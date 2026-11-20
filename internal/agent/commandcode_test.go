@@ -6,6 +6,10 @@ import (
 )
 
 func TestCommandCode_VerifyConnection(t *testing.T) {
+	oldLookPath := commandCodeLookPath
+	commandCodeLookPath = func() (string, error) { return "/mock/bin/commandcode", nil }
+	defer func() { commandCodeLookPath = oldLookPath }()
+
 	prov := NewCommandCodeProvider()
 	ctx := context.Background()
 

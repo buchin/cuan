@@ -41,30 +41,33 @@ func IsCommandCodeModelVision(modelID string) bool {
 	return false
 }
 
+var commandCodeLookPath = func() (string, error) {
+	if bin, err := exec.LookPath("commandcode"); err == nil {
+		return bin, nil
+	}
+	for _, candidate := range []string{
+		"/home/dev/.local/bin/commandcode",
+		"/home/ubuntu/.local/bin/commandcode",
+		"/usr/local/bin/commandcode",
+	} {
+		if _, statErr := exec.LookPath(candidate); statErr == nil {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("commandcode not installed")
+}
+
 // VerifyConnection checks that the commandcode binary exists and credentials (if BYOK) are valid.
 func (p *CommandCodeProvider) VerifyConnection(ctx context.Context, credentials string) (*ConnectionProbeResult, error) {
 	trimmed := strings.TrimSpace(credentials)
 
-	if _, err := exec.LookPath("commandcode"); err != nil {
-		found := false
-		for _, candidate := range []string{
-			"/home/dev/.local/bin/commandcode",
-			"/home/ubuntu/.local/bin/commandcode",
-			"/usr/local/bin/commandcode",
-		} {
-			if _, statErr := exec.LookPath(candidate); statErr == nil {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return &ConnectionProbeResult{
-				Valid:        false,
-				Provider:     "commandcode",
-				ErrorMessage: "CommandCode CLI not installed on this server",
-				TestedAt:     time.Now().UTC(),
-			}, nil
-		}
+	if _, err := commandCodeLookPath(); err != nil {
+		return &ConnectionProbeResult{
+			Valid:        false,
+			Provider:     "commandcode",
+			ErrorMessage: "CommandCode CLI not installed on this server",
+			TestedAt:     time.Now().UTC(),
+		}, nil
 	}
 
 	// Subscription connect: no API key required; relies on CLI install and subscription

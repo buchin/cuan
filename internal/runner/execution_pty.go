@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -44,8 +45,10 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 		}
 		activeModel := brain.ExecutionModelID()
 		tried[agent.BrainRouteKey(brain.ID, activeModel)] = true
-		_ = agent.PrepareAntigravitySettings(home, workingDir)
-		_ = agent.EnsureAntigravityOnboarding(home)
+		if brain.Provider == "agy" || brain.Provider == "antigravity" || (brain.Provider == "google" && !strings.HasPrefix(brain.ID, "byok_")) {
+			_ = agent.PrepareAntigravitySettings(home, workingDir)
+			_ = agent.EnsureAntigravityOnboarding(home)
+		}
 		childEnv := map[string]string{}
 		for key, value := range env {
 			childEnv[key] = value
@@ -56,6 +59,7 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 			}
 		}
 		childEnv["CUAN_BRAIN_MODEL"] = activeModel
+		childEnv["CUAN_BRAIN_PROVIDER"] = brain.Provider
 		nextPrompt := prompt
 		if len(tried) > 1 {
 			nextPrompt = "Continue the SAME approved task after an AI capacity interruption. Inspect existing files, git state, saved task reports and external effects FIRST. Preserve completed work. Reconcile uncertain operations before repeating them; do not repeat deployments, messages or other external writes without verification. Perform only unfinished original scope.\n\n" + prompt
@@ -63,7 +67,10 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 		}
 		result, runErr := func() (*agent.ExecutionResult, error) {
 			defer release()
-			return r.executeWithPTY(routed, claim, t, att, nextPrompt, workingDir, childEnv, timeout, count)
+			if brain.Provider == "agy" || brain.Provider == "antigravity" || (brain.Provider == "google" && !strings.HasPrefix(brain.ID, "byok_")) {
+				return r.executeWithPTY(routed, claim, t, att, nextPrompt, workingDir, childEnv, timeout, count)
+			}
+			return r.executeBrainTask(routed, brain, claim, t, att, nextPrompt, workingDir, childEnv, timeout, count)
 		}()
 		if runErr != nil || result == nil || result.Status != "QUOTA_LIMITED" || routed.Err() != nil {
 			return result, runErr
@@ -472,4 +479,109 @@ func (r *Runner) executeWithPTY(
 
 func reportedStopExit(code int) bool {
 	return code == -1 || code == 128+int(syscall.SIGTERM) || code == 128+int(syscall.SIGKILL)
+}
+
+func (r *Runner) executeBrainTask(ctx context.Context, brain *agent.ProviderAccount, claim ClaimTaskResponse, t *task.Task, att *task.TaskAttempt, prompt, workingDir string, env map[string]string, timeout time.Duration, count *int64) (*agent.ExecutionResult, error) {
+	pType := strings.ToLower(strings.TrimSpace(brain.Provider))
+	switch pType {
+	case "commandcode":
+		if bin, err := exec.LookPath("commandcode"); err == nil && bin != "" {
+			return r.executeCLIHarness(ctx, bin, []string{"--yolo", "--add-dir", workingDir, prompt}, workingDir, env, timeout, count)
+		}
+	case "claude", "anthropic":
+		if bin, err := exec.LookPath("claude"); err == nil && bin != "" {
+			return r.executeCLIHarness(ctx, bin, []string{"--dangerously-skip-permissions", prompt}, workingDir, env, timeout, count)
+		}
+	case "codex", "openai":
+		if bin, err := exec.LookPath("codex"); err == nil && bin != "" {
+			return r.executeCLIHarness(ctx, bin, []string{"--full-auto", prompt}, workingDir, env, timeout, count)
+		}
+	}
+
+	// Universal BYOK Provider execution
+	store := agent.DefaultAIProviderStore()
+	apiKey, _ := store.GetDecryptedAPIKey(pType)
+	cfg := store.GetConfig(pType)
+	if apiKey == "" && pType != agent.ProviderOllama {
+		if agyBin, err := agent.ResolveAGYBinaryPath(); err == nil && agyBin != "" {
+			return r.executeWithPTY(ctx, claim, t, att, prompt, workingDir, env, timeout, count)
+		}
+		return nil, fmt.Errorf("no credentials found for brain provider %s", pType)
+	}
+
+	byokClient := agent.NewUniversalBYOKProvider(pType)
+	if cfg.BaseURL != "" {
+		byokClient.SetBaseURL(cfg.BaseURL)
+	}
+	model := brain.ExecutionModelID()
+	if model == "" {
+		model = cfg.DefaultModel
+	}
+	if model == "" {
+		defModels := agent.DefaultBYOKModels(pType)
+		if len(defModels) > 0 {
+			model = defModels[0].ID
+		}
+	}
+
+	r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Executing task with Brain: %s (%s)", byokClient.Name(), model))
+	start := time.Now()
+
+	req := agent.AIProviderRequest{
+		Model:  model,
+		Prompt: prompt,
+	}
+
+	resp, err := byokClient.Stream(ctx, apiKey, req, func(chunk string) error {
+		atomic.AddInt64(count, 1)
+		r.streamLogLine(ctx, att.ID, "stdout", chunk)
+		return nil
+	})
+	if err != nil {
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "429") || strings.Contains(errStr, "quota") || strings.Contains(errStr, "rate limit") {
+			return &agent.ExecutionResult{Status: "QUOTA_LIMITED", ExitCode: 75, Error: err.Error()}, nil
+		}
+		return &agent.ExecutionResult{Status: "FAILED", ExitCode: 1, Error: err.Error(), Duration: time.Since(start)}, nil
+	}
+
+	return &agent.ExecutionResult{
+		Status:   "SUCCESS",
+		ExitCode: 0,
+		Stdout:   resp.Content,
+		Duration: time.Since(start),
+	}, nil
+}
+
+func (r *Runner) executeCLIHarness(ctx context.Context, binPath string, args []string, workingDir string, env map[string]string, timeout time.Duration, count *int64) (*agent.ExecutionResult, error) {
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, binPath, args...)
+	cmd.Dir = workingDir
+	var envList []string
+	for k, v := range env {
+		envList = append(envList, fmt.Sprintf("%s=%s", k, v))
+	}
+	cmd.Env = append(os.Environ(), envList...)
+	start := time.Now()
+	out, err := cmd.CombinedOutput()
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+	status := "SUCCESS"
+	if exitCode != 0 {
+		status = "FAILED"
+	}
+	atomic.AddInt64(count, 1)
+	return &agent.ExecutionResult{
+		Status:   status,
+		ExitCode: exitCode,
+		Stdout:   string(out),
+		Duration: time.Since(start),
+	}, nil
 }

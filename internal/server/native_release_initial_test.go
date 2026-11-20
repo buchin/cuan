@@ -556,7 +556,7 @@ func verifyStaleNativeInspectionRecovery(t *testing.T, s *Server, item *task.Tas
 		t.Fatal("reporting recovery duplicated or accepted execution")
 	}
 	must(s.taskSvc.Store().DeleteTask(ctx, blocker.ID))
-	reservation, err := s.taskSvc.ClaimLaunch(ctx, time.Now(), "reporting-recovery-dispatcher", next.ID)
+	reservation, err := s.taskSvc.ClaimLaunch(ctx, time.Now().Add(time.Second), "reporting-recovery-dispatcher", next.ID)
 	must(err)
 	if reservation == nil {
 		t.Fatal("reporting recovery not claimable")

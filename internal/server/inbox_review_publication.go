@@ -237,7 +237,7 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 	// another read-only audit. This classifies work, never grants execution.
 	isPriorVerification := s.isPriorVerificationAttempt(ctx, d)
 	if (decision.Decision == "revise" || decision.Decision == "pass") &&
-		(decision.RemainingWork == "implementation" || decision.RemainingWork == "publication" || isPriorVerification) &&
+		(decision.RemainingWork == "implementation" || (isPriorVerification && decision.Decision == "pass")) &&
 		observation.ResultCommitContained != nil && !*observation.ResultCommitContained &&
 		releaseObjectID.MatchString(observation.ObservedRelease) {
 		approved, _ := s.inboxApprovedTaskScope(ctx, d)

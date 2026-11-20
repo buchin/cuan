@@ -15,7 +15,7 @@ func requireOperationalOutcome(d *task.TaskDetailResponse, decision inboxReviewE
 	if d == nil || (d.ExecutionCategory != task.ExecutionCategoryOps && !task.SupportsAccountOutcomeInspection(&d.Task)) {
 		return decision
 	}
-	if len(task.AcceptanceGaps(&d.Task)) == 0 && inboxReviewExecutionSucceeded(d) && decision.Decision == "pass" {
+	if len(d.DoDChecklist) > 0 && len(task.AcceptanceGaps(&d.Task)) == 0 && inboxReviewExecutionSucceeded(d) && decision.Decision == "pass" {
 		decision.RequestedOutcome = "completed"
 		decision.RemainingWork = "none"
 		decision.ManagerAction = ""

@@ -42,8 +42,22 @@ var usageCache = map[string]struct {
 }{}
 
 func IsTextModel(id string) bool {
-	lower := strings.ToLower(id)
-	return modelIDPattern.MatchString(id) && (strings.HasPrefix(lower, "gemini-") || strings.HasPrefix(lower, "claude-")) && !strings.Contains(lower, "image") && !strings.Contains(lower, "embedding") && !strings.Contains(lower, "computer-use")
+	lower := strings.ToLower(strings.TrimSpace(id))
+	if !modelIDPattern.MatchString(id) {
+		return false
+	}
+	if strings.Contains(lower, "image") || strings.Contains(lower, "embedding") || strings.Contains(lower, "computer-use") || strings.Contains(lower, "dall-e") || strings.Contains(lower, "whisper") || strings.Contains(lower, "tts-") {
+		return false
+	}
+	knownPrefixes := []string{
+		"gemini-", "claude-", "gpt-", "o1", "o3", "deepseek", "llama", "mistral", "qwen", "grok", "mixtral", "commandcode",
+	}
+	for _, p := range knownPrefixes {
+		if strings.HasPrefix(lower, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // NormalizeModelAlias resolves common model aliases to their canonical CLI catalog IDs.

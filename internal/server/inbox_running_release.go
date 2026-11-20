@@ -31,7 +31,7 @@ func (s *Server) runningProjectRelease(ctx context.Context, d *task.TaskDetailRe
 		return nil
 	}
 	p, err := s.projectSvc.Get(ctx, d.ProjectID)
-	if err != nil || p == nil || p.IsArchived {
+	if err != nil || p == nil || (p.IsArchived && p.ID != "default") {
 		return nil
 	}
 	owner, name, err := git.ParseGitHubURL(p.RepoURL)
@@ -43,7 +43,7 @@ func (s *Server) runningProjectRelease(ctx context.Context, d *task.TaskDetailRe
 		return &runningProjectRelease{Repository: repository, Commit: s.cfg.CommitSHA, Provenance: "current_process_build", ObservedAt: time.Now().UTC()}
 	}
 	c, err := publication.FromEnvironment(project.ParseEnvironment(project.SettingsFromMetadata(p.Metadata).Environment))
-	if err != nil || p.IsArchived {
+	if err != nil || (p.IsArchived && p.ID != "default") {
 		return nil
 	}
 	// One observation per project at a time. Short-lived caching also bounds
@@ -68,7 +68,7 @@ func (s *Server) runningProjectRelease(ctx context.Context, d *task.TaskDetailRe
 	}
 	// Revocation or retargeting while an SSH read is in flight invalidates it.
 	fresh, err := s.projectSvc.Get(ctx, p.ID)
-	if err != nil || fresh == nil || fresh.IsArchived || fresh.RepoURL != p.RepoURL || string(fresh.Metadata) != string(p.Metadata) {
+	if err != nil || fresh == nil || (fresh.IsArchived && fresh.ID != "default") || fresh.RepoURL != p.RepoURL || string(fresh.Metadata) != string(p.Metadata) {
 		return nil
 	}
 	cache.result = &runningProjectRelease{Repository: repository, Commit: commit, Provenance: "registered_ssh_release", ObservedAt: time.Now().UTC()}
