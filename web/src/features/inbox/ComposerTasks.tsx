@@ -110,7 +110,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         modes || open
           ? "min-h-11 px-2 bg-transparent hover:text-foreground"
           : cn(
-              "min-h-7 px-2.5 py-1 rounded-full border transition-colors",
+              "min-h-11 sm:min-h-8 px-2.5 py-1 rounded-full border transition-colors inline-flex items-center",
               badgeStatus === 'working' && "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/15",
               badgeStatus === 'review' && "border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15",
               badgeStatus === 'done' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15",

@@ -369,6 +369,7 @@
   "All remaining work completed": "All remaining work completed",
   "All tasks completed": "All tasks completed",
   "Task in progress": "Task in progress",
+  "View active task details": "View active task details",
   "{{count}} tasks in progress": "{{count}} tasks in progress",
   "Canceled tasks are excluded from progress.": "Canceled tasks are excluded from progress.",
   "{{count}} canceled": "{{count}} canceled",

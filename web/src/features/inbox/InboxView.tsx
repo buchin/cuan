@@ -77,6 +77,7 @@ import { PromptChoiceChips } from './PromptChoiceChips'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import { InboxWorkPanel } from './InboxWorkPanel'
 import { ComposerTasks } from './ComposerTasks'
+import { StatusDot } from '../../components/ui/StatusDot'
 
 import { isTaskActive } from './task-progress'
 import { cacheTasks } from './TaskCard'
@@ -1938,7 +1939,23 @@ export function InboxView({
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1.5">
+                {activeConversationTasks.length > 0 && (
+                  <button
+                    type="button"
+                    data-testid="header-active-task-pill"
+                    onClick={() => handleOpenTaskDrawer(activeConversationTasks[0])}
+                    className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/25 transition-colors cursor-pointer max-w-[160px] sm:max-w-[220px] truncate"
+                    title={t('View active task details')}
+                  >
+                    <StatusDot status="working" size="xs" label={t('In progress')} />
+                    <span className="truncate">
+                      {activeConversationTasks.length === 1
+                        ? activeConversationTasks[0].title || t('Task in progress')
+                        : t('{{count}} tasks in progress').replace('{{count}}', String(activeConversationTasks.length))}
+                    </span>
+                  </button>
+                )}
                 <ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} compact onChanged={onContactUpdated} />
                 {activeContact.type === 'customer' && activeContact.email && (
                         <button
