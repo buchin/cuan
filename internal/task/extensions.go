@@ -25,13 +25,18 @@ func (s *Service) extensionEvent(ctx context.Context, kind string, t *Task) {
 	}
 }
 func (s *Service) extensionTransition(ctx context.Context, old string, t *Task) {
-	if s.extensions == nil || t == nil || old == t.Status {
+	if t == nil || old == t.Status {
 		return
 	}
-	s.extensionEvent(ctx, "task.status_changed", t)
+	if s.extensions != nil {
+		s.extensionEvent(ctx, "task.status_changed", t)
+		if t.Status == TaskStatusDone {
+			s.extensionEvent(ctx, "task.completed", t)
+		} else if t.Status == TaskStatusBlocked {
+			s.extensionEvent(ctx, "task.blocked", t)
+		}
+	}
 	if t.Status == TaskStatusDone {
-		s.extensionEvent(ctx, "task.completed", t)
-	} else if t.Status == TaskStatusBlocked {
-		s.extensionEvent(ctx, "task.blocked", t)
+		s.notifyTaskCompleted(ctx, t)
 	}
 }

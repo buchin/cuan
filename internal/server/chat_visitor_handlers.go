@@ -157,6 +157,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 					return
 				}
 				s.DispatchCustomerMessagePush(r.Context(), sessionUUID, initMsgID, name, msgText)
+				s.publishInbox(sessionUUID)
 			}
 		}
 	} else {
@@ -367,6 +368,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 
 		s.DispatchCustomerMessagePush(r.Context(), sessionUUID, msgUUID, authorName, text)
 		s.OnCustomerChatMessageReceived(sessionUUID, msgUUID)
+		s.publishInbox(sessionUUID)
 	}
 
 	// Determine new message index
@@ -396,6 +398,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 			AttachmentName:  payload.AttachmentName,
 			AttachmentSize:  payload.AttachmentSize,
 			HasAttachment:   payload.AttachmentURL != "",
+			IsInternal:      false,
 			CreatedAt:       now,
 		}
 	}

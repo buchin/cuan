@@ -348,6 +348,42 @@ DOJO_VPS_PASSWORD="falcon-27%-panda"
 	if parsed["DOJO_VPS_PASSWORD"] != "falcon-27%-panda" {
 		t.Errorf("expected DOJO_VPS_PASSWORD falcon-27%%-panda, got %q", parsed["DOJO_VPS_PASSWORD"])
 	}
+
+	// Escaped \n in single-line serialized string
+	escapedRaw := `DOJO_VPS_PUBLIC_IP=127.0.0.1\nCUAN_MANAGED_RELEASE=1\nCUAN_PUBLICATION_DEPLOY_PATH=/opt/cuan`
+	escapedParsed := ParseEnvironment(escapedRaw)
+	if escapedParsed["CUAN_MANAGED_RELEASE"] != "1" {
+		t.Errorf("expected CUAN_MANAGED_RELEASE 1, got %q", escapedParsed["CUAN_MANAGED_RELEASE"])
+	}
+	if escapedParsed["DOJO_VPS_PUBLIC_IP"] != "127.0.0.1" {
+		t.Errorf("expected DOJO_VPS_PUBLIC_IP 127.0.0.1, got %q", escapedParsed["DOJO_VPS_PUBLIC_IP"])
+	}
+	if escapedParsed["CUAN_PUBLICATION_DEPLOY_PATH"] != "/opt/cuan" {
+		t.Errorf("expected CUAN_PUBLICATION_DEPLOY_PATH /opt/cuan, got %q", escapedParsed["CUAN_PUBLICATION_DEPLOY_PATH"])
+	}
+
+	// Real production metadata string test
+	realMetaRaw := `DOJO_TERMAPI_VPS_PASSWORD=X%xPhqRnnQniz8a4\nDOJO_TERMAPI_VPS_PRIVATE_IP=127.0.0.1\nDOJO_TERMAPI_VPS_PUBLIC_IP=127.0.0.1\nDOJO_TERMAPI_VPS_USERNAME=ubuntu\nCUAN_PUBLICATION_DEPLOY_PATH=/opt/cuan\nCUAN_PUBLICATION_HEALTH_URL=https://app.cuan.work/healthz\nCUAN_PUBLICATION_SSH_HOST_ENV=DOJO_TERMAPI_VPS_PUBLIC_IP\nCUAN_PUBLICATION_SSH_HOST_KEY=ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFRU5ERVCoXXru8+zhd3ui0ImSIWmPpOE2erdeR+Q2K/\nCUAN_PUBLICATION_SSH_PASSWORD_ENV=DOJO_TERMAPI_VPS_PASSWORD\nCUAN_PUBLICATION_SSH_USER_ENV=DOJO_TERMAPI_VPS_USERNAME\nCUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_MANAGED_RELEASE=1\n\nCUAN_NEW_VPS_PASSWORD=X%xPhqRnnQniz8a4\nCUAN_NEW_VPS_IP=127.0.0.1\nCUAN_NEW_VPS_USERNAME=ubuntu`
+	realMetaParsed := ParseEnvironment(realMetaRaw)
+	if realMetaParsed["CUAN_MANAGED_RELEASE"] != "1" {
+		t.Errorf("expected CUAN_MANAGED_RELEASE 1, got %q", realMetaParsed["CUAN_MANAGED_RELEASE"])
+	}
+	if realMetaParsed["CUAN_PUBLICATION_DEPLOY_PATH"] != "/opt/cuan" {
+		t.Errorf("expected CUAN_PUBLICATION_DEPLOY_PATH /opt/cuan, got %q", realMetaParsed["CUAN_PUBLICATION_DEPLOY_PATH"])
+	}
+	if realMetaParsed["CUAN_PUBLICATION_HEALTH_URL"] != "https://app.cuan.work/healthz" {
+		t.Errorf("expected CUAN_PUBLICATION_HEALTH_URL https://app.cuan.work/healthz, got %q", realMetaParsed["CUAN_PUBLICATION_HEALTH_URL"])
+	}
+	if realMetaParsed["DOJO_TERMAPI_VPS_PASSWORD"] != "X%xPhqRnnQniz8a4" {
+		t.Errorf("expected DOJO_TERMAPI_VPS_PASSWORD X%%xPhqRnnQniz8a4, got %q", realMetaParsed["DOJO_TERMAPI_VPS_PASSWORD"])
+	}
+
+	// CRLF support
+	crlfRaw := "KEY1=val1\r\nKEY2=val2\r\n"
+	crlfParsed := ParseEnvironment(crlfRaw)
+	if crlfParsed["KEY1"] != "val1" || crlfParsed["KEY2"] != "val2" {
+		t.Errorf("CRLF parsing failed: %+v", crlfParsed)
+	}
 }
 
 func TestRewriteEnvironmentKey(t *testing.T) {

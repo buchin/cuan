@@ -22,6 +22,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/buchin/cuan/internal/auth"
 	"github.com/buchin/cuan/internal/db"
 	"github.com/go-chi/chi/v5"
 )
@@ -516,6 +517,11 @@ func attachmentContextWithBudget(owner string, ids []string, textBudget int) str
 // Find the authenticated acceptance that owns an attachment; do not infer ownership
 // from client-provided URLs or an author label.
 func loadAttachmentForMessage(ctx context.Context, s *Server, room, messageID, id string) (conversationAttachment, string, error) {
+	if owner := auth.GetOwnerFromContext(ctx); owner != nil && owner.ID != "" {
+		if a, path, err := loadAttachment(owner.ID, id); err == nil {
+			return a, path, nil
+		}
+	}
 	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
 	if !ok {
 		return conversationAttachment{}, "", errors.New("unavailable")

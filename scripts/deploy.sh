@@ -6,6 +6,7 @@ approved_branch=""
 explicit_branch=0
 frontend_only=0
 force_local=0
+native_sync=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,8 +23,12 @@ while [[ $# -gt 0 ]]; do
       force_local=1
       shift
       ;;
+    --native-sync)
+      native_sync=1
+      shift
+      ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
       exit 0
       ;;
     *)
@@ -76,6 +81,11 @@ fi
 [[ -z "$(git status --porcelain)" ]] || { echo 'Working tree must be clean.' >&2; exit 1; }
 
 local_sha="$(git rev-parse HEAD)"
+if [[ "$native_sync" == 1 ]]; then
+  CUAN_NATIVE_RELEASE_SYNC_SHA="$local_sha"
+  CUAN_NATIVE_RELEASE_SYNC_BRANCH="$approved_branch"
+fi
+
 if [[ -n "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" ]]; then
   if [[ ! "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" =~ ^[a-f0-9]{40}$ || "${CUAN_NATIVE_RELEASE_SYNC_SHA:-}" != "$local_sha" || "${CUAN_NATIVE_RELEASE_SYNC_BRANCH:-}" != "$approved_branch" ]]; then
     echo "ERROR: Native prepared source does not match its observed release branch." >&2
@@ -88,7 +98,7 @@ else
   remote_sha="$(git rev-parse "origin/$approved_branch")"
   if [[ "$local_sha" != "$remote_sha" ]]; then
     echo "ERROR: Local HEAD ($local_sha) is not synchronized with origin/$approved_branch ($remote_sha)." >&2
-    echo "Pull and push latest changes before releasing to avoid regressing production." >&2
+    echo "Pull and push latest changes before releasing, or pass --native-sync for local native releases." >&2
     exit 1
   fi
 fi

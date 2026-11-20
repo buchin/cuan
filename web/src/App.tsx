@@ -7,7 +7,6 @@ import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { AppShell, AppTab } from './components/layout/AppShell'
-import { ActionDialog } from './components/dialogs/ActionDialog'
 import { agentsApi, type Agent } from './api/agents'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
@@ -193,11 +192,11 @@ export function App() {
   // Modals
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
-  const [newFlow, setNewFlow] = useState<'contact' | 'menu' | null>(null)
+  const [newFlow, setNewFlow] = useState<'contact' | null>(null)
   const [contactRevision, setContactRevision] = useState(0)
   const [agentCreateRequested, setAgentCreateRequested] = useState(false)
   const openNew = (
-    kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
+    kind: 'message' | 'contact' | 'task' | 'project' | 'agent',
   ) => {
     setNewFlow(null)
     if (kind === 'message') navigate('/studio')
@@ -877,7 +876,7 @@ export function App() {
             ? undefined
             : {
                 label:
-                  currentTab === 'inbox'
+                  currentTab === 'inbox' || currentTab === 'chat'
                     ? 'New message'
                     : currentTab === 'contacts' || (currentTab === 'account' && subParam === 'contacts')
                       ? 'New contact'
@@ -885,10 +884,10 @@ export function App() {
                         ? 'New task'
                         : currentTab === 'projects'
                           ? 'New project'
-                          : 'New',
+                          : 'New message',
                 onClick: () =>
                   openNew(
-                    currentTab === 'inbox'
+                    currentTab === 'inbox' || currentTab === 'chat'
                       ? 'message'
                       : currentTab === 'contacts' || (currentTab === 'account' && subParam === 'contacts')
                         ? 'contact'
@@ -896,7 +895,7 @@ export function App() {
                           ? 'task'
                           : currentTab === 'projects'
                             ? 'project'
-                            : 'menu',
+                            : 'message',
                   ),
               }
         }
@@ -1200,28 +1199,6 @@ export function App() {
             void refreshContacts()
           }}
         />
-        <ActionDialog
-          open={newFlow === 'menu'}
-          title="New"
-          onClose={() => setNewFlow(null)}
-        >
-          <p className="mb-3 text-sm text-muted-foreground">
-            What would you like to create?
-          </p>
-          <div className="grid gap-2">
-            {(['message', 'contact', 'task', 'project', 'agent'] as const).map(
-              (kind) => (
-                <button
-                  key={kind}
-                  className="action-secondary justify-start"
-                  onClick={() => openNew(kind)}
-                >
-                  New {kind}
-                </button>
-              ),
-            )}
-          </div>
-        </ActionDialog>
 
         <CreateProjectModal
           isOpen={isCreateProjectOpen}
