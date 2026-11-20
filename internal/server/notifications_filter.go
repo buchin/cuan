@@ -1,10 +1,30 @@
 package server
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/buchin/cuan/internal/agent"
 )
+
+var (
+	technicalParensRegex = regexp.MustCompile(`(?i)\s*\((?:cancel\s+session|heartbeat\s+lost|definition\s+of\s+done|dod|e2e|pr|ci/cd|sql\s+migration|stack\s+trace|backend\s+runner|frontend|backend)\)`)
+	technicalPrefixRegex = regexp.MustCompile(`(?i)^(?:feat|fix|chore|refactor|docs|test|bug)[\s/:]+`)
+	technicalSuffixRegex = regexp.MustCompile(`(?i)\s*(?:di|pada)\s+(?:(?:frontend|backend|runner|server|database|api|db|dan|&)\s*)+$`)
+)
+
+// humanizeTaskTitle strips technical jargon, internal parenthetical English tags,
+// and developer prefix/suffix noise, returning a clean, friendly title for non-technical users.
+func humanizeTaskTitle(raw string) string {
+	clean := strings.TrimSpace(raw)
+	if clean == "" {
+		return ""
+	}
+	clean = technicalParensRegex.ReplaceAllString(clean, "")
+	clean = technicalPrefixRegex.ReplaceAllString(clean, "")
+	clean = technicalSuffixRegex.ReplaceAllString(clean, "")
+	return strings.TrimSpace(strings.Join(strings.Fields(clean), " "))
+}
 
 // ignoredAgentPushPrefixes lists message prefixes from internal runner/coordination
 // updates that should not trigger user-facing push notifications.
@@ -144,6 +164,9 @@ func cleanNotificationSnippet(content string) string {
 		i++
 	}
 	cleaned := strings.Join(strings.Fields(b.String()), " ")
+	cleaned = technicalParensRegex.ReplaceAllString(cleaned, "")
+	cleaned = technicalSuffixRegex.ReplaceAllString(cleaned, "")
+	cleaned = strings.Join(strings.Fields(cleaned), " ")
 	cleaned = agent.MaskSecrets(cleaned, nil)
 	runesOut := []rune(cleaned)
 	if len(runesOut) > 100 {
