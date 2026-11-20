@@ -79,3 +79,116 @@ func TestCancelSession_EndpointAndLockRelease(t *testing.T) {
 		t.Fatal("expected non-nil attempt for subsequent task")
 	}
 }
+
+func TestCancelSession_FailedAttemptIdempotent(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	created := workspaceTask(t, call)
+	projID := created.ProjectID
+	if projID == "" {
+		projID = "fixture-project"
+	}
+
+	att, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_lifecycle",
+	})
+	if err != nil {
+		t.Fatalf("CreateAttempt failed: %v", err)
+	}
+
+	doing := task.TaskStatusDoing
+	_, err = s.taskSvc.UpdateTask(ctx, created.ID, "owner", task.UpdateTaskRequest{Status: &doing})
+	if err != nil {
+		t.Fatalf("UpdateTask failed: %v", err)
+	}
+
+	failed := task.AttemptStatusFailed
+	exitFail := 1
+	errMsg := "AI provider reported usage limit"
+	_, err = s.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{
+		Status:       failed,
+		ExitCode:     &exitFail,
+		ErrorMessage: errMsg,
+	})
+	if err != nil {
+		t.Fatalf("UpdateAttemptStatus failed: %v", err)
+	}
+
+	// Trigger cancellation via endpoint when attempt is already in failed status
+	res := call("POST", "/api/v1/tasks/"+created.ID+"/cancel", "")
+	if res.Code != 200 {
+		t.Fatalf("expected HTTP 200 on cancel for failed attempt, got %d: %s", res.Code, res.Body.String())
+	}
+
+	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+	if detail.Status != task.TaskStatusCancelled {
+		t.Errorf("expected task status %q, got %q", task.TaskStatusCancelled, detail.Status)
+	}
+	if detail.LatestAttempt == nil || !detail.LatestAttempt.CancelRequested {
+		t.Errorf("expected attempt CancelRequested to be true, got %v", detail.LatestAttempt)
+	}
+
+	// Concurrency lock must be released
+	if active := s.isProjectLaneActive(ctx, projID, task.ExecutionCategoryCode, ""); active {
+		t.Errorf("expected project lane lock to be released")
+	}
+}
+
+func TestCancelSession_AlreadyCancelledIdempotent(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	created := workspaceTask(t, call)
+	projID := created.ProjectID
+	if projID == "" {
+		projID = "fixture-project"
+	}
+
+	att, err := s.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_lifecycle",
+	})
+	if err != nil {
+		t.Fatalf("CreateAttempt failed: %v", err)
+	}
+
+	_, err = s.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("UpdateAttemptStatus failed: %v", err)
+	}
+
+	// First cancellation
+	res1 := call("POST", "/api/v1/tasks/"+created.ID+"/cancel", "")
+	if res1.Code != 200 {
+		t.Fatalf("expected HTTP 200 on first cancel, got %d: %s", res1.Code, res1.Body.String())
+	}
+
+	// Second cancellation (idempotent repeat)
+	res2 := call("POST", "/api/v1/tasks/"+created.ID+"/cancel", "")
+	if res2.Code != 200 {
+		t.Fatalf("expected HTTP 200 on repeated cancel, got %d: %s", res2.Code, res2.Body.String())
+	}
+
+	detail, err := s.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+	if detail.Status != task.TaskStatusCancelled {
+		t.Errorf("expected task status %q, got %q", task.TaskStatusCancelled, detail.Status)
+	}
+	if detail.LatestAttempt == nil || detail.LatestAttempt.Status != task.AttemptStatusCanceled {
+		t.Errorf("expected attempt status %q, got %v", task.AttemptStatusCanceled, detail.LatestAttempt)
+	}
+
+	// Lock remains released
+	if active := s.isProjectLaneActive(ctx, projID, task.ExecutionCategoryCode, ""); active {
+		t.Errorf("expected project lane lock to remain released")
+	}
+}
