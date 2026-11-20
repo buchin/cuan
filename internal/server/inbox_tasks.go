@@ -83,7 +83,7 @@ func (s *Server) handleInboxMessageTask(w http.ResponseWriter, r *http.Request) 
 		}
 		assignee = a.ID
 	}
-	if project.IsArchived {
+	if project.IsArchived && project.ID != "default" {
 		respondJSONError(w, 409, "Project is archived. Select an active project.")
 		return
 	}

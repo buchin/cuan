@@ -137,7 +137,27 @@ func repositoryFingerprint(parent context.Context, root string) (string, error) 
 	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	defer cancel()
 	digest := sha256.New()
-	for _, args := range [][]string{{"rev-parse", "--verify", "HEAD"}, {"for-each-ref", "--format=%(refname)%00%(objectname)"}, {"config", "--local", "--null", "--list"}, {"diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--"}, {"status", "--porcelain=v1", "-z", "--untracked-files=all"}} {
+	hasHead := true
+	if _, err := fingerprintGit(ctx, root, "rev-parse", "--verify", "HEAD"); err != nil {
+		hasHead = false
+	}
+	var commandList [][]string
+	if hasHead {
+		commandList = [][]string{
+			{"rev-parse", "--verify", "HEAD"},
+			{"for-each-ref", "--format=%(refname)%00%(objectname)"},
+			{"config", "--local", "--null", "--list"},
+			{"diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--"},
+			{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
+		}
+	} else {
+		commandList = [][]string{
+			{"for-each-ref", "--format=%(refname)%00%(objectname)"},
+			{"config", "--local", "--null", "--list"},
+			{"status", "--porcelain=v1", "-z", "--untracked-files=all"},
+		}
+	}
+	for _, args := range commandList {
 		data, err := fingerprintGit(ctx, root, args...)
 		if err != nil {
 			return "", err

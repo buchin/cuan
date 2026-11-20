@@ -40,7 +40,7 @@ func (s *Server) missingManagedSourceAdmission(ctx context.Context, d *task.Task
 		return false
 	}
 	p, err := s.projectSvc.TaskContext(ctx, d.ProjectID, d.Instructions)
-	if err != nil || p == nil || p.IsArchived {
+	if err != nil || p == nil || (p.IsArchived && p.ID != "default") {
 		return false
 	}
 	settings := project.SettingsFromMetadata(p.Metadata)
@@ -94,7 +94,7 @@ func (s *Server) recoverNativeReleaseHandoff(ctx context.Context, d *task.TaskDe
 		return false
 	}
 	p, err := s.projectSvc.TaskContext(ctx, d.ProjectID, d.Instructions)
-	if err != nil || p == nil || p.IsArchived {
+	if err != nil || p == nil || (p.IsArchived && p.ID != "default") {
 		return false
 	}
 	owner, repo, err := git.ParseGitHubURL(p.RepoURL)

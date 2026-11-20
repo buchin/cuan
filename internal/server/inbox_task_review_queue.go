@@ -24,18 +24,8 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	}()
 	// Accepted work is final until a fresh user instruction reopens it. A late
 	// review or repaired provider must never reject an already accepted result.
-	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
+	if detail == nil || detail.LatestAttempt == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" || detail.Status == task.TaskStatusQueued || detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued || (detail.Launch != nil && (detail.Launch.State == "queued" || detail.Launch.State == "claimed")) {
 		return
-	}
-	if detail.Status == task.TaskStatusQueued {
-		if detail.Launch == nil || detail.Launch.State == "stopped" || detail.Launch.State == "cancelled" {
-			reviewStatus := task.TaskStatusReview
-			if _, err := s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err == nil {
-				detail.Status = reviewStatus
-			}
-		} else {
-			return
-		}
 	}
 
 	gate = "finalization_artifacts"
@@ -242,7 +232,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			} else if recoverSnapshot && inboxReviewEvidenceChanged(detail, previous.Content) {
 				key += ":evidence:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
-			} else if recoverSnapshot && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
+			} else if recoverSnapshot && !strings.Contains(key, ":ownership-assessment:") && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
 				if !strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
 					key += ":evaluation:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
@@ -270,7 +260,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		} else if (matched.State == "failed" || matched.State == "interrupted") && recoverSnapshot {
 			if strings.Contains(key, ":verifier-correction-v6:") || strings.Contains(key, ":verifier-correction-v5:") || strings.Contains(key, ":source-assessment:") || strings.Contains(key, ":reconcile:") || strings.Contains(key, ":report-provenance:") || strings.Contains(key, ":assessment:") || strings.Contains(key, ":verification-assessment:") || strings.Contains(key, ":visual-assessment:") || strings.Contains(key, ":operational-assessment:") || strings.Contains(key, ":publication-assessment:") || strings.Contains(key, ":ownership-assessment:") || strings.Contains(key, ":manager:") || strings.Contains(key, ":provider-assessment:") || strings.Contains(key, ":evidence:") || strings.Contains(key, ":evaluation:") || strings.Contains(key, ":evaluation-v2:") || strings.Contains(key, ":evaluation-v3:") {
 				if strings.HasSuffix(key, ":retry") {
-					if matched.State == "interrupted" && !strings.HasSuffix(key, ":resume") {
+					if matched.State == "interrupted" && !strings.HasSuffix(key, ":resume") && !strings.Contains(key, ":reconcile:") {
 						key += ":resume"
 						requestID = delegationMessageID(key)
 					} else if strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") && inboxReviewExecutionSucceeded(detail) {

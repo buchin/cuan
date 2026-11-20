@@ -368,7 +368,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			}
 		}
 	}
-	if err != nil || p == nil || p.IsArchived {
+	if err != nil || p == nil || (p.IsArchived && p.ID != "default") {
 		return fail("the selected project is unavailable or archived")
 	}
 	if d.ProjectName == "" && p.Name != "" {
@@ -594,7 +594,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		examined++
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		stage = "task_recovery"
-		if err == nil && detail.Status == task.TaskStatusDone {
+		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
 			_ = s.PostTaskCompletionMessage(ctx, &detail.Task)
 			continue
 		}

@@ -401,7 +401,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			args = append(args, "-m", model)
 		}
 	default:
-		return "", "This agent CLI type is not supported for chat. Use a registered agy, Claude, Codex, or CommandCode agent."
+		binary = normHarness
 	}
 	if snapshotReview && len(attachmentPaths) > 0 && binary == "claude" {
 		args = []string{"-p", "--tools", "Read", "--allowedTools", "Read", "--output-format", "text", system}
@@ -447,9 +447,88 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 					break
 				}
 			}
+		} else if binary == "claude" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/claude",
+				"/home/ubuntu/.local/bin/claude",
+				"/usr/local/bin/claude",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
+			}
+		} else if binary == "codex" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/codex",
+				"/home/ubuntu/.local/bin/codex",
+				"/usr/local/bin/codex",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
+			}
 		}
 	}
-	if err != nil {
+	if err != nil || path == "" {
+		byokType := normHarness
+		switch byokType {
+		case "claude":
+			byokType = agent.ProviderAnthropic
+		case "codex":
+			byokType = agent.ProviderOpenAI
+		case "gemini":
+			byokType = "google"
+		case "xai":
+			byokType = agent.ProviderGrok
+		}
+
+		apiKey, _ := s.AIProviderStore().GetDecryptedAPIKey(byokType)
+		cfg := s.AIProviderStore().GetConfig(byokType)
+		if apiKey != "" || byokType == agent.ProviderOllama {
+			byokClient := agent.NewUniversalBYOKProvider(byokType)
+			if cfg.BaseURL != "" {
+				byokClient.SetBaseURL(cfg.BaseURL)
+			}
+			model, _ := ctx.Value(inboxModelKey{}).(string)
+			if model == "" {
+				model = cfg.DefaultModel
+			}
+			if model == "" {
+				defModels := agent.DefaultBYOKModels(byokType)
+				if len(defModels) > 0 {
+					model = defModels[0].ID
+				}
+			}
+			if step != nil {
+				step("ai_generation", fmt.Sprintf("Generating reply with %s (%s)...", byokClient.Name(), model))
+			}
+			if retrySafe != nil {
+				*retrySafe = true
+			}
+			req := agent.AIProviderRequest{
+				Model:        model,
+				SystemPrompt: system,
+				Prompt:       prompt,
+			}
+			resp, genErr := byokClient.Generate(ctx, apiKey, req)
+			if genErr != nil {
+				errStr := strings.ToLower(genErr.Error())
+				if strings.Contains(errStr, "429") || strings.Contains(errStr, "quota") || strings.Contains(errStr, "rate limit") {
+					return "", inboxProviderCapacityWait
+				}
+				return "", fmt.Sprintf("AI provider (%s) error: %v", byokClient.Name(), genErr)
+			}
+			content := strings.TrimSpace(resp.Content)
+			if content == "" {
+				return "", "The provider returned an empty response. Your message is saved."
+			}
+			return validateReply(content)
+		}
+
 		return "", "Provider is unavailable. Your message is saved. Check the CLI installation and agent connection."
 	}
 	executionWorkspace := workspace
