@@ -34,6 +34,20 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
     'sw.js must not contain the legacy static text "There is an update that needs your attention."',
   )
 
+  // Dynamic action-based titles
+  assert.ok(
+    swSrc.includes('Butuh Persetujuan'),
+    'sw.js must support dynamic action title "Butuh Persetujuan"',
+  )
+  assert.ok(
+    swSrc.includes('Pekerjaan Selesai'),
+    'sw.js must support dynamic action title "Pekerjaan Selesai"',
+  )
+  assert.ok(
+    swSrc.includes('Pesan Baru'),
+    'sw.js must support dynamic action title "Pesan Baru"',
+  )
+
   // Push event listener exists
   assert.ok(
     swSrc.includes("self.addEventListener('push'"),
@@ -156,20 +170,35 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
       if (text) data = { body: text }
     }
 
-    const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
+    let title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : ''
+    const kind = typeof data.kind === 'string' ? data.kind : ''
+    const status = typeof data.status === 'string' ? data.status : ''
+    const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
+
+    if (!title || title === '@cuan' || title.startsWith('@') || title === 'Cuan' || title === 'Asisten AI') {
+      if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:')) {
+        title = 'Butuh Persetujuan'
+      } else if (kind === 'completed' || status.toLowerCase().includes('complete') || tag.includes(':done')) {
+        title = 'Pekerjaan Selesai'
+      } else if (kind === 'blocker' || status.toLowerCase().includes('attention') || tag.includes(':blocked')) {
+        title = 'Perhatian Diperlukan'
+      } else if (kind === 'customer') {
+        title = 'Pesan Baru'
+      } else {
+        title = 'Pesan Baru'
+      }
+    }
+
     const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
 
     let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
     if (!icon || icon === '/icons/cuan-192.png') {
-      const kind = typeof data.kind === 'string' ? data.kind : ''
-      const status = typeof data.status === 'string' ? data.status : ''
-      const tag = typeof data.tag === 'string' ? data.tag : ''
       const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
 
       if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
-        if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai')) {
+        if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai') || title.includes('Pekerjaan Selesai')) {
           icon = '/icons/task-done.png'
-        } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review')) {
+        } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review') || status.toLowerCase().includes('approval') || title.includes('Persetujuan')) {
           icon = '/icons/task-review.png'
         } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
           icon = '/icons/task-blocker.png'
@@ -181,7 +210,6 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     }
 
     const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
-    const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
     let href = '/inbox'
     try {
@@ -211,25 +239,38 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
   assert.equal(parsed1.href, '/inbox/rm_01h9xyz123')
   assert.equal(parsed1.tag, 'customer:rm_01h9xyz123:msg_001')
 
-  // Case 2: AI Agent Completion / Approval needed push payload
+  // Case 2: AI Agent Completion / Approval needed push payload (resolves to dynamic title)
   const agentPayload = {
-    title: 'Asisten AI',
+    title: 'Butuh Persetujuan',
     body: 'Proposal balasan customer membutuhkan persetujuan Anda.',
     href: '/inbox/rm_01h9xyz456',
     tag: 'approval:rm_01h9xyz456:msg_002',
+    kind: 'approval',
   }
   const parsed2 = parsePushPayload({ json: () => agentPayload }, origin)
-  assert.equal(parsed2.title, 'Asisten AI')
+  assert.equal(parsed2.title, 'Butuh Persetujuan')
   assert.equal(parsed2.body, 'Proposal balasan customer membutuhkan persetujuan Anda.')
   assert.equal(parsed2.href, '/inbox/rm_01h9xyz456')
 
   // Case 3: Empty / malformed fallback
   const parsed3 = parsePushPayload({ json: () => ({}) }, origin)
-  assert.equal(parsed3.title, 'Cuan')
+  assert.equal(parsed3.title, 'Pesan Baru')
   assert.equal(parsed3.body, '')
   assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
   assert.equal(parsed3.icon, '/icons/cuan-192.png')
   assert.equal(parsed3.href, '/inbox')
+
+  // Case 3b: Legacy static @cuan approval replaces with dynamic action title
+  const legacyApproval = {
+    title: '@cuan',
+    body: 'Perbaikan Alur Pembatalan Sesi',
+    href: '/inbox/rm_01h9xyz789',
+    tag: 'approval:rm_01h9xyz789:msg_003',
+    kind: 'approval',
+  }
+  const parsedLegacy = parsePushPayload({ json: () => legacyApproval }, origin)
+  assert.equal(parsedLegacy.title, 'Butuh Persetujuan')
+  assert.equal(parsedLegacy.icon, '/icons/task-review.png')
 
   // Case 4: Task done payload (contextual checkmark icon)
   const taskDonePayload = {
@@ -491,4 +532,80 @@ test('6. Push Notification Deep-Link & Focus Synchronization: instant chat loadi
     inboxViewSrc.includes("window.addEventListener('cuan:notification-navigate', onNotificationNavigate)"),
     'InboxView must listen to cuan:notification-navigate to load conversation immediately',
   )
+})
+
+test('7. Push Notification Assets: Maskable solid icon assets without Android Dark Mode black background corners', async () => {
+  const zlib = await import('node:zlib')
+  const icons = [
+    { file: 'task-done.png', expectedBg: '10b981' },
+    { file: 'task-review.png', expectedBg: 'd97706' },
+    { file: 'task-blocker.png', expectedBg: 'ef4444' },
+  ]
+
+  for (const { file, expectedBg } of icons) {
+    const iconPath = path.join(webDir, 'public/icons', file)
+    assert.ok(fs.existsSync(iconPath), `Icon ${file} must exist`)
+
+    const buf = fs.readFileSync(iconPath)
+    let offset = 8
+    const idatChunks = []
+    let width = 0, height = 0
+    while (offset < buf.length) {
+      const len = buf.readUInt32BE(offset)
+      const type = buf.toString('ascii', offset + 4, offset + 8)
+      const data = buf.subarray(offset + 8, offset + 8 + len)
+      if (type === 'IHDR') {
+        width = data.readUInt32BE(0)
+        height = data.readUInt32BE(4)
+      } else if (type === 'IDAT') {
+        idatChunks.push(data)
+      }
+      offset += 12 + len
+    }
+
+    assert.equal(width, 192, `${file} width must be 192`)
+    assert.equal(height, 192, `${file} height must be 192`)
+
+    const decompressed = zlib.inflateSync(Buffer.concat(idatChunks))
+    const bpp = 3
+    const stride = 1 + width * bpp
+    const raw = Buffer.alloc(width * height * bpp)
+
+    for (let y = 0; y < height; y++) {
+      const filter = decompressed[y * stride]
+      for (let x = 0; x < width * bpp; x++) {
+        const curr = decompressed[y * stride + 1 + x]
+        const left = x >= bpp ? raw[y * width * bpp + x - bpp] : 0
+        const up = y > 0 ? raw[(y - 1) * width * bpp + x] : 0
+        const upLeft = (y > 0 && x >= bpp) ? raw[(y - 1) * width * bpp + x - bpp] : 0
+        let val = curr
+        if (filter === 1) val = (curr + left) & 0xff
+        else if (filter === 2) val = (curr + up) & 0xff
+        else if (filter === 3) val = (curr + Math.floor((left + up) / 2)) & 0xff
+        else if (filter === 4) {
+          const p = left + up - upLeft
+          const pa = Math.abs(p - left)
+          const pb = Math.abs(p - up)
+          const pc = Math.abs(p - upLeft)
+          const pr = (pa <= pb && pa <= pc) ? left : (pb <= pc ? up : upLeft)
+          val = (curr + pr) & 0xff
+        }
+        raw[y * width * bpp + x] = val
+      }
+    }
+
+    // Check corners: must NOT be #191919 (black box artifact)
+    const corners = [
+      [0, 0],
+      [width - 1, 0],
+      [0, height - 1],
+      [width - 1, height - 1],
+    ]
+    for (const [cx, cy] of corners) {
+      const idx = (cy * width + cx) * bpp
+      const hex = raw.subarray(idx, idx + bpp).toString('hex')
+      assert.notEqual(hex, '191919', `${file} corner at (${cx},${cy}) must not have black background #191919`)
+      assert.equal(hex, expectedBg, `${file} corner at (${cx},${cy}) must match solid status color ${expectedBg}`)
+    }
+  }
 })

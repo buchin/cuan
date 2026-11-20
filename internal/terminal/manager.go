@@ -452,24 +452,55 @@ func (m *Manager) GetSession(taskID string) (*Session, bool) {
 // CloseSession terminates and removes a task's terminal session.
 func (m *Manager) CloseSession(taskID string) error {
 	m.mu.Lock()
-	sess, exists := m.sessions[taskID]
-	if exists {
+	var toClose []*Session
+	if sess, exists := m.sessions[taskID]; exists {
+		toClose = append(toClose, sess)
 		delete(m.sessions, taskID)
 	}
 	if m.taskAliases != nil {
-		delete(m.taskAliases, taskID)
+		if targetKey, ok := m.taskAliases[taskID]; ok {
+			if sess, exists := m.sessions[targetKey]; exists {
+				toClose = append(toClose, sess)
+				delete(m.sessions, targetKey)
+			}
+			delete(m.taskAliases, taskID)
+		}
+		for alias, target := range m.taskAliases {
+			if target == taskID {
+				if sess, exists := m.sessions[alias]; exists {
+					toClose = append(toClose, sess)
+					delete(m.sessions, alias)
+				}
+				delete(m.taskAliases, alias)
+			}
+		}
 	}
 	for pID, tID := range m.projectSessions {
 		if tID == taskID {
 			delete(m.projectSessions, pID)
+			projKey := ProjectSessionKey(pID)
+			if sess, exists := m.sessions[projKey]; exists {
+				toClose = append(toClose, sess)
+				delete(m.sessions, projKey)
+			}
+		}
+	}
+	if !strings.HasPrefix(taskID, "project-term-") {
+		projKey := ProjectSessionKey(taskID)
+		if sess, exists := m.sessions[projKey]; exists {
+			toClose = append(toClose, sess)
+			delete(m.sessions, projKey)
 		}
 	}
 	m.mu.Unlock()
 
-	if !exists {
-		return nil
+	var firstErr error
+	for _, sess := range toClose {
+		if err := sess.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return sess.Close()
+	return firstErr
 }
 
 // ReconcileZombieSessions sweeps any sessions whose OS process has died or

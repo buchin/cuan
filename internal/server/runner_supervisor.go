@@ -244,3 +244,13 @@ func (rs *RunnerSupervisor) stopChild() {
 		rs.childCmd = nil
 	}
 }
+
+// CancelAttempt signals the active in-process runner to terminate a running attempt.
+func (rs *RunnerSupervisor) CancelAttempt(attemptID string) {
+	rs.mu.Lock()
+	r := rs.embeddedRun
+	rs.mu.Unlock()
+	if r != nil {
+		r.CancelSpecificAttempt(attemptID)
+	}
+}

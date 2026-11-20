@@ -67,6 +67,7 @@ export function TaskSessionPage({
     [terminalConnection, setTerminalConnection] = useState(''),
     [followup, setFollowup] = useState(''),
     [cancel, setCancel] = useState(false),
+    [cancelError, setCancelError] = useState(''),
     [busy, setBusy] = useState(false),
     [pinTerminal, setPinTerminal] = useState(false),
     [showTerminal, setShowTerminal] = useState(false),
@@ -624,7 +625,10 @@ export function TaskSessionPage({
               className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
               aria-label="Cancel session"
               title={t('Cancel session')}
-              onClick={() => setCancel(true)}
+              onClick={() => {
+                setCancelError('')
+                setCancel(true)
+              }}
             >
               <Square className="h-4 w-4 fill-current" />
             </button>
@@ -1307,17 +1311,28 @@ export function TaskSessionPage({
         open={cancel}
         title="Cancel session?"
         busy={busy}
-        onClose={() => setCancel(false)}
+        onClose={() => {
+          setCancelError('')
+          setCancel(false)
+        }}
       >
         <p className="mb-4 text-sm">
           Stop the active process? Saved output and existing file changes are
           retained.
         </p>
+        {cancelError && (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {cancelError}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
           <button
             className="action-secondary"
             disabled={busy}
-            onClick={() => setCancel(false)}
+            onClick={() => {
+              setCancelError('')
+              setCancel(false)
+            }}
           >
             Keep running
           </button>
@@ -1326,22 +1341,32 @@ export function TaskSessionPage({
             disabled={busy}
             onClick={async () => {
               setBusy(true)
+              setCancelError('')
               try {
                 await tasksApi.cancel(taskId)
                 setCancel(false)
                 await refresh()
               } catch (e) {
-                setError(
+                const message =
                   e instanceof Error
                     ? e.message
-                    : 'Could not cancel the session.',
-                )
+                    : 'Could not cancel the session.'
+                if (
+                  message.includes('cannot cancel an attempt with status') ||
+                  message.includes('no attempt is available to cancel')
+                ) {
+                  setCancel(false)
+                  setCancelError('')
+                  await refresh()
+                } else {
+                  setCancelError(message)
+                }
               } finally {
                 setBusy(false)
               }
             }}
           >
-            Cancel session
+            {busy ? 'Cancelling…' : 'Cancel session'}
           </button>
         </div>
       </ActionDialog>

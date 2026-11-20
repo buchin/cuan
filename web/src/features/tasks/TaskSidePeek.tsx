@@ -1615,14 +1615,23 @@ function TaskDetailView({
             disabled={busy}
             onClick={() =>
               void working(async () => {
-                await tasksApi.cancel(initial.id)
+                try {
+                  await tasksApi.cancel(initial.id)
+                } catch (e) {
+                  const message = e instanceof Error ? e.message : ''
+                  if (
+                    !message.includes('cannot cancel an attempt with status') &&
+                    !message.includes('no attempt is available to cancel')
+                  ) {
+                    throw e
+                  }
+                }
                 setModal(null)
                 await reload()
-                await onRunAgent(initial.id)
               })
             }
           >
-            Cancel session
+            {busy ? 'Cancelling…' : 'Cancel session'}
           </button>
         </div>
       </ActionDialog>

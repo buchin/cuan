@@ -12,6 +12,29 @@ import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgres
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
 
+function formatProjectActivity(item: Project, language: string, t: (key: string) => string): string {
+  const timestamp = item.updated_at || item.created_at
+  if (!timestamp) return ''
+  const parsed = Date.parse(timestamp)
+  if (!Number.isFinite(parsed)) return ''
+  const seconds = Math.max(0, Math.round((Date.now() - parsed) / 1000))
+  let timeText = ''
+  if (language === 'id') {
+    if (seconds < 60) timeText = 'baru saja'
+    else if (seconds < 3600) timeText = `${Math.floor(seconds / 60)} mnt lalu`
+    else if (seconds < 86400) timeText = `${Math.floor(seconds / 3600)} jam lalu`
+    else if (seconds < 604800) timeText = `${Math.floor(seconds / 86400)} hari lalu`
+    else timeText = new Date(parsed).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+  } else {
+    if (seconds < 60) timeText = 'just now'
+    else if (seconds < 3600) timeText = `${Math.floor(seconds / 60)}m ago`
+    else if (seconds < 86400) timeText = `${Math.floor(seconds / 3600)}h ago`
+    else if (seconds < 604800) timeText = `${Math.floor(seconds / 86400)}d ago`
+    else timeText = new Date(parsed).toLocaleDateString(language || 'en-US', { day: 'numeric', month: 'short' })
+  }
+  return `${t('Updated')} ${timeText}`
+}
+
 export function ProjectsWorkspace({
   projects,
   project,
@@ -38,7 +61,7 @@ export function ProjectsWorkspace({
   onArchiveProject?: (id: string, archived: boolean) => Promise<void>
   onNewTask?: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
   const pathSegments = location.pathname.split('/').filter(Boolean)
@@ -216,7 +239,7 @@ export function ProjectsWorkspace({
     >
       <aside
         aria-label={t('Project list')}
-        className={`min-h-0 w-full min-w-0 flex-col min-[1200px]:w-72 min-[1200px]:shrink-0 min-[1200px]:border-r ${project ? 'hidden min-[1200px]:flex' : 'flex'}`}
+        className={`min-h-0 w-full min-w-0 flex-col min-[1200px]:w-80 min-[1200px]:shrink-0 min-[1200px]:border-r ${project ? 'hidden min-[1200px]:flex' : 'flex'}`}
       >
         <div className="shrink-0 border-b border-border/40 px-4 pt-4">
           <ListCreateAction label="New project" kind="projects" onClick={onNewProject} />
@@ -226,27 +249,38 @@ export function ProjectsWorkspace({
           </ListTabs>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {visible.map((item) => (
-            <ItemActions key={item.id} label={item.name} actions={[
-              { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
-              { label: 'Activity', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
-              { label: 'Terminal', run: () => void handleOpenProjectTerminal(item.id) },
-              { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/settings') },
-              ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
-            ]}>
-            <div data-project-row className="relative">
-            <Link
-              key={item.id}
-              to={`/projects/${encodeURIComponent(item.id)}/settings`}
-              aria-current={project?.id === item.id ? 'page' : undefined}
-              className={`project-list-row group flex rounded-lg min-h-[4.5rem] items-center gap-3 px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${project?.id === item.id ? 'bg-accent' : ''}`}
-            >
-              <ListRowContent leading={<ProjectIcon repoUrl={item.repo_url} />} title={<span className={`block truncate ${taskProgressModel(item.task_progress || {}) ? 'pl-9' : ''}`}>{item.name}</span>} description={String(item.metadata?.cuan_settings?.goal || '') || (item.repo_url ? t('GitHub connected') : t('No repository needed'))} />
-            </Link>
-            <div className="absolute left-[50px] top-1 z-10"><TaskProgress {...item.task_progress} /></div>
-            </div>
-            </ItemActions>
-          ))}
+          {visible.map((item) => {
+            const hasProgress = Boolean(taskProgressModel(item.task_progress || {}))
+            return (
+              <ItemActions key={item.id} label={item.name} actions={[
+                { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
+                { label: 'Activity', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+                { label: 'Terminal', run: () => void handleOpenProjectTerminal(item.id) },
+                { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/settings') },
+                ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
+              ]}>
+                <div data-project-row className={`group flex rounded-lg min-h-[4.5rem] items-center transition-colors ${project?.id === item.id ? 'bg-accent' : ''}`}>
+                  <Link
+                    key={item.id}
+                    to={`/projects/${encodeURIComponent(item.id)}/settings`}
+                    aria-current={project?.id === item.id ? 'page' : undefined}
+                    className="project-list-row flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+                  >
+                    <ListRowContent
+                      leading={<ProjectIcon repoUrl={item.repo_url} />}
+                      title={<span className="block truncate font-medium text-foreground">{item.name}</span>}
+                      description={formatProjectActivity(item, language, t)}
+                    />
+                  </Link>
+                  {hasProgress && (
+                    <div className="shrink-0 pr-1">
+                      <TaskProgress {...item.task_progress} />
+                    </div>
+                  )}
+                </div>
+              </ItemActions>
+            )
+          })}
           {(error || saveError) && !project && (
             <div role="alert" className="p-3 text-sm">
               <p>{t(error || saveError)}</p>

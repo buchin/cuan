@@ -1842,6 +1842,8 @@
   "Write a reply…": "Tulis balasan…",
   "Internal message…": "Pesan internal…",
   "{{count}} unread messages": "{{count}} pesan belum dibaca",
+  "unread messages": "pesan belum dibaca",
+  "unread conversations": "percakapan belum dibaca",
   "Delete task": "Hapus task",
   "Keep task": "Pertahankan task",
   "Assistant": "Asisten",

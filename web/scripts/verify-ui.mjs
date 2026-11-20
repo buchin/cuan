@@ -54,6 +54,7 @@ try {
     throw new Error('Application workflow verification failed; diagrams alone do not establish UI coverage', {cause: workflow.error})
   captures.push('workflow/inbox-390.png', 'workflow/inbox-1440.png',
                 'workflow/session-running-390.png', 'workflow/session-running-1440.png',
+                'workflow/cancel-modal-390.png', 'workflow/cancel-modal-1440.png',
                 'workflow/customer-reply-card-390.png', 'workflow/customer-reply-card-1440.png',
                 'workflow/customer-reply-sent-390.png', 'workflow/customer-reply-sent-1440.png',
                 'workflow/composer-tasks-expanded-390.png', 'workflow/composer-tasks-expanded-1440.png')

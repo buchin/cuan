@@ -14,6 +14,7 @@ import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { useArchivedItems } from './hooks/useArchivedItems'
 import { Loader2 } from 'lucide-react'
 
 // Code-splitting via dynamic imports for heavy routes and dialogs
@@ -172,6 +173,26 @@ export function App() {
   const [agentsError, setAgentsError] = useState(false)
   const [contactsLoading, setContactsLoading] = useState(true)
   const [contactsError, setContactsError] = useState('')
+  const conversationArchive = useArchivedItems('conversation')
+  const inboxUnread = useMemo(() => {
+    return contacts.filter((contact) => {
+      if (contact.has_messages === false) return false
+      const id = contact.conversation_id || contact.id
+      let count = conversationArchive.unreadCount(
+        id,
+        Number(contact.unread_count) || 0,
+        contact.last_message_at || contact.updated_at,
+      )
+      if (count > 0 && contact.conversation_id && contact.id && contact.conversation_id !== contact.id) {
+        count = conversationArchive.unreadCount(
+          contact.id,
+          count,
+          contact.last_message_at || contact.updated_at,
+        )
+      }
+      return count > 0
+    }).length
+  }, [contacts, conversationArchive])
   useEffect(() => {
     if (rootSegment === 'team')
       navigate('/settings/team' + location.search, { replace: true })
@@ -864,7 +885,7 @@ export function App() {
           projectDetail && !!headerProject
         }
         breadcrumbs={headerBreadcrumbs}
-        inboxUnread={contacts.filter(contact => !contact.resolved && contact.has_messages !== false).length}
+        inboxUnread={inboxUnread}
         onSelectTab={handleSelectTab}
         newAction={
           currentTab === 'notifications' ||

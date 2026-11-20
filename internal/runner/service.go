@@ -30,6 +30,9 @@ type RunnerService struct {
 	steerMu         sync.Mutex
 	pendingSteering map[string][]SteeringDirective
 	steerHandlers   map[string]func(attemptID, prompt string) error
+	cancelMu        sync.Mutex
+	pendingCancels  map[string]bool
+	cancelHandlers  map[string]func(attemptID string) error
 }
 
 func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinder) *RunnerService {
@@ -45,6 +48,8 @@ func NewService(store Store, taskStore task.Store, projectFinder ...ProjectFinde
 		eventBus:        GlobalEventBus,
 		pendingSteering: make(map[string][]SteeringDirective),
 		steerHandlers:   make(map[string]func(attemptID, prompt string) error),
+		pendingCancels:  make(map[string]bool),
+		cancelHandlers:  make(map[string]func(attemptID string) error),
 	}
 }
 
@@ -134,7 +139,13 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 			continue
 		}
 		canceled, err := s.store.RenewLease(ctx, attID, req.RunnerID, leaseDuration)
-		if err != nil || canceled {
+		s.cancelMu.Lock()
+		pendingCancel := s.pendingCancels != nil && s.pendingCancels[attID]
+		if pendingCancel {
+			delete(s.pendingCancels, attID)
+		}
+		s.cancelMu.Unlock()
+		if err != nil || canceled || pendingCancel {
 			shouldCancel = true
 			canceledIDs = append(canceledIDs, attID)
 		}
@@ -157,6 +168,32 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		CanceledAttemptIDs: canceledIDs,
 		SteeringDirectives: directives,
 	}, nil
+}
+
+// RegisterCancelHandler connects an in-process or local runner's cancel dispatcher.
+func (s *RunnerService) RegisterCancelHandler(runnerID string, handler func(attemptID string) error) {
+	s.cancelMu.Lock()
+	defer s.cancelMu.Unlock()
+	s.cancelHandlers[runnerID] = handler
+}
+
+// CancelAttempt delivers a cancellation directive immediately to the runner or queues it for heartbeat.
+func (s *RunnerService) CancelAttempt(ctx context.Context, attemptID string) error {
+	s.cancelMu.Lock()
+	if s.pendingCancels == nil {
+		s.pendingCancels = make(map[string]bool)
+	}
+	s.pendingCancels[attemptID] = true
+	handlers := make([]func(attemptID string) error, 0, len(s.cancelHandlers))
+	for _, h := range s.cancelHandlers {
+		handlers = append(handlers, h)
+	}
+	s.cancelMu.Unlock()
+
+	for _, h := range handlers {
+		_ = h(attemptID)
+	}
+	return nil
 }
 
 // RegisterSteerHandler connects an in-process or local runner's steering dispatcher.

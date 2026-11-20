@@ -123,23 +123,24 @@ var notificationHTTPClient = &http.Client{Timeout: 10 * time.Second, CheckRedire
 
 func formatTaskPushTitle(rawTitle string, kind string) string {
 	raw := strings.TrimSpace(rawTitle)
-	if raw == "" || raw == "Pekerjaan Selesai" || raw == "Tugas Selesai" {
+	if raw == "" || raw == "Pekerjaan Selesai" || raw == "Tugas Selesai" || strings.HasPrefix(raw, "@") {
 		switch kind {
 		case "completed":
 			return "✓ Selesai"
 		case "approval":
-			return "Tinjauan Tugas"
+			return "Butuh Persetujuan"
 		case "blocker":
 			return "Perhatian Diperlukan"
 		default:
 			return "Pekerjaan Selesai"
 		}
 	}
+	raw = humanizeTaskTitle(raw)
 	raw = strings.Join(strings.Fields(raw), " ")
 
 	if kind == "completed" {
 		clean := raw
-		for _, pfx := range []string{"✓ Selesai:", "✓ Selesai", "Selesai:"} {
+		for _, pfx := range []string{"✓ Selesai:", "✓ Selesai", "Selesai:", "Pekerjaan Selesai:", "Pekerjaan Selesai"} {
 			if strings.HasPrefix(clean, pfx) {
 				clean = strings.TrimSpace(strings.TrimPrefix(clean, pfx))
 				break
@@ -169,7 +170,7 @@ func pushIconForNotification(item ownerNotification, tag string) string {
 		switch {
 		case item.Kind == "completed" || strings.Contains(item.ID, ":done") || item.Status == "Completed":
 			return "/icons/task-done.png"
-		case item.Kind == "approval" || strings.Contains(item.ID, ":review") || item.Status == "Review requested":
+		case item.Kind == "approval" || strings.Contains(item.ID, ":review") || item.Status == "Review requested" || item.Status == "Needs approval":
 			return "/icons/task-review.png"
 		case item.Kind == "blocker" || strings.Contains(item.ID, ":blocked") || item.Status == "Needs attention":
 			return "/icons/task-blocker.png"
@@ -198,32 +199,40 @@ func buildPushPayload(item ownerNotification) map[string]string {
 
 	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
 
-	title := item.Title
+	title := strings.TrimSpace(item.Title)
 	if item.Kind == "customer" {
-		if title == "" || title == "New customer message" {
-			if item.Context != "" {
+		if title == "" || title == "New customer message" || title == "Cuan" || strings.HasPrefix(title, "@") {
+			if item.Context != "" && item.Context != "Customer" && item.Context != "Pengunjung" {
 				title = "Pesan Baru dari " + item.Context
 			} else {
-				title = "Pesan Baru dari Pengunjung"
+				title = "Pesan Baru"
 			}
+		}
+	} else if item.Kind == "approval" || strings.HasPrefix(item.ID, "approval:") || item.Status == "Needs approval" {
+		if !isTask || title == "" || title == "@cuan" || strings.HasPrefix(title, "@") || title == "Asisten AI" || title == "Tinjauan Tugas" {
+			title = "Butuh Persetujuan"
+		} else {
+			title = formatTaskPushTitle(title, item.Kind)
+		}
+	} else if item.Kind == "blocker" || item.Status == "Needs attention" {
+		if !isTask || title == "" || title == "@cuan" || strings.HasPrefix(title, "@") || title == "Asisten AI" {
+			title = "Perhatian Diperlukan"
+		} else {
+			title = formatTaskPushTitle(title, item.Kind)
 		}
 	} else if isTask {
 		title = formatTaskPushTitle(title, item.Kind)
-	} else if item.Kind == "completed" {
-		if title == "" {
-			title = "Asisten AI"
+	} else if strings.HasPrefix(tag, "agent:") || strings.HasPrefix(item.ID, "agent:") {
+		if title == "" || strings.HasPrefix(title, "@") || title == "Asisten AI" || title == "Cuan" {
+			title = "Pesan Baru"
 		}
-	} else if item.Kind == "approval" || strings.HasPrefix(tag, "agent:") {
-		if title == "" {
-			title = "Asisten AI"
-		}
-	} else if item.Kind == "blocker" {
-		if title == "" {
-			title = "Perhatian Diperlukan"
+	} else if item.Kind == "completed" || item.Status == "Completed" {
+		if title == "" || strings.HasPrefix(title, "@") || title == "Asisten AI" || title == "Cuan" {
+			title = "Pekerjaan Selesai"
 		}
 	}
-	if title == "" {
-		title = "Cuan"
+	if title == "" || strings.HasPrefix(title, "@") || title == "Cuan" {
+		title = "Pesan Baru"
 	}
 
 	body := item.Summary
@@ -238,12 +247,12 @@ func buildPushPayload(item ownerNotification) map[string]string {
 			} else {
 				body = "Ada pembaruan pada tugas Anda."
 			}
-		} else if item.Title != "" && item.Title != title {
-			body = item.Title
+		} else if item.Title != "" && item.Title != title && !strings.HasPrefix(item.Title, "@") {
+			body = humanizeTaskTitle(item.Title)
 		} else if item.Kind == "customer" {
 			body = "Pesan baru dari pelanggan di Live Chat."
 		} else if item.Kind == "approval" {
-			body = "Asisten AI membutuhkan persetujuan Anda."
+			body = "Rencana pekerjaan baru telah disiapkan dan siap ditinjau."
 		} else if item.Kind == "completed" {
 			body = "Pekerjaan telah selesai dan aktif berjalan."
 		} else if item.Kind == "blocker" {

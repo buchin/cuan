@@ -126,6 +126,7 @@ try{
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.endsWith('/projects'))data={projects:[]}
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
+   else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
    else if(pathname.endsWith('/tasks'))data={tasks:allTasks}
    else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
@@ -358,6 +359,25 @@ try{
   await page.locator('.xterm').waitFor({state:'visible',timeout:15000})
   await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
   await page.screenshot({path:path.join(output,`session-running-${width}.png`)})
+  // Test Cancel session modal
+  const cancelButton = page.locator("button[aria-label=\"Cancel session\"]")
+  await cancelButton.waitFor({state: "visible", timeout: 5000})
+  await cancelButton.click()
+  const dialog = page.locator("dialog[open]:has-text(\"Cancel session?\")")
+  await dialog.waitFor({state: "visible", timeout: 5000})
+  const modalHeading = dialog.locator("h2", { hasText: "Cancel session?" })
+  await modalHeading.waitFor({state: "visible", timeout: 5000})
+  const modalBody = dialog.getByText("Stop the active process? Saved output and existing file changes are retained.")
+  await modalBody.waitFor({state: "visible", timeout: 5000})
+  const keepRunning = dialog.locator("button.action-secondary", { hasText: "Keep running" })
+  const confirmCancel = dialog.locator("button.action-primary", { hasText: "Cancel session" })
+  assert.ok(await keepRunning.isVisible(), "Keep running button must be visible")
+  assert.ok(await confirmCancel.isVisible(), "Cancel session button must be visible")
+  const artifactName = width === 390 ? "mobile.png" : "desktop.png"
+  await page.screenshot({path: path.join(output, artifactName)})
+  await page.screenshot({path: path.join(output, `cancel-modal-${width}.png`)})
+  await keepRunning.click()
+  await dialog.waitFor({state: "hidden", timeout: 5000})
   sessionStatus='succeeded'
   await page.locator('[aria-label="Session result"]').waitFor({state:'visible',timeout:10000})
   await page.screenshot({path:path.join(output,`session-result-${width}.png`)})
