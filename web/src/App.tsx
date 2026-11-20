@@ -929,7 +929,7 @@ export function App() {
         <Suspense fallback={<ViewFallback />}>
           {currentTab === 'notifications' && <NotificationsView />}
           {currentTab === 'studio' && (
-            <div className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+            <div className="h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background">
               <StudioView
                 onAccepted={() => void refreshContacts()}
                 onConversationCreated={(id) => navigate('/inbox/' + encodeURIComponent(id))}
