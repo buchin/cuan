@@ -436,7 +436,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							directCtx = context.WithValue(directCtx, inboxSchemaRetryKey{}, true)
 							directPrompt, contextErr := s.inboxContext(directCtx, q)
 							if contextErr == nil {
-								recOutput, recFailure := s.executeInboxWithFailover(directCtx, q.OwnerID, registered, directPrompt, home, "", false, step)
+								attachments := s.inboxAttachmentPaths(ctx, q)
+								recOutput, recFailure := s.executeInboxWithFailover(directCtx, q.OwnerID, registered, directPrompt, home, "", false, step, attachments...)
 								if recOutput != "" {
 									output = recOutput
 									failure = ""
