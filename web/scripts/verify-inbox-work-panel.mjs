@@ -66,15 +66,30 @@ import {AppShell} from '/src/components/layout/AppShell.tsx';
 import {InboxView} from '/src/features/inbox/InboxView.tsx';
 import {TaskSessionPage} from '/src/features/tasks/TaskSessionPage.tsx';
 import {InboxSubPanel} from '/src/features/inbox/InboxSubPanel.tsx';
+import {StudioView} from '/src/features/inbox/StudioView.tsx';
 import '/src/index.css';
 const contact=${JSON.stringify(contact)},agents=${JSON.stringify(agents)};
 const noop=()=>{};
-function Scene(){const location=useLocation();return location.pathname.startsWith('/tasks/work/sessions/')?React.createElement(TaskSessionPage,{taskId:'work',sessionId:location.pathname.split('/')[4]||'latest'}):React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'})}
-createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppShell,{currentTab:'inbox',onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene))))));`
+function Scene(){
+  const location=useLocation();
+  if(location.pathname.startsWith('/tasks/work/sessions/')){
+    return React.createElement(TaskSessionPage,{taskId:'work',sessionId:location.pathname.split('/')[4]||'latest'})
+  }
+  if(location.pathname.startsWith('/studio')){
+    return React.createElement('div',{className:'h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background'},React.createElement(StudioView,{agentSetup:'ready',hasProject:true,firstGoal:false,onAccepted:noop}))
+  }
+  return React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'})
+}
+function AppFixture(){
+  const location=useLocation();
+  const currentTab=location.pathname.startsWith('/studio')?'studio':'inbox';
+  return React.createElement(AppShell,{currentTab,onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene));
+}
+createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppFixture)))));`
 const webRoot=path.resolve('web')
 process.chdir(webRoot)
 const server=await createServer({root:webRoot,envDir:path.resolve(output),cacheDir:path.join(path.resolve(output),'vite-cache'),server:{host:'127.0.0.1',port:0},plugins:[{name:'work-fixture',enforce:'pre',transform(code,id){if(process.env.CUAN_HOOK_REGRESSION_PROBE==='1'&&id.split('?')[0].endsWith('/TaskSessionPage.tsx')){if(!code.includes('  if (!detail) {'))throw Error('Hook regression probe target missing');return code.replace('  if (!detail) {','  if (detail) useRef(null)\n  if (!detail) {')}},resolveId(id){if(id==='/__work_entry.jsx')return '\0work-fixture-entry.jsx'},load(id){if(id==='\0work-fixture-entry.jsx')return entry},configureServer(server){server.middlewares.use(async(req,res,next)=>{
- if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/tasks/work/sessions/')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
+ if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/tasks/work/sessions/')||req.url.startsWith('/studio')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
  else next()
 })}}]})
 await server.listen()
@@ -166,6 +181,27 @@ try{
   assert.equal(await sendButton.count(), 1)
   assert.equal(await whisperButton.count(), 0)
   await page.screenshot({path:path.join(output,`inbox-composer-${width}.png`)})
+
+  // Verify alignment of composer container with chat stream (DoD 1)
+  const streamConstraint = page.locator('.inbox-message-list .calm-stream-constraint')
+  const composerConstraint = page.locator('[data-inbox-composer] .calm-stream-constraint')
+  await streamConstraint.waitFor({ state: 'visible' })
+  await composerConstraint.waitFor({ state: 'visible' })
+  const streamBox = await streamConstraint.boundingBox()
+  const composerBox = await composerConstraint.boundingBox()
+  assert.ok(streamBox && composerBox)
+  assert.equal(Math.round(composerBox.x), Math.round(streamBox.x), `Composer must horizontally align with chat stream at width ${width}`)
+  assert.equal(Math.round(composerBox.width), Math.round(streamBox.width), `Composer width must match chat stream width at width ${width}`)
+
+  // Verify multi-line auto-expand beyond 140px without clipping (DoD 2)
+  const multilineText = 'Baris 1: Instruksi pekerjaan panjang\nBaris 2: Detail implementasi yang rapi\nBaris 3: Memastikan auto-expand mulus\nBaris 4: Tanpa visual clipping\nBaris 5: Area pengetikan tetap proporsional\nBaris 6: Nyaman dibaca dan diketik'
+  await composer.fill(multilineText)
+  const multilineHeight = await composer.evaluate(el => el.getBoundingClientRect().height)
+  assert.ok(multilineHeight > 140, `Composer textarea must expand beyond 140px for multi-line text (observed ${multilineHeight}px)`)
+  assert.ok(multilineHeight <= 200, `Composer textarea must respect maximum cap of 200px (observed ${multilineHeight}px)`)
+  await page.screenshot({ path: path.join(output, `inbox-composer-expanded-${width}.png`) })
+  // Restore initial draft
+  await composer.fill('Draft tetap tersimpan')
   const list=page.locator('.inbox-message-list')
   await list.evaluate(el=>{el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-40)})
   await card.scrollIntoViewIfNeeded()
@@ -327,7 +363,21 @@ try{
   await page.screenshot({path:path.join(output,`session-result-${width}.png`)})
   assert.equal(await page.getByText('Something went wrong',{exact:true}).count(),0)
   assert.deepEqual(errors,[])
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
+
+  // Verify StudioView canvas and auto-expand at /studio
+  await page.goto(new URL('/studio', origin).href, { waitUntil: 'domcontentloaded' })
+  const studioGoal = page.locator('#studio-goal')
+  await studioGoal.waitFor({ state: 'visible' })
+  const initialStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
+  assert.ok(initialStudioHeight >= 104, 'Studio goal textarea must have minimum 104px height')
+  await page.screenshot({ path: path.join(output, `studio-${width}.png`) })
+
+  await studioGoal.fill('Target pekerjaan baru:\n1. Integrasi API\n2. Penyesuaian layout\n3. Verifikasi otomatis\n4. Dokumentasi lengkap\n5. Pengujian di perangkat nyata')
+  const expandedStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
+  assert.ok(expandedStudioHeight > initialStudioHeight, 'Studio goal textarea must smoothly auto-expand when typing multiple lines')
+  await page.screenshot({ path: path.join(output, `studio-expanded-${width}.png`) })
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true})
   await context.close()
   await browser.close()
   browser=null
