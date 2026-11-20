@@ -130,6 +130,18 @@ func (s *Server) ensureNativeReleasePreparation(ctx context.Context, taskID, att
 	if err != nil || merged == nil || !merged.Merged || !git.IsCommitHash(merged.SHA) {
 		return nil, errors.New("native merge outcome not confirmed; reconcile remote branch before retrying")
 	}
+	if observed := s.runningProjectRelease(ctx, d); observed != nil && observed.Commit != "" && observed.Commit != merged.SHA {
+		contained, checkErr := s.projectSvc.PublishedCommitContained(ctx, d.ProjectID, observed.Commit, merged.SHA)
+		if checkErr == nil && !contained {
+			stage = "reconcile_ancestry"
+			reconciled, recErr := s.projectSvc.ReconcileNativeReleaseAncestry(ctx, d.ProjectID, d.Instructions, intent.Repository, intent.TargetBranch, observed.Commit, merged.SHA)
+			if recErr == nil && git.IsCommitHash(reconciled) {
+				merged.SHA = reconciled
+			} else if recErr != nil {
+				return nil, recErr
+			}
+		}
+	}
 	stage = "release_workspace"
 	return s.prepareNativeReleaseWorkspace(ctx, taskID, attemptID, runnerID, merged.SHA)
 }
