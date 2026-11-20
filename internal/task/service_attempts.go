@@ -334,21 +334,27 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 		return nil, fmt.Errorf("%w: no attempt is available to cancel", ErrAttemptNotFound)
 	}
 
-	if latest.Status != AttemptStatusRunning && latest.Status != AttemptStatusQueued {
-		return nil, fmt.Errorf("%w: cannot cancel an attempt with status '%s'", ErrInvalidTaskInput, latest.Status)
-	}
-
 	now := time.Now().UTC()
 	latest.CancelRequested = true
-	latest.Status = AttemptStatusCanceled
-	latest.CanceledAt = &now
-	latest.FinishedAt = &now
-	exitCanceled := 130 // SIGINT exit code standard
-	latest.ExitCode = &exitCanceled
-	latest.ErrorMessage = fmt.Sprintf("Cancelled by %s", author)
-
-	if err := s.store.UpdateAttempt(ctx, latest); err != nil {
-		return nil, fmt.Errorf("update cancel attempt: %w", err)
+	if latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued {
+		latest.Status = AttemptStatusCanceled
+		latest.CanceledAt = &now
+		latest.FinishedAt = &now
+		exitCanceled := 130 // SIGINT exit code standard
+		latest.ExitCode = &exitCanceled
+		latest.ErrorMessage = fmt.Sprintf("Cancelled by %s", author)
+		if err := s.store.UpdateAttempt(ctx, latest); err != nil {
+			return nil, fmt.Errorf("update cancel attempt: %w", err)
+		}
+	} else {
+		// Attempt was already in a terminal state (e.g. failed, succeeded, interrupted, or canceled).
+		// Cancellation is idempotent: record cancellation request without violating terminal status transition.
+		if latest.CanceledAt == nil {
+			latest.CanceledAt = &now
+		}
+		if err := s.store.UpdateAttempt(ctx, latest); err != nil && !errors.Is(err, ErrAttemptFinal) {
+			return nil, fmt.Errorf("update cancel attempt: %w", err)
+		}
 	}
 
 	// Cancellation is an owner decision, not a defect in the work. Sending the

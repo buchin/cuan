@@ -1347,11 +1347,20 @@ export function TaskSessionPage({
                 setCancel(false)
                 await refresh()
               } catch (e) {
-                setCancelError(
+                const message =
                   e instanceof Error
                     ? e.message
-                    : 'Could not cancel the session.',
-                )
+                    : 'Could not cancel the session.'
+                if (
+                  message.includes('cannot cancel an attempt with status') ||
+                  message.includes('no attempt is available to cancel')
+                ) {
+                  setCancel(false)
+                  setCancelError('')
+                  await refresh()
+                } else {
+                  setCancelError(message)
+                }
               } finally {
                 setBusy(false)
               }

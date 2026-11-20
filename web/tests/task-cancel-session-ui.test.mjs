@@ -19,12 +19,16 @@ test('TaskSessionPage.tsx contains responsive Cancel session dialog with error d
   
   // Must call tasksApi.cancel with taskId
   assert.ok(file.includes('tasksApi.cancel(taskId)'), 'Must call tasksApi.cancel(taskId)')
+
+  // Must gracefully handle terminal status errors without trapping user in dialog
+  assert.ok(file.includes("message.includes('cannot cancel an attempt with status')"), 'Must gracefully catch already terminal status')
+  assert.ok(file.includes('setCancel(false)'), 'Must close modal on terminal status')
   
   // Must show visual feedback during cancellation
   assert.ok(file.includes("busy ? 'Cancelling…' : 'Cancel session'"), 'Must show visual feedback Cancelling… while busy')
 })
 
-test('TaskSidePeek.tsx Cancel session does not inadvertently restart agent', () => {
+test('TaskSidePeek.tsx Cancel session does not inadvertently restart agent and gracefully handles terminal status', () => {
   const file = fs.readFileSync(path.join(srcDir, 'features/tasks/TaskSidePeek.tsx'), 'utf-8')
   
   // Must render Cancel session dialog
@@ -32,6 +36,9 @@ test('TaskSidePeek.tsx Cancel session does not inadvertently restart agent', () 
   assert.ok(file.includes('title="Cancel session?"'), 'Dialog must have title "Cancel session?"')
   assert.ok(file.includes('tasksApi.cancel(initial.id)'), 'Must call tasksApi.cancel')
   
+  // Must gracefully catch already terminal status
+  assert.ok(file.includes("message.includes('cannot cancel an attempt with status')"), 'Must catch already terminal attempt status')
+
   // Ensure onRunAgent is NOT called after cancel
   const cancelSection = file.slice(file.indexOf("open={modal === 'cancel'}"), file.indexOf('</ActionDialog>', file.indexOf("open={modal === 'cancel'}")))
   assert.ok(!cancelSection.includes('onRunAgent'), 'Must NOT call onRunAgent inside cancel modal')

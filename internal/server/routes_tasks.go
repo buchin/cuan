@@ -602,6 +602,25 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 			respondJSONError(w, http.StatusNotFound, "No attempt is available to cancel")
 			return
 		}
+		if errors.Is(err, task.ErrInvalidTaskInput) {
+			cancelled := task.TaskStatusCancelled
+			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, author, task.UpdateTaskRequest{Status: &cancelled})
+			if s.projectStudioRepo != nil {
+				_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "cancelled")
+			}
+			if s.terminalManager != nil {
+				_ = s.terminalManager.CloseSession(taskID)
+			}
+			if s.taskSvc != nil {
+				_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "cancelled")
+				s.kickTaskLaunches()
+			}
+			if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
+				s.publishInbox(detail.SourceRoomID)
+			}
+			respondJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
+			return
+		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -628,7 +647,11 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 	if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
 		s.publishInbox(detail.SourceRoomID)
 	}
-	respondJSON(w, http.StatusOK, att)
+	if att != nil {
+		respondJSON(w, http.StatusOK, att)
+	} else {
+		respondJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
+	}
 }
 
 func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
