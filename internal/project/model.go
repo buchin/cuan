@@ -108,6 +108,72 @@ func (p *Project) ToResponse() *ProjectResponse {
 	}
 }
 
+// ProjectListItem is the lean DTO for the projects list endpoint.
+// It omits Metadata and SourceMetadata (potentially large and sensitive) which
+// are not needed by the project list UI and should not be broadcast in bulk.
+type ProjectListItem struct {
+	TaskProgress   *TaskProgress   `json:"task_progress,omitempty"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	RepoURL        string          `json:"repo_url"`
+	RepoOwner      string          `json:"repo_owner"`
+	RepoName       string          `json:"repo_name"`
+	DefaultBranch  string          `json:"default_branch"`
+	HasToken       bool            `json:"has_token"`
+	TokenPreview   string          `json:"token_preview,omitempty"`
+	CloneStatus    string          `json:"clone_status"`
+	ProjectType    string          `json:"project_type"`
+	EnabledModules json.RawMessage `json:"enabled_modules"`
+	SourceType     string          `json:"source_type"`
+	IsArchived     bool            `json:"is_archived"`
+	LastFetchedAt  *time.Time      `json:"last_fetched_at,omitempty"`
+	LastError      string          `json:"last_error,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+// ToListItem converts a Project to its lean public list DTO, omitting sensitive metadata.
+func (p *Project) ToListItem() *ProjectListItem {
+	projectType := p.ProjectType
+	if projectType == "" {
+		projectType = "custom"
+	}
+	enabledModules := p.EnabledModules
+	if len(enabledModules) == 0 {
+		enabledModules = json.RawMessage(`["tasks", "discussions"]`)
+	}
+	sourceType := p.SourceType
+	if sourceType == "" {
+		sourceType = "blank"
+	}
+
+	var lastFetched *time.Time
+	if p.LastFetchedAt != nil {
+		t := *p.LastFetchedAt
+		lastFetched = &t
+	}
+
+	return &ProjectListItem{
+		ID:             p.ID,
+		Name:           p.Name,
+		RepoURL:        p.RepoURL,
+		RepoOwner:      p.RepoOwner,
+		RepoName:       p.RepoName,
+		DefaultBranch:  p.DefaultBranch,
+		HasToken:       p.EncryptedToken != "" || p.TokenPreview != "",
+		TokenPreview:   p.TokenPreview,
+		CloneStatus:    p.CloneStatus,
+		ProjectType:    projectType,
+		EnabledModules: enabledModules,
+		SourceType:     sourceType,
+		IsArchived:     p.IsArchived,
+		LastFetchedAt:  lastFetched,
+		LastError:      p.LastError,
+		CreatedAt:      p.CreatedAt,
+		UpdatedAt:      p.UpdatedAt,
+	}
+}
+
 type ConnectProjectRequest struct {
 	Name           string          `json:"name"`
 	RepoURL        string          `json:"repo_url"`
