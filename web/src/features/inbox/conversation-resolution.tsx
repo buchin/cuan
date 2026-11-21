@@ -18,6 +18,12 @@ export async function setConversationResolved(contact: ChatContact, resolved: bo
       }),
     },
   )
+  contact.resolved = result.resolved
+  if (result.resolved_at) {
+    contact.resolved_at = result.resolved_at
+  } else if (!result.resolved) {
+    contact.resolved_at = undefined
+  }
   window.dispatchEvent(new CustomEvent('cuan-conversation-resolution', { detail: result }))
   return result
 }
