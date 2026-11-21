@@ -1364,7 +1364,22 @@ export function InboxView({
     return noUnfinished && hasDone
   }, [activeContact, linkedTasks, activeConversationTasks.length])
 
-  const showResolutionCard = !isResolved && hasFinishedTasks
+  const canResolveChatWithoutTasks = useMemo(() => {
+    if (!activeContact) return false
+    const hasTasks = (activeContact.task_count || 0) > 0 || linkedTasks.length > 0
+    if (hasTasks) return false
+    if (messages.length === 0) return false
+    if (sending) return false
+    const lastMsg = messages[messages.length - 1]
+    if (!lastMsg) return false
+    if (activeContact.type === 'agent') {
+      return lastMsg.author_type === 'agent' || lastMsg.author_type === 'system'
+    }
+    return lastMsg.author_type === 'agent' || lastMsg.author_type === 'system' ||
+      lastMsg.sender_type === 'operator' || lastMsg.author_name === 'You' || lastMsg.author_name === 'Owner'
+  }, [activeContact, linkedTasks.length, messages, sending])
+
+  const showResolutionCard = !isResolved && (hasFinishedTasks || canResolveChatWithoutTasks)
 
   const handleMarkResolved = async () => {
     if (!activeContact || resolving) return
@@ -2418,7 +2433,7 @@ export function InboxView({
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">
-                          {t('Semua pekerjaan telah selesai diverifikasi.')}
+                          {hasFinishedTasks ? t('Semua pekerjaan telah selesai diverifikasi.') : t('Selesai berdiskusi?')}
                         </p>
                         <p className="text-[11px] text-muted-foreground truncate">
                           {t('Tuntaskan percakapan untuk mencapai Inbox Zero.')}

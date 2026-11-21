@@ -484,4 +484,72 @@ func TestAutoResolveCompletedConversations(t *testing.T) {
 	if checkOldRoom.IsResolved(msgNew.CreatedAt) {
 		t.Fatalf("expected room.IsResolved to be false after new user message arrived")
 	}
+
+	// 4. Conversation WITHOUT tasks where agent answered and was read > 24h ago: SHOULD auto-resolve
+	roomNoTasks := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_autoresolve_notasks",
+		Title:     "General Consultation",
+	}
+	if err := repo.CreateRoom(ctx, roomNoTasks); err != nil {
+		t.Fatal(err)
+	}
+	msgAgent := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomNoTasks.ID,
+		AuthorType: "agent",
+		AuthorName: "Cuan",
+		Content:    "Cuan adalah platform AI agent.",
+		CreatedAt:  oldTime,
+		UpdatedAt:  oldTime,
+	}
+	if err := repo.CreateMessage(ctx, msgAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AcknowledgeMessages(ctx, roomNoTasks.ID, []string{msgAgent.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, err := repo.MessageReceipts(ctx, roomNoTasks.ID); err == nil {
+		if rec, ok := receipts[msgAgent.ID]; ok && rec.ReadConfirmedAt != nil {
+			*rec.ReadConfirmedAt = readTime
+		}
+	}
+	srv.autoResolveCompletedConversations(ctx)
+	checkNoTasksRoom, err := repo.GetRoomByID(ctx, roomNoTasks.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkNoTasksRoom.ResolvedAt == nil {
+		t.Fatalf("expected task-free room to be auto-resolved after 24h since read, got nil")
+	}
+
+	// 5. Conversation WITHOUT tasks where customer message was NOT replied to: MUST NOT auto-resolve
+	roomCustomerWait := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_autoresolve_cust",
+		Title:     "Customer Help",
+	}
+	if err := repo.CreateRoom(ctx, roomCustomerWait); err != nil {
+		t.Fatal(err)
+	}
+	msgCust := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomCustomerWait.ID,
+		AuthorType: "user",
+		AuthorName: "Visitor",
+		Content:    "Halo, tolong bantu akun saya",
+		CreatedAt:  oldTime,
+		UpdatedAt:  oldTime,
+	}
+	if err := repo.CreateMessage(ctx, msgCust); err != nil {
+		t.Fatal(err)
+	}
+	srv.autoResolveCompletedConversations(ctx)
+	checkCustRoom, err := repo.GetRoomByID(ctx, roomCustomerWait.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkCustRoom.ResolvedAt != nil {
+		t.Fatalf("expected unanswered customer room NOT to be auto-resolved, got %v", checkCustRoom.ResolvedAt)
+	}
 }

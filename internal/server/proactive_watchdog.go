@@ -376,22 +376,38 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			continue
 		}
 
-		// Check if there are tasks for this room
-		tasks, err := s.taskSvc.Store().ListTasks(ctx, task.TaskFilter{SourceRoomID: room.ID})
-		if err != nil {
-			continue
-		}
-		if len(tasks) == 0 {
-			legacy, err := s.projectStudioRepo.ListTasksByRoomID(ctx, room.ID)
-			if err != nil || len(legacy) == 0 {
-				continue
-			}
-		}
-
 		// Ensure there are no active, running, queued, or blocked tasks/launches/requests
 		blocker, err := s.conversationResolutionBlocker(ctx, room.ID)
 		if err != nil || blocker != "" {
 			continue
+		}
+
+		// Check if there are tasks for this room
+		tasks, _ := s.taskSvc.Store().ListTasks(ctx, task.TaskFilter{SourceRoomID: room.ID})
+		hasTasks := len(tasks) > 0
+		if !hasTasks {
+			legacy, _ := s.projectStudioRepo.ListTasksByRoomID(ctx, room.ID)
+			hasTasks = len(legacy) > 0
+		}
+
+		if hasTasks {
+			// All tasks must have completed > 24 hours ago
+			allTasksOld := true
+			for _, t := range tasks {
+				if t.UpdatedAt.After(cutoff) {
+					allTasksOld = false
+					break
+				}
+			}
+			if !allTasksOld {
+				continue
+			}
+		} else {
+			// Normal chat without tasks:
+			// Unanswered customer messages must NEVER be auto-resolved
+			if latestMsg.AuthorType != "agent" && latestMsg.AuthorType != "system" {
+				continue
+			}
 		}
 
 		// Enforce read-aware grace period: if the latest message was sent by an agent/system,
@@ -437,7 +453,12 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 
 			// If the completion message has never been read, keep it in Inbox!
 			if readAt == nil {
-				continue
+				// If customer live chat and answered by system/agent > 24h ago with no visitor replies:
+				if !hasTasks && latestMsg.CreatedAt.Before(cutoff) {
+					readAt = &latestMsg.CreatedAt
+				} else {
+					continue
+				}
 			}
 
 			// 24-hour grace period must elapse AFTER the message was read
@@ -451,16 +472,18 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			}
 		}
 
-		// Also check all tasks: their UpdatedAt must be older than cutoff
-		allTasksOld := true
-		for _, t := range tasks {
-			if t.UpdatedAt.After(cutoff) {
-				allTasksOld = false
-				break
+		// For task-driven conversations, verify all tasks completed > 24 hours ago
+		if hasTasks {
+			allTasksOld := true
+			for _, t := range tasks {
+				if t.UpdatedAt.After(cutoff) {
+					allTasksOld = false
+					break
+				}
 			}
-		}
-		if !allTasksOld {
-			continue
+			if !allTasksOld {
+				continue
+			}
 		}
 
 		now := time.Now().UTC()
