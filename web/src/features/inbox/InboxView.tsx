@@ -558,8 +558,11 @@ export function InboxView({
         setStreamingReplies((prev) => {
           let changed = false
           const next = { ...prev }
+          const messageIds = new Set((data.messages || []).map((m) => m.uuid).filter(Boolean))
           for (const req of data.requests || []) {
-            if ((req.state === 'completed' || req.state === 'failed' || req.state === 'interrupted' || req.reply_id) && next[req.request_id]) {
+            const replyDelivered = Boolean(req.reply_id && messageIds.has(req.reply_id))
+            const isTerminalFailure = req.state === 'failed' || req.state === 'interrupted'
+            if ((replyDelivered || isTerminalFailure) && next[req.request_id]) {
               delete next[req.request_id]
               changed = true
             }
@@ -824,8 +827,11 @@ export function InboxView({
           setStreamingReplies((prev) => {
             let changed = false
             const next = { ...prev }
+            const messageIds = new Set((data.messages || []).map((m) => m.uuid).filter(Boolean))
             for (const req of data.requests || []) {
-              if ((req.state === 'completed' || req.state === 'failed' || req.state === 'interrupted' || req.reply_id) && next[req.request_id]) {
+              const replyDelivered = Boolean(req.reply_id && messageIds.has(req.reply_id))
+              const isTerminalFailure = req.state === 'failed' || req.state === 'interrupted'
+              if ((replyDelivered || isTerminalFailure) && next[req.request_id]) {
                 delete next[req.request_id]
                 changed = true
               }

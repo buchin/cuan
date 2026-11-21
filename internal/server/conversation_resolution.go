@@ -41,18 +41,40 @@ func (s *Server) handleConversationResolution(w http.ResponseWriter, r *http.Req
 	var at *time.Time
 	if *req.Resolved {
 		now := time.Now().UTC()
-		if req.CancelUnfinished != nil && *req.CancelUnfinished {
-			if req.ObservedAt == nil || req.ObservedAt.IsZero() || req.ObservedAt.After(now) {
-				req.ObservedAt = &now
+		if req.ObservedAt == nil || req.ObservedAt.IsZero() || req.ObservedAt.After(now) {
+			req.ObservedAt = &now
+		}
+
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			requests, err := store.ListInboxRequests(r.Context(), id)
+			if err != nil {
+				respondJSONError(w, 503, "Could not check conversation work")
+				return
 			}
+			for _, request := range requests {
+				if request.State == "queued" || request.State == "running" || request.State == "cancelling" {
+					respondJSONError(w, 409, "Wait for the current reply before resolving this conversation")
+					return
+				}
+			}
+		}
+
+		if items, err := s.taskSvc.Store().ListTasks(r.Context(), task.TaskFilter{SourceRoomID: id}); err == nil {
+			for _, item := range items {
+				if item.Status != "done" && item.Status != "cancelled" && item.Status != "canceled" && time.Since(item.CreatedAt) < 60*time.Second {
+					respondJSONError(w, 409, "A task was just created. Wait for it to start before resolving this conversation")
+					return
+				}
+			}
+		}
+
+		if req.CancelUnfinished != nil && *req.CancelUnfinished {
 			if err := s.cancelUnfinishedConversationTasks(r.Context(), id); err != nil {
 				respondJSONError(w, 500, "Could not cancel unfinished conversation tasks")
 				return
 			}
-		} else if req.ObservedAt == nil || req.ObservedAt.IsZero() || req.ObservedAt.After(now) {
-			respondJSONError(w, 400, "Review the latest conversation before resolving it")
-			return
 		}
+
 		reason, err := s.conversationResolutionBlocker(r.Context(), id)
 		if err != nil {
 			respondJSONError(w, 503, "Could not check conversation work")
@@ -180,6 +202,10 @@ func (s *Server) cancelUnfinishedConversationTasks(ctx context.Context, id strin
 				item.Status = "cancelled"
 				item.UpdatedAt = now
 				_ = s.taskSvc.Store().UpdateTask(ctx, item)
+				if s.taskSvc != nil {
+					_, _ = s.taskSvc.CancelLaunches(ctx, item.ID, now)
+					_ = s.taskSvc.FinishTaskLaunches(ctx, item.ID, "cancelled")
+				}
 				for _, attempt := range attempts {
 					if attempt.Status != "succeeded" && attempt.Status != "canceled" && attempt.Status != "cancelled" {
 						attempt.Status = "canceled"
