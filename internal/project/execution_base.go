@@ -33,3 +33,27 @@ func (s *Service) RefreshExecutionBase(ctx context.Context, p *ProjectResponse) 
 	defer cancel()
 	return s.gitClient.FetchBoundBranch(refresh, source, p.RepoURL, p.DefaultBranch, token)
 }
+
+// PreflightSyncProject executes a pre-flight fetch and fast-forward of the project's
+// default branch (default "dev") in its local path if clean.
+func (s *Service) PreflightSyncProject(ctx context.Context, p *ProjectResponse) error {
+	if p == nil || p.RepoURL == "" || p.LocalPath == "" {
+		return nil
+	}
+	if s.gitClient == nil {
+		return errors.New("Project repository access is unavailable")
+	}
+	source, err := filepath.EvalSymlinks(p.LocalPath)
+	if err != nil {
+		return errors.New("Project repository is unavailable")
+	}
+	var token string
+	if registered, err := s.store.GetProject(ctx, p.ID); err == nil && registered != nil {
+		token, _ = s.repositoryToken(ctx, registered.EncryptedToken)
+	}
+	branch := p.DefaultBranch
+	if branch == "" {
+		branch = "dev"
+	}
+	return s.gitClient.PreflightSync(ctx, source, branch, token)
+}

@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -72,6 +75,55 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
 	}
 	s.kickTaskLaunches()
+
+	// 4. Background Watchdog Git Sync saat Idle:
+	// Memeriksa origin/dev secara berkala saat tidak ada runner yang aktif (lock bebas)
+	// dan dev lokal bersih, lalu menyelaraskan commit secara hening.
+	s.syncIdleProjectsGit(ctx)
+}
+
+// syncIdleProjectsGit checks origin/dev (or default branch) periodically when no
+// runner is active (lock free) and working tree is clean, silently fast-forwarding local commits.
+func (s *Server) syncIdleProjectsGit(ctx context.Context) {
+	if s.projectSvc == nil {
+		return
+	}
+
+	// 1. Invariant check: only sync when no runner is actively executing
+	if s.taskSvc != nil {
+		doingTasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusDoing})
+		if err == nil && len(doingTasks) > 0 {
+			return
+		}
+	}
+
+	projects, err := s.projectSvc.List(ctx)
+	if err != nil || len(projects) == 0 {
+		return
+	}
+
+	for _, p := range projects {
+		if p == nil || p.RepoURL == "" || p.LocalPath == "" || p.IsArchived {
+			continue
+		}
+
+		// 2. Safe check: directory must exist and contain git metadata
+		gitDir := filepath.Join(p.LocalPath, ".git")
+		if fi, err := os.Stat(gitDir); err != nil || (!fi.IsDir() && !fi.Mode().IsRegular()) {
+			continue
+		}
+
+		// 3. Acquire verification lease non-blockingly (lock bebas)
+		lease, err := git.TryAcquireVerificationLease(ctx, p.LocalPath)
+		if err != nil {
+			// Lock is busy (held by runner/verifier/task) or unavailable; skip silently
+			continue
+		}
+
+		// 4. Preflight sync silently (safe fallback non-blocking on network / dirty working tree)
+		_ = s.projectSvc.PreflightSyncProject(ctx, p)
+		_ = lease.Close()
+	}
 }
 
 // orchestrateBlockedInboxTasks inspects tasks in status 'blocked' and performs:

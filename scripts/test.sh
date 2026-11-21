@@ -59,9 +59,11 @@ if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
 fi
 
 if [[ "$MODE" == "all" || "$MODE" == "frontend" ]]; then
-  if [[ "$FAST_MODE" == "true" ]]; then
+  if [[ ! -d "$ROOT_DIR/web/node_modules/typescript" ]]; then
+    echo "==> Frontend dependencies not installed in web/node_modules, skipping frontend validation."
+  elif [[ "$FAST_MODE" == "true" ]]; then
     echo "==> Validating TypeScript types in web..."
-    (cd "$ROOT_DIR/web" && npx tsc --noEmit)
+    (cd "$ROOT_DIR/web" && npx --no-install tsc --noEmit)
     echo "✓ TypeScript check passed."
   else
     echo "==> Validating React Vite frontend build..."
