@@ -213,7 +213,7 @@ if n==0:
  response=json.dumps({'reply':'','topic_title':'','action':{'kind':'memory_search','payload':{'query':'dinosaur','contact_id':'','authorization_message_id':target}}})
  print(json.dumps({'event':'result','result':{'status':'SUCCESS','response':response}}))
 else:
- assert '--dangerously-skip-permissions' not in sys.argv and '--mode' in sys.argv
+ assert '--dangerously-skip-permissions' not in sys.argv and '--sandbox' in sys.argv
  print(json.dumps({'event':'step_update','step_update':{'step_index':2,'state':'ACTIVE','step_type':'tool','tool_name':'run_command'}}),flush=True)
  time.sleep(15)
 `

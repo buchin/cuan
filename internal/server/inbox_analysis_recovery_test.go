@@ -63,7 +63,7 @@ func TestInboxDeniedToolContinuesAnalysisWithoutApplyingActions(t *testing.T) {
 					t.Fatal(out, failure)
 				}
 				args, _ := os.ReadFile(filepath.Join(home, "recovery-args"))
-				for _, required := range []string{"TARGET_ORIGINAL_CONTEXT", "Return action:null", "grep_search", "--mode\nplan"} {
+				for _, required := range []string{"TARGET_ORIGINAL_CONTEXT", "Return action:null", "grep_search", "--sandbox"} {
 					if !strings.Contains(string(args), required) {
 						t.Fatal("lost recovery constraint", required)
 					}

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -46,6 +47,29 @@ func (s *Server) notifyInboxProcess(room string) {
 	}
 }
 
+func (s *Server) notifyChatDelta(roomID, requestID, delta string) {
+	if s.roomEventBroker != nil {
+		s.roomEventBroker.Broadcast(roomID, "chat.delta", map[string]any{
+			"request_id": requestID,
+			"delta":      delta,
+		})
+	}
+	if s.db == nil || s.cfg == nil || s.cfg.InboxExecutionRole == "" || !db.IsValidUUID(roomID) || delta == "" {
+		return
+	}
+	payload, err := json.Marshal(map[string]string{
+		"room_id":    roomID,
+		"request_id": requestID,
+		"delta":      delta,
+	})
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, _ = s.db.ExecContext(ctx, `SELECT pg_notify('cuan_chat_delta', $1)`, string(payload))
+}
+
 // PostgreSQL is already the durable queue; NOTIFY only wakes dispatch/SSE.
 // Missed notifications never authorize replay and reconnect reloads subscriptions.
 func (s *Server) StartInboxEvents(ctx context.Context) {
@@ -57,7 +81,7 @@ func (s *Server) StartInboxEvents(ctx context.Context) {
 			setupCtx, setupCancel := context.WithTimeout(ctx, 5*time.Second)
 			conn, err := pgx.Connect(setupCtx, s.cfg.DatabaseURL)
 			if err == nil {
-				_, err = conn.Exec(setupCtx, "LISTEN cuan_inbox_updated")
+				_, err = conn.Exec(setupCtx, "LISTEN cuan_inbox_updated; LISTEN cuan_chat_delta")
 				setupCancel()
 				if err == nil {
 					s.refreshInboxSubscribers()
@@ -65,12 +89,28 @@ func (s *Server) StartInboxEvents(ctx context.Context) {
 				for err == nil {
 					n, waitErr := conn.WaitForNotification(ctx)
 					err = waitErr
-					if err == nil && db.IsValidUUID(n.Payload) {
-						if s.roomEventBroker != nil {
-							s.roomEventBroker.Broadcast(n.Payload, "inbox.updated", nil)
-						}
-						if s.executesInbox() {
-							s.kickInboxRoom(n.Payload)
+					if err == nil {
+						if n.Channel == "cuan_inbox_updated" && db.IsValidUUID(n.Payload) {
+							if s.roomEventBroker != nil {
+								s.roomEventBroker.Broadcast(n.Payload, "inbox.updated", nil)
+							}
+							if s.executesInbox() {
+								s.kickInboxRoom(n.Payload)
+							}
+						} else if n.Channel == "cuan_chat_delta" {
+							var p struct {
+								RoomID    string `json:"room_id"`
+								RequestID string `json:"request_id"`
+								Delta     string `json:"delta"`
+							}
+							if json.Unmarshal([]byte(n.Payload), &p) == nil && p.RoomID != "" && p.Delta != "" {
+								if s.roomEventBroker != nil {
+									s.roomEventBroker.Broadcast(p.RoomID, "chat.delta", map[string]any{
+										"request_id": p.RequestID,
+										"delta":      p.Delta,
+									})
+								}
+							}
 						}
 					}
 				}
