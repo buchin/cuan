@@ -138,28 +138,55 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		var origin *db.InboxRequest
-		if assessmentRequestID != "" {
-			for i := range requests {
-				if requests[i].RequestID == assessmentRequestID {
-					origin = &requests[i]
-					break
-				}
+
+		// Resolve the task's root owner authorization request.
+		// System review turns create evaluation context, but never fresh consent.
+		// All continuation paths require the original user authorization lineage.
+		var rootRequest *db.InboxRequest
+		for i := range requests {
+			if requests[i].MessageID == detail.SourceMessageID && requests[i].State != "canceled" && requests[i].State != "cancelled" && requests[i].State != "cancelling" {
+				rootRequest = &requests[i]
+				break
 			}
 		}
-		if origin == nil {
+		if rootRequest == nil {
 			for i := range requests {
 				if requests[i].MessageID == detail.SourceMessageID {
-					origin = &requests[i]
+					rootRequest = &requests[i]
 					break
 				}
 			}
 		}
-		if origin == nil && len(requests) > 0 {
-			origin = &requests[0]
+		if rootRequest == nil && len(requests) > 0 {
+			for i := range requests {
+				if requests[i].State != "canceled" && requests[i].State != "cancelled" && requests[i].State != "cancelling" {
+					rootRequest = &requests[i]
+					break
+				}
+			}
+			if rootRequest == nil {
+				rootRequest = &requests[0]
+			}
 		}
-		if origin == nil {
+		if rootRequest == nil {
 			continue
+		}
+
+		origin := *rootRequest
+		if origin.AgentID == "" {
+			if detail.AssignedAgent != "" {
+				origin.AgentID = detail.AssignedAgent
+			} else {
+				origin.AgentID = "agent_cuan"
+			}
+		}
+		if origin.OwnerID == "" {
+			for i := range requests {
+				if requests[i].OwnerID != "" {
+					origin.OwnerID = requests[i].OwnerID
+					break
+				}
+			}
 		}
 
 		attemptCount := taskRevisionAttemptCount(detail)
@@ -172,16 +199,9 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			latestAssessment.RequestedOutcome != "needs_input" &&
 			strings.TrimSpace(latestAssessment.Revision) != "" {
 
-			if origin.AgentID == "" {
-				if detail.AssignedAgent != "" {
-					origin.AgentID = detail.AssignedAgent
-				} else {
-					origin.AgentID = "agent_cuan"
-				}
-			}
-
-			launchID := delegationMessageID(fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, origin.RequestID, len(detail.Attempts)+1))
-			notice := s.startAuthorizedLaunch(ctx, *origin, detail, launchID, origin.RequestID, latestAssessment.Revision)
+			sourceRequestID := origin.RequestID
+			launchID := delegationMessageID(fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, sourceRequestID, len(detail.Attempts)+1))
+			notice := s.startAuthorizedLaunch(ctx, origin, detail, launchID, sourceRequestID, latestAssessment.Revision)
 			s.kickTaskLaunches()
 			log.Printf("[Watchdog AI Orchestrator] Autonomously launched continuation for blocked task %s (attempt %d/5, notice=%s): %s",
 				detail.ID, attemptCount+1, notice, latestAssessment.Revision)

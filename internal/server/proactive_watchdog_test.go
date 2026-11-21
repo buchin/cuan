@@ -271,7 +271,7 @@ func TestProactiveWatchdogOrchestrateBlockedTasksAutonomousLaunch(t *testing.T) 
 	}
 
 	assessmentRecord := reviewAssessmentRecord{
-		RequestID:        reqID,
+		RequestID:        db.GenerateUUID(), // System review assessment request ID differs from root user authorization
 		InstructionsHash: task.LaunchInstructionsHash(taskItem.Instructions),
 		Assessment: inboxReviewEvaluation{
 			Decision:         "revise",
