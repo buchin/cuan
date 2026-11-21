@@ -11,9 +11,20 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
+type taskReviewCompletionKey struct{}
+type taskReviewRoomIDKey struct{}
+
 // PostTaskCompletionMessage delivers a closing delivery summary and verification note
 // to the associated chat room when a task transitions to 'done' (closing the communication loop).
 func (s *Server) PostTaskCompletionMessage(ctx context.Context, t *task.Task) error {
+	if ctx != nil && ctx.Value(taskReviewCompletionKey{}) != nil {
+		reviewRoom, _ := ctx.Value(taskReviewRoomIDKey{}).(string)
+		if reviewRoom == "" || t == nil || t.SourceRoomID == reviewRoom {
+			// Post-verify review in inbox is actively handling this task completion
+			// and will emit the unified confirmation message. Avoid duplicate emitter.
+			return nil
+		}
+	}
 	if s.projectStudioRepo == nil || t == nil || t.SourceRoomID == "" || t.Status != task.TaskStatusDone {
 		return nil
 	}
@@ -30,12 +41,12 @@ func (s *Server) PostTaskCompletionMessage(ctx context.Context, t *task.Task) er
 
 	// Single-bubble idempotency: avoid inserting duplicate message if already present in room
 	if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, t.SourceRoomID); err == nil && len(msgs) > 0 {
-		for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-5; i-- {
+		for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-10; i-- {
 			content := msgs[i].Content
-			if strings.Contains(content, "/tasks/"+t.ID) &&
-				(strings.Contains(content, "Pekerjaan telah selesai") ||
-					strings.Contains(content, "Hasil pekerjaan ini sudah diterima") ||
-					(summary != "" && strings.Contains(content, summary))) {
+			if msgs[i].ID == msgID || (strings.Contains(content, "/tasks/"+t.ID) &&
+				(strings.Contains(content, "telah selesai") ||
+					strings.Contains(content, "sudah diterima") ||
+					(summary != "" && strings.Contains(content, summary)))) {
 				return nil
 			}
 		}
