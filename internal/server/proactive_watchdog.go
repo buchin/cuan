@@ -193,8 +193,10 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		attemptCount := taskRevisionAttemptCount(detail)
 
 		// 1. Autonomous Self-Healing:
-		// When within budget (< 5 attempts), manager indicates continue/replan, and actionable revision is available
-		if latestAssessment != nil && attemptCount < 5 &&
+		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
+		// and work is internal (not external).
+		if latestAssessment != nil && attemptCount < 3 &&
+			latestAssessment.RemainingWork != "external" &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
 			latestAssessment.Decision == "revise" &&
 			latestAssessment.RequestedOutcome != "needs_input" &&
@@ -204,7 +206,7 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			launchID := delegationMessageID(fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, sourceRequestID, len(detail.Attempts)+1))
 			notice := s.startAuthorizedLaunch(ctx, origin, detail, launchID, sourceRequestID, latestAssessment.Revision)
 			s.kickTaskLaunches()
-			log.Printf("[Watchdog AI Orchestrator] Autonomously launched continuation for blocked task %s (attempt %d/5, notice=%s): %s",
+			log.Printf("[Watchdog AI Orchestrator] Autonomously launched continuation for blocked task %s (attempt %d/3, notice=%s): %s",
 				detail.ID, attemptCount+1, notice, latestAssessment.Revision)
 			continue
 		}
@@ -219,7 +221,7 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 }
 
 func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.TaskDetailResponse, requestID string, assessment inboxReviewEvaluation) {
-	// Deduplicate: check if an action card for this attempt has already been posted to the room
+	// Deduplicate: check if an action card or notification for this attempt has already been posted to the room
 	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, detail.SourceRoomID)
 	if err != nil {
 		return
@@ -227,58 +229,56 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 
 	if detail.LatestAttempt != nil {
 		for _, m := range messages {
-			if strings.Contains(m.Content, "cuan-approval") && strings.Contains(m.Content, detail.LatestAttempt.ID) {
+			if strings.Contains(m.Content, detail.LatestAttempt.ID) {
 				// Already posted for this attempt
 				return
 			}
 		}
 	}
 
-	var planBlock string
-	if assessment.Decision == "revise" && strings.TrimSpace(assessment.Revision) != "" {
-		planBlock = continuationPlan(detail, requestID, assessment)
+	// 1. If blocked by external work (e.g. cuan-landing without VPS deployment, GitHub PR merge needed),
+	// never fabricate a cuan-approval card because external actions cannot be performed by the local code runner.
+	// Instead, post an informative, actionable message with direct resolution links.
+	if assessment.RemainingWork == "external" {
+		finding := strings.TrimSpace(assessment.Finding)
+		if finding == "" {
+			finding = strings.TrimSpace(assessment.Explanation)
+		}
+		if finding == "" {
+			finding = "Perubahan kode telah diterapkan pada repositori, namun memerlukan deployment atau tindakan eksternal."
+		}
+		content := fmt.Sprintf("%s\n\nPerubahan kode telah siap di GitHub/repositori. Anda dapat menandai tugas ini selesai jika deployment dilakukan terpisah, atau memeriksa konfigurasi deployment proyek:\n\n• [Tandai Tuntas](/tasks/%s)\n• [Pengaturan Proyek](/projects/%s/settings)",
+			finding, detail.ID, detail.ProjectID)
+		msg := &db.ProjectMessage{
+			ID:         db.GenerateUUID(),
+			RoomID:     detail.SourceRoomID,
+			AuthorType: "agent",
+			AuthorID:   detail.AssignedAgent,
+			AuthorName: "Cuan",
+			Content:    content,
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
+		}
+		if msg.AuthorID == "" {
+			msg.AuthorID = "agent_cuan"
+		}
+		if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
+			log.Printf("[Watchdog AI Orchestrator] Posted external blocker notification for task %s to room %s",
+				detail.ID, detail.SourceRoomID)
+			s.publishInbox(detail.SourceRoomID)
+		}
+		return
 	}
-	if planBlock == "" {
-		planTitle := "Lanjutkan: " + detail.Title
-		planDesc := strings.TrimSpace(assessment.Explanation)
-		if planDesc == "" {
-			planDesc = strings.TrimSpace(assessment.Finding)
+
+	// 2. Internal work: build authentic continuation plan matching continuationPresentation
+	if strings.TrimSpace(assessment.Revision) == "" {
+		if strings.TrimSpace(assessment.Explanation) != "" {
+			assessment.Revision = strings.TrimSpace(assessment.Explanation)
+		} else {
+			assessment.Revision = strings.TrimSpace(assessment.Finding)
 		}
-		if planDesc == "" {
-			planDesc = "Pekerjaan memerlukan keputusan Anda untuk melanjutkan."
-		}
-		if len(planDesc) > 500 {
-			planDesc = planDesc[:497] + "..."
-		}
-		attemptID := ""
-		if detail.LatestAttempt != nil {
-			attemptID = detail.LatestAttempt.ID
-		}
-		continuationRevision := strings.TrimSpace(assessment.Revision)
-		if continuationRevision == "" {
-			continuationRevision = fmt.Sprintf("Lanjutkan perbaikan %s sesuai persetujuan pemilik, terapkan perubahan pada repositori dan jalankan verifikasi.", detail.Title)
-		}
-		continuationCategory := detail.ExecutionCategory
-		if continuationCategory == "" {
-			continuationCategory = task.ExecutionCategoryCode
-		}
-		plan := inboxApprovalPlan{
-			Title:             planTitle,
-			Description:       planDesc,
-			ProjectID:         detail.ProjectID,
-			ExecutionCategory: continuationCategory,
-			RequiredStages:    []string{"implement"},
-			Continuation: &inboxContinuationPlan{
-				TaskID:              detail.ID,
-				AttemptID:           attemptID,
-				AssessmentRequestID: requestID,
-				Revision:            continuationRevision,
-				RemainingWork:       assessment.RemainingWork,
-			},
-		}
-		raw, _ := json.Marshal(plan)
-		planBlock = "\n\n```cuan-approval\n" + string(raw) + "\n```"
 	}
+	planBlock := continuationPlan(detail, requestID, assessment)
 
 	finding := strings.TrimSpace(assessment.Finding)
 	if finding == "" {
@@ -288,7 +288,12 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 		finding = "Pekerjaan memerlukan keputusan Anda untuk melanjutkan."
 	}
 
-	content := fmt.Sprintf("%s\n\nUntuk melanjutkan perbaikan, silakan konfirmasi melalui tombol di bawah:%s\n\n[View work](/tasks/%s)", finding, planBlock, detail.ID)
+	var content string
+	if planBlock != "" {
+		content = fmt.Sprintf("%s\n\nUntuk melanjutkan perbaikan, silakan konfirmasi melalui tombol di bawah:%s\n\n[View work](/tasks/%s)", finding, planBlock, detail.ID)
+	} else {
+		content = fmt.Sprintf("%s\n\n[View work](/tasks/%s)", finding, detail.ID)
+	}
 
 	msg := &db.ProjectMessage{
 		ID:         db.GenerateUUID(),
@@ -303,7 +308,6 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 	if msg.AuthorID == "" {
 		msg.AuthorID = "agent_cuan"
 	}
-
 	if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
 		log.Printf("[Watchdog AI Orchestrator] Posted 1-click continuation action card for task %s to room %s",
 			detail.ID, detail.SourceRoomID)

@@ -147,6 +147,57 @@ func applyDefaultReadOnlyPermissions(settings map[string]json.RawMessage) bool {
 	return false
 }
 
+// sanitizeTaskExecutionPermissions ensures that when trusted workspaces are registered
+// for task execution, broad tool deny rules (e.g. from prior read-only chat turns on the same profile)
+// are removed from permissions.deny so the runner can edit files and run commands.
+func sanitizeTaskExecutionPermissions(settings map[string]json.RawMessage) bool {
+	perms := map[string]json.RawMessage{}
+	if raw, ok := settings["permissions"]; ok {
+		if json.Unmarshal(raw, &perms) != nil || perms == nil {
+			return false
+		}
+	} else {
+		return false
+	}
+	var deny []string
+	if raw := perms["deny"]; len(raw) > 0 && json.Unmarshal(raw, &deny) != nil {
+		return false
+	}
+	if len(deny) == 0 {
+		return false
+	}
+	var cleaned []string
+	changed := false
+	for _, rule := range deny {
+		trimmed := strings.TrimSpace(rule)
+		if trimmed == "command(*)" ||
+			trimmed == "write_file(*)" ||
+			trimmed == "edit_file(*)" ||
+			trimmed == "replace_file_content(*)" ||
+			strings.HasPrefix(trimmed, "write_file(") ||
+			strings.HasPrefix(trimmed, "edit_file(") ||
+			strings.HasPrefix(trimmed, "command(") ||
+			strings.HasPrefix(trimmed, "replace_file_content(") {
+			changed = true
+			continue
+		}
+		cleaned = append(cleaned, rule)
+	}
+	if !changed {
+		return false
+	}
+	if len(cleaned) == 0 {
+		delete(perms, "deny")
+	} else {
+		perms["deny"], _ = json.Marshal(cleaned)
+	}
+	if data, err := json.Marshal(perms); err == nil {
+		settings["permissions"] = data
+		return true
+	}
+	return false
+}
+
 // Antigravity's documented permission engine gives deny precedence over allow.
 // Restrict agent file tools without hiding the profile from the provider process
 // itself, which still needs native authentication and session state.
@@ -280,6 +331,9 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 			}
 		}
 		if applyDefaultReadOnlyPermissions(settings) {
+			changed = true
+		}
+		if sanitizeTaskExecutionPermissions(settings) {
 			changed = true
 		}
 	}

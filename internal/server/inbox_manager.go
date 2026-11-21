@@ -48,6 +48,10 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || s.inboxReviewedTask(ctx, q) == nil {
 		return false
 	}
+	// Hard cap: autonomous attempts must not exceed attempt budget without owner sign-off.
+	if taskRevisionAttemptCount(d) >= 4 {
+		return false
+	}
 	intent, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil || (intent != nil && !s.localSourceCorrectionAllowed(ctx, q, d, revision)) {
 		return false
@@ -64,6 +68,7 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 	// not a new strategy. Return it to the coordinator, never to an approval form.
 	normalized := func(value string) string { return strings.ToLower(strings.Join(strings.Fields(value), " ")) }
 	repeats := 0
+	revisionAttempts := 0
 	seen := map[string]bool{}
 	for i := len(d.Activities) - 1; i >= 0; i-- {
 		e := d.Activities[i]
@@ -75,6 +80,9 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 			continue
 		}
 		seen[*e.AttemptID] = true
+		if old.Assessment.Decision == "revise" {
+			revisionAttempts++
+		}
 		oldFinding := normalized(old.Assessment.Finding)
 		savedFinding := normalized(saved.Finding)
 		sameFinding := oldFinding != "" && oldFinding == savedFinding
@@ -84,11 +92,10 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 			strings.HasPrefix(old.Assessment.Revision, "First reconcile the registered project's existing release") {
 			samePrefix = true
 		}
-		if normalized(old.Assessment.Revision) != normalized(saved.Revision) && !(sameFinding && sameRemaining) && !samePrefix {
-			break
+		if normalized(old.Assessment.Revision) == normalized(saved.Revision) || (sameFinding && sameRemaining) || samePrefix {
+			repeats++
 		}
-		repeats++
-		if repeats >= 2 {
+		if repeats >= 2 || revisionAttempts >= 3 {
 			return false
 		}
 	}

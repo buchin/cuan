@@ -20,7 +20,7 @@ type inboxContinuationPlan struct {
 }
 
 func continuationPlan(d *task.TaskDetailResponse, request string, decision inboxReviewEvaluation) string {
-	if d == nil || d.LatestAttempt == nil || d.ProjectID == "" || decision.Decision != "revise" || strings.TrimSpace(decision.Revision) == "" || decision.RemainingWork == "external" {
+	if d == nil || d.LatestAttempt == nil || d.ProjectID == "" || (decision.Decision != "revise" && decision.Decision != "blocked") || strings.TrimSpace(decision.Revision) == "" || decision.RemainingWork == "external" {
 		return ""
 	}
 	title, description := continuationPresentation(decision.RemainingWork)
@@ -49,7 +49,10 @@ func (s *Server) validateInboxContinuation(ctx context.Context, room string, pla
 		return invalid
 	}
 	assessment, ok := reviewAssessment(d, c.AssessmentRequestID)
-	if !ok || assessment.Decision != "revise" || assessment.RemainingWork == "external" || strings.TrimSpace(c.Revision) == "" || c.Revision != assessment.Revision || !continuationDescriptionMatches(plan, assessment) {
+	if !ok || (assessment.Decision != "revise" && assessment.Decision != "blocked") || assessment.RemainingWork == "external" || strings.TrimSpace(c.Revision) == "" || !continuationDescriptionMatches(plan, assessment) {
+		return invalid
+	}
+	if assessment.Revision != "" && c.Revision != assessment.Revision {
 		return invalid
 	}
 	return nil
