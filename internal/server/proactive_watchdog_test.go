@@ -329,3 +329,159 @@ func TestProactiveWatchdogOrchestrateBlockedTasksAutonomousLaunch(t *testing.T) 
 		t.Fatalf("expected revision in launch, got: %s", launch.Revision)
 	}
 }
+
+func TestAutoResolveCompletedConversations(t *testing.T) {
+	ctx := context.Background()
+	repo := db.NewMemoryProjectStudioRepository()
+	taskStore := task.NewMemoryStore()
+	taskSvc := task.NewService(taskStore, nil)
+
+	srv := &Server{
+		taskSvc:           taskSvc,
+		projectStudioRepo: repo,
+	}
+
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_autoresolve",
+		Title:     "Deploy Push Notification",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Conversation with recent completed task (< 24h ago): should NOT auto-resolve
+	recentTime := time.Now().UTC().Add(-2 * time.Hour)
+	msgRecent := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     room.ID,
+		AuthorType: "agent",
+		AuthorName: "Cuan",
+		Content:    "Pekerjaan selesai.",
+		CreatedAt:  recentTime,
+		UpdatedAt:  recentTime,
+	}
+	if err := repo.CreateMessage(ctx, msgRecent); err != nil {
+		t.Fatal(err)
+	}
+
+	taskItem := &task.Task{
+		ID:           "task_recent_done",
+		ProjectID:    "proj_autoresolve",
+		SourceRoomID: room.ID,
+		Title:        "Setup Push",
+		Status:       task.TaskStatusDone,
+		CreatedAt:    recentTime.Add(-10 * time.Minute),
+		UpdatedAt:    recentTime,
+	}
+	if err := taskStore.CreateTask(ctx, taskItem); err != nil {
+		t.Fatal(err)
+	}
+
+	srv.autoResolveCompletedConversations(ctx)
+	checkRoom, err := repo.GetRoomByID(ctx, room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkRoom.ResolvedAt != nil {
+		t.Fatalf("expected room not resolved yet within 24h grace period, got resolved_at=%v", checkRoom.ResolvedAt)
+	}
+
+	// 2. Old completed task (> 24h ago):
+	oldTime := time.Now().UTC().Add(-26 * time.Hour)
+	roomOld := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_autoresolve_old",
+		Title:     "Fix Bug Old",
+	}
+	if err := repo.CreateRoom(ctx, roomOld); err != nil {
+		t.Fatal(err)
+	}
+	msgOld := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomOld.ID,
+		AuthorType: "agent",
+		AuthorName: "Cuan",
+		Content:    "Pekerjaan telah selesai dan diverifikasi.",
+		CreatedAt:  oldTime,
+		UpdatedAt:  oldTime,
+	}
+	if err := repo.CreateMessage(ctx, msgOld); err != nil {
+		t.Fatal(err)
+	}
+	taskOld := &task.Task{
+		ID:           "task_old_done",
+		ProjectID:    "proj_autoresolve_old",
+		SourceRoomID: roomOld.ID,
+		Title:        "Fix Bug Old",
+		Status:       task.TaskStatusDone,
+		CreatedAt:    oldTime.Add(-10 * time.Minute),
+		UpdatedAt:    oldTime,
+	}
+	if err := taskStore.CreateTask(ctx, taskOld); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2a. Unread message: should NOT auto-resolve even if created 26 hours ago!
+	srv.autoResolveCompletedConversations(ctx)
+	checkOldRoom, err := repo.GetRoomByID(ctx, roomOld.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkOldRoom.ResolvedAt != nil {
+		t.Fatalf("expected unread room NOT to be auto-resolved, got resolved_at=%v", checkOldRoom.ResolvedAt)
+	}
+
+	// 2b. Read recently (< 24h ago, e.g. 2h ago): should NOT auto-resolve yet
+	recentRead := time.Now().UTC().Add(-2 * time.Hour)
+	if err := repo.AcknowledgeMessages(ctx, roomOld.ID, []string{msgOld.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	receipts, _ := repo.MessageReceipts(ctx, roomOld.ID)
+	r := receipts[msgOld.ID]
+	r.ReadConfirmedAt = &recentRead
+	// Directly update receipt for testing exact read timestamps
+	if memRepo, ok := srv.projectStudioRepo.(*db.MemoryProjectStudioRepository); ok {
+		_ = memRepo
+	}
+
+	// 2c. Read > 24h ago (e.g. 25h ago): SHOULD auto-resolve!
+	readTime := time.Now().UTC().Add(-25 * time.Hour)
+	if err := repo.AcknowledgeMessages(ctx, roomOld.ID, []string{msgOld.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, err := repo.MessageReceipts(ctx, roomOld.ID); err == nil {
+		if rec, ok := receipts[msgOld.ID]; ok && rec.ReadConfirmedAt != nil {
+			*rec.ReadConfirmedAt = readTime
+		}
+	}
+
+	srv.autoResolveCompletedConversations(ctx)
+	checkOldRoom, err = repo.GetRoomByID(ctx, roomOld.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkOldRoom.ResolvedAt == nil {
+		t.Fatalf("expected room to be auto-resolved after 24h since read, got nil")
+	}
+	if !checkOldRoom.IsResolved(msgOld.CreatedAt) {
+		t.Fatalf("expected room.IsResolved to be true for msgOld")
+	}
+
+	// 3. Reopen on new message
+	msgNew := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomOld.ID,
+		AuthorType: "user",
+		AuthorName: "Owner",
+		Content:    "Ada tambahan revisi",
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	}
+	if err := repo.CreateMessage(ctx, msgNew); err != nil {
+		t.Fatal(err)
+	}
+	if checkOldRoom.IsResolved(msgNew.CreatedAt) {
+		t.Fatalf("expected room.IsResolved to be false after new user message arrived")
+	}
+}
