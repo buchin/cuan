@@ -1597,7 +1597,7 @@ export function TaskTerminal({
               className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
               role="status"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse task-pulse-subtle" />
               <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
             </span>
           ) : (
@@ -1630,7 +1630,7 @@ export function TaskTerminal({
               className={
                 'mx-1 h-1.5 w-1.5 shrink-0 rounded-full ' +
                 (connection === 'connected' || connection === 'streaming'
-                  ? 'bg-emerald-500 animate-pulse'
+                  ? 'bg-emerald-500 animate-pulse task-pulse-subtle'
                   : connection === 'saved'
                     ? 'bg-muted-foreground'
                     : 'bg-amber-500')
@@ -1873,7 +1873,7 @@ export function TaskTerminal({
       {isPoppedOut && !isPopoutMode && (
         <div className="flex shrink-0 items-center justify-between px-3 py-1.5 bg-muted/40 border-b border-border/50 text-xs text-muted-foreground select-none">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse task-pulse-subtle shrink-0" />
             <span className="truncate">{t('Terminal aktif di jendela terpisah')}</span>
           </div>
           <button

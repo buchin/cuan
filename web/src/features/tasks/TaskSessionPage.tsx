@@ -37,6 +37,7 @@ const TaskTerminal = lazy(() =>
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { AttachmentFile } from '../inbox/Attachments'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { StatusDot, type StatusDotVariant } from '../../components/ui/StatusDot'
 import { attemptLabel, taskRef, workStatus, relativeTime, workStatusBadgeClass } from './task-ui'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
@@ -486,39 +487,35 @@ export function TaskSessionPage({
           ? (language === 'id' ? 'Berjalan' : 'Live')
           : status
 
+  const dotVariant: StatusDotVariant = isDedicatedTerminal
+    ? (isConnected ? 'healthy' : isConnecting ? 'warning' : 'neutral')
+    : isWorking
+      ? 'working'
+      : status === 'Completed' || status === 'Answered'
+        ? 'success'
+        : status === 'Needs attention'
+          ? 'exception'
+          : status === 'Queued'
+            ? 'warning'
+            : status === 'Ready for review'
+              ? 'review'
+              : 'neutral'
+
   const statusBadge = (
     <span
       className={cn(
         'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
-        (isDedicatedTerminal ? isConnected : isWorking && isConnected)
-          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
-          : isDedicatedTerminal && isConnecting
-            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-            : workStatusBadgeClass(status)
+        isDedicatedTerminal
+          ? isConnected
+            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+            : isConnecting
+              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+              : 'bg-muted/80 text-muted-foreground border-border/40'
+          : workStatusBadgeClass(status)
       )}
       title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
     >
-      <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 items-center justify-center">
-        {(isDedicatedTerminal ? isConnected : isWorking && isConnected) && (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        )}
-        <span
-          className={cn(
-            'relative inline-flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full',
-            isConnected
-              ? 'bg-emerald-500'
-              : isConnecting
-                ? 'bg-amber-500 animate-pulse'
-                : isWorking
-                  ? 'bg-blue-500'
-                  : status === 'Completed' || status === 'Answered'
-                    ? 'bg-emerald-500'
-                    : status === 'Needs attention'
-                      ? 'bg-destructive'
-                      : 'bg-muted-foreground'
-          )}
-        />
-      </span>
+      <StatusDot status={dotVariant} size="sm" aria-hidden />
       <span className="truncate max-w-[70px] min-[380px]:max-w-[100px] min-[440px]:max-w-none">{statusLabel}</span>
     </span>
   )

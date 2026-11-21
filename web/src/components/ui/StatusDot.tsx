@@ -78,7 +78,7 @@ export const StatusDot = React.forwardRef<HTMLSpanElement, StatusDotProps>(
           "relative inline-flex shrink-0 rounded-full transition-colors",
           sizeClasses,
           colorClasses,
-          isPulse && "animate-pulse motion-reduce:animate-none",
+          isPulse && "task-pulse-subtle animate-pulse motion-reduce:animate-none",
           className
         )}
         {...props}
@@ -86,7 +86,7 @@ export const StatusDot = React.forwardRef<HTMLSpanElement, StatusDotProps>(
         {isPulse && (
           <span
             className={cn(
-              "status-dot absolute -inset-0.5 rounded-full opacity-60 animate-ping motion-reduce:animate-none",
+              "status-dot absolute -inset-0.5 rounded-full opacity-35 animate-ping motion-reduce:animate-none",
               colorClasses
             )}
             aria-hidden="true"
