@@ -631,7 +631,7 @@
   border-radius: 8px;
 }
 .composer-tasks {
-  background: transparent;
+  background: var(--wa-header, oklch(var(--card)));
 }
 .composer-tasks .composer-mode-tab {
   background: transparent;
@@ -642,12 +642,35 @@
 }
 .composer-tasks-panel {
   max-height: min(34dvh, 280px);
+  margin-top: 0;
   margin-bottom: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .composer-tasks .composer-tasks-count { border-radius: 999px; }
 
+/* Eliminasi kotak dalam kotak pada tombol aksi ComposerTasks sesuai Bear/Things 3 */
+.composer-tasks [data-card-actions] {
+  border-top: none;
+  padding-top: 2px;
+}
+.composer-tasks [data-card-actions] > :is(button, a) {
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: oklch(var(--muted-foreground));
+  transition: all 0.15s ease;
+}
+.composer-tasks [data-card-actions] > :is(button, a):hover {
+  background: oklch(var(--muted) / 0.4);
+  color: oklch(var(--foreground));
+}
+.composer-tasks [data-card-actions] > :is(button, a)::before {
+  display: none !important;
+}
+
 .composer-tasks:has(.composer-tasks-panel) + .shared-composer { border-top-left-radius: 0; border-top-right-radius: 0; }
-.composer-tasks-panel { border-radius: 0.5rem; }
 
 /* Choice pills are an explicit component shape, independent of the global
    square surface theme. Preserve their quiet, transparent touch surface. */
