@@ -221,8 +221,9 @@ func TestEventDrivenPush_VisitorLiveChatMessage(t *testing.T) {
 	if payload["href"] != expectedHref {
 		t.Errorf("expected push payload href %q, got %q", expectedHref, payload["href"])
 	}
-	if !strings.HasPrefix(payload["tag"], "customer:"+roomUUID+":") {
-		t.Errorf("expected tag prefix 'customer:%s:', got %q", roomUUID, payload["tag"])
+	expectedTag := "room:" + roomUUID
+	if payload["tag"] != expectedTag {
+		t.Errorf("expected push payload tag %q, got %q", expectedTag, payload["tag"])
 	}
 
 	// 3. Fallback Ticker Reliability: Run 30s fallback ticker dispatcher
@@ -234,8 +235,8 @@ func TestEventDrivenPush_VisitorLiveChatMessage(t *testing.T) {
 }
 
 // TestEventDrivenPush_AgentReplyAndApproval verifies:
-// 1. Instant push when agent completes reply (title: "Asisten AI", tag: "agent:<room_id>:<msg_id>", href: "/inbox/<room_id>").
-// 2. Instant push when agent proposes a plan requiring approval (cuan-approval).
+// 1. Instant push when agent completes reply (title: "Asisten AI", tag: "room:<room_id>", href: "/inbox/<room_id>").
+// 2. Instant push when agent proposes a plan requiring approval (cuan-approval, tag: "room:<room_id>").
 func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 	s, ownerID, _, memberID, _ := setupStaffPushTest(t)
 	ctx := context.Background()
@@ -272,7 +273,7 @@ func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 	if payload["href"] != "/inbox/"+roomID {
 		t.Errorf("expected href '/inbox/%s', got %q", roomID, payload["href"])
 	}
-	expectedTag := "agent:" + roomID + ":" + agentMsgID
+	expectedTag := "room:" + roomID
 	if payload["tag"] != expectedTag {
 		t.Errorf("expected tag %q, got %q", expectedTag, payload["tag"])
 	}
@@ -301,7 +302,7 @@ func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 	if approvalPayload["href"] != "/inbox/"+roomID {
 		t.Errorf("expected href '/inbox/%s', got %q", roomID, approvalPayload["href"])
 	}
-	expectedApprovalTag := "agent:" + roomID + ":" + approvalMsgID
+	expectedApprovalTag := "room:" + roomID
 	if approvalPayload["tag"] != expectedApprovalTag {
 		t.Errorf("expected tag %q, got %q", expectedApprovalTag, approvalPayload["tag"])
 	}
@@ -313,6 +314,69 @@ func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 	}
 
 	_ = memberID
+}
+
+// TestPushNotification_SequentialRoomMessages_ConsistentTag verifies:
+// 1. All sequential messages for the same room share the consistent tag "room:<conversation_id>".
+// 2. Both customer messages and agent messages from the same room use the same room tag.
+// 3. Sequential messages are all dispatched to staff devices without server-side deduplication blocks.
+func TestPushNotification_SequentialRoomMessages_ConsistentTag(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	roomID := "room-inbox-" + db.GenerateUUID()
+	expectedRoomTag := "room:" + roomID
+
+	// 1. Customer sends message 1
+	msgID1 := db.GenerateUUID()
+	s.DispatchCustomerMessagePush(ctx, roomID, msgID1, "Pelanggan A", "Halo, apakah stok ready?")
+	if spy.CallCount() != 2 { // 1 owner + 1 member
+		t.Fatalf("expected 2 calls for message 1, got %d", spy.CallCount())
+	}
+	ownerPrefs, _ := readOwnerPreferences(ownerID)
+	payload1 := buildPushPayload(ownerPrefs.Items[0])
+	if payload1["tag"] != expectedRoomTag {
+		t.Fatalf("expected message 1 tag %q, got %q", expectedRoomTag, payload1["tag"])
+	}
+
+	// 2. Customer sends message 2 in the same room
+	msgID2 := db.GenerateUUID()
+	s.DispatchCustomerMessagePush(ctx, roomID, msgID2, "Pelanggan A", "Ukuran 42 warna hitam ya.")
+	if spy.CallCount() != 4 {
+		t.Fatalf("expected 4 total calls after message 2, got %d", spy.CallCount())
+	}
+	ownerPrefs, _ = readOwnerPreferences(ownerID)
+	payload2 := buildPushPayload(ownerPrefs.Items[0])
+	if payload2["tag"] != expectedRoomTag {
+		t.Fatalf("expected message 2 tag %q, got %q", expectedRoomTag, payload2["tag"])
+	}
+
+	// 3. Agent sends reply in the same room
+	agentMsgID := db.GenerateUUID()
+	s.DispatchAgentUpdatePush(ctx, roomID, agentMsgID, "Asisten AI", "Ukuran 42 hitam tersedia kak!", false)
+	if spy.CallCount() != 6 {
+		t.Fatalf("expected 6 total calls after agent reply, got %d", spy.CallCount())
+	}
+	ownerPrefs, _ = readOwnerPreferences(ownerID)
+	payload3 := buildPushPayload(ownerPrefs.Items[0])
+	if payload3["tag"] != expectedRoomTag {
+		t.Fatalf("expected agent reply tag %q, got %q", expectedRoomTag, payload3["tag"])
+	}
+
+	// 4. Different room uses distinct room tag
+	otherRoomID := "room-other-" + db.GenerateUUID()
+	otherMsgID := db.GenerateUUID()
+	s.DispatchCustomerMessagePush(ctx, otherRoomID, otherMsgID, "Pelanggan B", "Lokasi toko dimana?")
+	ownerPrefs, _ = readOwnerPreferences(ownerID)
+	payloadOther := buildPushPayload(ownerPrefs.Items[0])
+	if payloadOther["tag"] != "room:"+otherRoomID {
+		t.Fatalf("expected different room tag 'room:%s', got %q", otherRoomID, payloadOther["tag"])
+	}
 }
 
 // TestEventDrivenPush_QuietHoursAndNotificationPreferences verifies:
