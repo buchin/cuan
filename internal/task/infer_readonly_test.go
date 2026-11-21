@@ -84,3 +84,26 @@ func TestInferTitleTermsRespectWordBoundaries(t *testing.T) {
 		}
 	}
 }
+
+func TestInferMultilingualTaskWithImplementStageNeverReadOnly(t *testing.T) {
+	// Task in Spanish with incidental "view" and "inspect" words in conversation history
+	titleES := "Corregir problema de interfaz de usuario"
+	instructionsES := "Conversation:\nUser: Por favor inspeccione la vista y luego corrija el error.\nDoD:\n- Inspect the layout."
+	if got := InferExecutionCategoryWithStages(titleES, instructionsES, []string{"implement"}); got != ExecutionCategoryCode {
+		t.Fatalf("Spanish task with implement stage got %q, want code", got)
+	}
+
+	// Task in Japanese with incidental "query" and "list" words in instructions
+	titleJA := "ボタンの不具合を修正する"
+	instructionsJA := "Conversation:\n- User: list all items and inspect queries."
+	if got := InferExecutionCategoryWithStages(titleJA, instructionsJA, []string{"implement", "verify"}); got != ExecutionCategoryCode {
+		t.Fatalf("Japanese task with implement stage got %q, want code", got)
+	}
+
+	// Incidental words in instructions without implement stage must not degrade task to readonly if title is not audit
+	titleGeneral := "Perbaharui tampilan navbar"
+	instructionsWithChat := "Conversation:\n- User: coba cek list navbar dan inspect perbedaannya."
+	if got := InferExecutionCategory(titleGeneral, instructionsWithChat); got == ExecutionCategoryReadOnly {
+		t.Fatalf("Incidental chat words degraded task to readonly")
+	}
+}

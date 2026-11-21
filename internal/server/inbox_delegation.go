@@ -280,7 +280,15 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		if !authenticatedCurrentTurn || d.AuthorizationID != q.MessageID || approvedPlan == nil || approvedPlan.MessageID != d.ProposalID || approvedPlan.Plan.Continuation != nil {
 			return fail("the proposal reference does not match this owner's current saved plan")
 		}
-		*d = inboxDelegation{Title: approvedPlan.Plan.Title, Description: approvedPlan.Plan.Description, ProjectID: approvedPlan.Plan.ProjectID, ProjectName: approvedPlan.Plan.ProjectName, AuthorizationID: q.MessageID}
+		*d = inboxDelegation{
+			Title:             approvedPlan.Plan.Title,
+			Description:       approvedPlan.Plan.Description,
+			ProjectID:         approvedPlan.Plan.ProjectID,
+			ProjectName:       approvedPlan.Plan.ProjectName,
+			AuthorizationID:   q.MessageID,
+			ExecutionCategory: approvedPlan.Plan.ExecutionCategory,
+			RequiredStages:    approvedPlan.Plan.RequiredStages,
+		}
 	}
 	if plan := approvedPlan; plan != nil && plan.Plan.Continuation != nil {
 		c := plan.Plan.Continuation
@@ -292,6 +300,12 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		expected := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName}
 		if d.Action == "save" || d.Title != expected.Title || d.Description != expected.Description || d.ProjectID != expected.ProjectID || d.ProjectName != expected.ProjectName {
 			return fail("the delegation differs from the approved plan")
+		}
+		if d.ExecutionCategory == "" && plan.Plan.ExecutionCategory != "" {
+			d.ExecutionCategory = plan.Plan.ExecutionCategory
+		}
+		if len(d.RequiredStages) == 0 && len(plan.Plan.RequiredStages) > 0 {
+			d.RequiredStages = append([]string{}, plan.Plan.RequiredStages...)
 		}
 	}
 	if d.Reconcile {
@@ -463,7 +477,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		// scopes were classified as code and forced through publication gates.
 		// Credential redaction happens once at the task creation boundary.
 		if d.ExecutionCategory == "" {
-			d.ExecutionCategory = task.InferExecutionCategory(taskTitle, instructions)
+			d.ExecutionCategory = task.InferExecutionCategoryWithStages(taskTitle, instructions, d.RequiredStages)
 		}
 		created, e := s.taskSvc.CreateTaskFromMessage(ctx, q.OwnerID, d.AuthorizationID, task.CreateTaskRequest{
 			SourceRoomID:      q.RoomID,

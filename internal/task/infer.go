@@ -105,6 +105,19 @@ var titleReadonlyTerms = []string{
 	"audit", "analisis", "analysis", "investigasi", "investigation",
 	"review", "inspeksi", "inspection", "evaluasi", "evaluation",
 	"rca", "root cause", "riset", "research", "monitoring", "monitor",
+	"inspect", "query",
+}
+
+// InferExecutionCategoryWithStages determines the execution lane taking into account declared required stages.
+// If the task requires implementation or publication, it is strictly classified as code work.
+func InferExecutionCategoryWithStages(title, instructions string, requiredStages []string) string {
+	for _, stage := range requiredStages {
+		switch strings.ToLower(strings.TrimSpace(stage)) {
+		case "implement", "publish":
+			return ExecutionCategoryCode
+		}
+	}
+	return InferExecutionCategory(title, instructions)
 }
 
 // InferExecutionCategory determines the appropriate execution lane (code, ops, readonly)
@@ -160,13 +173,13 @@ func InferExecutionCategory(title, instructions string) string {
 		}
 	}
 
-	// Read-only signals: analysis, audit, inspection, monitoring, queries
-	readonlySignals := []string{
-		"audit", "analisis", "analysis", "inspect", "check status", "review code",
-		"show ", "list ", "status check", "read-only", "readonly",
-		"query ", "telemetry", "metrics", "log check", "monitor", "view only", "view logs",
+	// Read-only signals: explicit read-only instructions or inspection directives.
+	// Incidental words like 'show', 'list', or 'query' in chat history must never downgrade code work.
+	readonlyScopeSignals := []string{
+		"read-only", "readonly", "view only", "view logs", "audit only", "inspection only",
+		"pemeriksaan read-only", "analisis mandiri", "sesi analisis", "report findings",
 	}
-	for _, s := range readonlySignals {
+	for _, s := range readonlyScopeSignals {
 		if strings.Contains(combined, s) {
 			return ExecutionCategoryReadOnly
 		}

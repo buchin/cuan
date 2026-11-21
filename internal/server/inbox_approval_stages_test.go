@@ -68,3 +68,22 @@ func TestApprovalParserRejectsUnknownStage(t *testing.T) {
 		t.Fatalf("unknown stage accepted: %v", plan.RequiredStages)
 	}
 }
+
+func TestApprovalParserAcceptsExecutionCategoryAndDerivesFromStages(t *testing.T) {
+	content := "Plan.\n\n```cuan-approval\n" +
+		`{"title":"Audit infrastructure","description":"Audit only","project_id":"p1","execution_category":"readonly","required_stages":[]}` +
+		"\n```"
+	plan := parseInboxApprovalPlan(content)
+	if plan == nil || plan.ExecutionCategory != "readonly" {
+		t.Fatalf("expected readonly execution category, got %+v", plan)
+	}
+
+	// Implicit code derivation when implement stage is declared without explicit category
+	content2 := "Plan.\n\n```cuan-approval\n" +
+		`{"title":"Perbaikan antarmuka","description":"Perbaiki tombol","project_id":"p1","required_stages":["implement"]}` +
+		"\n```"
+	plan2 := parseInboxApprovalPlan(content2)
+	if plan2 == nil || plan2.ExecutionCategory != "code" {
+		t.Fatalf("expected code execution category derived from implement stage, got %+v", plan2)
+	}
+}
