@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -335,5 +336,71 @@ func TestCLISettingsEnsureWorkspaceMCPConfig(t *testing.T) {
 		if !ok || cuanServer.Command != "cuan" || len(cuanServer.Args) == 0 || cuanServer.Args[0] != "mcp" {
 			t.Fatalf("expected cuan-inspect in %s, got: %+v", sub, cfg.MCPServers)
 		}
+	}
+}
+
+func TestCLISettingsTaskExecutionClearsToolDenials(t *testing.T) {
+	home := t.TempDir()
+	ws := t.TempDir()
+
+	// 1. Simulate prior read-only chat turn which wrote deny rules to settings.json
+	if err := PrepareAntigravityReadOnlyPermissions(home); err != nil {
+		t.Fatal(err)
+	}
+
+	p := filepath.Join(AntigravityConfigDirPath(home), "settings.json")
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var settings map[string]any
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	perms, _ := settings["permissions"].(map[string]any)
+	denied, _ := perms["deny"].([]any)
+	hasCommandDeny := false
+	for _, r := range denied {
+		if r == "command(*)" || r == "write_file(*)" {
+			hasCommandDeny = true
+			break
+		}
+	}
+	if !hasCommandDeny {
+		t.Fatalf("expected read-only permissions to deny command(*) or write_file(*), got: %v", denied)
+	}
+
+	// 2. Prepare settings for task runner with trusted workspace
+	if err := PrepareAntigravitySettings(home, ws); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err = os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		t.Fatal(err)
+	}
+	perms, _ = settings["permissions"].(map[string]any)
+	denied, _ = perms["deny"].([]any)
+	for _, r := range denied {
+		ruleStr, _ := r.(string)
+		if ruleStr == "command(*)" || ruleStr == "write_file(*)" || ruleStr == "edit_file(*)" || strings.HasPrefix(ruleStr, "write_file(") || strings.HasPrefix(ruleStr, "command(") {
+			t.Fatalf("task execution settings must not retain tool denial rule: %s in %v", ruleStr, denied)
+		}
+	}
+
+	// Verify that profile sensitive path denials (.gemini, .cuan, .ssh) were still preserved
+	hasPathDeny := false
+	for _, r := range denied {
+		ruleStr, _ := r.(string)
+		if strings.Contains(ruleStr, ".gemini") || strings.Contains(ruleStr, ".ssh") {
+			hasPathDeny = true
+			break
+		}
+	}
+	if !hasPathDeny {
+		t.Fatalf("expected profile sensitive path denials to be preserved, got: %v", denied)
 	}
 }

@@ -484,4 +484,179 @@ func TestAutoResolveCompletedConversations(t *testing.T) {
 	if checkOldRoom.IsResolved(msgNew.CreatedAt) {
 		t.Fatalf("expected room.IsResolved to be false after new user message arrived")
 	}
+
+	// 4. Conversation WITHOUT tasks where agent answered and was read > 24h ago: SHOULD auto-resolve
+	roomNoTasks := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_autoresolve_notasks",
+		Title:     "General Consultation",
+	}
+	if err := repo.CreateRoom(ctx, roomNoTasks); err != nil {
+		t.Fatal(err)
+	}
+	msgAgent := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomNoTasks.ID,
+		AuthorType: "agent",
+		AuthorName: "Cuan",
+		Content:    "Cuan adalah platform AI agent.",
+		CreatedAt:  oldTime,
+		UpdatedAt:  oldTime,
+	}
+	if err := repo.CreateMessage(ctx, msgAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AcknowledgeMessages(ctx, roomNoTasks.ID, []string{msgAgent.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, err := repo.MessageReceipts(ctx, roomNoTasks.ID); err == nil {
+		if rec, ok := receipts[msgAgent.ID]; ok && rec.ReadConfirmedAt != nil {
+			*rec.ReadConfirmedAt = readTime
+		}
+	}
+	srv.autoResolveCompletedConversations(ctx)
+	checkNoTasksRoom, err := repo.GetRoomByID(ctx, roomNoTasks.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkNoTasksRoom.ResolvedAt == nil {
+		t.Fatalf("expected task-free room to be auto-resolved after 24h since read, got nil")
+	}
+
+	// 5. Conversation WITHOUT tasks where customer message was NOT replied to: MUST NOT auto-resolve
+	roomCustomerWait := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_autoresolve_cust",
+		Title:     "Customer Help",
+	}
+	if err := repo.CreateRoom(ctx, roomCustomerWait); err != nil {
+		t.Fatal(err)
+	}
+	msgCust := &db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     roomCustomerWait.ID,
+		AuthorType: "user",
+		AuthorName: "Visitor",
+		Content:    "Halo, tolong bantu akun saya",
+		CreatedAt:  oldTime,
+		UpdatedAt:  oldTime,
+	}
+	if err := repo.CreateMessage(ctx, msgCust); err != nil {
+		t.Fatal(err)
+	}
+	srv.autoResolveCompletedConversations(ctx)
+	checkCustRoom, err := repo.GetRoomByID(ctx, roomCustomerWait.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkCustRoom.ResolvedAt != nil {
+		t.Fatalf("expected unanswered customer room NOT to be auto-resolved, got %v", checkCustRoom.ResolvedAt)
+	}
+}
+
+func TestProactiveWatchdogExternalBlockedTaskProvidesDirectLinksWithoutApprovalCard(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	taskSvc := task.NewService(taskStore, nil)
+	repo := db.NewMemoryProjectStudioRepository()
+
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_landing",
+		Title:     "Landing Ops",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	req := db.InboxRequest{
+		RequestID: db.GenerateUUID(),
+		RoomID:    room.ID,
+		OwnerID:   "owner_ext",
+		AgentID:   "agent_cuan",
+		MessageID: db.GenerateUUID(),
+	}
+	_, _, _ = repo.AcceptInboxRequest(ctx, req, &db.ProjectMessage{ID: req.MessageID, RoomID: room.ID, AuthorType: "user", Content: "Deploy landing", CreatedAt: now})
+
+	taskItem := &task.Task{
+		ID:              "task_ext_blocked",
+		ProjectID:       "proj_landing",
+		SourceRoomID:    room.ID,
+		SourceMessageID: req.MessageID,
+		Title:           "Deploy landing page",
+		Instructions:    "Cuan managed delegation v1.\nDeploy landing page to live server.",
+		Status:          task.TaskStatusBlocked,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := taskStore.CreateTask(ctx, taskItem); err != nil {
+		t.Fatal(err)
+	}
+
+	attempt := &task.TaskAttempt{
+		ID:            "att_ext_1",
+		TaskID:        taskItem.ID,
+		AttemptNumber: 1,
+		Status:        task.AttemptStatusSucceeded,
+		CreatedAt:     now,
+	}
+	if err := taskStore.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+
+	assessmentRecord := reviewAssessmentRecord{
+		RequestID:        "req-ext-1",
+		InstructionsHash: task.LaunchInstructionsHash(taskItem.Instructions),
+		Assessment: inboxReviewEvaluation{
+			Decision:      "blocked",
+			Finding:       "Perubahan kode di git telah selesai, namun server target deployment VPS belum terkonfigurasi.",
+			Explanation:   "Repositori sudah diperbarui dan siap di-deploy, tetapi konfigurasi VPS target belum tersedia.",
+			RemainingWork: "external",
+			ManagerAction: "needs_owner",
+			ManagerReason: "Target deployment eksternal belum terhubung.",
+		},
+	}
+	rawMsg, _ := json.Marshal(assessmentRecord)
+	act := &task.TaskActivity{
+		ID:           "act_ext_1",
+		TaskID:       taskItem.ID,
+		AttemptID:    &attempt.ID,
+		ActivityType: reviewAssessmentActivity,
+		Author:       "coordinator",
+		Message:      string(rawMsg),
+		CreatedAt:    now,
+	}
+	if err := taskStore.CreateActivity(ctx, act); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		taskSvc:           taskSvc,
+		projectStudioRepo: repo,
+	}
+
+	// Run watchdog
+	srv.orchestrateBlockedInboxTasks(ctx)
+
+	messages, err := repo.ListMessagesByRoomID(ctx, room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(messages))
+	}
+	extMsg := messages[len(messages)-1]
+
+	// Must NOT contain a cuan-approval card because external actions cannot be performed by the code runner
+	if strings.Contains(extMsg.Content, "```cuan-approval") {
+		t.Fatalf("external blocker must NOT fabricate cuan-approval card, got: %s", extMsg.Content)
+	}
+	// Must contain clear links to complete or configure project
+	if !strings.Contains(extMsg.Content, "[Tandai Tuntas](/tasks/task_ext_blocked)") {
+		t.Fatalf("expected Tandai Tuntas link, got: %s", extMsg.Content)
+	}
+	if !strings.Contains(extMsg.Content, "[Pengaturan Proyek](/projects/proj_landing/settings)") {
+		t.Fatalf("expected Pengaturan Proyek link, got: %s", extMsg.Content)
+	}
 }

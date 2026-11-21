@@ -34,6 +34,10 @@ test('InboxView has dedicated Resolution Card and Archived Banner for human-firs
   // 5. Zero Cognitive Fatigue styling: tranquil emerald tint and muted borders, no nested boxes
   assert.ok(content.includes('bg-emerald-500/[0.04]'), 'must use serene low-opacity emerald background')
   assert.ok(content.includes('border-emerald-500/20'), 'must use calm low-contrast border')
+
+  // 6. Support resolving chat without tasks when inquiry is answered
+  assert.ok(content.includes('canResolveChatWithoutTasks'), 'must support resolving chats without tasks')
+  assert.ok(content.includes('Selesai berdiskusi?'), 'must support Selesai berdiskusi prompt for task-free discussions')
 })
 
 test('Locales contain translation keys for resolution flow', () => {
@@ -41,10 +45,12 @@ test('Locales contain translation keys for resolution flow', () => {
   const enLocale = JSON.parse(fs.readFileSync(enLocalePath, 'utf8'))
 
   assert.equal(idLocale['Semua pekerjaan telah selesai diverifikasi.'], 'Semua pekerjaan telah selesai diverifikasi.')
+  assert.equal(idLocale['Selesai berdiskusi?'], 'Selesai berdiskusi?')
   assert.equal(idLocale['Tandai Tuntas (Inbox Zero)'], 'Tandai Tuntas (Inbox Zero)')
   assert.equal(idLocale['Buka kembali'], 'Buka kembali')
 
   assert.equal(enLocale['Semua pekerjaan telah selesai diverifikasi.'], 'All work has been completed and verified.')
+  assert.equal(enLocale['Selesai berdiskusi?'], 'Finished discussing?')
   assert.equal(enLocale['Tandai Tuntas (Inbox Zero)'], 'Mark Resolved (Inbox Zero)')
   assert.equal(enLocale['Buka kembali'], 'Reopen')
 })

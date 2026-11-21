@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -195,5 +196,122 @@ func TestInboxContinuationApprovalHTTPReplaySurvivesTaskAdvance(t *testing.T) {
 	after, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 	if err != nil || len(after.Attempts) != 1 || after.Status != task.TaskStatusDoing {
 		t.Fatal("HTTP replay changed execution", err)
+	}
+}
+
+func TestInboxContinuationWatchdogExternalCardApproval(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	ctx := context.Background()
+	decision := inboxReviewEvaluation{
+		Decision:         "blocked",
+		Finding:          "Hasil pekerjaan tersimpan, tetapi penerapannya di website belum bisa diverifikasi.",
+		Explanation:      "Hasil pekerjaan tersimpan. Koneksi untuk memverifikasi website belum tersedia; pekerjaan ini belum bisa dinyatakan selesai.",
+		RemainingWork:    "external",
+		ManagerAction:    "wait",
+		ManagerReason:    "The registered project has no usable production verification connection.",
+		RequestedOutcome: "unfinished",
+	}
+	if _, err := s.saveReviewAssessment(ctx, d, q, decision); err != nil {
+		t.Fatal(err)
+	}
+	blocked := task.TaskStatusBlocked
+	if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked}); err != nil {
+		t.Fatal(err)
+	}
+
+	room := q.RoomID
+	ownerID := q.OwnerID
+	now := time.Now().UTC()
+
+	// Watchdog / Agent posts message directly to project_messages without an inbox_requests row
+	cardMsgID := db.GenerateUUID()
+	cardPlan := inboxApprovalPlan{
+		Title:             "Lanjutkan: Landing page",
+		Description:       decision.Explanation,
+		ProjectID:         d.ProjectID,
+		ExecutionCategory: "code",
+		RequiredStages:    []string{"implement"},
+		Continuation: &inboxContinuationPlan{
+			RemainingWork:       "external",
+			TaskID:              d.ID,
+			AttemptID:           d.LatestAttempt.ID,
+			AssessmentRequestID: q.RequestID,
+			Revision:            "Lanjutkan perbaikan Landing page sesuai persetujuan pemilik, terapkan perubahan pada repositori dan jalankan verifikasi.",
+		},
+	}
+	rawPlan, _ := json.Marshal(cardPlan)
+	cardMsgContent := fmt.Sprintf("Untuk melanjutkan perbaikan, silakan konfirmasi melalui tombol di bawah:\n\n```cuan-approval\n%s\n```\n\n[View work](/tasks/%s)", string(rawPlan), d.ID)
+	cardMsg := &db.ProjectMessage{
+		ID:         cardMsgID,
+		RoomID:     room,
+		AuthorType: "agent",
+		AuthorID:   q.AgentID,
+		Content:    cardMsgContent,
+		CreatedAt:  now.Add(time.Second),
+		UpdatedAt:  now.Add(time.Second),
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, cardMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Verify persistedInboxPlan resolves and validates the card
+	plan, err := s.persistedInboxPlan(ctx, room, ownerID, q.AgentID, cardMsgID)
+	if err != nil {
+		t.Fatalf("persistedInboxPlan failed: %v", err)
+	}
+	if plan == nil || plan.Plan.Continuation == nil || plan.Plan.Continuation.TaskID != d.ID {
+		t.Fatalf("unexpected plan: %+v", plan)
+	}
+
+	// 2. Verify foreign owner is rejected
+	if _, err := s.persistedInboxPlan(ctx, room, "foreign-owner", q.AgentID, cardMsgID); err == nil {
+		t.Fatal("foreign owner was not rejected")
+	}
+
+	// 3. Verify conversational approval ("Gas") resolves conversationalApprovalID before new messages
+	convApproveID := s.conversationalApprovalID(ctx, room, "Gas")
+	if convApproveID != cardMsgID {
+		t.Fatalf("conversationalApprovalID expected %q, got %q", cardMsgID, convApproveID)
+	}
+
+	// 4. Verify approve payload is accepted
+	// Generate an authenticated user approval payload
+	approvalID := delegationMessageID("approve-plan:" + room + ":" + cardMsgID)
+	userMsgID := db.GenerateUUID()
+	decisionEnvelope, _ := json.Marshal(attachmentMessage{
+		Text:     "Approved: " + cardPlan.Title,
+		Approval: &approvedInboxPlan{MessageID: cardMsgID, Plan: cardPlan},
+	})
+	store := s.projectStudioRepo.(db.InboxRequestRepository)
+	userReq := db.InboxRequest{
+		RoomID:      room,
+		RequestID:   approvalID,
+		PayloadHash: fmt.Sprintf("%x", sha256.Sum256(decisionEnvelope)),
+		MessageID:   userMsgID,
+		ReplyID:     db.GenerateUUID(),
+		OwnerID:     ownerID,
+		AgentID:     q.AgentID,
+		State:       "queued",
+		CreatedAt:   now.Add(2 * time.Second),
+		Deadline:    now.Add(24 * time.Hour),
+	}
+	userMsg := &db.ProjectMessage{
+		ID:         userMsgID,
+		RoomID:     room,
+		AuthorType: "user",
+		Content:    attachmentEnvelope + string(decisionEnvelope),
+		CreatedAt:  now.Add(2 * time.Second),
+	}
+	if _, _, err := store.AcceptInboxRequest(ctx, userReq, userMsg); err != nil {
+		t.Fatalf("AcceptInboxRequest failed: %v", err)
+	}
+
+	// Verify inboxApprovedPlan accepts this approved plan
+	approved, err := s.inboxApprovedPlan(ctx, userReq)
+	if err != nil {
+		t.Fatalf("inboxApprovedPlan failed: %v", err)
+	}
+	if approved == nil || approved.MessageID != cardMsgID {
+		t.Fatalf("expected approved plan for %s, got %+v", cardMsgID, approved)
 	}
 }
