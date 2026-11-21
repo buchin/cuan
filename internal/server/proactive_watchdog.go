@@ -22,6 +22,9 @@ var (
 // monitor disk pressure, background task queue health, and perform autonomous self-healing.
 func (s *Server) StartProactiveWatchdog(ctx context.Context) {
 	go func() {
+		// Run first inspection cycle immediately upon startup
+		s.RunProactiveWatchdogCycle(ctx)
+
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -136,10 +139,20 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			continue
 		}
 		var origin *db.InboxRequest
-		for i := range requests {
-			if requests[i].MessageID == detail.SourceMessageID {
-				origin = &requests[i]
-				break
+		if assessmentRequestID != "" {
+			for i := range requests {
+				if requests[i].RequestID == assessmentRequestID {
+					origin = &requests[i]
+					break
+				}
+			}
+		}
+		if origin == nil {
+			for i := range requests {
+				if requests[i].MessageID == detail.SourceMessageID {
+					origin = &requests[i]
+					break
+				}
 			}
 		}
 		if origin == nil && len(requests) > 0 {
@@ -197,11 +210,12 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 		return
 	}
 
-	for _, m := range messages {
-		if strings.Contains(m.Content, "cuan-approval") &&
-			(strings.Contains(m.Content, detail.ID) || (detail.LatestAttempt != nil && strings.Contains(m.Content, detail.LatestAttempt.ID))) {
-			// Already posted for this attempt
-			return
+	if detail.LatestAttempt != nil {
+		for _, m := range messages {
+			if strings.Contains(m.Content, "cuan-approval") && strings.Contains(m.Content, detail.LatestAttempt.ID) {
+				// Already posted for this attempt
+				return
+			}
 		}
 	}
 
