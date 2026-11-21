@@ -633,6 +633,13 @@
 .composer-tasks {
   background: transparent;
 }
+.composer-tasks .composer-mode-tab {
+  background: transparent;
+}
+.composer-tasks .composer-mode-tab:is([aria-selected='true'], [aria-expanded='true']) {
+  padding-top: 0;
+  background: transparent;
+}
 .composer-tasks-panel {
   max-height: min(34dvh, 280px);
   margin-bottom: 0;
