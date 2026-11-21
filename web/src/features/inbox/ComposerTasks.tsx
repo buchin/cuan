@@ -92,7 +92,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
 
   const latestTask = ordered[ordered.length - 1]
 
-  return <section className="composer-tasks border-b border-border/40 bg-muted/20 backdrop-blur-xs px-3 sm:px-6 py-1 transition-colors z-10 shrink-0" aria-label={t('Conversation tasks')} data-testid="task-banner" onKeyDown={event => {
+  return <section className="composer-tasks border-b border-border/40 px-3 sm:px-6 py-0.5 transition-colors z-10 shrink-0" aria-label={t('Conversation tasks')} data-testid="task-banner" onKeyDown={event => {
     if (event.key === 'Escape' && open) {
       event.stopPropagation()
       setOpen(false)
@@ -144,8 +144,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       </button>}
     </div>
     {tasks.length > 0 && <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
-      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30 scroll-pb-2 max-h-[40vh] mt-2">
-        <AccordionTimeline label={t('Conversation tasks')} defaultExpandedIds={defaultExpandedIds} className="px-3 pb-2.5 pt-1" items={ordered.map(task => {
+      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 max-h-[40vh] border-t border-border/20 pt-1 pb-1">
+        <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-3 pb-2.5 pt-1" items={ordered.map(task => {
           const work = workStatus(task)
           const status = workDisplayStatus(task)
           const progress = work === 'Needs attention' ? task.review_finding || ''
