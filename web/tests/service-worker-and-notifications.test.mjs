@@ -131,6 +131,10 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
     swSrc.includes('body,') || swSrc.includes('body:'),
     'sw.js must pass dynamic body to showNotification options',
   )
+  assert.ok(
+    swSrc.includes('renotify: true') || swSrc.includes('renotify:true'),
+    'sw.js must enable renotify: true on showNotification options to replace notifications in-place with alert',
+  )
 
   // Notificationclick event listener exists and handles deep-linking
   assert.ok(
@@ -182,6 +186,7 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
             icon: options.icon,
             badge: options.badge,
             tag: options.tag,
+            renotify: options.renotify,
             href: options.data?.href,
           }
         },
@@ -217,18 +222,75 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
 
   const origin = 'https://toko-cuan.com'
 
-  // Case 1: Customer Live Chat message push payload
+  // Case 1: Customer Live Chat message push payload with room-based tag
   const customerPayload = {
     title: 'Budi (Pengunjung)',
     body: 'Halo kak, apakah produk hijab plisket masih ready stock?',
     href: '/inbox/rm_01h9xyz123',
-    tag: 'customer:rm_01h9xyz123:msg_001',
+    tag: 'room:rm_01h9xyz123',
   }
   const parsed1 = executePushHandler({ json: () => customerPayload }, origin)
   assert.equal(parsed1.title, 'Budi (Pengunjung)')
   assert.equal(parsed1.body, 'Halo kak, apakah produk hijab plisket masih ready stock?')
   assert.equal(parsed1.href, '/inbox/rm_01h9xyz123')
-  assert.equal(parsed1.tag, 'customer:rm_01h9xyz123:msg_001')
+  assert.equal(parsed1.tag, 'room:rm_01h9xyz123')
+  assert.equal(parsed1.renotify, true)
+
+  // Case 1b: Legacy customer tag format automatically aligns to room:<conversation_id>
+  const legacyCustomerPayload = {
+    title: 'Budi (Pengunjung)',
+    body: 'Pesan lanjutan...',
+    href: '/inbox/rm_01h9xyz123',
+    tag: 'customer:rm_01h9xyz123:msg_001',
+  }
+  const parsedLegacyCustomer = executePushHandler({ json: () => legacyCustomerPayload }, origin)
+  assert.equal(parsedLegacyCustomer.tag, 'room:rm_01h9xyz123')
+  assert.equal(parsedLegacyCustomer.renotify, true)
+
+  // Case 1c: Multiple sequential messages in the same room overwrite in-place (no stacking)
+  const notificationTray = new Map()
+  function simulatePushToTray(payload) {
+    const swCode = fs.readFileSync(swPath, 'utf8')
+    let pushFn = null
+    const fakeSelf = {
+      addEventListener(evt, fn) { if (evt === 'push') pushFn = fn },
+      registration: {
+        showNotification(t, opts) {
+          notificationTray.set(opts.tag, { title: t, body: opts.body, renotify: opts.renotify })
+        },
+      },
+      clients: { claim: () => Promise.resolve(), matchAll: async () => [], openWindow: async () => ({}) },
+      location: { origin },
+      skipWaiting: () => {},
+    }
+    const sb = { self: fakeSelf, URL, Response: class {}, fetch: () => Promise.resolve() }
+    vm.createContext(sb)
+    vm.runInContext(swCode, sb, { filename: 'web/public/sw.js' })
+    pushFn({ data: { json: () => payload }, waitUntil: (p) => p })
+  }
+
+  // First message from room A
+  simulatePushToTray({ title: 'Budi', body: 'Pesan 1', href: '/inbox/room_A', tag: 'room:room_A' })
+  assert.equal(notificationTray.size, 1)
+  assert.equal(notificationTray.get('room:room_A').body, 'Pesan 1')
+  assert.equal(notificationTray.get('room:room_A').renotify, true)
+
+  // Second message from same room A replaces in-place
+  simulatePushToTray({ title: 'Budi', body: 'Pesan 2', href: '/inbox/room_A', tag: 'room:room_A' })
+  assert.equal(notificationTray.size, 1) // Still exactly 1 card in tray
+  assert.equal(notificationTray.get('room:room_A').body, 'Pesan 2')
+  assert.equal(notificationTray.get('room:room_A').renotify, true)
+
+  // Third message (agent reply) in room A replaces in-place
+  simulatePushToTray({ title: 'Asisten AI', body: 'Pesan 3', href: '/inbox/room_A', tag: 'room:room_A' })
+  assert.equal(notificationTray.size, 1) // Still exactly 1 card in tray
+  assert.equal(notificationTray.get('room:room_A').body, 'Pesan 3')
+  assert.equal(notificationTray.get('room:room_A').renotify, true)
+
+  // Message from a different room B creates a separate card
+  simulatePushToTray({ title: 'Siti', body: 'Pesan dari room B', href: '/inbox/room_B', tag: 'room:room_B' })
+  assert.equal(notificationTray.size, 2)
+  assert.equal(notificationTray.get('room:room_B').body, 'Pesan dari room B')
 
   // Case 2: AI Agent Completion / Approval needed push payload (resolves to dynamic title)
   const agentPayload = {

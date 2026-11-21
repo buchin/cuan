@@ -18,14 +18,46 @@ self.addEventListener('push', event => {
   let title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : ''
   const kind = typeof data.kind === 'string' ? data.kind : ''
   const status = typeof data.status === 'string' ? data.status : ''
-  const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
+
+  let href = '/inbox'
+  try {
+    if (data.href) {
+      const url = new URL(data.href, self.location.origin)
+      if (url.origin === self.location.origin && /^\/(inbox|projects|tasks|notifications)(\/|$)/.test(url.pathname)) {
+        href = url.pathname + url.search
+      }
+    }
+  } catch {}
+
+  const rawTag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : ''
+  let tag = rawTag
+  if (!tag.startsWith('room:') && !tag.startsWith('task:')) {
+    if (tag.startsWith('customer:') || tag.startsWith('agent:') || tag.startsWith('approval:') || tag.startsWith('request:')) {
+      const parts = tag.split(':')
+      if (parts.length >= 2 && parts[1]) {
+        tag = 'room:' + parts[1]
+      }
+    } else if (typeof data.room_id === 'string' && data.room_id.trim()) {
+      tag = 'room:' + data.room_id.trim()
+    } else if (typeof data.conversation_id === 'string' && data.conversation_id.trim()) {
+      tag = 'room:' + data.conversation_id.trim()
+    } else if (href.startsWith('/inbox/')) {
+      const match = href.match(/^\/inbox\/([^/?#]+)/)
+      if (match) {
+        tag = 'room:' + decodeURIComponent(match[1])
+      }
+    }
+  }
+  if (!tag) {
+    tag = 'cuan-update'
+  }
 
   if (!title || title === '@cuan' || title.startsWith('@') || title === 'Cuan' || title === 'Asisten AI') {
-    if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:')) {
+    if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:') || rawTag.startsWith('approval:')) {
       title = 'Butuh Persetujuan'
-    } else if (kind === 'completed' || status.toLowerCase().includes('complete') || tag.includes(':done')) {
+    } else if (kind === 'completed' || status.toLowerCase().includes('complete') || tag.includes(':done') || rawTag.includes(':done')) {
       title = 'Pekerjaan Selesai'
-    } else if (kind === 'blocker' || status.toLowerCase().includes('attention') || tag.includes(':blocked')) {
+    } else if (kind === 'blocker' || status.toLowerCase().includes('attention') || tag.includes(':blocked') || rawTag.includes(':blocked')) {
       title = 'Perhatian Diperlukan'
     } else if (kind === 'customer') {
       title = 'Pesan Baru'
@@ -38,14 +70,14 @@ self.addEventListener('push', event => {
 
   let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
   if (!icon || icon === '/icons/cuan-192.png') {
-    const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
+    const isTask = tag.startsWith('task:') || rawTag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
 
     if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
-      if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai') || title.includes('Pekerjaan Selesai')) {
+      if (kind === 'completed' || tag.includes(':done') || rawTag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai') || title.includes('Pekerjaan Selesai')) {
         icon = '/icons/task-done.png'
-      } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review') || status.toLowerCase().includes('approval') || title.includes('Persetujuan')) {
+      } else if (kind === 'approval' || tag.includes(':review') || rawTag.includes(':review') || status.toLowerCase().includes('review') || status.toLowerCase().includes('approval') || title.includes('Persetujuan')) {
         icon = '/icons/task-review.png'
-      } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
+      } else if (kind === 'blocker' || tag.includes(':blocked') || rawTag.includes(':blocked') || status.toLowerCase().includes('attention')) {
         icon = '/icons/task-blocker.png'
       }
     }
@@ -56,22 +88,13 @@ self.addEventListener('push', event => {
 
   const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
 
-  let href = '/inbox'
-  try {
-    if (data.href) {
-      const url = new URL(data.href, self.location.origin)
-      if (url.origin === self.location.origin && /^\/(inbox|projects|tasks|notifications)(\/|$)/.test(url.pathname)) {
-        href = url.pathname + url.search
-      }
-    }
-  } catch {}
-
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon,
       badge,
       tag,
+      renotify: true,
       data: { href }
     })
   )

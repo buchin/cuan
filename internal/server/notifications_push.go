@@ -189,15 +189,44 @@ func pushIconForNotification(item ownerNotification, tag string) string {
 	}
 }
 
+func extractRoomID(item ownerNotification) string {
+	for _, prefix := range []string{"customer:", "agent:", "approval:", "request:", "room:"} {
+		if strings.HasPrefix(item.ID, prefix) {
+			rest := strings.TrimPrefix(item.ID, prefix)
+			parts := strings.Split(rest, ":")
+			if len(parts) > 0 && parts[0] != "" {
+				return parts[0]
+			}
+		}
+	}
+	if strings.HasPrefix(item.Href, "/inbox/") {
+		trimmed := strings.TrimPrefix(item.Href, "/inbox/")
+		trimmed = strings.Split(trimmed, "?")[0]
+		trimmed = strings.Split(trimmed, "#")[0]
+		trimmed = strings.Split(trimmed, "/")[0]
+		if unescaped, err := url.PathUnescape(trimmed); err == nil && unescaped != "" {
+			return unescaped
+		}
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
 func buildPushPayload(item ownerNotification) map[string]string {
 	tag := item.ID
-	if strings.HasPrefix(item.ID, "approval:") {
-		tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
-	} else if strings.HasPrefix(item.ID, "request:") {
-		tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
-	}
-
 	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
+
+	if !isTask {
+		if roomID := extractRoomID(item); roomID != "" {
+			tag = "room:" + roomID
+		} else if strings.HasPrefix(item.ID, "approval:") {
+			tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
+		} else if strings.HasPrefix(item.ID, "request:") {
+			tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
+		}
+	}
 
 	title := strings.TrimSpace(item.Title)
 	if item.Kind == "customer" {
