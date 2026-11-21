@@ -139,6 +139,7 @@ try{
   await tasks.waitFor({state:'visible'})
   assert.equal(await tasks.getAttribute('aria-expanded'),'false')
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
+  await page.screenshot({path:path.join(output,`composer-tasks-collapsed-${width}.png`)})
   const initialChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
   await tasks.click()
   assert.equal(await tasks.getAttribute('aria-expanded'),'true')
