@@ -8,6 +8,8 @@ func continuationPresentation(remaining string) (title, description string) {
 		return "Lanjutkan pemeriksaan", "Lengkapi pemeriksaan agar hasil pekerjaan bisa dipastikan."
 	case "implementation":
 		return "Lanjutkan perbaikan", "Perbaiki bagian yang masih bermasalah, lalu periksa hasilnya."
+	case "publication":
+		return "Lanjutkan publikasi", "Terapkan dan publikasikan hasil pekerjaan ke sistem live."
 	default:
 		return "Lanjutkan pekerjaan", "Lanjutkan pekerjaan ini dari hasil terakhir."
 	}

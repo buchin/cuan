@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -72,6 +76,55 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
 	}
 	s.kickTaskLaunches()
+
+	// 4. Background Watchdog Git Sync saat Idle:
+	// Memeriksa origin/dev secara berkala saat tidak ada runner yang aktif (lock bebas)
+	// dan dev lokal bersih, lalu menyelaraskan commit secara hening.
+	s.syncIdleProjectsGit(ctx)
+}
+
+// syncIdleProjectsGit checks origin/dev (or default branch) periodically when no
+// runner is active (lock free) and working tree is clean, silently fast-forwarding local commits.
+func (s *Server) syncIdleProjectsGit(ctx context.Context) {
+	if s.projectSvc == nil {
+		return
+	}
+
+	// 1. Invariant check: only sync when no runner is actively executing
+	if s.taskSvc != nil {
+		doingTasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusDoing})
+		if err == nil && len(doingTasks) > 0 {
+			return
+		}
+	}
+
+	projects, err := s.projectSvc.List(ctx)
+	if err != nil || len(projects) == 0 {
+		return
+	}
+
+	for _, p := range projects {
+		if p == nil || p.RepoURL == "" || p.LocalPath == "" || p.IsArchived {
+			continue
+		}
+
+		// 2. Safe check: directory must exist and contain git metadata
+		gitDir := filepath.Join(p.LocalPath, ".git")
+		if fi, err := os.Stat(gitDir); err != nil || (!fi.IsDir() && !fi.Mode().IsRegular()) {
+			continue
+		}
+
+		// 3. Acquire verification lease non-blockingly (lock bebas)
+		lease, err := git.TryAcquireVerificationLease(ctx, p.LocalPath)
+		if err != nil {
+			// Lock is busy (held by runner/verifier/task) or unavailable; skip silently
+			continue
+		}
+
+		// 4. Preflight sync silently (safe fallback non-blocking on network / dirty working tree)
+		_ = s.projectSvc.PreflightSyncProject(ctx, p)
+		_ = lease.Close()
+	}
 }
 
 // orchestrateBlockedInboxTasks inspects tasks in status 'blocked' and performs:
@@ -211,6 +264,21 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			continue
 		}
 
+		// Autonomous publication reconciliation:
+		// When code is verified but uncontained in running release on an auto_deploy project,
+		// trigger auto-deploy autonomously.
+		if latestAssessment != nil &&
+			(latestAssessment.RemainingWork == "publication" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			s.projectSvc != nil && detail.ProjectID != "" {
+			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
+				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+					log.Printf("[Watchdog AI Orchestrator] Autonomously triggering auto-deploy for verified publication task %s", detail.ID)
+					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
+					continue
+				}
+			}
+		}
+
 		// 2. 1-Click Action Card (Zero Cognitive Fatigue):
 		// If autonomous continuation was not possible (needs owner decision, permission, or budget threshold reached),
 		// present a 1-click continuation approval card in the conversation room so user can unblock in 1 tap.
@@ -229,8 +297,9 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 
 	if detail.LatestAttempt != nil {
 		for _, m := range messages {
-			if strings.Contains(m.Content, detail.LatestAttempt.ID) {
-				// Already posted for this attempt
+			if (strings.Contains(m.Content, "```cuan-approval") || strings.Contains(m.Content, "Tandai Tuntas")) &&
+				(strings.Contains(m.Content, detail.LatestAttempt.ID) || strings.Contains(m.Content, detail.ID)) {
+				// Already posted an action card or notification for this attempt/task
 				return
 			}
 		}

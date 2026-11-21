@@ -129,6 +129,18 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 			baseRepoDir = filepath.Join("data", "projects", t.ProjectID)
 		}
 
+		if baseRepoDir != "" {
+			syncBranch := claim.DefaultBranch
+			if syncBranch == "" {
+				syncBranch = "dev"
+			}
+			if syncErr := r.gitClient.PreflightSync(ctx, baseRepoDir, syncBranch, ""); syncErr != nil {
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Pre-flight git sync notice pada '%s' (%s): %v", baseRepoDir, syncBranch, syncErr))
+			} else {
+				r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Pre-flight git sync berhasil menyelaraskan branch '%s' dari origin.", syncBranch))
+			}
+		}
+
 		var wsErr error
 		ws, wsErr = r.gitClient.PrepareTaskWorkspace(ctx, git.WorkspaceConfig{
 			TaskID:            t.ID,

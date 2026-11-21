@@ -11,6 +11,60 @@ import (
 	"github.com/buchin/cuan/internal/taskprocess"
 )
 
+// ErrLeaseBusy is returned when the verification lease is already held by another process.
+var ErrLeaseBusy = errors.New("verification lease is currently held by another process")
+
+// TryAcquireVerificationLease attempts to acquire the lease non-blockingly.
+// If the lock is held, it returns ErrLeaseBusy immediately.
+func TryAcquireVerificationLease(ctx context.Context, root string) (*os.File, error) {
+	if !filepath.IsAbs(root) {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
+	info, err := os.Lstat(root)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
+	real, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
+	realParent, err := filepath.EvalSymlinks(filepath.Dir(root))
+	if err != nil || real != filepath.Join(realParent, filepath.Base(root)) {
+		return nil, errors.New("verification lease requires a private snapshot")
+	}
+	metadata := filepath.Join(root, ".git")
+	info, err = os.Lstat(metadata)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("verification lease requires private repository metadata")
+	}
+	file, err := taskprocess.OpenLock(filepath.Join(metadata, "cuan-verification.lock"))
+	if err != nil {
+		return nil, err
+	}
+	info, err = file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		file.Close()
+		return nil, errors.New("verification lease is not a regular file")
+	}
+	if err := ctx.Err(); err != nil {
+		file.Close()
+		return nil, err
+	}
+	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	if err == nil {
+		if err := NewClient().restoreColdVerificationSnapshot(ctx, root); err != nil {
+			file.Close()
+			return nil, err
+		}
+		return file, nil
+	}
+	file.Close()
+	if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+		return nil, ErrLeaseBusy
+	}
+	return nil, err
+}
+
 // AcquireVerificationLease coordinates runners with generated-dependency
 // maintenance. The inode stays in .git, outside source fingerprints, and must
 // never be unlinked: waiting processes must all lock the same inode.

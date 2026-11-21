@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/buchin/cuan/internal/git"
@@ -218,6 +219,18 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 				} else {
 					log.Printf("[AutoDeploy] Project deploy script succeeded for %s", projectID)
 				}
+			} else if (proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan")) && proj.LocalPath != "" {
+				deployScript := filepath.Join(proj.LocalPath, "scripts", "deploy.sh")
+				if info, err := os.Stat(deployScript); err == nil && !info.IsDir() {
+					log.Printf("[AutoDeploy] Executing native Cuan auto-deploy in %s", proj.LocalPath)
+					cmd := exec.CommandContext(ctx, "bash", deployScript, "--local", "--native-sync")
+					cmd.Dir = proj.LocalPath
+					if out, err := cmd.CombinedOutput(); err != nil {
+						log.Printf("[AutoDeploy] Native Cuan deploy failed for %s: %v: %s", projectID, err, string(out))
+					} else {
+						log.Printf("[AutoDeploy] Native Cuan deploy succeeded for %s", projectID)
+					}
+				}
 			}
 			if proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") {
 				log.Printf("[AutoDeploy] Native Cuan project %s auto-deploy acknowledged", projectID)
@@ -239,14 +252,18 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskApplyPermission(policy) != nil {
 		return
 	}
-	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
+	branch := taskDetail.BranchName
+	if branch == "" && taskDetail.PRNumber <= 0 {
+		branch = fmt.Sprintf("task/%s", taskDetail.ID)
+	}
+	if taskDetail.PRNumber <= 0 && branch == "" {
 		return
 	}
 	if taskDetail.ExecutionCategory == task.ExecutionCategoryReadOnly || isInvestigationOrNonCodeText(taskDetail.Title, taskDetail.Instructions, taskDetail.Summary, taskDetail.CompleteNote) {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code investigation task %s", taskID)
 		return
 	}
-	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, taskDetail.BranchName, taskDetail.PRNumber)
+	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
 		return
