@@ -547,6 +547,16 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok && trace.RequestID != "" && step != nil {
 			runtime.details = newInboxToolDetailRecorder(workspace)
 		}
+		if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok && trace.RequestID != "" && trace.RoomID != "" && s.roomEventBroker != nil {
+			reqID := trace.RequestID
+			roomID := trace.RoomID
+			runtime.onDelta = func(delta string) {
+				s.roomEventBroker.Broadcast(roomID, "chat.delta", map[string]any{
+					"request_id": reqID,
+					"delta":      delta,
+				})
+			}
+		}
 		defer func() {
 			if retrySafe != nil {
 				*retrySafe = ctx.Err() == nil && !runtime.unsafeTool && !runtime.invalid && !runtime.overflow

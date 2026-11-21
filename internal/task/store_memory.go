@@ -630,20 +630,15 @@ func (m *MemoryStore) IsProjectLaneActive(_ context.Context, projectID string, l
 			}
 
 			taskActive := false
-			if t.Status == TaskStatusDoing || t.Status == "working" {
-				taskActive = true
-			}
-			if !taskActive {
-				for _, a := range m.attempts {
-					if a.TaskID == t.ID && a.Status == AttemptStatusRunning {
-						taskActive = true
-						break
-					}
+			for _, a := range m.attempts {
+				if a.TaskID == t.ID && a.Status == AttemptStatusRunning {
+					taskActive = true
+					break
 				}
 			}
 			if !taskActive {
 				for _, l := range m.launches {
-					if l.TaskID == t.ID && l.State == "started" {
+					if l.TaskID == t.ID && (l.State == "started" || l.State == "claimed") && (l.LeaseUntil == nil || l.LeaseUntil.After(time.Now().UTC())) {
 						taskActive = true
 						break
 					}

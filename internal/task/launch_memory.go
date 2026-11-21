@@ -292,6 +292,45 @@ func (m *MemoryStore) ReconcileOrphanLaunches(_ context.Context, now time.Time) 
 			}
 		}
 	}
+	// Reconcile zombie tasks in 'doing' status without any active running attempt or active launch lease
+	zombieCutoff := now.Add(-2 * time.Minute)
+	for _, t := range m.tasks {
+		if (t.Status == TaskStatusDoing || t.Status == "working") && t.UpdatedAt.Before(zombieCutoff) && !strings.HasPrefix(t.Title, "Terminal · ") {
+			hasRunningAttempt := false
+			hasSucceededAttempt := false
+			for _, a := range m.attempts {
+				if a.TaskID == t.ID {
+					if a.Status == AttemptStatusRunning {
+						hasRunningAttempt = true
+						break
+					}
+					if a.Status == AttemptStatusSucceeded {
+						hasSucceededAttempt = true
+					}
+				}
+			}
+			if hasRunningAttempt {
+				continue
+			}
+			hasActiveLaunch := false
+			for _, l := range m.launches {
+				if l.TaskID == t.ID && (l.State == "claimed" || l.State == "started") && (l.LeaseUntil == nil || l.LeaseUntil.After(now)) {
+					hasActiveLaunch = true
+					break
+				}
+			}
+			if hasActiveLaunch {
+				continue
+			}
+			// Zombie task detected: heal status
+			if strings.TrimSpace(t.Summary) != "" || strings.TrimSpace(t.CompleteNote) != "" || hasSucceededAttempt {
+				t.Status = TaskStatusReview
+			} else {
+				t.Status = TaskStatusBlocked
+			}
+			t.UpdatedAt = now
+		}
+	}
 	for _, t := range m.tasks {
 		var latest *TaskAttempt
 		active := false

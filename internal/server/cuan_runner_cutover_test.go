@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cuanDB "github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -133,11 +134,24 @@ func TestTaskLaunchQueue_CutoverToCuanRunner(t *testing.T) {
 
 	instructions := "Verify task_launch_queue cuts over to cuan-runner"
 	taskID := "task-launch-cuan-runner"
+	projID := "proj_cutover"
+	if srv.projectSvc != nil && srv.projectSvc.Store() != nil {
+		_ = srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+			ID:   projID,
+			Name: "Cutover Project",
+		})
+	}
+	if srv.projectRepo != nil {
+		_ = srv.projectRepo.CreateProject(ctx, &cuanDB.Project{
+			ID:   projID,
+			Name: "Cutover Project",
+		})
+	}
 	_ = srv.taskSvc.Store().CreateTask(ctx, &task.Task{
 		ID:              taskID,
 		Title:           "Launch Queue Task",
 		Instructions:    instructions,
-		ProjectID:       "default",
+		ProjectID:       projID,
 		SourceRoomID:    roomID,
 		SourceMessageID: msgID,
 	})
@@ -151,7 +165,7 @@ func TestTaskLaunchQueue_CutoverToCuanRunner(t *testing.T) {
 
 	savedLaunch, err := srv.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
 		TaskID:           taskID,
-		ProjectID:        "default",
+		ProjectID:        projID,
 		RequestID:        reqID,
 		OwnerID:          "owner",
 		RoomID:           roomID,

@@ -133,9 +133,22 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 			if !snapshot() {
 				return
 			}
-		case _, ok := <-ch:
-			if !ok || !snapshot() {
+		case ev, ok := <-ch:
+			if !ok {
 				return
+			}
+			if ev.Type == "chat.delta" {
+				dataBytes, err := json.Marshal(ev.Data)
+				if err == nil {
+					if _, err = fmt.Fprintf(w, "event: chat.delta\ndata: %s\n\n", string(dataBytes)); err != nil {
+						return
+					}
+					flusher.Flush()
+				}
+			} else {
+				if !snapshot() {
+					return
+				}
 			}
 		}
 	}

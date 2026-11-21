@@ -1050,3 +1050,133 @@ func TestRequestConflictLaunchRemainsStoppedDuringRecovery(t *testing.T) {
 		t.Fatalf("rejected launch claimed: %+v, %v", next, err)
 	}
 }
+
+func TestReconcileZombieTasksInDoingStatus(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	now := time.Now().UTC()
+
+	// 1. Task with summary but left in doing without running attempt or active launch -> heals to review
+	taskWithSummary, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Feature Completed but Review Stalled",
+		ProjectIDs:   []string{"proj_1"},
+		Instructions: "Deploy broadcast",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	store.tasks[taskWithSummary.ID].Status = TaskStatusDoing
+	store.tasks[taskWithSummary.ID].Summary = "Implemented feature and verified tests"
+	store.tasks[taskWithSummary.ID].UpdatedAt = now.Add(-3 * time.Minute)
+	store.mu.Unlock()
+
+	// 2. Task without summary and left in doing without active execution -> heals to blocked
+	taskWithoutSummary, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Feature Crashed Midway",
+		ProjectIDs:   []string{"proj_1"},
+		Instructions: "Deploy crawler",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	store.tasks[taskWithoutSummary.ID].Status = TaskStatusDoing
+	store.tasks[taskWithoutSummary.ID].UpdatedAt = now.Add(-3 * time.Minute)
+	store.mu.Unlock()
+
+	// 3. Task with an actively running attempt -> stays doing
+	taskRunning, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:        "Feature Currently Running",
+		ProjectIDs:   []string{"proj_1"},
+		Instructions: "Deploy backend",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	store.tasks[taskRunning.ID].Status = TaskStatusDoing
+	store.tasks[taskRunning.ID].UpdatedAt = now.Add(-3 * time.Minute)
+	store.attempts["att_live"] = &TaskAttempt{
+		ID:        "att_live",
+		TaskID:    taskRunning.ID,
+		Status:    AttemptStatusRunning,
+		CreatedAt: now.Add(-time.Minute),
+	}
+	store.mu.Unlock()
+
+	// Run ReconcileOrphanLaunches
+	if err := svc.ReconcileOrphanLaunches(ctx, now); err != nil {
+		t.Fatalf("ReconcileOrphanLaunches failed: %v", err)
+	}
+
+	// Verify task 1 healed to review
+	t1, err := svc.GetTaskDetail(ctx, taskWithSummary.ID)
+	if err != nil || t1.Status != TaskStatusReview {
+		t.Fatalf("expected task 1 healed to 'review', got status '%s', err: %v", t1.Status, err)
+	}
+
+	// Verify task 2 healed to blocked
+	t2, err := svc.GetTaskDetail(ctx, taskWithoutSummary.ID)
+	if err != nil || t2.Status != TaskStatusBlocked {
+		t.Fatalf("expected task 2 healed to 'blocked', got status '%s', err: %v", t2.Status, err)
+	}
+
+	// Verify task 3 stayed doing
+	t3, err := svc.GetTaskDetail(ctx, taskRunning.ID)
+	if err != nil || t3.Status != TaskStatusDoing {
+		t.Fatalf("expected task 3 to stay 'doing', got status '%s', err: %v", t3.Status, err)
+	}
+}
+
+func TestZombieTaskDoesNotBlockNextQueuedTask(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	projectID := "proj-truth-lock-test"
+
+	// 1. Create a zombie code task (status = 'doing', but NO running attempt and NO active launch)
+	zombieTask, err := svc.CreateTask(ctx, "user", CreateTaskRequest{
+		Title:             "Zombie Task Left In Doing",
+		ProjectIDs:        []string{projectID},
+		Instructions:      "Some work",
+		ExecutionCategory: ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doing := TaskStatusDoing
+	if _, err := svc.UpdateTask(ctx, zombieTask.ID, "runner", UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Check IsProjectLaneActive for the project
+	// Because the zombie task has no running attempt and no active launch lease, lane should NOT be active!
+	active, err := svc.IsProjectLaneActive(ctx, projectID, ExecutionCategoryCode, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if active {
+		t.Fatalf("expected IsProjectLaneActive to return false for zombie task without running attempt or active launch lease, got true")
+	}
+
+	// 3. Now add a running attempt to the task
+	store.mu.Lock()
+	store.attempts["att_live_1"] = &TaskAttempt{
+		ID:        "att_live_1",
+		TaskID:    zombieTask.ID,
+		Status:    AttemptStatusRunning,
+		CreatedAt: time.Now().UTC(),
+	}
+	store.mu.Unlock()
+
+	// Now lane SHOULD be active
+	activeLive, err := svc.IsProjectLaneActive(ctx, projectID, ExecutionCategoryCode, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !activeLive {
+		t.Fatalf("expected IsProjectLaneActive to return true when running attempt exists, got false")
+	}
+}

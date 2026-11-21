@@ -13,10 +13,16 @@ function load(fetch) {
 }
 ;(async()=>{
  const data={messages:[{message:'Pesan ☕'}],requests:[]}
- const encoded=new TextEncoder().encode('event: snapshot\r\ndata: '+JSON.stringify(data)+'\r\n\r\n')
+ const deltaData={request_id:'req-123',delta:'Halo streaming!'}
+ const streamPayload = 'event: chat.delta\r\ndata: ' + JSON.stringify(deltaData) + '\r\n\r\n' +
+   'event: snapshot\r\ndata: ' + JSON.stringify(data) + '\r\n\r\n'
+ const encoded=new TextEncoder().encode(streamPayload)
  let requested
  const transport=load(async(url,options)=>{requested={url,options};return new Response(new ReadableStream({start(c){for(const b of encoded)c.enqueue(Uint8Array.of(b));c.close()}}),{headers:{'content-type':'text/event-stream'}})})
- const received=[];await transport.api.streamConversation('room fixture',new AbortController().signal,x=>received.push(x))
+ const received=[];
+ const deltas=[];
+ await transport.api.streamConversation('room fixture',new AbortController().signal,x=>received.push(x),d=>deltas.push(d))
+ assert.equal(deltas.length,1);assert.equal(deltas[0].request_id,'req-123');assert.equal(deltas[0].delta,'Halo streaming!')
  assert.equal(received.length,1);assert.equal(received[0].messages[0].message,'Pesan ☕');assert.equal(transport.timers.size,0)
  assert.equal(requested.options.headers.Authorization,'Bearer fixture-token');assert(!requested.url.includes('fixture-token'))
  let started
