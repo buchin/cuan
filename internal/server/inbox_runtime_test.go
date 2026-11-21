@@ -526,3 +526,40 @@ func TestInboxRuntimeStreamDirectCoordinatorAllowsAttachmentsAndFinish(t *testin
 		t.Fatalf("failed to decode valid reply: %s", decodeFail)
 	}
 }
+
+func TestInboxRuntimeStreamProgressiveDeltasNoFinishDuplicate(t *testing.T) {
+	var deltas []string
+	stream := &inboxRuntimeStream{
+		step: func(string, string) {},
+		onDelta: func(d string) {
+			deltas = append(deltas, d)
+		},
+	}
+	events := []string{
+		`{"event":"init","conversation_id":"11111111-2222-3333-4444-555555555555"}`,
+		`{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}`,
+		`{"event":"step_update","step_update":{"step_index":1,"state":"ACTIVE","step_type":"agent_response","text_delta":"{\"reply\":\"Halo "}}`,
+		`{"event":"step_update","step_update":{"step_index":1,"state":"ACTIVE","step_type":"agent_response","text_delta":"dunia!\",\"topic_title\":\"\",\"action\":null}"}}`,
+		`{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"finish","tool_info":{"parameters":{"reply":"Halo dunia!","topic_title":"","action":null}}}}`,
+		`{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Halo dunia!\",\"topic_title\":\"\",\"action\":null}"}}`,
+	}
+	for _, ev := range events {
+		stream.Write([]byte(ev + "\n"))
+	}
+	raw, failure, reason := stream.finish()
+	if failure != "" {
+		t.Fatalf("expected clean finish, got failure=%s, reason=%s", failure, reason)
+	}
+	reply, decodeFail, _ := decodeInboxAgyResult(raw, "")
+	if decodeFail != "" || !strings.Contains(reply, "Halo dunia!") {
+		t.Fatalf("expected reply to contain 'Halo dunia!', got %q (decodeFail: %s)", reply, decodeFail)
+	}
+
+	combinedDelta := strings.Join(deltas, "")
+	if combinedDelta != "Halo dunia!" {
+		t.Fatalf("expected combined deltas to equal 'Halo dunia!', got %q (deltas: %#v)", combinedDelta, deltas)
+	}
+	if len(deltas) != 2 {
+		t.Fatalf("expected exactly 2 deltas during progressive streaming without finish duplication, got %d: %#v", len(deltas), deltas)
+	}
+}

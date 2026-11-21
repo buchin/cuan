@@ -73,3 +73,47 @@ func TestStreamReplyExtractor_EmptyChunks(t *testing.T) {
 		t.Fatalf("expected empty before JSON/text, got %q", out)
 	}
 }
+
+func TestStreamReplyExtractor_CodeFenceWrapped(t *testing.T) {
+	extractor := newStreamReplyExtractor()
+	chunks := []string{
+		"```json\n",
+		`{"reply": "Halo `,
+		`dunia!"}`,
+		"\n```",
+	}
+
+	var sb strings.Builder
+	for _, chunk := range chunks {
+		sb.WriteString(extractor.Feed(chunk))
+	}
+
+	expected := "Halo dunia!"
+	if sb.String() != expected {
+		t.Fatalf("expected %q, got %q", expected, sb.String())
+	}
+	if !extractor.hasEmitted() {
+		t.Fatal("expected hasEmitted() to be true")
+	}
+}
+
+func TestStreamReplyExtractor_NoLeakOfTrailingJSON(t *testing.T) {
+	extractor := newStreamReplyExtractor()
+	chunks := []string{
+		`{"reply": "Teks jawaban", "action": {"kind": "approval", "payload": {"title": "Task"}}, "topic_title": "Judul"}`,
+	}
+
+	var sb strings.Builder
+	for _, chunk := range chunks {
+		sb.WriteString(extractor.Feed(chunk))
+	}
+
+	expected := "Teks jawaban"
+	if sb.String() != expected {
+		t.Fatalf("expected %q, got %q", expected, sb.String())
+	}
+	// Subsequent calls must return empty
+	if out := extractor.Feed(`{"extra": "data"}`); out != "" {
+		t.Fatalf("expected empty after finished, got %q", out)
+	}
+}

@@ -14,10 +14,17 @@ type streamReplyExtractor struct {
 	escape   bool
 	finished bool
 	isPlain  bool
+	emitted  bool
 }
 
 func newStreamReplyExtractor() *streamReplyExtractor {
 	return &streamReplyExtractor{}
+}
+
+func (e *streamReplyExtractor) hasEmitted() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.emitted
 }
 
 func (e *streamReplyExtractor) Feed(chunk string) string {
@@ -30,20 +37,37 @@ func (e *streamReplyExtractor) Feed(chunk string) string {
 	e.buffer += chunk
 
 	if e.isPlain {
-		out := e.buffer
-		e.buffer = ""
-		return out
+		trimmed := strings.TrimLeft(chunk, " \t\r\n")
+		// If a new chunk looks like structured JSON, do not dump as plain text
+		if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "```") {
+			e.isPlain = false
+			e.buffer = chunk
+		} else {
+			out := e.buffer
+			e.buffer = ""
+			if len(out) > 0 {
+				e.emitted = true
+			}
+			return out
+		}
 	}
 
 	if !e.inReply {
 		idx := strings.Index(e.buffer, `"reply"`)
 		if idx == -1 {
 			trimmed := strings.TrimLeft(e.buffer, " \t\r\n")
-			// If characters start appearing that don't match '{', treat as plain text
-			if len(trimmed) > 0 && !strings.HasPrefix(trimmed, "{") {
+			// If buffer starts with '{' or markdown code block (``` or ```json), wait for "reply"
+			if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "```") || strings.HasPrefix("```", trimmed) {
+				return ""
+			}
+			// If characters start appearing that don't match '{' or '`', treat as plain text
+			if len(trimmed) > 0 {
 				e.isPlain = true
 				out := e.buffer
 				e.buffer = ""
+				if len(out) > 0 {
+					e.emitted = true
+				}
 				return out
 			}
 			return ""
@@ -94,7 +118,11 @@ func (e *streamReplyExtractor) Feed(chunk string) string {
 			// If trailing backslash at end of buffer, wait for next chunk
 			if i == len(e.buffer)-1 {
 				e.buffer = "\\"
-				return sb.String()
+				out := sb.String()
+				if len(out) > 0 {
+					e.emitted = true
+				}
+				return out
 			}
 			e.escape = true
 			i++
@@ -115,5 +143,9 @@ func (e *streamReplyExtractor) Feed(chunk string) string {
 	if !e.finished {
 		e.buffer = ""
 	}
-	return sb.String()
+	out := sb.String()
+	if len(out) > 0 {
+		e.emitted = true
+	}
+	return out
 }
