@@ -108,6 +108,30 @@ func (m *MemoryStore) ListProjects(ctx context.Context) ([]*Project, error) {
 	return list, nil
 }
 
+// ListProjectsFiltered returns projects according to the archive filter,
+// consistent with the DB store's behavior.
+func (m *MemoryStore) ListProjectsFiltered(ctx context.Context, filter ArchivedFilter) ([]*Project, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var list []*Project
+	for _, p := range m.projects {
+		switch filter {
+		case ArchivedFilterOnly:
+			if p.IsArchived {
+				list = append(list, cloneMemoryProject(p))
+			}
+		case ArchivedFilterAll:
+			list = append(list, cloneMemoryProject(p))
+		default: // ArchivedFilterActive
+			if !p.IsArchived {
+				list = append(list, cloneMemoryProject(p))
+			}
+		}
+	}
+	return list, nil
+}
+
 func (m *MemoryStore) UpdateProject(ctx context.Context, p *Project) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

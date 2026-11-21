@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -174,5 +177,116 @@ func TestTaskCompletionChatHook_NoSourceRoomNoChat(t *testing.T) {
 
 	if err := s.PostTaskCompletionMessage(ctx, taskItem); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestTaskCompletionChat_PostVerifyReviewSingleBubbleDeduplication(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "queued")
+	ctx := context.Background()
+	s.inboxStopping.Store(false)
+	s.wireTaskService(s.taskSvc)
+
+	// Set up mock provider binary returning a passing review evaluation
+	review := `{"decision":"pass","explanation":"Hasil verifikasi sudah lengkap dan sesuai instruksi.","revision":""}`
+	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": review}})
+	binary := filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy")
+	originalBinary, _ := os.ReadFile(binary)
+	t.Cleanup(func() {
+		if len(originalBinary) > 0 {
+			_ = os.WriteFile(binary, originalBinary, 0700)
+		}
+	})
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nprintf '%s\\n' '"+string(response)+"'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := s.projectStudioRepo.(db.InboxLifecycleRepository)
+	claimed, ok, err := repo.ClaimInboxRequest(ctx, q.RoomID, q.RequestID)
+	if err != nil || !ok {
+		t.Fatal("could not claim review", err)
+	}
+
+	// Run inbox request (snapshotReview)
+	s.runInboxRequest(repo, claimed)
+
+	// Check task status has transitioned to done
+	after, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != task.TaskStatusDone {
+		t.Fatalf("expected task status to be done, got %s", after.Status)
+	}
+
+	// Check messages in room after review completion
+	msgsAfter, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Exactly 1 completion confirmation message should exist in the room
+	closingMessages := 0
+	for _, m := range msgsAfter {
+		if strings.Contains(m.Content, "/tasks/"+d.ID) && (strings.Contains(m.Content, "telah selesai") || strings.Contains(m.Content, "Ringkasan Hasil") || strings.Contains(m.Content, "Hasil verifikasi")) {
+			closingMessages++
+		}
+	}
+	if closingMessages != 1 {
+		t.Fatalf("expected exactly 1 task completion message in room, got %d. Messages: %+v", closingMessages, msgsAfter)
+	}
+
+	// The single message must contain the coordinator explanation and task link
+	var completionMsg string
+	found := false
+	for _, m := range msgsAfter {
+		if m.AuthorType == "agent" && strings.Contains(m.Content, "/tasks/"+d.ID) {
+			completionMsg = m.Content
+			found = true
+			break
+		}
+	}
+	if !found || !strings.Contains(completionMsg, "Hasil verifikasi sudah lengkap dan sesuai instruksi.") {
+		t.Fatalf("expected completion message to contain coordinator explanation, got: %s", completionMsg)
+	}
+	if !strings.Contains(completionMsg, "Pekerjaan") || !strings.Contains(completionMsg, "telah selesai") {
+		t.Fatalf("expected completion message to contain completion status header, got: %s", completionMsg)
+	}
+}
+
+func TestTaskCompletionChatHook_IdempotencyWithTitleAndSummary(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	studioRepo := db.NewMemoryProjectStudioRepository()
+	tSvc := task.NewService(taskStore, nil)
+
+	s := &Server{
+		taskSvc:           tSvc,
+		projectStudioRepo: studioRepo,
+	}
+	s.wireTaskService(tSvc)
+
+	roomID := db.GenerateUUID()
+	taskItem := &task.Task{
+		ID:           "test-task-title-idem",
+		Title:        "Agregasi dan Penggantian In-Place Push Notification per Room",
+		Status:       task.TaskStatusDone,
+		SourceRoomID: roomID,
+		Summary:      "Notifikasi web push per percakapan kini hanya memunculkan satu kartu aktif.",
+		CompleteNote: "Lolos verifikasi Playwright dan backend dispatch.",
+	}
+
+	// Trigger 5 times consecutively
+	for i := 0; i < 5; i++ {
+		if err := s.PostTaskCompletionMessage(ctx, taskItem); err != nil {
+			t.Fatalf("call %d failed: %v", i, err)
+		}
+	}
+
+	msgs, err := studioRepo.ListMessagesByRoomID(ctx, roomID)
+	if err != nil {
+		t.Fatalf("failed to list messages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected exactly 1 message due to idempotency with title/summary, got %d", len(msgs))
 	}
 }

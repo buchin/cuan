@@ -200,19 +200,52 @@ func (s *Service) Get(ctx context.Context, id string) (*ProjectResponse, error) 
 	return p.ToResponse(), nil
 }
 
-// List returns all connected projects.
+// List returns all connected projects. Prefer ListFiltered for the HTTP list
+// endpoint, which pushes the archive predicate to the database layer.
 func (s *Service) List(ctx context.Context) ([]*ProjectResponse, error) {
 	list, err := s.store.ListProjects(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var res []*ProjectResponse
+	if len(list) > 1 {
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 8)
+		for _, p := range list {
+			wg.Add(1)
+			go func(proj *Project) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				s.ensureValidLocalPath(ctx, proj)
+			}(p)
+		}
+		wg.Wait()
+	} else if len(list) == 1 {
+		s.ensureValidLocalPath(ctx, list[0])
+	}
+
+	res := make([]*ProjectResponse, 0, len(list))
 	for _, p := range list {
-		s.ensureValidLocalPath(ctx, p)
 		res = append(res, p.ToResponse())
 	}
 	return res, nil
+}
+
+// ListFiltered returns projects pre-filtered by archive state at the database
+// layer, avoiding in-memory scanning. It also skips per-project disk I/O
+// (ensureValidLocalPath) which is unnecessary for the list view.
+func (s *Service) ListFiltered(ctx context.Context, filter ArchivedFilter) ([]*ProjectListItem, error) {
+	list, err := s.store.ListProjectsFiltered(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]*ProjectListItem, 0, len(list))
+	for _, p := range list {
+		items = append(items, p.ToListItem())
+	}
+	return items, nil
 }
 
 // Sync triggers a fetch / sync against the remote GitHub repository.
