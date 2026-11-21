@@ -73,3 +73,26 @@ test('6. Localization: Collapse tasks label exists in both en and id', () => {
   assert.equal(enJson['Collapse tasks'], 'Collapse tasks')
   assert.equal(idJson['Collapse tasks'], 'Tutup tugas')
 })
+
+test('7. Pinned toggle & Zero Layout Shift: toggle is pinned to top-right of top task without shifting', () => {
+  const accordionTimelinePath = path.resolve(__dirname, '../src/components/ui/AccordionTimeline.tsx')
+  const accordionTimelineSrc = fs.readFileSync(accordionTimelinePath, 'utf8')
+  assert.ok(
+    composerTasksSrc.includes('pinnedAction: isLatest ?'),
+    'ComposerTasks must pass pinnedAction for the latest top task'
+  )
+  assert.ok(
+    accordionTimelineSrc.includes('item.pinnedAction'),
+    'AccordionTimeline must support item.pinnedAction'
+  )
+  assert.ok(
+    accordionTimelineSrc.includes('absolute right-0 top-0 flex h-11 sm:h-8 items-center z-10'),
+    'AccordionTimeline must pin pinnedAction to top-right aligned with first line of task'
+  )
+  assert.ok(
+    accordionTimelineSrc.includes("item.pinnedAction && 'pr-20 sm:pr-16'") ||
+    accordionTimelineSrc.includes('item.pinnedAction && "pr-20 sm:pr-16"'),
+    'AccordionTimeline must provide right padding for wrapping text so it does not collide with pinned toggle'
+  )
+})
+
