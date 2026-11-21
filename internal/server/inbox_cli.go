@@ -365,12 +365,12 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			// Let the native formatter stop cleanly before the outer 45s cap.
 			timeout = "40s"
 		}
-		args = []string{"-p", system, "--print-timeout", timeout, "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		args = []string{"-p", system, "--print-timeout", timeout, "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		if workspace != "" && !directCoordinator && !formatRepair && !snapshotReview {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {
-			args = []string{"-p", system, "--print-timeout", "45s", "--mode", "plan", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+			args = []string{"-p", system, "--print-timeout", "45s", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
@@ -630,14 +630,11 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok && trace.RequestID != "" && step != nil {
 			runtime.details = newInboxToolDetailRecorder(workspace)
 		}
-		if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok && trace.RequestID != "" && trace.RoomID != "" && s.roomEventBroker != nil {
+		if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok && trace.RequestID != "" && trace.RoomID != "" {
 			reqID := trace.RequestID
 			roomID := trace.RoomID
 			runtime.onDelta = func(delta string) {
-				s.roomEventBroker.Broadcast(roomID, "chat.delta", map[string]any{
-					"request_id": reqID,
-					"delta":      delta,
-				})
+				s.notifyChatDelta(roomID, reqID, delta)
 			}
 		}
 		defer func() {

@@ -28,10 +28,15 @@ func continuationDescriptionMatches(plan *inboxApprovalPlan, assessment inboxRev
 }
 
 func presentContinuationPlan(plan *inboxApprovalPlan) *inboxApprovalPlan {
-	if plan != nil && plan.Continuation != nil {
+	if plan == nil {
 		return nil
 	}
-	return plan
+	if plan.Continuation == nil {
+		return plan
+	}
+	visible := *plan
+	visible.Title, visible.Description = continuationPresentation(plan.Continuation.RemainingWork)
+	return &visible
 }
 
 func presentContinuationText(content string, plan *inboxApprovalPlan) string {

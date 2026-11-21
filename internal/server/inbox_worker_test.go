@@ -105,6 +105,20 @@ func TestInboxWorkerPostgresEventsSurviveAPIReconnect(t *testing.T) {
 			cancel()
 			t.Fatal("worker progress did not reach API")
 		}
+		worker.notifyChatDelta(room, "req-123", "Halo dunia")
+		select {
+		case event := <-subscription:
+			if event.RoomID != room || event.Type != "chat.delta" {
+				t.Fatal("expected chat.delta event, got", event)
+			}
+			data, _ := event.Data.(map[string]any)
+			if data["request_id"] != "req-123" || data["delta"] != "Halo dunia" {
+				t.Fatal("unexpected delta payload", data)
+			}
+		case <-time.After(3 * time.Second):
+			cancel()
+			t.Fatal("worker delta did not reach API")
+		}
 		cancel()
 		api.roomEventBroker.Unsubscribe(room, subscription)
 	}

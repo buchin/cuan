@@ -10,8 +10,8 @@ func TestContinuationPresentationDoesNotChangeExecutionScope(t *testing.T) {
 	technical := "First reconcile the registered project's existing release; retain exact commit receipt and do not deploy again."
 	original := &inboxApprovalPlan{Title: "Langkah berikutnya", Description: technical, ProjectID: "project", Continuation: &inboxContinuationPlan{TaskID: "task", AttemptID: "attempt", Revision: technical}}
 	shown := presentContinuationPlan(original)
-	if shown != nil {
-		t.Fatal("internal continuation still asks owner approval")
+	if shown == nil || shown.Title != "Lanjutkan pekerjaan" {
+		t.Fatalf("expected visible continuation plan, got %+v", shown)
 	}
 	if original.Description != technical || original.Title != "Langkah berikutnya" || original.Continuation.Revision != technical {
 		t.Fatal("presentation changed saved execution scope")

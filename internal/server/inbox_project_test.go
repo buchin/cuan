@@ -130,7 +130,7 @@ func TestInboxProjectCLIUsesWorkspaceAndRetainsProfile(t *testing.T) {
 	out, failure := s.executeInboxCLI(context.Background(), "pin2", "agy", "Inspect README", home, workspace, nil)
 	args, _ := os.ReadFile(filepath.Join(home, "cli-args"))
 	argText := string(args)
-	if failure != "" || out != home+"\n"+workspace || strings.Contains(argText, "--dangerously-skip-permissions") || !strings.Contains(argText, "--mode plan") || !strings.Contains(argText, "--sandbox") || !strings.Contains(argText, "--json-schema") || (!strings.Contains(argText, "Do not use terminal") && !strings.Contains(argText, "terminal execution")) {
+	if failure != "" || out != home+"\n"+workspace || strings.Contains(argText, "--dangerously-skip-permissions") || !strings.Contains(argText, "--sandbox") || !strings.Contains(argText, "--json-schema") || (!strings.Contains(argText, "Do not use terminal") && !strings.Contains(argText, "terminal execution")) {
 		t.Fatal(out, failure)
 	}
 }

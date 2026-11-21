@@ -146,9 +146,10 @@ func InferExecutionCategory(title, instructions string) string {
 
 	// Code creation/modification signals take precedence over incidental words like 'view'
 	codeSignals := []string{
-		"integrasi", "implementasi", "tambahkan", "buat", "perbaiki", "ubah",
+		"integrasi", "implementasi", "tambahkan", "buat", "perbaiki", "perbaikan", "memperbaiki", "ubah",
 		"integrate", "implementation", "feature", "component", "komponen", "renderer",
 		"refactor", "bugfix", "fix ", "frontend", "backend", "deploy",
+		"redesign", "relokasi", "penyelarasan", "desain", "rancang", "pindahkan", "pindah",
 	}
 	for _, s := range codeSignals {
 		if s == "deploy" && (!deployActionWord.MatchString(combined) || executionpolicy.FromInstructions(title+"\n"+instructions).DenyDeploy) {

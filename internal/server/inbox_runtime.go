@@ -226,6 +226,14 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 					s.finishPayload = raw
 				}
 			}
+			if s.onDelta != nil && len(s.finishPayload) > 0 && (s.extractor == nil || !s.extractor.inReply) {
+				if s.extractor == nil {
+					s.extractor = newStreamReplyExtractor()
+				}
+				if text := s.extractor.Feed(string(s.finishPayload)); text != "" {
+					s.onDelta(text)
+				}
+			}
 		}
 		// Native AGY also emits input/finish lifecycle steps. They are not
 		// tools, and must not make a schema-only reply look like execution.
