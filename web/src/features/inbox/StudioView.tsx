@@ -1,6 +1,6 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { AttachmentPicker, AttachmentPreviews, useAttachments } from './Attachments'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
 import { apiFetch } from '../../api/client'
@@ -68,17 +68,6 @@ export function StudioView({
     }
   })
   const goalInput = useRef<HTMLTextAreaElement>(null)
-  useLayoutEffect(() => {
-    const resize = () => {
-      const input = goalInput.current
-      if (!input) return
-      input.style.height = '0px'
-      input.style.height = `${Math.min(input.scrollHeight, 320)}px`
-    }
-    resize()
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [goal])
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [retryCount, setRetryCount] = useState(0)
@@ -207,13 +196,28 @@ export function StudioView({
 
   const autoResizeGoal = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
+    const container = el.closest('.overflow-y-auto') || document.scrollingElement
+    const prevScroll = container ? container.scrollTop : 0
     el.style.height = 'auto'
     const minimum = 104
     const cap = 320
     const next = Math.min(Math.max(el.scrollHeight, minimum), cap)
     el.style.height = `${next}px`
     el.style.overflowY = el.scrollHeight > cap ? 'auto' : 'hidden'
+    if (container && container.scrollTop !== prevScroll) {
+      container.scrollTop = prevScroll
+    }
   }, [])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (goalInput.current) {
+        autoResizeGoal(goalInput.current)
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [autoResizeGoal])
 
   useEffect(() => {
     if (goalInput.current) {
