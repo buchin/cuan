@@ -253,6 +253,10 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 		if detail.LatestAttempt != nil {
 			attemptID = detail.LatestAttempt.ID
 		}
+		continuationRevision := strings.TrimSpace(assessment.Revision)
+		if continuationRevision == "" {
+			continuationRevision = fmt.Sprintf("Lanjutkan perbaikan %s sesuai persetujuan pemilik, terapkan perubahan pada repositori dan jalankan verifikasi.", detail.Title)
+		}
 		plan := inboxApprovalPlan{
 			Title:          planTitle,
 			Description:    planDesc,
@@ -262,7 +266,7 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 				TaskID:              detail.ID,
 				AttemptID:           attemptID,
 				AssessmentRequestID: requestID,
-				Revision:            assessment.Revision,
+				Revision:            continuationRevision,
 				RemainingWork:       assessment.RemainingWork,
 			},
 		}

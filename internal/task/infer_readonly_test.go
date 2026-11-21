@@ -1,6 +1,16 @@
 package task
 
-import "testing"
+import (
+	"testing"
+)
+
+func TestInferIndonesianBugfixTitleAndDescriptionIsNotReadOnly(t *testing.T) {
+	title := "Perbaikan Scroll Textarea New Work & Relokasi Task Bar ke Bawah Navbar"
+	instructions := "Cuan managed delegation v1.\nProblem Statement:\n1. Mengetik pesan panjang di textarea halaman New work memicu scroll melompat.\n2. Task card saat ini menempel di atas composer.\n\nScope:\n1. Perbaikan Bug Scroll Textarea (New work).\n2. Relokasi & Redesign Task Banner.\n\nDefinition of Done (DoD):\n- Mengetik teks panjang di textarea New work berjalan mulus.\n- Inspect the layout."
+	if got := InferExecutionCategory(title, instructions); got != ExecutionCategoryCode {
+		t.Fatalf("expected ExecutionCategoryCode, got %q", got)
+	}
+}
 
 func TestInferExplicitReadOnlyRepositoryScope(t *testing.T) {
 	for _, tt := range []struct{ title, instructions, want string }{
