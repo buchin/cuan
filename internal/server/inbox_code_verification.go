@@ -32,9 +32,19 @@ func (s *Server) inboxCodeVerificationHandoff(ctx context.Context, q db.InboxReq
 const inboxIndependentCodeReviewPolicy = "Independent code execution review: v4"
 
 func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskDetailResponse) bool {
-	return d != nil && d.Status != task.TaskStatusDone && d.ExecutionCategory == task.ExecutionCategoryCode &&
-		!executionpolicy.FromInstructions(d.Instructions).ReadOnlyRepository && !task.IsAccountOutcome(&d.Task) && !s.accountOutcomeIndependentlyVerified(ctx, d) &&
-		s.verificationReviewContext(ctx, d) == nil && s.liveInspectionReviewContext(ctx, d) == nil
+	if d == nil || d.Status == task.TaskStatusDone || d.ExecutionCategory != task.ExecutionCategoryCode ||
+		executionpolicy.FromInstructions(d.Instructions).ReadOnlyRepository || task.IsAccountOutcome(&d.Task) || s.accountOutcomeIndependentlyVerified(ctx, d) ||
+		s.verificationReviewContext(ctx, d) != nil || s.liveInspectionReviewContext(ctx, d) != nil {
+		return false
+	}
+	if s.projectSvc != nil && d.ProjectID != "" {
+		if p, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && p != nil {
+			if p.RepoURL == "" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *Server) requireIndependentCodeReview(ctx context.Context, d *task.TaskDetailResponse, assessment inboxReviewEvaluation) inboxReviewEvaluation {
