@@ -127,54 +127,70 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 	if err != nil {
 		return nil, err
 	}
-	trusted := false
 	for _, q := range requests {
-		if q.ReplyID == id && q.OwnerID == owner && q.AgentID == agent && q.State == "completed" {
-			trusted = true
+		if q.OwnerID != "" && q.OwnerID != owner {
+			return nil, errors.New("Choose a completed plan from this conversation")
 		}
-	}
-	if !trusted {
-		return nil, errors.New("Choose a completed plan from this conversation")
 	}
 	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room)
 	if err != nil {
 		return nil, err
 	}
-	for _, m := range messages {
-		if m.ID == id && m.AuthorType == "agent" && m.AuthorID == agent {
-			if p := parseInboxApprovalPlan(m.Content); p != nil {
-				// Replaying an accepted decision reads its existing receipt. Current
-				// task state guards fresh approvals, not delivery retries after work
-				// already advanced. Match the saved owner envelope and exact plan;
-				// AcceptInboxRequest still enforces its canonical payload hash.
-				accepted := false
-				for _, q := range requests {
-					if q.OwnerID != owner || q.AgentID != agent || q.RequestID != delegationMessageID("approve-plan:"+room+":"+id) {
-						continue
-					}
-					message, readErr := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
-					if readErr != nil {
-						return nil, readErr
-					}
-					if message == nil || message.RoomID != room || message.AuthorType != "user" {
-						continue
-					}
-					if previous := decodeApprovedInboxPlan(message.Content); previous != nil && previous.MessageID == id {
-						a, _ := json.Marshal(previous.Plan)
-						b, _ := json.Marshal(p)
-						accepted = bytes.Equal(a, b)
-					}
-				}
-				if !accepted {
-					if err := s.validateInboxContinuation(ctx, room, p); err != nil {
-						return nil, err
-					}
-				}
-				return &approvedInboxPlan{MessageID: id, Plan: *p}, nil
-			}
+	var target *db.ProjectMessage
+	for i := range messages {
+		m := &messages[i]
+		if m.ID == id && m.AuthorType == "agent" && (m.AuthorID == agent || agent == "" || m.AuthorID == "") {
+			target = m
+			break
 		}
 	}
-	return nil, errors.New("This message has no executable plan; ask the agent to clarify it")
+	if target == nil {
+		return nil, errors.New("Choose a completed plan from this conversation")
+	}
+	p := parseInboxApprovalPlan(target.Content)
+	if p == nil {
+		return nil, errors.New("This message has no executable plan; ask the agent to clarify it")
+	}
+	if p.Continuation == nil {
+		trusted := false
+		for _, q := range requests {
+			if q.ReplyID == id && q.OwnerID == owner && (q.AgentID == agent || agent == "") && q.State == "completed" {
+				trusted = true
+				break
+			}
+		}
+		if !trusted {
+			return nil, errors.New("Choose a completed plan from this conversation")
+		}
+	}
+	// Replaying an accepted decision reads its existing receipt. Current
+	// task state guards fresh approvals, not delivery retries after work
+	// already advanced. Match the saved owner envelope and exact plan;
+	// AcceptInboxRequest still enforces its canonical payload hash.
+	accepted := false
+	for _, q := range requests {
+		if q.OwnerID != owner || (agent != "" && q.AgentID != "" && q.AgentID != agent) || q.RequestID != delegationMessageID("approve-plan:"+room+":"+id) {
+			continue
+		}
+		message, readErr := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
+		if readErr != nil {
+			return nil, readErr
+		}
+		if message == nil || message.RoomID != room || message.AuthorType != "user" {
+			continue
+		}
+		if previous := decodeApprovedInboxPlan(message.Content); previous != nil && previous.MessageID == id {
+			a, _ := json.Marshal(previous.Plan)
+			b, _ := json.Marshal(p)
+			accepted = bytes.Equal(a, b)
+		}
+	}
+	if !accepted {
+		if err := s.validateInboxContinuation(ctx, room, p); err != nil {
+			return nil, err
+		}
+	}
+	return &approvedInboxPlan{MessageID: id, Plan: *p}, nil
 }
 func decodeInboxPlanDecision(content string) *approvedInboxPlan {
 	if !strings.HasPrefix(content, attachmentEnvelope) {

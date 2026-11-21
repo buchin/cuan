@@ -24,7 +24,15 @@ func continuationDescriptionMatches(plan *inboxApprovalPlan, assessment inboxRev
 		return true
 	}
 	title, description := continuationPresentation(assessment.RemainingWork)
-	return c.RemainingWork == assessment.RemainingWork && plan.Title == title && plan.Description == description
+	titleMatches := plan.Title == title || strings.HasPrefix(strings.TrimSpace(plan.Title), "Lanjutkan")
+	remainingMatches := c.RemainingWork == assessment.RemainingWork || c.RemainingWork == "" || assessment.RemainingWork == ""
+	descMatches := plan.Description == description ||
+		plan.Description == assessment.Explanation ||
+		plan.Description == assessment.Finding ||
+		plan.Description == c.Revision ||
+		plan.Description == assessment.Revision ||
+		strings.TrimSpace(plan.Description) == ""
+	return remainingMatches && titleMatches && descMatches
 }
 
 func presentContinuationPlan(plan *inboxApprovalPlan) *inboxApprovalPlan {

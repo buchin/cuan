@@ -1276,7 +1276,7 @@ export function InboxView({
         if (pendingRef.current === request) pendingRef.current = null
         if (activeConvRef.current === convId) {
           setSendError(err.message || t('Permintaan tidak dapat diproses.'))
-          setRetryCount(3)
+          setRetryCount(0)
         }
       } else {
         if (activeConvRef.current === convId)
@@ -1751,13 +1751,23 @@ export function InboxView({
                           plan={msg.approval_plan}
                           accepted={msg.approval_accepted}
                           deferred={msg.plan_deferred}
-                          disabled={sending || uploads.busy || retryCount >= 3 || !!pendingRef.current}
-                          onApprove={() => handleSendMessageRef.current(msg.uuid, msg.approval_request_id)}
+                          disabled={sending || uploads.busy || !!pendingRef.current}
+                          onApprove={() => {
+                            setSendError('')
+                            setRetryCount(0)
+                            handleSendMessageRef.current(msg.uuid, msg.approval_request_id)
+                          }}
                           onChangePlan={() => {
+                            setSendError('')
+                            setRetryCount(0)
                             setInputMessage(current => (current ? current + '\n\n' : '') + t('Changes to this plan') + ' — ' + msg.approval_plan!.title + ': ')
                             textareaRef.current?.focus()
                           }}
-                          onDefer={() => handleSendMessageRef.current(msg.uuid, msg.plan_defer_request_id, 'defer')}
+                          onDefer={() => {
+                            setSendError('')
+                            setRetryCount(0)
+                            handleSendMessageRef.current(msg.uuid, msg.plan_defer_request_id, 'defer')
+                          }}
                         />
                       )}
 
@@ -2548,6 +2558,10 @@ export function InboxView({
                       autoResizeTextarea(e.target as HTMLTextAreaElement)
                     }}
                     onChange={(e) => {
+                      if (sendError) {
+                        setSendError('')
+                        setRetryCount(0)
+                      }
                       unsentDrafts.current[activeConvRef.current] =
                         e.target.value
                       setInputMessage(e.target.value)
