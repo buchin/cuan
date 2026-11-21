@@ -228,7 +228,7 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
   assert.equal(parsed1.title, 'Budi (Pengunjung)')
   assert.equal(parsed1.body, 'Halo kak, apakah produk hijab plisket masih ready stock?')
   assert.equal(parsed1.href, '/inbox/rm_01h9xyz123')
-  assert.equal(parsed1.tag, 'customer:rm_01h9xyz123:msg_001')
+  assert.equal(parsed1.tag, 'room:rm_01h9xyz123')
 
   // Case 2: AI Agent Completion / Approval needed push payload (resolves to dynamic title)
   const agentPayload = {
