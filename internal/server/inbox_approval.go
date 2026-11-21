@@ -12,7 +12,7 @@ import (
 	"github.com/buchin/cuan/internal/task"
 )
 
-const inboxApprovalInstruction = "When a concrete plan is ready and you need the user's approval before starting work, present its outcome, scope, limits and acceptance criteria in plain language, then end the reply with exactly one cuan-approval fenced JSON block, for example:\n```cuan-approval\n{\"title\":\"Navigation audit\",\"description\":\"Read-only navigation audit. Report findings; do not modify or deploy.\",\"project_id\":\"registered project ID\",\"required_stages\":[]}\n```\nFor an executable plan include description (the exact scope, limits and acceptance criteria, up to 6000 characters), and either project_id or project_name in the same JSON. Also include required_stages, the acceptance stages this exact plan must reach: \"implement\" when the work must change something, \"verify\" when the result needs independent evidence, \"publish\" only when the work must reach the live production target. Use an empty array when the plan only reads, researches or produces a standalone artifact. Never add \"publish\" merely because a project deploys by default; omit it unless the requested outcome actually requires the live target. Omit required_stages entirely only when you genuinely cannot tell, which keeps the previous behaviour. Do not include authorization_message_id, action, task_id or revision: user approval is recorded separately after this proposal. The application displays that description and a button to approve that exact plan. Never hide extra scope in the description. The title is at most 200 characters. This marker creates a proposal and approval notification; it does not authorize or run anything until the user approves. Do not use it for greetings, ordinary questions, clarification, already approved work or a completed result. Do not combine it with cuan-delegate or cuan-task blocks."
+const inboxApprovalInstruction = "When a concrete plan is ready and you need the user's approval before starting work, present its outcome, scope, limits and acceptance criteria in plain language, then end the reply with exactly one cuan-approval fenced JSON block, for example:\n```cuan-approval\n{\"title\":\"Navigation audit\",\"description\":\"Read-only navigation audit. Report findings; do not modify or deploy.\",\"project_id\":\"registered project ID\",\"execution_category\":\"readonly\",\"required_stages\":[]}\n```\nFor an executable plan include description (the exact scope, limits and acceptance criteria, up to 6000 characters), and either project_id or project_name in the same JSON. Also include execution_category: \"code\" when modifying files, source code, or schema; \"ops\" for server/database operations or commands; or \"readonly\" when only reading, researching, or inspecting. Also include required_stages, the acceptance stages this exact plan must reach: \"implement\" when the work must change something, \"verify\" when the result needs independent evidence, \"publish\" only when the work must reach the live production target. Use an empty array when the plan only reads, researches or produces a standalone artifact. Never add \"publish\" merely because a project deploys by default; omit it unless the requested outcome actually requires the live target. Omit required_stages entirely only when you genuinely cannot tell, which keeps the previous behaviour. Do not include authorization_message_id, action, task_id or revision: user approval is recorded separately after this proposal. The application displays that description and a button to approve that exact plan. Never hide extra scope in the description. The title is at most 200 characters. This marker creates a proposal and approval notification; it does not authorize or run anything until the user approves. Do not use it for greetings, ordinary questions, clarification, already approved work or a completed result. Do not combine it with cuan-delegate or cuan-task blocks."
 
 func splitInboxApproval(author, content string) (string, string) {
 	if author != "agent" {
@@ -59,10 +59,11 @@ func splitInboxApproval(author, content string) (string, string) {
 // The exact structured description is rendered beside the approval action.
 // Client messages can select a persisted proposal, never supply its contents.
 type inboxApprovalPlan struct {
-	Title        string                 `json:"title"`
-	Description  string                 `json:"description,omitempty"`
-	ProjectID    string                 `json:"project_id,omitempty"`
-	ProjectName  string                 `json:"project_name,omitempty"`
+	Title             string                 `json:"title"`
+	Description       string                 `json:"description,omitempty"`
+	ProjectID         string                 `json:"project_id,omitempty"`
+	ProjectName       string                 `json:"project_name,omitempty"`
+	ExecutionCategory string                 `json:"execution_category,omitempty"`
 	// RequiredStages declares which acceptance stages this work must reach.
 	// Absent means "not declared" and keeps the previous behaviour.
 	RequiredStages []string               `json:"required_stages,omitempty"`
@@ -104,6 +105,17 @@ func parseInboxApprovalPlan(content string) *inboxApprovalPlan {
 		return nil
 	}
 	p.RequiredStages = task.NormalizeStages(p.RequiredStages)
+	if p.ExecutionCategory != "" {
+		p.ExecutionCategory = task.NormalizeExecutionCategory(p.ExecutionCategory)
+	}
+	if p.ExecutionCategory == "" {
+		for _, stage := range p.RequiredStages {
+			if stage == "implement" || stage == "publish" {
+				p.ExecutionCategory = task.ExecutionCategoryCode
+				break
+			}
+		}
+	}
 	return &p
 }
 func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id string) (*approvedInboxPlan, error) {

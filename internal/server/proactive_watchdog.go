@@ -257,11 +257,16 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 		if continuationRevision == "" {
 			continuationRevision = fmt.Sprintf("Lanjutkan perbaikan %s sesuai persetujuan pemilik, terapkan perubahan pada repositori dan jalankan verifikasi.", detail.Title)
 		}
+		continuationCategory := detail.ExecutionCategory
+		if continuationCategory == "" {
+			continuationCategory = task.ExecutionCategoryCode
+		}
 		plan := inboxApprovalPlan{
-			Title:          planTitle,
-			Description:    planDesc,
-			ProjectID:      detail.ProjectID,
-			RequiredStages: []string{"implement"},
+			Title:             planTitle,
+			Description:       planDesc,
+			ProjectID:         detail.ProjectID,
+			ExecutionCategory: continuationCategory,
+			RequiredStages:    []string{"implement"},
 			Continuation: &inboxContinuationPlan{
 				TaskID:              detail.ID,
 				AttemptID:           attemptID,

@@ -288,7 +288,15 @@ func (s *Service) createTaskWithID(ctx context.Context, author string, req Creat
 		executionCategory = NormalizeExecutionCategory(req.Category)
 	}
 	if executionCategory == "" {
-		executionCategory = InferExecutionCategory(title, instructions)
+		executionCategory = InferExecutionCategoryWithStages(title, instructions, req.RequiredStages)
+	}
+	for _, stage := range req.RequiredStages {
+		if strings.EqualFold(stage, "implement") || strings.EqualFold(stage, "publish") {
+			if executionCategory == ExecutionCategoryReadOnly {
+				executionCategory = ExecutionCategoryCode
+			}
+			break
+		}
 	}
 	executionCategory = scopeConstrainedCategory(title, instructions, executionCategory)
 	t := &Task{
