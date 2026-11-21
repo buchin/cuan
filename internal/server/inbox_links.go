@@ -15,7 +15,7 @@ var (
 	cuanExplicitRoomRegex = regexp.MustCompile(`(?i)\b(?:room|inbox|chat)\s*[:=]?\s*([a-fA-F0-9-]{36})\b`)
 	cuanTaskLinkRegex     = regexp.MustCompile(`(?:https?://[^/\s]+)?(?:/projects/[^/\s]+)?/tasks/([a-zA-Z0-9_-]{6,})`)
 	cuanBareTaskRegex     = regexp.MustCompile(`\b(task_[a-zA-Z0-9_-]{6,}|task-[a-zA-Z0-9_-]{6,}|msg_[a-zA-Z0-9_-]{8,})\b`)
-	viewWorkLinkRegex     = regexp.MustCompile(`(?i)\[View work\]\(\s*(?:https?://[^/\s]+)?/tasks/([a-zA-Z0-9_-]+)/?\s*\)`)
+	viewWorkLinkRegex     = regexp.MustCompile(`(?i)\[(?:View work|Lihat rincian pekerjaan)\]\(\s*(?:https?://[^/\s]+)?/tasks/([a-zA-Z0-9_-]+)/?\s*\)`)
 )
 
 // deduplicateWorkLinks ensures that any [View work](/tasks/<id>) link appears at most once

@@ -647,7 +647,11 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 					}
 				}
 				doneStatus := task.TaskStatusDone
-				updated, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{
+				reviewCtx := context.WithValue(ctx, taskReviewCompletionKey{}, true)
+				if q.RoomID != "" {
+					reviewCtx = context.WithValue(reviewCtx, taskReviewRoomIDKey{}, q.RoomID)
+				}
+				updated, err := s.taskSvc.UpdateTask(reviewCtx, d.ID, "coordinator", task.UpdateTaskRequest{
 					Status:       &doneStatus,
 					Summary:      &summary,
 					CompleteNote: &completeNote,
@@ -683,20 +687,11 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			} else if _, hinted := s.detectNextMultiPhase(ctx, d); hinted {
 				return decision.Explanation + "\n\nApproval for the next phase could not be verified. No new phase was started.\n\n[View work](/tasks/" + d.ID + ")"
 			}
-			taskLink := "\n\n[View work](/tasks/" + d.ID + ")"
 			if s.isCustomerRoom(ctx, q.RoomID) {
 				return acceptedCustomerTaskResult(d, decision.Explanation)
 			}
 
-			explanation := decision.Explanation
-			if strings.TrimSpace(d.Summary) != "" && !strings.Contains(explanation, strings.TrimSpace(d.Summary)) {
-				explanation = explanation + "\n\n" + strings.TrimSpace(d.Summary)
-			}
-
-			if !strings.Contains(explanation, "/tasks/"+d.ID) {
-				return explanation + taskLink
-			}
-			return explanation
+			return formatUnifiedTaskCompletionMessage(d, decision)
 		}
 	}
 	if d.Status == task.TaskStatusDone {
@@ -834,4 +829,61 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	}
 	return deduplicateWorkLinks(decision.Explanation)
 }
+
+func formatUnifiedTaskCompletionMessage(d *task.TaskDetailResponse, decision inboxReviewEvaluation) string {
+	var sb strings.Builder
+	title := ""
+	summary := ""
+	completeNote := ""
+	taskID := ""
+	if d != nil {
+		title = strings.TrimSpace(d.Title)
+		summary = strings.TrimSpace(d.Summary)
+		completeNote = strings.TrimSpace(d.CompleteNote)
+		taskID = d.ID
+	}
+	explanation := strings.TrimSpace(decision.Explanation)
+
+	hasCompletionIntro := strings.Contains(explanation, "telah selesai") ||
+		strings.Contains(explanation, "sudah selesai") ||
+		strings.Contains(explanation, "selesai dan diverifikasi") ||
+		(title != "" && strings.Contains(explanation, title))
+
+	if !hasCompletionIntro {
+		if title != "" {
+			sb.WriteString(fmt.Sprintf("Pekerjaan **%s** telah selesai dan diverifikasi.\n\n", title))
+		} else {
+			sb.WriteString("Pekerjaan telah selesai dan seluruh hasil telah diverifikasi.\n\n")
+		}
+	}
+
+	if explanation != "" && explanation != summary && !strings.Contains(summary, explanation) {
+		sb.WriteString(explanation)
+		sb.WriteString("\n\n")
+	}
+
+	if summary != "" && !strings.Contains(explanation, summary) {
+		sb.WriteString("### Ringkasan Hasil\n")
+		sb.WriteString(summary)
+		sb.WriteString("\n\n")
+	} else if summary != "" && (explanation == summary || strings.Contains(explanation, summary)) && !strings.Contains(explanation, "Ringkasan Hasil") {
+		sb.WriteString("### Ringkasan Hasil\n")
+		sb.WriteString(summary)
+		sb.WriteString("\n\n")
+	}
+
+	if completeNote != "" && completeNote != summary && !strings.Contains(explanation, completeNote) {
+		sb.WriteString("### Bukti Verifikasi\n")
+		sb.WriteString(completeNote)
+		sb.WriteString("\n\n")
+	}
+
+	taskLink := fmt.Sprintf("[Lihat rincian pekerjaan](/tasks/%s)", taskID)
+	content := strings.TrimSpace(sb.String())
+	if taskID != "" && !strings.Contains(content, "/tasks/"+taskID) {
+		content = content + "\n\n" + taskLink
+	}
+	return content
+}
+
 
