@@ -255,7 +255,11 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 				decision.Revision = revisionText
 			}
 			decision.Decision = "revise"
-			decision.RemainingWork = "implementation"
+			if isPriorVerification || decision.RemainingWork == "verification" {
+				decision.RemainingWork = "publication"
+			} else {
+				decision.RemainingWork = "implementation"
+			}
 			decision.RequestedOutcome = "unfinished"
 			if decision.Finding == "" {
 				decision.Finding = publicationGapFinding(observation)

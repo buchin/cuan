@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -106,6 +107,19 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 	if detail.Status == task.TaskStatusDone {
 		s.ensureTaskCompletionDelivered(ctx, detail, targetRoomID)
 		return
+	}
+
+	// Trigger auto-apply and deploy if project has auto_deploy enabled and attempt succeeded
+	if status == string(task.AttemptStatusSucceeded) && s.projectSvc != nil && detail.ProjectID != "" {
+		if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
+			settings := project.SettingsFromMetadata(proj.Metadata)
+			if settings.IsAutoDeployEnabled() {
+				s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
+				if refreshed, err := s.taskSvc.GetTaskDetail(ctx, taskID); err == nil && refreshed != nil {
+					detail = refreshed
+				}
+			}
+		}
 	}
 
 	// Trigger autonomous task review in the room

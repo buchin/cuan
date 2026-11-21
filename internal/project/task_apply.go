@@ -100,7 +100,14 @@ func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, ti
 		if strings.TrimSpace(token) == "" {
 			return nil, ErrGitHubConnectionRequired
 		}
-		return s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: defaultBranch, SourceCommit: sourceCommit, Message: mergeMsg, Token: token})
+		res, err := s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: defaultBranch, SourceCommit: sourceCommit, Message: mergeMsg, Token: token})
+		if err == nil && res != nil {
+			return res, nil
+		}
+		if p.LocalPath != "" {
+			return s.gitClient.MergeLocalBranch(ctx, p.LocalPath, defaultBranch, branchName, sourceCommit, mergeMsg)
+		}
+		return nil, err
 	}
 	if p.LocalPath == "" {
 		return nil, errors.New("project local repository path is not available")

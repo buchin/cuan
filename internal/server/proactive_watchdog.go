@@ -13,6 +13,7 @@ import (
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -263,6 +264,21 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			continue
 		}
 
+		// Autonomous publication reconciliation:
+		// When code is verified but uncontained in running release on an auto_deploy project,
+		// trigger auto-deploy autonomously.
+		if latestAssessment != nil &&
+			(latestAssessment.RemainingWork == "publication" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			s.projectSvc != nil && detail.ProjectID != "" {
+			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
+				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+					log.Printf("[Watchdog AI Orchestrator] Autonomously triggering auto-deploy for verified publication task %s", detail.ID)
+					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
+					continue
+				}
+			}
+		}
+
 		// 2. 1-Click Action Card (Zero Cognitive Fatigue):
 		// If autonomous continuation was not possible (needs owner decision, permission, or budget threshold reached),
 		// present a 1-click continuation approval card in the conversation room so user can unblock in 1 tap.
@@ -281,8 +297,9 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 
 	if detail.LatestAttempt != nil {
 		for _, m := range messages {
-			if strings.Contains(m.Content, detail.LatestAttempt.ID) {
-				// Already posted for this attempt
+			if (strings.Contains(m.Content, "```cuan-approval") || strings.Contains(m.Content, "Tandai Tuntas")) &&
+				(strings.Contains(m.Content, detail.LatestAttempt.ID) || strings.Contains(m.Content, detail.ID)) {
+				// Already posted an action card or notification for this attempt/task
 				return
 			}
 		}
