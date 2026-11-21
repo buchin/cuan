@@ -88,6 +88,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 			  SELECT 1 FROM tasks mig_t
 			  WHERE (mig_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = mig_t.id AND tp.project_id = tl.project_id))
 			    AND mig_t.id != tl.task_id
+			    AND mig_t.title NOT LIKE 'Terminal · %'
 			    AND mig_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 			    AND (
 				    mig_t.status IN ('doing', 'working')
@@ -110,6 +111,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 				  JOIN tasks active_task ON active_task.id = active_tl.task_id
 				  WHERE active_tl.project_id = tl.project_id
 				    AND active_tl.id != tl.id
+				    AND active_task.title NOT LIKE 'Terminal · %'
 				    AND active_task.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 				    AND (
 					    active_tl.state = 'started'
@@ -124,6 +126,7 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 				  SELECT 1 FROM tasks active_t
 				  WHERE (active_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = tl.project_id))
 				    AND active_t.id != tl.task_id
+				    AND active_t.title NOT LIKE 'Terminal · %'
 				    AND active_t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 				    AND (
 					    active_t.status IN ('doing', 'working')

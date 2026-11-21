@@ -335,6 +335,37 @@ func (s *Service) CancelTask(ctx context.Context, taskID string, author string) 
 	}
 
 	now := time.Now().UTC()
+	if latest.Status != AttemptStatusRunning && latest.Status != AttemptStatusQueued {
+		// Attempt is already in a terminal state (failed, canceled, etc.).
+		// Idempotently reset task state, stop launches, and record cancellation.
+		oldTaskStatus := t.Status
+		if t.Status != TaskStatusDone && t.Status != "cancelled" && t.Status != "canceled" {
+			t.Status = TaskStatusBacklog
+			t.UpdatedAt = now
+			_ = s.FinishTaskLaunches(ctx, taskID, "stopped")
+			if err := s.store.UpdateTask(ctx, t); err == nil {
+				snapshot := *t
+				transitionEvent, previousStatus = &snapshot, oldTaskStatus
+			}
+		}
+		latest.CancelRequested = true
+		_ = s.store.UpdateAttempt(ctx, latest)
+
+		act := &TaskActivity{
+			ID:           generateID("act"),
+			TaskID:       taskID,
+			AttemptID:    &latest.ID,
+			ActivityType: ActivityTypeCancelRequested,
+			Author:       author,
+			OldStatus:    oldTaskStatus,
+			NewStatus:    TaskStatusBacklog,
+			Message:      fmt.Sprintf("Cancellation requested by %s (attempt was %s). The task is back in the queue.", author, latest.Status),
+			CreatedAt:    now,
+		}
+		_ = s.store.CreateActivity(ctx, act)
+
+		return latest, nil
+	}
 	latest.CancelRequested = true
 	if latest.Status == AttemptStatusRunning || latest.Status == AttemptStatusQueued {
 		latest.Status = AttemptStatusCanceled

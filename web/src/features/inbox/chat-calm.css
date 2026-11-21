@@ -662,11 +662,25 @@
 
 .task-pulse-subtle {
   animation: task-subtle-pulse 2.2s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+svg.task-pulse-subtle {
   transform-origin: 8px 8px;
+}
+
+/* Subtle, unified breathing ping halo for StatusDot (Zero Cognitive Fatigue) */
+.status-dot.animate-ping {
+  animation-duration: 2.2s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  opacity: 0.35;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .task-pulse-subtle {
+    animation: none;
+  }
+  .status-dot.animate-ping {
     animation: none;
   }
 }

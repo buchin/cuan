@@ -575,6 +575,10 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		author = owner.Email
 	}
 
+	if s.terminalManager != nil {
+		defer s.terminalManager.CloseSession(taskID)
+	}
+
 	cancelledLaunches, launchErr := s.taskSvc.CancelLaunches(r.Context(), taskID, time.Now().UTC())
 	if launchErr != nil {
 		respondJSONError(w, 503, "Could not save cancellation. Check the launch status before retrying.")

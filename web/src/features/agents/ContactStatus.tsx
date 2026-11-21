@@ -17,7 +17,7 @@ export function ContactStatus({
       <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <span
           aria-hidden="true"
-          className={`h-1.5 w-1.5 shrink-0 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'}`}
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse task-pulse-subtle' : 'bg-muted-foreground/40'}`}
         />
         <span>{isOnline ? 'Online' : 'Customer'}</span>
         {contact.product ? <span>· {contact.product}</span> : null}
