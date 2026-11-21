@@ -181,6 +181,38 @@ func (s *DBStore) ReconcileOrphanLaunches(ctx context.Context, now time.Time) er
 	if _, err := s.db.ExecContext(ctx, `UPDATE task_launches SET state='stopped',safe_error='Execution attempt is no longer active (orphan launch reconciled).',lease_token='',lease_until=NULL,updated_at=$1 WHERE state = 'started' AND updated_at < $2 AND NOT EXISTS (SELECT 1 FROM task_attempts a WHERE a.id = task_launches.attempt_id AND a.task_id = task_launches.task_id AND a.status IN ('queued','running'))`, now, zombieCutoff); err != nil {
 		return err
 	}
+	// 2b. Reconcile zombie tasks in 'doing' status without any active running attempt or active launch lease.
+	// If a task was left in 'doing' for > 2 minutes without active execution, heal its status:
+	// - If work completed (summary/complete_note present or succeeded attempt), move to 'review'
+	// - Otherwise, move to 'blocked' to free the project lane
+	if _, err := s.db.ExecContext(ctx, `
+		WITH zombie_candidates AS (
+			SELECT t.id,
+				CASE WHEN (btrim(COALESCE(t.summary,'')) <> '' OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'succeeded'))
+					THEN 'review'
+					ELSE 'blocked'
+				END AS healed_status
+			FROM tasks t
+			WHERE t.status IN ('doing', 'working')
+			  AND t.updated_at < $2
+			  AND t.title NOT LIKE 'Terminal · %'
+			  AND NOT EXISTS (
+				  SELECT 1 FROM task_attempts a
+				  WHERE a.task_id = t.id AND a.status = 'running'
+			  )
+			  AND NOT EXISTS (
+				  SELECT 1 FROM task_launches l
+				  WHERE l.task_id = t.id AND l.state IN ('claimed', 'started') AND (l.lease_until IS NULL OR l.lease_until > $1)
+			  )
+			FOR UPDATE OF t SKIP LOCKED
+		)
+		UPDATE tasks t
+		SET status = zc.healed_status, updated_at = $1
+		FROM zombie_candidates zc
+		WHERE t.id = zc.id
+	`, now, zombieCutoff); err != nil {
+		return err
+	}
 	// 3. Auto-cancel abandoned interactive terminal tasks queued or blocked for > 5 minutes
 	staleCutoff := now.Add(-5 * time.Minute)
 	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET status = 'cancelled', updated_at = $1 WHERE status IN ('queued', 'blocked', 'backlog') AND title LIKE 'Terminal · %' AND (created_at < $2 OR updated_at < $2)`, now, staleCutoff); err != nil {

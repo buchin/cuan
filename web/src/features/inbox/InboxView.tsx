@@ -409,6 +409,7 @@ export function InboxView({
   }, [activeContact?.email])
   const [regenerationStart, setRegenerationStart] = useState<{ convId: string; sourceId: string; requestId: string } | null>(null)
   const [requests, setRequests] = useState<InboxRequest[]>([])
+  const [streamingReplies, setStreamingReplies] = useState<Record<string, string>>({})
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
   const pendingRef = useRef<{
@@ -554,6 +555,17 @@ export function InboxView({
         setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
         setHasMoreOlder(!!data.has_more)
         markConversationSeen(convId, data.messages || [])
+        setStreamingReplies((prev) => {
+          let changed = false
+          const next = { ...prev }
+          for (const req of data.requests || []) {
+            if ((req.state === 'completed' || req.state === 'failed' || req.state === 'interrupted' || req.reply_id) && next[req.request_id]) {
+              delete next[req.request_id]
+              changed = true
+            }
+          }
+          return changed ? next : prev
+        })
         setRequests((prev) => {
           const next = data.requests || []
           if (prev.length === next.length) {
@@ -763,6 +775,7 @@ export function InboxView({
       if (isDifferentConv) {
         setMessages([])
         setRequests([])
+        setStreamingReplies({})
         setLinkedTasks([])
         setSendError('')
         setRetryCount(0)
@@ -808,6 +821,17 @@ export function InboxView({
           setLoading(false)
           setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
           markConversationSeen(convId, data.messages || [])
+          setStreamingReplies((prev) => {
+            let changed = false
+            const next = { ...prev }
+            for (const req of data.requests || []) {
+              if ((req.state === 'completed' || req.state === 'failed' || req.state === 'interrupted' || req.reply_id) && next[req.request_id]) {
+                delete next[req.request_id]
+                changed = true
+              }
+            }
+            return changed ? next : prev
+          })
           setRequests((prev) => {
             const next = data.requests || []
             if (prev.length === next.length) {
@@ -900,6 +924,12 @@ export function InboxView({
               current.trim() === pending.text ? '' : current,
             )
           }
+        }, (deltaData) => {
+          if (abort.signal.aborted || activeConvRef.current !== convId) return
+          setStreamingReplies((prev) => ({
+            ...prev,
+            [deltaData.request_id]: (prev[deltaData.request_id] || '') + deltaData.delta,
+          }))
         })
       } catch (e: any) {
         if (abort.signal.aborted) return
@@ -1049,6 +1079,12 @@ export function InboxView({
     sendError,
     requests.map((q) => q.request_id + q.state).join(','),
   ])
+
+  useEffect(() => {
+    if (messageListRef.current && followTail.current && Object.keys(streamingReplies).length > 0) {
+      messageListRef.current.scrollTop = messageListRef.current.scrollHeight
+    }
+  }, [streamingReplies])
 
   const SCROLL_THRESHOLD = 200
   const BOTTOM_THRESHOLD = 80
@@ -1756,6 +1792,7 @@ export function InboxView({
                         <InboxActivity
                           request={q}
                           bubble={!!placeholder && !msg.regenerate_reply_id}
+                          streamingText={streamingReplies[q.request_id]}
                           previousAttempts={(requestAttempts.get(q.message_id) || []).filter((attempt) => attempt.request_id !== q.request_id)}
                           onRetry={async () => {
                             const id = activeContact.conversation_id || activeContact.id
@@ -1802,6 +1839,7 @@ export function InboxView({
                 regeneratingDrafts,
                 requestsByMessage,
                 requestAttempts,
+                streamingReplies,
                 sending,
                 uploads.busy,
                 retryCount,

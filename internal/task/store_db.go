@@ -949,9 +949,8 @@ func (s *DBStore) IsProjectLaneActive(ctx context.Context, projectID string, lan
 		  AND t.title NOT LIKE 'Terminal · %'
 		  AND t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued')
 		  AND (
-			  t.status IN ('doing', 'working')
-			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
-			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state = 'started')
+			  EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
+			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state IN ('claimed', 'started') AND (l.lease_until IS NULL OR l.lease_until > NOW()))
 		  )
 		  AND COALESCE(t.execution_category, 'code') = 'code'
 		  AND (
@@ -982,9 +981,8 @@ func (s *DBStore) IsProjectLaneActive(ctx context.Context, projectID string, lan
 		  AND t.title NOT LIKE 'Terminal · %'
 		  AND COALESCE(t.execution_category, 'code') = $3
  AND ((t.status NOT IN ('done', 'cancelled', 'failed', 'blocked', 'review', 'queued') AND (
-			  t.status IN ('doing', 'working')
-			  OR EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
-			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state = 'started')
+			  EXISTS (SELECT 1 FROM task_attempts a WHERE a.task_id = t.id AND a.status = 'running')
+			  OR EXISTS (SELECT 1 FROM task_launches l WHERE l.task_id = t.id AND l.state IN ('claimed', 'started') AND (l.lease_until IS NULL OR l.lease_until > NOW()))
 		  )) OR ($3='code' AND ($2='' OR (t.created_at,t.id)<(SELECT created_at,id FROM tasks WHERE id=$2)) AND ` + WorkflowHandoffSQL("t") + `))
 	)`
 	err := s.db.QueryRowContext(ctx, query, projectID, excludeTaskID, normalizedLane).Scan(&laneActive)

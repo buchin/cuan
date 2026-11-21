@@ -15,6 +15,7 @@ import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { inboxRecoveryControls } from './inbox-recovery'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { AccordionTimeline } from '../../components/ui/AccordionTimeline'
+import { ChatMarkdown } from './ChatMarkdown'
 
 export function evaluateInboxQuotaStatus(q: {
   steps?: { seq: number; kind: string; text: string; at: string }[]
@@ -77,6 +78,7 @@ export function InboxActivity({
   onCheckStatus,
   previousAttempts = [],
   bubble = false,
+  streamingText,
 }: {
   request: InboxRequest
   onCancel: () => Promise<void>
@@ -84,6 +86,7 @@ export function InboxActivity({
   onCheckStatus?: () => Promise<void>
   previousAttempts?: InboxRequest[]
   bubble?: boolean
+  streamingText?: string
 }) {
   const { t, language } = useLanguage()
 
@@ -227,7 +230,18 @@ export function InboxActivity({
       aria-label={t('Response status')}
       data-response-state={q.state}
     >
-      {bubble && (
+      {bubble && streamingText ? (
+        <div className="calm-message-bubble wa-incoming rounded-2xl px-3.5 py-2 mb-2 text-foreground border border-border/30 shadow-none">
+          <div className="wa-plain-text break-words font-sans">
+            <ChatMarkdown content={streamingText} />
+            <span
+              className="inline-block w-1.5 h-3.5 ml-1 align-baseline bg-foreground/60 animate-pulse rounded-xs"
+              aria-hidden="true"
+            />
+          </div>
+        </div>
+      ) : null}
+      {bubble && !streamingText && (
         <div className="flex items-center gap-2 px-2 pt-2 text-sm">
           <Icon
             aria-hidden
@@ -298,11 +312,22 @@ export function InboxActivity({
                 {seconds} s{!active && ' recorded'}
               </span>
             )}
+            {bubble && streamingText && (
+              <Icon
+                className={`h-3.5 w-3.5 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+            )}
             {!compact && (
               <>
                 <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
                   {t('Detail')}
                 </span>
+                {bubble && streamingText && seconds !== null && (
+                  <span className="tabular-nums text-xs">
+                    · {seconds}s
+                  </span>
+                )}
                 <ChevronRight
                   className="h-4 w-4 shrink-0"
                   aria-hidden="true"

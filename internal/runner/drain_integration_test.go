@@ -97,7 +97,12 @@ func TestRunner_GracefulDrain_FinishesInFlightTasksWithoutInterruption(t *testin
 			completedAttempts["att_drain_1"] = true
 			compMu.Unlock()
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			_ = json.NewEncoder(w).Encode(task.TaskAttempt{
+				ID:       "att_drain_1",
+				TaskID:   "task_drain_test",
+				RunnerID: "drain_test_runner",
+				Status:   task.AttemptStatusSucceeded,
+			})
 			return
 		}
 
@@ -110,9 +115,11 @@ func TestRunner_GracefulDrain_FinishesInFlightTasksWithoutInterruption(t *testin
 	defer ts.Close()
 
 	cfg := &config.Config{
-		RunnerID:        "drain_test_runner",
-		RunnerServerURL: ts.URL,
-		RunnerInterval:  50 * time.Millisecond,
+		RunnerID:                "drain_test_runner",
+		RunnerServerURL:         ts.URL,
+		RunnerInterval:          50 * time.Millisecond,
+		RunnerWorkerRegistryDir: filepath.Join(tmpDir, "workers"),
+		WorkspacesDir:           filepath.Join(tmpDir, "workspaces"),
 	}
 
 	r := NewRunner(cfg, adapter, ts.Client())

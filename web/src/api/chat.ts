@@ -347,11 +347,17 @@ export type InboxSnapshot = Pick<
   room_title?: string
 }
 
+export interface ChatDeltaPayload {
+  request_id: string
+  delta: string
+}
+
 // Fetch streaming retains the app's Bearer authentication; no token in URLs.
 export async function streamConversation(
   id: string,
   signal: AbortSignal,
   onSnapshot: (data: InboxSnapshot) => void,
+  onDelta?: (data: ChatDeltaPayload) => void,
 ): Promise<void> {
   const connection = new AbortController()
   const abort = () => connection.abort()
@@ -401,14 +407,29 @@ export async function streamConversation(
         const frame = buffer.slice(0, split)
         buffer = buffer.slice(split + 2)
         const lines = frame.split('\n')
+        if (lines.some((line) => line === 'event: chat.delta')) {
+          const payload = lines
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trimStart())
+            .join('\n')
+          try {
+            const data = JSON.parse(payload) as ChatDeltaPayload
+            if (data?.request_id && typeof data.delta === 'string') {
+              onDelta?.(data)
+            }
+          } catch {}
+          continue
+        }
         if (!lines.some((line) => line === 'event: snapshot')) continue
         const payload = lines
           .filter((line) => line.startsWith('data:'))
           .map((line) => line.slice(5).trimStart())
           .join('\n')
-        const data = JSON.parse(payload) as InboxSnapshot
-        if (Array.isArray(data.messages) && Array.isArray(data.requests))
-          onSnapshot(data)
+        try {
+          const data = JSON.parse(payload) as InboxSnapshot
+          if (Array.isArray(data.messages) && Array.isArray(data.requests))
+            onSnapshot(data)
+        } catch {}
       }
     }
   } finally {

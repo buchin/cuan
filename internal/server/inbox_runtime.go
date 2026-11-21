@@ -25,6 +25,8 @@ type inboxRuntimeStream struct {
 	unsafeTool                              bool
 	seen                                    map[string]bool
 	step                                    func(string, string)
+	onDelta                                 func(string)
+	extractor                               *streamReplyExtractor
 	maxToolCalls                            int
 	disallowTools                           bool
 	adaptiveBatching                        bool
@@ -160,12 +162,13 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		ConversationID string          `json:"conversation_id"`
 		Result         json.RawMessage `json:"result"`
 		Update         struct {
-			Index    *int                       `json:"step_index"`
-			State    string                     `json:"state"`
-			Type     string                     `json:"step_type"`
-			Tool     string                     `json:"tool_name"`
-			Duration *float64                   `json:"duration_seconds"`
-			Info     map[string]json.RawMessage `json:"tool_info"`
+			Index     *int                       `json:"step_index"`
+			State     string                     `json:"state"`
+			Type      string                     `json:"step_type"`
+			Tool      string                     `json:"tool_name"`
+			TextDelta string                     `json:"text_delta"`
+			Duration  *float64                   `json:"duration_seconds"`
+			Info      map[string]json.RawMessage `json:"tool_info"`
 		} `json:"step_update"`
 	}
 	if err := json.Unmarshal(line, &e); err != nil {
@@ -192,6 +195,14 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			s.emit("runtime_permission_denied", "Tool permission denied by the runtime. Activity ending does not mean the command succeeded.")
 		}
 	case "step_update":
+		if e.Update.Type == "agent_response" && e.Update.TextDelta != "" && s.onDelta != nil {
+			if s.extractor == nil {
+				s.extractor = newStreamReplyExtractor()
+			}
+			if text := s.extractor.Feed(e.Update.TextDelta); text != "" {
+				s.onDelta(text)
+			}
+		}
 		cleanTool := e.Update.Tool
 		if idx := strings.LastIndex(cleanTool, "/"); idx != -1 {
 			cleanTool = cleanTool[idx+1:]

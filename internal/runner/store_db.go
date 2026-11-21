@@ -300,6 +300,10 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_t.id != t.id
 		                        AND active_t.status IN ('doing', 'working')
 		                        AND active_t.title NOT LIKE 'Terminal · %'
+		                        AND (
+		                            EXISTS (SELECT 1 FROM task_attempts live_a WHERE live_a.task_id = active_t.id AND live_a.status = 'running')
+		                            OR EXISTS (SELECT 1 FROM task_launches live_l WHERE live_l.task_id = active_t.id AND live_l.state IN ('claimed', 'started') AND (live_l.lease_until IS NULL OR live_l.lease_until > NOW()))
+		                        )
 		                  )
 		              )
 		          )
@@ -322,6 +326,10 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_t.status IN ('doing', 'working')
 		                        AND COALESCE(active_t.execution_category, 'code') = 'code'
 		                        AND active_t.title NOT LIKE 'Terminal · %'
+		                        AND (
+		                            EXISTS (SELECT 1 FROM task_attempts live_a WHERE live_a.task_id = active_t.id AND live_a.status = 'running')
+		                            OR EXISTS (SELECT 1 FROM task_launches live_l WHERE live_l.task_id = active_t.id AND live_l.state IN ('claimed', 'started') AND (live_l.lease_until IS NULL OR live_l.lease_until > NOW()))
+		                        )
 		                  )
 		                  AND NOT EXISTS (
 		                      SELECT 1 FROM task_launches active_tl

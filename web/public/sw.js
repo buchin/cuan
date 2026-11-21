@@ -18,7 +18,7 @@ self.addEventListener('push', event => {
   let title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : ''
   const kind = typeof data.kind === 'string' ? data.kind : ''
   const status = typeof data.status === 'string' ? data.status : ''
-  const tag = typeof data.tag === 'string' ? data.tag : ''
+  const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
   if (!title || title === '@cuan' || title.startsWith('@') || title === 'Cuan' || title === 'Asisten AI') {
     if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:')) {
@@ -55,7 +55,6 @@ self.addEventListener('push', event => {
   }
 
   const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
-  const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
 
   let href = '/inbox'
   try {

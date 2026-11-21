@@ -179,8 +179,13 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 							observeResolution(roomID, msgs)
 							msgs = visibleInboxMessages(msgs)
 							if len(msgs) > 0 {
-								lastMsg = msgs[len(msgs)-1].Content
-								lastAt = msgs[len(msgs)-1].CreatedAt
+								if p := clientPreviewMessage(msgs); p != nil {
+									lastMsg = p.Content
+									lastAt = p.CreatedAt
+								} else {
+									lastMsg = msgs[len(msgs)-1].Content
+									lastAt = msgs[len(msgs)-1].CreatedAt
+								}
 								unread = countUnread(roomID, msgs, true)
 							}
 						}
@@ -236,8 +241,13 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				observeResolution(room.ID, messages)
 				messages = visibleInboxMessages(messages)
 				if len(messages) > 0 {
-					last = messages[len(messages)-1].Content
-					at = messages[len(messages)-1].CreatedAt
+					if p := clientPreviewMessage(messages); p != nil {
+						last = p.Content
+						at = p.CreatedAt
+					} else {
+						last = messages[len(messages)-1].Content
+						at = messages[len(messages)-1].CreatedAt
+					}
 					unread = countUnread(room.ID, messages, true)
 				}
 			}
@@ -298,8 +308,13 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				if len(msgs) > 0 {
 					msgCount = len(msgs)
 					hasMessages = true
-					lastMsg = msgs[len(msgs)-1].Content
-					lastAt = msgs[len(msgs)-1].CreatedAt
+					if p := clientPreviewMessage(msgs); p != nil {
+						lastMsg = p.Content
+						lastAt = p.CreatedAt
+					} else {
+						lastMsg = msgs[len(msgs)-1].Content
+						lastAt = msgs[len(msgs)-1].CreatedAt
+					}
 					unread = countUnread(sess.UUID, msgs, false)
 				}
 			}
