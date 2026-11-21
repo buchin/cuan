@@ -1,7 +1,6 @@
 import {
   ConversationResolutionAction,
   setConversationResolved,
-  conversationHasUnfinishedTasks,
 } from './conversation-resolution'
 import { mergeConversationMessages } from './message-reconciliation'
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
@@ -1378,55 +1377,18 @@ export function InboxView({
     setLocalResolved(Boolean(activeContact?.resolved))
   }, [activeContact?.id, activeContact?.resolved])
 
-  const isResolved = localResolved
-
-  const hasFinishedTasks = useMemo(() => {
-    if (!activeContact) return false
-    const hasTasks = (activeContact.task_count || 0) > 0 || linkedTasks.length > 0
-    if (!hasTasks) return false
-    if (activeConversationTasks.length > 0) return false
-    const noUnfinished = !conversationHasUnfinishedTasks(activeContact) &&
-      (linkedTasks.length === 0 || linkedTasks.every(t => ['done', 'completed', 'canceled', 'cancelled'].includes((t.status || '').toLowerCase())))
-    const hasDone = (activeContact.done_tasks || 0) > 0 ||
-      linkedTasks.some(t => ['done', 'completed'].includes((t.status || '').toLowerCase()))
-    return noUnfinished && hasDone
-  }, [activeContact, linkedTasks, activeConversationTasks.length])
-
-  const canResolveChatWithoutTasks = useMemo(() => {
-    if (!activeContact) return false
-    const hasTasks = (activeContact.task_count || 0) > 0 || linkedTasks.length > 0
-    if (hasTasks) return false
-    if (messages.length === 0) return false
-    if (sending) return false
-    const lastMsg = messages[messages.length - 1]
-    if (!lastMsg) return false
-    if (activeContact.type === 'agent') {
-      return lastMsg.author_type === 'agent' || lastMsg.author_type === 'system'
-    }
-    return lastMsg.author_type === 'agent' || lastMsg.author_type === 'system' ||
-      lastMsg.sender_type === 'operator' || lastMsg.author_name === 'You' || lastMsg.author_name === 'Owner'
-  }, [activeContact, linkedTasks.length, messages, sending])
-
-  const showResolutionCard = !isResolved && (hasFinishedTasks || canResolveChatWithoutTasks)
-
-  const handleMarkResolved = async () => {
-    if (!activeContact || resolving) return
-    setResolving(true)
-    try {
-      const res = await setConversationResolved(activeContact, true)
-      setLocalResolved(true)
-      activeContact.resolved = true
-      activeContact.resolved_at = res.resolved_at || new Date().toISOString()
-      onContactUpdated?.()
-      if (typeof window !== 'undefined' && window.innerWidth < 1200) {
-        handleBackToContacts()
+  useEffect(() => {
+    const handleResolution = (e: Event) => {
+      const detail = (e as CustomEvent<{ id: string; resolved: boolean; resolved_at?: string }>).detail
+      if (detail && (detail.id === activeContact?.id || detail.id === activeContact?.conversation_id)) {
+        setLocalResolved(Boolean(detail.resolved))
       }
-    } catch (err) {
-      console.error('Failed to mark conversation resolved:', err)
-    } finally {
-      setResolving(false)
     }
-  }
+    window.addEventListener('cuan-conversation-resolution', handleResolution)
+    return () => window.removeEventListener('cuan-conversation-resolution', handleResolution)
+  }, [activeContact?.id, activeContact?.conversation_id])
+
+  const isResolved = localResolved
 
   const handleReopenConversation = async () => {
     if (!activeContact || resolving) return
@@ -2461,36 +2423,6 @@ export function InboxView({
               onDragOver={uploads.onDragOver}
             >
               <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full bg-transparent">
-                {/* ── Resolution / Completion Card (Inbox Zero) ── */}
-                {showResolutionCard && (
-                  <div
-                    data-testid="conversation-resolution-card"
-                    className="mx-auto mb-2 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-3.5 py-2 backdrop-blur-xs transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">
-                          {hasFinishedTasks ? t('Semua pekerjaan telah selesai diverifikasi.') : t('Selesai berdiskusi?')}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {t('Tuntaskan percakapan untuk mencapai Inbox Zero.')}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      data-testid="mark-resolved-button"
-                      disabled={resolving}
-                      onClick={handleMarkResolved}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {resolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                      <span>{t('Tandai Tuntas (Inbox Zero)')}</span>
-                    </button>
-                  </div>
-                )}
-
                 {/* ── Archived / Resolved Banner ── */}
                 {isResolved && (
                   <div

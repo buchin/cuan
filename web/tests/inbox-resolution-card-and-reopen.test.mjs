@@ -10,34 +10,30 @@ const inboxViewPath = path.resolve(rootDir, 'src/features/inbox/InboxView.tsx')
 const idLocalePath = path.resolve(rootDir, 'src/locales/id.json')
 const enLocalePath = path.resolve(rootDir, 'src/locales/en.json')
 
-test('InboxView has dedicated Resolution Card and Archived Banner for human-first Inbox Zero', () => {
+test('InboxView eliminates floating Resolution Card and retains header checklist and Archived Banner', () => {
   const content = fs.readFileSync(inboxViewPath, 'utf8')
 
-  // 1. Must have data-testid="conversation-resolution-card" and mark-resolved-button
-  assert.ok(content.includes('data-testid="conversation-resolution-card"'), 'must include conversation-resolution-card testid')
-  assert.ok(content.includes('data-testid="mark-resolved-button"'), 'must include mark-resolved-button testid')
-  assert.ok(content.includes('Tandai Tuntas (Inbox Zero)'), 'must include Tandai Tuntas (Inbox Zero) button text')
+  // 1. Floating Resolution Card and Tandai Tuntas banner above composer must be eliminated
+  assert.ok(!content.includes('data-testid="conversation-resolution-card"'), 'floating conversation-resolution-card must be eliminated')
+  assert.ok(!content.includes('data-testid="mark-resolved-button"'), 'mark-resolved-button above composer must be eliminated')
+  assert.ok(!content.includes('Tandai Tuntas (Inbox Zero)'), 'Tandai Tuntas (Inbox Zero) text in composer must be eliminated')
+  assert.ok(!content.includes('showResolutionCard'), 'showResolutionCard state must be eliminated')
 
-  // 2. Must have data-testid="conversation-resolved-banner" and reopen-conversation-button
+  // 2. Primary resolve control remains in header via ConversationResolutionAction
+  assert.ok(content.includes('<ConversationResolutionAction'), 'header must retain ConversationResolutionAction as primary resolve control')
+
+  // 3. Must have data-testid="conversation-resolved-banner" and reopen-conversation-button
   assert.ok(content.includes('data-testid="conversation-resolved-banner"'), 'must include conversation-resolved-banner testid')
   assert.ok(content.includes('data-testid="reopen-conversation-button"'), 'must include reopen-conversation-button testid')
   assert.ok(content.includes('Buka kembali'), 'must include Buka kembali button text')
 
-  // 3. Mobile awareness (< 1200px redirects back to contacts list on resolve)
+  // 4. Mobile awareness (< 1200px redirects back to contacts list on resolve)
   assert.ok(content.includes('window.innerWidth < 1200'), 'must check window.innerWidth < 1200 for mobile responsive back navigation')
   assert.ok(content.includes('handleBackToContacts()'), 'must call handleBackToContacts on mobile resolve')
 
-  // 4. Auto-reopen when new message is sent while resolved
+  // 5. Auto-reopen when new message is sent while resolved
   assert.ok(content.includes('if (isResolved)'), 'must handle isResolved state transition')
   assert.ok(content.includes('activeContact.resolved = false'), 'must reopen activeContact on sending new message')
-
-  // 5. Zero Cognitive Fatigue styling: tranquil emerald tint and muted borders, no nested boxes
-  assert.ok(content.includes('bg-emerald-500/[0.04]'), 'must use serene low-opacity emerald background')
-  assert.ok(content.includes('border-emerald-500/20'), 'must use calm low-contrast border')
-
-  // 6. Support resolving chat without tasks when inquiry is answered
-  assert.ok(content.includes('canResolveChatWithoutTasks'), 'must support resolving chats without tasks')
-  assert.ok(content.includes('Selesai berdiskusi?'), 'must support Selesai berdiskusi prompt for task-free discussions')
 })
 
 test('Locales contain translation keys for resolution flow', () => {
