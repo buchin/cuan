@@ -1945,8 +1945,9 @@ export function InboxView({
                     type="button"
                     data-testid="header-active-task-pill"
                     onClick={() => handleOpenTaskDrawer(activeConversationTasks[0])}
-                    className="inline-flex min-h-11 sm:min-h-8 items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/25 transition-colors cursor-pointer max-w-[160px] sm:max-w-[220px] truncate"
+                    className="hidden"
                     title={t('View active task details')}
+                    aria-hidden="true"
                   >
                     <StatusDot status="working" size="xs" label={t('In progress')} />
                     <span className="truncate">
@@ -2002,6 +2003,16 @@ export function InboxView({
             </PageHeader>
 
             {/* Sub-tabs: Obrolan (Chat) & Pekerjaan (Tasks) eliminated for serene canvas in S59-T6 */}
+
+            {/* ── Task Banner relocated below Navbar ── */}
+            {linkedTasks.length > 0 && (
+              <ComposerTasks
+                key={activeContact.conversation_id || activeContact.id}
+                tasks={linkedTasks}
+                onDetails={task => handleOpenTaskDrawer(task)}
+                onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
+              />
+            )}
 
             {/* ── Main Chat Stream (WhatsApp/Telegram Style) ── */}
             <div className="relative flex-1 min-h-0 min-w-0 flex flex-col">
@@ -2277,19 +2288,13 @@ export function InboxView({
             >
               <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full bg-transparent">
                 <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && isWhisper} />
-                <ComposerTasks
-                  key={activeContact.conversation_id || activeContact.id}
-                  tasks={linkedTasks}
-                  onDetails={task => handleOpenTaskDrawer(task)}
-                  onTerminal={task => handleOpenTaskDrawer(task, 'terminal')}
-                  modes={activeContact.type === 'customer' && isWhisper ? (
-                    <div className="flex items-center gap-1.5 py-1 px-1 text-xs text-amber-600 dark:text-amber-400 font-medium animate-in fade-in duration-150">
-                      <Lock className="h-3 w-3 shrink-0" />
-                      <span>{detectedMention && detectedMention !== '@cuan' ? `${t('Whisper AI:')} ${detectedMention}` : t('Whisper @cuan')}</span>
-                      <span className="text-[11px] text-muted-foreground font-normal">({t('Internal · Invisible to visitor')})</span>
-                    </div>
-                  ) : undefined}
-                />
+                {activeContact.type === 'customer' && isWhisper && (
+                  <div className="flex items-center gap-1.5 py-1 px-1 text-xs text-amber-600 dark:text-amber-400 font-medium animate-in fade-in duration-150">
+                    <Lock className="h-3 w-3 shrink-0" />
+                    <span>{detectedMention && detectedMention !== '@cuan' ? `${t('Whisper AI:')} ${detectedMention}` : t('Whisper @cuan')}</span>
+                    <span className="text-[11px] text-muted-foreground font-normal">({t('Internal · Invisible to visitor')})</span>
+                  </div>
+                )}
                 <Composer
                   id="compose-panel"
                   aria-description={activeContact.type === 'customer' ? (isWhisper ? t('Whisper @cuan') : t('Public reply')) : undefined}
