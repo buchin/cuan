@@ -165,33 +165,27 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		attemptCount := taskRevisionAttemptCount(detail)
 
 		// 1. Autonomous Self-Healing:
-		// When within budget (< 5 attempts), manager indicates continue/replan, and revision is available
+		// When within budget (< 5 attempts), manager indicates continue/replan, and actionable revision is available
 		if latestAssessment != nil && attemptCount < 5 &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
 			latestAssessment.Decision == "revise" &&
 			latestAssessment.RequestedOutcome != "needs_input" &&
 			strings.TrimSpace(latestAssessment.Revision) != "" {
 
-			// If manager continuation is authorized, self-heal autonomously
-			if s.managerContinuationAllowed(ctx, *origin, detail, latestAssessment.Revision) {
-				log.Printf("[Watchdog AI Orchestrator] Autonomously healing blocked task %s (attempt %d/5): %s",
-					detail.ID, attemptCount+1, latestAssessment.Revision)
-
-				authorizationID := detail.SourceMessageID
-				if phase, err := s.phaseApproval(ctx, detail, origin.OwnerID, origin.RoomID); err == nil {
-					authorizationID = phase.Root.SourceMessageID
+			if origin.AgentID == "" {
+				if detail.AssignedAgent != "" {
+					origin.AgentID = detail.AssignedAgent
+				} else {
+					origin.AgentID = "agent_cuan"
 				}
-				delegation := inboxDelegation{
-					TaskID:          detail.ID,
-					ProjectID:       detail.ProjectID,
-					AuthorizationID: authorizationID,
-					Revision:        latestAssessment.Revision,
-				}
-				payload, _ := json.Marshal(delegation)
-				_ = s.applyInboxDelegation(ctx, *origin, "```cuan-delegate\n"+string(payload)+"\n```")
-				s.kickTaskLaunches()
-				continue
 			}
+
+			launchID := delegationMessageID(fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, origin.RequestID, len(detail.Attempts)+1))
+			notice := s.startAuthorizedLaunch(ctx, *origin, detail, launchID, origin.RequestID, latestAssessment.Revision)
+			s.kickTaskLaunches()
+			log.Printf("[Watchdog AI Orchestrator] Autonomously launched continuation for blocked task %s (attempt %d/5, notice=%s): %s",
+				detail.ID, attemptCount+1, notice, latestAssessment.Revision)
+			continue
 		}
 
 		// 2. 1-Click Action Card (Zero Cognitive Fatigue):

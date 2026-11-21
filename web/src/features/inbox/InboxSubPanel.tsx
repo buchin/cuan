@@ -160,6 +160,9 @@ export function ConversationItem({
   const pieX = 8 + 4.5 * Math.sin(angle)
   const pieY = 8 - 4.5 * Math.cos(angle)
 
+  const hasFailed = failedTasks > 0
+  const hasReview = reviewTasks > 0
+
   const statusTitle = isResolved
     ? t('Resolved (click to reopen)')
     : allTasksDone
@@ -167,9 +170,13 @@ export function ConversationItem({
       : hasTasks
         ? (isWorking
             ? t('Working on tasks')
-            : t('{{done}} of {{total}} tasks completed')
-                .replace('{{done}}', String(doneTasks))
-                .replace('{{total}}', String(totalTasks)))
+            : hasFailed
+              ? t('Action required / paused')
+              : hasReview
+                ? t('Review in progress')
+                : t('{{done}} of {{total}} tasks completed')
+                    .replace('{{done}}', String(doneTasks))
+                    .replace('{{total}}', String(totalTasks)))
         : t('Unresolved (click to resolve)')
 
   const statusAriaLabel = isResolved
@@ -305,7 +312,11 @@ export function ConversationItem({
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : isWorking
                   ? 'text-[color:var(--status-working)]'
-                  : 'text-muted-foreground/60 hover:text-foreground',
+                  : hasFailed
+                    ? 'text-amber-500/90 dark:text-amber-400'
+                    : hasReview
+                      ? 'text-purple-500/90 dark:text-purple-400'
+                      : 'text-muted-foreground/60 hover:text-foreground',
             )}
           >
             {isComplete ? (
@@ -323,7 +334,7 @@ export function ConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  opacity={isWorking ? "0.9" : "0.65"}
+                  opacity={isWorking || hasFailed ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path
