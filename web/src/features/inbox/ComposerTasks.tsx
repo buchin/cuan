@@ -92,7 +92,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
 
   const latestTask = ordered[ordered.length - 1]
 
-  return <section className="composer-tasks border-b border-border/40 bg-muted/20 backdrop-blur-xs px-3 sm:px-6 py-2 transition-colors z-10 shrink-0" aria-label={t('Conversation tasks')} data-testid="task-banner" onKeyDown={event => {
+  return <section className="composer-tasks border-b border-border/40 bg-muted/20 backdrop-blur-xs px-3 sm:px-6 py-1 transition-colors z-10 shrink-0" aria-label={t('Conversation tasks')} data-testid="task-banner" onKeyDown={event => {
     if (event.key === 'Escape' && open) {
       event.stopPropagation()
       setOpen(false)
@@ -101,48 +101,46 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   }}>
     <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full flex items-center justify-between gap-3">
       {modes}
-      {latestTask && (
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {hasAttention ? (
-            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label={t('Needs attention')} />
-          ) : hasActive ? (
-            <StatusDot status="working" size="xs" label={t('In progress')} />
-          ) : hasReview ? (
-            <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" aria-label={t('Ready for review')} />
-          ) : isAllDone ? (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
-          ) : hasQueued ? (
-            <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t('Queued')} />
-          ) : (
-            <StatusDot status="neutral" size="xs" label={t('Status')} />
-          )}
-          <span className="text-xs font-medium text-foreground truncate" title={latestTask.title}>
-            {latestTask.title}
-          </span>
-        </div>
-      )}
       {tasks.length > 0 && <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined}
+        aria-label={t('Tasks')}
         data-testid="composer-tasks-badge"
         data-status={badgeStatus}
         className={cn(
-          "composer-mode-tab ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-medium cursor-pointer transition-colors min-h-11 sm:min-h-8 px-2.5 py-1 rounded-full border",
-          badgeStatus === 'working' && "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/15",
-          badgeStatus === 'review' && "border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15",
-          badgeStatus === 'done' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15",
-          badgeStatus === 'attention' && "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15",
-          (badgeStatus === 'queued' || badgeStatus === 'neutral') && "border-border/40 bg-muted/20 hover:bg-muted/50 text-muted-foreground"
+          "composer-mode-tab flex-1 flex items-center justify-between gap-2.5 min-w-0 min-h-11 sm:min-h-8 px-2 -mx-2 rounded-md text-left transition-colors cursor-pointer select-none",
+          "hover:bg-muted/30 active:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         )}
         onClick={() => setOpen(value => !value)}>
-        <span>{t('Tasks')}</span>
-        <span className={cn(
-          "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
-          badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
-          badgeStatus === 'review' ? "bg-purple-500/20 text-purple-800 dark:text-purple-300" :
-          badgeStatus === 'working' ? "bg-blue-500/20 text-blue-800 dark:text-blue-300" :
-          badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
-          "bg-muted text-muted-foreground"
-        )}>{ordered.length}</span>
-        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} />
+        {latestTask && (
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {hasAttention ? (
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label={t('Needs attention')} />
+            ) : hasActive ? (
+              <StatusDot status="working" size="xs" label={t('In progress')} />
+            ) : hasReview ? (
+              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" aria-label={t('Ready for review')} />
+            ) : isAllDone ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
+            ) : hasQueued ? (
+              <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t('Queued')} />
+            ) : (
+              <StatusDot status="neutral" size="xs" label={t('Status')} />
+            )}
+            <span className="text-xs font-medium text-foreground truncate" title={latestTask.title}>
+              {latestTask.title}
+            </span>
+          </div>
+        )}
+        <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+          <span className={cn(
+            "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
+            badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
+            badgeStatus === 'review' ? "bg-purple-500/20 text-purple-800 dark:text-purple-300" :
+            badgeStatus === 'working' ? "bg-blue-500/20 text-blue-800 dark:text-blue-300" :
+            badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
+            "bg-muted text-muted-foreground"
+          )}>{ordered.length}</span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ease-in-out", open && "rotate-180")} />
+        </div>
       </button>}
     </div>
     {tasks.length > 0 && <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
