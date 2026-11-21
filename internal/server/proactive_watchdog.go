@@ -394,9 +394,61 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			continue
 		}
 
-		// Check 24h grace period: latest message must be older than 24 hours
-		if latestMsg.CreatedAt.After(cutoff) {
-			continue
+		// Enforce read-aware grace period: if the latest message was sent by an agent/system,
+		// the 24-hour countdown must only begin AFTER the operator has actually read it.
+		// If unread, it must remain in the Inbox so the operator never misses the completed result.
+		if latestMsg.AuthorType == "agent" || latestMsg.AuthorType == "system" {
+			var readAt *time.Time
+
+			// 1. Check message receipts for confirmed read
+			if receiptRepo, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok {
+				if receipts, err := receiptRepo.MessageReceipts(ctx, room.ID); err == nil {
+					if r, exists := receipts[latestMsg.ID]; exists && r.ReadConfirmedAt != nil {
+						copied := *r.ReadConfirmedAt
+						readAt = &copied
+					}
+				}
+			}
+
+			// 2. Check operator conversation item preferences
+			preferences := itemPreferences{}
+			if s.authSvc != nil {
+				if ownerID, err := s.authSvc.OwnerID(ctx); err == nil && ownerID != "" {
+					itemPreferencesMu.Lock()
+					saved, _ := readItemPreferences(ownerID)
+					itemPreferencesMu.Unlock()
+					preferences = saved
+				}
+			}
+			state := preferences["conversation:"+room.ID]
+			if state.Unread {
+				// Operator explicitly marked conversation as unread; do not auto-resolve
+				continue
+			}
+			if state.ReadAt != "" {
+				if prefCutoff, err := time.Parse(time.RFC3339Nano, state.ReadAt); err == nil {
+					if !latestMsg.CreatedAt.After(prefCutoff) {
+						if readAt == nil || prefCutoff.After(*readAt) {
+							readAt = &prefCutoff
+						}
+					}
+				}
+			}
+
+			// If the completion message has never been read, keep it in Inbox!
+			if readAt == nil {
+				continue
+			}
+
+			// 24-hour grace period must elapse AFTER the message was read
+			if readAt.After(cutoff) {
+				continue
+			}
+		} else {
+			// If latest message was sent by the user, verify it is older than 24 hours
+			if latestMsg.CreatedAt.After(cutoff) {
+				continue
+			}
 		}
 
 		// Also check all tasks: their UpdatedAt must be older than cutoff

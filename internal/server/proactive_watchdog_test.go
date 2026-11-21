@@ -387,7 +387,7 @@ func TestAutoResolveCompletedConversations(t *testing.T) {
 		t.Fatalf("expected room not resolved yet within 24h grace period, got resolved_at=%v", checkRoom.ResolvedAt)
 	}
 
-	// 2. Old completed task (> 24h ago): SHOULD auto-resolve
+	// 2. Old completed task (> 24h ago):
 	oldTime := time.Now().UTC().Add(-26 * time.Hour)
 	roomOld := &db.ProjectRoom{
 		ID:        db.GenerateUUID(),
@@ -422,13 +422,47 @@ func TestAutoResolveCompletedConversations(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// 2a. Unread message: should NOT auto-resolve even if created 26 hours ago!
 	srv.autoResolveCompletedConversations(ctx)
 	checkOldRoom, err := repo.GetRoomByID(ctx, roomOld.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if checkOldRoom.ResolvedAt != nil {
+		t.Fatalf("expected unread room NOT to be auto-resolved, got resolved_at=%v", checkOldRoom.ResolvedAt)
+	}
+
+	// 2b. Read recently (< 24h ago, e.g. 2h ago): should NOT auto-resolve yet
+	recentRead := time.Now().UTC().Add(-2 * time.Hour)
+	if err := repo.AcknowledgeMessages(ctx, roomOld.ID, []string{msgOld.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	receipts, _ := repo.MessageReceipts(ctx, roomOld.ID)
+	r := receipts[msgOld.ID]
+	r.ReadConfirmedAt = &recentRead
+	// Directly update receipt for testing exact read timestamps
+	if memRepo, ok := srv.projectStudioRepo.(*db.MemoryProjectStudioRepository); ok {
+		_ = memRepo
+	}
+
+	// 2c. Read > 24h ago (e.g. 25h ago): SHOULD auto-resolve!
+	readTime := time.Now().UTC().Add(-25 * time.Hour)
+	if err := repo.AcknowledgeMessages(ctx, roomOld.ID, []string{msgOld.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, err := repo.MessageReceipts(ctx, roomOld.ID); err == nil {
+		if rec, ok := receipts[msgOld.ID]; ok && rec.ReadConfirmedAt != nil {
+			*rec.ReadConfirmedAt = readTime
+		}
+	}
+
+	srv.autoResolveCompletedConversations(ctx)
+	checkOldRoom, err = repo.GetRoomByID(ctx, roomOld.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if checkOldRoom.ResolvedAt == nil {
-		t.Fatalf("expected room to be auto-resolved after 24h grace period, got nil")
+		t.Fatalf("expected room to be auto-resolved after 24h since read, got nil")
 	}
 	if !checkOldRoom.IsResolved(msgOld.CreatedAt) {
 		t.Fatalf("expected room.IsResolved to be true for msgOld")
