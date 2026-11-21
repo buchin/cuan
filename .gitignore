@@ -27,6 +27,8 @@ backups/*.sha256
 backups/*.meta.json
 backups/*.sql
 *.log
+*.jpg
+*.png
 __pycache__/
 .commandcode/
 .DS_Store
