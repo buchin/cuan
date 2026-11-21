@@ -306,6 +306,8 @@ func isConfirmationQuestion(reply string) bool {
 		"pendekatan terbaik untuk implementasi", "solusi terbaik adalah",
 		"solusi yang direkomendasikan", "rekomendasi perbaikan",
 		"rencana perbaikan", "rekomendasi implementasi",
+		"solusi dan standar", "rencana kerja", "kartu persetujuan",
+		"solusinya adalah", "langkah perbaikan",
 		"best approach for implementation", "recommended implementation",
 		"would you like me to", "should i", "do you want me to", "shall i",
 		"do you approve", "please confirm",

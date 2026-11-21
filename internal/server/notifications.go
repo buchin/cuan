@@ -608,6 +608,12 @@ func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID,
 		status = "Needs approval"
 		actionLabel = "Review proposal"
 		title = "Butuh Persetujuan"
+		plan := parseInboxApprovalPlan(content)
+		if plan != nil && plan.Continuation != nil {
+			// Internal continuations (verification, publication, etc.) are internal agent/pipeline work,
+			// never an end-user approval decision. Do NOT notify as "Butuh Persetujuan".
+			return
+		}
 		_, approvalTitle := splitInboxApproval("agent", content)
 		if approvalTitle != "" {
 			cleanTitle := humanizeTaskTitle(approvalTitle)
@@ -831,6 +837,10 @@ func (s *Server) notificationChatCandidatesSQL(ctx context.Context, owner string
 		case "request":
 			items = append(items, replyNotification(db.InboxRequest{RoomID: room, RequestID: id, State: state, SafeError: safe, CreatedAt: at}, context, nextState))
 		case "approval":
+			plan := parseInboxApprovalPlan(content)
+			if plan != nil && plan.Continuation != nil {
+				continue
+			}
 			_, title := splitInboxApproval("agent", content)
 			if title != "" {
 				items = append(items, proposalNotification(room, id, title, context, "", at))

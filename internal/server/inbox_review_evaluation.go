@@ -763,15 +763,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			// Repeated failures require the coordinator's own fresh decision.
 			// They are not a new approval requirement for the user.
 			queued := s.queueManagerAssessment(ctx, q, d)
-			finding := strings.TrimSpace(decision.Finding)
-			if finding == "" {
-				finding = strings.TrimSpace(decision.Explanation)
-			}
-			planBlock := continuationPlan(d, q.RequestID, decision)
-			if planBlock != "" {
-				return fmt.Sprintf("%s\n\nUntuk melanjutkan, silakan konfirmasi melalui tombol di bawah:%s%s", finding, planBlock, taskLink)
-			}
-			if finding != "" {
+			if finding := strings.TrimSpace(decision.Finding); finding != "" && !strings.Contains(finding, "akan melanjutkan") {
 				return finding + taskLink
 			}
 			if queued {

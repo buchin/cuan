@@ -18,7 +18,19 @@ self.addEventListener('push', event => {
   let title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : ''
   const kind = typeof data.kind === 'string' ? data.kind : ''
   const status = typeof data.status === 'string' ? data.status : ''
-  const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
+  let tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
+  // Aggregate notifications per room or per task so new messages replace previous notifications in-place
+  if (tag.startsWith('agent:') || tag.startsWith('customer:') || tag.startsWith('approval:') || tag.startsWith('room:')) {
+    const parts = tag.split(':')
+    if (parts.length >= 2 && parts[1]) {
+      tag = 'room:' + parts[1]
+    }
+  } else if (tag.startsWith('task:')) {
+    const parts = tag.split(':')
+    if (parts.length >= 2 && parts[1]) {
+      tag = 'task:' + parts[1]
+    }
+  }
 
   if (!title || title === '@cuan' || title.startsWith('@') || title === 'Cuan' || title === 'Asisten AI') {
     if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:')) {
@@ -72,6 +84,7 @@ self.addEventListener('push', event => {
       icon,
       badge,
       tag,
+      renotify: true,
       data: { href }
     })
   )

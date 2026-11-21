@@ -63,6 +63,7 @@ func TestOwnerContinuationHasBoundedIndependentReviewBudget(t *testing.T) {
 				if err := s.taskSvc.Store().CreateTask(ctx, &task.Task{ID: "busy-task", ProjectID: d.ProjectID, Status: task.TaskStatusDoing}); err != nil {
 					t.Fatal(err)
 				}
+				_ = s.taskSvc.Store().CreateAttempt(ctx, &task.TaskAttempt{ID: "busy-attempt", TaskID: "busy-task", Status: task.AttemptStatusRunning, CreatedAt: time.Now()})
 				review := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: db.GenerateUUID(), MessageID: db.GenerateUUID()}
 				out := s.startAuthorizedLaunch(ctx, review, d, review.RequestID, "original", "Correct the missing check and report evidence.")
 				if !strings.Contains(out, "queued waiting") {

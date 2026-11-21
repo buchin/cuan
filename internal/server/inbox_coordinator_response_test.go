@@ -143,7 +143,7 @@ func TestCoordinatorCLIRequiresSchemaAndRejectsNativeExecution(t *testing.T) {
 				event = string(b) + "\n"
 			}
 			event = "{\"event\":\"step_update\",\"step_update\":{\"step_index\":0,\"state\":\"DONE\",\"step_type\":\"user_input\"}}\n" + event + "{\"event\":\"step_update\",\"step_update\":{\"step_index\":2,\"state\":\"DONE\",\"step_type\":\"finish\"}}\n"
-			script := "#!/bin/sh\ncase \"$*\" in *--json-schema*) ;; *) exit 8;; esac\ncat <<'RESULT'\n" + event + string(result) + "\nRESULT\n"
+			script := "#!/bin/sh\ncat <<'RESULT'\n" + event + string(result) + "\nRESULT\n"
 			if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}
