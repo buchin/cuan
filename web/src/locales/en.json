@@ -866,5 +866,10 @@
   "remaining": "remaining",
   "worker internal siap mengeksekusi tugas coding & vision otomatis": "internal workers ready to execute automated coding & vision tasks",
   "ℹ Model teks saja (tidak mendukung input gambar / vision).": "ℹ Text-only model (does not support image / vision input).",
-  "✓ Model ini mendukung input multimodal (gambar & dokumen).": "✓ This model supports multimodal input (images & documents)."
+  "✓ Model ini mendukung input multimodal (gambar & dokumen).": "✓ This model supports multimodal input (images & documents).",
+  "Semua pekerjaan telah selesai diverifikasi.": "All work has been completed and verified.",
+  "Tuntaskan percakapan untuk mencapai Inbox Zero.": "Resolve conversation to reach Inbox Zero.",
+  "Tandai Tuntas (Inbox Zero)": "Mark Resolved (Inbox Zero)",
+  "Percakapan telah tuntas dan diarsipkan. Ketik pesan untuk membuka kembali.": "Conversation is resolved and archived. Type a message to reopen.",
+  "Buka kembali": "Reopen"
 }

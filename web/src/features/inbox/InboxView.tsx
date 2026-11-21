@@ -1,4 +1,8 @@
-import { ConversationResolutionAction } from './conversation-resolution'
+import {
+  ConversationResolutionAction,
+  setConversationResolved,
+  conversationHasUnfinishedTasks,
+} from './conversation-resolution'
 import { mergeConversationMessages } from './message-reconciliation'
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
@@ -52,6 +56,7 @@ import {
   User,
   Check,
   CheckCheck,
+  CheckCircle2,
   MailCheck,
   Play,
   CheckSquare,
@@ -61,6 +66,8 @@ import {
   ChevronDown,
   Lock,
   Copy,
+  Undo2,
+  Loader2,
   Inbox as InboxIcon,
 } from 'lucide-react'
 import { Task } from '../../api/types'
@@ -1236,6 +1243,13 @@ export function InboxView({
         setRetryCount(0)
         await loadConversation(convId)
       }
+      if (isResolved) {
+        setLocalResolved(false)
+        if (activeContact) {
+          activeContact.resolved = false
+          activeContact.resolved_at = undefined
+        }
+      }
       onContactUpdated?.()
     } catch {
       if (activeConvRef.current === convId)
@@ -1326,6 +1340,64 @@ export function InboxView({
     setMobileView('contacts')
     if (onBackToContacts) {
       onBackToContacts()
+    }
+  }
+
+  const [localResolved, setLocalResolved] = useState<boolean>(Boolean(activeContact?.resolved))
+  const [resolving, setResolving] = useState(false)
+
+  useEffect(() => {
+    setLocalResolved(Boolean(activeContact?.resolved))
+  }, [activeContact?.id, activeContact?.resolved])
+
+  const isResolved = localResolved
+
+  const hasFinishedTasks = useMemo(() => {
+    if (!activeContact) return false
+    const hasTasks = (activeContact.task_count || 0) > 0 || linkedTasks.length > 0
+    if (!hasTasks) return false
+    if (activeConversationTasks.length > 0) return false
+    const noUnfinished = !conversationHasUnfinishedTasks(activeContact) &&
+      (linkedTasks.length === 0 || linkedTasks.every(t => ['done', 'completed', 'canceled', 'cancelled'].includes((t.status || '').toLowerCase())))
+    const hasDone = (activeContact.done_tasks || 0) > 0 ||
+      linkedTasks.some(t => ['done', 'completed'].includes((t.status || '').toLowerCase()))
+    return noUnfinished && hasDone
+  }, [activeContact, linkedTasks, activeConversationTasks.length])
+
+  const showResolutionCard = !isResolved && hasFinishedTasks
+
+  const handleMarkResolved = async () => {
+    if (!activeContact || resolving) return
+    setResolving(true)
+    try {
+      const res = await setConversationResolved(activeContact, true)
+      setLocalResolved(true)
+      activeContact.resolved = true
+      activeContact.resolved_at = res.resolved_at || new Date().toISOString()
+      onContactUpdated?.()
+      if (typeof window !== 'undefined' && window.innerWidth < 1200) {
+        handleBackToContacts()
+      }
+    } catch (err) {
+      console.error('Failed to mark conversation resolved:', err)
+    } finally {
+      setResolving(false)
+    }
+  }
+
+  const handleReopenConversation = async () => {
+    if (!activeContact || resolving) return
+    setResolving(true)
+    try {
+      await setConversationResolved(activeContact, false)
+      setLocalResolved(false)
+      activeContact.resolved = false
+      activeContact.resolved_at = undefined
+      onContactUpdated?.()
+    } catch (err) {
+      console.error('Failed to reopen conversation:', err)
+    } finally {
+      setResolving(false)
     }
   }
 
@@ -1995,7 +2067,18 @@ export function InboxView({
                     </span>
                   </button>
                 )}
-                <ConversationResolutionAction key={activeContact.conversation_id} contact={activeContact} compact onChanged={onContactUpdated} />
+                <ConversationResolutionAction
+                  key={activeContact.conversation_id}
+                  contact={activeContact}
+                  compact
+                  onChanged={() => {
+                    setLocalResolved(Boolean(activeContact.resolved))
+                    onContactUpdated?.()
+                    if (activeContact.resolved && typeof window !== 'undefined' && window.innerWidth < 1200) {
+                      handleBackToContacts()
+                    }
+                  }}
+                />
                 {activeContact.type === 'customer' && activeContact.email && (
                         <button
                           type="button"
@@ -2325,6 +2408,60 @@ export function InboxView({
               onDragOver={uploads.onDragOver}
             >
               <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full bg-transparent">
+                {/* ── Resolution / Completion Card (Inbox Zero) ── */}
+                {showResolutionCard && (
+                  <div
+                    data-testid="conversation-resolution-card"
+                    className="mx-auto mb-2 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-3.5 py-2.5 backdrop-blur-xs transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate">
+                          {t('Semua pekerjaan telah selesai diverifikasi.')}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {t('Tuntaskan percakapan untuk mencapai Inbox Zero.')}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="mark-resolved-button"
+                      disabled={resolving}
+                      onClick={handleMarkResolved}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {resolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                      <span>{t('Tandai Tuntas (Inbox Zero)')}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* ── Archived / Resolved Banner ── */}
+                {isResolved && (
+                  <div
+                    data-testid="conversation-resolved-banner"
+                    className="mx-auto mb-2 flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 px-3.5 py-2 backdrop-blur-xs transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground truncate">
+                        {t('Percakapan telah tuntas dan diarsipkan. Ketik pesan untuk membuka kembali.')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="reopen-conversation-button"
+                      disabled={resolving}
+                      onClick={handleReopenConversation}
+                      className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      {resolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                      <span>{t('Buka kembali')}</span>
+                    </button>
+                  </div>
+                )}
                 <AttachmentPreviews uploads={uploads} disabled={sending} internal={activeContact.type === 'customer' && isWhisper} />
                 {activeContact.type === 'customer' && isWhisper && (
                   <div className="flex items-center gap-1.5 py-1 px-1 text-xs text-amber-600 dark:text-amber-400 font-medium animate-in fade-in duration-150">

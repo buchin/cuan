@@ -64,6 +64,7 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 	if s.taskSvc != nil && s.projectStudioRepo != nil && s.executesInbox() {
 		s.deliverInboxTaskUpdates(ctx)
 		s.orchestrateBlockedInboxTasks(ctx)
+		s.autoResolveCompletedConversations(ctx)
 	}
 
 	// 3. Ensure queue launches are drained and orphan launches reconciled
@@ -347,5 +348,77 @@ func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry Serve
 	if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
 		lastStorageAlertTime = time.Now().UTC()
 		log.Printf("[Watchdog] Proactive proposal card posted to room %s for disk pressure %.1f%%", targetRoomID, telemetry.DiskUsedPercent)
+	}
+}
+
+// autoResolveCompletedConversations periodically scans conversations whose work has finished (all tasks completed/canceled)
+// and autonomously archives them after a tranquil 24-hour grace period of inactivity without human intervention.
+func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
+	if s.taskSvc == nil || s.projectStudioRepo == nil || !s.executesInbox() {
+		return
+	}
+
+	rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
+	if err != nil || len(rooms) == 0 {
+		return
+	}
+
+	cutoff := time.Now().UTC().Add(-24 * time.Hour)
+
+	for _, room := range rooms {
+		msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room.ID)
+		if err != nil || len(msgs) == 0 {
+			continue
+		}
+
+		latestMsg := msgs[len(msgs)-1]
+		if room.IsResolved(latestMsg.CreatedAt) {
+			continue
+		}
+
+		// Check if there are tasks for this room
+		tasks, err := s.taskSvc.Store().ListTasks(ctx, task.TaskFilter{SourceRoomID: room.ID})
+		if err != nil {
+			continue
+		}
+		if len(tasks) == 0 {
+			legacy, err := s.projectStudioRepo.ListTasksByRoomID(ctx, room.ID)
+			if err != nil || len(legacy) == 0 {
+				continue
+			}
+		}
+
+		// Ensure there are no active, running, queued, or blocked tasks/launches/requests
+		blocker, err := s.conversationResolutionBlocker(ctx, room.ID)
+		if err != nil || blocker != "" {
+			continue
+		}
+
+		// Check 24h grace period: latest message must be older than 24 hours
+		if latestMsg.CreatedAt.After(cutoff) {
+			continue
+		}
+
+		// Also check all tasks: their UpdatedAt must be older than cutoff
+		allTasksOld := true
+		for _, t := range tasks {
+			if t.UpdatedAt.After(cutoff) {
+				allTasksOld = false
+				break
+			}
+		}
+		if !allTasksOld {
+			continue
+		}
+
+		now := time.Now().UTC()
+		if err := s.projectStudioRepo.SetRoomResolved(ctx, room.ID, &now); err != nil {
+			log.Printf("[Watchdog] Auto-resolve conversation %s failed: %v", room.ID, err)
+			continue
+		}
+
+		s.publishInbox(room.ID)
+		s.requestStorageMaintenance()
+		log.Printf("[Watchdog] Proactively auto-resolved completed conversation %s after 24h grace period", room.ID)
 	}
 }
