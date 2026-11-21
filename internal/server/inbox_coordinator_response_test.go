@@ -324,6 +324,20 @@ func TestCoordinatorResponseSynthesizesApprovalForConfirmationQuestions(t *testi
 	if !strings.Contains(planDiscussion.Title, "Inspeksi proyek dan task terstruktur") {
 		t.Errorf("unexpected title in synthesized plan: %q", planDiscussion.Title)
 	}
+
+	// Verify proactive technical solution proposal automatically synthesizes approval card
+	rawSolution := coordinatorJSON("Pendekatan terbaik untuk implementasi di backend adalah kombinasi debounce dan collapse key per room agar tidak terjadi flooding push notification.", "", nil)
+	outSolution, err := decodeInboxCoordinatorResponse(rawSolution)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	planSolution := parseInboxApprovalPlan(outSolution)
+	if planSolution == nil {
+		t.Fatalf("expected approval plan for technical solution proposal, got %s", outSolution)
+	}
+	if planSolution.Title == "" {
+		t.Errorf("expected non-empty title in synthesized plan, got empty")
+	}
 }
 
 func TestCoordinatorInstructionAutonomousErrorTriage(t *testing.T) {
@@ -359,6 +373,26 @@ func TestCoordinatorInstructionAffirmativeTriggersAndProactivePlan(t *testing.T)
 			} {
 				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
 					t.Fatalf("%s missing required affirmative trigger directive %q", name, required)
+				}
+			}
+		})
+	}
+}
+
+func TestCoordinatorInstructionProactiveProblemSolving(t *testing.T) {
+	for name, prompt := range map[string]string{
+		"inboxCoordinatorInstruction": inboxCoordinatorInstruction,
+		"workflow.Coordinator":        workflow.Coordinator,
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, required := range []string{
+				"PROACTIVE PROBLEM-SOLVING",
+				"ZERO PASSIVE THEORIZING",
+				"Project Managers own the technical solution",
+				"emit an approval action",
+			} {
+				if !strings.Contains(strings.ToLower(prompt), strings.ToLower(required)) {
+					t.Fatalf("%s missing required directive %q", name, required)
 				}
 			}
 		})

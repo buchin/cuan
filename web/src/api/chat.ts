@@ -119,6 +119,7 @@ export type Message = ChatMessage
 
 export interface InboxRequest {
   recovery_action?: 'try_again' | 'continue_analysis' | 'check_status' | 'check_usage' | 'check_agent' | 'recovering'
+  queue_reason?: string
 
   agent_id?: string
   request_id: string

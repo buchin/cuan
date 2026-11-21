@@ -165,6 +165,16 @@ func (s *Server) drainInboxRoom(room string) {
 		if next == nil {
 			return
 		}
+		// Coalesce: check if next is an ordinary user prompt superseded by a newer queued user prompt.
+		if s.canCoalesceQueuedRequest(context.Background(), requests, *next) {
+			coalesceCtx, coalesceCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = store.AppendInboxStep(coalesceCtx, room, next.RequestID, "coalesced", "Digabungkan dengan pesan terbaru dalam antrean. Pesan ini tetap disertakan secara utuh ke giliran berikutnya.")
+			next.State = "completed"
+			_ = store.FinishInboxRequest(coalesceCtx, *next, nil)
+			coalesceCancel()
+			s.publishInbox(room)
+			continue
+		}
 		// Empty rooms and capacity backoff must not occupy provider slots while
 		// reading history; otherwise scans of many idle rooms starve real work.
 		select {
@@ -183,6 +193,70 @@ func (s *Server) drainInboxRoom(room string) {
 		<-s.inboxSlots
 	}
 }
+
+func (s *Server) canCoalesceQueuedRequest(ctx context.Context, requests []db.InboxRequest, next db.InboxRequest) bool {
+	var queued []db.InboxRequest
+	hasRunning := false
+	for i := range requests {
+		r := &requests[i]
+		if r.State == "running" || r.State == "cancelling" {
+			hasRunning = true
+		} else if r.State == "queued" {
+			queued = append(queued, *r)
+		}
+	}
+	if len(queued) <= 1 {
+		return false
+	}
+	newestQueued := queued[len(queued)-1]
+	if next.RequestID == newestQueued.RequestID {
+		return false
+	}
+	// If nothing is running, the oldest queued request is the next turn to execute and must not be coalesced.
+	if !hasRunning && next.RequestID == queued[0].RequestID {
+		return false
+	}
+
+	newer := &newestQueued
+	if next.OwnerID == "" || next.OwnerID != newer.OwnerID {
+		return false
+	}
+	// Never coalesce task reviews or system requests
+	if strings.Contains(next.RequestID, "review") || strings.Contains(next.PayloadHash, "task-review:") {
+		return false
+	}
+	if strings.Contains(newer.RequestID, "review") || strings.Contains(newer.PayloadHash, "task-review:") {
+		return false
+	}
+	if s.projectStudioRepo == nil {
+		return false
+	}
+	nextMsg, err := s.projectStudioRepo.GetMessageByID(ctx, next.MessageID)
+	if err != nil || nextMsg == nil || nextMsg.AuthorType != "user" {
+		return false
+	}
+	if strings.Contains(nextMsg.Content, "\"approval\":") || decodeInboxPlanDecision(nextMsg.Content) != nil {
+		return false
+	}
+	if s.conversationalApprovalID(ctx, next.RoomID, nextMsg.Content) != "" {
+		return false
+	}
+	if len(s.inboxAttachmentPaths(ctx, next)) > 0 {
+		return false
+	}
+	newerMsg, err := s.projectStudioRepo.GetMessageByID(ctx, newer.MessageID)
+	if err != nil || newerMsg == nil || newerMsg.AuthorType != "user" {
+		return false
+	}
+	if strings.Contains(newerMsg.Content, "\"approval\":") || decodeInboxPlanDecision(newerMsg.Content) != nil {
+		return false
+	}
+	if s.conversationalApprovalID(ctx, newer.RoomID, newerMsg.Content) != "" {
+		return false
+	}
+	return true
+}
+
 func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRequest) {
 	lifecycleTimeout := 16 * time.Minute
 	if v := os.Getenv("INBOX_LIFECYCLE_TIMEOUT"); v != "" {

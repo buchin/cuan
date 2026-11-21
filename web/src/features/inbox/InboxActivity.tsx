@@ -198,8 +198,26 @@ export function InboxActivity({
     Number.isFinite(duration) && duration >= 0
       ? Math.floor(duration / 1000)
       : null
+  const formatQueueReason = (reason?: string) => {
+    if (!reason) return ''
+    if (reason === 'waiting_verification') {
+      return language === 'id' ? 'Menunggu verifikasi tugas selesai…' : 'Waiting for task verification…'
+    }
+    if (reason === 'waiting_previous_message') {
+      return language === 'id' ? 'Menunggu respon pesan sebelumnya…' : 'Waiting for previous message…'
+    }
+    if (reason === 'waiting_capacity') {
+      return language === 'id' ? 'Menunggu kapasitas AI tersedia…' : 'Waiting for AI capacity…'
+    }
+    if (reason.startsWith('queue_position:')) {
+      const pos = reason.split(':')[1]
+      return language === 'id' ? `Antrean pesan ke-${pos}…` : `Position ${pos} in queue…`
+    }
+    return reason
+  }
+  const queueLabel = formatQueueReason(q.queue_reason)
   const label = {
-    queued: q.safe_error?.startsWith('AI capacity is temporarily full.') ? 'Waiting for capacity' : 'Queued',
+    queued: queueLabel || (q.safe_error?.startsWith('AI capacity is temporarily full.') ? 'Waiting for capacity' : 'Queued'),
     running: 'Running',
     cancelling: 'Cancelling…',
     completed: 'Completed',
@@ -263,6 +281,8 @@ export function InboxActivity({
               ? t('Recovering reply…')
               : q.state === 'running'
               ? activityText
+              : q.state === 'queued' && queueLabel
+              ? queueLabel
               : q.state === 'failed'
                 ? (waitingForCapacity ? t('Waiting for AI capacity') : t('Could not reply'))
                 : q.state === 'interrupted' ? t('Reply interrupted') : t(label)}
@@ -361,7 +381,7 @@ export function InboxActivity({
                     ? 'Reply saved.'
                     : 'Message sent.'
                   : q.state === 'queued'
-                    ? (q.safe_error?.startsWith('AI capacity is temporarily full.') ? 'Your message is saved and will continue automatically.' : 'Message saved and queued.')
+                    ? (queueLabel || (q.safe_error?.startsWith('AI capacity is temporarily full.') ? 'Your message is saved and will continue automatically.' : 'Message saved and queued.'))
                     : q.state === 'running'
                       ? 'The agent is preparing a reply.'
                       : q.state === 'interrupted'

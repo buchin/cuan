@@ -315,7 +315,7 @@ func (r *SQLProjectStudioRepository) AppendInboxStep(ctx context.Context, room, 
 	defer tx.Rollback()
 	var raw []byte
 	var archived int
-	err = tx.QueryRowContext(ctx, `SELECT steps,COALESCE((SELECT MAX(seq) FROM inbox_request_steps s WHERE s.room_id=q.room_id AND s.request_id=q.request_id),0) FROM inbox_requests q WHERE room_id=$1 AND request_id=$2 AND state='running' FOR UPDATE`, room, id).Scan(&raw, &archived)
+	err = tx.QueryRowContext(ctx, `SELECT steps,COALESCE((SELECT MAX(seq) FROM inbox_request_steps s WHERE s.room_id=q.room_id AND s.request_id=q.request_id),0) FROM inbox_requests q WHERE room_id=$1 AND request_id=$2 AND state IN ('running','queued') FOR UPDATE`, room, id).Scan(&raw, &archived)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -369,7 +369,7 @@ func (r *MemoryProjectStudioRepository) AppendInboxStep(ctx context.Context, roo
 	defer r.mu.Unlock()
 	key := room + id
 	q, ok := r.requests[key]
-	if ok && q.State == "running" {
+	if ok && (q.State == "running" || q.State == "queued") {
 		r.recordInboxStep(key, &q, kind, text)
 		r.requests[key] = q
 	}

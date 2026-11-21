@@ -2,7 +2,9 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
@@ -12,6 +14,7 @@ import (
 type inboxRecoveryDTO struct {
 	db.InboxRequest
 	RecoveryAction string `json:"recovery_action,omitempty"`
+	QueueReason    string `json:"queue_reason,omitempty"`
 	StepCount      int    `json:"step_count"`
 	StepsTruncated bool   `json:"steps_truncated,omitempty"`
 }
@@ -22,6 +25,16 @@ func inboxRecoveryRequests(requests []db.InboxRequest) []inboxRecoveryDTO {
 	// atomically queues its child. Only freshly opted-in, proven-safe failures
 	// can expose this state; historical/unknown outcomes cannot.
 	pending := db.InboxAutomaticRecoveryCandidate(requests, time.Now().Add(2*time.Second))
+
+	var activeReq *db.InboxRequest
+	for i := range requests {
+		if requests[i].State == "running" || requests[i].State == "cancelling" {
+			activeReq = &requests[i]
+			break
+		}
+	}
+
+	queueIndex := 0
 	for _, q := range requests {
 		action := ""
 		if q.OwnerID != "" && q.AgentID != "" {
@@ -38,7 +51,39 @@ func inboxRecoveryRequests(requests []db.InboxRequest) []inboxRecoveryDTO {
 		if len(q.Steps) > 0 {
 			count = q.Steps[len(q.Steps)-1].Seq
 		}
-		out = append(out, inboxRecoveryDTO{InboxRequest: q, RecoveryAction: action, StepCount: count, StepsTruncated: count > len(q.Steps)})
+
+		queueReason := ""
+		if q.State == "queued" {
+			queueIndex++
+			if strings.HasPrefix(q.SafeError, "AI capacity is temporarily full.") {
+				queueReason = "waiting_capacity"
+			} else if activeReq != nil {
+				isReview := false
+				for _, step := range activeReq.Steps {
+					if strings.Contains(step.Kind, "verification") || strings.Contains(step.Kind, "review") {
+						isReview = true
+						break
+					}
+				}
+				if isReview || strings.HasPrefix(activeReq.PayloadHash, "task-review:") || strings.Contains(activeReq.RequestID, "review") {
+					queueReason = "waiting_verification"
+				} else if queueIndex == 1 {
+					queueReason = "waiting_previous_message"
+				} else {
+					queueReason = fmt.Sprintf("queue_position:%d", queueIndex)
+				}
+			} else if queueIndex > 1 {
+				queueReason = fmt.Sprintf("queue_position:%d", queueIndex)
+			}
+		}
+
+		out = append(out, inboxRecoveryDTO{
+			InboxRequest:   q,
+			RecoveryAction: action,
+			QueueReason:    queueReason,
+			StepCount:      count,
+			StepsTruncated: count > len(q.Steps),
+		})
 	}
 	return out
 }
