@@ -22,16 +22,19 @@ type ProjectFinder interface {
 }
 
 type TaskCreationListener func(ctx context.Context, t *Task)
+type TaskCompletionListener func(ctx context.Context, t *Task)
 
 type Service struct {
-	extensions            *sdk.Registry
-	taskMu                sync.Mutex
-	attemptMu             sync.Mutex
-	store                 Store
-	projectFinder         ProjectFinder
-	isLocalAttemptActive  func(taskID string) bool
-	listenerMu            sync.RWMutex
-	taskCreationListeners []TaskCreationListener
+	extensions              *sdk.Registry
+	taskMu                  sync.Mutex
+	attemptMu               sync.Mutex
+	store                   Store
+	projectFinder           ProjectFinder
+	isLocalAttemptActive    func(taskID string) bool
+	listenerMu              sync.RWMutex
+	taskCreationListeners   []TaskCreationListener
+	completionMu            sync.RWMutex
+	taskCompletionListeners []TaskCompletionListener
 }
 
 func NewService(store Store, projectFinder ProjectFinder) *Service {
@@ -61,6 +64,27 @@ func (s *Service) notifyTaskCreated(ctx context.Context, t *Task) {
 	s.listenerMu.RLock()
 	listeners := append([]TaskCreationListener{}, s.taskCreationListeners...)
 	s.listenerMu.RUnlock()
+	for _, fn := range listeners {
+		fn(ctx, t)
+	}
+}
+
+func (s *Service) OnTaskCompleted(fn TaskCompletionListener) {
+	if fn == nil {
+		return
+	}
+	s.completionMu.Lock()
+	defer s.completionMu.Unlock()
+	s.taskCompletionListeners = append(s.taskCompletionListeners, fn)
+}
+
+func (s *Service) notifyTaskCompleted(ctx context.Context, t *Task) {
+	if t == nil {
+		return
+	}
+	s.completionMu.RLock()
+	listeners := append([]TaskCompletionListener{}, s.taskCompletionListeners...)
+	s.completionMu.RUnlock()
 	for _, fn := range listeners {
 		fn(ctx, t)
 	}

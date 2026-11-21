@@ -24,8 +24,8 @@ func TestCancelReturnsTaskToQueueNotBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Status != TaskStatusBacklog {
-		t.Fatalf("cancelled task should return to the queue, got %q", detail.Status)
+	if detail.Status != TaskStatusCancelled {
+		t.Fatalf("cancelled task should be recorded as cancelled, got %q", detail.Status)
 	}
 	if detail.LatestAttempt.Status != AttemptStatusCanceled {
 		t.Fatalf("attempt should be recorded as cancelled, got %q", detail.LatestAttempt.Status)
@@ -74,5 +74,37 @@ func TestUnknownOutcomeAfterCancelStillBlocks(t *testing.T) {
 	}
 	if detail.Status != TaskStatusBlocked {
 		t.Fatalf("unknown outcome must block the task, got %q", detail.Status)
+	}
+}
+
+func TestCancelIdempotentOnFailedAttempt(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	svc := NewService(store, nil)
+	created, _ := svc.CreateTask(ctx, "fixture", CreateTaskRequest{Title: "Cancel failed"})
+	att, err := svc.CreateAttempt(ctx, created.ID, "owner", CreateAttemptRequest{RunnerID: "local_terminal"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Attempt fails
+	failed := AttemptStatusFailed
+	if _, err := svc.UpdateAttemptStatus(ctx, att.ID, "runner", UpdateAttemptRequest{Status: failed}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Cancelling an already-failed attempt must be idempotent and succeed without error
+	cancelledAtt, err := svc.CancelTask(ctx, created.ID, "owner")
+	if err != nil {
+		t.Fatalf("expected cancel to succeed idempotently on failed attempt, got error: %v", err)
+	}
+	if !cancelledAtt.CancelRequested {
+		t.Fatalf("expected cancel requested to be set on attempt")
+	}
+	detail, err := svc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Status != TaskStatusBacklog {
+		t.Fatalf("cancelled task should return to backlog, got %q", detail.Status)
 	}
 }

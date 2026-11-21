@@ -305,16 +305,21 @@ func TestAutonomousScrumEngine_GlobalEventBusSubscription(t *testing.T) {
 		CompleteNote:  "Verified event bus",
 	})
 
-	// Allow goroutine execution
-	time.Sleep(100 * time.Millisecond)
-
-	// 3. Drain room
-	srv.drainInboxRoom(room.ID)
+	// 3. Drain room so review request executes
+	deadline := time.Now().Add(2 * time.Second)
+	var detail *task.TaskDetailResponse
+	for time.Now().Before(deadline) {
+		srv.drainInboxRoom(room.ID)
+		detail, _ = srv.taskSvc.GetTaskDetail(ctx, taskID)
+		if detail != nil && detail.Status == task.TaskStatusDone {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 
 	// 4. Verify task is completed
-	detail, err := srv.taskSvc.GetTaskDetail(ctx, taskID)
-	if err != nil {
-		t.Fatalf("failed to get task detail: %v", err)
+	if detail == nil {
+		t.Fatalf("failed to get task detail")
 	}
 	if detail.Status != task.TaskStatusDone {
 		t.Errorf("expected task status 'done', got '%s'", detail.Status)

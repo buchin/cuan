@@ -7,7 +7,6 @@ import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { AppShell, AppTab } from './components/layout/AppShell'
-import { ActionDialog } from './components/dialogs/ActionDialog'
 import { agentsApi, type Agent } from './api/agents'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
@@ -15,6 +14,7 @@ import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
+import { useArchivedItems } from './hooks/useArchivedItems'
 import { Loader2 } from 'lucide-react'
 
 // Code-splitting via dynamic imports for heavy routes and dialogs
@@ -173,6 +173,26 @@ export function App() {
   const [agentsError, setAgentsError] = useState(false)
   const [contactsLoading, setContactsLoading] = useState(true)
   const [contactsError, setContactsError] = useState('')
+  const conversationArchive = useArchivedItems('conversation')
+  const inboxUnread = useMemo(() => {
+    return contacts.filter((contact) => {
+      if (contact.has_messages === false) return false
+      const id = contact.conversation_id || contact.id
+      let count = conversationArchive.unreadCount(
+        id,
+        Number(contact.unread_count) || 0,
+        contact.last_message_at || contact.updated_at,
+      )
+      if (count > 0 && contact.conversation_id && contact.id && contact.conversation_id !== contact.id) {
+        count = conversationArchive.unreadCount(
+          contact.id,
+          count,
+          contact.last_message_at || contact.updated_at,
+        )
+      }
+      return count > 0
+    }).length
+  }, [contacts, conversationArchive])
   useEffect(() => {
     if (rootSegment === 'team')
       navigate('/settings/team' + location.search, { replace: true })
@@ -193,11 +213,11 @@ export function App() {
   // Modals
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
-  const [newFlow, setNewFlow] = useState<'contact' | 'menu' | null>(null)
+  const [newFlow, setNewFlow] = useState<'contact' | null>(null)
   const [contactRevision, setContactRevision] = useState(0)
   const [agentCreateRequested, setAgentCreateRequested] = useState(false)
   const openNew = (
-    kind: 'message' | 'contact' | 'task' | 'project' | 'agent' | 'menu',
+    kind: 'message' | 'contact' | 'task' | 'project' | 'agent',
   ) => {
     setNewFlow(null)
     if (kind === 'message') navigate('/studio')
@@ -865,7 +885,7 @@ export function App() {
           projectDetail && !!headerProject
         }
         breadcrumbs={headerBreadcrumbs}
-        inboxUnread={contacts.filter(contact => !contact.resolved && contact.has_messages !== false).length}
+        inboxUnread={inboxUnread}
         onSelectTab={handleSelectTab}
         newAction={
           currentTab === 'notifications' ||
@@ -877,7 +897,7 @@ export function App() {
             ? undefined
             : {
                 label:
-                  currentTab === 'inbox'
+                  currentTab === 'inbox' || currentTab === 'chat'
                     ? 'New message'
                     : currentTab === 'contacts' || (currentTab === 'account' && subParam === 'contacts')
                       ? 'New contact'
@@ -885,10 +905,10 @@ export function App() {
                         ? 'New task'
                         : currentTab === 'projects'
                           ? 'New project'
-                          : 'New',
+                          : 'New message',
                 onClick: () =>
                   openNew(
-                    currentTab === 'inbox'
+                    currentTab === 'inbox' || currentTab === 'chat'
                       ? 'message'
                       : currentTab === 'contacts' || (currentTab === 'account' && subParam === 'contacts')
                         ? 'contact'
@@ -896,7 +916,7 @@ export function App() {
                           ? 'task'
                           : currentTab === 'projects'
                             ? 'project'
-                            : 'menu',
+                            : 'message',
                   ),
               }
         }
@@ -930,7 +950,7 @@ export function App() {
         <Suspense fallback={<ViewFallback />}>
           {currentTab === 'notifications' && <NotificationsView />}
           {currentTab === 'studio' && (
-            <div className="h-full flex-1 overflow-y-auto px-4 py-6 md:px-8 bg-background">
+            <div className="h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background">
               <StudioView
                 onAccepted={() => void refreshContacts()}
                 onConversationCreated={(id) => navigate('/inbox/' + encodeURIComponent(id))}
@@ -1200,28 +1220,6 @@ export function App() {
             void refreshContacts()
           }}
         />
-        <ActionDialog
-          open={newFlow === 'menu'}
-          title="New"
-          onClose={() => setNewFlow(null)}
-        >
-          <p className="mb-3 text-sm text-muted-foreground">
-            What would you like to create?
-          </p>
-          <div className="grid gap-2">
-            {(['message', 'contact', 'task', 'project', 'agent'] as const).map(
-              (kind) => (
-                <button
-                  key={kind}
-                  className="action-secondary justify-start"
-                  onClick={() => openNew(kind)}
-                >
-                  New {kind}
-                </button>
-              ),
-            )}
-          </div>
-        </ActionDialog>
 
         <CreateProjectModal
           isOpen={isCreateProjectOpen}

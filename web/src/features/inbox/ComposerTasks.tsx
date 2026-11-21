@@ -76,6 +76,20 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   if (!tasks.length && !modes) return null
   const runningTasks = ordered.filter(running)
   const defaultExpandedIds = runningTasks.length ? runningTasks.map(task => task.id) : ordered.slice(-1).map(task => task.id)
+
+  const hasAttention = ordered.some(t => workStatus(t) === 'Needs attention')
+  const hasActive = ordered.some(taskExecutionActive)
+  const hasReview = !hasActive && ordered.some(t => workStatus(t) === 'Ready for review')
+  const isAllDone = ordered.length > 0 && ordered.every(t => ['Completed', 'Answered', 'Cancelled'].includes(workStatus(t))) && ordered.some(t => ['Completed', 'Answered'].includes(workStatus(t)))
+  const hasQueued = !hasActive && !hasReview && !isAllDone && ordered.some(t => workStatus(t) === 'Queued')
+
+  const badgeStatus = hasAttention ? 'attention'
+    : hasActive ? 'working'
+    : hasReview ? 'review'
+    : isAllDone ? 'done'
+    : hasQueued ? 'queued'
+    : 'neutral'
+
   return <section className="composer-tasks bg-transparent" aria-label={t('Conversation tasks')} onKeyDown={event => {
     if (event.key === 'Escape' && open) {
       event.stopPropagation()
@@ -89,14 +103,42 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
     )}>
     {modes}
     {tasks.length > 0 && <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined}
+      data-testid="composer-tasks-badge"
+      data-status={badgeStatus}
       className={cn(
-        "composer-mode-tab ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-medium bg-transparent hover:text-foreground cursor-pointer transition-colors",
-        modes || open ? "min-h-11 px-2" : "min-h-7 px-2.5 py-1 rounded-full border border-border/40 bg-muted/20 hover:bg-muted/50 text-muted-foreground"
+        "composer-mode-tab ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-medium cursor-pointer transition-colors",
+        modes || open
+          ? "min-h-11 px-2 bg-transparent hover:text-foreground"
+          : cn(
+              "min-h-11 sm:min-h-8 px-2.5 py-1 rounded-full border transition-colors inline-flex items-center",
+              badgeStatus === 'working' && "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/15",
+              badgeStatus === 'review' && "border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15",
+              badgeStatus === 'done' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15",
+              badgeStatus === 'attention' && "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15",
+              (badgeStatus === 'queued' || badgeStatus === 'neutral') && "border-border/40 bg-muted/20 hover:bg-muted/50 text-muted-foreground"
+            )
       )}
       onClick={() => setOpen(value => !value)}>
       <span>{t('Tasks')}</span>
-      <span className="composer-tasks-count tabular-nums bg-muted px-1.5 text-[11px]">{ordered.length}</span>
-      {ordered.some(taskExecutionActive) && <StatusDot status="working" size="xs" label={t('In progress')} />}
+      <span className={cn(
+        "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
+        badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
+        badgeStatus === 'review' ? "bg-purple-500/20 text-purple-800 dark:text-purple-300" :
+        badgeStatus === 'working' ? "bg-blue-500/20 text-blue-800 dark:text-blue-300" :
+        badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
+        "bg-muted text-muted-foreground"
+      )}>{ordered.length}</span>
+      {hasAttention ? (
+        <AlertCircle className="h-3 w-3 shrink-0 text-destructive" aria-label={t('Needs attention')} />
+      ) : hasActive ? (
+        <StatusDot status="working" size="xs" label={t('In progress')} />
+      ) : hasReview ? (
+        <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" aria-label={t('Ready for review')} />
+      ) : isAllDone ? (
+        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
+      ) : hasQueued ? (
+        <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t('Queued')} />
+      ) : null}
     </button>}
     </div>
     {tasks.length > 0 && <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto rounded-lg bg-muted/30 scroll-pb-2">

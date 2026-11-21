@@ -443,13 +443,9 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		r.logAgentStage(agentCtx, att.ID, agentStageStarted, false, nil, nil)
 	}
 	if err == nil {
-		// If using the official agy adapter on a host where agy binary is present,
-		// execute inside a native OS pseudo-terminal (creack/pty) and expose a live
-		// Unix domain socket bridge for zero-downtime streaming.
+		// Execute with Brain Cluster if using official runner adapter
 		if _, isAGY := r.adapter.(*agent.AGYAdapter); isAGY {
-			if agyPath, rErr := agent.ResolveAGYBinaryPath(); rErr == nil && agyPath != "" {
-				result, err = r.executeWithBrains(agentCtx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
-			}
+			result, err = r.executeWithBrains(agentCtx, claim, t, att, prompt, workingDir, env, timeoutDuration, &liveStreamedCount)
 		}
 
 		// Fallback to standard adapter execution (used by mock adapters in test suite)

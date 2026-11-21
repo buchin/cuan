@@ -376,13 +376,21 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 		}
 	}
 	if result.Decision == "pass" {
-		result.ManagerAction = ""
-		result.ManagerReason = ""
-		if result.RemainingWork == "external" || result.RemainingWork == "" {
-			result.RemainingWork = "none"
-		}
-		if result.RequestedOutcome == "needs_input" || result.RequestedOutcome == "" {
-			result.RequestedOutcome = "completed"
+		if result.ManagerAction != "" || result.ManagerReason != "" {
+			if (result.ManagerAction == "wait" || result.ManagerAction == "") &&
+				(result.RequestedOutcome == "needs_input" || strings.Contains(strings.ToLower(result.ManagerReason), "customer")) &&
+				(strings.Contains(strings.ToLower(result.Finding), "dod") || strings.Contains(strings.ToLower(result.Explanation), "dod")) {
+				result.ManagerAction = ""
+				result.ManagerReason = ""
+				if result.RemainingWork == "external" || result.RemainingWork == "" {
+					result.RemainingWork = "none"
+				}
+				if result.RequestedOutcome == "needs_input" || result.RequestedOutcome == "" {
+					result.RequestedOutcome = "completed"
+				}
+			} else {
+				return result, bad
+			}
 		}
 	}
 	if result.SourceReview != "" && result.SourceReview != "not_checked" && result.SourceReview != "pass" && result.SourceReview != "revise" {

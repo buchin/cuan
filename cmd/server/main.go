@@ -281,6 +281,7 @@ func main() {
 		signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 		srv.StartInboxEvents(ctx)
 		srv.StartInboxDispatcher(ctx)
+		srv.StartProactiveWatchdog(ctx)
 		if ready := os.Getenv("CUAN_CHAT_WORKER_READY_FILE"); ready != "" {
 			data, _ := json.Marshal(map[string]any{"release": cfg.CommitSHA, "pid": os.Getpid()})
 			temporary := filepath.Join(filepath.Dir(ready), ".ready.next")

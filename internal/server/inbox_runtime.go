@@ -229,7 +229,8 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 		}
 		// Native AGY also emits input/finish lifecycle steps. They are not
 		// tools, and must not make a schema-only reply look like execution.
-		if e.Update.Type == "user_input" || e.Update.Type == "finish" || e.Update.Type == "error_message" {
+		if e.Update.Type == "user_input" || e.Update.Type == "finish" || e.Update.Type == "error_message" ||
+			e.Update.Type == "system_message" || e.Update.Type == "system" || e.Update.Type == "thought" || e.Update.Type == "agent_thought" {
 			if e.Update.Tool != "" && cleanTool != "finish" {
 				s.unsafeTool = true
 			}
@@ -300,7 +301,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			if !isSafeInboxTool(u.Tool) {
 				s.unsafeTool = true
 			}
-			if u.Tool != "finish" && u.Index != nil {
+			if cleanTool != "finish" && u.Index != nil {
 				if s.disallowTools {
 					s.toolBudgetExceeded = true
 					s.emit("runtime_tool_budget_exceeded", "Tools are disallowed for this response stage. Finishing response.")
@@ -437,6 +438,9 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 			}
 			s.emit(kind, label)
 		}
+	case "thought", "agent_thought", "system_message", "system", "ping", "keepalive":
+		// Streaming non-tool events
+		return
 	default:
 		s.unsafeTool = true
 	}

@@ -72,7 +72,7 @@ export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNoti
                   { label: 'Copy link', run: () => copyItemLink(href) },
                 ]}>
                 <Link to={href} onClick={() => { if (!item.read) void markRead([item.id]).catch(() => {}) }} className="group flex w-full gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                  <span aria-hidden="true" className={'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full '+(unread ? (item.kind === 'blocker' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'bg-primary/10 text-primary') : 'bg-muted text-muted-foreground')}><Icon className="h-4 w-4" /></span>
+                  <span aria-hidden="true" className={'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full '+(unread ? (item.kind === 'blocker' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400' : item.kind === 'completed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-primary/10 text-primary') : 'bg-muted text-muted-foreground')}><Icon className="h-4 w-4" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="flex min-h-4 items-center gap-2 text-xs text-muted-foreground">
                       <span className="min-w-0 flex-1 truncate">{item.context && item.context !== item.title ? item.context : t(item.kind === 'customer' ? 'Live chat' : item.href.startsWith('/inbox/') ? 'Conversation' : 'Project work')}</span>
@@ -82,7 +82,7 @@ export function NotificationRow({item, timeLabel, absoluteLabel}: {item: AppNoti
                     <span title={item.title} className={'mt-1 line-clamp-2 break-words text-sm leading-5 '+(unread ? 'font-semibold' : 'font-normal')}>{t(item.title)}</span>
                     {item.summary && <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{t(item.summary)}</span>}
                     <span className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
-                      <span className={item.resolved ? 'text-muted-foreground' : item.kind === 'blocker' ? 'text-amber-700 dark:text-amber-400' : item.kind === 'approval' ? 'text-primary' : 'text-muted-foreground'}>{t(status)}</span>
+                      <span className={item.resolved ? 'text-muted-foreground' : item.kind === 'blocker' ? 'text-amber-700 dark:text-amber-400' : item.kind === 'completed' ? 'text-emerald-600 dark:text-emerald-400' : item.kind === 'approval' ? 'text-primary' : 'text-muted-foreground'}>{t(status)}</span>
                       <span className="inline-flex items-center gap-1 text-muted-foreground group-hover:text-foreground">{t(action)}<ArrowUpRight className="h-3 w-3" aria-hidden="true" /></span>
                     </span>
                   </span>

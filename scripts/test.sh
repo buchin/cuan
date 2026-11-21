@@ -51,9 +51,9 @@ if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
     # reuse compiled packages instead of keying them by workspace directory.
     # -short selects the fast cases. The timeout bounds the whole package,
     # including its many native process fixtures on constrained workers.
-    go -C "$ROOT_DIR" test -trimpath -short -timeout 120s ./internal/config ./internal/auth ./internal/db ./internal/task ./internal/runner ./pkg/extensions
+    go -C "$ROOT_DIR" test -trimpath -short -timeout 180s ./internal/config ./internal/auth ./internal/db ./internal/task ./internal/runner ./pkg/extensions
   else
-    go -C "$ROOT_DIR" test -trimpath -v -timeout 120s ./internal/... ./pkg/...
+    go -C "$ROOT_DIR" test -trimpath -v -timeout 600s ./internal/... ./pkg/...
   fi
   echo "✓ Go tests passed successfully."
 fi

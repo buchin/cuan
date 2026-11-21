@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import vm from 'node:vm'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const webDir = path.resolve(__dirname, '..')
@@ -28,10 +29,29 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
 
   const swSrc = fs.readFileSync(swPath, 'utf8')
 
+  // Real syntax validation of sw.js
+  assert.doesNotThrow(() => {
+    new vm.Script(swSrc, { filename: 'web/public/sw.js' })
+  }, 'web/public/sw.js must be syntactically valid JavaScript without syntax errors or identifier redeclarations')
+
   // Elimination of hardcoded static text
   assert.ok(
     !swSrc.includes('There is an update that needs your attention.'),
     'sw.js must not contain the legacy static text "There is an update that needs your attention."',
+  )
+
+  // Dynamic action-based titles
+  assert.ok(
+    swSrc.includes('Butuh Persetujuan'),
+    'sw.js must support dynamic action title "Butuh Persetujuan"',
+  )
+  assert.ok(
+    swSrc.includes('Pekerjaan Selesai'),
+    'sw.js must support dynamic action title "Pekerjaan Selesai"',
+  )
+  assert.ok(
+    swSrc.includes('Pesan Baru'),
+    'sw.js must support dynamic action title "Pesan Baru"',
   )
 
   // Push event listener exists
@@ -145,55 +165,54 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
   )
 })
 
-test('2. Functional Simulation: sw.js push payload parsing & deep link resolution', () => {
-  // Simulate push payload parser logic from sw.js
-  function parsePushPayload(mockEventData, origin) {
-    let data = {}
-    try {
-      data = mockEventData?.json() || {}
-    } catch {
-      const text = mockEventData?.text?.()
-      if (text) data = { body: text }
+test('2. Functional Verification: real sw.js push payload parsing & deep link resolution', () => {
+  function executePushHandler(mockEventData, origin) {
+    const swSrc = fs.readFileSync(swPath, 'utf8')
+    let pushHandler = null
+    let result = null
+    const fakeSelf = {
+      addEventListener(event, fn) {
+        if (event === 'push') pushHandler = fn
+      },
+      registration: {
+        showNotification(title, options) {
+          result = {
+            title,
+            body: options.body,
+            icon: options.icon,
+            badge: options.badge,
+            tag: options.tag,
+            href: options.data?.href,
+          }
+        },
+      },
+      clients: {
+        claim: () => Promise.resolve(),
+        matchAll: async () => [],
+        openWindow: async () => ({}),
+      },
+      location: {
+        origin,
+      },
+      skipWaiting: () => {},
     }
-
-    const title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : 'Cuan'
-    const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
-
-    let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
-    if (!icon || icon === '/icons/cuan-192.png') {
-      const kind = typeof data.kind === 'string' ? data.kind : ''
-      const status = typeof data.status === 'string' ? data.status : ''
-      const tag = typeof data.tag === 'string' ? data.tag : ''
-      const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
-
-      if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
-        if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai')) {
-          icon = '/icons/task-done.png'
-        } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review')) {
-          icon = '/icons/task-review.png'
-        } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
-          icon = '/icons/task-blocker.png'
-        }
-      }
+    const sandbox = {
+      self: fakeSelf,
+      URL,
+      Response: class {},
+      fetch: () => Promise.resolve(),
     }
-    if (!icon) {
-      icon = '/icons/cuan-192.png'
+    vm.createContext(sandbox)
+    vm.runInContext(swSrc, sandbox, { filename: 'web/public/sw.js' })
+
+    assert.ok(typeof pushHandler === 'function', 'push handler must be registered in sw.js')
+
+    const mockEvent = {
+      data: mockEventData,
+      waitUntil: (p) => p,
     }
-
-    const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
-    const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
-
-    let href = '/inbox'
-    try {
-      if (data.href) {
-        const url = new URL(data.href, origin)
-        if (url.origin === origin && /^\/(inbox|projects|tasks|notifications)(\/|$)/.test(url.pathname)) {
-          href = url.pathname + url.search
-        }
-      }
-    } catch {}
-
-    return { title, body, icon, badge, tag, href }
+    pushHandler(mockEvent)
+    return result
   }
 
   const origin = 'https://toko-cuan.com'
@@ -205,31 +224,44 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     href: '/inbox/rm_01h9xyz123',
     tag: 'customer:rm_01h9xyz123:msg_001',
   }
-  const parsed1 = parsePushPayload({ json: () => customerPayload }, origin)
+  const parsed1 = executePushHandler({ json: () => customerPayload }, origin)
   assert.equal(parsed1.title, 'Budi (Pengunjung)')
   assert.equal(parsed1.body, 'Halo kak, apakah produk hijab plisket masih ready stock?')
   assert.equal(parsed1.href, '/inbox/rm_01h9xyz123')
   assert.equal(parsed1.tag, 'customer:rm_01h9xyz123:msg_001')
 
-  // Case 2: AI Agent Completion / Approval needed push payload
+  // Case 2: AI Agent Completion / Approval needed push payload (resolves to dynamic title)
   const agentPayload = {
-    title: 'Asisten AI',
+    title: 'Butuh Persetujuan',
     body: 'Proposal balasan customer membutuhkan persetujuan Anda.',
     href: '/inbox/rm_01h9xyz456',
     tag: 'approval:rm_01h9xyz456:msg_002',
+    kind: 'approval',
   }
-  const parsed2 = parsePushPayload({ json: () => agentPayload }, origin)
-  assert.equal(parsed2.title, 'Asisten AI')
+  const parsed2 = executePushHandler({ json: () => agentPayload }, origin)
+  assert.equal(parsed2.title, 'Butuh Persetujuan')
   assert.equal(parsed2.body, 'Proposal balasan customer membutuhkan persetujuan Anda.')
   assert.equal(parsed2.href, '/inbox/rm_01h9xyz456')
 
   // Case 3: Empty / malformed fallback
-  const parsed3 = parsePushPayload({ json: () => ({}) }, origin)
-  assert.equal(parsed3.title, 'Cuan')
+  const parsed3 = executePushHandler({ json: () => ({}) }, origin)
+  assert.equal(parsed3.title, 'Pesan Baru')
   assert.equal(parsed3.body, '')
   assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
   assert.equal(parsed3.icon, '/icons/cuan-192.png')
   assert.equal(parsed3.href, '/inbox')
+
+  // Case 3b: Legacy static @cuan approval replaces with dynamic action title
+  const legacyApproval = {
+    title: '@cuan',
+    body: 'Perbaikan Alur Pembatalan Sesi',
+    href: '/inbox/rm_01h9xyz789',
+    tag: 'approval:rm_01h9xyz789:msg_003',
+    kind: 'approval',
+  }
+  const parsedLegacy = executePushHandler({ json: () => legacyApproval }, origin)
+  assert.equal(parsedLegacy.title, 'Butuh Persetujuan')
+  assert.equal(parsedLegacy.icon, '/icons/task-review.png')
 
   // Case 4: Task done payload (contextual checkmark icon)
   const taskDonePayload = {
@@ -239,7 +271,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'task:task_done_123:done',
     kind: 'completed',
   }
-  const parsedDone = parsePushPayload({ json: () => taskDonePayload }, origin)
+  const parsedDone = executePushHandler({ json: () => taskDonePayload }, origin)
   assert.equal(parsedDone.icon, '/icons/task-done.png')
   assert.equal(parsedDone.title, '✓ Selesai: Fitur Pembayaran')
 
@@ -251,7 +283,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'task:task_rev_456:review',
     kind: 'approval',
   }
-  const parsedReview = parsePushPayload({ json: () => taskReviewPayload }, origin)
+  const parsedReview = executePushHandler({ json: () => taskReviewPayload }, origin)
   assert.equal(parsedReview.icon, '/icons/task-review.png')
 
   // Case 6: Task blocker payload (contextual warning icon)
@@ -262,7 +294,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'task:task_blk_789:blocked',
     kind: 'blocker',
   }
-  const parsedBlocker = parsePushPayload({ json: () => taskBlockerPayload }, origin)
+  const parsedBlocker = executePushHandler({ json: () => taskBlockerPayload }, origin)
   assert.equal(parsedBlocker.icon, '/icons/task-blocker.png')
 })
 
@@ -491,4 +523,80 @@ test('6. Push Notification Deep-Link & Focus Synchronization: instant chat loadi
     inboxViewSrc.includes("window.addEventListener('cuan:notification-navigate', onNotificationNavigate)"),
     'InboxView must listen to cuan:notification-navigate to load conversation immediately',
   )
+})
+
+test('7. Push Notification Assets: Maskable solid icon assets without Android Dark Mode black background corners', async () => {
+  const zlib = await import('node:zlib')
+  const icons = [
+    { file: 'task-done.png', expectedBg: '10b981' },
+    { file: 'task-review.png', expectedBg: 'd97706' },
+    { file: 'task-blocker.png', expectedBg: 'ef4444' },
+  ]
+
+  for (const { file, expectedBg } of icons) {
+    const iconPath = path.join(webDir, 'public/icons', file)
+    assert.ok(fs.existsSync(iconPath), `Icon ${file} must exist`)
+
+    const buf = fs.readFileSync(iconPath)
+    let offset = 8
+    const idatChunks = []
+    let width = 0, height = 0
+    while (offset < buf.length) {
+      const len = buf.readUInt32BE(offset)
+      const type = buf.toString('ascii', offset + 4, offset + 8)
+      const data = buf.subarray(offset + 8, offset + 8 + len)
+      if (type === 'IHDR') {
+        width = data.readUInt32BE(0)
+        height = data.readUInt32BE(4)
+      } else if (type === 'IDAT') {
+        idatChunks.push(data)
+      }
+      offset += 12 + len
+    }
+
+    assert.equal(width, 192, `${file} width must be 192`)
+    assert.equal(height, 192, `${file} height must be 192`)
+
+    const decompressed = zlib.inflateSync(Buffer.concat(idatChunks))
+    const bpp = 3
+    const stride = 1 + width * bpp
+    const raw = Buffer.alloc(width * height * bpp)
+
+    for (let y = 0; y < height; y++) {
+      const filter = decompressed[y * stride]
+      for (let x = 0; x < width * bpp; x++) {
+        const curr = decompressed[y * stride + 1 + x]
+        const left = x >= bpp ? raw[y * width * bpp + x - bpp] : 0
+        const up = y > 0 ? raw[(y - 1) * width * bpp + x] : 0
+        const upLeft = (y > 0 && x >= bpp) ? raw[(y - 1) * width * bpp + x - bpp] : 0
+        let val = curr
+        if (filter === 1) val = (curr + left) & 0xff
+        else if (filter === 2) val = (curr + up) & 0xff
+        else if (filter === 3) val = (curr + Math.floor((left + up) / 2)) & 0xff
+        else if (filter === 4) {
+          const p = left + up - upLeft
+          const pa = Math.abs(p - left)
+          const pb = Math.abs(p - up)
+          const pc = Math.abs(p - upLeft)
+          const pr = (pa <= pb && pa <= pc) ? left : (pb <= pc ? up : upLeft)
+          val = (curr + pr) & 0xff
+        }
+        raw[y * width * bpp + x] = val
+      }
+    }
+
+    // Check corners: must NOT be #191919 (black box artifact)
+    const corners = [
+      [0, 0],
+      [width - 1, 0],
+      [0, height - 1],
+      [width - 1, height - 1],
+    ]
+    for (const [cx, cy] of corners) {
+      const idx = (cy * width + cx) * bpp
+      const hex = raw.subarray(idx, idx + bpp).toString('hex')
+      assert.notEqual(hex, '191919', `${file} corner at (${cx},${cy}) must not have black background #191919`)
+      assert.equal(hex, expectedBg, `${file} corner at (${cx},${cy}) must match solid status color ${expectedBg}`)
+    }
+  }
 })

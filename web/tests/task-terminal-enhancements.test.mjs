@@ -443,5 +443,42 @@ test('15. Single-Tap Mobile Virtual Keyboard Focus and Non-Collapsing Composer',
   assert.doesNotMatch(content, /isMobileKeyboardActive\s*\?\s*['"]hidden sm:flex['"]/, 'TerminalComposer must not be hidden when mobile keyboard is active')
 })
 
+test('16. Anti-Duplicate Status & Mobile Toolbar Zero-Noise: hideStatus and compact inline buttons', () => {
+  const terminalPath = path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx')
+  const sessionPagePath = path.join(rootDir, 'src/features/tasks/TaskSessionPage.tsx')
+  const terminalContent = fs.readFileSync(terminalPath, 'utf8')
+  const sessionPageContent = fs.readFileSync(sessionPagePath, 'utf8')
+
+  // 1. TaskTerminal must support hideStatus prop
+  assert.match(terminalContent, /hideStatus\s*=\s*false/, 'TaskTerminal must have hideStatus default parameter')
+  assert.match(terminalContent, /hideStatus\?:\s*boolean/, 'TaskTerminalProps must include optional hideStatus')
+
+  // 2. Status indicator condition must honor hideStatus when not fullscreen
+  assert.match(
+    terminalContent,
+    /\(isFullscreen \|\| \(!controlsTarget && !hideStatus\)\)/,
+    'Status indicator must be suppressed when hideStatus is true and not fullscreen'
+  )
+
+  // 3. TaskSessionPage must pass hideStatus to TaskTerminal to eliminate duplicate Berjalan pill
+  assert.match(
+    sessionPageContent,
+    /<TaskTerminal[^>]*\bhideStatus\b[^>]*\/>/s,
+    'TaskSessionPage must pass hideStatus to TaskTerminal'
+  )
+
+  // 4. Compact inline action buttons when rendered on mobile / sub-toolbar
+  assert.match(
+    terminalContent,
+    /const isInline = !controlsTarget \|\| isFullscreen/,
+    'TaskTerminal must detect inline toolbar mode'
+  )
+  assert.match(
+    terminalContent,
+    /h-8 w-8/,
+    'Inline terminal action buttons must use compact h-8 w-8 sizing to avoid bulky 44px box clutter'
+  )
+})
+
 
 

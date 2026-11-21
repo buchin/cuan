@@ -49,7 +49,7 @@ type storedProviderAccount struct {
 }
 
 var accountProfileMu sync.Mutex
-var accountIDPattern = regexp.MustCompile(`^acct_[a-f0-9]{32}$`)
+var accountIDPattern = regexp.MustCompile(`^(acct_[a-f0-9]{32}|byok_[a-zA-Z0-9_-]+)$`)
 var ErrAccountNotFound = errors.New("account not found")
 
 func accountRoot() string { return filepath.Join(ConfigHome(), ".local", "share", "cuan", "accounts") }
@@ -89,6 +89,18 @@ func saveProviderAccount(a *ProviderAccount) error {
 	dir, err := accountDirectory(a.ID)
 	if err != nil {
 		return err
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	_ = os.MkdirAll(filepath.Join(dir, "home"), 0700)
+	if strings.HasPrefix(a.ID, "byok_") {
+		pType := strings.TrimPrefix(a.ID, "byok_")
+		cfg := DefaultAIProviderStore().GetConfig(pType)
+		if a.ModelID != "" {
+			cfg.DefaultModel = a.ModelID
+		}
+		_ = DefaultAIProviderStore().SaveConfig(cfg)
 	}
 	data, err := json.Marshal(storedProviderAccount{ProviderAccount: *a, Owner: a.OwnerID})
 	if err != nil {
@@ -166,6 +178,21 @@ func extractAccountEmail(home string) string {
 	return ""
 }
 
+func isBYOKProviderConfigured(providerID string) bool {
+	cfg := DefaultAIProviderStore().GetConfig(providerID)
+	if !cfg.Enabled || cfg.UpdatedAt.IsZero() {
+		return false
+	}
+	key, _ := DefaultAIProviderStore().GetDecryptedAPIKey(providerID)
+	if key != "" {
+		return true
+	}
+	if providerID == ProviderOllama && cfg.BaseURL != "" {
+		return true
+	}
+	return false
+}
+
 func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 	if id == "legacy" {
 		if owner == "" {
@@ -179,6 +206,25 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 	}
 	data, err := os.ReadFile(filepath.Join(dir, "account.json"))
 	if err != nil {
+		if strings.HasPrefix(id, "byok_") && owner != "" {
+			pType := strings.TrimPrefix(id, "byok_")
+			if isBYOKProviderConfigured(pType) {
+				cfg := DefaultAIProviderStore().GetConfig(pType)
+				now := time.Now().UTC()
+				return &ProviderAccount{
+					ID:                 id,
+					OwnerID:            owner,
+					Label:              defaultProviderName(pType),
+					Provider:           pType,
+					ModelID:            cfg.DefaultModel,
+					CredentialsPresent: true,
+					State:              "verified",
+					VerifiedAt:         &now,
+					AllowFailover:      true,
+					CreatedAt:          cfg.UpdatedAt,
+				}, nil
+			}
+		}
 		return nil, ErrAccountNotFound
 	}
 	var stored storedProviderAccount
@@ -187,44 +233,81 @@ func GetProviderAccount(owner, id string) (*ProviderAccount, error) {
 	}
 	a := stored.ProviderAccount
 	a.OwnerID = stored.Owner
-	if a.Email == "" {
-		a.Email = extractAccountEmail(filepath.Join(dir, "home"))
-	}
-	a.CredentialsPresent = IsAntigravityLoggedInInDir(filepath.Join(dir, "home"))
-	if !a.CredentialsPresent {
-		a.State = "login_required"
-		a.Message = "Login Google diperlukan untuk akun ini"
-		a.VerifiedAt = nil
-	} else if a.State == "login_required" {
-		a.State = "unknown"
-		a.Message = "Availability has not been checked."
-	} else if a.State == "quota_limited" && a.QuotaRetryAt != nil && !time.Now().Before(*a.QuotaRetryAt) {
-		a.State = "unknown"
-		a.Message = "Usage cooldown ended. Availability has not been checked."
-	} else if a.State == "verified" && a.VerifiedAt == nil {
-		a.State = "unknown"
-		a.Message = "Availability has not been checked."
+	if a.Provider == "agy" || a.Provider == "antigravity" || (a.Provider == "google" && !strings.HasPrefix(a.ID, "byok_")) {
+		if a.Email == "" {
+			a.Email = extractAccountEmail(filepath.Join(dir, "home"))
+		}
+		a.CredentialsPresent = IsAntigravityLoggedInInDir(filepath.Join(dir, "home"))
+		if !a.CredentialsPresent {
+			a.State = "login_required"
+			a.Message = "Login Google diperlukan untuk akun ini"
+			a.VerifiedAt = nil
+		} else if a.State == "login_required" {
+			a.State = "unknown"
+			a.Message = "Availability has not been checked."
+		} else if a.State == "quota_limited" && a.QuotaRetryAt != nil && !time.Now().Before(*a.QuotaRetryAt) {
+			a.State = "unknown"
+			a.Message = "Usage cooldown ended. Availability has not been checked."
+		} else if a.State == "verified" && a.VerifiedAt == nil {
+			a.State = "unknown"
+			a.Message = "Availability has not been checked."
+		}
+	} else {
+		// Non-Google / BYOK providers (OpenAI, Claude, DeepSeek, Groq, Ollama, etc.)
+		key, _ := DefaultAIProviderStore().GetDecryptedAPIKey(a.Provider)
+		a.CredentialsPresent = isBYOKProviderConfigured(a.Provider) || key != ""
+		if !a.CredentialsPresent {
+			a.State = "login_required"
+			a.Message = fmt.Sprintf("API key required for %s", a.Label)
+			a.VerifiedAt = nil
+		} else if a.State == "login_required" || a.State == "" || a.State == "unknown" {
+			a.State = "verified"
+			now := time.Now().UTC()
+			a.VerifiedAt = &now
+		} else if a.State == "quota_limited" && a.QuotaRetryAt != nil && !time.Now().Before(*a.QuotaRetryAt) {
+			a.State = "verified"
+			now := time.Now().UTC()
+			a.VerifiedAt = &now
+			a.Message = "Usage cooldown ended. Ready."
+		}
 	}
 	return &a, nil
 }
 
 func ListProviderAccounts(owner string) ([]*ProviderAccount, error) {
 	result := []*ProviderAccount{}
+	seenIDs := make(map[string]bool)
 	entries, err := os.ReadDir(accountRoot())
-	if os.IsNotExist(err) {
-		return result, nil
-	}
-	if err != nil {
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if a, err := GetProviderAccount(owner, entry.Name()); err == nil {
+				result = append(result, a)
+				seenIDs[a.ID] = true
+			}
+		}
+	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		if a, err := GetProviderAccount(owner, entry.Name()); err == nil {
-			result = append(result, a)
+
+	// Also discover configured BYOK providers in AIProviderStore
+	if owner != "" {
+		for _, pType := range []string{ProviderOpenAI, ProviderAnthropic, "google", ProviderDeepSeek, ProviderGroq, ProviderOpenRouter, ProviderOllama, ProviderGrok} {
+			byokID := "byok_" + pType
+			if seenIDs[byokID] {
+				continue
+			}
+			if isBYOKProviderConfigured(pType) {
+				if a, err := GetProviderAccount(owner, byokID); err == nil {
+					result = append(result, a)
+					seenIDs[byokID] = true
+				}
+			}
 		}
 	}
+
 	return result, nil
 }
 
@@ -236,8 +319,13 @@ func ProviderAccountHome(owner, id string) (string, error) {
 	if a.Legacy {
 		return "", nil
 	}
-	dir, _ := accountDirectory(id)
-	return filepath.Join(dir, "home"), nil
+	dir, err := accountDirectory(id)
+	if err != nil {
+		return "", err
+	}
+	home := filepath.Join(dir, "home")
+	_ = os.MkdirAll(home, 0700)
+	return home, nil
 }
 
 // DeleteProviderAccount removes a provider account and its stored credentials.
@@ -249,6 +337,13 @@ func DeleteProviderAccount(owner, id string) error {
 	defer accountProfileMu.Unlock()
 	if _, err := GetProviderAccount(owner, id); err != nil {
 		return err
+	}
+	if strings.HasPrefix(id, "byok_") {
+		pType := strings.TrimPrefix(id, "byok_")
+		cfg := DefaultAIProviderStore().GetConfig(pType)
+		cfg.EncryptedAPIKey = ""
+		cfg.Enabled = false
+		_ = DefaultAIProviderStore().SaveConfig(cfg)
 	}
 	release, err := TryLeaseProviderAccountRefresh(owner, id)
 	if err != nil {

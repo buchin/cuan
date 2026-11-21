@@ -90,6 +90,9 @@ func (m *MemoryStore) ClaimLaunch(_ context.Context, now time.Time, token string
 						continue
 					}
 					if other.ProjectID == projID || containsString(other.ProjectIDs, projID) {
+						if strings.HasPrefix(other.Title, "Terminal · ") {
+							continue
+						}
 						if candLane == ExecutionCategoryCode && WorkflowPrecedes(other, m.tasks[j.TaskID]) && m.workflowHandoffLocked(other, now) {
 							projectBusy = true
 							break

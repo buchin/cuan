@@ -368,7 +368,7 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 			}
 		}
 	}
-	if err != nil || p == nil || p.IsArchived {
+	if err != nil || p == nil || (p.IsArchived && p.ID != "default") {
 		return fail("the selected project is unavailable or archived")
 	}
 	if d.ProjectName == "" && p.Name != "" {
@@ -595,6 +595,7 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
 		stage = "task_recovery"
 		if err == nil && detail.Status == task.TaskStatusDone && detail.LatestAttempt != nil {
+			_ = s.PostTaskCompletionMessage(ctx, &detail.Task)
 			continue
 		}
 		if err == nil {
@@ -746,6 +747,9 @@ func formatConversationHistoryContext(messages []db.ProjectMessage, authMsgID st
 		} else if m.AuthorType == "system" {
 			author = "System"
 			maxAllowed = maxAgentRunes
+		} else if m.AuthorType == "user" && (strings.HasPrefix(m.AuthorName, "Visitor") || (m.AuthorID != "" && m.AuthorID != "operator_user" && m.AuthorName != "Owner" && m.AuthorName != "You")) {
+			author = "Visitor"
+			maxAllowed = maxUserRunes
 		}
 		text, ids := decodeAttachmentMessage(m.Content)
 		text = strings.TrimSpace(text)

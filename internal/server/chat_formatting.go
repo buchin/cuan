@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/buchin/cuan/internal/db"
@@ -124,20 +125,84 @@ func (s *Server) getFormattedMessages(ctx context.Context, roomID string, produc
 }
 
 func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string) ([]ChatMessageDTO, error) {
+	dtos, _, err := s.getFormattedMessagesResultPaged(ctx, roomID, product, 0, "")
+	return dtos, err
+}
+
+func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, product string, limit int, beforeID string) ([]ChatMessageDTO, bool, error) {
 	if s.projectStudioRepo == nil {
-		return []ChatMessageDTO{}, nil
+		return []ChatMessageDTO{}, false, nil
 	}
 
 	rawMsgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, roomID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if len(rawMsgs) == 0 {
-		return []ChatMessageDTO{}, nil
+		return []ChatMessageDTO{}, false, nil
+	}
+
+	type indexedMsg struct {
+		msg   db.ProjectMessage
+		dtoID int64
+	}
+	filtered := make([]indexedMsg, 0, len(rawMsgs))
+	for _, m := range rawMsgs {
+		if internalInboxReviewInput(m) {
+			continue
+		}
+		filtered = append(filtered, indexedMsg{
+			msg:   m,
+			dtoID: int64(len(filtered) + 1),
+		})
+	}
+	if len(filtered) == 0 {
+		return []ChatMessageDTO{}, false, nil
+	}
+
+	hasMore := false
+	var target []indexedMsg
+
+	if limit > 0 && len(filtered) > limit {
+		if beforeID != "" {
+			idx := -1
+			for i, item := range filtered {
+				if item.msg.ID == beforeID || strconv.FormatInt(item.dtoID, 10) == beforeID {
+					idx = i
+					break
+				}
+			}
+			if idx > 0 {
+				start := idx - limit
+				if start < 0 {
+					start = 0
+				}
+				hasMore = start > 0
+				target = filtered[start:idx]
+			} else {
+				hasMore = false
+				target = nil
+			}
+		} else {
+			hasMore = true
+			target = filtered[len(filtered)-limit:]
+		}
+	} else {
+		hasMore = false
+		target = filtered
+	}
+
+	if len(target) == 0 {
+		return []ChatMessageDTO{}, hasMore, nil
 	}
 
 	isCustomer := s.isCustomerRoom(ctx, roomID)
-	workUpdates := s.inboxWorkUpdates(ctx, roomID, rawMsgs)
+	targetMsgs := make([]db.ProjectMessage, len(target))
+	for i, item := range target {
+		targetMsgs[i] = item.msg
+	}
+	workUpdates := s.inboxWorkUpdates(ctx, roomID, targetMsgs)
+
 	approved := map[string]bool{}
 	deferred := map[string]bool{}
 	for _, m := range rawMsgs {
@@ -151,27 +216,30 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			}
 		}
 	}
-	dtos := make([]ChatMessageDTO, 0, len(rawMsgs))
+	dtos := make([]ChatMessageDTO, 0, len(target))
 	emailDeliveries := map[string]*ChatEmailDelivery{}
 	if isCustomer {
 		emailDeliveries, err = s.chatEmailDeliveries(ctx, roomID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 	receipts := map[string]db.MessageReceipt{}
 	if store, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok && isCustomer {
 		receipts, err = store.MessageReceipts(ctx, roomID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
-	for _, m := range rawMsgs {
-		// Filter out internal synthetic review trigger prompts from client chat timeline
-		if internalInboxReviewInput(m) {
-			continue
+	var defaultGroundingTastes []GroundingTaste
+	for _, item := range target {
+		if item.msg.AuthorType == "agent" {
+			defaultGroundingTastes = s.activeBrandGroundingTastesForRoom(ctx, roomID)
+			break
 		}
-
+	}
+	for _, item := range target {
+		m := item.msg
 		senderType := "visitor"
 		if isCustomer {
 			if m.AuthorID == "operator_user" || m.AuthorName == "You" || m.AuthorName == "Owner" || m.AuthorType == "agent" || m.AuthorType == "system" {
@@ -187,10 +255,17 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		if m.AuthorType == "user" && m.AuthorID == "operator_user" {
 			regenerateID = decodeRegenerateReplyID(m.Content)
 		}
-		mention := extractMentionHandle(m.Content)
+		mention := ""
+		if senderType == "operator" {
+			mention = extractMentionHandle(m.Content)
+		}
 		isInternal := false
 		if isCustomer {
-			isInternal = customerMessageInternal(&m)
+			if senderType == "visitor" {
+				isInternal = false
+			} else {
+				isInternal = customerMessageInternal(&m)
+			}
 		}
 		messageContent := m.Content
 		replyDraft := ""
@@ -255,7 +330,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			if recorded, ok := s.GetMessageGrounding(m.ID); ok && len(recorded) > 0 {
 				groundingTastes = recorded
 			} else {
-				groundingTastes = s.activeBrandGroundingTastesForRoom(ctx, roomID)
+				groundingTastes = defaultGroundingTastes
 			}
 		}
 
@@ -264,7 +339,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 			WorkUpdate:        workUpdates[m.ID],
 			MessageReceipt:    receipts[m.ID],
 			EmailDelivery:     emailDeliveries[m.ID],
-			ID:                int64(len(dtos) + 1), // Monotonic numeric ID for Dojo widget
+			ID:                item.dtoID, // Monotonic numeric ID for Dojo widget
 			UUID:              m.ID,
 			ApprovalRequestID: approvalRequestID,
 			ApprovalAccepted:  approved[m.ID],
@@ -303,7 +378,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 		})
 	}
 
-	return dtos, nil
+	return dtos, hasMore, nil
 }
 
 // SMTriageResult holds distilled problem analysis and DoD.

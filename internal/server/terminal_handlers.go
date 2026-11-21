@@ -1106,7 +1106,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 						respondJSONError(w, 409, "Task project is unavailable")
 						return
 					}
-					if project.IsArchived {
+					if project.IsArchived && project.ID != "default" {
 						respondJSONError(w, 409, "Restore the archived project before starting a task")
 						return
 					}

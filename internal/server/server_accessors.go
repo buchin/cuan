@@ -65,6 +65,9 @@ func (s *Server) wireTaskService(svc *task.Service) {
 			_, _ = s.syncRoomTitleOnTaskCreated(ctx, t.SourceRoomID, t.Title)
 		}
 	})
+	svc.OnTaskCompleted(func(ctx context.Context, t *task.Task) {
+		_ = s.PostTaskCompletionMessage(ctx, t)
+	})
 }
 
 func (s *Server) SetTaskService(svc *task.Service) {

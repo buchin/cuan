@@ -8,14 +8,15 @@ import (
 
 // Task status constants (Pemisahan status task dari status attempt eksekusi)
 const (
-	TaskStatusBacklog = "backlog"
-	TaskStatusQueued  = "queued"
-	TaskStatusPending = "pending"
-	TaskStatusDoing   = "doing"
-	TaskStatusReview  = "review"
-	TaskStatusDone    = "done"
-	TaskStatusBlocked = "blocked"
-	TaskStatusFailed  = "failed"
+	TaskStatusBacklog   = "backlog"
+	TaskStatusQueued    = "queued"
+	TaskStatusPending   = "pending"
+	TaskStatusDoing     = "doing"
+	TaskStatusReview    = "review"
+	TaskStatusDone      = "done"
+	TaskStatusBlocked   = "blocked"
+	TaskStatusFailed    = "failed"
+	TaskStatusCancelled = "cancelled"
 )
 
 // Attempt execution status constants

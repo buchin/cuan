@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url)
 const {chromium}=require(process.env.CUAN_BROWSER_MODULE||path.join(os.homedir(),'.local/lib/node_modules/playwright'))
 const output=process.argv[2]
 if(!output)throw Error('Supply a new private evidence directory')
-await fs.mkdir(output,{mode:0o700})
+await fs.mkdir(output,{recursive:true,mode:0o700})
 const now='2026-11-06T05:00:00Z',room='work-fixture'
 const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:5,active_tasks:1}
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
@@ -32,7 +32,31 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
- message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]})]
+ message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
+ message('proposal-pending','Siap, ane susun proposal untuk Riwayat & Log Pengiriman (Phase 3).\n\nDi fase ini, setiap sesi broadcast yang dikirim akan otomatis tercatat di menu Kontak—lengkap dengan waktu pengiriman, subjek pesan, jumlah penerima sukses, dan rincian error jika ada email yang gagal terkirim. Tampilannya dirancang minimalis dan rapi mengikuti standar Things 3 / Bear Notes agar mudah dipantau tanpa menambah beban visual.\n\nDetail rencana dan kriteria tuntasnya sudah ane cantumkan pada kartu persetujuan berikut. Silakan dikonfirmasi jika cakupannya sudah sesuai.',{
+   author_type:'agent',
+   is_internal:true,
+   approval_plan:{
+     title:'Phase 3: Riwayat & Log Pengiriman Broadcast Email CRM',
+     description:'Problem Statement:\nSetelah Phase 1 (resolver audiens & preview) dan Phase 2 (draf pesan, batch sender, idempotency, dan RFC 8058) selesai terverifikasi, sistem belum memiliki pencatatan riwayat broadcast. Operator membutuhkan visibilitas riwayat pengiriman lampau beserta detail status keberhasilan, log kegagalan, dan metadata pengiriman untuk audit serta transparansi operasional.',
+     project_name:'cuan'
+   },
+   approval_request_id:'plan-approve-1',
+   plan_defer_request_id:'plan-defer-1',
+   approval_accepted:false
+ }),
+ message('proposal-accepted','Berikut proposal rencana yang telah disetujui:',{
+   author_type:'agent',
+   is_internal:true,
+   approval_plan:{
+     title:'Penyelarasan Desain Kartu Approval Chat: Eliminasi Nested Box Cards',
+     description:'Merapikan struktur visual komponen kartu proposal/approval di linimasa percakapan agar menyatu secara seamless dengan bubble pesan chat tanpa efek kotak dalam kotak.',
+     project_name:'cuan'
+   },
+   approval_request_id:'plan-approve-2',
+   plan_defer_request_id:'plan-defer-2',
+   approval_accepted:true
+ })]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter,useLocation} from 'react-router-dom';
@@ -42,15 +66,30 @@ import {AppShell} from '/src/components/layout/AppShell.tsx';
 import {InboxView} from '/src/features/inbox/InboxView.tsx';
 import {TaskSessionPage} from '/src/features/tasks/TaskSessionPage.tsx';
 import {InboxSubPanel} from '/src/features/inbox/InboxSubPanel.tsx';
+import {StudioView} from '/src/features/inbox/StudioView.tsx';
 import '/src/index.css';
 const contact=${JSON.stringify(contact)},agents=${JSON.stringify(agents)};
 const noop=()=>{};
-function Scene(){const location=useLocation();return location.pathname.startsWith('/tasks/work/sessions/')?React.createElement(TaskSessionPage,{taskId:'work',sessionId:location.pathname.split('/')[4]||'latest'}):React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'})}
-createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppShell,{currentTab:'inbox',onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene))))));`
+function Scene(){
+  const location=useLocation();
+  if(location.pathname.startsWith('/tasks/work/sessions/')){
+    return React.createElement(TaskSessionPage,{taskId:'work',sessionId:location.pathname.split('/')[4]||'latest'})
+  }
+  if(location.pathname.startsWith('/studio')){
+    return React.createElement('div',{className:'h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background'},React.createElement(StudioView,{agentSetup:'ready',hasProject:true,firstGoal:false,onAccepted:noop}))
+  }
+  return React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'})
+}
+function AppFixture(){
+  const location=useLocation();
+  const currentTab=location.pathname.startsWith('/studio')?'studio':'inbox';
+  return React.createElement(AppShell,{currentTab,onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene));
+}
+createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppFixture)))));`
 const webRoot=path.resolve('web')
 process.chdir(webRoot)
 const server=await createServer({root:webRoot,envDir:path.resolve(output),cacheDir:path.join(path.resolve(output),'vite-cache'),server:{host:'127.0.0.1',port:0},plugins:[{name:'work-fixture',enforce:'pre',transform(code,id){if(process.env.CUAN_HOOK_REGRESSION_PROBE==='1'&&id.split('?')[0].endsWith('/TaskSessionPage.tsx')){if(!code.includes('  if (!detail) {'))throw Error('Hook regression probe target missing');return code.replace('  if (!detail) {','  if (detail) useRef(null)\n  if (!detail) {')}},resolveId(id){if(id==='/__work_entry.jsx')return '\0work-fixture-entry.jsx'},load(id){if(id==='\0work-fixture-entry.jsx')return entry},configureServer(server){server.middlewares.use(async(req,res,next)=>{
- if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/tasks/work/sessions/')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
+ if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/tasks/work/sessions/')||req.url.startsWith('/studio')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
  else next()
 })}}]})
 await server.listen()
@@ -87,6 +126,7 @@ try{
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.endsWith('/projects'))data={projects:[]}
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
+   else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
    else if(pathname.endsWith('/tasks'))data={tasks:allTasks}
    else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
@@ -142,6 +182,27 @@ try{
   assert.equal(await sendButton.count(), 1)
   assert.equal(await whisperButton.count(), 0)
   await page.screenshot({path:path.join(output,`inbox-composer-${width}.png`)})
+
+  // Verify alignment of composer container with chat stream (DoD 1)
+  const streamConstraint = page.locator('.inbox-message-list .calm-stream-constraint')
+  const composerConstraint = page.locator('[data-inbox-composer] .calm-stream-constraint')
+  await streamConstraint.waitFor({ state: 'visible' })
+  await composerConstraint.waitFor({ state: 'visible' })
+  const streamBox = await streamConstraint.boundingBox()
+  const composerBox = await composerConstraint.boundingBox()
+  assert.ok(streamBox && composerBox)
+  assert.equal(Math.round(composerBox.x), Math.round(streamBox.x), `Composer must horizontally align with chat stream at width ${width}`)
+  assert.equal(Math.round(composerBox.width), Math.round(streamBox.width), `Composer width must match chat stream width at width ${width}`)
+
+  // Verify multi-line auto-expand beyond 140px without clipping (DoD 2)
+  const multilineText = 'Baris 1: Instruksi pekerjaan panjang\nBaris 2: Detail implementasi yang rapi\nBaris 3: Memastikan auto-expand mulus\nBaris 4: Tanpa visual clipping\nBaris 5: Area pengetikan tetap proporsional\nBaris 6: Nyaman dibaca dan diketik'
+  await composer.fill(multilineText)
+  const multilineHeight = await composer.evaluate(el => el.getBoundingClientRect().height)
+  assert.ok(multilineHeight > 140, `Composer textarea must expand beyond 140px for multi-line text (observed ${multilineHeight}px)`)
+  assert.ok(multilineHeight <= 200, `Composer textarea must respect maximum cap of 200px (observed ${multilineHeight}px)`)
+  await page.screenshot({ path: path.join(output, `inbox-composer-expanded-${width}.png`) })
+  // Restore initial draft
+  await composer.fill('Draft tetap tersimpan')
   const list=page.locator('.inbox-message-list')
   await list.evaluate(el=>{el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-40)})
   await card.scrollIntoViewIfNeeded()
@@ -193,6 +254,28 @@ try{
   await sentBadge.waitFor({state:'visible'})
   assert.equal(await sentBadge.count(), 1)
   await page.screenshot({path:path.join(output,`customer-reply-sent-${width}.png`)})
+
+  // Verify Approval Card Seamless Integration (No Nested Box Cards)
+  const pendingCard = page.locator('[data-testid="approval-card"][data-status="pending"]')
+  await pendingCard.waitFor({state:'visible'})
+  assert.equal(await pendingCard.count(), 1)
+  // Verify no nested calm-message-bubble inside wa-message-bubble
+  assert.equal(await page.locator('.wa-message-bubble .calm-message-bubble').count(), 0, 'No nested bubble inside message bubble')
+  // Verify ApprovalCard is borderless/transparent (no stacked box card)
+  const pendingClass = await pendingCard.getAttribute('class')
+  assert.ok(pendingClass.includes('border-0') && pendingClass.includes('border-l-2') && pendingClass.includes('bg-transparent'), 'Approval card must be border-0 border-l-2 bg-transparent')
+  assert.ok(!pendingClass.includes('bg-card'), 'Approval card must eliminate stacked bg-card')
+  // Check action button touch target (min-h-11)
+  const approveBtn = pendingCard.getByRole('button', {name: /Approve|Setujui/i})
+  assert.ok((await approveBtn.boundingBox()).height >= 44, 'Approve button must meet 44px touch target')
+
+  await pendingCard.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`approval-card-pending-${width}.png`)})
+
+  const acceptedCard = page.locator('[data-testid="approval-card"][data-status="accepted"]')
+  await acceptedCard.waitFor({state:'visible'})
+  await acceptedCard.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`approval-card-accepted-${width}.png`)})
 
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
@@ -276,12 +359,45 @@ try{
   await page.locator('.xterm').waitFor({state:'visible',timeout:15000})
   await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
   await page.screenshot({path:path.join(output,`session-running-${width}.png`)})
+  // Test Cancel session modal
+  const cancelButton = page.locator("button[aria-label=\"Cancel session\"]")
+  await cancelButton.waitFor({state: "visible", timeout: 5000})
+  await cancelButton.click()
+  const dialog = page.locator("dialog[open]:has-text(\"Cancel session?\")")
+  await dialog.waitFor({state: "visible", timeout: 5000})
+  const modalHeading = dialog.locator("h2", { hasText: "Cancel session?" })
+  await modalHeading.waitFor({state: "visible", timeout: 5000})
+  const modalBody = dialog.getByText("Stop the active process? Saved output and existing file changes are retained.")
+  await modalBody.waitFor({state: "visible", timeout: 5000})
+  const keepRunning = dialog.locator("button.action-secondary", { hasText: "Keep running" })
+  const confirmCancel = dialog.locator("button.action-primary", { hasText: "Cancel session" })
+  assert.ok(await keepRunning.isVisible(), "Keep running button must be visible")
+  assert.ok(await confirmCancel.isVisible(), "Cancel session button must be visible")
+  const artifactName = width === 390 ? "mobile.png" : "desktop.png"
+  await page.screenshot({path: path.join(output, artifactName)})
+  await page.screenshot({path: path.join(output, `cancel-modal-${width}.png`)})
+  await keepRunning.click()
+  await dialog.waitFor({state: "hidden", timeout: 5000})
   sessionStatus='succeeded'
   await page.locator('[aria-label="Session result"]').waitFor({state:'visible',timeout:10000})
   await page.screenshot({path:path.join(output,`session-result-${width}.png`)})
   assert.equal(await page.getByText('Something went wrong',{exact:true}).count(),0)
   assert.deepEqual(errors,[])
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width})
+
+  // Verify StudioView canvas and auto-expand at /studio
+  await page.goto(new URL('/studio', origin).href, { waitUntil: 'domcontentloaded' })
+  const studioGoal = page.locator('#studio-goal')
+  await studioGoal.waitFor({ state: 'visible' })
+  const initialStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
+  assert.ok(initialStudioHeight >= 104, 'Studio goal textarea must have minimum 104px height')
+  await page.screenshot({ path: path.join(output, `studio-${width}.png`) })
+
+  await studioGoal.fill('Target pekerjaan baru:\n1. Integrasi API\n2. Penyesuaian layout\n3. Verifikasi otomatis\n4. Dokumentasi lengkap\n5. Pengujian di perangkat nyata')
+  const expandedStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
+  assert.ok(expandedStudioHeight > initialStudioHeight, 'Studio goal textarea must smoothly auto-expand when typing multiple lines')
+  await page.screenshot({ path: path.join(output, `studio-expanded-${width}.png`) })
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true})
   await context.close()
   await browser.close()
   browser=null

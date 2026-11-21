@@ -21,10 +21,10 @@ type inboxModelKey struct{}
 var fetchInboxModelUsage = agent.FetchRunnableAccountModelUsage
 
 type inboxAccountRoute struct {
-	accountID, home, model string
-	remaining              float64
-	primary                bool
-	fallback               bool
+	accountID, home, model, provider string
+	remaining                        float64
+	primary                          bool
+	fallback                         bool
 }
 
 // Only read-only Inbox turns can fail over. Execution tasks are never replayed.
@@ -175,7 +175,11 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 				}
 				_ = agent.PrepareAntigravityReadOnlyPermissions(route.home)
 			}
-			return s.executeInboxCLIWithSafety(attemptCtx, registered.Name, normHarness, prompt, route.home, workspace, step, &safe, attachments...)
+			targetHarness := normHarness
+			if route.provider != "" {
+				targetHarness = route.provider
+			}
+			return s.executeInboxCLIWithSafety(attemptCtx, registered.Name, targetHarness, prompt, route.home, workspace, step, &safe, attachments...)
 		}()
 		if output != "" {
 			if step != nil && (!route.primary || attempts > 1) {
@@ -400,10 +404,12 @@ func (s *Server) providerRoutes(ctx context.Context, owner string, registered *d
 				return false
 			}
 			accountID := ""
+			provider := ""
 			if profile != nil {
 				accountID = profile.ID
+				provider = profile.Provider
 			}
-			routes = append(routes, inboxAccountRoute{accountID, profileHome, normID, remaining, isPrimary, len(fallback) > 0 && fallback[0]})
+			routes = append(routes, inboxAccountRoute{accountID, profileHome, normID, provider, remaining, isPrimary, len(fallback) > 0 && fallback[0]})
 			return true
 		}
 		if profile != nil && profile.FallbackModelID != "" {
@@ -585,11 +591,16 @@ func (s *Server) leaseProviderRoute(ctx context.Context, owner string, registere
 // public persona. Legacy bound accounts still obey their agent enablement and
 // binding checks; partially bound metadata must never bypass those checks.
 func (s *Server) inboxAccountProfileHome(ctx context.Context, owner string, registered *db.Agent, profile *agent.ProviderAccount) (string, error) {
-	if profile == nil || profile.Legacy || !profile.CredentialsPresent || (profile.Provider != "agy" && profile.Provider != "antigravity") || profile.State == "login_required" || profile.State == "unavailable" || profile.State == "setup_incomplete" {
+	if profile == nil || profile.Legacy || !profile.CredentialsPresent || profile.State == "login_required" || profile.State == "unavailable" || profile.State == "setup_incomplete" {
 		return "", errors.New("Account is not ready for this provider")
 	}
+	regHarness := db.NormalizeHarness(registered.Harness, registered.Provider)
+	profHarness := db.NormalizeHarness(profile.Provider, profile.Provider)
+	if regHarness != "" && profHarness != "" && regHarness != profHarness {
+		return "", errors.New("Account provider does not match agent harness")
+	}
 	isFacade := registered.ID == db.AgentIDCuan
-	if isFacade && profile.AgentID == "" && profile.ConnectionID == "" {
+	if isFacade && (profile.AgentID == "" || strings.HasPrefix(profile.ID, "byok_")) {
 		return agent.ProviderAccountHome(owner, profile.ID)
 	}
 	if s.agentRepo == nil || profile.AgentID == "" || profile.ConnectionID == "" {
@@ -606,8 +617,8 @@ func (s *Server) inboxAccountProfileHome(ctx context.Context, owner string, regi
 	if err != nil || bound == nil || !(bound.Enabled || bound.Status == db.AgentStatusActive || bound.Status == "") || (bound.ConnectionID != "" && bound.ConnectionID != profile.ConnectionID) {
 		return "", errors.New("Account binding is not runnable")
 	}
-	harness := db.NormalizeHarness(bound.Harness, bound.Provider)
-	if harness != "agy" && harness != "antigravity" && harness != "" {
+	boundHarness := db.NormalizeHarness(bound.Harness, bound.Provider)
+	if boundHarness != "" && profHarness != "" && boundHarness != profHarness {
 		return "", errors.New("Account provider does not match its binding")
 	}
 	if isFacade {

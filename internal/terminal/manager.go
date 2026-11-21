@@ -452,24 +452,55 @@ func (m *Manager) GetSession(taskID string) (*Session, bool) {
 // CloseSession terminates and removes a task's terminal session.
 func (m *Manager) CloseSession(taskID string) error {
 	m.mu.Lock()
-	sess, exists := m.sessions[taskID]
-	if exists {
+	var toClose []*Session
+	if sess, exists := m.sessions[taskID]; exists {
+		toClose = append(toClose, sess)
 		delete(m.sessions, taskID)
 	}
 	if m.taskAliases != nil {
-		delete(m.taskAliases, taskID)
+		if targetKey, ok := m.taskAliases[taskID]; ok {
+			if sess, exists := m.sessions[targetKey]; exists {
+				toClose = append(toClose, sess)
+				delete(m.sessions, targetKey)
+			}
+			delete(m.taskAliases, taskID)
+		}
+		for alias, target := range m.taskAliases {
+			if target == taskID {
+				if sess, exists := m.sessions[alias]; exists {
+					toClose = append(toClose, sess)
+					delete(m.sessions, alias)
+				}
+				delete(m.taskAliases, alias)
+			}
+		}
 	}
 	for pID, tID := range m.projectSessions {
 		if tID == taskID {
 			delete(m.projectSessions, pID)
+			projKey := ProjectSessionKey(pID)
+			if sess, exists := m.sessions[projKey]; exists {
+				toClose = append(toClose, sess)
+				delete(m.sessions, projKey)
+			}
+		}
+	}
+	if !strings.HasPrefix(taskID, "project-term-") {
+		projKey := ProjectSessionKey(taskID)
+		if sess, exists := m.sessions[projKey]; exists {
+			toClose = append(toClose, sess)
+			delete(m.sessions, projKey)
 		}
 	}
 	m.mu.Unlock()
 
-	if !exists {
-		return nil
+	var firstErr error
+	for _, sess := range toClose {
+		if err := sess.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
-	return sess.Close()
+	return firstErr
 }
 
 // ReconcileZombieSessions sweeps any sessions whose OS process has died or
@@ -837,7 +868,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 			// Readonly: shared reader pool! Only blocked by active migration lock (checked above)
 		} else {
 			// Code lane: git deployment lock
-			if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID {
+			if activeTaskID, exists := m.projectSessions[cfg.ProjectID]; exists && activeTaskID != taskID && !strings.HasPrefix(activeTaskID, "project-term-") {
 				if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
 					m.mu.Unlock()
 					return nil, taskprocess.ErrActive
@@ -1138,7 +1169,7 @@ func (m *Manager) ProjectLaneActive(projectID string, lane string) (bool, error)
 
 	// Code lane: check git deployment lock
 	m.mu.RLock()
-	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" {
+	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" && !strings.HasPrefix(activeTaskID, "project-term-") {
 		if sess, ok := m.sessions[activeTaskID]; ok && !sess.IsClosed() {
 			m.mu.RUnlock()
 			return true, nil

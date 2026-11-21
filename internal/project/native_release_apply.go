@@ -3,6 +3,7 @@ package project
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
@@ -45,4 +46,61 @@ func (s *Service) ApplyNativeReleaseSource(ctx context.Context, projectID, instr
 		return nil, ErrGitHubConnectionRequired
 	}
 	return s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: branch, SourceCommit: sourceCommit, Message: "Apply verified task source " + sourceCommit, Token: token})
+}
+
+// ReconcileNativeReleaseAncestry ensures that the target release commit provably
+// contains the active running release before release activation. If diverged, it
+// creates a clean in-memory merge of both parent lineages and publishes it to the target branch.
+func (s *Service) ReconcileNativeReleaseAncestry(ctx context.Context, projectID, instructions, repository, targetBranch, runningCommit, targetCommit string) (string, error) {
+	if s.gitClient == nil || projectID == "" || !git.IsCommitHash(runningCommit) || !git.IsCommitHash(targetCommit) {
+		return "", errors.New("reconcile release ancestry identity unavailable")
+	}
+	if runningCommit == targetCommit {
+		return targetCommit, nil
+	}
+	contained, err := s.PublishedCommitContained(ctx, projectID, runningCommit, targetCommit)
+	if err == nil && contained {
+		return targetCommit, nil
+	}
+	p, err := s.TaskContext(ctx, projectID, instructions)
+	if err != nil || p == nil || p.IsArchived || p.LocalPath == "" {
+		return "", errors.New("saved release project context unavailable")
+	}
+	owner, repo, err := git.ParseGitHubURL(p.RepoURL)
+	if err != nil || repository != owner+"/"+repo {
+		return "", errors.New("reconcile release repository differs from task context")
+	}
+	registered, err := s.store.GetProject(ctx, projectID)
+	if err != nil || registered == nil || registered.IsArchived {
+		return "", errors.New("saved repository connection unavailable")
+	}
+	token, err := s.repositoryToken(ctx, registered.EncryptedToken)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(token) == "" {
+		return "", ErrGitHubConnectionRequired
+	}
+
+	lease, err := git.AcquireVerificationLease(ctx, p.LocalPath)
+	if err != nil {
+		return "", err
+	}
+	defer lease.Close()
+
+	for _, c := range []string{targetCommit, runningCommit} {
+		if err := s.gitClient.VerifySnapshotCommit(ctx, p.LocalPath, c, c); err != nil {
+			_ = s.gitClient.FetchVerificationCommit(ctx, p.LocalPath, p.RepoURL, c, token)
+		}
+	}
+
+	msg := fmt.Sprintf("Reconcile active release %s with verified release %s", runningCommit[:8], targetCommit[:8])
+	reconciledSHA, err := s.gitClient.ReconcileCommits(ctx, p.LocalPath, targetCommit, runningCommit, msg)
+	if err != nil {
+		return "", err
+	}
+	if pushErr := s.gitClient.PushCommitToBranch(ctx, p.LocalPath, p.RepoURL, targetBranch, reconciledSHA, token); pushErr != nil {
+		return "", pushErr
+	}
+	return reconciledSHA, nil
 }
