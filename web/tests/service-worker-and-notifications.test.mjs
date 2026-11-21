@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import vm from 'node:vm'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const webDir = path.resolve(__dirname, '..')
@@ -27,6 +28,11 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
   assert.ok(fs.existsSync(swPath), 'web/public/sw.js must exist')
 
   const swSrc = fs.readFileSync(swPath, 'utf8')
+
+  // Real syntax validation of sw.js
+  assert.doesNotThrow(() => {
+    new vm.Script(swSrc, { filename: 'web/public/sw.js' })
+  }, 'web/public/sw.js must be syntactically valid JavaScript without syntax errors or identifier redeclarations')
 
   // Elimination of hardcoded static text
   assert.ok(
@@ -159,69 +165,54 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
   )
 })
 
-test('2. Functional Simulation: sw.js push payload parsing & deep link resolution', () => {
-  // Simulate push payload parser logic from sw.js
-  function parsePushPayload(mockEventData, origin) {
-    let data = {}
-    try {
-      data = mockEventData?.json() || {}
-    } catch {
-      const text = mockEventData?.text?.()
-      if (text) data = { body: text }
+test('2. Functional Verification: real sw.js push payload parsing & deep link resolution', () => {
+  function executePushHandler(mockEventData, origin) {
+    const swSrc = fs.readFileSync(swPath, 'utf8')
+    let pushHandler = null
+    let result = null
+    const fakeSelf = {
+      addEventListener(event, fn) {
+        if (event === 'push') pushHandler = fn
+      },
+      registration: {
+        showNotification(title, options) {
+          result = {
+            title,
+            body: options.body,
+            icon: options.icon,
+            badge: options.badge,
+            tag: options.tag,
+            href: options.data?.href,
+          }
+        },
+      },
+      clients: {
+        claim: () => Promise.resolve(),
+        matchAll: async () => [],
+        openWindow: async () => ({}),
+      },
+      location: {
+        origin,
+      },
+      skipWaiting: () => {},
     }
-
-    let title = (typeof data.title === 'string' && data.title.trim()) ? data.title.trim() : ''
-    const kind = typeof data.kind === 'string' ? data.kind : ''
-    const status = typeof data.status === 'string' ? data.status : ''
-    const tag = (typeof data.tag === 'string' && data.tag.trim()) ? data.tag.trim() : 'cuan-update'
-
-    if (!title || title === '@cuan' || title.startsWith('@') || title === 'Cuan' || title === 'Asisten AI') {
-      if (kind === 'approval' || status.toLowerCase().includes('approval') || status.toLowerCase().includes('review') || tag.startsWith('approval:')) {
-        title = 'Butuh Persetujuan'
-      } else if (kind === 'completed' || status.toLowerCase().includes('complete') || tag.includes(':done')) {
-        title = 'Pekerjaan Selesai'
-      } else if (kind === 'blocker' || status.toLowerCase().includes('attention') || tag.includes(':blocked')) {
-        title = 'Perhatian Diperlukan'
-      } else if (kind === 'customer') {
-        title = 'Pesan Baru'
-      } else {
-        title = 'Pesan Baru'
-      }
+    const sandbox = {
+      self: fakeSelf,
+      URL,
+      Response: class {},
+      fetch: () => Promise.resolve(),
     }
+    vm.createContext(sandbox)
+    vm.runInContext(swSrc, sandbox, { filename: 'web/public/sw.js' })
 
-    const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
+    assert.ok(typeof pushHandler === 'function', 'push handler must be registered in sw.js')
 
-    let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
-    if (!icon || icon === '/icons/cuan-192.png') {
-      const isTask = tag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
-
-      if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
-        if (kind === 'completed' || tag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai') || title.includes('Pekerjaan Selesai')) {
-          icon = '/icons/task-done.png'
-        } else if (kind === 'approval' || tag.includes(':review') || status.toLowerCase().includes('review') || status.toLowerCase().includes('approval') || title.includes('Persetujuan')) {
-          icon = '/icons/task-review.png'
-        } else if (kind === 'blocker' || tag.includes(':blocked') || status.toLowerCase().includes('attention')) {
-          icon = '/icons/task-blocker.png'
-        }
-      }
+    const mockEvent = {
+      data: mockEventData,
+      waitUntil: (p) => p,
     }
-    if (!icon) {
-      icon = '/icons/cuan-192.png'
-    }
-
-    const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
-
-    let href = '/inbox'
-    try {
-      if (data.href) {
-        const url = new URL(data.href, origin)
-        if (url.origin === origin && /^\/(inbox|projects|tasks|notifications)(\/|$)/.test(url.pathname)) {
-          href = url.pathname + url.search
-        }
-      }
-    } catch {}
-
-    return { title, body, icon, badge, tag, href }
+    pushHandler(mockEvent)
+    return result
   }
 
   const origin = 'https://toko-cuan.com'
@@ -233,7 +224,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     href: '/inbox/rm_01h9xyz123',
     tag: 'customer:rm_01h9xyz123:msg_001',
   }
-  const parsed1 = parsePushPayload({ json: () => customerPayload }, origin)
+  const parsed1 = executePushHandler({ json: () => customerPayload }, origin)
   assert.equal(parsed1.title, 'Budi (Pengunjung)')
   assert.equal(parsed1.body, 'Halo kak, apakah produk hijab plisket masih ready stock?')
   assert.equal(parsed1.href, '/inbox/rm_01h9xyz123')
@@ -247,13 +238,13 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'approval:rm_01h9xyz456:msg_002',
     kind: 'approval',
   }
-  const parsed2 = parsePushPayload({ json: () => agentPayload }, origin)
+  const parsed2 = executePushHandler({ json: () => agentPayload }, origin)
   assert.equal(parsed2.title, 'Butuh Persetujuan')
   assert.equal(parsed2.body, 'Proposal balasan customer membutuhkan persetujuan Anda.')
   assert.equal(parsed2.href, '/inbox/rm_01h9xyz456')
 
   // Case 3: Empty / malformed fallback
-  const parsed3 = parsePushPayload({ json: () => ({}) }, origin)
+  const parsed3 = executePushHandler({ json: () => ({}) }, origin)
   assert.equal(parsed3.title, 'Pesan Baru')
   assert.equal(parsed3.body, '')
   assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
@@ -268,7 +259,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'approval:rm_01h9xyz789:msg_003',
     kind: 'approval',
   }
-  const parsedLegacy = parsePushPayload({ json: () => legacyApproval }, origin)
+  const parsedLegacy = executePushHandler({ json: () => legacyApproval }, origin)
   assert.equal(parsedLegacy.title, 'Butuh Persetujuan')
   assert.equal(parsedLegacy.icon, '/icons/task-review.png')
 
@@ -280,7 +271,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'task:task_done_123:done',
     kind: 'completed',
   }
-  const parsedDone = parsePushPayload({ json: () => taskDonePayload }, origin)
+  const parsedDone = executePushHandler({ json: () => taskDonePayload }, origin)
   assert.equal(parsedDone.icon, '/icons/task-done.png')
   assert.equal(parsedDone.title, '✓ Selesai: Fitur Pembayaran')
 
@@ -292,7 +283,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'task:task_rev_456:review',
     kind: 'approval',
   }
-  const parsedReview = parsePushPayload({ json: () => taskReviewPayload }, origin)
+  const parsedReview = executePushHandler({ json: () => taskReviewPayload }, origin)
   assert.equal(parsedReview.icon, '/icons/task-review.png')
 
   // Case 6: Task blocker payload (contextual warning icon)
@@ -303,7 +294,7 @@ test('2. Functional Simulation: sw.js push payload parsing & deep link resolutio
     tag: 'task:task_blk_789:blocked',
     kind: 'blocker',
   }
-  const parsedBlocker = parsePushPayload({ json: () => taskBlockerPayload }, origin)
+  const parsedBlocker = executePushHandler({ json: () => taskBlockerPayload }, origin)
   assert.equal(parsedBlocker.icon, '/icons/task-blocker.png')
 })
 
