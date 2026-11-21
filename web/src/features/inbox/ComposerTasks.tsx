@@ -11,11 +11,6 @@ import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
 import { cn } from '../../lib/utils'
 
-function running(task: Task) {
-  const status = workStatus(task)
-  return status === 'Working' || (!['Completed', 'Cancelled'].includes(status) && task.review_state === 'running')
-}
-
 // Key this component by conversation so disclosure choices never leak between rooms.
 export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   tasks: Task[]
@@ -31,8 +26,9 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   const prevCountRef = useRef(0)
   const [open, setOpen] = useState(false)
 
+  // Reverse-chronological: newest task always rendered at the top
   const ordered = [...new Map(tasks.map(task => [task.id, task])).values()]
-    .sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0) || a.id.localeCompare(b.id))
+    .sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id.localeCompare(a.id))
 
   useEffect(() => {
     const wasOpened = open && !prevOpenRef.current
@@ -52,10 +48,11 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       const el = panelRef.current
       const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const behavior = prefersReducedMotion ? 'auto' : 'smooth'
+      // Reverse-chronological timeline maintains top alignment for newest task
       if (typeof el.scrollTo === 'function') {
-        el.scrollTo({ top: el.scrollHeight, behavior })
+        el.scrollTo({ top: el.scrollHeight ? 0 : 0, behavior })
       } else {
-        el.scrollTop = el.scrollHeight
+        el.scrollTop = 0
       }
     }
 
@@ -74,8 +71,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   }, [open, ordered.length])
 
   if (!tasks.length && !modes) return null
-  const runningTasks = ordered.filter(running)
-  const defaultExpandedIds = runningTasks.length ? runningTasks.map(task => task.id) : ordered.slice(-1).map(task => task.id)
+  const latestTask = ordered[0]
+  const defaultExpandedIds = latestTask ? [latestTask.id] : []
 
   const hasAttention = ordered.some(t => workStatus(t) === 'Needs attention')
   const hasActive = ordered.some(taskExecutionActive)
@@ -89,8 +86,6 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
     : isAllDone ? 'done'
     : hasQueued ? 'queued'
     : 'neutral'
-
-  const latestTask = ordered[ordered.length - 1]
 
   return <section className="composer-tasks border-b border-border/40 px-3 sm:px-6 py-0.5 transition-colors z-10 shrink-0" aria-label={t('Conversation tasks')} data-testid="task-banner" onKeyDown={event => {
     if (event.key === 'Escape' && open) {
@@ -107,7 +102,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         data-status={badgeStatus}
         className={cn(
           "composer-mode-tab flex-1 flex items-center justify-between gap-2.5 min-w-0 min-h-11 sm:min-h-8 px-2 -mx-2 rounded-md text-left transition-colors cursor-pointer select-none",
-          "hover:bg-muted/30 active:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          "hover:bg-muted/30 active:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          open && "sr-only"
         )}
         onClick={() => setOpen(value => !value)}>
         {latestTask && (
@@ -144,14 +140,16 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       </button>}
     </div>
     {tasks.length > 0 && <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
-      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 max-h-[40vh] border-t border-border/20 pt-1 pb-1">
-        <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-3 pb-2.5 pt-1" items={ordered.map(task => {
+      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 max-h-[40vh] pt-1 pb-1">
+        <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-3 pb-2.5 pt-1" items={ordered.map((task, index) => {
           const work = workStatus(task)
           const status = workDisplayStatus(task)
           const progress = work === 'Needs attention' ? task.review_finding || ''
             : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
             : taskLiveActivityText(task, '') || taskSummaryText(task)
-          return {id: task.id,
+          const isLatest = index === 0
+          return {
+            id: task.id,
             indicator: status === 'Completed' ? (
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
             ) : taskExecutionActive(task) ? (
@@ -165,10 +163,50 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             ) : (
               <StatusDot status="neutral" size="xs" label={t(status)} />
             ),
-            title: <span className="min-w-0 sm:flex sm:items-center sm:gap-3">
+            title: isLatest ? (
+              <span className="min-w-0 sm:flex sm:items-center sm:gap-3">
                 <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
                 <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
-              </span>,
+              </span>
+            ) : (
+              <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
+            ),
+            meta: isLatest ? (
+              <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+                <span className={cn(
+                  "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
+                  badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
+                  badgeStatus === 'review' ? "bg-purple-500/20 text-purple-800 dark:text-purple-300" :
+                  badgeStatus === 'working' ? "bg-blue-500/20 text-blue-800 dark:text-blue-300" :
+                  badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
+                  "bg-muted text-muted-foreground"
+                )}>{ordered.length}</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('Collapse tasks')}
+                  data-testid="composer-tasks-collapse"
+                  onClick={e => {
+                    e.stopPropagation()
+                    setOpen(false)
+                    trigger.current?.focus()
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      setOpen(false)
+                      trigger.current?.focus()
+                    }
+                  }}
+                  className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 rounded hover:bg-muted/40 text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <ChevronDown className="h-3.5 w-3.5 rotate-180 transition-transform duration-200 ease-in-out" />
+                </span>
+              </span>
+            ) : (
+              <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
+            ),
             content: <>
               <TaskDuration task={task} className="mb-2 block" />
               {progress && <p className="line-clamp-3 pb-2 text-sm leading-relaxed text-muted-foreground">{progress}</p>}

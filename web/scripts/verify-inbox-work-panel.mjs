@@ -146,19 +146,14 @@ try{
   const afterOpenChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
   assert.equal(afterOpenChatScroll,initialChatScroll,'Main chat history scroll must remain undisturbed')
   const panelEl=page.locator('.composer-tasks-panel')
-  // Verify auto-scroll to bottom reached the end
-  await page.waitForFunction(() => {
-    const p = document.querySelector('.composer-tasks-panel')
-    return p && p.scrollTop >= p.scrollHeight - p.clientHeight - 2
-  }, null, { timeout: 10000 })
   const card=page.locator('.composer-tasks-panel [data-timeline-item="work"]')
   try{await card.waitFor({state:'visible',timeout:20000})}catch(error){await page.screenshot({path:path.join(output,'failed-'+width+'.png')});console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(0,1500)}));throw error}
   assert.equal(await card.count(),1)
   const cardBox=await card.boundingBox()
   const panelBox=await panelEl.boundingBox()
   assert.ok(cardBox && panelBox)
-  assert.ok(cardBox.y + cardBox.height <= panelBox.y + panelBox.height + 2, 'Last task must not be clipped at bottom')
-  assert.ok(cardBox.y >= panelBox.y - 2, 'Last task must be within visible panel height')
+  assert.ok(cardBox.y >= panelBox.y - 2, 'Newest task must be at top within visible panel height')
+  assert.ok(cardBox.y + cardBox.height <= panelBox.y + panelBox.height + 2, 'Newest task must not be clipped')
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
   assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
