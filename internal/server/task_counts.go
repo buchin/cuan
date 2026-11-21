@@ -16,13 +16,25 @@ type scopedTaskCounts struct{ Rooms, Projects map[string]taskCounts }
 // One grouped query, independent of task-list pagination. Never reads instructions,
 // outputs or logs. Only the latest attempt/launch status is read; modern records
 // supersede mirrored old rows, including canceled work saved in review.
+// Computed via set-based aggregation CTEs instead of N+1 lateral loops per task.
 const taskCountsSQL = `
-WITH canonical AS (
+WITH latest_attempts AS (
+ SELECT DISTINCT ON (task_id) id, task_id, status
+ FROM task_attempts
+ ORDER BY task_id, created_at DESC, id DESC
+),
+latest_launches AS (
+ SELECT DISTINCT ON (l.task_id) l.task_id, l.state
+ FROM task_launches l
+ LEFT JOIN latest_attempts a ON a.task_id = l.task_id AND a.id = l.attempt_id AND a.status IN ('queued','running')
+ ORDER BY l.task_id, (a.id IS NOT NULL) DESC, l.created_at DESC, l.id DESC
+),
+canonical AS (
  SELECT t.id, t.project_id, t.source_room_id::text AS room_id,
  ` + task.EffectiveStatusSQL + ` AS status
  FROM tasks t
- LEFT JOIN LATERAL (SELECT id,status FROM task_attempts WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1) a ON true
- LEFT JOIN LATERAL (SELECT state FROM task_launches WHERE task_id=t.id ORDER BY COALESCE(attempt_id=a.id AND a.status IN ('queued','running'),false) DESC,created_at DESC,id DESC LIMIT 1) l ON true
+ LEFT JOIN latest_attempts a ON a.task_id = t.id
+ LEFT JOIN latest_launches l ON l.task_id = t.id
  UNION ALL
  SELECT p.id::text, p.project_id, p.room_id::text, lower(btrim(p.status)) FROM project_tasks p
  WHERE NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = p.id::text)

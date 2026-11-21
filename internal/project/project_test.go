@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -293,4 +294,73 @@ func TestProject_ModularWorkspaceAndIntegrations(t *testing.T) {
 		t.Errorf("expected HasConfig true")
 	}
 }
+
+func TestProjectService_ListFiltered_SecurityAndFiltering(t *testing.T) {
+	store := NewMemoryStore()
+	svc := NewService(store, nil, "secret", t.TempDir())
+	ctx := context.Background()
+
+	pActive := &Project{
+		ID:             "proj-active-1",
+		Name:           "Active Project",
+		RepoURL:        "https://github.com/buchin/active",
+		Metadata:       []byte(`{"env":{"SENSITIVE_KEY":"super-secret-token"}}`),
+		SourceMetadata: []byte(`{"raw_credential":"secret-password"}`),
+		IsArchived:     false,
+	}
+	pArchived := &Project{
+		ID:         "proj-archived-1",
+		Name:       "Archived Project",
+		RepoURL:    "https://github.com/buchin/archived",
+		IsArchived: true,
+	}
+
+	if err := store.CreateProject(ctx, pActive); err != nil {
+		t.Fatalf("create active project: %v", err)
+	}
+	if err := store.CreateProject(ctx, pArchived); err != nil {
+		t.Fatalf("create archived project: %v", err)
+	}
+
+	// 1. Filter Active (default)
+	activeItems, err := svc.ListFiltered(ctx, ArchivedFilterActive)
+	if err != nil {
+		t.Fatalf("ListFiltered active failed: %v", err)
+	}
+	if len(activeItems) != 1 || activeItems[0].ID != "proj-active-1" {
+		t.Fatalf("expected only active project, got %d items", len(activeItems))
+	}
+
+	// 2. Security check: overfetching & sensitive env/token leak prevention
+	data, err := json.Marshal(activeItems[0])
+	if err != nil {
+		t.Fatalf("json marshal failed: %v", err)
+	}
+	dataStr := string(data)
+	if strings.Contains(dataStr, "super-secret-token") || strings.Contains(dataStr, "secret-password") {
+		t.Fatalf("security violation: sensitive payload leaked in ProjectListItem: %s", dataStr)
+	}
+	if strings.Contains(dataStr, "metadata") || strings.Contains(dataStr, "source_metadata") {
+		t.Fatalf("overfetching violation: raw metadata exposed in ProjectListItem: %s", dataStr)
+	}
+
+	// 3. Filter Only Archived
+	archivedItems, err := svc.ListFiltered(ctx, ArchivedFilterOnly)
+	if err != nil {
+		t.Fatalf("ListFiltered only archived failed: %v", err)
+	}
+	if len(archivedItems) != 1 || archivedItems[0].ID != "proj-archived-1" {
+		t.Fatalf("expected only archived project, got %d items", len(archivedItems))
+	}
+
+	// 4. Filter All
+	allItems, err := svc.ListFiltered(ctx, ArchivedFilterAll)
+	if err != nil {
+		t.Fatalf("ListFiltered all failed: %v", err)
+	}
+	if len(allItems) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(allItems))
+	}
+}
+
 

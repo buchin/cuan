@@ -302,3 +302,15 @@ func activeLaunchCountsContract(t *testing.T, s *Server, project string) {
 		t.Fatalf("duplicate launch changed active counts: got=%+v want=%+v", got, want)
 	}
 }
+
+func TestTaskCountsSQLNoLateral(t *testing.T) {
+	if strings.Contains(strings.ToUpper(taskCountsSQL), "LATERAL") {
+		t.Fatalf("taskCountsSQL still contains LATERAL joins, expected set-based CTE aggregation")
+	}
+	for _, expectedCTE := range []string{"latest_attempts", "latest_launches", "canonical", "scopes"} {
+		if !strings.Contains(taskCountsSQL, expectedCTE) {
+			t.Fatalf("taskCountsSQL missing expected CTE: %s", expectedCTE)
+		}
+	}
+}
+

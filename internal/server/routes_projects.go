@@ -60,13 +60,27 @@ func (s *Server) isProjectActive(ctx context.Context, projectID string, excludeT
 }
 
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
-	projects, err := s.projectSvc.List(r.Context())
+	archivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("archived")))
+	includeArchivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("include_archived")))
+	statusParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+
+	// Resolve archive filter: push predicate to database, avoid in-memory scanning.
+	var filter project.ArchivedFilter
+	if archivedParam == "true" || statusParam == "archived" {
+		filter = project.ArchivedFilterOnly
+	} else if archivedParam == "all" || includeArchivedParam == "true" || statusParam == "all" {
+		filter = project.ArchivedFilterAll
+	} else {
+		filter = project.ArchivedFilterActive
+	}
+
+	projects, err := s.projectSvc.ListFiltered(r.Context(), filter)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list projects: %v", err))
 		return
 	}
 	if projects == nil {
-		projects = []*project.ProjectResponse{}
+		projects = []*project.ProjectListItem{}
 	}
 
 	counts, err := s.readTaskCounts(r.Context())
@@ -79,32 +93,9 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done, Active: c.Active, Queued: c.Queued, Review: c.Review, Blocked: c.Failed, Canceled: c.Canceled}
 	}
 
-	archivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("archived")))
-	includeArchivedParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("include_archived")))
-	statusParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
-
-	var filtered []*project.ProjectResponse
-	for _, p := range projects {
-		if archivedParam == "true" || statusParam == "archived" {
-			if p.IsArchived {
-				filtered = append(filtered, p)
-			}
-		} else if archivedParam == "all" || includeArchivedParam == "true" || statusParam == "all" {
-			filtered = append(filtered, p)
-		} else {
-			// default: only active (is_archived == false)
-			if !p.IsArchived {
-				filtered = append(filtered, p)
-			}
-		}
-	}
-	if filtered == nil {
-		filtered = []*project.ProjectResponse{}
-	}
-
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"projects": filtered,
-		"total":    len(filtered),
+		"projects": projects,
+		"total":    len(projects),
 	})
 }
 
