@@ -12,12 +12,13 @@ export interface AccordionTimelineItem {
 
 /** Caller supplies chronological facts and phase indicators; disclosure never
  * changes work state. Explicit choices survive polling and new default items. */
-export function AccordionTimeline({ items, label, defaultExpandedIds, followLatest = true, className }: {
+export function AccordionTimeline({ items, label, defaultExpandedIds, followLatest = true, className, showTriggerCaret = true }: {
   items: AccordionTimelineItem[]
   label: string
   defaultExpandedIds?: string[]
   followLatest?: boolean
   className?: string
+  showTriggerCaret?: boolean
 }) {
   const prefix = useId()
   const [choices, setChoices] = useState<Record<string, boolean>>({})
@@ -35,7 +36,7 @@ export function AccordionTimeline({ items, label, defaultExpandedIds, followLate
       const expandable = item.content != null && item.content !== false
       const expanded = expandable && (choices[item.id] ?? defaults.current.includes(item.id))
       const bodyID = `${prefix}-${index}`
-      const heading = <><span className="min-w-0 flex-1 break-words text-sm font-medium leading-5">{typeof item.title === 'function' ? item.title(expanded) : item.title}</span>{item.meta && <span className="shrink-0 text-[11px] font-normal text-muted-foreground">{item.meta}</span>}{expandable && <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} aria-hidden />}</>
+      const heading = <><span className="min-w-0 flex-1 break-words text-sm font-medium leading-5">{typeof item.title === 'function' ? item.title(expanded) : item.title}</span>{item.meta && <span className="shrink-0 text-[11px] font-normal text-muted-foreground">{item.meta}</span>}{expandable && showTriggerCaret && <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} aria-hidden />}</>
       return <li key={item.id} data-timeline-item={item.id} data-work-event={item.id} className="relative min-w-0 pb-2 pl-6 last:pb-0">
         {index < items.length - 1 && <span data-timeline-connector aria-hidden className="absolute left-[7.5px] top-[30px] -bottom-[14px] w-px bg-border/60" />}
         <span className="absolute left-0 top-0 flex h-11 w-4 items-center justify-center">{item.indicator}</span>
