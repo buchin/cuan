@@ -226,7 +226,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 					s.finishPayload = raw
 				}
 			}
-			if s.onDelta != nil && len(s.finishPayload) > 0 && (s.extractor == nil || !s.extractor.inReply) {
+			if s.onDelta != nil && len(s.finishPayload) > 0 && (s.extractor == nil || !s.extractor.hasEmitted()) {
 				if s.extractor == nil {
 					s.extractor = newStreamReplyExtractor()
 				}
