@@ -50,6 +50,7 @@ import {
   retryInboxRequest,
   sendCustomerReplyEmail,
 } from '../../api/chat'
+import { ApiError } from '../../api/client'
 import {
   Send,
   Bot,
@@ -672,7 +673,8 @@ export function InboxView({
         const pending = pendingRef.current
         if (
           pending?.convId === convId &&
-          data.requests?.some((q) => q.request_id === pending.id)
+          (data.requests?.some((q) => q.request_id === pending.id) ||
+           data.messages?.some((m) => m.uuid === pending.id || (pending.text && m.content === pending.text)))
         ) {
           localStorage.removeItem('cuan_inbox_pending:' + convId)
           uploads.acknowledge(
@@ -1168,7 +1170,14 @@ export function InboxView({
   const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string, regenerateReplyId?: string) => {
     if (!activeContact || sending || uploads.busy) return
     const convId = activeContact.conversation_id || activeContact.id
-    const pending = pendingRef.current?.convId === convId ? pendingRef.current : null
+    const isExplicitUserSubmit =
+      !approveMessageId &&
+      overrideText === undefined &&
+      !regenerateReplyId &&
+      Boolean(inputMessage.trim() || uploads.items.length)
+
+    // A fresh composer submission by the user supersedes any stale pending state
+    const pending = !isExplicitUserSubmit && pendingRef.current?.convId === convId ? pendingRef.current : null
     let text = pending?.convId === convId ? pending.text : overrideText ? overrideText : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
     if (!pending && !regenerateReplyId && !approveMessageId && activeContact.type === 'customer' && isWhisper && text && !extractMentionHandle(text) && !text.startsWith('@')) {
       text = `${whisperHandle} ${text}`
@@ -1257,13 +1266,26 @@ export function InboxView({
         }
       }
       onContactUpdated?.()
-    } catch {
-      if (activeConvRef.current === convId)
-        setSendError(
-          t(
-            'Reconnecting… Your message is saved.',
-          ),
-        )
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+        // Server rejected this request (4xx). Do not deadlock user in retry loop; clear pending.
+        try {
+          const key = 'cuan_inbox_pending:' + convId
+          localStorage.removeItem(key)
+        } catch { /* ignore */ }
+        if (pendingRef.current === request) pendingRef.current = null
+        if (activeConvRef.current === convId) {
+          setSendError(err.message || t('Permintaan tidak dapat diproses.'))
+          setRetryCount(3)
+        }
+      } else {
+        if (activeConvRef.current === convId)
+          setSendError(
+            t(
+              'Reconnecting… Your message is saved.',
+            ),
+          )
+      }
     } finally {
       setSending(false)
     }
@@ -2433,10 +2455,10 @@ export function InboxView({
                 {showResolutionCard && (
                   <div
                     data-testid="conversation-resolution-card"
-                    className="mx-auto mb-2 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-3.5 py-2.5 backdrop-blur-xs transition-colors"
+                    className="mx-auto mb-2 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-3.5 py-2 backdrop-blur-xs transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">
                           {hasFinishedTasks ? t('Semua pekerjaan telah selesai diverifikasi.') : t('Selesai berdiskusi?')}
@@ -2451,7 +2473,7 @@ export function InboxView({
                       data-testid="mark-resolved-button"
                       disabled={resolving}
                       onClick={handleMarkResolved}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer disabled:opacity-50"
                     >
                       {resolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       <span>{t('Tandai Tuntas (Inbox Zero)')}</span>
