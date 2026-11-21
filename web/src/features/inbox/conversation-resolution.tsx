@@ -30,10 +30,13 @@ export function ConversationResolutionAction({ contact, compact = false, onChang
 
   const handleToggle = async () => {
     if (busy) return
-    if (!contact.resolved && (contact.active_tasks || 0) > 0) {
-      const confirmMessage = t('Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?')
-        .replace('{{count}}', String(contact.active_tasks))
-      if (!window.confirm(confirmMessage)) return
+    if (!contact.resolved) {
+      const taskCount = (contact.active_tasks || 0) || (contact.task_count || 0)
+      if (taskCount > 0) {
+        const confirmMessage = t('Ada {{count}} tugas dalam percakapan ini. Batalkan tugas dan tuntaskan percakapan?')
+          .replace('{{count}}', String(taskCount))
+        if (!window.confirm(confirmMessage)) return
+      }
     }
     setBusy(true)
     setError('')
