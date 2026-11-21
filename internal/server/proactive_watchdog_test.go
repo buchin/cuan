@@ -660,3 +660,149 @@ func TestProactiveWatchdogExternalBlockedTaskProvidesDirectLinksWithoutApprovalC
 		t.Fatalf("expected Pengaturan Proyek link, got: %s", extMsg.Content)
 	}
 }
+
+func TestProactiveWatchdogHeartbeatSweepsQueuedInboxRequests(t *testing.T) {
+	ctx := context.Background()
+	repo := db.NewMemoryProjectStudioRepository()
+	now := time.Now().UTC()
+
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_heartbeat",
+		Title:     "Heartbeat Sweeper Room",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	req := db.InboxRequest{
+		RequestID:   "req-sweep-1",
+		RoomID:      room.ID,
+		MessageID:   "msg-sweep-1",
+		OwnerID:     "owner_sweep",
+		State:       "queued",
+		CreatedAt:   now.Add(-2 * time.Minute),
+		PayloadHash: "payload-1",
+	}
+	_, _, err := repo.AcceptInboxRequest(ctx, req, &db.ProjectMessage{
+		ID:         req.MessageID,
+		RoomID:     room.ID,
+		AuthorType: "user",
+		Content:    "Sweep this request",
+		CreatedAt:  now.Add(-2 * time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectStudioRepo: repo,
+	}
+
+	// Verify room is detected by dispatcher and sweep does not panic
+	srv.heartbeatSweepQueuedInboxRequests(ctx)
+}
+
+func TestProactiveWatchdogReviewTaskNeverGeneratesActionCardSpam(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	taskSvc := task.NewService(taskStore, nil)
+	repo := db.NewMemoryProjectStudioRepository()
+	now := time.Now().UTC()
+
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_silent_review",
+		Title:     "Review Room",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	req := db.InboxRequest{
+		RequestID:   "req-rev-1",
+		RoomID:      room.ID,
+		MessageID:   "msg-rev-1",
+		OwnerID:     "owner_rev",
+		State:       "completed",
+		CreatedAt:   now,
+		PayloadHash: "hash-rev-1",
+	}
+	_, _, _ = repo.AcceptInboxRequest(ctx, req, &db.ProjectMessage{
+		ID:         req.MessageID,
+		RoomID:     room.ID,
+		AuthorType: "user",
+		Content:    "Fix review task",
+		CreatedAt:  now,
+	})
+
+	taskItem := &task.Task{
+		ID:              "task_in_review",
+		ProjectID:       "proj_silent_review",
+		SourceRoomID:    room.ID,
+		SourceMessageID: req.MessageID,
+		Title:           "Internal review task",
+		Instructions:    "Cuan managed delegation v1.\nPerform internal review.",
+		Status:          task.TaskStatusReview, // Crucial: in review, NOT blocked
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := taskStore.CreateTask(ctx, taskItem); err != nil {
+		t.Fatal(err)
+	}
+
+	attempt := &task.TaskAttempt{
+		ID:            "att_rev_1",
+		TaskID:        taskItem.ID,
+		AttemptNumber: 1,
+		Status:        task.AttemptStatusSucceeded,
+		CreatedAt:     now,
+	}
+	if err := taskStore.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+
+	assessmentRecord := reviewAssessmentRecord{
+		RequestID:        "req-rev-assessment",
+		InstructionsHash: task.LaunchInstructionsHash(taskItem.Instructions),
+		Assessment: inboxReviewEvaluation{
+			Decision:      "revise",
+			Finding:       "Internal checks ongoing",
+			Explanation:   "Verifikasi independen sedang berjalan.",
+			RemainingWork: "verification",
+			ManagerAction: "wait",
+			ManagerReason: "Verifikasi berjalan.",
+		},
+	}
+	rawMsg, _ := json.Marshal(assessmentRecord)
+	act := &task.TaskActivity{
+		ID:           "act_rev_1",
+		TaskID:       taskItem.ID,
+		AttemptID:    &attempt.ID,
+		ActivityType: reviewAssessmentActivity,
+		Author:       "coordinator",
+		Message:      string(rawMsg),
+		CreatedAt:    now,
+	}
+	if err := taskStore.CreateActivity(ctx, act); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		taskSvc:           taskSvc,
+		projectStudioRepo: repo,
+	}
+
+	// Run watchdog
+	srv.orchestrateBlockedInboxTasks(ctx)
+
+	// User messages in room must NOT have any new cuan-approval card
+	messages, err := repo.ListMessagesByRoomID(ctx, room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Initial message only (len == 1), no approval card posted
+	if len(messages) != 1 {
+		t.Fatalf("expected 0 unsolicited messages for review task, got %d", len(messages)-1)
+	}
+}

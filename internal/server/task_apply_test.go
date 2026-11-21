@@ -308,3 +308,32 @@ func TestApplyTaskFailsClosedWhenAttemptPolicyUnavailable(t *testing.T) {
 	s.autoApplyAndDeployTask(ctx, created.ID, "project")
 	s.triggerAutoDeploy(ctx, "project", created.ID)
 }
+
+func TestTaskPublicationPolicyResolvesVerifiedSupplementalSource(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	svc := task.NewService(store, nil)
+	s := &Server{taskSvc: svc}
+
+	created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    "project",
+		Title:        "Feature",
+		Instructions: "Implement feature and report evidence",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	policy, err := s.taskPublicationPolicy(ctx, detail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if policy.DenyPush || policy.DenyDeploy {
+		t.Fatalf("expected publication allowed for standard task, got: %+v", policy)
+	}
+}

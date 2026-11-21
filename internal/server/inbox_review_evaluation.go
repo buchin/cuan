@@ -564,17 +564,25 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			return "Keputusan review belum tersimpan. Status dan hasil pekerjaan belum diubah.\n\n[View work](/tasks/" + d.ID + ")"
 		}
 	}
+	decision = s.requireVisualReview(ctx, d, decision)
+	decision = s.requirePublicationReview(ctx, d, decision)
+	decision = s.requireIndependentCodeReview(ctx, d, decision)
+	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
 	if decision.SourceReview == "pass" && decision.RemainingWork == "publication" {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 			if requests, err := store.ListInboxRequests(ctx, d.SourceRoomID); err == nil && s.recoverNativeReleaseHandoff(ctx, d, requests) {
 				return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
 			}
 		}
+		if s.projectSvc != nil && d.ProjectID != "" {
+			if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil {
+				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+					s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID)
+					return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+				}
+			}
+		}
 	}
-	decision = s.requireVisualReview(ctx, d, decision)
-	decision = s.requirePublicationReview(ctx, d, decision)
-	decision = s.requireIndependentCodeReview(ctx, d, decision)
-	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
 	if decision.Decision == "pass" {
 		if _, _, guidanceErr := project.TaskReviewGuidance(d.Instructions); guidanceErr != nil {
 			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}

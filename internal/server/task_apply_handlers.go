@@ -158,7 +158,11 @@ func (s *Server) taskPublicationPolicy(ctx context.Context, detail *task.TaskDet
 	if detail.LatestAttempt == nil {
 		return executionpolicy.FromInstructions(detail.Instructions), nil
 	}
-	return s.taskSvc.AttemptPublicationPolicy(ctx, detail.ID, detail.LatestAttempt.ID)
+	attemptID := detail.LatestAttempt.ID
+	if _, proof := s.verifiedSupplementalSource(ctx, detail); proof != nil && proof.SourceAttemptID != "" {
+		attemptID = proof.SourceAttemptID
+	}
+	return s.taskSvc.AttemptPublicationPolicy(ctx, detail.ID, attemptID)
 }
 
 func taskApplyPermission(policy executionpolicy.PublicationPolicy) error {
