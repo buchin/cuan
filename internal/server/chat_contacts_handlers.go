@@ -437,9 +437,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 		contacts[i].ResolutionObservedAt = observed
 		contacts[i].Resolved = room.IsResolved(observed) && contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
+		if contacts[i].Resolved {
+			contacts[i].UnreadCount = 0
+		}
 	}
 	for i := range contacts {
-		if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {
+		if !contacts[i].Resolved && preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {
 			contacts[i].UnreadCount = 1
 		}
 	}
