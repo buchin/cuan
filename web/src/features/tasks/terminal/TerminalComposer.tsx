@@ -32,6 +32,42 @@ export interface TerminalComposerHandle {
   focus: () => void
 }
 
+export function formatSpeechTranscription(
+  baseText: string,
+  results: { length: number; [index: number]: { isFinal?: boolean; [index: number]: { transcript?: string } } }
+): {
+  text: string
+  finalTranscript: string
+  interimTranscript: string
+} {
+  const finalParts: string[] = []
+  const interimParts: string[] = []
+
+  for (let i = 0; i < results.length; ++i) {
+    const item = results[i]
+    const transcript = item?.[0]?.transcript?.trim()
+    if (!transcript) continue
+
+    if (item.isFinal) {
+      finalParts.push(transcript)
+    } else {
+      interimParts.push(transcript)
+    }
+  }
+
+  const finalTranscript = finalParts.join(' ')
+  const interimTranscript = interimParts.join(' ')
+  const base = baseText.trim()
+  const parts = [base, finalTranscript, interimTranscript].filter(Boolean)
+  const text = parts.join(' ')
+
+  return {
+    text,
+    finalTranscript,
+    interimTranscript,
+  }
+}
+
 export type TerminalComposerProps = {
   taskId: string
   attemptId?: string
@@ -119,12 +155,25 @@ export function TerminalComposer({
   const [speechSupported, setSpeechSupported] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const recognitionRef = useRef<any>(null)
+  const textRef = useRef(text)
+  const baseTextRef = useRef('')
+
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       setSpeechSupported(Boolean(SpeechRecognition))
+    }
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {}
+      }
     }
   }, [])
 
@@ -179,6 +228,7 @@ export function TerminalComposer({
     if (!SpeechRecognition) return
 
     try {
+      baseTextRef.current = textRef.current.trim()
       const recognition = new SpeechRecognition()
       recognitionRef.current = recognition
       recognition.continuous = true
@@ -190,26 +240,13 @@ export function TerminalComposer({
       }
 
       recognition.onresult = (event: any) => {
-        let interim = ''
-        let final = ''
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript
-          } else {
-            interim += event.results[i][0].transcript
-          }
-        }
-        const transcript = (final || interim).trim()
-        if (transcript) {
-          setText((prev) => {
-            const base = prev.trim()
-            return base ? `${base} ${transcript}` : transcript
-          })
-          if (textareaRef.current) {
-            setTimeout(() => {
-              if (textareaRef.current) autoResizeTextarea(textareaRef.current)
-            }, 0)
-          }
+        if (!event?.results) return
+        const { text: newText } = formatSpeechTranscription(baseTextRef.current, event.results)
+        setText(newText)
+        if (textareaRef.current) {
+          setTimeout(() => {
+            if (textareaRef.current) autoResizeTextarea(textareaRef.current)
+          }, 0)
         }
       }
 
@@ -875,13 +912,13 @@ export function TerminalComposer({
         </div>
 
         {/* Unified Send / Dictation Action (Yields space to Send while typing like Inbox) */}
-        {speechSupported && !text.trim() ? (
+        {(speechSupported && !text.trim()) || isListening ? (
           <ComposerSendButton
             type="button"
             disabled={disabled}
             onClick={toggleListening}
             title={isListening ? 'Hentikan dikte suara' : 'Dikte suara (Speech-to-Text)'}
-            aria-label="Voice input"
+            aria-label={isListening ? 'Stop voice input' : 'Voice input'}
             className="text-muted-foreground hover:text-foreground"
           >
             {isListening ? (
