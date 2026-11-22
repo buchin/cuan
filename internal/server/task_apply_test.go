@@ -342,3 +342,31 @@ func TestTaskPublicationPolicyResolvesVerifiedSupplementalSource(t *testing.T) {
 	_, _, _ = s.inboxReviewRepositoryScope(ctx, detail)
 	_, _ = s.verifiedSupplementalSource(ctx, detail)
 }
+
+func TestAutoApplyDoesNotSkipCodeTaskWithRCAInInstructions(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	svc := task.NewService(store, nil)
+
+	created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:         "project",
+		Title:             "Fix Issue #38 and #39",
+		Instructions:      "Perform Root Cause Analysis (RCA) and fix bug",
+		ExecutionCategory: task.ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if detail.ExecutionCategory == task.ExecutionCategoryReadOnly {
+		t.Fatal("expected execution category code")
+	}
+	if detail.ExecutionCategory != task.ExecutionCategoryCode && isInvestigationOrNonCodeText(detail.Title) {
+		t.Fatal("code task should not be classified as non-code investigation")
+	}
+}
