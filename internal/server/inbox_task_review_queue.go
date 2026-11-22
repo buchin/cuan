@@ -52,8 +52,8 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		}
 	}
 	if targetRoomID == "" {
-		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil && len(rooms) > 0 {
-			targetRoomID = rooms[0].ID
+		if resolved := s.resolveConversationContext(ctx, db.AgentIDCuan, ""); resolved.RoomID != "" {
+			targetRoomID = resolved.RoomID
 		}
 	}
 	if targetRoomID == "" {

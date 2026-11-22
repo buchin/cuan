@@ -50,7 +50,8 @@ func TestProactiveWatchdogStorageAlertProposal(t *testing.T) {
 	room := &db.ProjectRoom{
 		ID:        db.GenerateUUID(),
 		ProjectID: "proj_test",
-		Title:     "General Ops",
+		Title:     "Peringatan Kapasitas Server",
+		Topic:     "agent-topic:system:storage",
 	}
 	if err := repo.CreateRoom(ctx, room); err != nil {
 		t.Fatal(err)
@@ -97,6 +98,47 @@ func TestProactiveWatchdogStorageAlertProposal(t *testing.T) {
 	}
 	if len(messages) != 1 {
 		t.Fatalf("expected still 1 message due to deduplication, got %d", len(messages))
+	}
+}
+
+func TestProactiveWatchdogStorageAlertCreatesNewRoomWhenNoneExists(t *testing.T) {
+	ctx := context.Background()
+	repo := db.NewMemoryProjectStudioRepository()
+
+	watchdogAlertMu.Lock()
+	lastStorageAlertTime = time.Time{}
+	watchdogAlertMu.Unlock()
+
+	srv := &Server{
+		projectStudioRepo: repo,
+	}
+
+	// Above threshold (92%): should create dedicated new room and post proposal card
+	srv.checkProactiveStorageAlert(ctx, ServerTelemetry{DiskUsedPercent: 92.0, DiskFreeBytes: 1024 * 1024 * 1024})
+
+	rooms, err := repo.ListAllRooms(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rooms) != 1 {
+		t.Fatalf("expected 1 storage alert room created, got %d", len(rooms))
+	}
+	if rooms[0].Title != "Peringatan Kapasitas Server" {
+		t.Errorf("expected room title 'Peringatan Kapasitas Server', got %q", rooms[0].Title)
+	}
+	if rooms[0].Topic != "agent-topic:system:storage" {
+		t.Errorf("expected room topic 'agent-topic:system:storage', got %q", rooms[0].Topic)
+	}
+
+	messages, err := repo.ListMessagesByRoomID(ctx, rooms[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 proposal message in new room, got %d", len(messages))
+	}
+	if !strings.Contains(messages[0].Content, "```cuan-approval") {
+		t.Errorf("expected cuan-approval card in new room message, got: %s", messages[0].Content)
 	}
 }
 

@@ -155,6 +155,9 @@ func (s *Server) crmContactForSession(ctx context.Context, id string) (CRMContac
 	if s.db != nil {
 		return scanCRM(s.db.QueryRowContext(ctx, `SELECT `+crmColumns+` FROM crm_contacts WHERE session_uuid::text=$1`, id))
 	}
+	if s.crm == nil {
+		return CRMContact{}, sql.ErrNoRows
+	}
 	s.crm.Lock()
 	defer s.crm.Unlock()
 	for _, c := range s.crm.contacts {
