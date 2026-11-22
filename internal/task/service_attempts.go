@@ -539,6 +539,32 @@ func (s *Service) RenewLocalAttemptLease(ctx context.Context, attemptID string) 
 	return s.store.UpdateAttempt(ctx, a)
 }
 
+// LatestAttemptsMap returns a map of taskID -> *TaskAttempt for the given tasks,
+// using a single batch query if supported by the underlying store to eliminate N+1 queries.
+func (s *Service) LatestAttemptsMap(ctx context.Context, tasks []*Task) map[string]*TaskAttempt {
+	if len(tasks) == 0 {
+		return map[string]*TaskAttempt{}
+	}
+	ids := make([]string, len(tasks))
+	for i, t := range tasks {
+		ids[i] = t.ID
+	}
+	if reader, ok := s.store.(interface {
+		LatestAttempts(context.Context, []string) (map[string]*TaskAttempt, error)
+	}); ok {
+		if res, err := reader.LatestAttempts(ctx, ids); err == nil {
+			return res
+		}
+	}
+	res := make(map[string]*TaskAttempt, len(tasks))
+	for _, id := range ids {
+		if a, err := s.store.GetLatestAttempt(ctx, id); err == nil && a != nil {
+			res[id] = a
+		}
+	}
+	return res
+}
+
 // RecoverStartupLocalAttempts recovers any in-flight local_terminal attempts
 // left behind by a server restart or crash without waiting for lease expiration,
 // since local terminal PTY processes cannot survive across server restarts.
@@ -547,9 +573,10 @@ func (s *Service) RecoverStartupLocalAttempts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	latestMap := s.LatestAttemptsMap(ctx, tasks)
 	for _, t := range tasks {
-		a, err := s.store.GetLatestAttempt(ctx, t.ID)
-		if err != nil || a == nil || a.RunnerID != "local_terminal" {
+		a := latestMap[t.ID]
+		if a == nil || a.RunnerID != "local_terminal" {
 			continue
 		}
 		if s.isLocalAttemptActive != nil && s.isLocalAttemptActive(t.ID) {
@@ -577,9 +604,10 @@ func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	latestMap := s.LatestAttemptsMap(ctx, tasks)
 	for _, t := range tasks {
-		a, err := s.store.GetLatestAttempt(ctx, t.ID)
-		if err != nil || a == nil || a.RunnerID != "local_terminal" {
+		a := latestMap[t.ID]
+		if a == nil || a.RunnerID != "local_terminal" {
 			continue
 		}
 		if a.Status != "running" && a.Status != "queued" {
@@ -610,18 +638,25 @@ func (s *Service) RecoverLocalAttempts(ctx context.Context) error {
 // is dead or has exceeded the hard execution timeout. It marks them failed / stopped
 // and frees the project lane so subsequent tasks can run automatically.
 func (s *Service) ReconcileZombieAttempts(ctx context.Context, timeout time.Duration, isTaskActiveOnHost func(taskID string) bool) error {
-	if timeout <= 0 {
-		timeout = 20 * time.Minute
-	}
 	tasks, err := s.RecoveryTasks(ctx)
 	if err != nil {
 		return err
 	}
+	return s.ReconcileZombieAttemptTasks(ctx, tasks, timeout, isTaskActiveOnHost)
+}
+
+// ReconcileZombieAttemptTasks sweeps candidate tasks and launches whose OS process
+// is dead or has exceeded the hard execution timeout, utilizing batched attempt resolution.
+func (s *Service) ReconcileZombieAttemptTasks(ctx context.Context, tasks []*Task, timeout time.Duration, isTaskActiveOnHost func(taskID string) bool) error {
+	if timeout <= 0 {
+		timeout = 20 * time.Minute
+	}
 	now := time.Now().UTC()
+	latestMap := s.LatestAttemptsMap(ctx, tasks)
 
 	for _, t := range tasks {
-		a, err := s.store.GetLatestAttempt(ctx, t.ID)
-		if err != nil || a == nil {
+		a := latestMap[t.ID]
+		if a == nil {
 			continue
 		}
 

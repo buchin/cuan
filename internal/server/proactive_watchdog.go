@@ -183,6 +183,7 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		return
 	}
 
+	requestsByRoom := make(map[string][]db.InboxRequest)
 	for _, t := range tasks {
 		if t.SourceRoomID == "" || !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
 			continue
@@ -223,9 +224,14 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
-		requests, err := repo.ListInboxRequests(ctx, detail.SourceRoomID)
-		if err != nil {
-			continue
+		requests, ok := requestsByRoom[detail.SourceRoomID]
+		if !ok {
+			var err error
+			requests, err = repo.ListInboxRequests(ctx, detail.SourceRoomID)
+			if err != nil {
+				continue
+			}
+			requestsByRoom[detail.SourceRoomID] = requests
 		}
 
 		// Resolve the task's root owner authorization request.

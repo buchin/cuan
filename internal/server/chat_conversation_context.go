@@ -20,9 +20,6 @@ type ResolvedConversation struct {
 // resolveConversationContext resolves any conversation identifier (room UUID, agent ID, contact alias, handle)
 // into a valid room UUID in project_rooms and the target agent persona.
 func (s *Server) resolveConversationContext(ctx context.Context, convID string, messageText string) (result ResolvedConversation) {
-	inboxRoomResolutionMu.Lock()
-	defer inboxRoomResolutionMu.Unlock()
-
 	// Legacy rooms keep their IDs/history, while new turns use the public identity.
 	defer func() {
 		if result.IsAgent && s.agentRepo != nil {
@@ -43,25 +40,37 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 
 	trimmedID := strings.TrimSpace(convID)
 
-	// 1. Fast path: If trimmedID is a valid room UUID and already exists, resolve directly
+	// 1. Fast path: If trimmedID is a valid room UUID and already exists, resolve directly without lock
 	if db.IsValidUUID(trimmedID) && s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
 			if targetID := roomAgentID(rm.Topic); targetID != "" && s.agentRepo != nil {
-				result.TargetAgentID = targetID
-				result.TargetAgentName = rm.Title
 				ag, err := s.agentRepo.GetAgentByID(ctx, targetID)
 				if err == nil && ag != nil && ag.Enabled {
 					result.IsAgent = true
 					result.TargetAgentID = ag.ID
+					result.TargetAgentName = rm.Title
 					result.TargetHarness = db.NormalizeHarness(ag.Harness, ag.Provider)
 					if ag.Name != "" && result.TargetAgentName == "" {
 						result.TargetAgentName = ag.Name
 					}
 					return result
 				}
+				if isLegacyInternalAgent(targetID) {
+					result.IsAgent = true
+					result.TargetAgentID = targetID
+					result.TargetAgentName = rm.Title
+					if cuan, err := s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan); err == nil && cuan != nil && cuan.Enabled {
+						result.TargetAgentID = cuan.ID
+						result.TargetHarness = db.NormalizeHarness(cuan.Harness, cuan.Provider)
+						if cuan.Name != "" && result.TargetAgentName == "" {
+							result.TargetAgentName = cuan.Name
+						}
+					}
+					return result
+				}
 			}
-			// If room topic does not bind an active agent (e.g. customer/visitor conversation, or deleted agent),
+			// If room topic does not bind an agent (e.g. customer/visitor conversation),
 			// check if the message mentions an agent (e.g. "@cuan" or "@sm").
 			if mention := extractMentionHandle(messageText); mention != "" {
 				s.resolveAgentFromMention(ctx, mention, &result)
@@ -73,6 +82,10 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 			return result
 		}
 	}
+
+	// Slow path: Alias resolution and room creation require mutual exclusion
+	inboxRoomResolutionMu.Lock()
+	defer inboxRoomResolutionMu.Unlock()
 
 	// 3. Clean candidate agent ID from contact_ or agent_ prefix
 	cleanAgentID := strings.TrimPrefix(trimmedID, "contact_")
@@ -138,22 +151,31 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
 			if roomAgentID(rm.Topic) != "" && s.agentRepo != nil {
-				result.IsAgent = true
-				result.TargetAgentID = roomAgentID(rm.Topic)
-				result.TargetAgentName = rm.Title
-				ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID)
-				if (err != nil || ag == nil) && s.agentRepo != nil {
-					ag, _ = s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan)
-				}
-				if ag != nil {
+				targetID := roomAgentID(rm.Topic)
+				ag, err := s.agentRepo.GetAgentByID(ctx, targetID)
+				if err == nil && ag != nil && ag.Enabled {
+					result.IsAgent = true
 					result.TargetAgentID = ag.ID
-					result.TargetHarness = ag.Harness
+					result.TargetAgentName = rm.Title
+					result.TargetHarness = db.NormalizeHarness(ag.Harness, ag.Provider)
 					if ag.Name != "" && result.TargetAgentName == "" {
 						result.TargetAgentName = ag.Name
 					}
+					return result
 				}
-				result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
-				return result
+				if isLegacyInternalAgent(targetID) {
+					result.IsAgent = true
+					result.TargetAgentID = targetID
+					result.TargetAgentName = rm.Title
+					if cuan, err := s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan); err == nil && cuan != nil && cuan.Enabled {
+						result.TargetAgentID = cuan.ID
+						result.TargetHarness = db.NormalizeHarness(cuan.Harness, cuan.Provider)
+						if cuan.Name != "" && result.TargetAgentName == "" {
+							result.TargetAgentName = cuan.Name
+						}
+					}
+					return result
+				}
 			}
 		}
 	}
