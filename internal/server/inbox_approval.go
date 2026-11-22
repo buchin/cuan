@@ -139,7 +139,7 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 	var target *db.ProjectMessage
 	for i := range messages {
 		m := &messages[i]
-		if m.ID == id && m.AuthorType == "agent" && (m.AuthorID == agent || agent == "" || m.AuthorID == "") {
+		if m.ID == id && m.AuthorType == "agent" && (m.AuthorID == agent || agent == "" || m.AuthorID == "" || m.AuthorName == "Cuan Watchdog" || strings.HasPrefix(m.AuthorID, "system:")) {
 			target = m
 			break
 		}
@@ -157,6 +157,13 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 			if q.ReplyID == id && q.OwnerID == owner && (q.AgentID == agent || agent == "") && q.State == "completed" {
 				trusted = true
 				break
+			}
+		}
+		if !trusted {
+			// Proactive system alerts (such as the Cuan storage watchdog) post proposal cards
+			// autonomously without a prior user prompt. Verify message author authenticity.
+			if target.AuthorType == "agent" && (target.AuthorName == "Cuan Watchdog" || target.AuthorID == "agent_cuan" || strings.HasPrefix(target.AuthorID, "system:")) {
+				trusted = true
 			}
 		}
 		if !trusted {

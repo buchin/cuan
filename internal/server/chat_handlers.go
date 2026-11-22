@@ -134,7 +134,7 @@ func isLegacyInternalAgent(id string) bool {
 	case "", "agent_main", "agent_sm", "agent_dev", "agent_support", "agent_lifecycle", "agent_queued", db.AgentIDCuan:
 		return true
 	default:
-		return false
+		return strings.HasPrefix(id, "system:")
 	}
 }
 

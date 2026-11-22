@@ -47,18 +47,38 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if db.IsValidUUID(trimmedID) && s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
-			if roomAgentID(rm.Topic) != "" && s.agentRepo != nil {
+			if roomAgentID(rm.Topic) != "" {
+				result.IsAgent = true
 				result.TargetAgentID = roomAgentID(rm.Topic)
 				result.TargetAgentName = rm.Title
-				if ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil && ag != nil {
-					result.IsAgent = true
-					result.TargetHarness = ag.Harness
-					if ag.Name != "" {
-						result.TargetAgentName = ag.Name
+				if s.agentRepo != nil {
+					ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID)
+					if err != nil || ag == nil {
+						ag, _ = s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan)
 					}
-					result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
-					return result
+					if ag == nil {
+						if ags, err := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); err == nil {
+							for _, candidate := range ags {
+								if candidate.Enabled {
+									ag = &candidate
+									break
+								}
+							}
+						}
+					}
+					if ag != nil {
+						result.TargetAgentID = ag.ID
+						result.TargetHarness = ag.Harness
+						if ag.Name != "" && result.TargetAgentName == "" {
+							result.TargetAgentName = ag.Name
+						}
+					}
 				}
+				if result.TargetAgentID == "" || strings.HasPrefix(result.TargetAgentID, "system:") {
+					result.TargetAgentID = db.AgentIDCuan
+				}
+				result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
+				return result
 			}
 			return result
 		}
@@ -128,19 +148,19 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 				result.IsAgent = true
 				result.TargetAgentID = roomAgentID(rm.Topic)
 				result.TargetAgentName = rm.Title
-				if s.agentRepo != nil {
-					if ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil && ag != nil {
-						result.TargetHarness = ag.Harness
-						if ag.Name != "" {
-							result.TargetAgentName = ag.Name
-						}
+				ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID)
+				if (err != nil || ag == nil) && s.agentRepo != nil {
+					ag, _ = s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan)
+				}
+				if ag != nil {
+					result.TargetAgentID = ag.ID
+					result.TargetHarness = ag.Harness
+					if ag.Name != "" && result.TargetAgentName == "" {
+						result.TargetAgentName = ag.Name
 					}
 				}
-				if _, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil {
-					result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
-					return result
-				}
-				result.IsAgent = false
+				result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
+				return result
 			}
 		}
 	}
