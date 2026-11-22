@@ -350,6 +350,22 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                            OR (active_tl.state = 'claimed' AND active_tl.lease_until > NOW())
 		                        )
 		                  )
+		                  -- Full task affinity: an active code task bundle in progress retains exclusive lock on project's code lane until terminal status
+		                  AND NOT EXISTS (
+		                      SELECT 1 FROM (
+		                          SELECT active_t.id FROM tasks active_t
+		                          WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                            AND COALESCE(active_t.execution_category, 'code') = 'code'
+		                            AND active_t.title NOT LIKE 'Terminal · %'
+		                            AND active_t.status NOT IN ('backlog', 'todo', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
+		                            AND active_t.updated_at > NOW() - INTERVAL '15 minutes'
+		                          ORDER BY 
+		                            CASE WHEN EXISTS (SELECT 1 FROM task_attempts WHERE task_id = active_t.id AND status = 'running') THEN 0 ELSE 1 END ASC,
+		                            active_t.updated_at DESC
+		                          LIMIT 1
+		                      ) current_active_bundle
+		                      WHERE current_active_bundle.id != t.id
+		                  )
 		              )
 		          )
 		          -- Operational lock: if candidate is ops, no other ops task active in project
@@ -371,6 +387,22 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                        AND active_t.status IN ('doing', 'working')
 		                        AND COALESCE(active_t.execution_category, 'code') = 'ops'
 		                        AND active_t.title NOT LIKE 'Terminal · %'
+		                  )
+		                  -- Full task affinity for ops:
+		                  AND NOT EXISTS (
+		                      SELECT 1 FROM (
+		                          SELECT active_t.id FROM tasks active_t
+		                          WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
+		                            AND COALESCE(active_t.execution_category, 'code') = 'ops'
+		                            AND active_t.title NOT LIKE 'Terminal · %'
+		                            AND active_t.status NOT IN ('backlog', 'todo', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
+		                            AND active_t.updated_at > NOW() - INTERVAL '15 minutes'
+		                          ORDER BY 
+		                            CASE WHEN EXISTS (SELECT 1 FROM task_attempts WHERE task_id = active_t.id AND status = 'running') THEN 0 ELSE 1 END ASC,
+		                            active_t.updated_at DESC
+		                          LIMIT 1
+		                      ) current_active_bundle
+		                      WHERE current_active_bundle.id != t.id
 		                  )
 		              )
 		          )

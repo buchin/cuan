@@ -135,6 +135,23 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 				    AND COALESCE(active_t.execution_category, 'code') = COALESCE(cand_task.execution_category, 'code')
 			  )
 		  )
+		  -- Full task affinity: an active task bundle in progress retains exclusive lock on project lane until terminal status
+		  AND NOT EXISTS (
+			  SELECT 1 FROM (
+				  SELECT active_t.id FROM tasks active_t
+				  WHERE (active_t.project_id = tl.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = tl.project_id))
+					AND COALESCE(active_t.execution_category, 'code') = COALESCE(cand_task.execution_category, 'code')
+					AND COALESCE(active_t.execution_category, 'code') IN ('code', 'ops')
+					AND active_t.title NOT LIKE 'Terminal · %'
+					AND active_t.status NOT IN ('backlog', 'todo', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
+					AND active_t.updated_at > $1::timestamptz - INTERVAL '15 minutes'
+				  ORDER BY 
+					CASE WHEN EXISTS (SELECT 1 FROM task_attempts WHERE task_id = active_t.id AND status = 'running') THEN 0 ELSE 1 END ASC,
+					active_t.updated_at DESC
+				  LIMIT 1
+			  ) current_active_bundle
+			  WHERE current_active_bundle.id != tl.task_id
+		  )
 		ORDER BY tl.available_at, tl.id
 		FOR UPDATE SKIP LOCKED LIMIT 1
 	) UPDATE task_launches SET state='claimed',lease_token=$2,lease_until=$1::timestamptz+INTERVAL '1 minute',checks=checks+1,updated_at=$1 WHERE id=(SELECT id FROM candidate) RETURNING `+launchColumns, now, token, id))
