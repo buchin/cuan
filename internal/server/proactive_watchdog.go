@@ -439,15 +439,42 @@ func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry Serve
 		return
 	}
 
+	// 1. Search for an existing unresolved system storage alert room
+	var targetRoomID string
+	projID := "default"
+
 	rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
-	if err != nil || len(rooms) == 0 {
-		return
+	if err == nil {
+		for _, r := range rooms {
+			if r.ResolvedAt != nil || s.isCustomerRoom(ctx, r.ID) {
+				continue
+			}
+			if r.Topic == "agent-topic:system:storage" || r.Title == "Peringatan Kapasitas Server" {
+				targetRoomID = r.ID
+				if r.ProjectID != "" {
+					projID = r.ProjectID
+				}
+				break
+			}
+		}
 	}
 
-	targetRoomID := rooms[0].ID
-	projID := rooms[0].ProjectID
-	if projID == "" {
-		projID = "default"
+	// 2. If no existing dedicated room found, create a new room specifically for storage alerts
+	if targetRoomID == "" {
+		now := time.Now().UTC()
+		targetRoomID = db.GenerateUUID()
+		newRoom := &db.ProjectRoom{
+			ID:        targetRoomID,
+			ProjectID: projID,
+			Title:     "Peringatan Kapasitas Server",
+			Topic:     "agent-topic:system:storage",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := s.projectStudioRepo.CreateRoom(ctx, newRoom); err != nil {
+			log.Printf("[Watchdog] Failed to create storage alert room: %v", err)
+			return
+		}
 	}
 
 	alertMsg := fmt.Sprintf("Halo, kapasitas penyimpanan server mulai menipis (penggunaan ruang disk mencapai %.1f%%, tersisa %s). Agar sistem tetap berjalan optimal dan terhindar dari kendala layanan, disarankan untuk menjalankan pembersihan berkala terhadap file cache dan arsip sementara.\n\n```cuan-approval\n{\"title\":\"Optimasi & Pembersihan Ruang Penyimpanan\",\"description\":\"Menjalankan pembersihan otomatis terhadap cache build compiler, artefak sementara, dan file log usang untuk memulihkan kapasitas disk server.\",\"project_id\":\"%s\",\"required_stages\":[\"implement\"]}\n```",
@@ -466,6 +493,7 @@ func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry Serve
 	if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
 		lastStorageAlertTime = time.Now().UTC()
 		log.Printf("[Watchdog] Proactive proposal card posted to room %s for disk pressure %.1f%%", targetRoomID, telemetry.DiskUsedPercent)
+		s.publishInbox(targetRoomID)
 	}
 }
 

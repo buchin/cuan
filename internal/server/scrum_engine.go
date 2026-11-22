@@ -93,8 +93,8 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 		}
 	}
 	if targetRoomID == "" {
-		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil && len(rooms) > 0 {
-			targetRoomID = rooms[0].ID
+		if resolved := s.resolveConversationContext(ctx, db.AgentIDCuan, ""); resolved.RoomID != "" {
+			targetRoomID = resolved.RoomID
 		}
 	}
 	if targetRoomID == "" {
