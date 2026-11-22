@@ -336,4 +336,9 @@ func TestTaskPublicationPolicyResolvesVerifiedSupplementalSource(t *testing.T) {
 	if policy.DenyPush || policy.DenyDeploy {
 		t.Fatalf("expected publication allowed for standard task, got: %+v", policy)
 	}
+
+	// Verify that mutual calls between taskPublicationPolicy, inboxReviewRepositoryScope,
+	// and verifiedSupplementalSource terminate without infinite recursion.
+	_, _, _ = s.inboxReviewRepositoryScope(ctx, detail)
+	_, _ = s.verifiedSupplementalSource(ctx, detail)
 }

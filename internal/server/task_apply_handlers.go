@@ -159,8 +159,10 @@ func (s *Server) taskPublicationPolicy(ctx context.Context, detail *task.TaskDet
 		return executionpolicy.FromInstructions(detail.Instructions), nil
 	}
 	attemptID := detail.LatestAttempt.ID
-	if _, proof := s.verifiedSupplementalSource(ctx, detail); proof != nil && proof.SourceAttemptID != "" {
-		attemptID = proof.SourceAttemptID
+	if s.taskSvc != nil && s.taskSvc.Store() != nil {
+		if proof, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &detail.Task, attemptID); err == nil && proof != nil && proof.SourceAttemptID != "" {
+			attemptID = proof.SourceAttemptID
+		}
 	}
 	return s.taskSvc.AttemptPublicationPolicy(ctx, detail.ID, attemptID)
 }
