@@ -18,6 +18,7 @@ import { ChatContact, chatApi } from '../../api/chat'
 import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle } from 'lucide-react'
 import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
+import { getContactInitials } from './contact-initials'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
@@ -269,12 +270,18 @@ export function ConversationItem({
         <div className="relative shrink-0 mt-0.5">
           <div
             data-avatar="true"
-            className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center font-bold text-xs border border-border/50 text-foreground overflow-hidden avatar"
+            className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center font-semibold text-xs border border-border/50 text-foreground overflow-hidden avatar select-none"
           >
-            {contact.avatar ? (
-              <span>{contact.avatar}</span>
+            {contact.avatar && contact.avatar !== '👤' ? (
+              contact.avatar.startsWith('http') || contact.avatar.startsWith('/') ? (
+                <img src={contact.avatar} alt="" className="h-full w-full object-cover rounded-full" />
+              ) : (
+                <span>{contact.avatar}</span>
+              )
             ) : contact.type === 'agent' ? (
               <Bot className="h-4 w-4 text-primary" />
+            ) : getContactInitials(contact.name) ? (
+              <span className="tracking-wide select-none">{getContactInitials(contact.name)}</span>
             ) : (
               <User className="h-4 w-4 text-muted-foreground" />
             )}
