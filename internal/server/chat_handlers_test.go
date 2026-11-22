@@ -1143,6 +1143,24 @@ func TestChat_SingleAgentCuanMentionAndContacts(t *testing.T) {
 			t.Fatalf("expected legacy mention %q TargetHarness 'agy', got %q", mention, resLegacy.TargetHarness)
 		}
 	}
+
+	// 4. Test mention in existing room with empty topic (customer/visitor room)
+	custRoomID := cuanDB.GenerateUUID()
+	_ = srv.projectStudioRepo.CreateRoom(ctx, &cuanDB.ProjectRoom{
+		ID:        custRoomID,
+		ProjectID: "default",
+		Title:     "Customer Visitor #123",
+		Topic:     "",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	})
+	resInRoom := srv.resolveConversationContext(ctx, custRoomID, "@cuan aktifkan akses user ini dan bikinkan respon balasan")
+	if !resInRoom.IsAgent || resInRoom.TargetAgentID != cuanDB.AgentIDCuan {
+		t.Fatalf("expected mention @cuan in customer room to resolve to agent_cuan, got %+v", resInRoom)
+	}
+	if resInRoom.RoomID != custRoomID {
+		t.Fatalf("expected RoomID to be preserved as %s, got %s", custRoomID, resInRoom.RoomID)
+	}
 }
 
 func TestCuanAgent_LoadBalancerRouting(t *testing.T) {
