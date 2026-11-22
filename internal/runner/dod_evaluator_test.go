@@ -3,6 +3,8 @@ package runner
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -270,5 +272,38 @@ func TestDoDEvaluatorCheckedPlanCannotVerifyMissingRequestedOutcome(t *testing.T
 	}
 	if result.Passed || !strings.Contains(strings.Join(result.Gaps, " "), "unicorn allocation") {
 		t.Fatal("checked plan was accepted without matching outcome evidence", result)
+	}
+}
+
+func TestDoDEvaluatorTieredVerificationSkipsRedundantFrontendSuite(t *testing.T) {
+	evaluator := NewDoDEvaluator()
+	dir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "scripts"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	testScript := filepath.Join(dir, "scripts", "test.sh")
+	if err := os.WriteFile(testScript, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "web"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "web", "package.json"), []byte(`{"name":"test"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pass, msg, dur, err := evaluator.checkTargetedTestsPass(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !pass {
+		t.Fatalf("expected tests to pass, got false with message: %s", msg)
+	}
+	if dur < 0 {
+		t.Fatalf("expected non-negative duration, got: %v", dur)
 	}
 }
