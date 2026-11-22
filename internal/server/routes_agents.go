@@ -50,9 +50,13 @@ func (s *Server) registerAgentRoutes(r chi.Router) {
 
 	// Apps & Skills Endpoints (Sprint 49)
 	r.Get("/api/apps", s.handleListApps)
+	r.Post("/api/apps/connect-remote", s.handleConnectRemoteApp)
 	r.Post("/api/apps/{id}/connect", s.handleConnectApp)
 	r.Post("/api/apps/{id}/disconnect", s.handleDisconnectApp)
+	r.Delete("/api/apps/{id}/custom", s.handleUnregisterRemoteApp)
 	r.Get("/api/skills", s.handleListSkills)
+	r.Post("/api/skills/install", s.handleInstallSkill)
+	r.Delete("/api/skills/{id}", s.handleUninstallSkill)
 	r.Get("/api/agents/{id}/skills", s.handleGetAgentSkills)
 	r.Put("/api/agents/{id}/skills", s.handleUpdateAgentSkills)
 
@@ -128,12 +132,16 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 	// Apps & Skills catalog in /api/v1 (Sprint 49)
 	r.Route("/apps", func(apr chi.Router) {
 		apr.Get("/", s.handleListApps)
+		apr.Post("/connect-remote", s.handleConnectRemoteApp)
 		apr.Post("/{id}/connect", s.handleConnectApp)
 		apr.Post("/{id}/disconnect", s.handleDisconnectApp)
+		apr.Delete("/{id}/custom", s.handleUnregisterRemoteApp)
 	})
 
 	r.Route("/skills", func(sr chi.Router) {
 		sr.Get("/", s.handleListSkills)
+		sr.Post("/install", s.handleInstallSkill)
+		sr.Delete("/{id}", s.handleUninstallSkill)
 	})
 
 	// AI Providers & Engines in /api/v1 (Sprint 50)

@@ -4,6 +4,7 @@ import {
   Plus,
   Play,
   Trash2,
+  Pencil,
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -11,6 +12,7 @@ import {
   X,
   ChevronDown,
   Repeat,
+  FolderGit2,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { HairlineList } from '../../components/layout/HairlineList'
@@ -34,6 +36,11 @@ export interface ScheduledTask {
   last_error?: string
 }
 
+interface ProjectOption {
+  id: string
+  name: string
+}
+
 interface SchedulesViewProps {
   embedded?: boolean
 }
@@ -41,8 +48,10 @@ interface SchedulesViewProps {
 export function SchedulesView({ embedded = false }: SchedulesViewProps) {
   const { t } = useLanguage()
   const [tasks, setTasks] = useState<ScheduledTask[]>([])
+  const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null)
   const [triggeringId, setTriggeringId] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -50,6 +59,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
   // Form states
   const [title, setTitle] = useState('')
   const [prompt, setPrompt] = useState('')
+  const [projectId, setProjectId] = useState('')
   const [scheduleType, setScheduleType] = useState<'daily' | 'weekly' | 'interval'>('daily')
   const [timeOfDay, setTimeOfDay] = useState('09:00')
   const [dayOfWeek, setDayOfWeek] = useState(1) // Monday
@@ -71,34 +81,82 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
     }
   }
 
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch('/api/projects')
+      if (res.ok) {
+        const data = await res.json()
+        setProjects(data.projects || [])
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     fetchTasks()
+    fetchProjects()
   }, [])
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleOpenCreate = () => {
+    setEditingTask(null)
+    setTitle('')
+    setPrompt('')
+    setProjectId('')
+    setScheduleType('daily')
+    setTimeOfDay('09:00')
+    setDayOfWeek(1)
+    setIntervalMins(60)
+    setIsModalOpen(true)
+  }
+
+  const handleOpenEdit = (task: ScheduledTask) => {
+    setEditingTask(task)
+    setTitle(task.title || '')
+    setPrompt(task.prompt || '')
+    setProjectId(task.project_id || '')
+    setScheduleType(task.schedule_type || 'daily')
+    setTimeOfDay(task.time_of_day || '09:00')
+    setDayOfWeek(task.day_of_week ?? 1)
+    setIntervalMins(task.interval_mins || 60)
+    setIsModalOpen(true)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !prompt.trim()) return
 
     try {
       setSubmitting(true)
-      const res = await fetch('/api/system/scheduler/tasks', {
-        method: 'POST',
+      const payload = {
+        title: title.trim(),
+        prompt: prompt.trim(),
+        project_id: projectId.trim() || undefined,
+        schedule_type: scheduleType,
+        time_of_day: timeOfDay,
+        day_of_week: dayOfWeek,
+        interval_mins: intervalMins,
+      }
+
+      const url = editingTask
+        ? `/api/system/scheduler/tasks/${encodeURIComponent(editingTask.id)}`
+        : '/api/system/scheduler/tasks'
+      const method = editingTask ? 'PUT' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          prompt,
-          schedule_type: scheduleType,
-          time_of_day: timeOfDay,
-          day_of_week: dayOfWeek,
-          interval_mins: intervalMins,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (res.ok) {
         setIsModalOpen(false)
-        setTitle('')
-        setPrompt('')
-        setActionFeedback(t('Schedule created successfully'))
+        setActionFeedback(
+          editingTask
+            ? t('Schedule updated successfully')
+            : t('Schedule created successfully'),
+        )
+        setEditingTask(null)
         setTimeout(() => setActionFeedback(null), 3000)
         fetchTasks()
       }
@@ -201,7 +259,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         {tasks.length > 0 && (
         <button
           type="button"
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenCreate}
           className="action-primary inline-flex items-center gap-2 shrink-0 self-start sm:self-center text-xs sm:text-sm min-h-11"
         >
           <Plus className="h-4 w-4" />
@@ -234,7 +292,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           </p>
           <button
             type="button"
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenCreate}
             className="action-primary mt-4 inline-flex items-center gap-1.5 text-xs"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -247,6 +305,9 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
             {tasks.map((task) => {
               const isExpanded = expandedId === task.id
               const isTriggering = triggeringId === task.id
+              const projectName = task.project_id
+                ? projects.find((p) => p.id === task.project_id)?.name || task.project_id
+                : null
 
               return (
                 <div key={task.id} className="transition-colors">
@@ -287,9 +348,17 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                         title={task.enabled ? t('Active') : t('Paused')}
                       />
                       <div className="min-w-0 flex-1">
-                        <span className="font-medium text-sm text-foreground truncate block group-hover:text-primary transition-colors">
-                          {task.title}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-foreground truncate block group-hover:text-primary transition-colors">
+                            {task.title}
+                          </span>
+                          {projectName && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border/40 shrink-0">
+                              <FolderGit2 className="h-2.5 w-2.5 opacity-70" />
+                              <span className="max-w-[100px] truncate">{projectName}</span>
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
                           <span>{formatScheduleTypeLabel(task)}</span>
                           {task.next_run_at && task.enabled && (
@@ -392,6 +461,19 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
+                              handleOpenEdit(task)
+                            }}
+                            title={t('Edit schedule')}
+                            className="action-secondary text-xs p-1.5 text-muted-foreground hover:text-foreground min-h-[32px] inline-flex items-center gap-1.5"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">{t('Edit')}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
                               void handleDelete(task.id)
                             }}
                             title={t('Delete schedule')}
@@ -424,12 +506,14 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         </div>
       )}
 
-      {/* Create Modal Dialog */}
+      {/* Create / Edit Modal Dialog */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-border/50 pb-3">
-              <h2 className="text-lg font-bold text-foreground">{t('New Scheduled Routine')}</h2>
+              <h2 className="text-lg font-bold text-foreground">
+                {editingTask ? t('Edit Scheduled Routine') : t('New Scheduled Routine')}
+              </h2>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
@@ -439,7 +523,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t('Routine Title')}
@@ -456,11 +540,32 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t('Target Project')}
+                </label>
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="field-control w-full rounded-md border-border text-sm"
+                >
+                  <option value="">{t('None / System-wide')}</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground">
+                  {t('Binds this routine to a specific project repository and isolated worktree.')}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t('Agent Instruction (Prompt)')}
                 </label>
                 <textarea
                   required
-                  rows={3}
+                  rows={4}
                   placeholder={t('e.g. Cek orderan yang belum dibayar hari ini dan kirimkan reminder sopan via tebar.app')}
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -554,7 +659,11 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                   disabled={submitting}
                   className="action-primary"
                 >
-                  {submitting ? t('Saving...') : t('Save Schedule')}
+                  {submitting
+                    ? t('Saving...')
+                    : editingTask
+                      ? t('Save Changes')
+                      : t('Save Schedule')}
                 </button>
               </div>
             </form>

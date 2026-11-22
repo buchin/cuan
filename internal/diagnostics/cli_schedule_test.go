@@ -48,6 +48,17 @@ func TestScheduleCLILifecycle(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(req)
 
+		case strings.HasPrefix(r.URL.Path, "/api/v1/system/scheduler/tasks/") && r.Method == http.MethodPut:
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/system/scheduler/tasks/")
+			var req map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				w.WriteHeader(400)
+				return
+			}
+			req["id"] = id
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(req)
+
 		case strings.HasPrefix(r.URL.Path, "/api/v1/system/scheduler/tasks/") && strings.HasSuffix(r.URL.Path, "/toggle") && r.Method == http.MethodPatch:
 			id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1/system/scheduler/tasks/"), "/toggle")
 			w.Header().Set("Content-Type", "application/json")
@@ -112,6 +123,14 @@ func TestScheduleCLILifecycle(t *testing.T) {
 	code = RunScheduleCLI([]string{"create", "--title", "Security Scan", "--prompt", "Scan CVEs", "--type", "daily", "--time", "04:00"}, &out, &errOut)
 	if code != 0 || !strings.Contains(out.String(), "Security Scan") {
 		t.Fatalf("create failed: code=%d, out=%s, err=%s", code, out.String(), errOut.String())
+	}
+
+	// 4b. Test Update
+	out.Reset()
+	errOut.Reset()
+	code = RunScheduleCLI([]string{"update", "sch_new_123", "--title", "Updated Security Scan", "--project", "proj_test"}, &out, &errOut)
+	if code != 0 || !strings.Contains(out.String(), "updated successfully") {
+		t.Fatalf("update failed: code=%d, out=%s, err=%s", code, out.String(), errOut.String())
 	}
 
 	// 5. Test Trigger
