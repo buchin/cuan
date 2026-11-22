@@ -51,7 +51,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
   className,
   isCustomerRoom = false,
 }: TaskCompletionCardProps) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const navigate = useNavigate()
 
   const [currentTask, setCurrentTask] = useState<Task>(task)
@@ -209,9 +209,14 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             {taskRef(currentTask.id)}
           </span>
 
-          <div className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
             <Clock className="h-3 w-3 shrink-0" />
             <TaskDuration task={currentTask} compact fallback={<span>{relativeTime(currentTask.updated_at || currentTask.created_at)}</span>} />
+            {currentTask.latest_attempt?.attempt_number && currentTask.latest_attempt.attempt_number > 1 && (
+              <span className="text-[10px] text-muted-foreground/70">
+                · {currentTask.latest_attempt.attempt_number} {language === 'id' ? 'sesi' : 'sessions'}
+              </span>
+            )}
           </div>
         </div>
 
