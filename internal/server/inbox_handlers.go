@@ -134,15 +134,17 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 		}
 
 		// Resolve project name
-		projName := projectNameCache[rm.ProjectID]
-		if projName == "" && s.projectSvc != nil {
-			if p, err := s.projectSvc.Get(r.Context(), rm.ProjectID); err == nil && p != nil {
-				projName = p.Name
-				projectNameCache[rm.ProjectID] = projName
+		projName, ok := projectNameCache[rm.ProjectID]
+		if !ok {
+			if rm.ProjectID != "" && s.projectSvc != nil {
+				if p, err := s.projectSvc.Get(r.Context(), rm.ProjectID); err == nil && p != nil && p.Name != "" {
+					projName = p.Name
+				}
 			}
-		}
-		if projName == "" {
-			projName = rm.ProjectID
+			if projName == "" {
+				projName = rm.ProjectID
+			}
+			projectNameCache[rm.ProjectID] = projName
 		}
 
 		threadItems = append(threadItems, InboxThreadItem{
@@ -278,8 +280,8 @@ func (s *Server) handleGetInboxThread(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve project name
 	projName := room.ProjectID
-	if s.projectSvc != nil {
-		if p, err := s.projectSvc.Get(r.Context(), room.ProjectID); err == nil && p != nil {
+	if room.ProjectID != "" && s.projectSvc != nil {
+		if p, err := s.projectSvc.Get(r.Context(), room.ProjectID); err == nil && p != nil && p.Name != "" {
 			projName = p.Name
 		}
 	}

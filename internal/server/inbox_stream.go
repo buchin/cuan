@@ -82,16 +82,13 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 	var lastSnapshot []byte
-	roomTitle := ""
-	if room, rErr := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); rErr == nil && room != nil {
-		roomTitle = room.Title
-	}
+	roomTitle := resolved.RoomTitle
 	snapshot := func() bool {
 		requests, err := store.ListInboxRequests(r.Context(), resolved.RoomID)
 		if err != nil {
 			return false
 		}
-		messages, _, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, "", 50, "")
+		messages, _, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, "", 50, "", !resolved.IsAgent)
 		if err != nil {
 			return false
 		}

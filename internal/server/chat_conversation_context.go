@@ -11,6 +11,8 @@ import (
 // ResolvedConversation holds the resolved room and target agent metadata.
 type ResolvedConversation struct {
 	RoomID          string
+	RoomTitle       string
+	RoomTopic       string
 	TargetAgentID   string
 	TargetAgentName string
 	TargetHarness   string
@@ -44,6 +46,8 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if db.IsValidUUID(trimmedID) && s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
+			result.RoomTitle = rm.Title
+			result.RoomTopic = rm.Topic
 			if targetID := roomAgentID(rm.Topic); targetID != "" && s.agentRepo != nil {
 				ag, err := s.agentRepo.GetAgentByID(ctx, targetID)
 				if err == nil && ag != nil && ag.Enabled {
@@ -120,16 +124,22 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 			deterministicID := db.GenerateDeterministicUUID("agent", result.TargetAgentID)
 			if rm, err := s.projectStudioRepo.GetRoomByID(ctx, deterministicID); err == nil && rm != nil {
 				foundRoomID = rm.ID
+				result.RoomTitle = rm.Title
+				result.RoomTopic = rm.Topic
 			} else if allRooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
 				for _, rm := range allRooms {
 					if rm.Topic == "agent:"+result.TargetAgentID || rm.Title == result.TargetAgentName {
 						foundRoomID = rm.ID
+						result.RoomTitle = rm.Title
+						result.RoomTopic = rm.Topic
 						break
 					}
 				}
 			}
 			if foundRoomID == "" {
 				foundRoomID = deterministicID
+				result.RoomTitle = result.TargetAgentName
+				result.RoomTopic = "agent:" + result.TargetAgentID
 				now := time.Now().UTC()
 				_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
 					ID:        foundRoomID,
@@ -150,6 +160,8 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if s.projectStudioRepo != nil {
 		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
 			result.RoomID = rm.ID
+			result.RoomTitle = rm.Title
+			result.RoomTopic = rm.Topic
 			if roomAgentID(rm.Topic) != "" && s.agentRepo != nil {
 				targetID := roomAgentID(rm.Topic)
 				ag, err := s.agentRepo.GetAgentByID(ctx, targetID)
@@ -194,12 +206,16 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 				for _, rm := range allRooms {
 					if rm.Title == trimmedID || rm.Topic == trimmedID {
 						matchedRoomID = rm.ID
+						result.RoomTitle = rm.Title
+						result.RoomTopic = rm.Topic
 						break
 					}
 				}
 			}
 			if matchedRoomID == "" {
 				matchedRoomID = db.GenerateUUID()
+				result.RoomTitle = trimmedID
+				result.RoomTopic = "general"
 				now := time.Now().UTC()
 				_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
 					ID:        matchedRoomID,
