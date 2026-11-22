@@ -254,16 +254,17 @@ export function AppShell({
         aria-current={active ? 'page' : undefined}
         onClick={() => navigate(id)}
         className={cn(
-          'nav-action',
-          active &&
-            'bg-sidebar-accent text-sidebar-accent-foreground font-semibold',
+          'nav-action transition-colors',
+          active
+            ? 'bg-sidebar-accent text-primary font-semibold'
+            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground',
         )}
       >
         <span className="relative flex items-center justify-center">
           {id === 'chat' ? (
             <CuanMark decorative className="h-4 w-4 text-inherit" />
           ) : (
-            <Icon className="h-4 w-4 shrink-0" />
+            <Icon className="h-4 w-4 shrink-0 text-inherit" />
           )}
           {id === 'inbox' && effectiveInboxUnread > 0 && effectiveCollapsed && (
             <span
@@ -495,9 +496,16 @@ export function AppShell({
               aria-label={t('New work')}
               aria-current={currentTab === 'studio' ? 'page' : undefined}
               onClick={() => navigate('studio')}
-              className={cn('flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs', currentTab === 'studio' ? 'font-semibold text-primary' : 'text-muted-foreground')}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
+                currentTab === 'studio'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
             >
-              <span className="flex h-7 w-7 items-center justify-center"><Plus aria-hidden="true" className="h-5 w-5" /></span>
+              <span className="flex h-7 w-7 items-center justify-center">
+                <Plus aria-hidden="true" className="h-5 w-5 text-inherit" />
+              </span>
               <span>{t('New work')}</span>
             </button>
             {/* Inbox */}
@@ -512,14 +520,14 @@ export function AppShell({
                 navigate('inbox')
               }}
               className={cn(
-                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
                 isTabActive('inbox')
                   ? 'font-semibold text-primary'
-                  : 'text-muted-foreground',
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <span className="relative flex h-7 w-7 items-center justify-center">
-                <Inbox className="h-5 w-5" />
+                <Inbox className="h-5 w-5 text-inherit" />
                 {effectiveInboxUnread > 0 && (
                   <span
                     data-testid="inbox-unread-badge-bottom"
@@ -545,13 +553,15 @@ export function AppShell({
                 navigate('tasks')
               }}
               className={cn(
-                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
                 currentTab === 'tasks'
                   ? 'font-semibold text-primary'
-                  : 'text-muted-foreground',
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <span className="flex h-7 w-7 items-center justify-center"><CheckSquare className="h-5 w-5" /></span>
+              <span className="flex h-7 w-7 items-center justify-center">
+                <CheckSquare className="h-5 w-5 text-inherit" />
+              </span>
               <span>{t('Tasks')}</span>
             </button>
 
@@ -567,13 +577,15 @@ export function AppShell({
                 navigate('projects')
               }}
               className={cn(
-                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs',
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
                 currentTab === 'projects'
                   ? 'font-semibold text-primary'
-                  : 'text-muted-foreground',
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <span className="flex h-7 w-7 items-center justify-center"><FolderGit2 className="h-5 w-5" /></span>
+              <span className="flex h-7 w-7 items-center justify-center">
+                <FolderGit2 className="h-5 w-5 text-inherit" />
+              </span>
               <span>{t('Projects')}</span>
             </button>
 
@@ -620,14 +632,17 @@ export function AppShell({
                       'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                       currentTab === 'projects'
                         ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-foreground/90 hover:bg-muted/50',
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
-                      <FolderGit2 className="h-4 w-4" />
+                    <div className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+                      currentTab === 'projects' ? 'bg-primary/15 text-primary' : 'bg-muted/60 text-muted-foreground'
+                    )}>
+                      <FolderGit2 className="h-4 w-4 text-inherit" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground">{t('Projects')}</div>
+                      <div className={cn("font-medium", currentTab === 'projects' ? 'text-primary font-semibold' : 'text-foreground')}>{t('Projects')}</div>
                       <div className="text-xs text-muted-foreground truncate">
                         {t('Workspaces & repo')}
                       </div>
@@ -653,14 +668,17 @@ export function AppShell({
                       'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                       currentTab === 'contacts'
                         ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-foreground/90 hover:bg-muted/50',
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
-                      <Users className="h-4 w-4" />
+                    <div className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+                      currentTab === 'contacts' ? 'bg-primary/15 text-primary' : 'bg-muted/60 text-muted-foreground'
+                    )}>
+                      <Users className="h-4 w-4 text-inherit" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground">{t('Contacts')}</div>
+                      <div className={cn("font-medium", currentTab === 'contacts' ? 'text-primary font-semibold' : 'text-foreground')}>{t('Contacts')}</div>
                       <div className="text-xs text-muted-foreground truncate">
                         {t('CRM & memori pelanggan')}
                       </div>
@@ -686,14 +704,17 @@ export function AppShell({
                       'flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                       currentTab === 'settings'
                         ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-foreground/90 hover:bg-muted/50',
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60 text-foreground">
-                      <Settings className="h-4 w-4" />
+                    <div className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+                      currentTab === 'settings' ? 'bg-primary/15 text-primary' : 'bg-muted/60 text-muted-foreground'
+                    )}>
+                      <Settings className="h-4 w-4 text-inherit" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground">{t('Settings')}</div>
+                      <div className={cn("font-medium", currentTab === 'settings' ? 'text-primary font-semibold' : 'text-foreground')}>{t('Settings')}</div>
                       <div className="text-xs text-muted-foreground truncate">
                         {t('Profil, asisten & otak AI, tim')}
                       </div>
@@ -721,14 +742,14 @@ export function AppShell({
                       'flex min-h-14 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors',
                       currentTab === 'account'
                         ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-foreground/90 hover:bg-muted/50',
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground font-mono font-bold text-xs">
                       {user?.display_name ? user.display_name.slice(0, 2).toUpperCase() : 'CU'}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground">
+                      <div className={cn("font-medium", currentTab === 'account' ? 'text-primary font-semibold' : 'text-foreground')}>
                         {user?.display_name || user?.username || 'User'}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">

@@ -307,11 +307,14 @@ Scrum Master dan Development Team **WAJIB** mengevaluasi hasil render secara men
 
 ### 7.6. Aksen navigasi dan skala baca
 
-Arah yang disetujui: calm tidak harus seluruhnya abu-abu. Gunakan aksen warna
-lembut dan konsisten pada ikon navigasi serta indikator status; permukaan card,
-background, dan teks utama tetap netral. Token navigasi dan status di `index.css`
-memiliki pasangan light/dark dengan chroma rendah. Warna tidak menjadi satu-satunya
-penanda: label, ikon, dan status teks tetap tersedia.
+Arah yang disetujui: seluruh item navigasi/menu (sidebar AppShell desktop, mobile
+bottom navigation, subpanel navigasi, dan drawer) diselaraskan menggunakan satu
+token warna aksen aktif yang konsisten (`--nav-active: oklch(var(--primary))`)
+untuk ikon dan label. Tampilan inactive dan hover menggunakan kontras teks netral
+(`text-muted-foreground` dan `hover:text-foreground`) yang tenang tanpa visual noise
+pelangi. Permukaan card, background, dan teks utama tetap netral. Token navigasi dan
+status di `index.css` memiliki pasangan light/dark dengan chroma rendah. Warna tidak
+menjadi satu-satunya penanda: label, ikon, dan status teks tetap tersedia.
 
 Pertahankan Geist untuk UI, dengan monospace untuk terminal, kode dan identifier
 teknis. Header halaman bersama menggunakan20px mobile/24px desktop, judul menu dan
