@@ -12,6 +12,7 @@ Usage:
 
 Options:
   --fast            Skip long-running agent spike tests (unit tests only)
+  --verbose         Print verbose test output (-v for go test)
   --backend-only    Run only Go tests
   --frontend-only   Run only frontend typecheck and build validation
   --help            Show this help message
@@ -19,11 +20,13 @@ EOF
 }
 
 FAST_MODE=false
+VERBOSE=false
 MODE="all"
 
 for arg in "$@"; do
   case "$arg" in
     --fast) FAST_MODE=true ;;
+    --verbose|-v) VERBOSE=true ;;
     --backend-only) MODE="backend" ;;
     --frontend-only) MODE="frontend" ;;
     --help|-h) show_help; exit 0 ;;
@@ -53,7 +56,11 @@ if [[ "$MODE" == "all" || "$MODE" == "backend" ]]; then
     # including its many native process fixtures on constrained workers.
     go -C "$ROOT_DIR" test -trimpath -short -timeout 180s ./internal/config ./internal/auth ./internal/db ./internal/task ./internal/runner ./pkg/extensions
   else
-    go -C "$ROOT_DIR" test -trimpath -v -timeout 600s ./internal/... ./pkg/...
+    GO_VERBOSE_FLAG=()
+    if [[ "$VERBOSE" == "true" ]]; then
+      GO_VERBOSE_FLAG=("-v")
+    fi
+    go -C "$ROOT_DIR" test -trimpath "${GO_VERBOSE_FLAG[@]}" -timeout 600s ./internal/... ./pkg/...
   fi
   echo "✓ Go tests passed successfully."
 fi

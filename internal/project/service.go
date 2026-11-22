@@ -311,7 +311,7 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 	if p == nil || p.ID == "" {
 		return
 	}
-	if p.ID == "default" && p.RepoURL == "" && p.LocalPath == "" {
+	if p.RepoURL == "" && p.LocalPath == "" {
 		return
 	}
 	// A stored path that belongs to this project and exists on disk is authoritative.

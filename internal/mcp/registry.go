@@ -14,12 +14,14 @@ import (
 
 // Registry manages the lifecycle of Apps, Skills, Agent bindings, and MCP tools.
 type Registry struct {
-	mu          sync.RWMutex
-	apps        map[string]*App
-	skills      map[string]*Skill
-	agentSkills map[string]map[string]bool // agentID -> skillID -> enabled
-	tools       map[string]ToolDefinition
-	handlers    map[string]ToolHandler
+	mu            sync.RWMutex
+	apps          map[string]*App
+	skills        map[string]*Skill
+	agentSkills   map[string]map[string]bool // agentID -> skillID -> enabled
+	tools         map[string]ToolDefinition
+	handlers      map[string]ToolHandler
+	skillsDir     string
+	remoteClients map[string]*Client
 }
 
 var (
@@ -38,11 +40,13 @@ func GetDefaultRegistry() *Registry {
 // NewRegistry initializes an MCP Registry pre-populated with built-in connectors and default agent bindings.
 func NewRegistry() *Registry {
 	r := &Registry{
-		apps:        make(map[string]*App),
-		skills:      make(map[string]*Skill),
-		agentSkills: make(map[string]map[string]bool),
-		tools:       make(map[string]ToolDefinition),
-		handlers:    make(map[string]ToolHandler),
+		apps:          make(map[string]*App),
+		skills:        make(map[string]*Skill),
+		agentSkills:   make(map[string]map[string]bool),
+		tools:         make(map[string]ToolDefinition),
+		handlers:      make(map[string]ToolHandler),
+		skillsDir:     ".agents/skills",
+		remoteClients: make(map[string]*Client),
 	}
 
 	// 1. Register Built-in Apps

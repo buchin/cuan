@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
-  CheckCheck,
+  Eye,
   Clock3,
   AlertCircle,
   ClipboardCheck,
@@ -196,7 +196,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             ) : isQueued ? (
               <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             ) : isReview ? (
-              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <Eye className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
             ) : isNeedsAttention ? (
               <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
             ) : (

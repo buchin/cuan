@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { apiFetch } from '../api/client'
@@ -42,35 +42,55 @@ export function useArchivedItems(kind: 'conversation' | 'contact') {
     window.addEventListener('cuan-item-preferences', changed)
     return () => window.removeEventListener('cuan-item-preferences', changed)
   }, [kind])
-  const update = async (id: string, archived: boolean, undo = false) => {
+  const update = useCallback(async (id: string, archived: boolean, undo = false) => {
     const items = await updateItemPreference(kind, id, { archived })
-    setItems(items); setNotice(undo ? undefined : { id, archived })
-  }
+    setItems(items)
+    setNotice(undo ? undefined : { id, archived })
+  }, [kind])
+
   const dismiss = useCallback(() => setNotice(undefined), [])
-  return {
-    loaded, error, refresh, notice,
+
+  const markRead = useCallback(async (id: string, read: boolean, seen_at?: string) => {
+    await updateItemPreference(kind, id, { read, seen_at })
+  }, [kind])
+
+  const markAllRead = useCallback(async (ids?: string[]) => {
+    const updated = await markAllItemPreferencesRead(kind, ids)
+    setItems(updated)
+    return updated
+  }, [kind])
+
+  const unreadCount = useCallback((id: string, fallback: number, latestMessage?: string) => {
+    const value = items?.[id]
+    if (value?.unread) return Math.max(1, fallback)
+    const read = Date.parse(value?.read_at || '')
+    const latest = Date.parse(latestMessage || '')
+    if (Number.isFinite(read) && Number.isFinite(latest) && latest <= read) return 0
+    return fallback
+  }, [items])
+
+  const undo = useCallback(async () => {
+    if (notice) await update(notice.id, !notice.archived, true)
+  }, [notice, update])
+
+  const isArchived = useCallback((id: string, latestMessage?: string) => {
+    const at = Date.parse(items?.[id]?.archived_at || '')
+    return Number.isFinite(at) && (!latestMessage || !Number.isFinite(Date.parse(latestMessage)) || Date.parse(latestMessage) <= at)
+  }, [items])
+
+  return useMemo(() => ({
+    loaded,
+    error,
+    refresh,
+    notice,
     archive: update,
-    markRead: async (id: string, read: boolean, seen_at?: string) => { await updateItemPreference(kind, id, { read, seen_at }) },
-    markAllRead: async (ids?: string[]) => {
-      const updated = await markAllItemPreferencesRead(kind, ids)
-      setItems(updated)
-      return updated
-    },
-    unreadCount: (id: string, fallback: number, latestMessage?: string) => {
-      const value = items?.[id]
-      if (value?.unread) return Math.max(1, fallback)
-      const read = Date.parse(value?.read_at || '')
-      const latest = Date.parse(latestMessage || '')
-      if (Number.isFinite(read) && Number.isFinite(latest) && latest <= read) return 0
-      return fallback
-    },
-    undo: async () => { if (notice) await update(notice.id, !notice.archived, true) },
+    markRead,
+    markAllRead: markAllRead,
+    unreadCount,
+    undo,
     dismiss,
-    isArchived: (id: string, latestMessage?: string) => {
-      const at = Date.parse(items?.[id]?.archived_at || '')
-      return Number.isFinite(at) && (!latestMessage || !Number.isFinite(Date.parse(latestMessage)) || Date.parse(latestMessage) <= at)
-    },
-  }
+    isArchived,
+  }), [loaded, error, refresh, notice, update, markRead, markAllRead, unreadCount, undo, dismiss, isArchived])
 }
 export function ArchiveNotice({ state }: { state: ReturnType<typeof useArchivedItems> }) {
   const { t } = useLanguage()

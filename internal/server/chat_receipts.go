@@ -28,6 +28,10 @@ func (s *Server) handleChatReceipts(w http.ResponseWriter, r *http.Request, owne
 			return
 		}
 		room = chi.URLParam(r, "id")
+		if !s.isCustomerRoom(r.Context(), room) {
+			respondJSONError(w, 404, "Conversation not found")
+			return
+		}
 	} else {
 		sess, err := s.crmSession(r.Context(), room)
 		if err != nil || sess == nil || in.GuestUUID == "" || subtle.ConstantTimeCompare([]byte(sess.GuestUUID), []byte(in.GuestUUID)) != 1 {
@@ -35,16 +39,12 @@ func (s *Server) handleChatReceipts(w http.ResponseWriter, r *http.Request, owne
 			return
 		}
 	}
-	if !s.isCustomerRoom(r.Context(), room) {
-		respondJSONError(w, 404, "Conversation not found")
-		return
-	}
 	store, ok := s.projectStudioRepo.(db.ChatReceiptRepository)
 	if !ok {
 		respondJSONError(w, 503, "Receipts unavailable")
 		return
 	}
-	messages, err := s.getFormattedMessagesResult(r.Context(), room, "")
+	messages, err := s.getFormattedMessagesResult(r.Context(), room, "", true)
 	if err != nil {
 		respondJSONError(w, 503, "Receipts unavailable")
 		return

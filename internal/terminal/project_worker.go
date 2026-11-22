@@ -289,12 +289,16 @@ func TerminateProjectWorker(projectID string) error {
 	payloadFile := filepath.Join(statusDir, fmt.Sprintf("project-payload-%s.json", safeID))
 	if pidData, err := os.ReadFile(pidFile); err == nil {
 		if pid, pErr := strconv.Atoi(strings.TrimSpace(string(pidData))); pErr == nil && pid > 0 {
-			// Signal entire process group first (Setsid creates a process group with PGID == PID)
-			_ = syscall.Kill(-pid, syscall.SIGTERM)
-			_ = syscall.Kill(pid, syscall.SIGTERM)
-			time.Sleep(30 * time.Millisecond)
-			_ = syscall.Kill(-pid, syscall.SIGKILL)
-			_ = syscall.Kill(pid, syscall.SIGKILL)
+			if pid == os.Getpid() {
+				_ = syscall.Kill(pid, syscall.SIGTERM)
+			} else {
+				// Signal entire process group first (Setsid creates a process group with PGID == PID)
+				_ = syscall.Kill(-pid, syscall.SIGTERM)
+				_ = syscall.Kill(pid, syscall.SIGTERM)
+				time.Sleep(30 * time.Millisecond)
+				_ = syscall.Kill(-pid, syscall.SIGKILL)
+				_ = syscall.Kill(pid, syscall.SIGKILL)
+			}
 		}
 		_ = os.Remove(pidFile)
 	}

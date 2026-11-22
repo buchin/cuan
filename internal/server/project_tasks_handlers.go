@@ -750,21 +750,32 @@ func (s *Server) handleGetProjectRunnerState(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	if activeTaskID == "" && s.taskSvc != nil {
-		if tasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{ProjectID: projectID}); err == nil {
-			for _, t := range tasks {
-				if t.Status == task.TaskStatusDoing || t.Status == "working" {
-					activeTaskID = t.ID
-					startedAt = t.UpdatedAt
-					break
+	var tasks []*task.TaskItemResponse
+	if s.taskSvc != nil {
+		tasks, _ = s.taskSvc.ListTasks(r.Context(), task.TaskFilter{ProjectID: projectID})
+	}
+	var latestMap map[string]*task.TaskAttempt
+	if s.taskSvc != nil && len(tasks) > 0 {
+		taskIDs := make([]string, len(tasks))
+		for i, t := range tasks {
+			taskIDs[i] = t.ID
+		}
+		latestMap = s.taskSvc.LatestAttemptsMapForIDs(r.Context(), taskIDs)
+	}
+
+	if activeTaskID == "" && len(tasks) > 0 {
+		for _, t := range tasks {
+			if t.Status == task.TaskStatusDoing || t.Status == "working" {
+				activeTaskID = t.ID
+				startedAt = t.UpdatedAt
+				break
+			}
+			if latest := latestMap[t.ID]; latest != nil && latest.Status == task.AttemptStatusRunning {
+				activeTaskID = t.ID
+				if latest.StartedAt != nil {
+					startedAt = *latest.StartedAt
 				}
-				if detail, err := s.taskSvc.GetTaskDetail(r.Context(), t.ID); err == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusRunning {
-					activeTaskID = t.ID
-					if detail.LatestAttempt.StartedAt != nil {
-						startedAt = *detail.LatestAttempt.StartedAt
-					}
-					break
-				}
+				break
 			}
 		}
 	}
@@ -811,40 +822,36 @@ func (s *Server) handleGetProjectRunnerState(w http.ResponseWriter, r *http.Requ
 	}
 
 	queuedTasks := []ProjectRunnerQueuedTask{}
-	if s.taskSvc != nil {
-		if tasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{ProjectID: projectID}); err == nil {
-			var qTasks []*task.TaskItemResponse
-			for _, t := range tasks {
-				if t.ID == activeTaskID {
-					continue
-				}
-				if t.Status == task.TaskStatusQueued || t.Status == "pending" {
-					qTasks = append(qTasks, t)
-				} else if detail, err := s.taskSvc.GetTaskDetail(r.Context(), t.ID); err == nil && detail != nil {
-					if detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusQueued {
-						qTasks = append(qTasks, t)
-					}
-				}
+	if len(tasks) > 0 {
+		var qTasks []*task.TaskItemResponse
+		for _, t := range tasks {
+			if t.ID == activeTaskID {
+				continue
 			}
-			sort.Slice(qTasks, func(i, j int) bool {
-				return qTasks[i].CreatedAt.Before(qTasks[j].CreatedAt)
+			if t.Status == task.TaskStatusQueued || t.Status == "pending" {
+				qTasks = append(qTasks, t)
+			} else if latest := latestMap[t.ID]; latest != nil && latest.Status == task.AttemptStatusQueued {
+				qTasks = append(qTasks, t)
+			}
+		}
+		sort.Slice(qTasks, func(i, j int) bool {
+			return qTasks[i].CreatedAt.Before(qTasks[j].CreatedAt)
+		})
+		for idx, qt := range qTasks {
+			agentName := qt.AssignedAgent
+			if agentName == "" {
+				agentName = "agy"
+			}
+			durSec := int(time.Since(qt.CreatedAt).Seconds())
+			queuedTasks = append(queuedTasks, ProjectRunnerQueuedTask{
+				QueuePosition:   idx + 1,
+				TaskID:          qt.ID,
+				Title:           qt.Title,
+				AgentName:       agentName,
+				Status:          string(qt.Status),
+				CreatedAt:       qt.CreatedAt,
+				DurationSeconds: durSec,
 			})
-			for idx, qt := range qTasks {
-				agentName := qt.AssignedAgent
-				if agentName == "" {
-					agentName = "agy"
-				}
-				durSec := int(time.Since(qt.CreatedAt).Seconds())
-				queuedTasks = append(queuedTasks, ProjectRunnerQueuedTask{
-					QueuePosition:   idx + 1,
-					TaskID:          qt.ID,
-					Title:           qt.Title,
-					AgentName:       agentName,
-					Status:          string(qt.Status),
-					CreatedAt:       qt.CreatedAt,
-					DurationSeconds: durSec,
-				})
-			}
 		}
 	}
 

@@ -210,6 +210,60 @@ func (tm *TaskManager) ToggleTask(id string, enabled *bool) (*ScheduledTask, err
 	return &cpy, nil
 }
 
+// UpdateTask modifies an existing scheduled routine.
+func (tm *TaskManager) UpdateTask(id string, update *ScheduledTask) (*ScheduledTask, error) {
+	if update == nil {
+		return nil, errors.New("update cannot be nil")
+	}
+
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	t, exists := tm.tasks[id]
+	if !exists {
+		return nil, errors.New("task not found")
+	}
+
+	if title := strings.TrimSpace(update.Title); title != "" {
+		t.Title = title
+	}
+	if prompt := strings.TrimSpace(update.Prompt); prompt != "" {
+		t.Prompt = prompt
+	}
+	if update.ProjectID != "" {
+		if update.ProjectID == "-" || update.ProjectID == "none" {
+			t.ProjectID = ""
+		} else {
+			t.ProjectID = strings.TrimSpace(update.ProjectID)
+		}
+	}
+	if update.ScheduleType != "" {
+		t.ScheduleType = update.ScheduleType
+	}
+	if update.TimeOfDay != "" {
+		t.TimeOfDay = strings.TrimSpace(update.TimeOfDay)
+	}
+	if update.DayOfWeek >= 0 && update.DayOfWeek <= 6 {
+		t.DayOfWeek = update.DayOfWeek
+	}
+	if update.IntervalMins > 0 {
+		t.IntervalMins = update.IntervalMins
+	}
+
+	if t.Enabled {
+		now := time.Now()
+		next := calculateTaskNextRun(t, now)
+		t.NextRunAt = &next
+	}
+
+	if err := tm.save(); err != nil {
+		return nil, err
+	}
+
+	cpy := *t
+	return &cpy, nil
+}
+
 // TriggerTask executes a task immediately in the background.
 func (tm *TaskManager) TriggerTask(ctx context.Context, id string) error {
 	tm.mu.Lock()
