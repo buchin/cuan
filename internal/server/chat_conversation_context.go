@@ -123,7 +123,10 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 	if result.IsAgent {
 		if s.projectStudioRepo != nil {
 			var foundRoomID string
-			if allRooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
+			deterministicID := db.GenerateDeterministicUUID("agent", result.TargetAgentID)
+			if rm, err := s.projectStudioRepo.GetRoomByID(ctx, deterministicID); err == nil && rm != nil {
+				foundRoomID = rm.ID
+			} else if allRooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
 				for _, rm := range allRooms {
 					if rm.Topic == "agent:"+result.TargetAgentID || rm.Title == result.TargetAgentName {
 						foundRoomID = rm.ID
@@ -132,7 +135,7 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 				}
 			}
 			if foundRoomID == "" {
-				foundRoomID = db.GenerateDeterministicUUID("agent", result.TargetAgentID)
+				foundRoomID = deterministicID
 				now := time.Now().UTC()
 				_ = s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
 					ID:        foundRoomID,

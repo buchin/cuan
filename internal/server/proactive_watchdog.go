@@ -20,6 +20,7 @@ import (
 var (
 	watchdogAlertMu      sync.Mutex
 	lastStorageAlertTime time.Time
+	lastIdleGitSync      time.Time
 )
 
 // StartProactiveWatchdog starts a periodic background watchdog daemon to proactively
@@ -90,6 +91,14 @@ func (s *Server) syncIdleProjectsGit(ctx context.Context) {
 	if s.projectSvc == nil {
 		return
 	}
+
+	watchdogAlertMu.Lock()
+	if time.Since(lastIdleGitSync) < 3*time.Minute {
+		watchdogAlertMu.Unlock()
+		return
+	}
+	lastIdleGitSync = time.Now().UTC()
+	watchdogAlertMu.Unlock()
 
 	// 1. Invariant check: only sync when no runner is actively executing
 	if s.taskSvc != nil {
@@ -430,7 +439,7 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 }
 
 func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry ServerTelemetry) {
-	if (telemetry.DiskUsedPercent <= 85.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
+	if (telemetry.DiskUsedPercent <= 88.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
 		return
 	}
 	watchdogAlertMu.Lock()
