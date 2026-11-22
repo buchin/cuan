@@ -426,18 +426,9 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		payload.RequestID = delegationMessageID("approve-plan:" + resolved.RoomID + ":" + plan.MessageID)
 		decisionText := "Approved: " + plan.Plan.Title
 		if payload.PlanAction == "defer" {
-			messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), resolved.RoomID)
-			if err != nil {
-				respondJSONError(w, 503, "Could not verify the plan status")
+			if plan.AlreadyApproved {
+				respondJSONError(w, 409, "This plan is already approved. Use its work controls to stop active execution.")
 				return
-			}
-			for _, m := range messages {
-				if m.AuthorType == "user" {
-					if decision := decodeApprovedInboxPlan(m.Content); decision != nil && decision.MessageID == plan.MessageID {
-						respondJSONError(w, 409, "This plan is already approved. Use its work controls to stop active execution.")
-						return
-					}
-				}
 			}
 
 			payload.RequestID = delegationMessageID("defer-plan:" + resolved.RoomID + ":" + plan.MessageID)
