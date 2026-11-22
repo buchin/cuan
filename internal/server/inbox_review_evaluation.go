@@ -550,7 +550,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
-	decision.SourceReview = sourceReview
+	if sourceReview != "" {
+		decision.SourceReview = sourceReview
+	}
 	if nativeProjectCheckFailure(d) != "" {
 		decision.SourceReview = "not_checked"
 	}
@@ -648,6 +650,15 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				return "Hasil dan bukti tersimpan. Penerimaan akan diperiksa kembali sebelum pekerjaan berikutnya dimulai.\n\n[View work](/tasks/" + d.ID + ")"
 			}
 			if d.Status != task.TaskStatusDone {
+				if s.projectSvc != nil && d.ProjectID != "" && (d.BranchName != "" || d.PRNumber > 0) {
+					if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil && project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+						observation := s.inboxReviewPublication(ctx, d)
+						if observation != nil && observation.Required && !observation.Verified {
+							s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID)
+							return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+						}
+					}
+				}
 				if d.Status != task.TaskStatusReview {
 					reviewStatus := task.TaskStatusReview
 					if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err != nil {

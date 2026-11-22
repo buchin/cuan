@@ -7,6 +7,8 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/buchin/cuan/internal/git"
@@ -138,6 +140,14 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	if branchName != "" {
+		if s.cfg != nil && s.cfg.WorkspacesDir != "" && s.projectSvc != nil {
+			sourcePath := filepath.Join(s.cfg.WorkspacesDir, taskID)
+			if info, err := os.Stat(sourcePath); err == nil && info.IsDir() {
+				if _, _, pushErr := s.projectSvc.PushNativeTaskBranch(ctx, taskID, projectID, detail.Instructions, sourcePath, branchName, false, title); pushErr != nil {
+					log.Printf("[applyTaskInternal] note: PushNativeTaskBranch for %s: %v", taskID, pushErr)
+				}
+			}
+		}
 		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	return nil, errors.New("neither pull request nor task branch is available")
