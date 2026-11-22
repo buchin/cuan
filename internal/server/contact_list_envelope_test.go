@@ -132,3 +132,62 @@ func TestInboxCoordinationInputsDoNotBecomePreviewsOrUnreadMessages(t *testing.T
 		t.Fatal("user text mistaken for coordinator input")
 	}
 }
+
+func TestResolvedConversationZeroesUnreadCount(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	room := db.GenerateUUID()
+	resolvedAt := now.Add(time.Minute)
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:         room,
+		ProjectID:  "default",
+		Title:      "Resolved room with unread messages",
+		Topic:      "agent-topic:agent_lifecycle",
+		ResolvedAt: &resolvedAt,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	msg := db.ProjectMessage{
+		ID:         db.GenerateUUID(),
+		RoomID:     room,
+		AuthorType: "user",
+		AuthorID:   "user_1",
+		Content:    "Hello before resolve",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, &msg); err != nil {
+		t.Fatal(err)
+	}
+
+	w := call("GET", "/api/v1/chat/contacts?view=list", "")
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var response struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	var found *ChatContact
+	for i := range response.Contacts {
+		if response.Contacts[i].ConversationID == room {
+			found = &response.Contacts[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("conversation not found in contacts")
+	}
+	if !found.Resolved {
+		t.Fatalf("expected contact to be resolved, got %+v", found)
+	}
+	if found.UnreadCount != 0 {
+		t.Fatalf("expected unread count to be 0 for resolved conversation, got %d", found.UnreadCount)
+	}
+}
+
