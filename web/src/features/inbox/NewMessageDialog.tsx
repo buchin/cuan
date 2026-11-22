@@ -3,6 +3,8 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { type ChatContact } from '../../api/chat'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
+import { Bot, User } from 'lucide-react'
+import { getContactInitials } from './contact-initials'
 
 export function NewMessageDialog({
   open,
@@ -156,9 +158,22 @@ export function NewMessageDialog({
             >
               <span
                 aria-hidden="true"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary"
+                data-avatar="true"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground overflow-hidden avatar select-none"
               >
-                {c.avatar || c.name.slice(0, 2).toUpperCase()}
+                {c.avatar && c.avatar !== '👤' ? (
+                  c.avatar.startsWith('http') || c.avatar.startsWith('/') ? (
+                    <img src={c.avatar} alt="" className="h-full w-full object-cover rounded-full" />
+                  ) : (
+                    <span>{c.avatar}</span>
+                  )
+                ) : c.type === 'agent' ? (
+                  <Bot className="h-4 w-4 text-primary" />
+                ) : getContactInitials(c.name) ? (
+                  <span className="tracking-wide select-none">{getContactInitials(c.name)}</span>
+                ) : (
+                  <User className="h-4 w-4 text-muted-foreground" />
+                )}
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-base font-medium">

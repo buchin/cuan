@@ -12,6 +12,14 @@ if(!output)throw Error('Supply a new private evidence directory')
 await fs.mkdir(output,{recursive:true,mode:0o700})
 const now='2026-11-06T05:00:00Z',room='work-fixture'
 const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:5,active_tasks:1}
+const extraContacts=[
+  {id:'c-fahmi',conversation_id:'c-fahmi',name:'fahmi putra',type:'customer',email:'fahmi@example.test',unread_count:0,status:'online',is_online:true,last_message:'Biar kami aktifkan',updated_at:now,task_count:0,active_tasks:0},
+  {id:'c-kisworo',conversation_id:'c-kisworo',name:'kisworo izar',type:'customer',email:'kisworo@example.test',unread_count:0,status:'offline',last_message:'Customer reply draft: Halo sob! Akses...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1,resolved:false},
+  {id:'c-azizoke',conversation_id:'c-azizoke',name:'azizoke 2022-05-30 09:30:43',type:'customer',email:'azizoke@example.test',unread_count:0,status:'offline',last_message:'Email lama kenapa sob',updated_at:now,task_count:0,active_tasks:0},
+  {id:'c-anon',conversation_id:'c-anon',name:'Visitor #3f8a91',type:'customer',email:'',unread_count:0,status:'offline',last_message:'Tanya produk kak',updated_at:now,task_count:0,active_tasks:0},
+  {id:'c-agent',conversation_id:'c-agent',name:'Penyederhanaan Timeline Task Chat',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Termasuk posisi judul task lain sejajar itu...',updated_at:now,task_count:1,active_tasks:1},
+]
+const contactsList=[contact,...extraContacts]
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
 const attempt={id:'attempt',task_id:'work',status:'running',agent_name:'agent_cuan',runner_id:'runner',attempt_number:2,created_at:now,started_at:now}
 const baseTask={id:'work',title:'Perbaiki tampilan website pelanggan dan periksa hasilnya pada desktop maupun ponsel sebelum menyatakan pekerjaan selesai',status:'doing',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,source_message_id:'source',repo_url:'https://github.com/example/site',created_at:now,updated_at:now,latest_attempt:attempt,latest_progress:'Memeriksa tampilan mobile setelah perbaikan.',instructions:'Perbaiki tampilan pada desktop dan mobile. Verifikasi hasil sebenarnya.',summary:'Laporan sebelumnya belum diterima.',dod_checklist:[{text:'Tampilan stabil pada mobile dan desktop',completed:false}]}
@@ -68,7 +76,7 @@ import {TaskSessionPage} from '/src/features/tasks/TaskSessionPage.tsx';
 import {InboxSubPanel} from '/src/features/inbox/InboxSubPanel.tsx';
 import {StudioView} from '/src/features/inbox/StudioView.tsx';
 import '/src/index.css';
-const contact=${JSON.stringify(contact)},agents=${JSON.stringify(agents)};
+const contact=${JSON.stringify(contact)},agents=${JSON.stringify(agents)},contactsList=${JSON.stringify(contactsList)};
 const noop=()=>{};
 function Scene(){
   const location=useLocation();
@@ -78,12 +86,12 @@ function Scene(){
   if(location.pathname.startsWith('/studio')){
     return React.createElement('div',{className:'h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background'},React.createElement(StudioView,{agentSetup:'ready',hasProject:true,firstGoal:false,onAccepted:noop}))
   }
-  return React.createElement(InboxView,{contacts:[contact],agents,activeContact:contact,initialMode:'chat'})
+  return React.createElement(InboxView,{contacts:contactsList,agents,activeContact:contact,initialMode:'chat'})
 }
 function AppFixture(){
   const location=useLocation();
   const currentTab=location.pathname.startsWith('/studio')?'studio':'inbox';
-  return React.createElement(AppShell,{currentTab,onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:[contact],agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene));
+  return React.createElement(AppShell,{currentTab,onSelectTab:noop,inboxSubPanel:React.createElement(InboxSubPanel,{contacts:contactsList,agents,activeContactId:contact.id,onSelectContact:noop,selectedTab:'all',searchQuery:'',onSearchChange:noop,onTabChange:noop,onNewStudio:noop,onNewMessage:noop})},React.createElement(Scene));
 }
 createRoot(document.getElementById('root')).render(React.createElement(BrowserRouter,null,React.createElement(LanguageProvider,null,React.createElement(AuthProvider,null,React.createElement(AppFixture)))));`
 const webRoot=path.resolve('web')
@@ -134,6 +142,30 @@ try{
   })
   await page.goto(new URL('/inbox/work-fixture',origin).href,{waitUntil:'domcontentloaded'})
   await page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),width===1920)
+  // Verify avatar monograms in Inbox header and contact list
+  if(width===390){
+    const backBtn=page.locator('button[aria-label="Kembali ke percakapan"], button[aria-label="Back to conversations"]').first()
+    if(await backBtn.count()>0 && await backBtn.isVisible()){
+      await backBtn.click()
+      await page.waitForTimeout(300)
+      assert.ok(await page.locator('[data-avatar="true"]:has-text("FP")').count()>=1,'Mobile contacts must display FP monogram')
+      assert.ok(await page.locator('[data-avatar="true"]:has-text("KI")').count()>=1,'Mobile contacts must display KI monogram')
+      assert.ok(await page.locator('[data-avatar="true"]:has-text("AZ")').count()>=1,'Mobile contacts must display AZ monogram')
+      assert.ok(await page.locator('[data-avatar="true"]:has-text("WP")').count()>=1,'Mobile contacts must display WP monogram')
+      await page.screenshot({path:path.join(output,'inbox-mobile-contacts-390-light.png')})
+      await page.evaluate(()=>document.documentElement.classList.add('dark'))
+      await page.screenshot({path:path.join(output,'inbox-mobile-contacts-390-dark.png')})
+      await page.evaluate(()=>document.documentElement.classList.remove('dark'))
+      await page.locator('[data-testid="conversation-item"]:visible').first().click()
+      await page.waitForTimeout(300)
+    }
+  }
+  if(width>=1200){
+    assert.ok(await page.locator('[data-avatar="true"]:has-text("FP")').count()>=1,'Desktop sidebar must display FP monogram')
+    assert.ok(await page.locator('[data-avatar="true"]:has-text("KI")').count()>=1,'Desktop sidebar must display KI monogram')
+    assert.ok(await page.locator('[data-avatar="true"]:has-text("AZ")').count()>=1,'Desktop sidebar must display AZ monogram')
+    await page.screenshot({path:path.join(output,`inbox-desktop-monogram-${width}.png`)})
+  }
   // Tasks live in the composer disclosure, not as duplicate chat cards.
   const tasks=page.locator('.composer-tasks > div > button[aria-expanded]')
   await tasks.waitFor({state:'visible'})
