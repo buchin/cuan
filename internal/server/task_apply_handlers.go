@@ -214,13 +214,20 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 				log.Printf("[AutoDeploy] Executing project deploy script for %s in %s", projectID, proj.LocalPath)
 				cmd := exec.CommandContext(ctx, "bash", "-c", settings.DeployScript)
 				cmd.Dir = proj.LocalPath
+				baseEnv := append(os.Environ(),
+					"CI=true",
+					"npm_config_yes=true",
+					"DEBIAN_FRONTEND=noninteractive",
+				)
 				if settings.Environment != "" {
 					envMap := project.ParseEnvironment(settings.Environment)
 					var envSlice []string
 					for k, v := range envMap {
 						envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
 					}
-					cmd.Env = append(os.Environ(), envSlice...)
+					cmd.Env = append(baseEnv, envSlice...)
+				} else {
+					cmd.Env = baseEnv
 				}
 				if out, err := cmd.CombinedOutput(); err != nil {
 					log.Printf("[AutoDeploy] Project deploy script failed for %s: %v: %s", projectID, err, string(out))

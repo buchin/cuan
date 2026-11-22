@@ -1745,8 +1745,7 @@ export function InboxView({
                         </div>
                       )}
 
-                      {(isAgentMessage || msg.author_type === 'agent') &&
-                        msg.approval_plan &&
+                      {(isAgentMessage || msg.author_type === 'agent') && msg.approval_plan &&
                         !isApprovalCardStale(
                           msg.approval_plan,
                           msg.approval_accepted,

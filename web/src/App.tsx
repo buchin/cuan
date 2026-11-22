@@ -115,7 +115,8 @@ function isProjectEqual(a?: Project, b?: Project): boolean {
     a.clone_status !== b.clone_status ||
     a.has_token !== b.has_token ||
     a.last_fetched_at !== b.last_fetched_at ||
-    a.last_error !== b.last_error
+    a.last_error !== b.last_error ||
+    JSON.stringify(a.metadata) !== JSON.stringify(b.metadata)
   ) {
     return false
   }
@@ -333,6 +334,10 @@ export function App() {
       setActiveProject(previous => {
         if (!previous) return undefined
         const next = data.find(project => project.id === previous.id) || previous
+        if (previous.metadata && !next.metadata) {
+          const merged = { ...next, metadata: previous.metadata }
+          return isProjectEqual(previous, merged) ? previous : merged
+        }
         return isProjectEqual(previous, next) ? previous : next
       })
     } catch (err) {
@@ -544,12 +549,19 @@ export function App() {
 
   // Deep Link Synchronization: /projects/:projectId
   useEffect(() => {
-    if (rootSegment === 'projects' && projects.length > 0) {
-      if (subParam) {
-        const matched = projects.find((p) => p.id === subParam)
-        if (matched) {
-          setActiveProject(matched)
+    if (rootSegment === 'projects' && subParam) {
+      let active = true
+      const matched = projects.find((p) => p.id === subParam)
+      if (matched && (!activeProject || activeProject.id !== subParam)) {
+        setActiveProject(matched)
+      }
+      projectsApi.get(subParam).then((full) => {
+        if (active && full) {
+          setActiveProject(full)
         }
+      }).catch(() => {})
+      return () => {
+        active = false
       }
     }
   }, [rootSegment, subParam, projects])
