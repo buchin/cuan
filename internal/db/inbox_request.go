@@ -51,6 +51,7 @@ type InboxLifecycleRepository interface {
 	ClaimInboxRequest(context.Context, string, string) (InboxRequest, bool, error)
 	AppendInboxStep(context.Context, string, string, string, string) error
 	CancelInboxRequest(context.Context, string, string) (bool, error)
+	GetInboxRequestState(context.Context, string, string) (string, error)
 }
 
 type InboxRequestRepository interface {
@@ -340,6 +341,18 @@ func (r *SQLProjectStudioRepository) CancelInboxRequest(ctx context.Context, roo
 	n, err := result.RowsAffected()
 	return n > 0, err
 }
+
+func (r *SQLProjectStudioRepository) GetInboxRequestState(ctx context.Context, room, id string) (string, error) {
+	var state string
+	err := r.db.QueryRowContext(ctx, `SELECT state FROM inbox_requests WHERE room_id=$1 AND request_id=$2`, room, id).Scan(&state)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return state, nil
+}
 func (r *MemoryProjectStudioRepository) ClaimInboxRequest(ctx context.Context, room, id string) (InboxRequest, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -391,6 +404,16 @@ func (r *MemoryProjectStudioRepository) CancelInboxRequest(ctx context.Context, 
 	q.SafeError = "Cancelled. Your message is saved. Provider actions that already occurred cannot be undone."
 	r.requests[key] = q
 	return true, nil
+}
+
+func (r *MemoryProjectStudioRepository) GetInboxRequestState(ctx context.Context, room, id string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	key := room + id
+	if q, ok := r.requests[key]; ok {
+		return q.State, nil
+	}
+	return "", nil
 }
 
 // This receipt records a returned executor, not a verified business outcome.

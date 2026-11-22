@@ -38,6 +38,7 @@ func runInboxProcessLossRecovery(t *testing.T, structured, repository bool, reco
 		t.Skip("skipping slow recovery flow test in short mode")
 	}
 	s, _, call, home := inboxFixture(t)
+	s.SetDisableBackgroundInboxUpdates(true)
 	ctx := context.Background()
 	projects := project.NewMemoryStore()
 	projects.CreateProject(ctx, &project.Project{ID: "recovery-project", Name: "Recovery"})

@@ -61,11 +61,13 @@ func (s *Server) wireTaskService(svc *task.Service) {
 		return
 	}
 	svc.OnTaskCreated(func(ctx context.Context, t *task.Task) {
+		s.invalidateTaskCounts()
 		if t != nil && t.SourceRoomID != "" {
 			_, _ = s.syncRoomTitleOnTaskCreated(ctx, t.SourceRoomID, t.Title)
 		}
 	})
 	svc.OnTaskCompleted(func(ctx context.Context, t *task.Task) {
+		s.invalidateTaskCounts()
 		_ = s.PostTaskCompletionMessage(ctx, t)
 	})
 }

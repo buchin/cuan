@@ -112,7 +112,7 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 // delivery scan runs at a time, independently of the bounded chat worker slots.
 func (s *Server) kickInboxTaskUpdates(parent context.Context) {
 	const key = "__inbox_task_updates"
-	if !s.executesInbox() || s.inboxStopping.Load() {
+	if !s.executesInbox() || s.inboxStopping.Load() || s.disableBackgroundInboxUpdates.Load() {
 		return
 	}
 	if _, loaded := s.inboxWorkers.LoadOrStore(key, true); loaded {
@@ -124,6 +124,12 @@ func (s *Server) kickInboxTaskUpdates(parent context.Context) {
 		defer cancel()
 		s.deliverInboxTaskUpdates(ctx)
 	}()
+}
+
+// SetDisableBackgroundInboxUpdates allows tests to disable background asynchronous
+// delivery kicks and manually control when deliverInboxTaskUpdates is run.
+func (s *Server) SetDisableBackgroundInboxUpdates(disabled bool) {
+	s.disableBackgroundInboxUpdates.Store(disabled)
 }
 func (s *Server) drainInboxRoom(room string) {
 	store, ok := s.projectStudioRepo.(db.InboxLifecycleRepository)
@@ -289,7 +295,7 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
-		tick := time.NewTicker(500 * time.Millisecond)
+		tick := time.NewTicker(2 * time.Second)
 		defer tick.Stop()
 		for {
 			select {
@@ -299,16 +305,14 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 				return
 			case <-tick.C:
 				check, c := context.WithTimeout(ctx, 2*time.Second)
-				all, err := store.ListInboxRequests(check, q.RoomID)
+				state, err := store.GetInboxRequestState(check, q.RoomID, q.RequestID)
 				c()
 				if err != nil {
 					continue
 				}
-				for _, item := range all {
-					if item.RequestID == q.RequestID && item.State != "running" {
-						cancel()
-						return
-					}
+				if state != "" && state != "running" {
+					cancel()
+					return
 				}
 			}
 		}

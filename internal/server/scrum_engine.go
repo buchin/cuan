@@ -23,6 +23,9 @@ func (s *Server) InitScrumEngine(ctx context.Context) {
 	}
 	if bus != nil {
 		bus.SubscribeCompleted(func(evtCtx context.Context, evt runner.AttemptCompletedEvent) error {
+			if s.disableBackgroundInboxUpdates.Load() {
+				return nil
+			}
 			s.handleRunnerAttemptCompleted(evtCtx, evt.TaskID, evt.AttemptID, evt.Status, evt.ExitCode, evt.Summary, evt.CompleteNote, evt.ErrorMessage, evt.SourceRoomID)
 			return nil
 		})
@@ -31,7 +34,7 @@ func (s *Server) InitScrumEngine(ctx context.Context) {
 
 // onRunnerAttemptCompleted is called when cuan-runner reports an attempt finished via HTTP POST.
 func (s *Server) onRunnerAttemptCompleted(ctx context.Context, att *task.TaskAttempt) {
-	if att == nil || att.TaskID == "" {
+	if att == nil || att.TaskID == "" || s.disableBackgroundInboxUpdates.Load() {
 		return
 	}
 	s.requestStorageMaintenance()

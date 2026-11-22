@@ -43,6 +43,27 @@ func (s *Server) resolveConversationContext(ctx context.Context, convID string, 
 
 	trimmedID := strings.TrimSpace(convID)
 
+	// 1. Fast path: If trimmedID is a valid room UUID and already exists, resolve directly
+	if db.IsValidUUID(trimmedID) && s.projectStudioRepo != nil {
+		if rm, err := s.projectStudioRepo.GetRoomByID(ctx, trimmedID); err == nil && rm != nil {
+			result.RoomID = rm.ID
+			if roomAgentID(rm.Topic) != "" && s.agentRepo != nil {
+				result.TargetAgentID = roomAgentID(rm.Topic)
+				result.TargetAgentName = rm.Title
+				if ag, err := s.agentRepo.GetAgentByID(ctx, result.TargetAgentID); err == nil && ag != nil {
+					result.IsAgent = true
+					result.TargetHarness = ag.Harness
+					if ag.Name != "" {
+						result.TargetAgentName = ag.Name
+					}
+					result.TargetHarness = db.NormalizeHarness(result.TargetHarness, "")
+					return result
+				}
+			}
+			return result
+		}
+	}
+
 	// 3. Clean candidate agent ID from contact_ or agent_ prefix
 	cleanAgentID := strings.TrimPrefix(trimmedID, "contact_")
 

@@ -92,9 +92,10 @@ type Server struct {
 	campaignDecompiler          *campaign.DecompilerEngine
 	campaignRunner              *campaign.MultiProjectRunner
 	campaignAggregator          *campaign.RollupAggregator
-	inboxSlots                  chan struct{}
-	inboxStopping               atomic.Bool
-	inboxAdmission              sync.RWMutex
+	inboxSlots                     chan struct{}
+	inboxStopping                  atomic.Bool
+	disableBackgroundInboxUpdates atomic.Bool
+	inboxAdmission                 sync.RWMutex
 	inboxWorkers                sync.Map
 	taskLaunches                sync.Map
 	taskAgentGrants             sync.Map
@@ -591,7 +592,12 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		scheduler:              sched,
 		taskManager:            taskMgr,
 		updater:                updateSvc,
-		taskCountsTTL:          2 * time.Second,
+		taskCountsTTL: func() time.Duration {
+			if cfg != nil && cfg.Environment == "testing" {
+				return 0
+			}
+			return 2 * time.Second
+		}(),
 		router:                 r,
 	}
 
