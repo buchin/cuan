@@ -23,6 +23,7 @@ import {
   ExternalLink,
   GitBranch,
   X,
+  Play,
 } from 'lucide-react'
 import { tasksApi, type LiveTaskSession } from '../../api/tasks'
 import type { TaskDetail } from '../../api/types'
@@ -191,11 +192,18 @@ export function TaskSessionPage({
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
+  const isTerminalSessionCancelled = Boolean(
+    (attempt && ['canceled', 'cancelled', 'failed', 'succeeded', 'interrupted'].includes(attempt.status)) ||
+    (detail && ['cancelled', 'done'].includes(detail.status))
+  )
   const isDedicatedTerminal = Boolean(
     detail?.title?.startsWith('Terminal ·') ||
     attempt?.runner_id === 'local_terminal'
   )
-  const active = Boolean(isDedicatedTerminal || (attempt && ['running', 'queued'].includes(attempt.status)))
+  const active = Boolean(
+    !isTerminalSessionCancelled &&
+    (isDedicatedTerminal || (attempt && ['running', 'queued'].includes(attempt.status)))
+  )
 
   // Auto-close prevention: keep terminal open on task completion when pinned
   const prevActiveRef = useRef(active)
@@ -475,10 +483,13 @@ export function TaskSessionPage({
   const isWorking = status === 'Working'
   const isConnected = terminalConnection === 'connected' || terminalConnection === 'streaming'
   const isConnecting = (terminalConnection === 'connecting' || terminalConnection === 'loading') && !isConnected
+  const isStoppedOrCancelled = isTerminalSessionCancelled || attempt?.status === 'canceled' || (detail?.status as string) === 'cancelled'
   const statusLabel = isDedicatedTerminal
-    ? (isConnected
-        ? (language === 'id' ? 'Berjalan' : 'Live')
-        : (language === 'id' ? 'Menghubungkan…' : 'Connecting…'))
+    ? (isStoppedOrCancelled
+        ? (language === 'id' ? 'Sesi dihentikan' : 'Session stopped')
+        : isConnected
+          ? (language === 'id' ? 'Berjalan' : 'Live')
+          : (language === 'id' ? 'Menghubungkan…' : 'Connecting…'))
     : answer
       ? 'Answered'
       : !latest
@@ -488,7 +499,7 @@ export function TaskSessionPage({
           : status
 
   const dotVariant: StatusDotVariant = isDedicatedTerminal
-    ? (isConnected ? 'healthy' : isConnecting ? 'warning' : 'neutral')
+    ? (isStoppedOrCancelled ? 'neutral' : isConnected ? 'healthy' : isConnecting ? 'warning' : 'neutral')
     : isWorking
       ? 'working'
       : status === 'Completed' || status === 'Answered'
@@ -663,16 +674,48 @@ export function TaskSessionPage({
                 <span className="flex h-2 w-2 shrink-0 rounded-full bg-muted-foreground/50" />
                 <span className="truncate font-medium text-foreground">
                   {isDedicatedTerminal
-                    ? t('Project terminal · Live with agent')
+                    ? isStoppedOrCancelled
+                      ? (language === 'id' ? 'Terminal proyek · Sesi dihentikan' : 'Project terminal · Session stopped')
+                      : t('Project terminal · Live with agent')
                     : pinTerminal
                       ? (language === 'id' ? 'Terminal disematkan · Sesi berakhir' : 'Terminal pinned · Session ended')
                       : (language === 'id' ? 'Sesi berakhir' : 'Session ended')}
-                  {attempt.status && !isDedicatedTerminal ? ` (${attempt.status})` : ''}
+                  {attempt?.status && !isDedicatedTerminal ? ` (${attempt.status})` : ''}
                 </span>
                 <span className="hidden sm:inline text-muted-foreground/60">·</span>
                 <span className="hidden sm:inline text-muted-foreground">{t('Terminal output saved')}</span>
               </div>
-              {!isDedicatedTerminal && (
+              {isDedicatedTerminal ? (
+                <button
+                  type="button"
+                  className="action-primary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      const request = {
+                        request_id: crypto.randomUUID(),
+                        agent_id: detail?.assignee_id || 'default',
+                        runner_id: 'local_terminal',
+                      }
+                      localStorage.setItem('cuan-task-launch:' + taskId, JSON.stringify(request))
+                      navigate(basePath + '/sessions/start' + suffix, {
+                        state: {
+                          taskReturnTo: state?.taskReturnTo,
+                          startRequestId: request.request_id,
+                        },
+                      })
+                    } catch {
+                      setError('Could not restart terminal session. Try again.')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  <Play className="h-3 w-3 fill-current" />
+                  <span>{language === 'id' ? 'Mulai Sesi Baru' : 'Start new session'}</span>
+                </button>
+              ) : (
                 <button
                   type="button"
                   className="action-secondary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"

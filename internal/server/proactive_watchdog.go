@@ -430,7 +430,7 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 }
 
 func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry ServerTelemetry) {
-	if telemetry.DiskUsedPercent <= 88.0 || s.projectStudioRepo == nil {
+	if (telemetry.DiskUsedPercent <= 85.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
 		return
 	}
 	watchdogAlertMu.Lock()

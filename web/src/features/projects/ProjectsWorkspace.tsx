@@ -218,7 +218,13 @@ export function ProjectsWorkspace({
         )
       } catch {}
 
-      const targetSessionId = targetTask.latest_attempt?.id || 'latest'
+      const isFinished = (targetTask.status as string) === 'cancelled' ||
+        targetTask.status === 'done' ||
+        targetTask.latest_attempt?.status === 'canceled' ||
+        targetTask.latest_attempt?.status === 'succeeded' ||
+        targetTask.latest_attempt?.status === 'failed'
+
+      const targetSessionId = !isFinished && targetTask.latest_attempt?.id ? targetTask.latest_attempt.id : 'start'
 
       if (popout) {
         const popoutUrl = `/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`
