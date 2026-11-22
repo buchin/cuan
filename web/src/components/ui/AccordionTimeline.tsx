@@ -8,6 +8,7 @@ export interface AccordionTimelineItem {
   meta?: ReactNode
   indicator: ReactNode
   content?: ReactNode
+  pinnedAction?: ReactNode
 }
 
 /** Caller supplies chronological facts and phase indicators; disclosure never
@@ -36,10 +37,25 @@ export function AccordionTimeline({ items, label, defaultExpandedIds, followLate
       const expandable = item.content != null && item.content !== false
       const expanded = expandable && (choices[item.id] ?? defaults.current.includes(item.id))
       const bodyID = `${prefix}-${index}`
-      const heading = <><span className="min-w-0 flex-1 break-words text-sm font-medium leading-5">{typeof item.title === 'function' ? item.title(expanded) : item.title}</span>{item.meta && <span className="shrink-0 text-[11px] font-normal text-muted-foreground">{item.meta}</span>}{expandable && showTriggerCaret && <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} aria-hidden />}</>
+      const heading = (
+        <>
+          <span className={cn('min-w-0 flex-1 break-words text-sm font-medium leading-5', item.pinnedAction && 'pr-20 sm:pr-16')}>
+            {typeof item.title === 'function' ? item.title(expanded) : item.title}
+          </span>
+          {item.meta && <span className="shrink-0 text-[11px] font-normal text-muted-foreground">{item.meta}</span>}
+          {expandable && showTriggerCaret && (
+            <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', expanded && 'rotate-180')} aria-hidden />
+          )}
+        </>
+      )
       return <li key={item.id} data-timeline-item={item.id} data-work-event={item.id} className="relative min-w-0 pb-2 pl-6 last:pb-0">
         {index < items.length - 1 && <span data-timeline-connector aria-hidden className="absolute left-[7.5px] top-[30px] -bottom-[14px] w-px bg-border/60" />}
         <span className="absolute left-0 top-0 flex h-11 w-4 items-center justify-center">{item.indicator}</span>
+        {item.pinnedAction && (
+          <div className="absolute right-0 top-0 flex h-11 sm:h-8 items-center z-10">
+            {item.pinnedAction}
+          </div>
+        )}
         {expandable ? <button data-timeline-trigger type="button" aria-expanded={expanded} aria-controls={expanded ? bodyID : undefined} onClick={() => setChoices(value => ({...value, [item.id]: !expanded}))} className="flex min-h-11 w-full items-center gap-3 py-2 text-left">{heading}</button> : <div className="flex min-h-11 items-center gap-3 py-2">{heading}</div>}
         {expanded && <div id={bodyID} className="min-w-0 pb-2 text-sm leading-relaxed text-muted-foreground">{item.content}</div>}
       </li>

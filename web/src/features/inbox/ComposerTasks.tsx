@@ -135,13 +135,15 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
             "bg-muted text-muted-foreground"
           )}>{ordered.length}</span>
-          <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ease-in-out", open && "rotate-180")} />
+          <span className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 text-muted-foreground">
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
+          </span>
         </div>
       </button>}
     </div>
     {tasks.length > 0 && <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
-      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 max-h-[40vh] pt-1 pb-1">
-        <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-3 pb-2.5 pt-1" items={ordered.map((task, index) => {
+      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 max-h-[40vh] pt-0 pb-1">
+        <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-0 pb-2.5 pt-0" items={ordered.map((task, index) => {
           const work = workStatus(task)
           const status = workDisplayStatus(task)
           const progress = work === 'Needs attention' ? task.review_finding || ''
@@ -171,8 +173,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             ) : (
               <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
             ),
-            meta: isLatest ? (
-              <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+            pinnedAction: isLatest ? (
+              <span className="inline-flex shrink-0 items-center gap-1.5">
                 <span className={cn(
                   "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
                   badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
@@ -204,9 +206,10 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                   <ChevronDown className="h-3.5 w-3.5 rotate-180 transition-transform duration-200 ease-in-out" />
                 </span>
               </span>
-            ) : (
+            ) : undefined,
+            meta: !isLatest ? (
               <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
-            ),
+            ) : undefined,
             content: <>
               <TaskDuration task={task} className="mb-2 block" />
               {progress && <p className="line-clamp-3 pb-2 text-sm leading-relaxed text-muted-foreground">{progress}</p>}

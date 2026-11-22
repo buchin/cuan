@@ -139,6 +139,7 @@ try{
   await tasks.waitFor({state:'visible'})
   assert.equal(await tasks.getAttribute('aria-expanded'),'false')
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
+  const collapsedChevronBox=await tasks.locator('svg').last().boundingBox()
   await page.screenshot({path:path.join(output,`composer-tasks-collapsed-${width}.png`)})
   const initialChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
   await tasks.click()
@@ -154,6 +155,13 @@ try{
   assert.ok(cardBox && panelBox)
   assert.ok(cardBox.y >= panelBox.y - 2, 'Newest task must be at top within visible panel height')
   assert.ok(cardBox.y + cardBox.height <= panelBox.y + panelBox.height + 2, 'Newest task must not be clipped')
+  const collapseBtn=page.locator('[data-testid="composer-tasks-collapse"]')
+  await collapseBtn.waitFor({state:'visible'})
+  const expandedChevronBox=await collapseBtn.locator('svg').boundingBox()
+  if(collapsedChevronBox && expandedChevronBox){
+    assert.ok(Math.abs(collapsedChevronBox.x - expandedChevronBox.x) <= 3, `Zero layout shift horizontal: expected ~${collapsedChevronBox.x}, got ${expandedChevronBox.x}`)
+    assert.ok(Math.abs(collapsedChevronBox.y - expandedChevronBox.y) <= 3, `Zero layout shift vertical: expected ~${collapsedChevronBox.y}, got ${expandedChevronBox.y}`)
+  }
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
   assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
