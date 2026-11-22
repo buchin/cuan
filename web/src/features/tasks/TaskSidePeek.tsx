@@ -20,7 +20,7 @@ import {
   Rocket,
   CheckCircle2,
   Clock3,
-  CheckCheck,
+  Eye,
   AlertCircle,
   FolderOpen,
   ChevronDown,
@@ -619,7 +619,7 @@ function TaskDetailView({
             ) : taskAgentQueued(detail) ? (
               <Clock3 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
             ) : detail.status === 'review' ? (
-              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" aria-hidden />
+              <Eye className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" aria-hidden />
             ) : detail.status === 'blocked' ? (
               <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-hidden />
             ) : null}

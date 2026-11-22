@@ -62,10 +62,20 @@ func TestTaskManager_Lifecycle(t *testing.T) {
 		t.Fatalf("expected toggle to false, got %v / %v", toggled, err)
 	}
 
+	// 4b. Update task
+	updated, err := tm.UpdateTask(task.ID, &ScheduledTask{
+		Title:     "Rekap Harian Penjualan",
+		Prompt:    "Cek ringkasan penjualan harian",
+		ProjectID: "proj_custom",
+	})
+	if err != nil || updated.Title != "Rekap Harian Penjualan" || updated.ProjectID != "proj_custom" {
+		t.Fatalf("UpdateTask failed: %v, updated: %+v", err, updated)
+	}
+
 	// 5. Verify persistence on new instance
 	tm2 := NewTaskManager(storagePath)
 	list2 := tm2.ListTasks()
-	if len(list2) != 1 || list2[0].Title != "Rekap Mingguan Penjualan" {
+	if len(list2) != 1 || list2[0].Title != "Rekap Harian Penjualan" || list2[0].ProjectID != "proj_custom" {
 		t.Fatalf("persistence check failed: %+v", list2)
 	}
 

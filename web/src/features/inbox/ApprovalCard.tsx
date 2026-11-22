@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { Button } from '../../components/ui/button'
 import { ChatMarkdown } from './ChatMarkdown'
@@ -72,7 +72,7 @@ export function FormattedTitle({ title }: { title: string }) {
   )
 }
 
-export function ApprovalCard({
+const MemoizedApprovalCard = memo(function MemoizedApprovalCard({
   plan,
   accepted = false,
   deferred = false,
@@ -222,4 +222,8 @@ export function ApprovalCard({
       )}
     </div>
   )
+})
+
+export function ApprovalCard(props: ApprovalCardProps) {
+  return <MemoizedApprovalCard {...props} />
 }

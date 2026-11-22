@@ -21,10 +21,13 @@ func (s *Server) isTaskActiveOnHost(taskID string) bool {
 	if !exists || sess == nil || sess.IsClosed() {
 		// Fallback check if task belongs to a project with an active persistent terminal session
 		if s.taskSvc != nil {
-			if td, err := s.taskSvc.GetTaskDetail(context.Background(), taskID); err == nil && td != nil {
-				targetProjID := td.ProjectID
-				if targetProjID == "" && len(td.ProjectIDs) > 0 {
-					targetProjID = td.ProjectIDs[0]
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			t, err := s.taskSvc.Store().GetTask(ctx, taskID)
+			cancel()
+			if err == nil && t != nil {
+				targetProjID := t.ProjectID
+				if targetProjID == "" && len(t.ProjectIDs) > 0 {
+					targetProjID = t.ProjectIDs[0]
 				}
 				if targetProjID != "" {
 					projKey := terminal.ProjectSessionKey(targetProjID)
@@ -69,11 +72,13 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 	timeout := task.DefaultMaxCapTimeout + task.GetGracePeriod()
 	deadlines := map[string]time.Time{}
 	var recoveryTasks []*task.Task
+	var latestMap map[string]*task.TaskAttempt
 	if s.taskSvc != nil {
 		if tasks, e := s.taskSvc.RecoveryTasks(ctx); e == nil {
 			recoveryTasks = tasks
+			latestMap = s.taskSvc.LatestAttemptsMap(ctx, tasks)
 			for _, t := range tasks {
-				if a, e := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); e == nil && a != nil && a.Status == task.AttemptStatusRunning {
+				if a := latestMap[t.ID]; a != nil && a.Status == task.AttemptStatusRunning {
 					deadlines[t.ID] = task.AttemptDeadline(t, a).Add(task.GetGracePeriod())
 				}
 			}
@@ -85,7 +90,7 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 	}
 
 	if s.taskSvc != nil {
-		if err := s.taskSvc.ReconcileZombieAttempts(ctx, timeout, s.isTaskActiveOnHost); err != nil {
+		if err := s.taskSvc.ReconcileZombieAttemptTasks(ctx, recoveryTasks, timeout, s.isTaskActiveOnHost); err != nil {
 			log.Printf("[ZombieReaper] ReconcileZombieAttempts error: %v", err)
 		}
 		if err := s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC()); err != nil {
@@ -108,8 +113,12 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 			// 2. Project terminal session or aliased tasks
 			sessionKey := sess.TaskID()
 			for _, taskID := range s.terminalManager.AliasedTasks(sessionKey) {
-				if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, taskID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+				if a := latestMap[taskID]; a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
 					_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+				} else if a == nil {
+					if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, taskID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+						_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+					}
 				}
 			}
 		}
@@ -130,8 +139,12 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 			sessionKey := terminal.ProjectSessionKey(projID)
 			sess, hasSess := s.terminalManager.GetSession(sessionKey)
 			if (hasSess && sess != nil && !sess.IsClosed()) || terminal.ProjectSocketExists(projID) {
-				if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+				if a := latestMap[t.ID]; a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
 					_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+				} else if a == nil {
+					if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+						_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
+					}
 				}
 			}
 		}

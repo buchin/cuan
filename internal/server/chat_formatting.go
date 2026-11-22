@@ -120,17 +120,17 @@ func splitCustomerReplyDraft(content string) (string, string) {
 	return content, ""
 }
 
-func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string) []ChatMessageDTO {
-	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product)
+func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string, isCustomerOpt ...bool) []ChatMessageDTO {
+	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product, isCustomerOpt...)
 	return messages
 }
 
-func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string) ([]ChatMessageDTO, error) {
-	dtos, _, err := s.getFormattedMessagesResultPaged(ctx, roomID, product, 0, "")
+func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string, isCustomerOpt ...bool) ([]ChatMessageDTO, error) {
+	dtos, _, err := s.getFormattedMessagesResultPaged(ctx, roomID, product, 0, "", isCustomerOpt...)
 	return dtos, err
 }
 
-func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, product string, limit int, beforeID string) ([]ChatMessageDTO, bool, error) {
+func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, product string, limit int, beforeID string, isCustomerOpt ...bool) ([]ChatMessageDTO, bool, error) {
 	if s.projectStudioRepo == nil {
 		return []ChatMessageDTO{}, false, nil
 	}
@@ -197,7 +197,12 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 		return []ChatMessageDTO{}, hasMore, nil
 	}
 
-	isCustomer := s.isCustomerRoom(ctx, roomID)
+	isCustomer := false
+	if len(isCustomerOpt) > 0 {
+		isCustomer = isCustomerOpt[0]
+	} else {
+		isCustomer = s.isCustomerRoom(ctx, roomID)
+	}
 	targetMsgs := make([]db.ProjectMessage, len(target))
 	for i, item := range target {
 		targetMsgs[i] = item.msg
