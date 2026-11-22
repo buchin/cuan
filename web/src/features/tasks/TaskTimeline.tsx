@@ -45,7 +45,7 @@ export function TaskTimeline({ task, scrollRef }: {task: TaskDetail; scrollRef: 
       id: event.id,
       title: event.title || ((expanded: boolean) => expanded ? (id?'Pembaruan':'Update') : <span className="line-clamp-2 font-normal">{event.body}</span>),
       meta: event.at && <time dateTime={event.at} title={new Date(event.at).toLocaleString(language)}>{new Date(event.at).toLocaleTimeString(language,{hour:'2-digit',minute:'2-digit'})}</time>,
-      indicator: event.tone==='success' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden /> : <StatusDot size="md" status={event.pulse?'working':event.tone==='warning'?'warning':'neutral'} pulse={!!event.pulse} aria-hidden />,
+      indicator: event.tone==='success' ? <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden /> : event.tone==='review' ? <StatusDot size="md" status="review" pulse={!!event.pulse} aria-hidden /> : <StatusDot size="md" status={event.pulse?'working':event.tone==='warning'?'warning':'neutral'} pulse={!!event.pulse} aria-hidden />,
       content: event.body || event.report || event.files?.length ? <div className="space-y-3">
         {event.body && <ChatMarkdown content={event.body} className="text-[14px] !leading-[22px]" />}
         {event.files && <div className="grid gap-2">{event.files.map(file => <AttachmentFile key={file.id} attachment={file} />)}</div>}

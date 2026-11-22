@@ -466,6 +466,7 @@ body:has(.task-terminal-container),
   --status-working: oklch(0.53 0.11 250);
   --status-success: oklch(0.49 0.10 155);
   --status-warning: oklch(0.53 0.10 75);
+  --status-review: oklch(0.55 0.14 300);
 }
 .dark {
   --nav-active: oklch(var(--primary));
@@ -478,6 +479,7 @@ body:has(.task-terminal-container),
   --status-working: oklch(0.72 0.09 250);
   --status-success: oklch(0.72 0.08 155);
   --status-warning: oklch(0.75 0.09 75);
+  --status-review: oklch(0.72 0.12 300);
 }
 [data-nav-tone] { --nav-icon-color: var(--nav-active); }
 [data-nav-tone="studio"] { --nav-icon-color: var(--nav-studio); }
@@ -490,6 +492,7 @@ body:has(.task-terminal-container),
 [data-status-dot="working"], [data-status-dot="running"], [data-status-dot="pulse"] { background-color: var(--status-working); }
 [data-status-dot="success"], [data-status-dot="healthy"] { background-color: var(--status-success); }
 [data-status-dot="warning"] { background-color: var(--status-warning); }
+[data-status-dot="review"] { background-color: var(--status-review); }
 [data-status-dot] > span { background-color: inherit; }
 
 /* Inbox row actions remain available to pointer hover, keyboard and long press. */
