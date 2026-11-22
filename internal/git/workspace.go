@@ -112,6 +112,19 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseCommit); err != nil {
 			return nil, err
 		}
+		// If the retained task branch does not contain the newly pinned project baseline,
+		// and the worktree is clean, reconcile them so the workspace is on the latest baseline.
+		if ws.BaseCommit != "" {
+			if contained, _ := c.CommitContained(ctx, workspacePath, ws.BaseCommit, "HEAD"); !contained {
+				if head, err := c.GetLatestCommitSHA(ctx, workspacePath); err == nil && IsCommitHash(head) {
+					if clean, err := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "status", "--porcelain").Output(); err == nil && len(bytes.TrimSpace(clean)) == 0 {
+						if reconciled, rErr := c.ReconcileCommits(ctx, workspacePath, head, ws.BaseCommit, fmt.Sprintf("Reconcile retained task branch %s with updated project baseline %s", branchName, ws.BaseCommit[:8])); rErr == nil && IsCommitHash(reconciled) {
+							_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "reset", "--hard", reconciled).Run()
+						}
+					}
+				}
+			}
+		}
 		if err := c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail); err != nil {
 			return nil, err
 		}
