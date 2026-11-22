@@ -256,8 +256,8 @@ func TestRunner_TaskAffinity_AtomicBundleRunToCompletion(t *testing.T) {
 	}
 	t.Logf("✓ Task Affinity correctly claimed active bundle attempt %s ahead of older continuation attempt %s", a2.ID, a1.ID)
 
-	// Case 2: Active task is currently in coordinator review (status = 'review'), and hasn't queued its verifier attempt yet.
-	// Runner should hold (not claim unrelated tasks) to prevent lane hijacking.
+	// Case 2: Active task is currently in coordinator review (status = 'review'), and hasn't queued its verifier/publisher attempt yet.
+	// Runner should hold (not claim unrelated tasks) to prevent lane hijacking up to 15 minutes.
 	t3 := &task.Task{
 		ID:                "task_03_in_review",
 		Title:             "In-Review Task 3",
@@ -265,7 +265,7 @@ func TestRunner_TaskAffinity_AtomicBundleRunToCompletion(t *testing.T) {
 		AssignedAgent:     "agy",
 		ExecutionCategory: task.ExecutionCategoryCode,
 		CreatedAt:         now.Add(-2 * time.Minute),
-		UpdatedAt:         now.Add(-2 * time.Second), // recently updated in review
+		UpdatedAt:         now.Add(-2 * time.Minute), // updated 2 minutes ago (< 15m hold window)
 	}
 	_ = taskStore.CreateTask(ctx, t3)
 
@@ -277,7 +277,34 @@ func TestRunner_TaskAffinity_AtomicBundleRunToCompletion(t *testing.T) {
 	if heldAttempt != nil || heldTask != nil {
 		t.Fatalf("Expected claim to hold while preferred task is in review, but claimed %s", heldAttempt.ID)
 	}
-	t.Logf("✓ Runner claim cleanly held while active task is in coordinator review")
+	t.Logf("✓ Runner claim cleanly held while active task is in coordinator review (2m in review)")
+
+	// Case 3: Active task is in queued stage (transitioning to publication launch, < 15m)
+	t3.Status = task.TaskStatusQueued
+	t3.UpdatedAt = now.Add(-1 * time.Minute)
+	_ = taskStore.UpdateTask(ctx, t3)
+	heldAttempt2, _, err := runnerStore.ClaimNextQueuedAttempt(reviewAffinityCtx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim during queued stage check failed: %v", err)
+	}
+	if heldAttempt2 != nil {
+		t.Fatalf("Expected claim to hold while preferred task is in queued stage, but claimed %s", heldAttempt2.ID)
+	}
+	t.Logf("✓ Runner claim cleanly held while active task is in queued stage")
+
+	// Case 4: Active bundle finishes (a2 succeeds), preferred task was completed ('done'). Hold is immediately released and next backlog task is claimed.
+	a2.Status = task.AttemptStatusSucceeded
+	_ = taskStore.UpdateAttempt(ctx, a2)
+	t3.Status = task.TaskStatusDone
+	_ = taskStore.UpdateTask(ctx, t3)
+	releasedAttempt, _, err := runnerStore.ClaimNextQueuedAttempt(reviewAffinityCtx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim after task done failed: %v", err)
+	}
+	if releasedAttempt == nil || releasedAttempt.ID != a1.ID {
+		t.Fatalf("Expected backlog attempt %s to be claimed after task done, got %v", a1.ID, releasedAttempt)
+	}
+	t.Logf("✓ Backlog attempt %s claimed immediately after preferred task reached terminal 'done'", a1.ID)
 }
 
 func TestRunner_DuplicateClaimProtection(t *testing.T) {

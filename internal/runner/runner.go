@@ -511,10 +511,11 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	r.mu.Lock()
 	if claimResp.Task != nil {
 		if claimResp.Task.ID == r.preferredTaskID {
-			// Kept affinity on active task bundle
+			// Kept full affinity on active task bundle, extend window
+			r.preferredUntil = time.Now().Add(15 * time.Minute)
 		} else {
 			r.preferredTaskID = claimResp.Task.ID
-			r.preferredUntil = time.Now().Add(60 * time.Second)
+			r.preferredUntil = time.Now().Add(15 * time.Minute)
 		}
 	}
 	r.mu.Unlock()
@@ -589,7 +590,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 			r.mu.Lock()
 			if claim.Task != nil {
 				r.preferredTaskID = claim.Task.ID
-				r.preferredUntil = time.Now().Add(60 * time.Second)
+				r.preferredUntil = time.Now().Add(15 * time.Minute)
 			}
 			delete(r.activeAttempts, claim.Attempt.ID)
 			if r.currentAttempt != nil && r.currentAttempt.ID == claim.Attempt.ID {

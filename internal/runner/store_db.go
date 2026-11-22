@@ -262,7 +262,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
  AND ($8 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"revalidation_kind":"evidence"%'))
  AND ($10 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan verification-only intent v1:%' AND l.revision LIKE '%"recovery_cause":"php_preparation"%'))
  AND ($9 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan native-release intent%'))
- AND ($11 = '' OR a.task_id = $11 OR NOT EXISTS (SELECT 1 FROM tasks pref_t WHERE pref_t.id = $11 AND pref_t.status = 'review' AND pref_t.updated_at > NOW() - INTERVAL '30 seconds'))
+ AND ($11 = '' OR a.task_id = $11 OR NOT EXISTS (SELECT 1 FROM tasks pref_t WHERE pref_t.id = $11 AND pref_t.status NOT IN ('done', 'cancelled', 'canceled', 'failed', 'blocked') AND pref_t.updated_at > NOW() - INTERVAL '15 minutes'))
 		  AND (
 		      ($1 = true AND COALESCE(t.execution_category, 'code') = 'code')
 		      OR ($2 = true AND COALESCE(t.execution_category, 'code') = 'ops')

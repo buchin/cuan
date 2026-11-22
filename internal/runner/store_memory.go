@@ -181,8 +181,8 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 	for _, t := range tasks {
 		if preferredTaskID != "" && t.ID != preferredTaskID {
 			if prefT, err := m.taskStore.GetTask(ctx, preferredTaskID); err == nil && prefT != nil {
-				if prefT.Status == task.TaskStatusReview && time.Since(prefT.UpdatedAt) < 30*time.Second {
-					// Preferred task is actively in review: hold claiming other tasks
+				if !isTerminalTaskStatus(prefT.Status) && time.Since(prefT.UpdatedAt) < 15*time.Minute {
+					// Full sticky affinity on active task bundle: hold until preferred task reaches terminal status
 					continue
 				}
 			}
@@ -558,6 +558,18 @@ func containsString(slice []string, val string) bool {
 		}
 	}
 	return false
+}
+
+func isTerminalTaskStatus(status string) bool {
+	switch status {
+	case string(task.TaskStatusDone),
+		string(task.TaskStatusCancelled), "canceled",
+		"failed",
+		string(task.TaskStatusBlocked):
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *MemoryStore) ReleaseAssignment(_ context.Context, runnerID, attemptID string) error {

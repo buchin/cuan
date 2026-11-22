@@ -95,7 +95,7 @@ func (r *Runner) monitorDetachedWorker(attemptID string, pid int, lane string) {
 	r.mu.Lock()
 	if act, ok := r.activeAttempts[attemptID]; ok && act.attempt != nil {
 		r.preferredTaskID = act.attempt.TaskID
-		r.preferredUntil = time.Now().Add(60 * time.Second)
+		r.preferredUntil = time.Now().Add(15 * time.Minute)
 	}
 	delete(r.activeAttempts, attemptID)
 	if r.currentAttempt != nil && r.currentAttempt.ID == attemptID {
