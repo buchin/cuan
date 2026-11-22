@@ -120,13 +120,13 @@ func splitCustomerReplyDraft(content string) (string, string) {
 	return content, ""
 }
 
-func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string) []ChatMessageDTO {
-	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product)
+func (s *Server) getFormattedMessages(ctx context.Context, roomID string, product string, isCustomerOpt ...bool) []ChatMessageDTO {
+	messages, _ := s.getFormattedMessagesResult(ctx, roomID, product, isCustomerOpt...)
 	return messages
 }
 
-func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string) ([]ChatMessageDTO, error) {
-	dtos, _, err := s.getFormattedMessagesResultPaged(ctx, roomID, product, 0, "")
+func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product string, isCustomerOpt ...bool) ([]ChatMessageDTO, error) {
+	dtos, _, err := s.getFormattedMessagesResultPaged(ctx, roomID, product, 0, "", isCustomerOpt...)
 	return dtos, err
 }
 

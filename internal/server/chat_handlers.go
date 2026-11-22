@@ -490,7 +490,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			q = item
 		}
 	}
-	messages := s.getFormattedMessages(r.Context(), q.RoomID, "")
+	messages := s.getFormattedMessages(r.Context(), q.RoomID, "", !resolved.IsAgent)
 	response := map[string]any{"request": q}
 	for _, m := range messages {
 		if m.UUID == q.MessageID {
