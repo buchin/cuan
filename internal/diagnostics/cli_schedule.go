@@ -28,6 +28,8 @@ func RunScheduleCLI(args []string, out, errOut io.Writer) int {
 		return runScheduleList(ctx, extraArgs, out, errOut)
 	case "create", "new", "add":
 		return runScheduleCreate(ctx, extraArgs, out, errOut)
+	case "update", "edit", "set":
+		return runScheduleUpdate(ctx, extraArgs, out, errOut)
 	case "delete", "rm":
 		return runScheduleDelete(ctx, extraArgs, out, errOut)
 	case "toggle":
@@ -46,6 +48,7 @@ func printScheduleHelp(out io.Writer) {
 Usage:
   cuan schedule list [--json]
   cuan schedule create --title "..." --prompt "..." [options] [--json]
+  cuan schedule update <id> [options] [--json]
   cuan schedule delete <id>
   cuan schedule toggle <id> [--enable|--disable]
   cuan schedule trigger <id>
@@ -53,18 +56,19 @@ Usage:
 Subcommands:
   list      List all scheduled routines
   create    Register a new recurring routine
+  update    Update title, prompt, timing, or project of an existing routine
   delete    Remove a scheduled routine by ID
   toggle    Enable or disable a scheduled routine
   trigger   Trigger an immediate run of a scheduled routine
 
-Options for create:
-  --title     Routine title (required)
-  --prompt    Instruction prompt for agent execution (required)
+Options for create / update:
+  --title     Routine title
+  --prompt    Instruction prompt for agent execution
   --type      Schedule type: daily, weekly, interval (default: daily)
   --time      Time of day in HH:MM format (default: 08:00)
   --day       Day of week: 0=Sunday..6=Saturday (default: 1)
   --interval  Interval in minutes when type is interval (default: 60)
-  --project   Target project ID (default: default)
+  --project   Target project ID or name
   --json      Output machine-readable JSON`)
 }
 
@@ -201,6 +205,84 @@ func runScheduleCreate(ctx context.Context, args []string, out, errOut io.Writer
 	fmt.Fprintf(out, "  Title:         %s\n", t)
 	fmt.Fprintf(out, "  Schedule Type: %s (%s)\n", *sType, *tOfDay)
 	fmt.Fprintf(out, "  Project:       %s\n", *projectID)
+	return 0
+}
+
+func runScheduleUpdate(ctx context.Context, args []string, out, errOut io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(errOut, "Usage: cuan schedule update <id> [options]")
+		return 2
+	}
+
+	id := strings.TrimSpace(args[0])
+	if id == "" || strings.HasPrefix(id, "-") {
+		fmt.Fprintln(errOut, "Error: routine ID is required as first argument. Usage: cuan schedule update <id> [options]")
+		return 2
+	}
+
+	fs := flag.NewFlagSet("schedule update", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	title := fs.String("title", "", "Routine title")
+	prompt := fs.String("prompt", "", "Instruction prompt for agent execution")
+	sType := fs.String("type", "", "Schedule type: daily, weekly, interval")
+	tOfDay := fs.String("time", "", "Time of day in HH:MM format (e.g. 03:00)")
+	dayOfWeek := fs.Int("day", -1, "Day of week (0=Sunday, 1=Monday... 6=Saturday)")
+	intervalMins := fs.Int("interval", 0, "Interval in minutes")
+	projectID := fs.String("project", "", "Target project ID or name")
+	jsonOutput := fs.Bool("json", false, "Output JSON")
+
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "Error: Cuan connection not configured (~/.cuan/config.json).")
+		return 1
+	}
+
+	payload := make(map[string]any)
+	if t := strings.TrimSpace(*title); t != "" {
+		payload["title"] = t
+	}
+	if p := strings.TrimSpace(*prompt); p != "" {
+		payload["prompt"] = p
+	}
+	if st := strings.TrimSpace(*sType); st != "" {
+		payload["schedule_type"] = st
+	}
+	if tod := strings.TrimSpace(*tOfDay); tod != "" {
+		payload["time_of_day"] = tod
+	}
+	if *dayOfWeek >= 0 && *dayOfWeek <= 6 {
+		payload["day_of_week"] = *dayOfWeek
+	}
+	if *intervalMins > 0 {
+		payload["interval_mins"] = *intervalMins
+	}
+	if pID := strings.TrimSpace(*projectID); pID != "" {
+		payload["project_id"] = pID
+	}
+
+	if len(payload) == 0 {
+		fmt.Fprintln(errOut, "Error: at least one update option must be specified (--title, --prompt, --project, --time, etc.).")
+		return 2
+	}
+
+	updated, err := client.UpdateScheduledTask(ctx, id, payload)
+	if err != nil {
+		fmt.Fprintf(errOut, "Error updating scheduled task: %v\n", err)
+		return 1
+	}
+
+	if *jsonOutput {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(updated)
+		return 0
+	}
+
+	fmt.Fprintf(out, "✓ Scheduled routine %s updated successfully.\n", id)
 	return 0
 }
 

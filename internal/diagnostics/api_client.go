@@ -750,6 +750,27 @@ func (c *CuanClient) CreateScheduledTask(ctx context.Context, payload map[string
 	return res, nil
 }
 
+// UpdateScheduledTask modifies an existing recurring routine in Cuan by ID.
+func (c *CuanClient) UpdateScheduledTask(ctx context.Context, id string, payload map[string]any) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/system/scheduler/tasks/%s", url.PathEscape(id))
+	resp, err := c.doRequest(ctx, http.MethodPut, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("update scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("update scheduled task failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal updated scheduled task: %w", err)
+	}
+	return res, nil
+}
+
 // DeleteScheduledTask removes a recurring routine in Cuan by ID.
 func (c *CuanClient) DeleteScheduledTask(ctx context.Context, id string) error {
 	endpoint := fmt.Sprintf("/api/v1/system/scheduler/tasks/%s", url.PathEscape(id))

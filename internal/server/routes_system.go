@@ -32,6 +32,9 @@ func (s *Server) registerSystemRoutes(r chi.Router) {
 	r.Post("/api/system/scheduler/jobs/{id}/trigger", s.handleTriggerScheduledJob)
 	r.Get("/api/system/scheduler/tasks", s.handleListScheduledTasks)
 	r.Post("/api/system/scheduler/tasks", s.handleCreateScheduledTask)
+	r.Get("/api/system/scheduler/tasks/{id}", s.handleGetScheduledTask)
+	r.Put("/api/system/scheduler/tasks/{id}", s.handleUpdateScheduledTask)
+	r.Patch("/api/system/scheduler/tasks/{id}", s.handleUpdateScheduledTask)
 	r.Delete("/api/system/scheduler/tasks/{id}", s.handleDeleteScheduledTask)
 	r.Patch("/api/system/scheduler/tasks/{id}/toggle", s.handleToggleScheduledTask)
 	r.Post("/api/system/scheduler/tasks/{id}/trigger", s.handleTriggerScheduledTask)
@@ -49,6 +52,9 @@ func (s *Server) registerSystemV1Routes(r chi.Router) {
 	r.Post("/system/scheduler/jobs/{id}/trigger", s.handleTriggerScheduledJob)
 	r.Get("/system/scheduler/tasks", s.handleListScheduledTasks)
 	r.Post("/system/scheduler/tasks", s.handleCreateScheduledTask)
+	r.Get("/system/scheduler/tasks/{id}", s.handleGetScheduledTask)
+	r.Put("/system/scheduler/tasks/{id}", s.handleUpdateScheduledTask)
+	r.Patch("/system/scheduler/tasks/{id}", s.handleUpdateScheduledTask)
 	r.Delete("/system/scheduler/tasks/{id}", s.handleDeleteScheduledTask)
 	r.Patch("/system/scheduler/tasks/{id}/toggle", s.handleToggleScheduledTask)
 	r.Post("/system/scheduler/tasks/{id}/trigger", s.handleTriggerScheduledTask)
@@ -394,6 +400,39 @@ func (s *Server) handleCreateScheduledTask(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	respondJSON(w, http.StatusCreated, created)
+}
+
+func (s *Server) handleGetScheduledTask(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task manager not available")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	task, found := s.taskManager.GetTask(id)
+	if !found {
+		respondJSONError(w, http.StatusNotFound, "task not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, task)
+}
+
+func (s *Server) handleUpdateScheduledTask(w http.ResponseWriter, r *http.Request) {
+	if s.taskManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "task manager not available")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	var task scheduler.ScheduledTask
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	updated, err := s.taskManager.UpdateTask(id, &task)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, updated)
 }
 
 func (s *Server) handleDeleteScheduledTask(w http.ResponseWriter, r *http.Request) {

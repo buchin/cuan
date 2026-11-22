@@ -434,6 +434,49 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "update_scheduled_task",
+		Description: "Update an existing recurring routine (title, prompt, timing, or project) in Cuan.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{
+					"type":        "string",
+					"description": "Scheduled task ID (e.g. sch_...)",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Updated routine title",
+				},
+				"prompt": map[string]any{
+					"type":        "string",
+					"description": "Updated instruction prompt for agent execution",
+				},
+				"schedule_type": map[string]any{
+					"type":        "string",
+					"enum":        []string{"daily", "weekly", "interval"},
+					"description": "Schedule frequency type",
+				},
+				"time_of_day": map[string]any{
+					"type":        "string",
+					"description": "Time of day in HH:MM format",
+				},
+				"day_of_week": map[string]any{
+					"type":        "integer",
+					"description": "Day of week: 0=Sunday..6=Saturday",
+				},
+				"interval_mins": map[string]any{
+					"type":        "integer",
+					"description": "Interval in minutes if schedule_type is interval",
+				},
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Target project ID or name",
+				},
+			},
+			"required": []string{"id"},
+		},
+	},
+	{
 		Name:        "delete_scheduled_task",
 		Description: "Delete a recurring scheduled routine in Cuan by ID.",
 		InputSchema: map[string]any{
@@ -710,7 +753,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			tools = make([]mcpToolDefinition, 0, len(nativeMCPTools))
 			for _, tool := range nativeMCPTools {
 				switch tool.Name {
-				case "send_inbox_message", "create_inbox_conversation", "create_task_draft", "update_task_status", "toggle_agent_skill", "update_project_environment", "create_scheduled_task", "delete_scheduled_task", "trigger_scheduled_task":
+				case "send_inbox_message", "create_inbox_conversation", "create_task_draft", "update_task_status", "toggle_agent_skill", "update_project_environment", "create_scheduled_task", "update_scheduled_task", "delete_scheduled_task", "trigger_scheduled_task":
 					continue
 				}
 				tools = append(tools, tool)
@@ -879,6 +922,14 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				toolErr = fmt.Errorf("Cuan connection not configured")
 			} else {
 				toolResult, toolErr = client.CreateScheduledTask(ctx, callParams.Arguments)
+			}
+		case "update_scheduled_task":
+			client := GetCuanClient()
+			if client == nil || !client.IsConfigured() {
+				toolErr = fmt.Errorf("Cuan connection not configured")
+			} else {
+				id, _ := callParams.Arguments["id"].(string)
+				toolResult, toolErr = client.UpdateScheduledTask(ctx, id, callParams.Arguments)
 			}
 		case "delete_scheduled_task":
 			client := GetCuanClient()
