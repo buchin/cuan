@@ -547,6 +547,16 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 		allRecentMessages, _ = s.projectStudioRepo.ListRecentMessages(ctx, 1)
 	}
 
+	preferences := itemPreferences{}
+	if s.authSvc != nil {
+		if ownerID, err := s.authSvc.OwnerID(ctx); err == nil && ownerID != "" {
+			itemPreferencesMu.Lock()
+			saved, _ := readItemPreferences(ownerID)
+			itemPreferencesMu.Unlock()
+			preferences = saved
+		}
+	}
+
 	for _, room := range rooms {
 		msgs := allRecentMessages[room.ID]
 		if len(msgs) == 0 {
@@ -615,15 +625,6 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			}
 
 			// 2. Check operator conversation item preferences
-			preferences := itemPreferences{}
-			if s.authSvc != nil {
-				if ownerID, err := s.authSvc.OwnerID(ctx); err == nil && ownerID != "" {
-					itemPreferencesMu.Lock()
-					saved, _ := readItemPreferences(ownerID)
-					itemPreferencesMu.Unlock()
-					preferences = saved
-				}
-			}
 			state := preferences["conversation:"+room.ID]
 			if state.Unread {
 				// Operator explicitly marked conversation as unread; do not auto-resolve
