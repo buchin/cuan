@@ -77,21 +77,23 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 	if autoDeployTriggered {
 		doneStatus = task.TaskStatusReview
 	}
-	note := taskDetail.CompleteNote
-	if note != "" {
-		note += "\n\n"
-	}
 	appliedSHA := ""
 	if mergeResult != nil {
 		appliedSHA = mergeResult.SHA
 	}
-	if appliedSHA != "" {
-		note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
-	} else {
-		note += "🚀 Perubahan telah berhasil diterapkan."
-	}
-	if autoDeployTriggered {
-		note += " Verifikasi deployment production belum dikonfirmasi."
+	note := taskDetail.CompleteNote
+	if !strings.Contains(note, "Perubahan telah berhasil diterapkan") {
+		if note != "" {
+			note += "\n\n"
+		}
+		if appliedSHA != "" {
+			note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
+		} else {
+			note += "🚀 Perubahan telah berhasil diterapkan."
+		}
+		if autoDeployTriggered {
+			note += " Verifikasi deployment production belum dikonfirmasi."
+		}
 	}
 
 	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{
@@ -283,15 +285,17 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 		appliedSHA = mergeRes.SHA
 	}
 	note := taskDetail.CompleteNote
-	if note != "" {
-		note += "\n\n"
+	if !strings.Contains(note, "Perubahan telah berhasil diterapkan") {
+		if note != "" {
+			note += "\n\n"
+		}
+		if appliedSHA != "" {
+			note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
+		} else {
+			note += "🚀 Perubahan telah berhasil diterapkan."
+		}
+		note += " Verifikasi deployment production belum dikonfirmasi."
 	}
-	if appliedSHA != "" {
-		note += fmt.Sprintf("🚀 Perubahan telah berhasil diterapkan (Commit %s).", appliedSHA)
-	} else {
-		note += "🚀 Perubahan telah berhasil diterapkan."
-	}
-	note += " Verifikasi deployment production belum dikonfirmasi."
 	doneStatus := task.TaskStatusReview
 	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
 		Status:       &doneStatus,

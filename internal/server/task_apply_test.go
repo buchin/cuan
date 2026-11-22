@@ -370,3 +370,58 @@ func TestAutoApplyDoesNotSkipCodeTaskWithRCAInInstructions(t *testing.T) {
 		t.Fatal("code task should not be classified as non-code investigation")
 	}
 }
+
+func TestAutoApplyDoesNotDuplicateAppliedNote(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	svc := task.NewService(store, nil)
+
+	initialNote := "Verification passed."
+	created, err := svc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:         "project",
+		Title:             "Fix bug",
+		Instructions:      "Fix bug",
+		ExecutionCategory: task.ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.UpdateTask(ctx, created.ID, "system", task.UpdateTaskRequest{CompleteNote: &initialNote})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err := svc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate already applied note
+	appliedNote := initialNote + "\n\n🚀 Perubahan telah berhasil diterapkan (Commit c57825ce). Verifikasi deployment production belum dikonfirmasi."
+	_, err = svc.UpdateTask(ctx, created.ID, "system", task.UpdateTaskRequest{CompleteNote: &appliedNote})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	detail, err = svc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that inboxReviewEvidenceDigests includes the cleaned note digest
+	digests := inboxReviewEvidenceDigests(detail)
+	cleanDetail := *detail
+	cleanDetail.CompleteNote = initialNote
+	cleanDigest := inboxReviewEvidenceDigest(&cleanDetail)
+
+	foundClean := false
+	for _, d := range digests {
+		if d == cleanDigest {
+			foundClean = true
+			break
+		}
+	}
+	if !foundClean {
+		t.Fatalf("expected digests to include cleaned note digest %q, got: %v", cleanDigest, digests)
+	}
+}

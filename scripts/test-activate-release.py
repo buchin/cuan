@@ -2,6 +2,7 @@
 import importlib.util
 import fcntl
 import json
+import os
 import tempfile
 import subprocess
 import unittest
@@ -250,17 +251,15 @@ class Gates(unittest.TestCase):
             )
 
     def test_worker_drain_signal_and_cleanup(self):
-        drain_file = Path('/tmp/cuan-drain')
-        try:
-            drain_file.unlink(missing_ok=True)
-            with patch.object(a.subprocess, 'run') as mock_run:
-                a.signal_worker_drain()
-                self.assertTrue(drain_file.exists())
-                mock_run.assert_called_once_with(['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', a.SERVICE+'-runner.service'], check=False)
-            a.cleanup_worker_drain()
-            self.assertFalse(drain_file.exists())
-        finally:
-            drain_file.unlink(missing_ok=True)
+        with tempfile.TemporaryDirectory() as td:
+            drain_file = Path(td) / 'cuan-drain'
+            with patch.dict(os.environ, {'CUAN_DRAIN_FILE': str(drain_file)}):
+                with patch.object(a.subprocess, 'run') as mock_run:
+                    a.signal_worker_drain()
+                    self.assertTrue(drain_file.exists())
+                    mock_run.assert_called_once_with(['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', a.SERVICE+'-runner.service'], check=False)
+                a.cleanup_worker_drain()
+                self.assertFalse(drain_file.exists())
 
     def test_runner_name_in_prompt_matches_unrelated_provider_process(self):
         # Reproduce selection only: never broadcast a signal in this test.
@@ -275,14 +274,13 @@ class Gates(unittest.TestCase):
             child.wait(timeout=3)
 
     def test_worker_service_restart_and_auto_undrain(self):
-        drain_file = Path('/tmp/cuan-drain')
-        try:
-            drain_file.touch(exist_ok=True)
-            with patch.object(a.subprocess, 'run', return_value=subprocess.CompletedProcess(['systemctl'], 0, '')) as mock_run:
-                a.restart_worker_service()
-                self.assertFalse(drain_file.exists())
-                mock_run.assert_called_once_with(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
-        finally:
-            drain_file.unlink(missing_ok=True)
+        with tempfile.TemporaryDirectory() as td:
+            drain_file = Path(td) / 'cuan-drain'
+            with patch.dict(os.environ, {'CUAN_DRAIN_FILE': str(drain_file)}):
+                drain_file.touch(exist_ok=True)
+                with patch.object(a.subprocess, 'run', return_value=subprocess.CompletedProcess(['systemctl'], 0, '')) as mock_run:
+                    a.restart_worker_service()
+                    self.assertFalse(drain_file.exists())
+                    mock_run.assert_called_once_with(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
 
 if __name__ == '__main__': unittest.main()

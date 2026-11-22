@@ -373,20 +373,28 @@ def apply_pending_migrations(target_dir, env):
             raise RuntimeError(f"Could not apply migration {up_file.name}: {e}")
 
 
+def drain_file_path():
+    return Path(os.environ.get('CUAN_DRAIN_FILE', '/tmp/cuan-drain'))
+
+
 def signal_worker_drain():
     try:
-        drain_file = Path('/tmp/cuan-drain')
+        drain_file = drain_file_path()
         drain_file.touch(mode=0o666, exist_ok=True)
+        try:
+            os.chmod(drain_file, 0o666)
+        except Exception:
+            pass
         subprocess.run(['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', SERVICE+'-runner.service'], check=False)
-        print('==> Signaled graceful drain to the task-runner supervisor only (/tmp/cuan-drain & SIGUSR1).')
+        print(f'==> Signaled graceful drain to the task-runner supervisor only ({drain_file} & SIGUSR1).')
     except Exception as e:
         print(f'==> Notice: Could not signal worker drain: {e}')
 
 
 def cleanup_worker_drain():
     try:
-        Path('/tmp/cuan-drain').unlink(missing_ok=True)
-        print('==> Cleaned up /tmp/cuan-drain flag.')
+        drain_file_path().unlink(missing_ok=True)
+        print('==> Cleaned up drain flag.')
     except Exception:
         pass
 

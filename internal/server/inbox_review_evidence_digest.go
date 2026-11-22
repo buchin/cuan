@@ -32,6 +32,19 @@ func inboxReviewEvidenceDigests(d *task.TaskDetailResponse) []string {
 	add(inboxReviewEvidenceDigest(d))
 	add(inboxReviewEvidenceDigestForPublicationPolicy(d, previousPublicationReviewPolicy))
 
+	if strings.Contains(d.CompleteNote, "Perubahan telah berhasil diterapkan") {
+		cleanNote := d.CompleteNote
+		if idx := strings.Index(cleanNote, "🚀 Perubahan telah berhasil diterapkan"); idx >= 0 {
+			cleanNote = strings.TrimSpace(cleanNote[:idx])
+		}
+		if cleanNote != d.CompleteNote && cleanNote != "" {
+			copyClean := *d
+			copyClean.CompleteNote = cleanNote
+			add(inboxReviewEvidenceDigest(&copyClean))
+			add(inboxReviewEvidenceDigestForPublicationPolicy(&copyClean, previousPublicationReviewPolicy))
+		}
+	}
+
 	if d.LatestAttempt != nil {
 		var pubObs []*task.TaskActivity
 		var otherActivities []*task.TaskActivity
