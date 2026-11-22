@@ -527,6 +527,8 @@
   "You’re all caught up": "Semua sudah diperiksa",
   "Approvals, blockers, completed work and new customer messages appear here.": "Persetujuan, kendala, pekerjaan selesai, dan pesan pelanggan baru muncul di sini.",
   "Needs approval": "Perlu persetujuan",
+  "Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.": "Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.",
+  "This recommendation is no longer current. Check the latest task result before approving.": "Rekomendasi ini sudah kedaluwarsa. Periksa hasil tugas terbaru sebelum menyetujui.",
   "Completed": "Selesai",
   "Customer message": "Pesan pelanggan",
   "Customer messages": "Pesan pelanggan",

@@ -416,7 +416,11 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		}
 		plan, err := s.persistedInboxPlan(r.Context(), resolved.RoomID, ownerID, resolved.TargetAgentID, payload.ApproveMessageID)
 		if err != nil {
-			respondJSONError(w, 409, err.Error())
+			errMessage := err.Error()
+			if errors.Is(err, ErrInboxContinuationStale) || strings.Contains(errMessage, "This recommendation is no longer current") {
+				errMessage = "This recommendation is no longer current. Check the latest task result before approving."
+			}
+			respondJSONError(w, 409, errMessage)
 			return
 		}
 		payload.RequestID = delegationMessageID("approve-plan:" + resolved.RoomID + ":" + plan.MessageID)

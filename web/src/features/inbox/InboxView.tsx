@@ -81,6 +81,7 @@ import { taskMessageBindings, isBackgroundWorkUpdate } from './task-message-bind
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
+import { isApprovalCardStale } from './ApprovalCard'
 import { PromptChoiceChips } from './PromptChoiceChips'
 import { ReceiptPreviewCard, parseReceiptExtraction } from './ReceiptPreviewCard'
 import { InboxWorkPanel } from './InboxWorkPanel'
@@ -420,6 +421,7 @@ export function InboxView({
   const [streamingReplies, setStreamingReplies] = useState<Record<string, string>>({})
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
+  const staleNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRef = useRef<{
     convId: string
     text: string
@@ -1267,7 +1269,41 @@ export function InboxView({
       }
       onContactUpdated?.()
     } catch (err: unknown) {
-      if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+      const isStaleContinuation =
+        (err instanceof ApiError && err.status === 409) ||
+        (err instanceof Error &&
+          (err.message.includes('This recommendation is no longer current') ||
+            err.message.includes('continuationDescriptionMatches') ||
+            err.message.includes('no longer current') ||
+            err.message.includes('kedaluwarsa')))
+
+      if (isStaleContinuation) {
+        try {
+          const key = 'cuan_inbox_pending:' + convId
+          localStorage.removeItem(key)
+        } catch { /* ignore */ }
+        if (pendingRef.current === request) pendingRef.current = null
+        if (activeConvRef.current === convId) {
+          setSendError(
+            t(
+              'Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.',
+            ),
+          )
+          setRetryCount(0)
+          void loadConversation(convId)
+          if (staleNoticeTimerRef.current) clearTimeout(staleNoticeTimerRef.current)
+          staleNoticeTimerRef.current = setTimeout(() => {
+            setSendError((prev) =>
+              prev ===
+              t(
+                'Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.',
+              )
+                ? ''
+                : prev,
+            )
+          }, 6000)
+        }
+      } else if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
         // Server rejected this request (4xx). Do not deadlock user in retry loop; clear pending.
         try {
           const key = 'cuan_inbox_pending:' + convId
@@ -1709,13 +1745,34 @@ export function InboxView({
                         </div>
                       )}
 
-                      {(isAgentMessage || msg.author_type === 'agent') && msg.approval_plan && (
+                      {(isAgentMessage || msg.author_type === 'agent') &&
+                        msg.approval_plan &&
+                        !isApprovalCardStale(
+                          msg.approval_plan,
+                          msg.approval_accepted,
+                          linkedTasks,
+                        ) && (
                         <ApprovalCard
                           plan={msg.approval_plan}
                           accepted={msg.approval_accepted}
                           deferred={msg.plan_deferred}
                           disabled={sending || uploads.busy || !!pendingRef.current}
                           onApprove={() => {
+                            if (
+                              isApprovalCardStale(
+                                msg.approval_plan,
+                                msg.approval_accepted,
+                                linkedTasks,
+                              )
+                            ) {
+                              setSendError(
+                                t(
+                                  'Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.',
+                                ),
+                              )
+                              void loadConversation(activeContact?.id || '')
+                              return
+                            }
                             setSendError('')
                             setRetryCount(0)
                             handleSendMessageRef.current(msg.uuid, msg.approval_request_id)

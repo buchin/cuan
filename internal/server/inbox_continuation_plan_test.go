@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -313,5 +314,169 @@ func TestInboxContinuationWatchdogExternalCardApproval(t *testing.T) {
 	}
 	if approved == nil || approved.MessageID != cardMsgID {
 		t.Fatalf("expected approved plan for %s, got %+v", cardMsgID, approved)
+	}
+}
+
+func TestInboxContinuationStaleCardAutoDismissedAndUpdated(t *testing.T) {
+	s, token, call, _ := inboxFixture(t)
+	s.inboxStopping.Store(true)
+	ctx := context.Background()
+	owner, err := s.authSvc.ValidateToken(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	room := s.resolveConversationContext(ctx, "agent_lifecycle", "").RoomID
+	now := time.Now().UTC()
+	store := s.projectStudioRepo.(db.InboxRequestRepository)
+
+	source := db.InboxRequest{
+		OwnerID:     owner.ID,
+		AgentID:     "agent_lifecycle",
+		RoomID:      room,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		PayloadHash: "source-req",
+		State:       "completed",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	if _, _, err := store.AcceptInboxRequest(ctx, source, &db.ProjectMessage{
+		ID:         source.MessageID,
+		RoomID:     room,
+		AuthorType: "user",
+		Content:    "Periksa timeline task chat.",
+		CreatedAt:  now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	taskItem := &task.Task{
+		ID:              "task-stale-card-test",
+		ProjectID:       "default",
+		SourceRoomID:    room,
+		SourceMessageID: source.MessageID,
+		Instructions:    "Cuan managed delegation v1.\nPenyederhanaan Timeline Task Chat",
+		Title:           "Penyederhanaan Timeline Task Chat",
+		Status:          task.TaskStatusBlocked,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, taskItem); err != nil {
+		t.Fatal(err)
+	}
+	attemptItem := &task.TaskAttempt{
+		ID:        "attempt-stale-card-test",
+		TaskID:    taskItem.ID,
+		Status:    task.AttemptStatusFailed,
+		CreatedAt: now,
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, attemptItem); err != nil {
+		t.Fatal(err)
+	}
+	d, err := s.taskSvc.GetTaskDetail(ctx, taskItem.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proposal := source
+	proposal.RequestID, proposal.MessageID, proposal.ReplyID = db.GenerateUUID(), db.GenerateUUID(), db.GenerateUUID()
+	proposal.PayloadHash, proposal.State = "proposal", "completed"
+	decision := inboxReviewEvaluation{
+		Decision:      "revise",
+		Explanation:   "Rilis hasil yang diperiksa belum tuntas.",
+		Revision:      "Lengkapi pemeriksaan agar hasil pekerjaan bisa dipastikan.",
+		RemainingWork: "verification",
+	}
+	if _, err := s.saveReviewAssessment(ctx, d, proposal, decision); err != nil {
+		t.Fatal(err)
+	}
+
+	cardPlan := continuationPlan(d, proposal.RequestID, decision)
+	cardMsgContent := fmt.Sprintf("Rilis hasil yang diperiksa belum tuntas.\n\nUntuk melanjutkan, silakan konfirmasi melalui tombol di bawah:%s\n\n[View work](/tasks/%s)", cardPlan, d.ID)
+	cardMsg := &db.ProjectMessage{
+		ID:         proposal.ReplyID,
+		RoomID:     room,
+		AuthorType: "agent",
+		AuthorID:   source.AgentID,
+		Content:    cardMsgContent,
+		CreatedAt:  now.Add(time.Second),
+		UpdatedAt:  now.Add(time.Second),
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, cardMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Initial State: Task is blocked, continuation card is present and approvable
+	msgs, _, err := s.getFormattedMessagesResultPaged(ctx, room, "", 50, "")
+	if err != nil {
+		t.Fatalf("getFormattedMessagesResultPaged failed: %v", err)
+	}
+	var targetDTO *ChatMessageDTO
+	for i := range msgs {
+		if msgs[i].UUID == cardMsg.ID {
+			targetDTO = &msgs[i]
+			break
+		}
+	}
+	if targetDTO == nil {
+		t.Fatalf("target DTO for message %s not found", cardMsg.ID)
+	}
+	if targetDTO.ApprovalPlan == nil || targetDTO.ApprovalPlan.Title != "Lanjutkan pemeriksaan" {
+		t.Fatalf("expected ApprovalPlan 'Lanjutkan pemeriksaan', got: %+v", targetDTO.ApprovalPlan)
+	}
+
+	// 2. Final State: Task is verified and marked DONE.
+	// The card must be automatically DISMISSED (ApprovalPlan == nil, ApprovalTitle == "")
+	// and the prompt text referencing the button stripped.
+	itemDone, err := s.taskSvc.Store().GetTask(ctx, taskItem.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	itemDone.Status = task.TaskStatusDone
+	if err := s.taskSvc.Store().UpdateTask(ctx, itemDone); err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, _, err = s.getFormattedMessagesResultPaged(ctx, room, "", 50, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range msgs {
+		if msgs[i].UUID == cardMsg.ID {
+			targetDTO = &msgs[i]
+			break
+		}
+	}
+	if targetDTO.ApprovalPlan != nil {
+		t.Fatalf("expected ApprovalPlan to be dismissed (nil) after task is done, got: %+v", targetDTO.ApprovalPlan)
+	}
+	if targetDTO.ApprovalTitle != "" {
+		t.Fatalf("expected ApprovalTitle to be empty, got: %q", targetDTO.ApprovalTitle)
+	}
+	if strings.Contains(targetDTO.Message, "Untuk melanjutkan, silakan konfirmasi melalui tombol di bawah:") {
+		t.Fatalf("expected stale prompt line to be stripped from message text, got: %s", targetDTO.Message)
+	}
+
+	// 4. Stale Card Click / Approval Rejection:
+	// If a user clicks an expired/stale card, the API returns HTTP 409
+	// with clean error message WITHOUT raw technical suffixes like ': continuationDescriptionMatches false'
+	body := fmt.Sprintf(`{"request_id":%q,"message":"Approve","approve_message_id":%q}`, db.GenerateUUID(), cardMsg.ID)
+	w := call("POST", "/api/v1/chat/conversations/"+room+"/messages", body)
+	if w.Code != 409 {
+		t.Fatalf("expected status 409 Conflict for stale card approval, got: %d (%s)", w.Code, w.Body.String())
+	}
+	var errResp struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("failed to decode error json: %v", err)
+	}
+	expectedMsg := "This recommendation is no longer current. Check the latest task result before approving."
+	if errResp.Error != expectedMsg {
+		t.Fatalf("expected clean error %q, got: %q", expectedMsg, errResp.Error)
+	}
+	if strings.Contains(errResp.Error, "continuationDescriptionMatches") || strings.Contains(errResp.Error, "status mismatch") {
+		t.Fatalf("error exposed raw technical debugging detail: %q", errResp.Error)
 	}
 }

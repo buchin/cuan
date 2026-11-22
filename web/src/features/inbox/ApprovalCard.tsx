@@ -14,8 +14,30 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import type { ApprovalPlan } from '../../api/chat'
+import type { Task } from '../../api/types'
 
 export type { ApprovalPlan }
+
+export function isApprovalCardStale(
+  plan?: ApprovalPlan | null,
+  accepted?: boolean,
+  tasks?: Task[] | null,
+): boolean {
+  if (!plan?.continuation || accepted || !tasks || tasks.length === 0) return false
+  const task = tasks.find((item) => item.id === plan.continuation?.task_id)
+  if (!task) return false
+  const statusStr = task.status as string
+  if (statusStr === 'done' || statusStr === 'cancelled' || statusStr === 'canceled') return true
+  if (task.status === 'doing' || task.execution_status === 'running') return true
+  if (
+    task.latest_attempt?.id &&
+    plan.continuation.attempt_id &&
+    task.latest_attempt.id !== plan.continuation.attempt_id
+  ) {
+    return true
+  }
+  return false
+}
 
 export interface ApprovalCardProps {
   plan: ApprovalPlan

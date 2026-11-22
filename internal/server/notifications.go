@@ -272,6 +272,10 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 			}
 			for _, m := range messages {
 				if m.AuthorType == "agent" && allowed[m.ID] {
+					plan := parseInboxApprovalPlan(m.Content)
+					if plan != nil && plan.Continuation != nil {
+						continue
+					}
 					_, title := splitInboxApproval(m.AuthorType, m.Content)
 					if title != "" {
 						items = append(items, proposalNotification(room.ID, m.ID, title, notificationContext(room.Title, ""), decisions[m.ID], m.CreatedAt))

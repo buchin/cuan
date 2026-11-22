@@ -525,6 +525,8 @@
   "Tolong hubungkan webhook form order ke live chat pelanggan dan rekap mutasi otomatis.": "Please connect the order form webhook to customer live chat and automatic mutation digest.",
   "Webhook Live Chat & Mutasi Berhasil Aktif": "Live Chat Webhook & Mutation Digest Active",
   "Draft Approval Card": "Draft Approval Card",
+  "Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.": "This approval recommendation is no longer current because the task status has been updated.",
+  "This recommendation is no longer current. Check the latest task result before approving.": "This recommendation is no longer current. Check the latest task result before approving.",
   "Pasang receiver webhook pesanan tanpa ekspos token": "Set up order webhook receiver without exposing tokens",
   "Sinkronkan nomor kontak & catatan riwayat pelanggan": "Synchronize contact numbers and customer interaction history",
   "Pengujian DoD: verifikasi visual & regresi 100%": "DoD verification: visual proof & 100% regression pass",

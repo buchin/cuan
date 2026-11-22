@@ -70,3 +70,23 @@ func presentContinuationText(content string, plan *inboxApprovalPlan) string {
 	}
 	return strings.TrimSpace(result)
 }
+
+func cleanStaleContinuationText(content string) string {
+	lines := strings.Split(content, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Untuk melanjutkan") && strings.Contains(trimmed, "tombol di bawah") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "Silakan konfirmasi") && strings.Contains(trimmed, "tombol di bawah") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	result := strings.Join(kept, "\n")
+	for strings.Contains(result, "\n\n\n") {
+		result = strings.ReplaceAll(result, "\n\n\n", "\n\n")
+	}
+	return strings.TrimSpace(result)
+}
