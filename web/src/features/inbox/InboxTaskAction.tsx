@@ -9,7 +9,7 @@ import { InboxTaskDraft } from '../../api/chat'
 import { tasksApi } from '../../api/tasks'
 import { projectsApi } from '../../api/projects'
 import { Project, Task } from '../../api/types'
-import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, CheckCircle2, CheckCheck, AlertCircle, Circle, X } from 'lucide-react'
+import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, CheckCircle2, Eye, AlertCircle, Circle, X } from 'lucide-react'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { workStatus, workDisplayStatus, taskExecutionActive, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
 import { taskAttention } from '../tasks/task-attention'
@@ -114,7 +114,7 @@ export function InboxTaskAction({
       : rawUpdate
     const project = existing.project_name || existing.project_names?.join(', ')
     const ProjectIcon = /(?:https?:\/\/github\.com\/|git@github\.com:)/i.test(existing.repo_url || '') ? FolderGit2 : Folder
-    const StateIcon = state === 'Completed' ? CheckCircle2 : (state === 'Queued' || state === 'Waiting for checks' || state === 'Waiting to deploy') ? Clock3 : state === 'Ready for review' ? CheckCheck : state === 'Cancelled' ? X : workStatus(existing) === 'Needs attention' ? AlertCircle : Circle
+    const StateIcon = state === 'Completed' ? CheckCircle2 : (state === 'Queued' || state === 'Waiting for checks' || state === 'Waiting to deploy') ? Clock3 : state === 'Ready for review' ? Eye : state === 'Cancelled' ? X : workStatus(existing) === 'Needs attention' ? AlertCircle : Circle
 
     return <section data-card="task-card" data-task-id={existing.id} aria-label={t('Task') + ': ' + existing.title} className="inbox-attachment mt-2.5 space-y-3 rounded-xl bg-muted/30 px-4 pt-3">
       <SurfaceHeader variant="card" className="-mx-4 -mt-3 rounded-t-xl bg-muted/50"

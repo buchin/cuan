@@ -8,7 +8,7 @@ export interface WorkEvent {
   report?: string
   at?: string
   files?: Attachment[]
-  tone?: 'neutral' | 'warning' | 'success'
+  tone?: 'neutral' | 'warning' | 'success' | 'review'
   pulse?: boolean
 }
 
@@ -60,7 +60,7 @@ export function workTimeline(task: TaskDetail, id: boolean): { events: WorkEvent
   events.sort((a,b) => Date.parse(a.at || '') - Date.parse(b.at || '') || a.id.localeCompare(b.id))
   const phase=workDisplayStatus(task)
   if (phase==='Waiting to deploy' || phase==='Deploying') events.push({id:'current',title:phase==='Waiting to deploy'?text('Menunggu rilis','Waiting to deploy'):text('Merilis','Deploying'),pulse:taskAgentPending(task)})
-  else if (task.review_state) events.push({ id: 'current', title: task.review_state === 'running' ? text('Memeriksa hasil', 'Checking result') : text('Menunggu pemeriksaan', 'Waiting for review'), pulse: taskAgentPending(task) })
+  else if (task.review_state || task.status === 'review') events.push({ id: 'current', title: task.review_state === 'running' ? text('Memeriksa hasil', 'Checking result') : text('Menunggu pemeriksaan', 'Waiting for review'), pulse: taskAgentPending(task), tone: 'review' })
   else if (latest?.status === 'running' || latest?.status === 'queued' || task.launch?.state === 'queued' || task.launch?.state === 'claimed') events.push({ id: 'current', title: latest?.status === 'running' ? text('Dikerjakan', 'Working') : text('Dalam antrean', 'Queued'), pulse: taskAgentPending(task) })
   else if (task.status === 'done') events.push({ id: 'current', title: text('Pekerjaan selesai', 'Work completed'), tone: 'success' })
   return { events, technical }

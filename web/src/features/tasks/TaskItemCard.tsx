@@ -7,7 +7,7 @@ import {
   Terminal,
   CheckCircle2,
   Clock3,
-  CheckCheck,
+  Eye,
   X,
   AlertCircle,
   Play,
@@ -339,7 +339,7 @@ export function TaskItemCard({
             ) : isQueued ? (
               <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             ) : status === 'Ready for review' ? (
-              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+              <Eye className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
             ) : status === 'Completed' || status === 'Answered' ? (
               <CheckCircle2 className="h-3 w-3 shrink-0 text-[color:var(--status-success)]" />
             ) : status === 'Cancelled' ? (

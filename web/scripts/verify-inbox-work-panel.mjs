@@ -18,6 +18,7 @@ const extraContacts=[
   {id:'c-azizoke',conversation_id:'c-azizoke',name:'azizoke 2022-05-30 09:30:43',type:'customer',email:'azizoke@example.test',unread_count:0,status:'offline',last_message:'Email lama kenapa sob',updated_at:now,task_count:0,active_tasks:0},
   {id:'c-anon',conversation_id:'c-anon',name:'Visitor #3f8a91',type:'customer',email:'',unread_count:0,status:'offline',last_message:'Tanya produk kak',updated_at:now,task_count:0,active_tasks:0},
   {id:'c-agent',conversation_id:'c-agent',name:'Penyederhanaan Timeline Task Chat',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Termasuk posisi judul task lain sejajar itu...',updated_at:now,task_count:1,active_tasks:1},
+  {id:'c-review',conversation_id:'c-review',name:'Peringatan Kapasitas Server',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Hasil optimasi selesai diperiksa.',updated_at:now,task_count:1,active_tasks:0,review_tasks:1},
 ]
 const contactsList=[contact,...extraContacts]
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
@@ -28,6 +29,7 @@ const earlierTasks=[
   {id:'task-2',title:'Remediasi dan Perbaikan Pengiriman Magic Link Login Nerd di Server Baru',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-30000).toISOString(),updated_at:now},
   {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now},
   {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now},
+  {id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-5000).toISOString(),updated_at:now,latest_progress:'Menunggu pemeriksaan',summary:'Identified disk usage bottlenecks (89% used, 9.0 GiB free)...'},
 ]
 const allTasks=[...earlierTasks,baseTask]
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
@@ -159,6 +161,18 @@ try{
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
     data=sessionStatus==='running'?fixtureTask:{...fixtureTask,status:'review',latest_attempt:{...attempt,status:'succeeded',finished_at:now},attempts:[{...attempt,status:'succeeded',finished_at:now}]}
    }
+   else if(pathname==='/api/v1/tasks/task-review'){
+    data={
+      id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:now,updated_at:now,
+      latest_attempt:{id:'attempt-review',task_id:'task-review',status:'succeeded',agent_name:'agent_cuan',runner_id:'runner',finished_at:now},
+      latest_progress:'Menunggu pemeriksaan',summary:'Pembersihan cache berhasil dieksekusi.',
+      attempts:[{id:'attempt-review',task_id:'task-review',status:'succeeded',started_at:now,finished_at:now}],
+      activities:[
+        {id:'act-1',task_id:'task-review',activity_type:'created',message:'Work created',created_at:now},
+        {id:'act-2',task_id:'task-review',activity_type:'agent_report',new_status:'review',message:'Eksekusi selesai, menunggu pemeriksaan',created_at:now}
+      ]
+    }
+   }
    else if(pathname.endsWith('/run-agent/history'))data={history:[],live_session:sessionStatus==='running'?{session_id:'fixture-session',attempt_id:'attempt',agent_id:'agent_cuan',started_at:now}:null}
    else if(pathname.endsWith('/logs'))data={logs:[{id:1,line:'Isolated terminal fixture output',stream:'stdout',logged_at:now}]}
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
@@ -225,6 +239,11 @@ try{
     assert.ok(Math.abs(collapsedChevronBox.x - expandedChevronBox.x) <= 3, `Zero layout shift horizontal: expected ~${collapsedChevronBox.x}, got ${expandedChevronBox.x}`)
     assert.ok(Math.abs(collapsedChevronBox.y - expandedChevronBox.y) <= 3, `Zero layout shift vertical: expected ~${collapsedChevronBox.y}, got ${expandedChevronBox.y}`)
   }
+  const reviewCard = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]')
+  await reviewCard.waitFor({state:'visible'})
+  assert.equal(await reviewCard.locator('svg.lucide-eye').count(), 1, 'Task in review must display Eye icon')
+  assert.equal(await reviewCard.locator('svg.lucide-check-check').count(), 0, 'Task in review must not display double checkmark')
+  assert.equal(await page.locator('.composer-tasks-panel svg.lucide-check-check').count(), 0, 'No task in review should use check-check')
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
   assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
@@ -409,6 +428,23 @@ try{
   await panel.waitFor({state:'visible'})
   await panel.locator('[data-work-back]').click()
   await panel.waitFor({state:'detached'})
+  const reviewAccordionTrigger = page.locator('.composer-tasks-panel [data-timeline-item="task-review"] [data-timeline-trigger]')
+  if(await reviewAccordionTrigger.count() > 0 && await reviewAccordionTrigger.isVisible()){
+    if(await reviewAccordionTrigger.getAttribute('aria-expanded') === 'false'){
+      await reviewAccordionTrigger.click()
+    }
+    const reviewDetailsBtn = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]').getByRole('button',{name:/^(Details|Detail|Rincian)$/})
+    if(await reviewDetailsBtn.count() > 0 && await reviewDetailsBtn.isVisible()){
+      await reviewDetailsBtn.click()
+      await panel.waitFor({state:'visible'})
+      const reviewDot = panel.locator('[data-status-dot="review"]')
+      await reviewDot.waitFor({state:'visible', timeout: 5000})
+      assert.ok(await reviewDot.count() >= 1, 'TaskTimeline must show review status dot')
+      await page.screenshot({path:path.join(output,`timeline-review-${width}.png`)})
+      await panel.locator('[data-work-back]').click()
+      await panel.waitFor({state:'detached'})
+    }
+  }
   await card.getByRole('button',{name:/terminal/i}).waitFor({state:'visible'})
   await card.getByRole('button',{name:/terminal/i}).click()
   await panel.locator('[data-work-terminal]').waitFor({state:'visible'})
