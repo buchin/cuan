@@ -37,6 +37,9 @@ func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
 		{"task_cancel", inboxTaskCancelAction{TaskID: "task-123", Reason: "User decided to cancel"}, "cuan-task-cancel"},
 		{"task_reopen", inboxTaskReopenAction{TaskID: "task-123", Reason: "User wants to retry"}, "cuan-task-reopen"},
 		{"prompt_choices", InboxPromptChoices{Question: "Langkah selanjutnya?", Options: []InboxPromptOption{{ID: "done", Label: "Selesai (Done)", Variant: "primary"}, {ID: "revisit", Label: "Revisi Dulu", Variant: "outline"}}}, "cuan-prompt"},
+		{"schedule", inboxScheduleAction{Action: "create", Title: "Daily Routine", ScheduleType: "daily", TimeOfDay: "03:00"}, "cuan-schedule"},
+		{"project", inboxProjectAction{Action: "create", Name: "My New Project"}, "cuan-project"},
+		{"skill", inboxSkillAction{Action: "toggle", AgentID: "agent_dev", SkillID: "vision_receipt_extractor", Enabled: true}, "cuan-skill"},
 	}
 	for _, c := range cases {
 		t.Run(c.kind+c.marker, func(t *testing.T) {
@@ -176,6 +179,9 @@ func coordinatorFixtureResponse(content string) string {
 		"cuan-task":        "task_draft",
 		"cuan-task-cancel": "task_cancel",
 		"cuan-task-reopen": "task_reopen",
+		"cuan-schedule":    "schedule",
+		"cuan-project":     "project",
+		"cuan-skill":       "skill",
 	}
 	for marker, kind := range kinds {
 		start := strings.Index(content, "```"+marker+"\n")
@@ -638,7 +644,7 @@ func TestDeniedToolRecoveryAllowsOnlyFreshUnexecutedProposal(t *testing.T) {
 	if parsed := parseInboxApprovalPlan(out); parsed.Description != plan.Description || parsed.ProjectID != plan.ProjectID {
 		t.Fatal("proposal scope changed", parsed)
 	}
-	for _, kind := range []string{"delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply"} {
+	for _, kind := range []string{"delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply", "schedule", "project", "skill"} {
 		if out, err := decodeInboxDeniedToolRecoveryResponse(coordinatorJSON("Recovering", kind, map[string]string{"title": "Forbidden"})); err == nil || out != "" {
 			t.Fatal("recovery gained an effect", kind, out, err)
 		}

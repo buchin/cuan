@@ -75,20 +75,48 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 			ownerID = owner.ID
 		}
 	}
+	var commandCodeConn *db.AgentConnection
+	if ownerID != "" {
+		if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
+			commandCodeConn = userConn
+		}
+	}
+	cachedConnByID := make(map[string]*db.AgentConnection)
+	getConnByID := func(connID string) *db.AgentConnection {
+		if connID == "" {
+			return nil
+		}
+		if c, found := cachedConnByID[connID]; found {
+			return c
+		}
+		if conn, err := s.agentRepo.GetConnectionByID(r.Context(), connID); err == nil && conn != nil {
+			cachedConnByID[connID] = conn
+			return conn
+		}
+		cachedConnByID[connID] = nil
+		return nil
+	}
+	var cachedAccounts []*agent.ProviderAccount
+	var accountsLoaded bool
+	getAccounts := func() []*agent.ProviderAccount {
+		if !accountsLoaded {
+			accountsLoaded = true
+			if ownerID != "" {
+				cachedAccounts, _ = agent.ListProviderAccounts(ownerID)
+			}
+		}
+		return cachedAccounts
+	}
+
 	for i, a := range agents {
 		status := agent.LegacyConnectionVerification(ownerID, a.ID, a.ConnectionID)
 		state := status.State
 		checkedAt, verifiedAt := status.LastCheckedAt, status.VerifiedAt
 		dto := a.ToDTO()
 		if a.Harness == "commandcode" || a.Provider == "commandcode" {
-			var conn *db.AgentConnection
-			if a.ConnectionID != "" {
-				conn, _ = s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID)
-			}
-			if (conn == nil || conn.CredentialsEncrypted == "") && ownerID != "" {
-				if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
-					conn = userConn
-				}
+			conn := getConnByID(a.ConnectionID)
+			if (conn == nil || conn.CredentialsEncrypted == "") && commandCodeConn != nil {
+				conn = commandCodeConn
 			}
 			if conn != nil && conn.CredentialsEncrypted != "" {
 				dto.AuthType = "byok"
@@ -102,18 +130,17 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 			}
 		} else if strings.HasPrefix(a.ConnectionID, "conn_profile_") {
 			state = "login_required"
-			if conn, err := s.agentRepo.GetConnectionByID(r.Context(), a.ConnectionID); err == nil && conn.UserID == ownerID {
+			conn := getConnByID(a.ConnectionID)
+			if conn != nil && conn.UserID == ownerID {
 				_, bindingErr := s.agentProfileHome(r.Context(), &a)
 				if profile, err := agent.ProviderAccountForConnection(ownerID, a.ID, conn.ID); err == nil && bindingErr == nil {
 					state = profile.State
 					checkedAt, verifiedAt = profile.LastCheckedAt, profile.VerifiedAt
 					if state == "quota_limited" || state == "unavailable" {
-						if profiles, err := agent.ListProviderAccounts(ownerID); err == nil {
-							for _, p := range profiles {
-								if p.ID != conn.ID && p.AllowFailover && p.CredentialsPresent && p.State != "quota_limited" && p.State != "login_required" && p.State != "unavailable" {
-									state = "verified"
-									break
-								}
+						for _, p := range getAccounts() {
+							if p.ID != conn.ID && p.AllowFailover && p.CredentialsPresent && p.State != "quota_limited" && p.State != "login_required" && p.State != "unavailable" {
+								state = "verified"
+								break
 							}
 						}
 					}

@@ -58,9 +58,10 @@ func (s *Server) notifyChatDelta(roomID, requestID, delta string) {
 		return
 	}
 	payload, err := json.Marshal(map[string]string{
-		"room_id":    roomID,
-		"request_id": requestID,
-		"delta":      delta,
+		"room_id":     roomID,
+		"request_id":  requestID,
+		"delta":       delta,
+		"instance_id": s.instanceID,
 	})
 	if err != nil {
 		return
@@ -99,12 +100,13 @@ func (s *Server) StartInboxEvents(ctx context.Context) {
 							}
 						} else if n.Channel == "cuan_chat_delta" {
 							var p struct {
-								RoomID    string `json:"room_id"`
-								RequestID string `json:"request_id"`
-								Delta     string `json:"delta"`
+								RoomID     string `json:"room_id"`
+								RequestID  string `json:"request_id"`
+								Delta      string `json:"delta"`
+								InstanceID string `json:"instance_id"`
 							}
 							if json.Unmarshal([]byte(n.Payload), &p) == nil && p.RoomID != "" && p.Delta != "" {
-								if s.roomEventBroker != nil {
+								if (p.InstanceID == "" || p.InstanceID != s.instanceID) && s.roomEventBroker != nil {
 									s.roomEventBroker.Broadcast(p.RoomID, "chat.delta", map[string]any{
 										"request_id": p.RequestID,
 										"delta":      p.Delta,

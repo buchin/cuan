@@ -12,7 +12,7 @@ import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
 import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle } from 'lucide-react'
@@ -116,7 +116,7 @@ export interface ConversationItemProps {
   language?: string
 }
 
-export function ConversationItem({
+const MemoizedConversationItem = memo(function MemoizedConversationItem({
   contact,
   isSelected,
   isLast,
@@ -416,6 +416,10 @@ export function ConversationItem({
       )}
     </ItemActions>
   )
+})
+
+export function ConversationItem(props: ConversationItemProps) {
+  return <MemoizedConversationItem {...props} />
 }
 
 export type ContactFilterTab = 'all' | 'agents' | 'customers'
@@ -663,7 +667,7 @@ export function InboxSubPanel({
                 activeContactId === contact.conversation_id
               const isLast = index === filteredContacts.length - 1
               return (
-                <ConversationItem
+                <MemoizedConversationItem
                   key={contact.id}
                   contact={contact}
                   isSelected={isSelected}

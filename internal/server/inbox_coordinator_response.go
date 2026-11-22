@@ -17,7 +17,7 @@ import (
 // object here lets the formatter emit payloads that the application cannot use.
 const inboxDelegationPayloadSchema = `{"type":"object","properties":{"proposal_message_id":{"type":"string"},"reconcile":{"type":"boolean"},"execution_category":{"type":"string","enum":["code","ops","readonly"]},"action":{"type":"string","enum":["run","save"]},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":6000},"project_id":{"type":"string"},"project_name":{"type":"string","maxLength":100},"authorization_message_id":{"type":"string"},"task_id":{"type":"string"},"revision":{"type":"string","maxLength":6000},"agent_id":{"type":"string"},"required_stages":{"type":"array","items":{"type":"string","enum":["implement","verify","publish"]}}},"anyOf":[{"required":["proposal_message_id","authorization_message_id"]},{"required":["title","description","authorization_message_id"],"anyOf":[{"required":["project_id"]},{"required":["project_name"]}]},{"required":["task_id","revision"]}],"additionalProperties":false}`
 
-const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["delegation"]},"payload":` + inboxDelegationPayloadSchema + `},"required":["kind","payload"],"additionalProperties":false},{"type":"object","properties":{"kind":{"enum":["approval","memory","memory_search","task_draft","task_cancel","task_reopen","prompt_choices","customer_reply"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
+const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["delegation"]},"payload":` + inboxDelegationPayloadSchema + `},"required":["kind","payload"],"additionalProperties":false},{"type":"object","properties":{"kind":{"enum":["approval","memory","memory_search","task_draft","task_cancel","task_reopen","prompt_choices","customer_reply","schedule","project","skill"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
 const inboxAnalysisRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","maxLength":0},"action":{"type":"null"}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
@@ -236,6 +236,12 @@ func decodeInboxCoordinatorResponseWithLimits(raw string, limits inboxResponseLi
 			marker, payload = "cuan-prompt", &InboxPromptChoices{}
 		case "customer_reply":
 			marker, payload = "cuan-customer-reply", &customerReplyPayload{}
+		case "schedule":
+			marker, payload = "cuan-schedule", &inboxScheduleAction{}
+		case "project":
+			marker, payload = "cuan-project", &inboxProjectAction{}
+		case "skill":
+			marker, payload = "cuan-skill", &inboxSkillAction{}
 		default:
 			return "", bad
 		}
@@ -278,6 +284,18 @@ func decodeInboxCoordinatorResponseWithLimits(raw string, limits inboxResponseLi
 			}
 		case "customer_reply":
 			if _, draft := splitCustomerReplyDraft(output); draft == "" {
+				return "", bad
+			}
+		case "schedule":
+			if _, scheduleAction, err := parseInboxSchedule(output); err != nil || scheduleAction == nil {
+				return "", bad
+			}
+		case "project":
+			if _, projectAction, err := parseInboxProject(output); err != nil || projectAction == nil {
+				return "", bad
+			}
+		case "skill":
+			if _, skillAction, err := parseInboxSkill(output); err != nil || skillAction == nil {
 				return "", bad
 			}
 		}
@@ -524,6 +542,12 @@ func recoverCoordinatorReplyContent(raw string, analysisRecovery bool) (string, 
 					marker = "cuan-prompt"
 				case "customer_reply":
 					marker = "cuan-customer-reply"
+				case "schedule":
+					marker = "cuan-schedule"
+				case "project":
+					marker = "cuan-project"
+				case "skill":
+					marker = "cuan-skill"
 				}
 				if marker != "" {
 					out := textReply
@@ -544,6 +568,21 @@ func recoverCoordinatorReplyContent(raw string, analysisRecovery bool) (string, 
 					}
 					if marker == "cuan-prompt" {
 						if _, choices := splitInboxPromptChoices("agent", out); choices == nil {
+							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+						}
+					}
+					if marker == "cuan-schedule" {
+						if _, action, err := parseInboxSchedule(out); err != nil || action == nil {
+							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+						}
+					}
+					if marker == "cuan-project" {
+						if _, action, err := parseInboxProject(out); err != nil || action == nil {
+							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+						}
+					}
+					if marker == "cuan-skill" {
+						if _, action, err := parseInboxSkill(out); err != nil || action == nil {
 							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 						}
 					}

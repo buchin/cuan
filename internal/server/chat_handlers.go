@@ -180,9 +180,9 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			Status:         "online",
 			ConversationID: resolved.RoomID,
 		}
-		if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); e == nil && room != nil && strings.HasPrefix(room.Topic, "agent-topic:") {
-			contact.ID = "topic_" + room.ID
-			contact.Name = room.Title
+		if strings.HasPrefix(resolved.RoomTopic, "agent-topic:") {
+			contact.ID = "topic_" + resolved.RoomID
+			contact.Name = resolved.RoomTitle
 		}
 	} else {
 		// Customer contact
@@ -199,11 +199,11 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			product = sess.Product
 			guestUUID = sess.GuestUUID
 			email = sess.Email
-		} else if s.projectStudioRepo != nil {
-			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); err == nil && rm != nil {
-				name = rm.Title
-				product = rm.Topic
+		} else {
+			if resolved.RoomTitle != "" {
+				name = resolved.RoomTitle
 			}
+			product = resolved.RoomTopic
 		}
 
 		contactID := ""
@@ -265,7 +265,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		beforeID = strings.TrimSpace(r.URL.Query().Get("before"))
 	}
 
-	messages, hasMore, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, product, limit, beforeID)
+	messages, hasMore, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, product, limit, beforeID, !resolved.IsAgent)
 	if err != nil {
 		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
 		return
@@ -426,18 +426,9 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		payload.RequestID = delegationMessageID("approve-plan:" + resolved.RoomID + ":" + plan.MessageID)
 		decisionText := "Approved: " + plan.Plan.Title
 		if payload.PlanAction == "defer" {
-			messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), resolved.RoomID)
-			if err != nil {
-				respondJSONError(w, 503, "Could not verify the plan status")
+			if plan.AlreadyApproved {
+				respondJSONError(w, 409, "This plan is already approved. Use its work controls to stop active execution.")
 				return
-			}
-			for _, m := range messages {
-				if m.AuthorType == "user" {
-					if decision := decodeApprovedInboxPlan(m.Content); decision != nil && decision.MessageID == plan.MessageID {
-						respondJSONError(w, 409, "This plan is already approved. Use its work controls to stop active execution.")
-						return
-					}
-				}
 			}
 
 			payload.RequestID = delegationMessageID("defer-plan:" + resolved.RoomID + ":" + plan.MessageID)
@@ -499,7 +490,7 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 			q = item
 		}
 	}
-	messages := s.getFormattedMessages(r.Context(), q.RoomID, "")
+	messages := s.getFormattedMessages(r.Context(), q.RoomID, "", !resolved.IsAgent)
 	response := map[string]any{"request": q}
 	for _, m := range messages {
 		if m.UUID == q.MessageID {

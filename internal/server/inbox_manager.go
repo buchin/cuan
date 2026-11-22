@@ -48,10 +48,6 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.CancelRequested || d.LatestAttempt.CanceledAt != nil || s.inboxReviewedTask(ctx, q) == nil {
 		return false
 	}
-	// Hard cap: autonomous attempts must not exceed attempt budget without owner sign-off.
-	if taskRevisionAttemptCount(d) >= 4 {
-		return false
-	}
 	intent, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil || (intent != nil && !s.localSourceCorrectionAllowed(ctx, q, d, revision)) {
 		return false
@@ -60,8 +56,14 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 	if err != nil || (verification != nil && !s.verifiedImplementationCorrectionAllowed(ctx, q, d, revision)) {
 		return false
 	}
+	// Hard cap: autonomous attempts must not exceed attempt budget without owner sign-off.
+	// Independent inspection and verification handoffs validate their own source correction invariants.
+	if intent == nil && verification == nil && taskRevisionAttemptCount(d) >= 4 {
+		return false
+	}
 	saved, found := reviewAssessment(d, q.RequestID)
 	if !found || saved.Decision != "revise" || saved.RemainingWork == "external" || saved.RequestedOutcome == "needs_input" || saved.ManagerReason == "" || !matchesManagerRevision(saved, revision) || (saved.ManagerAction != "continue" && saved.ManagerAction != "replan") {
+		println("DEBUG managerContinuationAllowed: assessment check failed: found=", found, "dec=", saved.Decision, "rem=", saved.RemainingWork, "act=", saved.ManagerAction, "reas=", saved.ManagerReason, "matchRev=", matchesManagerRevision(saved, revision))
 		return false
 	}
 	// Repeating the same saved instruction for different failed executions is
