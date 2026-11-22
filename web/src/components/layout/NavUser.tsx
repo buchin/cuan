@@ -96,18 +96,21 @@ export function NavUser({
             sidebar && 'sidebar-account',
             sidebar &&
               active &&
-              'text-sidebar-accent-foreground font-medium',
+              'bg-sidebar-accent text-primary font-semibold',
+            sidebar &&
+              !active &&
+              'text-muted-foreground hover:bg-accent hover:text-sidebar-foreground',
             bottomNavigation &&
-              'min-h-14 flex-col justify-center gap-1 rounded-none p-0 text-xs',
+              'min-h-14 flex-col justify-center gap-1 rounded-none p-0 text-xs transition-colors',
             bottomNavigation &&
-              (active ? 'text-primary font-semibold' : 'text-muted-foreground'),
+              (active ? 'text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'),
           )}
           title={compact ? `${username} · ${t('Account')}` : undefined}
         >
           {/* Avatar */}
           <div data-avatar="true"
             className={cn(
-              'flex shrink-0 items-center justify-center font-mono font-bold rounded-full',
+              'flex shrink-0 items-center justify-center font-mono font-bold rounded-full transition-colors',
               bottomNavigation ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs bg-primary text-primary-foreground',
               bottomNavigation && (active ? 'bg-primary/10 text-primary' : 'bg-muted/60 text-muted-foreground'),
 

@@ -212,26 +212,26 @@ export function SettingsMasterNav({
                   to={targetUrl}
                   onClick={() => onSelectSection?.(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`group flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 transition-colors min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
+                  className={`group flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${
                     isActive
                       ? 'bg-accent text-foreground font-medium'
-                      : 'text-foreground/80 hover:bg-accent/50 hover:text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   }`}
                 >
                   <div
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
                       isActive
-                        ? 'text-foreground'
+                        ? 'text-primary'
                         : 'text-muted-foreground group-hover:text-foreground'
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4 text-inherit" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
                       <span
-                        className={`text-sm font-medium leading-none ${
-                          isActive ? 'text-primary font-semibold' : ''
+                        className={`text-sm leading-none ${
+                          isActive ? 'text-primary font-semibold' : 'text-foreground/90 font-medium group-hover:text-foreground'
                         }`}
                       >
                         {t(item.labelKey)}
