@@ -10,7 +10,24 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
     const result = await apiFetch<{ activities: Comment[] }>(`/api/v1/tasks/${taskId}`)
     setComments((result.activities || []).filter(activity => activity.activity_type === 'comment'))
   }
-  useEffect(() => { load().catch(() => setError('Discussion could not be loaded.')); const timer = setInterval(() => { load().catch(() => {}) }, 5000); return () => clearInterval(timer) }, [taskId])
+  useEffect(() => {
+    load().catch(() => setError('Discussion could not be loaded.'))
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      load().catch(() => {})
+    }
+    const timer = setInterval(poll, 5000)
+    const onResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        load().catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', onResume)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onResume)
+    }
+  }, [taskId])
   const send = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!message.trim()) return

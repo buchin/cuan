@@ -1,7 +1,7 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Github, MessageCircle, Mail, ArrowRight } from 'lucide-react'
+import { Github, MessageCircle, Mail, ArrowRight, Server } from 'lucide-react'
 import { apiFetch } from '../../api/client'
 type Connection = { connected: boolean; account?: { login: string } }
 export function IntegrationOverview() {
@@ -37,6 +37,12 @@ export function IntegrationOverview() {
    <p className="text-sm leading-6 text-muted-foreground">Kirim notifikasi & transkrip email otomatis saat Live Chat pelanggan idle belum terbaca.</p>
    <p className="min-h-10 text-xs text-muted-foreground">Transkrip obrolan otomatis · Background timer</p>
    <div className="mt-auto"><Link className="action-secondary" to={'/settings/integrations/resend' + search}>Atur Resend<ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden /></Link></div>
+  </section>
+  <section className="flex min-w-0 flex-col gap-4 border-b border-border/40 pb-6" aria-label="Instabox Remote Browser integration card">
+   <header className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted"><Server className="h-5 w-5" aria-hidden /></span><h2 className="text-sm font-semibold">Instabox / Remote Browser</h2></header>
+   <p className="text-sm leading-6 text-muted-foreground">{t('Alihkan visual inspection dan screenshot Playwright ke cloud sandbox agar menghemat CPU & RAM VPS.')}</p>
+   <p className="min-h-10 text-xs text-muted-foreground">{t('Eksekusi browser terisolasi · Zero VPS CPU overhead')}</p>
+   <div className="mt-auto"><Link className="action-secondary" to={'/settings/integrations/instabox' + search}>{t('Atur Instabox')}<ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden /></Link></div>
   </section>
  </div>
 }

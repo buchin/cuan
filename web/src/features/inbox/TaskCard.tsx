@@ -142,11 +142,12 @@ export const TaskCard = memo(function TaskCard({
     }
   }, [taskId, initialTask])
 
-  // Autonomous polling for active tasks in stream (every 3.5s)
+  // Autonomous polling for active tasks in stream (every 3.5s when visible)
   useEffect(() => {
     if (!currentTask || !isTaskActive(currentTask)) return
     let active = true
-    const interval = setInterval(async () => {
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       try {
         const updated = await tasksApi.get(taskId)
         if (active && updated) {
@@ -156,10 +157,14 @@ export const TaskCard = memo(function TaskCard({
       } catch {
         // ignore polling error
       }
-    }, 3500)
+    }
+    const interval = setInterval(() => void poll(), 3500)
+    const onResume = () => void poll()
+    document.addEventListener('visibilitychange', onResume)
     return () => {
       active = false
       clearInterval(interval)
+      document.removeEventListener('visibilitychange', onResume)
     }
   }, [
     taskId,

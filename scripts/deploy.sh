@@ -302,15 +302,37 @@ if [[ -z "$verified_sha" ]]; then
   exit 1
 fi
 
-echo "==> Auto-undrain deploy hook: Ensuring /tmp/cuan-drain cleanup & restarting cuan-runner.service..."
+echo "==> Auto-undrain deploy hook: Ensuring /tmp/cuan-drain cleanup & checking runner service..."
+has_active_workers() {
+  local target_host="${1:-}"
+  local py_check="import json, os, glob, sys; sys.exit(0 if any(os.kill(json.loads(open(w).read()).get('pid', 0), 0) is None for w in glob.glob('/tmp/cuan-workers/att_*.json') if os.path.isfile(w)) else 1)"
+  if [[ -n "$target_host" ]]; then
+    sshpass -e ssh "$target_host" "python3 -c \"$py_check\"" 2>/dev/null
+  else
+    python3 -c "$py_check" 2>/dev/null
+  fi
+}
+
 if [[ "$is_local" == 0 ]]; then
   export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
-  sshpass -e ssh "$release_host" "sudo -n rm -f /tmp/cuan-drain && sudo -n systemctl restart cuan-runner.service 2>/dev/null || true"
+  sshpass -e ssh "$release_host" "sudo -n rm -f /tmp/cuan-drain 2>/dev/null || true"
+  if has_active_workers "$release_host"; then
+    echo "==> Notice: Active detached worker detected in /tmp/cuan-workers; deferring cuan-runner restart to avoid interrupting in-flight tasks."
+    echo "✓ Auto-undrain completed (runner restart deferred while task is active)."
+  else
+    sshpass -e ssh "$release_host" "sudo -n systemctl restart cuan-runner.service 2>/dev/null || true"
+    echo "✓ Auto-undrain & cuan-runner restart completed."
+  fi
   unset SSHPASS
 else
   sudo -n rm -f /tmp/cuan-drain 2>/dev/null || true
-  sudo -n systemctl restart cuan-runner.service 2>/dev/null || true
+  if has_active_workers ""; then
+    echo "==> Notice: Active detached worker detected in /tmp/cuan-workers; deferring cuan-runner restart to avoid interrupting in-flight tasks."
+    echo "✓ Auto-undrain completed (runner restart deferred while task is active)."
+  else
+    sudo -n systemctl restart cuan-runner.service 2>/dev/null || true
+    echo "✓ Auto-undrain & cuan-runner restart completed."
+  fi
 fi
-echo "✓ Auto-undrain & cuan-runner restart completed."
 
 echo "Released $release_sha. Verify the public UI, OAuth, Inbox reply and retained data before marking done."

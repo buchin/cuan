@@ -27,8 +27,18 @@ export function InboxWorkPanel({task,view,onBack}:{task:Task;view:'details'|'ter
   useEffect(()=>{mounted.current=true;void refresh();return()=>{mounted.current=false}},[refresh])
   useEffect(()=>{
     if(!detail||(!isTaskActive(detail)&&!detail.review_state))return
-    const interval=setInterval(()=>{void refresh()},5000)
-    return()=>clearInterval(interval)
+    const interval=setInterval(()=>{
+      if(typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void refresh()
+    },5000)
+    const onResume = () => {
+      if(typeof document !== 'undefined' && document.visibilityState === 'visible') void refresh()
+    }
+    document.addEventListener('visibilitychange', onResume)
+    return()=>{
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onResume)
+    }
   },[detail?.status,detail?.latest_attempt?.status,detail?.launch?.state,detail?.review_state,refresh])
   useEffect(()=>{
     const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null
