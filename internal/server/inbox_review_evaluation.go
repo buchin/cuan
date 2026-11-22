@@ -650,7 +650,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				return "Hasil dan bukti tersimpan. Penerimaan akan diperiksa kembali sebelum pekerjaan berikutnya dimulai.\n\n[View work](/tasks/" + d.ID + ")"
 			}
 			if d.Status != task.TaskStatusDone {
-				if s.projectSvc != nil && d.ProjectID != "" && (d.BranchName != "" || d.PRNumber > 0) {
+				if s.projectSvc != nil && d.ProjectID != "" && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode) && (d.BranchName != "" || d.PRNumber > 0) && releaseObjectID.MatchString(d.CommitSHA) {
 					if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil && project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
 						observation := s.inboxReviewPublication(ctx, d)
 						if observation != nil && observation.Required && !observation.Verified {
