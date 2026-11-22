@@ -45,6 +45,7 @@ import (
 )
 
 type Server struct {
+	instanceID                  string
 	publicationVerifier         func(context.Context, publication.Config, string) error
 	publicationObserver         func(context.Context, publication.Config) (string, error)
 	releaseObservations         sync.Map
@@ -535,6 +536,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	})
 
 	s := &Server{
+		instanceID:             cuanDB.GenerateUUID(),
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
 		broadcastHistory:       &broadcastHistoryStore{logs: make(map[string][]CRMBroadcastLog)},

@@ -196,7 +196,7 @@ func (s *Server) handleVisitorChatSession(w http.ResponseWriter, r *http.Request
 	globalChatManager.Unlock()
 
 	// Fetch existing messages for session (filtering out internal whisper/bot messages)
-	rawMessages := s.getFormattedMessages(r.Context(), sessionUUID, liveSession.Product)
+	rawMessages := s.getFormattedMessages(r.Context(), sessionUUID, liveSession.Product, true)
 	messages := make([]ChatMessageDTO, 0, len(rawMessages))
 	for _, m := range rawMessages {
 		if !m.IsInternal {
@@ -227,21 +227,26 @@ func (s *Server) handleVisitorGetMessages(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, err := s.crmSession(r.Context(), sessionUUID); err != nil {
+	sess, err := s.crmSession(r.Context(), sessionUUID)
+	if err != nil {
 		respondJSONError(w, 404, "Session not found")
 		return
 	}
 	afterID, _ := strconv.ParseInt(r.URL.Query().Get("after_id"), 10, 64)
 
 	product := ""
-	globalChatManager.RLock()
-	if sess, ok := globalChatManager.sessions[sessionUUID]; ok && sess != nil {
+	if sess != nil && sess.Product != "" {
 		product = sess.Product
+	} else {
+		globalChatManager.RLock()
+		if sessLive, ok := globalChatManager.sessions[sessionUUID]; ok && sessLive != nil {
+			product = sessLive.Product
+		}
+		globalChatManager.RUnlock()
 	}
-	globalChatManager.RUnlock()
 
-	allMessages := s.getFormattedMessages(r.Context(), sessionUUID, product)
-	filtered := make([]ChatMessageDTO, 0)
+	allMessages := s.getFormattedMessages(r.Context(), sessionUUID, product, true)
+	filtered := make([]ChatMessageDTO, 0, len(allMessages))
 	receipts := make([]map[string]any, 0)
 	for _, m := range allMessages {
 		if m.ID > afterID && !m.IsInternal {
@@ -372,7 +377,7 @@ func (s *Server) handleVisitorSendMessage(w http.ResponseWriter, r *http.Request
 	}
 
 	// Determine new message index
-	messages := s.getFormattedMessages(r.Context(), sessionUUID, product)
+	messages := s.getFormattedMessages(r.Context(), sessionUUID, product, true)
 	var newMsgDTO ChatMessageDTO
 	for _, m := range messages {
 		if m.UUID == msgUUID {

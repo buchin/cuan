@@ -47,7 +47,7 @@ func (s *Server) resolveTaskID(ctx context.Context, rawID string) string {
 
 	// 2. Direct check if raw ID is already a task ID
 	if s.taskSvc != nil {
-		if _, err := s.taskSvc.GetTaskDetail(ctx, raw); err == nil {
+		if _, err := s.taskSvc.Store().GetTask(ctx, raw); err == nil {
 			return raw
 		}
 	}
@@ -61,7 +61,7 @@ func (s *Server) resolveTaskID(ctx context.Context, rawID string) string {
 	if !strings.HasPrefix(raw, "msg_") && !strings.HasPrefix(raw, "task_") {
 		msgID := "msg_" + raw
 		if s.taskSvc != nil {
-			if _, err := s.taskSvc.GetTaskDetail(ctx, msgID); err == nil {
+			if _, err := s.taskSvc.Store().GetTask(ctx, msgID); err == nil {
 				return msgID
 			}
 		}
@@ -118,13 +118,15 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 	taskID := s.resolveTaskID(r.Context(), rawTaskID)
 
 	found := false
-	if s.projectStudioRepo != nil {
-		if _, e := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); e == nil {
+	var tDetail *task.TaskDetailResponse
+	if s.taskSvc != nil {
+		if td, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && td != nil {
 			found = true
+			tDetail = td
 		}
 	}
-	if !found && s.taskSvc != nil {
-		if _, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil {
+	if !found && s.projectStudioRepo != nil {
+		if _, e := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); e == nil {
 			found = true
 		}
 	}
@@ -138,12 +140,6 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 
 	// Project terminal auto-route & activation:
 	// Dedicated project terminals (title "Terminal · ...") run independently without task queue delays.
-	var tDetail *task.TaskDetailResponse
-	if s.taskSvc != nil {
-		if td, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && td != nil {
-			tDetail = td
-		}
-	}
 	targetProjID := ""
 	if tDetail != nil {
 		targetProjID = tDetail.ProjectID
@@ -310,10 +306,10 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	taskID := s.resolveTaskID(r.Context(), rawID)
 
 	if s.taskSvc != nil {
-		if td, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && td != nil {
-			pID := td.ProjectID
-			if pID == "" && len(td.ProjectIDs) > 0 {
-				pID = td.ProjectIDs[0]
+		if t, err := s.taskSvc.Store().GetTask(r.Context(), taskID); err == nil && t != nil {
+			pID := t.ProjectID
+			if pID == "" && len(t.ProjectIDs) > 0 {
+				pID = t.ProjectIDs[0]
 			}
 			if pID != "" {
 				_ = terminal.TerminateProjectWorker(pID)
@@ -834,13 +830,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	agentID := strings.TrimSpace(payload.AgentID)
-	if agentID == "" && s.taskSvc != nil {
-		if t, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && t != nil {
-			if t.AssignedAgent != "" {
-				agentID = t.AssignedAgent
-			} else if t.LatestAttempt != nil && t.LatestAttempt.AgentName != "" {
-				agentID = t.LatestAttempt.AgentName
-			}
+	if agentID == "" && tDetail != nil {
+		if tDetail.AssignedAgent != "" {
+			agentID = tDetail.AssignedAgent
+		} else if tDetail.LatestAttempt != nil && tDetail.LatestAttempt.AgentName != "" {
+			agentID = tDetail.LatestAttempt.AgentName
 		}
 	}
 	if agentID == "" {
@@ -1666,37 +1660,38 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 			}
 		}
 		if live["attempt_id"] == "" && s.taskSvc != nil {
-			if t, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && t != nil && t.LatestAttempt != nil {
-				live["attempt_id"] = t.LatestAttempt.ID
+			if latest, err := s.taskSvc.Store().GetLatestAttempt(r.Context(), taskID); err == nil && latest != nil {
+				live["attempt_id"] = latest.ID
 				if live["agent_id"] == nil || live["agent_id"] == "" {
-					live["agent_id"] = t.LatestAttempt.AgentName
+					live["agent_id"] = latest.AgentName
 				}
 			}
 		}
 	}
 	// The decoupled runner owns its PTY; check for active project socket or attempt socket.
 	if live == nil && s.taskSvc != nil {
-		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && detail != nil {
-			targetProjID := detail.ProjectID
-			if targetProjID == "" && len(detail.ProjectIDs) > 0 {
-				targetProjID = detail.ProjectIDs[0]
+		if t, err := s.taskSvc.Store().GetTask(r.Context(), taskID); err == nil && t != nil {
+			targetProjID := t.ProjectID
+			if targetProjID == "" && len(t.ProjectIDs) > 0 {
+				targetProjID = t.ProjectIDs[0]
 			}
+			latest, _ := s.taskSvc.Store().GetLatestAttempt(r.Context(), taskID)
 			if targetProjID != "" && terminal.ProjectSocketExists(targetProjID) {
 				sessionKey := terminal.ProjectSessionKey(targetProjID)
 				attID := ""
-				agentName := detail.AssignedAgent
+				agentName := t.AssignedAgent
 				var startedAt time.Time
-				if detail.LatestAttempt != nil {
-					attID = detail.LatestAttempt.ID
+				if latest != nil {
+					attID = latest.ID
 					if agentName == "" {
-						agentName = detail.LatestAttempt.AgentName
+						agentName = latest.AgentName
 					}
-					if detail.LatestAttempt.StartedAt != nil {
-						startedAt = *detail.LatestAttempt.StartedAt
+					if latest.StartedAt != nil {
+						startedAt = *latest.StartedAt
 					}
 				}
 				if startedAt.IsZero() {
-					startedAt = detail.CreatedAt
+					startedAt = t.CreatedAt
 				}
 				live = map[string]any{
 					"session_id": sessionKey,
@@ -1704,11 +1699,8 @@ func (s *Server) handleGetTaskRunHistory(w http.ResponseWriter, r *http.Request)
 					"agent_id":   agentName,
 					"started_at": startedAt,
 				}
-			} else if detail.LatestAttempt != nil {
-				att := detail.LatestAttempt
-				if att.Status == task.AttemptStatusRunning && terminal.SocketExists(att.ID) {
-					live = map[string]any{"session_id": "runner-sess-" + att.ID, "attempt_id": att.ID, "agent_id": att.AgentName, "started_at": att.StartedAt}
-				}
+			} else if latest != nil && latest.Status == task.AttemptStatusRunning && terminal.SocketExists(latest.ID) {
+				live = map[string]any{"session_id": "runner-sess-" + latest.ID, "attempt_id": latest.ID, "agent_id": latest.AgentName, "started_at": latest.StartedAt}
 			}
 		}
 	}

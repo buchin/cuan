@@ -704,3 +704,105 @@ func (c *CuanClient) GetProject(ctx context.Context, projectID string) (map[stri
 	}
 	return res, nil
 }
+
+// ListScheduledTasks queries user-defined recurring routines from Cuan.
+func (c *CuanClient) ListScheduledTasks(ctx context.Context) ([]map[string]any, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/system/scheduler/tasks", nil)
+	if err != nil {
+		return nil, fmt.Errorf("list scheduled tasks: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("list scheduled tasks failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var data struct {
+		Tasks []map[string]any `json:"tasks"`
+	}
+	if err := json.Unmarshal(bodyBytes, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal scheduled tasks: %w", err)
+	}
+	if data.Tasks == nil {
+		data.Tasks = []map[string]any{}
+	}
+	return data.Tasks, nil
+}
+
+// CreateScheduledTask registers a new recurring routine in Cuan.
+func (c *CuanClient) CreateScheduledTask(ctx context.Context, payload map[string]any) (map[string]any, error) {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/system/scheduler/tasks", payload)
+	if err != nil {
+		return nil, fmt.Errorf("create scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("create scheduled task failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal created scheduled task: %w", err)
+	}
+	return res, nil
+}
+
+// DeleteScheduledTask removes a recurring routine in Cuan by ID.
+func (c *CuanClient) DeleteScheduledTask(ctx context.Context, id string) error {
+	endpoint := fmt.Sprintf("/api/v1/system/scheduler/tasks/%s", url.PathEscape(id))
+	resp, err := c.doRequest(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("delete scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("delete scheduled task failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	return nil
+}
+
+// ToggleScheduledTask enables or disables a recurring routine in Cuan.
+func (c *CuanClient) ToggleScheduledTask(ctx context.Context, id string, enabled *bool) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/system/scheduler/tasks/%s/toggle", url.PathEscape(id))
+	var body any
+	if enabled != nil {
+		body = map[string]any{"enabled": *enabled}
+	}
+	resp, err := c.doRequest(ctx, http.MethodPatch, endpoint, body)
+	if err != nil {
+		return nil, fmt.Errorf("toggle scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("toggle scheduled task failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal toggle result: %w", err)
+	}
+	return res, nil
+}
+
+// TriggerScheduledTask triggers an immediate execution of a scheduled routine in Cuan.
+func (c *CuanClient) TriggerScheduledTask(ctx context.Context, id string) error {
+	endpoint := fmt.Sprintf("/api/v1/system/scheduler/tasks/%s/trigger", url.PathEscape(id))
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("trigger scheduled task: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("trigger scheduled task failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	return nil
+}

@@ -214,6 +214,16 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 		if err != nil {
 			return nil, err
 		}
+		activeStaff := map[string]bool{owner: true}
+		if s.authSvc != nil {
+			if members, _, err := s.authSvc.ListTeamMembers(ctx); err == nil {
+				for _, m := range members {
+					if m.IsActive {
+						activeStaff[m.ID] = true
+					}
+				}
+			}
+		}
 		for _, room := range rooms {
 			if roomAgentID(room.Topic) == "" {
 				continue
@@ -221,16 +231,6 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 			requests, err := store.ListInboxRequests(ctx, room.ID)
 			if err != nil {
 				return nil, err
-			}
-			activeStaff := map[string]bool{owner: true}
-			if s.authSvc != nil {
-				if members, _, err := s.authSvc.ListTeamMembers(ctx); err == nil {
-					for _, m := range members {
-						if m.IsActive {
-							activeStaff[m.ID] = true
-						}
-					}
-				}
 			}
 			allowed := map[string]bool{}
 			ownedMessages := map[string]bool{}
