@@ -152,8 +152,13 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	isDedicatedTerminalTask := tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·") && targetProjID != ""
+	isCancelledOrDone := tDetail != nil && (tDetail.Status == task.TaskStatusCancelled || tDetail.Status == "canceled" || tDetail.Status == task.TaskStatusDone)
 
 	if isDedicatedTerminalTask {
+		if isCancelledOrDone {
+			respondJSONError(w, http.StatusGone, "Terminal session has ended")
+			return
+		}
 		sessionKey := terminal.ProjectSessionKey(targetProjID)
 		if s.terminalManager != nil {
 			s.terminalManager.RegisterTaskAlias(taskID, sessionKey)
@@ -304,6 +309,20 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	}
 	taskID := s.resolveTaskID(r.Context(), rawID)
 
+	if s.taskSvc != nil {
+		if td, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && td != nil {
+			pID := td.ProjectID
+			if pID == "" && len(td.ProjectIDs) > 0 {
+				pID = td.ProjectIDs[0]
+			}
+			if pID != "" {
+				_ = terminal.TerminateProjectWorker(pID)
+				if s.terminalManager != nil {
+					_ = s.terminalManager.CloseProjectSession(pID)
+				}
+			}
+		}
+	}
 	_ = terminal.TerminateProjectWorker(taskID)
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)

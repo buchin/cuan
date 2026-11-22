@@ -286,13 +286,20 @@ func TerminateProjectWorker(projectID string) error {
 	statusDir := filepath.Join(socketDir(), "cuan-workers")
 	safeID := safeSocketNameRegex.ReplaceAllString(rawID, "_")
 	pidFile := filepath.Join(statusDir, fmt.Sprintf("project_%s.pid", safeID))
+	payloadFile := filepath.Join(statusDir, fmt.Sprintf("project-payload-%s.json", safeID))
 	if pidData, err := os.ReadFile(pidFile); err == nil {
 		if pid, pErr := strconv.Atoi(strings.TrimSpace(string(pidData))); pErr == nil && pid > 0 {
+			// Signal entire process group first (Setsid creates a process group with PGID == PID)
+			_ = syscall.Kill(-pid, syscall.SIGTERM)
 			_ = syscall.Kill(pid, syscall.SIGTERM)
+			time.Sleep(30 * time.Millisecond)
+			_ = syscall.Kill(-pid, syscall.SIGKILL)
+			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 		_ = os.Remove(pidFile)
 	}
 
+	_ = os.Remove(payloadFile)
 	_ = os.Remove(sockPath)
 	return nil
 }

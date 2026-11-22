@@ -138,7 +138,10 @@ export function TaskTerminal({
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isDedicated = Boolean(isDedicatedTerminal)
-  const isTaskActive = isDedicated || ['running', 'queued'].includes(attempt?.status || '')
+  const isCancelledOrFinished = Boolean(
+    attempt && ['canceled', 'failed', 'succeeded', 'interrupted'].includes(attempt.status)
+  )
+  const isTaskActive = !isCancelledOrFinished && (isDedicated || ['running', 'queued'].includes(attempt?.status || ''))
   const isTaskActiveRef = useRef(isTaskActive)
   isTaskActiveRef.current = isTaskActive
 
@@ -334,6 +337,9 @@ export function TaskTerminal({
     if (isTaskActiveRef.current && taskId) {
       try {
         setNotice(t('Stopping task execution…'))
+        if (socket.current) {
+          socket.current.close(1000, 'User stopped execution')
+        }
         await tasksApi.cancel(taskId)
         setNotice(t('Task execution stopped.'))
         setTimeout(() => setNotice(''), 3000)

@@ -230,7 +230,10 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			}
 			a, err := s.agentRepo.GetAgentByID(r.Context(), roomAgentID(room.Topic))
 			if err != nil || a == nil || !a.Enabled {
-				continue
+				a, _ = s.agentRepo.GetAgentByID(r.Context(), "agent_cuan")
+				if a == nil || !a.Enabled {
+					continue
+				}
 			}
 			last := "No messages yet."
 			at := room.UpdatedAt

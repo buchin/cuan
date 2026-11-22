@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -139,6 +140,46 @@ func TestProactiveWatchdogStorageAlertCreatesNewRoomWhenNoneExists(t *testing.T)
 	}
 	if !strings.Contains(messages[0].Content, "```cuan-approval") {
 		t.Errorf("expected cuan-approval card in new room message, got: %s", messages[0].Content)
+	}
+}
+
+func TestApproveProactiveStorageWatchdogProposalCard(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	watchdogAlertMu.Lock()
+	lastStorageAlertTime = time.Time{}
+	watchdogAlertMu.Unlock()
+
+	// Post the proactive watchdog storage alert
+	s.checkProactiveStorageAlert(ctx, ServerTelemetry{DiskUsedPercent: 92.0, DiskFreeBytes: 1024 * 1024 * 1024})
+
+	rooms, err := s.projectStudioRepo.ListAllRooms(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storageRoom *db.ProjectRoom
+	for i := range rooms {
+		if rooms[i].Topic == "agent-topic:system:storage" {
+			storageRoom = &rooms[i]
+			break
+		}
+	}
+	if storageRoom == nil {
+		t.Fatal("expected storage alert room to be created")
+	}
+
+	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, storageRoom.ID)
+	if err != nil || len(messages) == 0 {
+		t.Fatalf("expected proposal message in storage room: %v", err)
+	}
+	msg := messages[0]
+
+	// Approve the plan via POST /api/v1/chat/conversations/{roomID}/messages
+	body := fmt.Sprintf(`{"message":"Approve this plan","approve_message_id":%q}`, msg.ID)
+	w := call("POST", "/api/v1/chat/conversations/"+storageRoom.ID+"/messages", body)
+	if w.Code != 202 && w.Code != 200 {
+		t.Fatalf("expected approval to succeed with 200/202, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
