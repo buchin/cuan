@@ -64,9 +64,10 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 		s.checkProactiveStorageAlert(ctx, telemetry)
 	}
 
-	// 2. Autonomous Self-Healing for Stuck/Blocked Inbox Tasks
+	// 2. Autonomous Self-Healing for Stuck/Blocked/Review Inbox Tasks & Queued Requests Sweeper (Heartbeat)
 	if s.taskSvc != nil && s.projectStudioRepo != nil && s.executesInbox() {
 		s.deliverInboxTaskUpdates(ctx)
+		s.heartbeatSweepQueuedInboxRequests(ctx)
 		s.orchestrateBlockedInboxTasks(ctx)
 		s.autoResolveCompletedConversations(ctx)
 	}
@@ -127,10 +128,31 @@ func (s *Server) syncIdleProjectsGit(ctx context.Context) {
 	}
 }
 
-// orchestrateBlockedInboxTasks inspects tasks in status 'blocked' and performs:
+// heartbeatSweepQueuedInboxRequests ensures rooms with queued inbox requests
+// are promptly woken up and dispatched (PaperclipAI Heartbeat pattern).
+func (s *Server) heartbeatSweepQueuedInboxRequests(ctx context.Context) {
+	if !s.executesInbox() || s.projectStudioRepo == nil {
+		return
+	}
+	if dispatch, ok := s.projectStudioRepo.(db.InboxDispatchRepository); ok {
+		rooms, err := dispatch.ListInboxDispatchRooms(ctx, time.Now().UTC())
+		if err == nil {
+			for _, roomID := range rooms {
+				if ctx.Err() != nil {
+					return
+				}
+				s.kickInboxRoom(roomID)
+			}
+		}
+	}
+}
+
+// orchestrateBlockedInboxTasks inspects tasks in status 'blocked' and 'review', and performs:
 // 1. Autonomous Self-Healing: If within attempt budget (< 5 attempts) and actionable revision
 //    is available with manager continuation allowed, queues a correction attempt immediately.
-// 2. 1-Click Action Card (cuan-approval): If human input/decision is needed (or budget threshold reached),
+// 2. Autonomous Publication Reconciliation: If task changes are verified on an auto_deploy project,
+//    triggers auto-apply and deploy autonomously without freezing idle.
+// 3. 1-Click Action Card (cuan-approval): If human input/decision is needed (or budget threshold reached),
 //    posts a clean, deduplicated continuation proposal card in the conversation room so the user
 //    can unblock work with a single tap (Zero Cognitive Fatigue).
 func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
@@ -138,8 +160,12 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		return
 	}
 
-	tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusBlocked})
-	if err != nil || len(tasks) == 0 {
+	blockedTasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusBlocked})
+	reviewTasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusReview})
+	var tasks []*task.TaskItemResponse
+	tasks = append(tasks, blockedTasks...)
+	tasks = append(tasks, reviewTasks...)
+	if len(tasks) == 0 {
 		return
 	}
 
@@ -268,7 +294,8 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		// When code is verified but uncontained in running release on an auto_deploy project,
 		// trigger auto-deploy autonomously.
 		if latestAssessment != nil &&
-			(latestAssessment.RemainingWork == "publication" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			(latestAssessment.SourceReview == "pass" || latestAssessment.Decision == "pass") &&
 			s.projectSvc != nil && detail.ProjectID != "" {
 			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
 				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
@@ -279,10 +306,28 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
+		// Autonomous native release handoff recovery:
+		if latestAssessment != nil && latestAssessment.SourceReview == "pass" &&
+			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none") {
+			if s.recoverNativeReleaseHandoff(ctx, detail, requests) {
+				s.kickTaskLaunches()
+				log.Printf("[Watchdog AI Orchestrator] Autonomously recovered native release handoff for task %s", detail.ID)
+				continue
+			}
+		}
+
+		// Autonomous review queueing if attempt succeeded but review evaluation is missing
+		if t.Status == task.TaskStatusReview && latestAssessment == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded {
+			log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
+			s.queueInboxTaskReview(ctx, detail)
+			continue
+		}
+
 		// 2. 1-Click Action Card (Zero Cognitive Fatigue):
 		// If autonomous continuation was not possible (needs owner decision, permission, or budget threshold reached),
 		// present a 1-click continuation approval card in the conversation room so user can unblock in 1 tap.
-		if latestAssessment != nil {
+		// ONLY for blocked tasks—never spam the room for internal review states.
+		if t.Status == task.TaskStatusBlocked && latestAssessment != nil {
 			s.postContinuationActionCard(ctx, detail, assessmentRequestID, *latestAssessment)
 		}
 	}
