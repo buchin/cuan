@@ -126,6 +126,7 @@ type Server struct {
 	taskManager                 *scheduler.TaskManager
 	updater                     *updater.Service
 	resendClient                resend.Client
+	deployCoordinator           *DeployCoordinator
 	taskCountsMu                sync.RWMutex
 	taskCountsCached            scopedTaskCounts
 	taskCountsExpires           time.Time
@@ -583,6 +584,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		scriptRunner:           scriptRunner,
 		processSupervisor:      processSupervisor,
 		wordpressRepo:          wpRepo,
+		deployCoordinator:      NewDeployCoordinator(),
 		wordpressOrchestrator:  wpOrchestrator,
 		wordpressWebmaster:     wpWebmaster,
 		projectRepo:            projRepo,
