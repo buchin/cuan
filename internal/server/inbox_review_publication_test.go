@@ -194,3 +194,53 @@ func TestLegacyPublicationAcceptanceReevaluatesWithoutExecution(t *testing.T) {
 		})
 	}
 }
+
+func TestPublicationReviewBypassedWhenStagesOmitPublish(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, _ := inboxFixture(t)
+	projects := project.NewMemoryStore()
+	if err := projects.CreateProject(ctx, &project.Project{ID: "no-publish-project", Name: "Project", RepoURL: "https://github.com/buchin/cuan", Metadata: registeredReleaseMetadata(t)}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	commit := strings.Repeat("e", 40)
+	now := time.Now().UTC()
+	d := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:                "cleanup-task",
+			ProjectID:         "no-publish-project",
+			Title:             "Optimasi & Pembersihan Ruang Penyimpanan",
+			CommitSHA:         commit,
+			ExecutionCategory: task.ExecutionCategoryCode,
+			RequiredStages:    []string{"implement"},
+			Instructions:      "Pembersihan otomatis cache compiler dan file usang.",
+			CompleteNote:      "Cleaned temporary artifacts and freed 24GB.",
+		},
+		ResultKind: "implementation",
+		LatestAttempt: &task.TaskAttempt{
+			ID:        "cleanup-attempt",
+			TaskID:    "cleanup-task",
+			Status:    task.AttemptStatusSucceeded,
+			CreatedAt: now.Add(-time.Minute),
+		},
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, &d.Task); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, d.LatestAttempt); err != nil {
+		t.Fatal(err)
+	}
+
+	observed := s.inboxReviewPublication(ctx, d)
+	if observed == nil || observed.Required {
+		t.Fatalf("expected publication to be not required when stages omit publish, got %+v", observed)
+	}
+	if observed.Provenance != "declared_stages_no_publication_required" {
+		t.Fatalf("unexpected provenance: %s", observed.Provenance)
+	}
+
+	result := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "pass", Finding: "All clean", RemainingWork: "none"})
+	if result.Decision != "pass" {
+		t.Fatalf("expected pass decision, got %+v", result)
+	}
+}

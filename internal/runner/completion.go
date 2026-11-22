@@ -215,7 +215,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 				}
 				// Persist the same native decision used here so later review
 				// cannot revive a historical commit's deployment requirement.
-				if req.HasCodeChanges != nil || req.RequiresDeploy != nil {
+				if declared || req.HasCodeChanges != nil || req.RequiresDeploy != nil {
 					required := settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy
 					publicationRequired = &required
 				}
