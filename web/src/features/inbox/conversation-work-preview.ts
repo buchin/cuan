@@ -11,7 +11,7 @@ export function workConversationPreview(message: string, counts?: Counts): strin
   const launchPreview = /(?:^|\n\n)Work (?:queued|started)\. I[’']ll report progress and the result here\.(?:\s|$)/.test(text) && /\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)/.test(text)
   const taskOnly = /^\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)\s*$/.test(text)
   const intermediateNotice = /\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)\s*$/.test(text) && (
-    /^(?:The work is saved, but could not start|Pemeriksaan pada sistem yang aktif|Daftar riwayat dan rincian log|Hasil kode tersimpan; sesi pemeriksaan|Perbaikan [^\n]+ belum diterapkan|Penghapusan [^\n]+ belum terbukti|Peniadaan [^\n]+ belum terbukti|Fitur [^\n]+ belum aktif)/i.test(text)
+    /^(?:The work is saved, but could not start|The work is queued waiting|Pekerjaan (?:masuk )?dalam antrean|Pemeriksaan pada sistem yang aktif|Daftar riwayat dan rincian log|Hasil kode tersimpan; sesi pemeriksaan|Perbaikan [^\n]+ belum diterapkan|Penghapusan [^\n]+ belum terbukti|Peniadaan [^\n]+ belum terbukti|Fitur [^\n]+ belum aktif)/i.test(text)
   )
   if(!report&&!canceled&&!stopped&&!launchPreview&&!taskOnly&&!intermediateNotice)return undefined
   const status=text.match(/\bStatus\s*:\s*([^\n]+)/i)?.[1]||text

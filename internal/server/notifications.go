@@ -19,6 +19,7 @@ import (
 type ownerPreferences struct {
 	PushSubject   string                  `json:"push_subject,omitempty"`
 	DisplayName   string                  `json:"display_name"`
+	Locale        string                  `json:"locale,omitempty"`
 	Notifications notificationPreferences `json:"notifications"`
 	Items         []ownerNotification     `json:"items"`
 	Subscriptions []ownerPushSubscription `json:"subscriptions,omitempty"`

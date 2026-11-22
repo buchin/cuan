@@ -122,6 +122,7 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 	}
 	userData := map[string]interface{}{
 		"display_name": displayName,
+		"locale":       preferences.Locale,
 		"name":         owner.Name,
 		"role":         role,
 		"is_active":    owner.IsActive,
