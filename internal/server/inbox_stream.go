@@ -87,12 +87,9 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return false
 		}
-		messages, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, "")
+		messages, _, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, "", 50, "")
 		if err != nil {
 			return false
-		}
-		if len(messages) > 50 {
-			messages = messages[len(messages)-50:]
 		}
 		linked, err := s.inboxLinkedTasks(r.Context(), resolved.RoomID, requests)
 		if err != nil {

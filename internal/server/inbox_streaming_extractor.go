@@ -37,19 +37,12 @@ func (e *streamReplyExtractor) Feed(chunk string) string {
 	e.buffer += chunk
 
 	if e.isPlain {
-		trimmed := strings.TrimLeft(chunk, " \t\r\n")
-		// If a new chunk looks like structured JSON, do not dump as plain text
-		if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "```") {
-			e.isPlain = false
-			e.buffer = chunk
-		} else {
-			out := e.buffer
-			e.buffer = ""
-			if len(out) > 0 {
-				e.emitted = true
-			}
-			return out
+		out := e.buffer
+		e.buffer = ""
+		if len(out) > 0 {
+			e.emitted = true
 		}
+		return out
 	}
 
 	if !e.inReply {

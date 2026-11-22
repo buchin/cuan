@@ -399,4 +399,43 @@ func TestSingleProjectTaskCountsSQLStructure(t *testing.T) {
 	}
 }
 
+func TestSingleRoomTaskCountsSQLStructure(t *testing.T) {
+	if strings.Contains(strings.ToUpper(singleRoomTaskCountsSQL), "LATERAL") {
+		t.Fatalf("singleRoomTaskCountsSQL contains LATERAL joins")
+	}
+	for _, expectedCTE := range []string{"room_task_ids", "latest_attempts", "latest_launches", "canonical"} {
+		if !strings.Contains(singleRoomTaskCountsSQL, expectedCTE) {
+			t.Fatalf("singleRoomTaskCountsSQL missing CTE: %s", expectedCTE)
+		}
+	}
+}
+
+func TestReadRoomTaskCounts_Cached(t *testing.T) {
+	ctx := context.Background()
+	s := &Server{
+		taskCountsTTL: 2 * time.Second,
+		taskCountsCached: scopedTaskCounts{
+			Rooms: map[string]taskCounts{
+				"room-123": {Total: 5, Active: 2, Queued: 1, Done: 2},
+			},
+			Projects: map[string]taskCounts{},
+		},
+		taskCountsExpires: time.Now().Add(10 * time.Second),
+	}
+
+	c, err := s.readRoomTaskCounts(ctx, "room-123")
+	if err != nil {
+		t.Fatalf("readRoomTaskCounts failed: %v", err)
+	}
+	if c.Total != 5 || c.Active != 2 || c.Done != 2 {
+		t.Fatalf("unexpected cached room task counts: %+v", c)
+	}
+
+	// Empty room returns empty counts
+	empty, err := s.readRoomTaskCounts(ctx, "")
+	if err != nil || empty.Total != 0 {
+		t.Fatalf("expected 0 for empty room, got %+v (err: %v)", empty, err)
+	}
+}
+
 

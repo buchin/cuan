@@ -331,6 +331,7 @@ type ProjectStudioRepository interface {
 	GetMessageByID(ctx context.Context, id string) (*ProjectMessage, error)
 	ListMessagesByRoomID(ctx context.Context, roomID string) ([]ProjectMessage, error)
 	ListAllMessages(ctx context.Context) (map[string][]ProjectMessage, error)
+	ListRecentMessages(ctx context.Context, limitPerRoom int) (map[string][]ProjectMessage, error)
 	UpdateMessage(ctx context.Context, msg *ProjectMessage) error
 	DeleteMessage(ctx context.Context, id string) error
 
@@ -720,6 +721,52 @@ func (r *SQLProjectStudioRepository) ListAllMessages(ctx context.Context) (map[s
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("list all project messages: %w", err)
+	}
+	defer rows.Close()
+
+	list := make(map[string][]ProjectMessage)
+	for rows.Next() {
+		var msg ProjectMessage
+		if err := rows.Scan(
+			&msg.ID,
+			&msg.RoomID,
+			&msg.AuthorType,
+			&msg.AuthorID,
+			&msg.AuthorName,
+			&msg.Content,
+			&msg.ReplyToID,
+			&msg.CreatedAt,
+			&msg.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan project message: %w", err)
+		}
+		list[msg.RoomID] = append(list[msg.RoomID], msg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project messages: %w", err)
+	}
+	return list, nil
+}
+
+// ListRecentMessages lists at most limitPerRoom messages grouped by room_id chronologically in a single query.
+func (r *SQLProjectStudioRepository) ListRecentMessages(ctx context.Context, limitPerRoom int) (map[string][]ProjectMessage, error) {
+	if limitPerRoom <= 0 {
+		return r.ListAllMessages(ctx)
+	}
+	query := `
+		WITH ranked AS (
+			SELECT id, room_id, author_type, author_id, author_name, content, reply_to_id, created_at, updated_at,
+			       ROW_NUMBER() OVER (PARTITION BY room_id ORDER BY created_at DESC) as rn
+			FROM project_messages
+		)
+		SELECT id, room_id, author_type, author_id, author_name, content, reply_to_id, created_at, updated_at
+		FROM ranked
+		WHERE rn <= $1
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, limitPerRoom)
+	if err != nil {
+		return nil, fmt.Errorf("list recent project messages: %w", err)
 	}
 	defer rows.Close()
 
@@ -1678,6 +1725,26 @@ func (m *MemoryProjectStudioRepository) ListAllMessages(ctx context.Context) (ma
 		sort.Slice(result[roomID], func(i, j int) bool {
 			return result[roomID][i].CreatedAt.Before(result[roomID][j].CreatedAt)
 		})
+	}
+	return result, nil
+}
+
+// ListRecentMessages lists at most limitPerRoom messages grouped by room_id from memory.
+func (m *MemoryProjectStudioRepository) ListRecentMessages(ctx context.Context, limitPerRoom int) (map[string][]ProjectMessage, error) {
+	if limitPerRoom <= 0 {
+		return m.ListAllMessages(ctx)
+	}
+	all, err := m.ListAllMessages(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]ProjectMessage, len(all))
+	for roomID, msgs := range all {
+		if len(msgs) > limitPerRoom {
+			result[roomID] = msgs[len(msgs)-limitPerRoom:]
+		} else {
+			result[roomID] = msgs
+		}
 	}
 	return result, nil
 }

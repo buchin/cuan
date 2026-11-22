@@ -93,6 +93,12 @@ func chatCORSMiddleware(next http.Handler) http.Handler {
 // ensureDefaultAgentRooms retains the default project needed by registered agent conversations.
 // It never creates example agents, agent rooms or welcome messages.
 func (s *Server) ensureDefaultAgentRooms(ctx context.Context) {
+	s.defaultAgentRoomsOnce.Do(func() {
+		s.initDefaultAgentRooms(ctx)
+	})
+}
+
+func (s *Server) initDefaultAgentRooms(ctx context.Context) {
 	if s.projectStudioRepo == nil {
 		return
 	}
@@ -270,12 +276,11 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		respondJSONError(w, 503, "Could not read conversation tasks")
 		return
 	}
-	counts, err := s.readTaskCounts(r.Context())
+	c, err := s.readRoomTaskCounts(r.Context(), resolved.RoomID)
 	if err != nil {
 		respondJSONError(w, http.StatusServiceUnavailable, "Could not read conversation task progress")
 		return
 	}
-	c := counts.Rooms[resolved.RoomID]
 	activeTasks, reviewTasks, queuedTasks, doneTasks, failedTasks := c.Active, c.Review, c.Queued, c.Done, c.Failed
 	contact.TaskCount = c.Total
 	contact.ActiveTasks = activeTasks

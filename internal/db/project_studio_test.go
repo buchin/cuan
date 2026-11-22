@@ -348,6 +348,18 @@ func TestMemoryProjectStudioRepository_Messages(t *testing.T) {
 		t.Fatalf("expected 2 messages in room from ListAllMessages, got %d", len(all[roomID]))
 	}
 
+	// 5c. ListRecentMessages batch query
+	recent, err := repo.ListRecentMessages(ctx, 1)
+	if err != nil {
+		t.Fatalf("failed to list recent messages: %v", err)
+	}
+	if len(recent[roomID]) != 1 {
+		t.Fatalf("expected 1 recent message in room, got %d", len(recent[roomID]))
+	}
+	if recent[roomID][0].ID != msgReply.ID {
+		t.Fatalf("expected latest message %s, got %s", msgReply.ID, recent[roomID][0].ID)
+	}
+
 	// 6. Update message
 	fetched.Content = "Updated reply content"
 	if err := repo.UpdateMessage(ctx, fetched); err != nil {

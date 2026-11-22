@@ -519,7 +519,24 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				SystemPrompt: system,
 				Prompt:       prompt,
 			}
-			resp, genErr := byokClient.Generate(ctx, apiKey, req)
+			var reqID, roomID string
+			if trace, ok := ctx.Value(inboxRequestTraceKey{}).(inboxRequestTrace); ok {
+				reqID = trace.RequestID
+				roomID = trace.RoomID
+			}
+			extractor := newStreamReplyExtractor()
+			onChunk := func(chunk string) error {
+				if roomID != "" && reqID != "" {
+					if text := extractor.Feed(chunk); text != "" {
+						s.notifyChatDelta(roomID, reqID, text)
+					}
+				}
+				return nil
+			}
+			resp, genErr := byokClient.Stream(ctx, apiKey, req, onChunk)
+			if genErr != nil {
+				resp, genErr = byokClient.Generate(ctx, apiKey, req)
+			}
 			if genErr != nil {
 				errStr := strings.ToLower(genErr.Error())
 				if strings.Contains(errStr, "429") || strings.Contains(errStr, "quota") || strings.Contains(errStr, "rate limit") {

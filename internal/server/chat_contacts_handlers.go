@@ -51,9 +51,7 @@ type ChatContact struct {
 
 // GET /api/v1/chat/contacts
 func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Request) {
-	inboxRoomResolutionMu.Lock()
 	s.ensureDefaultAgentRooms(r.Context())
-	inboxRoomResolutionMu.Unlock()
 
 	typeFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
 	searchQuery := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
@@ -100,12 +98,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	}
 	contacts := make([]ChatContact, 0)
 
-	// Single batch load of rooms and all messages to eliminate N+1 query storms
+	// Single batch load of rooms and recent messages to eliminate N+1 query storms
 	var allRooms []db.ProjectRoom
 	var allMessages map[string][]db.ProjectMessage
 	if s.projectStudioRepo != nil {
 		allRooms, _ = s.projectStudioRepo.ListAllRooms(r.Context())
-		allMessages, _ = s.projectStudioRepo.ListAllMessages(r.Context())
+		allMessages, _ = s.projectStudioRepo.ListRecentMessages(r.Context(), 50)
 	}
 	if allMessages == nil {
 		allMessages = make(map[string][]db.ProjectMessage)

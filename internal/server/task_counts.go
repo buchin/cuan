@@ -106,6 +106,79 @@ func (s *Server) readProjectTaskProgress(ctx context.Context, projectID string) 
 	}, nil
 }
 
+// readRoomTaskCounts returns the task progress counts for a specific conversation room.
+// If valid cached task counts are present, it avoids any DB queries.
+// Otherwise, it performs a targeted single-room aggregate query rather than a full DB scan.
+func (s *Server) readRoomTaskCounts(ctx context.Context, roomID string) (taskCounts, error) {
+	if roomID == "" {
+		return taskCounts{}, nil
+	}
+	s.taskCountsMu.RLock()
+	if time.Now().Before(s.taskCountsExpires) {
+		if c, ok := s.taskCountsCached.Rooms[roomID]; ok {
+			s.taskCountsMu.RUnlock()
+			return c, nil
+		}
+	}
+	s.taskCountsMu.RUnlock()
+
+	if s.db != nil {
+		var c taskCounts
+		err := s.db.QueryRowContext(ctx, singleRoomTaskCountsSQL, roomID).Scan(
+			&c.Total, &c.Active, &c.Queued, &c.Done, &c.Failed, &c.Review, &c.Canceled,
+		)
+		if err != nil {
+			return taskCounts{}, err
+		}
+		return c, nil
+	}
+
+	counts, err := s.readTaskCounts(ctx)
+	if err != nil {
+		return taskCounts{}, err
+	}
+	return counts.Rooms[roomID], nil
+}
+
+const singleRoomTaskCountsSQL = `
+WITH room_task_ids AS (
+ SELECT id FROM tasks WHERE source_room_id::text = $1
+ UNION
+ SELECT id::text AS id FROM project_tasks WHERE room_id::text = $1
+),
+latest_attempts AS (
+ SELECT DISTINCT ON (a.task_id) a.id, a.task_id, a.status
+ FROM task_attempts a
+ JOIN room_task_ids rti ON rti.id = a.task_id
+ ORDER BY a.task_id, a.created_at DESC, a.id DESC
+),
+latest_launches AS (
+ SELECT DISTINCT ON (l.task_id) l.task_id, l.state
+ FROM task_launches l
+ JOIN room_task_ids rti ON rti.id = l.task_id
+ LEFT JOIN latest_attempts a ON a.task_id = l.task_id AND a.id = l.attempt_id AND a.status IN ('queued','running')
+ ORDER BY l.task_id, (a.id IS NOT NULL) DESC, l.created_at DESC, l.id DESC
+),
+canonical AS (
+ SELECT t.id,
+ ` + task.EffectiveStatusSQL + ` AS status
+ FROM tasks t
+ JOIN room_task_ids rti ON rti.id = t.id
+ LEFT JOIN latest_attempts a ON a.task_id = t.id
+ LEFT JOIN latest_launches l ON l.task_id = t.id
+ UNION ALL
+ SELECT p.id::text, lower(btrim(p.status)) FROM project_tasks p
+ WHERE p.room_id::text = $1 AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = p.id::text)
+)
+SELECT COUNT(*),
+ COUNT(*) FILTER (WHERE status IN ('doing','in_progress','running','working')),
+ COUNT(*) FILTER (WHERE status IN ('queued','pending')),
+ COUNT(*) FILTER (WHERE status = 'done'),
+ COUNT(*) FILTER (WHERE status IN ('blocked','failed')),
+ COUNT(*) FILTER (WHERE status = 'review'),
+ COUNT(*) FILTER (WHERE status IN ('canceled','cancelled'))
+FROM canonical`
+
 const singleProjectTaskCountsSQL = `
 WITH project_task_ids AS (
  SELECT id FROM tasks WHERE project_id = $1

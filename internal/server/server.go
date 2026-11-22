@@ -108,6 +108,7 @@ type Server struct {
 	terminalHandler             *terminal.Handler
 	projectIntegrationRepo      cuanDB.ProjectIntegrationRepository
 	publisherEngine             *publisher.Engine
+	defaultAgentRoomsOnce       sync.Once
 	scriptDeployRepo            cuanDB.ScriptDeploymentRepository
 	provisionedDBRepo           cuanDB.ProvisionedDatabaseRepository
 	provisionerEngine           *deployer.DatabaseProvisioner

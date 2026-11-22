@@ -117,3 +117,23 @@ func TestStreamReplyExtractor_NoLeakOfTrailingJSON(t *testing.T) {
 		t.Fatalf("expected empty after finished, got %q", out)
 	}
 }
+
+func TestStreamReplyExtractor_PlainTextWithMarkdownCodeBlock(t *testing.T) {
+	extractor := newStreamReplyExtractor()
+	chunks := []string{
+		"Tentu, ini solusinya:\n",
+		"```json\n",
+		`{"key": "value"}`,
+		"\n```\nSelesai!",
+	}
+
+	var sb strings.Builder
+	for _, chunk := range chunks {
+		sb.WriteString(extractor.Feed(chunk))
+	}
+
+	expected := "Tentu, ini solusinya:\n```json\n{\"key\": \"value\"}\n```\nSelesai!"
+	if sb.String() != expected {
+		t.Fatalf("expected %q, got %q", expected, sb.String())
+	}
+}
