@@ -100,16 +100,16 @@ test('4. S68-T4: Mobile Navigation Ergonomics & Preservation of Projects', () =>
     'Projects button must navigate to projects'
   )
 
-  // Verify navigation ordering: Chat -> Tasks -> Projects -> Contacts -> Account (NavUser)
+  // Verify symmetrical navigation ordering: Inbox -> Tasks -> Studio (+) -> Projects -> Account (NavUser)
   const chatIdx = appShellSource.indexOf('data-testid="bottom-nav-inbox"')
   const tasksIdx = appShellSource.indexOf('data-testid="bottom-nav-tasks"')
+  const studioIdx = appShellSource.indexOf('data-testid="bottom-nav-studio"')
   const projectsIdx = appShellSource.indexOf('data-testid="bottom-nav-projects"')
-  const contactsIdx = appShellSource.indexOf('data-testid="bottom-nav-studio"')
   const userIdx = appShellSource.indexOf('data-testid="bottom-nav-user"')
 
-  assert.ok(chatIdx !== -1 && tasksIdx !== -1 && projectsIdx !== -1 && contactsIdx !== -1 && userIdx !== -1, 'All bottom navigation items must exist')
-  assert.ok(chatIdx < tasksIdx, 'Chat must be before Tasks')
-  assert.ok(tasksIdx < projectsIdx, 'Tasks must be before Projects')
-  assert.ok(contactsIdx < chatIdx, 'Studio must be before Inbox')
+  assert.ok(chatIdx !== -1 && tasksIdx !== -1 && studioIdx !== -1 && projectsIdx !== -1 && userIdx !== -1, 'All bottom navigation items must exist')
+  assert.ok(chatIdx < tasksIdx, 'Inbox must be before Tasks')
+  assert.ok(tasksIdx < studioIdx, 'Tasks must be before Studio (New work +)')
+  assert.ok(studioIdx < projectsIdx, 'Studio (New work +) must be before Projects')
   assert.ok(projectsIdx < userIdx, 'Projects must be before Account')
 })
