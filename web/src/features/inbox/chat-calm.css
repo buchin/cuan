@@ -622,6 +622,7 @@
   right: 8px;
   bottom: 8px;
   min-height: 0;
+  z-index: 10;
 }
 .wa-image-only > .wa-markdown-footer .wa-message-meta {
   margin: 0;

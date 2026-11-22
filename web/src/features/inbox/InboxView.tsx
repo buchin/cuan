@@ -20,6 +20,7 @@ import {
   AttachmentPicker,
   AttachmentPreviews,
   AttachmentFile,
+  AttachmentGallery,
   isImageAttachment,
   useAttachments,
 } from './Attachments'
@@ -1759,24 +1760,35 @@ export function InboxView({
                           {t(msg.approval_accepted ? 'Approved' : msg.plan_deferred ? 'Saved for later' : 'Needs approval')}
                         </p>
                       )}
-                      {msg.attachments?.map((a) => (
-                        <div key={a.id} className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}><AttachmentFile attachment={a} imagePreview internal={isInternalNote} /></div>
-                      ))}
-                      {msg.attachment_url && !msg.attachments?.length && (
-                        <div className={imageBubble ? 'wa-image-attachment' : undefined}>
-                        <AttachmentFile
-                          imagePreview
-                          internal={isInternalNote}
-                          attachment={{
-                            id: msg.attachment_url,
-                            name: msg.attachment_name || 'Customer file',
-                            type: msg.attachment_type || 'application/octet-stream',
-                            size: msg.attachment_size || 0,
-                            url: msg.attachment_url,
-                          }}
-                        />
-                        </div>
-                      )}
+                      {(() => {
+                        const allAttachments = msg.attachments?.length
+                          ? msg.attachments
+                          : msg.attachment_url
+                            ? [{
+                                id: msg.attachment_url,
+                                name: msg.attachment_name || 'Customer file',
+                                type: msg.attachment_type || 'application/octet-stream',
+                                size: msg.attachment_size || 0,
+                                url: msg.attachment_url,
+                              }]
+                            : []
+                        if (!allAttachments.length) return null
+
+                        const hasMultiImage = allAttachments.filter(isImageAttachment).length > 1
+                        if (hasMultiImage) {
+                          return (
+                            <div className={imageBubble ? 'wa-image-attachment' : 'mb-2 last:mb-0'}>
+                              <AttachmentGallery attachments={allAttachments} internal={isInternalNote} />
+                            </div>
+                          )
+                        }
+
+                        return allAttachments.map((a) => (
+                          <div key={a.id} className={imageBubble && isImageAttachment(a) ? 'wa-image-attachment' : 'mb-2 last:mb-0'}>
+                            <AttachmentFile attachment={a} imagePreview internal={isInternalNote} />
+                          </div>
+                        ))
+                      })()}
                       {msg.product && (
                         <p className="mb-1 text-xs font-medium opacity-80">
                           {msg.product}

@@ -42,6 +42,25 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
+ message('gallery-4-images','Tangkapan layar hasil pengujian UI:',{
+   author_type:'agent',
+   is_internal:false,
+   attachments:[
+     {id:'img-1',name:'preview-1.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-1'},
+     {id:'img-2',name:'preview-2.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-2'},
+     {id:'img-3',name:'preview-3.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-3'},
+     {id:'img-4',name:'preview-4.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-4'},
+   ]
+ }),
+ message('gallery-mixed','Berikut hasil desain dan dokumen spesifikasi:',{
+   author_type:'agent',
+   is_internal:false,
+   attachments:[
+     {id:'img-a',name:'desain-desktop.png',type:'image/png',size:15000,url:'/api/v1/chat/attachments/img-a'},
+     {id:'img-b',name:'desain-mobile.png',type:'image/png',size:18000,url:'/api/v1/chat/attachments/img-b'},
+     {id:'doc-1',name:'spesifikasi.pdf',type:'application/pdf',size:45000,url:'/api/v1/chat/attachments/doc-1'},
+   ]
+ }),
  message('proposal-pending','Siap, ane susun proposal untuk Riwayat & Log Pengiriman (Phase 3).\n\nDi fase ini, setiap sesi broadcast yang dikirim akan otomatis tercatat di menu Kontak—lengkap dengan waktu pengiriman, subjek pesan, jumlah penerima sukses, dan rincian error jika ada email yang gagal terkirim. Tampilannya dirancang minimalis dan rapi mengikuti standar Things 3 / Bear Notes agar mudah dipantau tanpa menambah beban visual.\n\nDetail rencana dan kriteria tuntasnya sudah ane cantumkan pada kartu persetujuan berikut. Silakan dikonfirmasi jika cakupannya sudah sesuai.',{
    author_type:'agent',
    is_internal:true,
@@ -171,6 +190,7 @@ try{
    else if(pathname.endsWith('/logs'))data={logs:[{id:1,line:'Isolated terminal fixture output',stream:'stdout',logged_at:now}]}
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
    else if(pathname.includes('preferences'))data={items:{}}
+   else if(pathname.includes('/chat/attachments/'))return route.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==','base64')})
    else if(pathname.endsWith('/projects'))data={projects:[]}
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
    else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
@@ -389,6 +409,34 @@ try{
   assert.ok((await copyLinkBtn.boundingBox()).height >= 44, 'Copy link button must meet 44px touch target')
   await roomCard.scrollIntoViewIfNeeded()
   await roomCard.screenshot({path:path.join(output,`room-card-${width}.png`)})
+
+  // Multi-image gallery verification (DoD 1, 2, 3, 4)
+  const gallery = page.locator('[data-testid="attachment-gallery"]')
+  await gallery.first().waitFor({state:'visible',timeout:10000})
+  assert.ok(await gallery.count() >= 2, 'AttachmentGallery must be rendered for multi-image messages')
+  assert.equal(await page.locator('[data-testid="attachment-gallery"][data-image-count="4"]').count(), 1, '4-image gallery must be rendered in 2x2 grid')
+  assert.equal(await page.locator('[data-testid="attachment-gallery"][data-image-count="2"]').count(), 1, '2-image gallery must be rendered in 2-column grid')
+
+  // Verify non-image document alongside gallery
+  const docAttachment = page.locator('.inbox-message-list button[aria-label*="spesifikasi.pdf"]')
+  await docAttachment.waitFor({state:'visible'})
+  assert.equal(await docAttachment.count(), 1, 'Non-image doc must remain accessible alongside gallery')
+  const mixedGallery = page.locator('[data-testid="attachment-gallery"][data-image-count="2"]')
+  await mixedGallery.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`inbox-gallery-mixed-${width}.png`)})
+
+  // Verify tap/click on image cell opens FilePreviewModal
+  const galleryCell = page.locator('[data-testid="attachment-gallery"] button').first()
+  await galleryCell.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`inbox-gallery-grid-${width}.png`)})
+  await galleryCell.click()
+  const previewDialog = page.locator('dialog[open]')
+  await previewDialog.waitFor({state:'visible',timeout:5000})
+  assert.equal(await previewDialog.count(), 1, 'Clicking gallery cell must open FilePreviewModal')
+  await page.screenshot({path:path.join(output,`inbox-gallery-preview-modal-${width}.png`)})
+  const closeBtn = previewDialog.locator('button[aria-label="Tutup"], button[aria-label="Close"]').first()
+  await closeBtn.click()
+  await previewDialog.waitFor({state:'hidden'})
 
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
