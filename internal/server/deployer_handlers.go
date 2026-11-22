@@ -400,7 +400,11 @@ func (s *Server) handleGetDeploymentLogs(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	ticker := time.NewTicker(750 * time.Millisecond)
+	pollInterval := 2 * time.Second
+	if subCh != nil {
+		pollInterval = 5 * time.Second
+	}
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -410,6 +414,7 @@ func (s *Server) handleGetDeploymentLogs(w http.ResponseWriter, r *http.Request)
 		case entry, ok := <-subCh:
 			if !ok {
 				subCh = nil
+				ticker.Reset(2 * time.Second)
 				continue
 			}
 			if entry.ID > lastLogID || lastLogID == 0 {

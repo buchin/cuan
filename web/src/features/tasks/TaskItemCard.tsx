@@ -1,6 +1,6 @@
 import { TaskDuration } from './TaskDuration'
 import { ListRowContent } from '../../components/layout/ListControls'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Folder,
@@ -79,7 +79,7 @@ export interface TaskItemCardProps {
   onDelete?: (task: Task) => void | Promise<void>
 }
 
-export function TaskItemCard({
+export const TaskItemCard = memo(function TaskItemCard({
   task,
   returnTo,
   showProject = true,
@@ -124,7 +124,8 @@ export function TaskItemCard({
   useEffect(() => {
     if ((!isRunning && !taskAgentPending(currentTask)) || managedUpdates) return
     let active = true
-    const interval = setInterval(async () => {
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       try {
         const updated = await tasksApi.get(currentTask.id)
         if (active && updated) {
@@ -147,10 +148,14 @@ export function TaskItemCard({
       } catch {
         // ignore
       }
-    }, 3000)
+    }
+    const interval = setInterval(() => void poll(), 3000)
+    const onResume = () => void poll()
+    document.addEventListener('visibilitychange', onResume)
     return () => {
       active = false
       clearInterval(interval)
+      document.removeEventListener('visibilitychange', onResume)
     }
   }, [isRunning, currentTask.id, currentTask.review_state, managedUpdates])
   const agent =
@@ -676,4 +681,4 @@ export function TaskItemCard({
       </ActionDialog>
     </div>
   )
-}
+})

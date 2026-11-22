@@ -276,11 +276,27 @@ class Gates(unittest.TestCase):
     def test_worker_service_restart_and_auto_undrain(self):
         with tempfile.TemporaryDirectory() as td:
             drain_file = Path(td) / 'cuan-drain'
-            with patch.dict(os.environ, {'CUAN_DRAIN_FILE': str(drain_file)}):
+            workers_dir = Path(td) / 'workers'
+            workers_dir.mkdir()
+            with patch.dict(os.environ, {'CUAN_DRAIN_FILE': str(drain_file), 'CUAN_WORKERS_DIR': str(workers_dir)}):
                 drain_file.touch(exist_ok=True)
                 with patch.object(a.subprocess, 'run', return_value=subprocess.CompletedProcess(['systemctl'], 0, '')) as mock_run:
                     a.restart_worker_service()
                     self.assertFalse(drain_file.exists())
                     mock_run.assert_called_once_with(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
+
+    def test_worker_service_restart_defers_when_worker_active(self):
+        with tempfile.TemporaryDirectory() as td:
+            drain_file = Path(td) / 'cuan-drain'
+            workers_dir = Path(td) / 'workers'
+            workers_dir.mkdir()
+            # Write a worker record with current process PID (which is alive)
+            (workers_dir / 'att_test.json').write_text(json.dumps({'pid': os.getpid()}))
+            with patch.dict(os.environ, {'CUAN_DRAIN_FILE': str(drain_file), 'CUAN_WORKERS_DIR': str(workers_dir)}):
+                drain_file.touch(exist_ok=True)
+                with patch.object(a.subprocess, 'run') as mock_run:
+                    a.restart_worker_service()
+                    self.assertFalse(drain_file.exists())
+                    mock_run.assert_not_called()
 
 if __name__ == '__main__': unittest.main()

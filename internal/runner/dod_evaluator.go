@@ -260,6 +260,13 @@ func (e *DoDEvaluator) checkWorkingTreeClean(ctx context.Context, workingDir str
 func (e *DoDEvaluator) checkTargetedTestsPass(ctx context.Context, workingDir string) (bool, string, time.Duration, error) {
 	start := time.Now()
 
+	// Tiered Verification (Tier 1: Targeted Fast Gate):
+	// If the repository provides a dedicated fast test runner (scripts/test.sh --fast),
+	// run it as the authoritative unified gate (covers Go targeted tests + TypeScript validation).
+	// When scripts/test.sh --fast is executed, avoid redundant execution of heavy end-to-end
+	// browser and integration suites during intermediate attempt iterations.
+	ranUnifiedScript := false
+
 	// 1. Check Go tests if go.mod exists or CustomCommandRunner is supplied in tests
 	if e.CustomCommandRunner != nil {
 		out, cmdErr := e.runCmd(ctx, workingDir, "go", "test", "-count=1", "./internal/runner/...")
@@ -272,6 +279,7 @@ func (e *DoDEvaluator) checkTargetedTestsPass(ctx context.Context, workingDir st
 		var out []byte
 		var cmdErr error
 		if info, statErr := os.Stat(testScript); statErr == nil && !info.IsDir() && info.Mode()&0111 != 0 {
+			ranUnifiedScript = true
 			out, cmdErr = e.runCmd(ctx, workingDir, testScript, "--fast")
 		} else {
 			out, cmdErr = e.runCmd(ctx, workingDir, "go", "test", "-count=1", "./internal/runner/...")
@@ -289,8 +297,8 @@ func (e *DoDEvaluator) checkTargetedTestsPass(ctx context.Context, workingDir st
 		}
 	}
 
-	// 2. Check Vitest frontend tests if web/package.json exists
-	if e.CustomCommandRunner == nil {
+	// 2. Check frontend tests if web/package.json exists and was not already covered by the unified script
+	if e.CustomCommandRunner == nil && !ranUnifiedScript {
 		webPkg := filepath.Join(workingDir, "web", "package.json")
 		if _, err := os.Stat(webPkg); err == nil {
 			out, cmdErr := e.runCmd(ctx, workingDir, "npm", "test", "--prefix", "web", "--", "--run")

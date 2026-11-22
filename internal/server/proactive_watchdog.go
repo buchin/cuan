@@ -20,6 +20,7 @@ import (
 var (
 	watchdogAlertMu      sync.Mutex
 	lastStorageAlertTime time.Time
+	lastIdleGitSync      time.Time
 )
 
 // StartProactiveWatchdog starts a periodic background watchdog daemon to proactively
@@ -90,6 +91,14 @@ func (s *Server) syncIdleProjectsGit(ctx context.Context) {
 	if s.projectSvc == nil {
 		return
 	}
+
+	watchdogAlertMu.Lock()
+	if time.Since(lastIdleGitSync) < 3*time.Minute {
+		watchdogAlertMu.Unlock()
+		return
+	}
+	lastIdleGitSync = time.Now().UTC()
+	watchdogAlertMu.Unlock()
 
 	// 1. Invariant check: only sync when no runner is actively executing
 	if s.taskSvc != nil {
@@ -174,20 +183,32 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		return
 	}
 
+	candidateIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		if t.SourceRoomID != "" && strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
+			candidateIDs = append(candidateIDs, t.ID)
+		}
+	}
+	if len(candidateIDs) == 0 {
+		return
+	}
+	latestMap := s.taskSvc.LatestAttemptsMapForIDs(ctx, candidateIDs)
+
+	requestsByRoom := make(map[string][]db.InboxRequest)
 	for _, t := range tasks {
 		if t.SourceRoomID == "" || !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
 			continue
 		}
 
 		// Don't interfere if an attempt is currently running or queued
-		detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID)
-		if err != nil || detail == nil || detail.LatestAttempt == nil {
+		latest := latestMap[t.ID]
+		if latest == nil {
 			continue
 		}
-		if detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued {
+		if latest.Status == task.AttemptStatusRunning || latest.Status == task.AttemptStatusQueued {
 			continue
 		}
-		if detail.LatestAttempt.CancelRequested || detail.LatestAttempt.CanceledAt != nil {
+		if latest.CancelRequested || latest.CanceledAt != nil {
 			continue
 		}
 
@@ -196,6 +217,11 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			if launch.State == "queued" || launch.State == "claimed" || launch.State == "started" {
 				continue
 			}
+		}
+
+		detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID)
+		if err != nil || detail == nil {
+			continue
 		}
 
 		// Find the latest review assessment on this task
@@ -214,9 +240,14 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
-		requests, err := repo.ListInboxRequests(ctx, detail.SourceRoomID)
-		if err != nil {
-			continue
+		requests, ok := requestsByRoom[detail.SourceRoomID]
+		if !ok {
+			var err error
+			requests, err = repo.ListInboxRequests(ctx, detail.SourceRoomID)
+			if err != nil {
+				continue
+			}
+			requestsByRoom[detail.SourceRoomID] = requests
 		}
 
 		// Resolve the task's root owner authorization request.
@@ -430,7 +461,7 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 }
 
 func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry ServerTelemetry) {
-	if (telemetry.DiskUsedPercent <= 85.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
+	if (telemetry.DiskUsedPercent <= 88.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
 		return
 	}
 	watchdogAlertMu.Lock()

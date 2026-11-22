@@ -435,6 +435,8 @@ export function InboxView({
   const [regenerationStart, setRegenerationStart] = useState<{ convId: string; sourceId: string; requestId: string } | null>(null)
   const [requests, setRequests] = useState<InboxRequest[]>([])
   const [streamingReplies, setStreamingReplies] = useState<Record<string, string>>({})
+  const deltaBufferRef = useRef<Record<string, string>>({})
+  const streamRafRef = useRef<number | null>(null)
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
   const staleNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -812,6 +814,11 @@ export function InboxView({
         setMessages([])
         setRequests([])
         setStreamingReplies({})
+        if (streamRafRef.current) {
+          cancelAnimationFrame(streamRafRef.current)
+          streamRafRef.current = null
+        }
+        deltaBufferRef.current = {}
         setLinkedTasks([])
         setSendError('')
         setRetryCount(0)
@@ -965,10 +972,24 @@ export function InboxView({
           }
         }, (deltaData) => {
           if (abort.signal.aborted || !isSameConversation(activeConvRef.current, convId, activeContact)) return
-          setStreamingReplies((prev) => ({
-            ...prev,
-            [deltaData.request_id]: (prev[deltaData.request_id] || '') + deltaData.delta,
-          }))
+          deltaBufferRef.current[deltaData.request_id] =
+            (deltaBufferRef.current[deltaData.request_id] || '') + deltaData.delta
+          if (!streamRafRef.current) {
+            streamRafRef.current = requestAnimationFrame(() => {
+              streamRafRef.current = null
+              const flushed = { ...deltaBufferRef.current }
+              deltaBufferRef.current = {}
+              const entries = Object.entries(flushed)
+              if (entries.length === 0) return
+              setStreamingReplies((prev) => {
+                const next = { ...prev }
+                for (const [reqId, text] of entries) {
+                  next[reqId] = (next[reqId] || '') + text
+                }
+                return next
+              })
+            })
+          }
         })
       } catch (e: any) {
         if (abort.signal.aborted) return
@@ -990,7 +1011,9 @@ export function InboxView({
     setStreamState('connecting')
     void connect()
     const poll = setInterval(() => {
-      if (!connected) void loadConversation(convId)
+      if (!connected && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void loadConversation(convId)
+      }
     }, 10000)
     const onFocusOrResume = () => {
       if (document.visibilityState === 'visible') {
@@ -1021,6 +1044,11 @@ export function InboxView({
       abort.abort()
       clearTimeout(retry)
       clearInterval(poll)
+      if (streamRafRef.current) {
+        cancelAnimationFrame(streamRafRef.current)
+        streamRafRef.current = null
+      }
+      deltaBufferRef.current = {}
       window.removeEventListener('focus', onFocusOrResume)
       document.removeEventListener('visibilitychange', onFocusOrResume)
       window.removeEventListener('cuan:notification-navigate', onNotificationNavigate)
@@ -1072,6 +1100,11 @@ export function InboxView({
   const lastMessageKey =
     messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
 
+  const requestsKey = useMemo(
+    () => requests.map((q) => q.request_id + q.state).join(','),
+    [requests],
+  )
+
   // Only scroll for a new message, not identical polling results.
   useEffect(() => {
     const currentContactId = activeContact?.id
@@ -1116,12 +1149,17 @@ export function InboxView({
     lastMessageKey,
     activeContact?.id,
     sendError,
-    requests.map((q) => q.request_id + q.state).join(','),
+    requestsKey,
   ])
 
   useEffect(() => {
     if (messageListRef.current && followTail.current && Object.keys(streamingReplies).length > 0) {
-      messageListRef.current.scrollTop = messageListRef.current.scrollHeight
+      const rafId = requestAnimationFrame(() => {
+        if (messageListRef.current && followTail.current) {
+          messageListRef.current.scrollTop = messageListRef.current.scrollHeight
+        }
+      })
+      return () => cancelAnimationFrame(rafId)
     }
   }, [streamingReplies])
 
