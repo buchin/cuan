@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 // customerAttachmentBaseURL is the public origin widget visitors should use to
@@ -285,6 +286,28 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 				approvalRequestID = delegationMessageID("approve-plan:" + roomID + ":" + m.ID)
 				content = presentContinuationText(content, approvalPlan)
 				approvalPlan = presentContinuationPlan(approvalPlan)
+
+				if approvalPlan != nil && approvalPlan.Continuation != nil && !approved[m.ID] {
+					dismissed := false
+					if s.taskSvc != nil {
+						d, err := s.taskSvc.GetTaskDetail(ctx, approvalPlan.Continuation.TaskID)
+						if err != nil || d == nil || d.Status == task.TaskStatusDone || d.Status == "cancelled" || d.Status == "canceled" {
+							dismissed = true
+						} else if d.LatestAttempt != nil && d.LatestAttempt.ID != approvalPlan.Continuation.AttemptID {
+							dismissed = true
+						} else if d.Status == task.TaskStatusDoing || (d.LatestAttempt != nil && (d.LatestAttempt.Status == task.AttemptStatusRunning || d.LatestAttempt.Status == task.AttemptStatusQueued)) {
+							dismissed = true
+						} else if err := s.validateInboxContinuation(ctx, roomID, approvalPlan); err != nil {
+							dismissed = true
+						}
+					}
+					if dismissed {
+						approvalPlan = nil
+						approvalRequestID = ""
+						approvalTitle = ""
+						content = cleanStaleContinuationText(content)
+					}
+				}
 			}
 		}
 		var attached []conversationAttachment

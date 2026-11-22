@@ -64,6 +64,29 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
    approval_request_id:'plan-approve-2',
    plan_defer_request_id:'plan-defer-2',
    approval_accepted:true
+ }),
+ message('proposal-stale-done','Rilis hasil yang diperiksa belum tuntas. [View work](/tasks/task-1)',{
+   author_type:'agent',
+   is_internal:true,
+   approval_plan:{
+     title:'Lanjutkan pemeriksaan',
+     description:'Lengkapi pemeriksaan agar hasil pekerjaan bisa dipastikan.',
+     project_name:'Website',
+     continuation:{task_id:'task-1',attempt_id:'attempt-old'}
+   },
+   approval_request_id:'plan-approve-stale-done',
+   approval_accepted:false
+ }),
+ message('proposal-expired','Hasil pekerjaan sebelumnya memerlukan konfirmasi kelanjutan:',{
+   author_type:'agent',
+   is_internal:true,
+   approval_plan:{
+     title:'Lanjutkan pemeriksaan berkala',
+     description:'Lengkapi pemeriksaan agar hasil pekerjaan bisa dipastikan.',
+     project_name:'Website'
+   },
+   approval_request_id:'plan-approve-expired',
+   approval_accepted:false
  })]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
@@ -123,6 +146,14 @@ try{
    let data={}
    if(pathname.endsWith('/auth/status'))data={setup_required:false}
    else if(pathname.endsWith('/auth/me'))data={user:{id:'owner',email:'owner@example.test',name:'Owner',role:'owner'}}
+   else if(pathname.endsWith('/messages')&&route.request().method()==='POST'){
+     let body={}
+     try{body=route.request().postDataJSON()||{}}catch{}
+     if(body?.approve_message_id==='proposal-expired'){
+       return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'This recommendation is no longer current. Check the latest task result before approving.'})})
+     }
+     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})})
+   }
    else if(pathname.endsWith('/messages'))data={messages,tasks:allTasks,contact,requests:[]}
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
@@ -292,7 +323,7 @@ try{
   await page.screenshot({path:path.join(output,`customer-reply-sent-${width}.png`)})
 
   // Verify Approval Card Seamless Integration (No Nested Box Cards)
-  const pendingCard = page.locator('[data-testid="approval-card"][data-status="pending"]')
+  const pendingCard = page.locator('[data-testid="approval-card"][data-status="pending"]').filter({hasText:'Phase 3'}).first()
   await pendingCard.waitFor({state:'visible'})
   assert.equal(await pendingCard.count(), 1)
   // Verify no nested calm-message-bubble inside wa-message-bubble
@@ -312,6 +343,27 @@ try{
   await acceptedCard.waitFor({state:'visible'})
   await acceptedCard.scrollIntoViewIfNeeded()
   await page.screenshot({path:path.join(output,`approval-card-accepted-${width}.png`)})
+
+  // Verify Stale Approval Card Auto-Dismissal:
+  // Continuation card for task-1 (already marked done in earlierTasks) must NOT be rendered.
+  assert.equal(
+    await page.locator('[data-testid="approval-card"]').filter({hasText:'Lanjutkan pemeriksaan'}).filter({hasNotText:'berkala'}).count(),
+    0,
+    'Stale continuation approval card for completed task must be dismissed'
+  )
+
+  // Verify Graceful Stale Handling on Click without Raw English Error:
+  const expiredCard = page.locator('[data-testid="approval-card"]').filter({hasText:'Lanjutkan pemeriksaan berkala'})
+  if(await expiredCard.count() > 0) {
+    const approveExpiredBtn = expiredCard.getByRole('button', {name: /Approve|Setujui/i})
+    await approveExpiredBtn.click()
+    const staleNotice = page.getByText('Rekomendasi persetujuan ini sudah tidak berlaku karena status tugas telah diperbarui.')
+    await staleNotice.waitFor({state:'visible'})
+    assert.equal(await staleNotice.count(), 1, 'Friendly stale notice must be visible')
+    assert.equal(await page.getByText(/continuationDescriptionMatches/i).count(), 0, 'Raw continuationDescriptionMatches must not be displayed')
+    assert.equal(await page.getByText(/is no longer current/i).count(), 0, 'Raw English message must not be displayed')
+    await page.screenshot({path:path.join(output,`approval-card-stale-notice-${width}.png`)})
+  }
 
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()

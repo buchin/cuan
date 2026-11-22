@@ -31,45 +31,46 @@ func continuationPlan(d *task.TaskDetailResponse, request string, decision inbox
 	return "\n\n```cuan-approval\n" + string(raw) + "\n```"
 }
 
+var ErrInboxContinuationStale = errors.New("This recommendation is no longer current. Check the latest task result before approving.")
+
 func (s *Server) validateInboxContinuation(ctx context.Context, room string, plan *inboxApprovalPlan) error {
 	if plan.Continuation == nil {
 		return nil
 	}
 	c := plan.Continuation
-	invalid := errors.New("This recommendation is no longer current. Check the latest task result before approving.")
 	if s.taskSvc == nil || c.AssessmentRequestID == "" {
-		return fmt.Errorf("%w: taskSvc nil or AssessmentRequestID empty", invalid)
+		return fmt.Errorf("%w: taskSvc nil or AssessmentRequestID empty", ErrInboxContinuationStale)
 	}
 	d, err := s.taskSvc.GetTaskDetail(ctx, c.TaskID)
 	if err != nil || d == nil {
-		return fmt.Errorf("%w: get task detail err=%v, d=%v", invalid, err, d)
+		return fmt.Errorf("%w: get task detail err=%v, d=%v", ErrInboxContinuationStale, err, d)
 	}
 	if d.SourceRoomID != room {
-		return fmt.Errorf("%w: room mismatch: %s != %s", invalid, d.SourceRoomID, room)
+		return fmt.Errorf("%w: room mismatch: %s != %s", ErrInboxContinuationStale, d.SourceRoomID, room)
 	}
 	if d.ProjectID != plan.ProjectID {
-		return fmt.Errorf("%w: project mismatch: %s != %s", invalid, d.ProjectID, plan.ProjectID)
+		return fmt.Errorf("%w: project mismatch: %s != %s", ErrInboxContinuationStale, d.ProjectID, plan.ProjectID)
 	}
 	if d.Status != task.TaskStatusBlocked {
-		return fmt.Errorf("%w: status mismatch: %s != blocked", invalid, d.Status)
+		return fmt.Errorf("%w: status mismatch: %s != blocked", ErrInboxContinuationStale, d.Status)
 	}
 	if d.LatestAttempt == nil || d.LatestAttempt.ID != c.AttemptID {
-		return fmt.Errorf("%w: attempt mismatch", invalid)
+		return fmt.Errorf("%w: attempt mismatch", ErrInboxContinuationStale)
 	}
 	if d.LatestAttempt.Status == task.AttemptStatusCanceled || d.LatestAttempt.Status == task.AttemptStatusRunning || d.LatestAttempt.Status == task.AttemptStatusQueued {
-		return fmt.Errorf("%w: attempt status: %s", invalid, d.LatestAttempt.Status)
+		return fmt.Errorf("%w: attempt status: %s", ErrInboxContinuationStale, d.LatestAttempt.Status)
 	}
 	if launch, err := s.taskSvc.LatestLaunch(ctx, d.ID); err != nil && !errors.Is(err, task.ErrTaskNotFound) {
-		return fmt.Errorf("%w: launch err=%v", invalid, err)
+		return fmt.Errorf("%w: launch err=%v", ErrInboxContinuationStale, err)
 	} else if launch != nil && (launch.State == "queued" || launch.State == "claimed" || launch.State == "started") {
-		return fmt.Errorf("%w: active launch %s", invalid, launch.State)
+		return fmt.Errorf("%w: active launch %s", ErrInboxContinuationStale, launch.State)
 	}
 	assessment, ok := reviewAssessment(d, c.AssessmentRequestID)
 	if !ok {
-		return fmt.Errorf("%w: reviewAssessment not found", invalid)
+		return fmt.Errorf("%w: reviewAssessment not found", ErrInboxContinuationStale)
 	}
 	if assessment.Decision != "revise" && assessment.Decision != "blocked" {
-		return fmt.Errorf("%w: decision neither revise nor blocked: %s", invalid, assessment.Decision)
+		return fmt.Errorf("%w: decision neither revise nor blocked: %s", ErrInboxContinuationStale, assessment.Decision)
 	}
 	if strings.TrimSpace(c.Revision) == "" {
 		if strings.TrimSpace(assessment.Revision) != "" {
@@ -79,14 +80,14 @@ func (s *Server) validateInboxContinuation(ctx context.Context, room string, pla
 		} else if strings.TrimSpace(assessment.Finding) != "" {
 			c.Revision = strings.TrimSpace(assessment.Finding)
 		} else {
-			return fmt.Errorf("%w: empty c.Revision", invalid)
+			return fmt.Errorf("%w: empty c.Revision", ErrInboxContinuationStale)
 		}
 	}
 	if !continuationDescriptionMatches(plan, assessment) {
-		return fmt.Errorf("%w: continuationDescriptionMatches false", invalid)
+		return fmt.Errorf("%w: continuationDescriptionMatches false", ErrInboxContinuationStale)
 	}
 	if assessment.Revision != "" && c.Revision != assessment.Revision {
-		return fmt.Errorf("%w: assessment.Revision %s != %s", invalid, assessment.Revision, c.Revision)
+		return fmt.Errorf("%w: assessment.Revision %s != %s", ErrInboxContinuationStale, assessment.Revision, c.Revision)
 	}
 	return nil
 }
