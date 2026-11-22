@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/db"
-	"github.com/buchin/cuan/internal/task"
 )
 
 // InboxThreadItem represents a summarized thread item for the inbox sub-panel list.
@@ -88,10 +87,15 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 	projectNameCache := make(map[string]string)
 	var threadItems []InboxThreadItem
 
+	var allRecentMessages map[string][]db.ProjectMessage
+	if s.projectStudioRepo != nil {
+		allRecentMessages, _ = s.projectStudioRepo.ListRecentMessages(r.Context(), 50)
+	}
+	counts, _ := s.readTaskCounts(r.Context())
+
 	for _, rm := range rooms {
-		// Fetch messages for message count and last message
-		messages, _ := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), rm.ID)
-		messages = visibleInboxMessages(messages)
+		// Fetch messages for message count and last message from batch loaded recent messages
+		messages := visibleInboxMessages(allRecentMessages[rm.ID])
 		messageCount := len(messages)
 		var lastMsgDTO *db.ProjectMessageDTO
 		if messageCount > 0 {
@@ -99,63 +103,15 @@ func (s *Server) handleListInboxThreads(w http.ResponseWriter, r *http.Request) 
 			lastMsgDTO = &dto
 		}
 
-		// Fetch linked tasks to derive status
-		tasks, _ := s.projectStudioRepo.ListTasksByRoomID(r.Context(), rm.ID)
-		taskCount := len(tasks)
-		reviewTasks := 0
-		activeTasks := 0
-		queuedTasks := 0
-		doneTasks := 0
-		failedTasks := 0
-		hasDone := false
-		hasDoing := false
-
-		seenTaskIDs := make(map[string]bool)
-		for _, t := range tasks {
-			seenTaskIDs[t.ID] = true
-			st := strings.ToLower(strings.TrimSpace(t.Status))
-			if st == "done" {
-				doneTasks++
-				hasDone = true
-			} else if st == "blocked" || st == "failed" {
-				failedTasks++
-			} else if st == "queued" || st == "pending" {
-				queuedTasks++
-			} else if st == "review" {
-				reviewTasks++
-			} else if inboxTaskIsWorking(st) {
-				activeTasks++
-			}
-			if inboxTaskIsWorking(st) {
-				hasDoing = true
-			}
-		}
-
-		if s.taskSvc != nil {
-			if svcTasks, err := s.taskSvc.ListTasks(r.Context(), task.TaskFilter{SourceRoomID: rm.ID}); err == nil && len(svcTasks) > 0 {
-				for _, st := range svcTasks {
-					if !seenTaskIDs[st.ID] {
-						taskCount++
-						stStatus := strings.ToLower(strings.TrimSpace(st.Status))
-						if stStatus == "done" {
-							doneTasks++
-							hasDone = true
-						} else if stStatus == "blocked" || stStatus == "failed" {
-							failedTasks++
-						} else if stStatus == "queued" || stStatus == "pending" {
-							queuedTasks++
-						} else if stStatus == "review" {
-							reviewTasks++
-						} else if inboxTaskIsWorking(stStatus) {
-							activeTasks++
-						}
-						if inboxTaskIsWorking(stStatus) {
-							hasDoing = true
-						}
-					}
-				}
-			}
-		}
+		c := counts.Rooms[rm.ID]
+		taskCount := c.Total
+		reviewTasks := c.Review
+		activeTasks := c.Active
+		queuedTasks := c.Queued
+		doneTasks := c.Done
+		failedTasks := c.Failed
+		hasDone := doneTasks > 0
+		hasDoing := activeTasks > 0
 
 		derivedStatus := "unread"
 		if taskCount > 0 {

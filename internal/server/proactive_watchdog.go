@@ -483,14 +483,25 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 
 	cutoff := time.Now().UTC().Add(-24 * time.Hour)
 
+	var allRecentMessages map[string][]db.ProjectMessage
+	if s.projectStudioRepo != nil {
+		allRecentMessages, _ = s.projectStudioRepo.ListRecentMessages(ctx, 1)
+	}
+
 	for _, room := range rooms {
-		msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room.ID)
-		if err != nil || len(msgs) == 0 {
+		msgs := allRecentMessages[room.ID]
+		if len(msgs) == 0 {
 			continue
 		}
 
 		latestMsg := msgs[len(msgs)-1]
 		if room.IsResolved(latestMsg.CreatedAt) {
+			continue
+		}
+
+		// Fast path: if the latest message is newer than the 24-hour cutoff,
+		// the conversation has recent activity and cannot be auto-resolved.
+		if latestMsg.CreatedAt.After(cutoff) {
 			continue
 		}
 
@@ -581,25 +592,6 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 
 			// 24-hour grace period must elapse AFTER the message was read
 			if readAt.After(cutoff) {
-				continue
-			}
-		} else {
-			// If latest message was sent by the user, verify it is older than 24 hours
-			if latestMsg.CreatedAt.After(cutoff) {
-				continue
-			}
-		}
-
-		// For task-driven conversations, verify all tasks completed > 24 hours ago
-		if hasTasks {
-			allTasksOld := true
-			for _, t := range tasks {
-				if t.UpdatedAt.After(cutoff) {
-					allTasksOld = false
-					break
-				}
-			}
-			if !allTasksOld {
 				continue
 			}
 		}

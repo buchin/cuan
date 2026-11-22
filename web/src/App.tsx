@@ -471,7 +471,8 @@ export function App() {
       return {
         id: subParam,
         conversation_id: subParam,
-        name: 'Conversation',
+        agent_id: subParam.startsWith('agent_') ? subParam : (subParam === 'cuan' ? 'agent_cuan' : undefined),
+        name: subParam === 'cuan' || subParam === 'agent_cuan' ? 'Cuan' : 'Conversation',
         type: 'agent' as const,
         avatar: '',
         unread_count: 0,

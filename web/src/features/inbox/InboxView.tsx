@@ -136,6 +136,22 @@ interface InboxViewProps {
   onRetrySetup?: () => void
 }
 
+function isSameConversation(a?: string | null, b?: string | null, contact?: ChatContact | null): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  if (!contact) return false
+  const ids = new Set(
+    [
+      contact.conversation_id,
+      contact.id,
+      contact.agent_id,
+      contact.agent_id ? 'contact_' + contact.agent_id : '',
+      contact.name?.toLowerCase(),
+    ].filter(Boolean) as string[],
+  )
+  return ids.has(a) && ids.has(b)
+}
+
 export function InboxView({
   onNewMessage: _onNewMessage,
   onNewStudio: _onNewStudio,
@@ -769,11 +785,17 @@ export function InboxView({
     }
   }, [activeContact?.id, autoResizeTextarea])
 
+  const convKey = activeContact
+    ? activeContact.type === 'agent'
+      ? activeContact.agent_id || activeContact.id.replace(/^contact_/, '')
+      : activeContact.conversation_id || activeContact.id
+    : ''
+
   // Load conversation when activeContact changes
   useEffect(() => {
     if (activeContact) {
       const convId = activeContact.conversation_id || activeContact.id
-      const isDifferentConv = prevLoadedConvId.current !== convId
+      const isDifferentConv = prevLoadedConvId.current !== convId && !isSameConversation(prevLoadedConvId.current, convId, activeContact)
       prevLoadedConvId.current = convId
 
       followTail.current = !requestedMessageId
@@ -814,7 +836,7 @@ export function InboxView({
       }
       loadConversation(convId, isDifferentConv)
     }
-  }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
+  }, [convKey, loadConversation])
 
   // SSE updates carry authoritative snapshots. Poll only while disconnected.
   useEffect(() => {
@@ -827,7 +849,7 @@ export function InboxView({
     const connect = async () => {
       try {
         await streamConversation(convId, abort.signal, (data) => {
-          if (abort.signal.aborted || activeConvRef.current !== convId) return
+          if (abort.signal.aborted || !isSameConversation(activeConvRef.current, convId, activeContact)) return
           ++loadVersion.current
           connected = true
           failures = 0
@@ -942,7 +964,7 @@ export function InboxView({
             )
           }
         }, (deltaData) => {
-          if (abort.signal.aborted || activeConvRef.current !== convId) return
+          if (abort.signal.aborted || !isSameConversation(activeConvRef.current, convId, activeContact)) return
           setStreamingReplies((prev) => ({
             ...prev,
             [deltaData.request_id]: (prev[deltaData.request_id] || '') + deltaData.delta,
@@ -1003,7 +1025,7 @@ export function InboxView({
       document.removeEventListener('visibilitychange', onFocusOrResume)
       window.removeEventListener('cuan:notification-navigate', onNotificationNavigate)
     }
-  }, [activeContact?.conversation_id, activeContact?.id, loadConversation])
+  }, [convKey, loadConversation])
 
   // Adaptive task poller: 3-5s (4000ms) when in-flight tasks exist, idle backoff (20000ms) otherwise
   const hasActiveTasks = activeConversationTasks.length > 0

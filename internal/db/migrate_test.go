@@ -456,8 +456,8 @@ func TestLoadMigrations(t *testing.T) {
 		t.Errorf("expected 000030 DownSQL to drop role column")
 	}
 
-	if len(migs) < 43 {
-		t.Fatalf("expected at least 43 migrations, got %d", len(migs))
+	if len(migs) < 44 {
+		t.Fatalf("expected at least 44 migrations, got %d", len(migs))
 	}
 	broadcastHistMig43 := migs[42]
 	if broadcastHistMig43.Version != "000043" {
@@ -474,6 +474,23 @@ func TestLoadMigrations(t *testing.T) {
 	}
 	if !strings.Contains(broadcastHistMig43.DownSQL, "DROP TABLE IF EXISTS crm_broadcast_sessions") {
 		t.Errorf("expected 000043 DownSQL to drop crm_broadcast_sessions table")
+	}
+
+	indexesMig44 := migs[43]
+	if indexesMig44.Version != "000044" {
+		t.Errorf("expected version 000044, got %s", indexesMig44.Version)
+	}
+	if indexesMig44.Name != "chat_and_task_query_indexes" {
+		t.Errorf("expected name chat_and_task_query_indexes, got %s", indexesMig44.Name)
+	}
+	if !strings.Contains(indexesMig44.UpSQL, "idx_project_messages_room_created_at") {
+		t.Errorf("expected 000044 UpSQL to create idx_project_messages_room_created_at")
+	}
+	if !strings.Contains(indexesMig44.UpSQL, "idx_tasks_source_room_status") {
+		t.Errorf("expected 000044 UpSQL to create idx_tasks_source_room_status")
+	}
+	if !strings.Contains(indexesMig44.DownSQL, "DROP INDEX IF EXISTS idx_tasks_source_room_status") {
+		t.Errorf("expected 000044 DownSQL to drop index")
 	}
 }
 

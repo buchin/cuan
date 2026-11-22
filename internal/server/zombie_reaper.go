@@ -68,8 +68,10 @@ func (s *Server) isTaskActiveOnHost(taskID string) bool {
 func (s *Server) ReconcileZombies(ctx context.Context) error {
 	timeout := task.DefaultMaxCapTimeout + task.GetGracePeriod()
 	deadlines := map[string]time.Time{}
+	var recoveryTasks []*task.Task
 	if s.taskSvc != nil {
 		if tasks, e := s.taskSvc.RecoveryTasks(ctx); e == nil {
+			recoveryTasks = tasks
 			for _, t := range tasks {
 				if a, e := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); e == nil && a != nil && a.Status == task.AttemptStatusRunning {
 					deadlines[t.ID] = task.AttemptDeadline(t, a).Add(task.GetGracePeriod())
@@ -110,35 +112,26 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 					_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
 				}
 			}
-			if strings.HasPrefix(sessionKey, "project-term-") {
-				projID := strings.TrimPrefix(sessionKey, "project-term-")
-				if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: projID, Status: task.TaskStatusDoing}); err == nil {
-					for _, t := range tasks {
-						if strings.HasPrefix(t.Title, "Terminal ·") {
-							if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
-								_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
-							}
-						}
-					}
-				}
-			}
 		}
 
-		// Renew local attempt leases for project tasks whose persistent worker runs via Unix socket bridge
-		if s.projectSvc != nil {
-			if projects, err := s.projectSvc.List(ctx); err == nil {
-				for _, p := range projects {
-					if terminal.ProjectSocketExists(p.ID) {
-						if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: p.ID, Status: task.TaskStatusDoing}); err == nil {
-							for _, t := range tasks {
-								if strings.HasPrefix(t.Title, "Terminal ·") {
-									if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
-										_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
-									}
-								}
-							}
-						}
-					}
+		// Renew local attempt leases for project tasks whose persistent worker runs via session or Unix socket bridge.
+		// Uses recoveryTasks already queried above to avoid polling projects and tasks tables every 5 seconds.
+		for _, t := range recoveryTasks {
+			if !strings.HasPrefix(t.Title, "Terminal ·") {
+				continue
+			}
+			projID := t.ProjectID
+			if projID == "" && len(t.ProjectIDs) > 0 {
+				projID = t.ProjectIDs[0]
+			}
+			if projID == "" {
+				continue
+			}
+			sessionKey := terminal.ProjectSessionKey(projID)
+			sess, hasSess := s.terminalManager.GetSession(sessionKey)
+			if (hasSess && sess != nil && !sess.IsClosed()) || terminal.ProjectSocketExists(projID) {
+				if a, err := s.taskSvc.Store().GetLatestAttempt(ctx, t.ID); err == nil && a != nil && a.RunnerID == "local_terminal" && a.Status == task.AttemptStatusRunning {
+					_ = s.taskSvc.RenewLocalAttemptLease(ctx, a.ID)
 				}
 			}
 		}
