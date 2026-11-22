@@ -5,6 +5,7 @@ import { IntegrationOverview } from './IntegrationOverview'
 import { GitHubIntegration } from './GitHubIntegration'
 import { IntegrationsView } from './IntegrationsView'
 import { ResendSettingsCard } from './ResendSettingsCard'
+import { InstaboxIntegration } from './InstaboxIntegration'
 import { ProjectSettings } from './ProjectSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { NotificationSettings } from './NotificationSettings'
@@ -111,7 +112,7 @@ export function SettingsView({
           ) : section === 'notifications' ? (
             <NotificationSettings />
           ) : section === 'integrations' ? (
-            location.pathname.split('/')[3] === 'github' ? <GitHubIntegration /> : location.pathname.split('/')[3] === 'live-chat' ? <IntegrationsView /> : location.pathname.split('/')[3] === 'resend' ? <ResendSettingsCard /> : <IntegrationOverview />
+            location.pathname.split('/')[3] === 'github' ? <GitHubIntegration /> : location.pathname.split('/')[3] === 'live-chat' ? <IntegrationsView /> : location.pathname.split('/')[3] === 'resend' ? <ResendSettingsCard /> : location.pathname.split('/')[3] === 'instabox' ? <InstaboxIntegration /> : <IntegrationOverview />
           ) : section === 'apps-skills' ? (
             <AppsSkillsView showHeading={false} />
           ) : section === 'appearance' ? (

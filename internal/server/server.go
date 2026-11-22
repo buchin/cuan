@@ -882,6 +882,12 @@ func (s *Server) routes() {
 			pr.Post("/settings/resend/test", s.handleTestResendEmail)
 			pr.Post("/chat/idle/check", s.handleTriggerChatIdleCheck)
 
+			// Instabox / Remote Browser Service Integration
+			pr.Get("/settings/instabox", s.handleGetInstaboxSettings)
+			pr.Post("/settings/instabox", s.handleSaveInstaboxSettings)
+			pr.Patch("/settings/instabox", s.handleSaveInstaboxSettings)
+			pr.Post("/settings/instabox/validate", s.handleValidateInstaboxEndpoint)
+
 			// Tasks endpoints (T4 & T5)
 			s.registerTaskRoutes(pr)
 
