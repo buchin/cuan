@@ -72,6 +72,7 @@ import {
 } from 'lucide-react'
 import { Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
+import { getContactInitials } from './contact-initials'
 import './chat-calm.css'
 import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
@@ -2025,12 +2026,18 @@ export function InboxView({
                 <div className="relative shrink-0">
                   <div
                     data-avatar="true"
-                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold border border-border avatar overflow-hidden"
+                    className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-xs font-semibold border border-border avatar overflow-hidden select-none"
                   >
-                    {activeContact.avatar ? (
-                      <span>{activeContact.avatar}</span>
+                    {activeContact.avatar && activeContact.avatar !== '👤' ? (
+                      activeContact.avatar.startsWith('http') || activeContact.avatar.startsWith('/') ? (
+                        <img src={activeContact.avatar} alt="" className="h-full w-full object-cover rounded-full" />
+                      ) : (
+                        <span>{activeContact.avatar}</span>
+                      )
                     ) : activeContact.type === 'agent' ? (
                       <Bot className="h-4 w-4 text-primary" />
+                    ) : getContactInitials(activeContact.name) ? (
+                      <span className="tracking-wide select-none">{getContactInitials(activeContact.name)}</span>
                     ) : (
                       <User className="h-4 w-4 text-muted-foreground" />
                     )}
@@ -2164,9 +2171,15 @@ export function InboxView({
                   {activeContact?.type === 'customer' ? (
                     <>
                       <div className="relative">
-                        <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-lg border border-border shadow-xs">
-                          {activeContact.avatar ? (
-                            <span>{activeContact.avatar}</span>
+                        <div data-avatar="true" className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center text-base font-semibold border border-border shadow-xs select-none">
+                          {activeContact.avatar && activeContact.avatar !== '👤' ? (
+                            activeContact.avatar.startsWith('http') || activeContact.avatar.startsWith('/') ? (
+                              <img src={activeContact.avatar} alt="" className="h-full w-full object-cover rounded-full" />
+                            ) : (
+                              <span>{activeContact.avatar}</span>
+                            )
+                          ) : getContactInitials(activeContact.name) ? (
+                            <span className="tracking-wide select-none">{getContactInitials(activeContact.name)}</span>
                           ) : (
                             <User className="h-6 w-6 text-muted-foreground" />
                           )}

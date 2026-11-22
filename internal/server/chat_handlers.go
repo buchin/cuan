@@ -223,7 +223,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			Type:           "customer",
 			Name:           name,
 			Email:          email,
-			Avatar:         "👤",
+			Avatar:         "",
 			Status:         "online",
 			Product:        product,
 			GuestUUID:      guestUUID,

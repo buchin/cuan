@@ -374,7 +374,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				Type:           "customer",
 				Name:           sess.Name,
 				Email:          contactEmail,
-				Avatar:         "👤",
+				Avatar:         "",
 				Status:         status,
 				Product:        sess.Product,
 				GuestUUID:      sess.GuestUUID,
