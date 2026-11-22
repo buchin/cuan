@@ -131,7 +131,9 @@ let browser
 const checks=[]
 try{
  for(const width of (process.env.CUAN_WORKFLOW_NATIVE==='1'?[390,1440]:[390,1440,1920])){
-  browser=await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
+  browser=process.env.CUAN_REMOTE_BROWSER_URL
+    ? await chromium.connectOverCDP(process.env.CUAN_REMOTE_BROWSER_URL)
+    : await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
   const context=await browser.newContext({viewport:{width,height:width===390?844:1000},hasTouch:width===390})
   await context.addInitScript(()=>{localStorage.setItem('cuan-language','id');localStorage.setItem('cuan_token','isolated-fixture')})
   const page=await context.newPage(),errors=[]

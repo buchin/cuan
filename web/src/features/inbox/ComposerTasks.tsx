@@ -231,12 +231,17 @@ function TaskTerminalAction({ task, onTerminal }: { task: Task; onTerminal: (tas
   useEffect(() => {
     if (!attempt) return
     let live = true
-    const check = () => tasksApi.runtime(task.id).then(runtime => {
-      if (live) setAvailable(runtime.live_session?.attempt_id === attempt ? attempt : '')
-    }).catch(() => { if (live) setAvailable('') })
+    const check = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      tasksApi.runtime(task.id).then(runtime => {
+        if (live) setAvailable(runtime.live_session?.attempt_id === attempt ? attempt : '')
+      }).catch(() => { if (live) setAvailable('') })
+    }
     void check()
     const timer = setInterval(check, 5000)
-    return () => { live = false; clearInterval(timer) }
+    const onResume = () => void check()
+    document.addEventListener('visibilitychange', onResume)
+    return () => { live = false; clearInterval(timer); document.removeEventListener('visibilitychange', onResume) }
   }, [task.id, attempt])
   if (!attempt || available !== attempt) return null
   return <button type="button" className="inline-flex items-center gap-1.5" onClick={() => onTerminal(task)}><Terminal className="h-3.5 w-3.5" />{t('Live terminal')}</button>

@@ -154,7 +154,7 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 	if p.Continuation == nil {
 		trusted := false
 		for _, q := range requests {
-			if q.ReplyID == id && q.OwnerID == owner && (q.AgentID == agent || agent == "") && q.State == "completed" {
+			if q.ReplyID == id && q.OwnerID == owner && (q.AgentID == agent || agent == "" || q.AgentID == "" || (isLegacyInternalAgent(q.AgentID) && isLegacyInternalAgent(agent))) && q.State == "completed" {
 				trusted = true
 				break
 			}
@@ -245,12 +245,49 @@ func (s *Server) inboxApprovedPlan(ctx context.Context, q db.InboxRequest) (*app
 	return nil, nil
 }
 
+// isApprovalAffirmation checks if user text unambiguously affirms or approves a proposal.
+func isApprovalAffirmation(text string) bool {
+	clean := strings.ToLower(strings.TrimSpace(text))
+	clean = strings.Trim(clean, ".!?,:;")
+	clean = strings.TrimSpace(clean)
+	if clean == "" {
+		return false
+	}
+	switch clean {
+	case "approve", "approved", "approve this plan", "yes", "yes please", "go ahead", "go", "proceed",
+		"gas", "gass", "gaskeun", "gas pol", "gas poll", "gas kuy",
+		"setuju", "lanjut", "lanjutkan", "oke", "ok", "oke gas", "ok gas", "siap", "jalankan", "jalan":
+		return true
+	}
+	// Prefix and compound phrase matches (e.g. "setuju, gas sesuai rekomendasi", "gas aja")
+	if strings.HasPrefix(clean, "setuju") {
+		if strings.Contains(clean, "tapi") || strings.Contains(clean, "namun") || strings.Contains(clean, "jangan") || strings.Contains(clean, "batal") {
+			return false
+		}
+		return true
+	}
+	if strings.HasPrefix(clean, "gas ") || strings.HasPrefix(clean, "gass ") || strings.HasPrefix(clean, "gaskeun ") {
+		if strings.Contains(clean, "tapi") || strings.Contains(clean, "jangan") || strings.Contains(clean, "batal") {
+			return false
+		}
+		return true
+	}
+	if strings.HasPrefix(clean, "oke gas") || strings.HasPrefix(clean, "ok gas") {
+		return true
+	}
+	if strings.HasPrefix(clean, "lanjut ") || strings.HasPrefix(clean, "lanjutkan ") || strings.HasPrefix(clean, "jalankan ") {
+		if strings.Contains(clean, "tapi") || strings.Contains(clean, "jangan") || strings.Contains(clean, "batal") {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 // Short, unambiguous replies can approve the immediately preceding plan.
 // Questions, attachments and replies after an intervening message remain chat.
 func (s *Server) conversationalApprovalID(ctx context.Context, room, text string) string {
-	switch strings.ToLower(strings.Trim(strings.TrimSpace(text), ".!")) {
-	case "approve", "approved", "approve this plan", "yes", "yes please", "go ahead", "go", "proceed", "gas", "gass", "gaskeun", "gas pol", "setuju", "lanjut", "lanjutkan", "oke", "ok", "oke gas", "siap", "jalankan", "jalan":
-	default:
+	if !isApprovalAffirmation(text) {
 		return ""
 	}
 	messages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, room)

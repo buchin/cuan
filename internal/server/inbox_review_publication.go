@@ -46,6 +46,9 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	if required := task.AttemptPublicationRequired(d); required != nil && !*required {
 		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "current_completion_no_publication_required"}
 	}
+	if task.StagesDeclared(d.RequiredStages) && !task.RequiresPublish(d.RequiredStages) {
+		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "declared_stages_no_publication_required"}
+	}
 	_, err := s.taskPublicationPolicy(ctx, d)
 	if err != nil {
 		return &reviewPublication{Required: true, Commit: d.CommitSHA}

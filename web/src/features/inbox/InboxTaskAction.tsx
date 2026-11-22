@@ -56,12 +56,17 @@ export function InboxTaskAction({
   useEffect(() => {
     if (!working || !existing?.id || !attemptId) { setTerminalAttempt(''); return }
     let active = true
-    const check = () => tasksApi.runtime(existing.id).then(runtime => {
-      if (active) setTerminalAttempt(runtime.live_session?.attempt_id === attemptId ? attemptId : '')
-    }).catch(() => { if (active) setTerminalAttempt('') })
+    const check = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      tasksApi.runtime(existing.id).then(runtime => {
+        if (active) setTerminalAttempt(runtime.live_session?.attempt_id === attemptId ? attemptId : '')
+      }).catch(() => { if (active) setTerminalAttempt('') })
+    }
     void check()
     const timer = setInterval(check, 5000)
-    return () => { active = false; clearInterval(timer) }
+    const onResume = () => void check()
+    document.addEventListener('visibilitychange', onResume)
+    return () => { active = false; clearInterval(timer); document.removeEventListener('visibilitychange', onResume) }
   }, [existing?.id, attemptId, working])
   const hasLiveTerminal = Boolean(attemptId) && working && terminalAttempt === attemptId
 

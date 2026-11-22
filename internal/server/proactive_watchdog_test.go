@@ -62,7 +62,7 @@ func TestProactiveWatchdogStorageAlertProposal(t *testing.T) {
 		projectStudioRepo: repo,
 	}
 
-	// 1. Below threshold (85%): should not generate alert proposal
+	// 1. Below threshold (88%): should not generate alert proposal
 	srv.checkProactiveStorageAlert(ctx, ServerTelemetry{DiskUsedPercent: 86.0, DiskFreeBytes: 2 * 1024 * 1024 * 1024})
 	messages, err := repo.ListMessagesByRoomID(ctx, room.ID)
 	if err != nil {
