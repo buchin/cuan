@@ -990,7 +990,9 @@ export function InboxView({
     setStreamState('connecting')
     void connect()
     const poll = setInterval(() => {
-      if (!connected) void loadConversation(convId)
+      if (!connected && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void loadConversation(convId)
+      }
     }, 10000)
     const onFocusOrResume = () => {
       if (document.visibilityState === 'visible') {

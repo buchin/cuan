@@ -14,11 +14,13 @@ export async function runMermaidChecks(base, output) {
       process.env.CUAN_BROWSER_MODULE ||
       path.join(os.homedir(), '.local/lib/node_modules/playwright'),
   )
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: process.env.CUAN_CHROMIUM_EXECUTABLE,
-    args: process.env.CUAN_BROWSER_NO_SANDBOX === '1' ? ['--no-sandbox'] : [],
-  })
+  const browser = process.env.CUAN_REMOTE_BROWSER_URL
+    ? await chromium.connectOverCDP(process.env.CUAN_REMOTE_BROWSER_URL)
+    : await chromium.launch({
+        headless: true,
+        executablePath: process.env.CUAN_CHROMIUM_EXECUTABLE,
+        args: process.env.CUAN_BROWSER_NO_SANDBOX === '1' ? ['--no-sandbox'] : [],
+      })
   const source = flowSource
   try {
     const errors = [],

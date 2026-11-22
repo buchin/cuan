@@ -1,7 +1,22 @@
 import type { TaskAttempt } from '../../api/types'
 import type { Agent } from '../../api/agents'
 import type { LiveTaskSession } from '../../api/tasks'
+import { useLanguage } from '../../context/LanguageContext'
 import { attemptLabel, relativeTime } from './task-ui'
+
+function getSessionDuration(a: TaskAttempt, idLang: boolean): string | null {
+  if (!a.started_at) return null
+  const start = Date.parse(a.started_at)
+  const end = a.finished_at ? Date.parse(a.finished_at) : (a.status === 'running' ? Date.now() : NaN)
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null
+  const mins = Math.floor((end - start) / 60000)
+  if (mins < 1) return idLang ? '<1 menit' : '<1 min'
+  if (mins < 60) return `${mins} ${idLang ? 'menit' : 'min'}`
+  const hrs = Math.floor(mins / 60)
+  const rem = mins % 60
+  return `${hrs} ${idLang ? 'jam' : 'hr'}${rem ? ` ${rem} ${idLang ? 'menit' : 'min'}` : ''}`
+}
+
 export function TaskSessions({
   attempts,
   agents,
@@ -17,6 +32,7 @@ export function TaskSessions({
   onCancel: () => void
   busy: boolean
 }) {
+  const { language } = useLanguage()
   if (!attempts.length)
     return (
       <div className="rounded-lg border border-dashed p-6 text-center">
@@ -46,6 +62,7 @@ export function TaskSessions({
             <p className="text-xs text-muted-foreground">
               {agents.find((agent) => agent.id === 'agent_cuan')?.name || '@cuan'}{' '}
               · {relativeTime(a.started_at || a.created_at)}
+              {getSessionDuration(a, language === 'id') && ` · ${getSessionDuration(a, language === 'id')}`}
               {a.status === 'failed' && ' · Failed'}
             </p>
             {a.error_message && (

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { IntegrationOverview } from './IntegrationOverview'
 import { GitHubIntegration } from './GitHubIntegration'
+import { InstaboxIntegration } from './InstaboxIntegration'
 import { Link, useLocation } from 'react-router-dom'
 
 export function IntegrationsView() {
@@ -8,6 +9,7 @@ export function IntegrationsView() {
   const [copyState, setCopyState] = useState('')
   const snippet = `<script src="${window.location.origin}/chat/widget.js" data-product="your-website" defer></script>`
   if (pathname.endsWith('/github')) return <GitHubIntegration />
+  if (pathname.endsWith('/instabox')) return <InstaboxIntegration />
   if (!pathname.endsWith('/live-chat')) return <IntegrationOverview />
   return (
     <section
