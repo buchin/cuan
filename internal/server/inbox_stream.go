@@ -82,6 +82,10 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 	var lastSnapshot []byte
+	roomTitle := ""
+	if room, rErr := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); rErr == nil && room != nil {
+		roomTitle = room.Title
+	}
 	snapshot := func() bool {
 		requests, err := store.ListInboxRequests(r.Context(), resolved.RoomID)
 		if err != nil {
@@ -95,9 +99,10 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return false
 		}
-		roomTitle := ""
-		if room, rErr := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); rErr == nil && room != nil {
-			roomTitle = room.Title
+		if roomTitle == "" {
+			if room, rErr := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); rErr == nil && room != nil {
+				roomTitle = room.Title
+			}
 		}
 		data, err := json.Marshal(map[string]any{"requests": inboxRecoveryRequests(requests), "messages": messages, "tasks": linked, "room_id": resolved.RoomID, "room_title": roomTitle})
 		if err != nil {

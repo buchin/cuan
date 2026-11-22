@@ -979,9 +979,11 @@ export function InboxView({
               streamRafRef.current = null
               const flushed = { ...deltaBufferRef.current }
               deltaBufferRef.current = {}
+              const entries = Object.entries(flushed)
+              if (entries.length === 0) return
               setStreamingReplies((prev) => {
                 const next = { ...prev }
-                for (const [reqId, text] of Object.entries(flushed)) {
+                for (const [reqId, text] of entries) {
                   next[reqId] = (next[reqId] || '') + text
                 }
                 return next
@@ -1098,6 +1100,11 @@ export function InboxView({
   const lastMessageKey =
     messages[messages.length - 1]?.uuid || messages[messages.length - 1]?.id
 
+  const requestsKey = useMemo(
+    () => requests.map((q) => q.request_id + q.state).join(','),
+    [requests],
+  )
+
   // Only scroll for a new message, not identical polling results.
   useEffect(() => {
     const currentContactId = activeContact?.id
@@ -1142,7 +1149,7 @@ export function InboxView({
     lastMessageKey,
     activeContact?.id,
     sendError,
-    requests.map((q) => q.request_id + q.state).join(','),
+    requestsKey,
   ])
 
   useEffect(() => {
