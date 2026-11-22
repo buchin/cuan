@@ -125,6 +125,72 @@ func TestRunner_QueueAndConcurrencyLimit(t *testing.T) {
 	t.Logf("Second task attempt %s remains queued waiting for next runner/turn", att2.ID)
 }
 
+func TestRunner_PrioritizeContinuationOrVerificationAttempt(t *testing.T) {
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+
+	// Task 1: Brand new task, queued earlier (T0), attempt #1
+	t1 := &task.Task{
+		ID:                "task_01_initial",
+		Title:             "Initial Task 1",
+		Status:            task.TaskStatusQueued,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-10 * time.Minute),
+		UpdatedAt:         now.Add(-10 * time.Minute),
+	}
+	a1 := &task.TaskAttempt{
+		ID:            "att_task_01_attempt_1",
+		TaskID:        t1.ID,
+		Status:        task.AttemptStatusQueued,
+		AttemptNumber: 1,
+		CreatedAt:     now.Add(-10 * time.Minute),
+	}
+
+	// Task 2: In-flight task continuation / verifier attempt, queued later (T1 > T0), attempt #2
+	t2 := &task.Task{
+		ID:                "task_02_verification",
+		Title:             "Verification Task 2",
+		Status:            task.TaskStatusQueued,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-5 * time.Minute),
+		UpdatedAt:         now.Add(-5 * time.Minute),
+	}
+	a2 := &task.TaskAttempt{
+		ID:            "att_task_02_attempt_2",
+		TaskID:        t2.ID,
+		Status:        task.AttemptStatusQueued,
+		AttemptNumber: 2,
+		CreatedAt:     now.Add(-5 * time.Minute),
+	}
+
+	_ = taskStore.CreateTask(ctx, t1)
+	_ = taskStore.CreateTask(ctx, t2)
+	_ = taskStore.CreateAttempt(ctx, a1)
+	_ = taskStore.CreateAttempt(ctx, a2)
+
+	runnerID := "runner_test_priority"
+
+	// Runner claims next queued attempt.
+	// Even though a1 was created earlier, a2 is attempt #2 (continuation/verification),
+	// so a2 MUST be claimed first to complete the active cycle and avoid Convoy Effect.
+	claimedAttempt, claimedTask, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim failed: %v", err)
+	}
+	if claimedAttempt == nil || claimedTask == nil {
+		t.Fatalf("Expected attempt to be claimed")
+	}
+	if claimedAttempt.ID != a2.ID {
+		t.Fatalf("Expected continuation attempt %s (attempt #2) to take priority, got %s (attempt #%d)", a2.ID, claimedAttempt.ID, claimedAttempt.AttemptNumber)
+	}
+	t.Logf("Continuation attempt %s correctly prioritized over older initial attempt %s", claimedAttempt.ID, a1.ID)
+}
+
 func TestRunner_DuplicateClaimProtection(t *testing.T) {
 	taskStore := task.NewMemoryStore()
 	runnerStore := NewMemoryStore(taskStore)

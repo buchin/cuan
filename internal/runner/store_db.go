@@ -375,7 +375,9 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		          )
 		      )
 		  )
-		ORDER BY a.created_at ASC
+		ORDER BY
+			CASE WHEN COALESCE(a.attempt_number, 1) > 1 THEN 0 ELSE 1 END ASC,
+			a.created_at ASC
 		LIMIT 1
 		FOR UPDATE OF a SKIP LOCKED
 	`
@@ -433,7 +435,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		if !locked {
 			return nil, nil, nil
 		}
-		check := strings.Replace(query, "ORDER BY a.created_at ASC", "AND a.id=$11 ORDER BY a.created_at ASC", 1)
+		check := strings.Replace(query, "ORDER BY", "AND a.id=$11 ORDER BY", 1)
 		check = "SELECT EXISTS(SELECT 1 FROM (" + check + ") eligible)"
 		var eligible bool
 		if err := tx.QueryRowContext(ctx, check, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true, ctx.Value(dependencyPreparationClaimKey{}) == true, att.ID).Scan(&eligible); err != nil {

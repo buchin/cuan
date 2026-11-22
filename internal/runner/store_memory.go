@@ -336,7 +336,22 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 					}
 				}
 
-				if oldestQueued == nil || a.CreatedAt.Before(oldestQueued.CreatedAt) {
+				isBetterCandidate := false
+				if oldestQueued == nil {
+					isBetterCandidate = true
+				} else {
+					aIsContinuation := a.AttemptNumber > 1
+					bestIsContinuation := oldestQueued.AttemptNumber > 1
+					if aIsContinuation && !bestIsContinuation {
+						isBetterCandidate = true
+					} else if aIsContinuation == bestIsContinuation {
+						if a.CreatedAt.Before(oldestQueued.CreatedAt) {
+							isBetterCandidate = true
+						}
+					}
+				}
+
+				if isBetterCandidate {
 					oldestQueued = a
 					matchedTask = t
 				}
