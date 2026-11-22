@@ -1,6 +1,6 @@
 import { TaskDuration } from './TaskDuration'
 import { ListRowContent } from '../../components/layout/ListControls'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Folder,
@@ -79,7 +79,7 @@ export interface TaskItemCardProps {
   onDelete?: (task: Task) => void | Promise<void>
 }
 
-export function TaskItemCard({
+export const TaskItemCard = memo(function TaskItemCard({
   task,
   returnTo,
   showProject = true,
@@ -681,4 +681,4 @@ export function TaskItemCard({
       </ActionDialog>
     </div>
   )
-}
+})

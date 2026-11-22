@@ -539,6 +539,28 @@ func (s *Service) RenewLocalAttemptLease(ctx context.Context, attemptID string) 
 	return s.store.UpdateAttempt(ctx, a)
 }
 
+// LatestAttemptsMapForIDs returns a map of taskID -> *TaskAttempt for the given task IDs,
+// using a single batch query if supported by the underlying store to eliminate N+1 queries.
+func (s *Service) LatestAttemptsMapForIDs(ctx context.Context, taskIDs []string) map[string]*TaskAttempt {
+	if len(taskIDs) == 0 {
+		return map[string]*TaskAttempt{}
+	}
+	if reader, ok := s.store.(interface {
+		LatestAttempts(context.Context, []string) (map[string]*TaskAttempt, error)
+	}); ok {
+		if res, err := reader.LatestAttempts(ctx, taskIDs); err == nil {
+			return res
+		}
+	}
+	res := make(map[string]*TaskAttempt, len(taskIDs))
+	for _, id := range taskIDs {
+		if a, err := s.store.GetLatestAttempt(ctx, id); err == nil && a != nil {
+			res[id] = a
+		}
+	}
+	return res
+}
+
 // LatestAttemptsMap returns a map of taskID -> *TaskAttempt for the given tasks,
 // using a single batch query if supported by the underlying store to eliminate N+1 queries.
 func (s *Service) LatestAttemptsMap(ctx context.Context, tasks []*Task) map[string]*TaskAttempt {
@@ -549,20 +571,7 @@ func (s *Service) LatestAttemptsMap(ctx context.Context, tasks []*Task) map[stri
 	for i, t := range tasks {
 		ids[i] = t.ID
 	}
-	if reader, ok := s.store.(interface {
-		LatestAttempts(context.Context, []string) (map[string]*TaskAttempt, error)
-	}); ok {
-		if res, err := reader.LatestAttempts(ctx, ids); err == nil {
-			return res
-		}
-	}
-	res := make(map[string]*TaskAttempt, len(tasks))
-	for _, id := range ids {
-		if a, err := s.store.GetLatestAttempt(ctx, id); err == nil && a != nil {
-			res[id] = a
-		}
-	}
-	return res
+	return s.LatestAttemptsMapForIDs(ctx, ids)
 }
 
 // RecoverStartupLocalAttempts recovers any in-flight local_terminal attempts

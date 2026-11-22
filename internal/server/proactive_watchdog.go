@@ -183,6 +183,17 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		return
 	}
 
+	candidateIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		if t.SourceRoomID != "" && strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
+			candidateIDs = append(candidateIDs, t.ID)
+		}
+	}
+	if len(candidateIDs) == 0 {
+		return
+	}
+	latestMap := s.taskSvc.LatestAttemptsMapForIDs(ctx, candidateIDs)
+
 	requestsByRoom := make(map[string][]db.InboxRequest)
 	for _, t := range tasks {
 		if t.SourceRoomID == "" || !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
@@ -190,14 +201,14 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		}
 
 		// Don't interfere if an attempt is currently running or queued
-		detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID)
-		if err != nil || detail == nil || detail.LatestAttempt == nil {
+		latest := latestMap[t.ID]
+		if latest == nil {
 			continue
 		}
-		if detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued {
+		if latest.Status == task.AttemptStatusRunning || latest.Status == task.AttemptStatusQueued {
 			continue
 		}
-		if detail.LatestAttempt.CancelRequested || detail.LatestAttempt.CanceledAt != nil {
+		if latest.CancelRequested || latest.CanceledAt != nil {
 			continue
 		}
 
@@ -206,6 +217,11 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			if launch.State == "queued" || launch.State == "claimed" || launch.State == "started" {
 				continue
 			}
+		}
+
+		detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID)
+		if err != nil || detail == nil {
+			continue
 		}
 
 		// Find the latest review assessment on this task
