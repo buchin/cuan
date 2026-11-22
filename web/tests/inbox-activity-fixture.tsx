@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { LanguageProvider } from '../src/context/LanguageContext'
 import { InboxActivity } from '../src/features/inbox/InboxActivity'
-import './index.css'
+import '../src/index.css'
 
 export function Fixture() {
   const [hasStep, setHasStep] = useState(false)
