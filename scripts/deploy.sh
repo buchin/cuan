@@ -194,6 +194,7 @@ for component in server migrate runner; do
     exit "$build_status"
   fi
 done
+ln -sf cuan-server "$release_dir/bin/cuan"
 echo "✓ Backend binaries compiled successfully."
 cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
