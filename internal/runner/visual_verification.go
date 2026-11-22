@@ -79,8 +79,12 @@ func runNativeVisualVerification(ctx context.Context, root, artifacts, baseline 
 	}
 	defer os.RemoveAll(privateHome)
 	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + privateHome, "XDG_CONFIG_HOME=" + filepath.Join(privateHome, "config"), "XDG_CACHE_HOME=" + filepath.Join(privateHome, "cache"), "CI=1", "NO_COLOR=1"}
-	for _, key := range []string{"CUAN_BROWSER_MODULE", "CUAN_CHROMIUM_EXECUTABLE", "CUAN_BROWSER_NO_SANDBOX", "PLAYWRIGHT_BROWSERS_PATH"} {
-		if value := environment[key]; value != "" {
+	for _, key := range []string{"CUAN_BROWSER_MODULE", "CUAN_CHROMIUM_EXECUTABLE", "CUAN_BROWSER_NO_SANDBOX", "PLAYWRIGHT_BROWSERS_PATH", "CUAN_REMOTE_BROWSER_URL"} {
+		value := environment[key]
+		if value == "" {
+			value = os.Getenv(key)
+		}
+		if value != "" {
 			env = append(env, key+"="+value)
 		}
 	}

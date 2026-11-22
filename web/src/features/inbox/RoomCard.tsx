@@ -6,6 +6,7 @@ import {
   Copy,
   Check,
   Users,
+  ChevronRight,
 } from 'lucide-react'
 import type { ChatContact } from '../../api/chat'
 import { chatApi } from '../../api/chat'
@@ -168,7 +169,7 @@ export const RoomCard = memo(function RoomCard({
       <div
         data-card="room-card"
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground select-none space-y-2.5 min-h-[44px]',
+          'w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground select-none space-y-2.5 min-h-[44px]',
           className
         )}
       >
@@ -177,13 +178,10 @@ export const RoomCard = memo(function RoomCard({
             <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60" />
             </span>
-            <span className="font-mono text-xs text-muted-foreground">
-              {roomId.slice(0, 8)}
+            <span className="text-xs text-muted-foreground">
+              {t('Loading…')}
             </span>
           </div>
-          <span className="text-[11px] text-muted-foreground/70 font-sans">
-            {t('Loading…')}
-          </span>
         </div>
         <div className="space-y-1.5 py-0.5">
           <div className="h-4 w-2/3 bg-muted/40 rounded-sm" />
@@ -202,27 +200,37 @@ export const RoomCard = memo(function RoomCard({
         role="button"
         tabIndex={0}
         className={cn(
-          'w-full max-w-full rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs transition-all hover:border-primary/50 cursor-pointer min-h-[44px]',
+          'w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 cursor-pointer min-h-[44px] break-words',
           className
         )}
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span>#{roomId.slice(0, 8)}</span>
+            <span>{t('Room')}</span>
           </div>
           <button
             type="button"
             onClick={handleCopyLink}
             onKeyDown={(e) => e.stopPropagation()}
             aria-label={t('Copy link')}
-            className="action-secondary min-h-[44px] min-w-[44px] px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            title={t('Copy link')}
+            className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-            <span>{copied ? t('Copied') : t('Copy link')}</span>
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                <span className="text-xs text-emerald-500 font-medium">{t('Copied')}</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-xs sr-only sm:not-sr-only">{t('Copy link')}</span>
+              </>
+            )}
           </button>
         </div>
-        <p className="mt-1 text-sm font-medium text-foreground">{t('Room')} #{roomId.slice(0, 8)}</p>
+        <p className="mt-1 text-sm font-medium text-foreground">{t('Room')}</p>
       </div>
     )
   }
@@ -239,109 +247,107 @@ export const RoomCard = memo(function RoomCard({
       role="button"
       tabIndex={0}
       className={cn(
-        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/80 bg-card p-3.5 sm:p-4 text-card-foreground shadow-xs transition-all hover:border-primary/50 hover:shadow-md cursor-pointer select-none space-y-2.5 min-h-[44px]',
+        'group relative w-full max-w-full min-w-0 rounded-xl border border-border/40 bg-card/40 p-3.5 sm:p-4 text-card-foreground transition-all hover:border-border/70 hover:bg-card/60 cursor-pointer select-none space-y-2.5 min-h-[44px]',
         className
       )}
     >
-      {/* Header: Room Type Badge, Online Indicator, Ref, and Timestamp */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <span
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
-              isCustomer
-                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                : 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
-            )}
-          >
-            {isCustomer ? (
-              <MessageSquare className="h-3 w-3 shrink-0" />
-            ) : (
-              <Bot className="h-3 w-3 shrink-0" />
-            )}
-            <span>{isCustomer ? t('Customer Room') : t('Agent Room')}</span>
-          </span>
-
-          {isOnline && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-              <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-              </span>
-              <span>Online</span>
-            </span>
-          )}
-
-          <span className="font-mono text-xs text-muted-foreground">
-            #{roomId.slice(0, 8)}
-          </span>
-        </div>
-
+      {/* Header: Title as primary visual anchor & timestamp */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors break-words leading-snug line-clamp-2 flex-1 min-w-[200px]">
+          {displayName}
+        </h4>
         {contact.updated_at && (
           <time
             dateTime={contact.updated_at}
             title={new Date(contact.updated_at).toLocaleString()}
-            className="text-xs text-muted-foreground whitespace-nowrap shrink-0"
+            className="text-xs text-muted-foreground whitespace-nowrap shrink-0 pt-0.5 tabular-nums"
           >
             {t(relativeTime(contact.updated_at))}
           </time>
         )}
       </div>
 
-      {/* Body: Room / Contact Name & Snippet */}
-      <div className="space-y-1">
-        <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors break-words leading-snug line-clamp-2">
-          {displayName}
-        </h4>
-        {contact.product && (
-          <p className="text-xs text-muted-foreground/90 font-medium line-clamp-1 break-words">
-            {contact.product}
-          </p>
+      {/* Supporting Metadata: Room Type Badge, Online Indicator, Participants */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/40 bg-muted/30 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {isCustomer ? (
+            <MessageSquare className="h-3 w-3 shrink-0" />
+          ) : (
+            <Bot className="h-3 w-3 shrink-0" />
+          )}
+          <span>{isCustomer ? t('Customer Room') : t('Agent Room')}</span>
+        </span>
+
+        {isOnline && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+            </span>
+            <span>Online</span>
+          </span>
         )}
-        {contact.last_message ? (
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
-            {contact.last_message}
-          </p>
-        ) : null}
+
+        {(contact.agent_name || contact.agent_id) && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+            <Users className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+            <span className="text-foreground/80">
+              {agentDisplayName(contact.agent_name || contact.agent_id)}
+            </span>
+          </span>
+        )}
       </div>
 
-      {/* Participants snippet */}
-      {(contact.agent_name || contact.agent_id) && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
-          <Users className="h-3 w-3 shrink-0 text-muted-foreground/70" />
-          <span className="text-muted-foreground/70">{t('Participants')}:</span>
-          <span className="font-medium text-foreground">
-            {agentDisplayName(contact.agent_name || contact.agent_id)}
-          </span>
+      {/* Body: Product & Snippet */}
+      {(contact.product || contact.last_message) && (
+        <div className="space-y-1">
+          {contact.product && (
+            <p className="text-xs text-muted-foreground/90 font-medium line-clamp-1 break-words">
+              {contact.product}
+            </p>
+          )}
+          {contact.last_message && (
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
+              {contact.last_message}
+            </p>
+          )}
         </div>
       )}
 
-      {/* Footer: Quick Action Buttons (Tombol Aksi Cepat) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
-        <button
-          type="button"
-          onClick={handleCopyLink}
-          onKeyDown={(e) => e.stopPropagation()}
-          aria-label={t('Copy link')}
-          className="action-secondary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          ) : (
-            <Copy className="h-3.5 w-3.5 shrink-0" />
-          )}
-          <span>{copied ? t('Copied') : t('Copy link')}</span>
-        </button>
-
+      {/* Footer: Quick Action Buttons */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
         <button
           type="button"
           onClick={handleOpenRoom}
           onKeyDown={(e) => e.stopPropagation()}
           aria-label={`${t('Open room')}: ${displayName}`}
-          className="action-primary min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+          className="flex-1 min-h-[44px] min-w-[44px] px-3.5 text-xs font-medium rounded-lg inline-flex items-center justify-between gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer group/btn border border-border/30 bg-muted/20"
         >
-          <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-          <span>{t('Open room')}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover/btn:text-foreground transition-colors" />
+            <span className="font-medium text-foreground">{t('Open room')}</span>
+          </span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60 group-hover/btn:text-foreground transition-transform group-hover/btn:translate-x-0.5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          onKeyDown={(e) => e.stopPropagation()}
+          aria-label={t('Copy link')}
+          title={t('Copy link')}
+          className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3 text-xs font-medium rounded-lg inline-flex items-center justify-center gap-1.5 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer border border-border/40"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              <span className="text-xs text-emerald-500 font-medium">{t('Copied')}</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5 shrink-0" />
+              <span className="text-xs sr-only sm:not-sr-only">{t('Copy link')}</span>
+            </>
+          )}
         </button>
       </div>
     </div>

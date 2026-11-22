@@ -399,10 +399,33 @@ def cleanup_worker_drain():
         pass
 
 
+def active_workers_dir():
+    return Path(os.environ.get('CUAN_WORKERS_DIR', '/tmp/cuan-workers'))
+
+
+def has_active_detached_workers():
+    workers_dir = active_workers_dir()
+    if not workers_dir.is_dir():
+        return False
+    for json_file in workers_dir.glob('att_*.json'):
+        try:
+            data = json.loads(json_file.read_text())
+            pid = data.get('pid')
+            if pid and isinstance(pid, int):
+                os.kill(pid, 0)
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
 def restart_worker_service():
-    """Auto-restart cuan-runner service to ensure new release binary is active without leftover drain state."""
+    """Auto-restart cuan-runner service when idle, preserving active in-flight worker attempts."""
     try:
         cleanup_worker_drain()
+        if has_active_detached_workers():
+            print('==> Notice: Active detached worker detected in cuan-workers; deferring cuan-runner restart to avoid interrupting in-flight tasks.')
+            return
         res = subprocess.run(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
         if res.returncode == 0:
             print('==> Successfully restarted cuan-runner.service on new release.')

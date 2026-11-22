@@ -90,6 +90,51 @@ export function InboxActivity({
 }) {
   const { t, language } = useLanguage()
 
+  const [displayedText, setDisplayedText] = useState(streamingText || '')
+  const targetTextRef = useRef(streamingText || '')
+  targetTextRef.current = streamingText || ''
+  const animFrameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!streamingText) {
+      setDisplayedText('')
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+      return
+    }
+
+    const step = () => {
+      const target = targetTextRef.current
+      setDisplayedText((prev) => {
+        if (prev.length >= target.length) {
+          animFrameRef.current = null
+          return target
+        }
+        const gap = target.length - prev.length
+        const charsToAdd = Math.max(1, Math.min(gap, Math.ceil(gap / 6)))
+        return target.slice(0, prev.length + charsToAdd)
+      })
+      if (targetTextRef.current.length > displayedText.length) {
+        animFrameRef.current = requestAnimationFrame(step)
+      } else {
+        animFrameRef.current = null
+      }
+    }
+
+    if (!animFrameRef.current) {
+      animFrameRef.current = requestAnimationFrame(step)
+    }
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+    }
+  }, [streamingText])
+
   const [now, setNow] = useState(Date.now())
   const [expanded, setExpanded] = useState(false)
   const timelineBody = useRef<HTMLDivElement>(null)
@@ -248,10 +293,10 @@ export function InboxActivity({
       aria-label={t('Response status')}
       data-response-state={q.state}
     >
-      {bubble && streamingText ? (
+      {bubble && (displayedText || streamingText) ? (
         <div className="calm-message-bubble wa-incoming rounded-2xl px-3.5 py-2 mb-2 text-foreground border border-border/30 shadow-none">
           <div className="wa-plain-text break-words font-sans">
-            <ChatMarkdown content={streamingText} />
+            <ChatMarkdown content={displayedText || streamingText || ''} />
             <span
               className="inline-block w-1.5 h-3.5 ml-1 align-baseline bg-foreground/60 animate-pulse rounded-xs"
               aria-hidden="true"
@@ -259,7 +304,7 @@ export function InboxActivity({
           </div>
         </div>
       ) : null}
-      {bubble && !streamingText && (
+      {bubble && !(displayedText || streamingText) && (
         <div className="flex items-center gap-2 px-2 pt-2 text-sm">
           <Icon
             aria-hidden
@@ -332,7 +377,7 @@ export function InboxActivity({
                 {seconds} s{!active && ' recorded'}
               </span>
             )}
-            {bubble && streamingText && (
+            {bubble && (displayedText || streamingText) && (
               <Icon
                 className={`h-3.5 w-3.5 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : ''}`}
                 aria-hidden="true"
@@ -343,7 +388,7 @@ export function InboxActivity({
                 <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
                   {t('Detail')}
                 </span>
-                {bubble && streamingText && seconds !== null && (
+                {bubble && (displayedText || streamingText) && seconds !== null && (
                   <span className="tabular-nums text-xs">
                     · {seconds}s
                   </span>

@@ -664,6 +664,25 @@ func (m *Manager) CleanIdleSessions(maxIdle time.Duration) int {
 		_ = m.CloseSession(id)
 		cleaned++
 	}
+
+	// Prune stale in-memory histories for tasks that completed long ago and have no active session
+	m.mu.Lock()
+	if len(m.histories) > 500 {
+		expireThreshold := time.Now().UTC().Add(-2 * time.Hour)
+		for tID, runs := range m.histories {
+			if _, active := m.sessions[tID]; active {
+				continue
+			}
+			if len(runs) > 0 {
+				last := runs[len(runs)-1]
+				if last.Status != "running" && !last.FinishedAt.IsZero() && last.FinishedAt.Before(expireThreshold) {
+					delete(m.histories, tID)
+				}
+			}
+		}
+	}
+	m.mu.Unlock()
+
 	return cleaned
 }
 
@@ -944,7 +963,11 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 	}
 
 	m.sessions[taskID] = sess
-	m.histories[taskID] = append(m.histories[taskID], history)
+	runs := append(m.histories[taskID], history)
+	if len(runs) > 20 {
+		runs = runs[len(runs)-20:]
+	}
+	m.histories[taskID] = runs
 	if cfg.ProjectID != "" {
 		m.projectSessions[cfg.ProjectID] = taskID
 	}

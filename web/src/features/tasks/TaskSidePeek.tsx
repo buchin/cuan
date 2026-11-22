@@ -625,8 +625,13 @@ function TaskDetailView({
             ) : null}
             {t(workDisplayStatus(detail))}
           </span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground ml-auto sm:ml-0">
             <TaskDuration task={detail} fallback={<>Updated {relativeTime(detail.updated_at)}</>} />
+            {detail.attempts && detail.attempts.length > 1 && (
+              <span className="text-[10px] text-muted-foreground/70">
+                · {detail.attempts.length} {id ? 'sesi' : 'sessions'}
+              </span>
+            )}
           </span>
         </div>
       </header>

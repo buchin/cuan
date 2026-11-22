@@ -180,9 +180,9 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			Status:         "online",
 			ConversationID: resolved.RoomID,
 		}
-		if room, e := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); e == nil && room != nil && strings.HasPrefix(room.Topic, "agent-topic:") {
-			contact.ID = "topic_" + room.ID
-			contact.Name = room.Title
+		if strings.HasPrefix(resolved.RoomTopic, "agent-topic:") {
+			contact.ID = "topic_" + resolved.RoomID
+			contact.Name = resolved.RoomTitle
 		}
 	} else {
 		// Customer contact
@@ -199,11 +199,11 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 			product = sess.Product
 			guestUUID = sess.GuestUUID
 			email = sess.Email
-		} else if s.projectStudioRepo != nil {
-			if rm, err := s.projectStudioRepo.GetRoomByID(r.Context(), resolved.RoomID); err == nil && rm != nil {
-				name = rm.Title
-				product = rm.Topic
+		} else {
+			if resolved.RoomTitle != "" {
+				name = resolved.RoomTitle
 			}
+			product = resolved.RoomTopic
 		}
 
 		contactID := ""
@@ -265,7 +265,7 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 		beforeID = strings.TrimSpace(r.URL.Query().Get("before"))
 	}
 
-	messages, hasMore, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, product, limit, beforeID)
+	messages, hasMore, err := s.getFormattedMessagesResultPaged(r.Context(), resolved.RoomID, product, limit, beforeID, !resolved.IsAgent)
 	if err != nil {
 		respondJSONError(w, 503, "Could not read Inbox history. Try again.")
 		return

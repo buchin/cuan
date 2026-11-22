@@ -130,7 +130,7 @@ func (s *Server) getFormattedMessagesResult(ctx context.Context, roomID, product
 	return dtos, err
 }
 
-func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, product string, limit int, beforeID string) ([]ChatMessageDTO, bool, error) {
+func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, product string, limit int, beforeID string, isCustomerOpt ...bool) ([]ChatMessageDTO, bool, error) {
 	if s.projectStudioRepo == nil {
 		return []ChatMessageDTO{}, false, nil
 	}
@@ -197,7 +197,12 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 		return []ChatMessageDTO{}, hasMore, nil
 	}
 
-	isCustomer := s.isCustomerRoom(ctx, roomID)
+	isCustomer := false
+	if len(isCustomerOpt) > 0 {
+		isCustomer = isCustomerOpt[0]
+	} else {
+		isCustomer = s.isCustomerRoom(ctx, roomID)
+	}
 	targetMsgs := make([]db.ProjectMessage, len(target))
 	for i, item := range target {
 		targetMsgs[i] = item.msg

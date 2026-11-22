@@ -57,7 +57,8 @@ try {
                 'workflow/cancel-modal-390.png', 'workflow/cancel-modal-1440.png',
                 'workflow/customer-reply-card-390.png', 'workflow/customer-reply-card-1440.png',
                 'workflow/customer-reply-sent-390.png', 'workflow/customer-reply-sent-1440.png',
-                'workflow/composer-tasks-expanded-390.png', 'workflow/composer-tasks-expanded-1440.png')
+                'workflow/composer-tasks-expanded-390.png', 'workflow/composer-tasks-expanded-1440.png',
+                'workflow/room-card-390.png', 'workflow/room-card-1440.png')
   for (const capture of captures) {
     const stat = await fs.stat(path.join(output, capture))
     if (!stat.isFile() || stat.size === 0) throw new Error(`Missing visual evidence: ${capture}`)
@@ -66,6 +67,7 @@ try {
     'web/src/features/inbox/InboxView.tsx',
     'web/src/features/inbox/ComposerTasks.tsx',
     'web/src/features/inbox/InboxWorkPanel.tsx',
+    'web/src/features/inbox/RoomCard.tsx',
     'web/src/components/ui/AccordionTimeline.tsx',
     'web/src/features/inbox/PromptChoiceChips.tsx',
     'web/src/features/tasks/TaskSessionPage.tsx',

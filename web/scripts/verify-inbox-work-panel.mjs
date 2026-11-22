@@ -39,6 +39,7 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('choices','Pilih langkah yang paling sesuai.',{prompt_choices:{question:'Bagaimana kita lanjutkan?',options:[{id:'continue',label:'Lanjutkan pemeriksaan'},{id:'adjust',label:'Sesuaikan kebutuhan'}],allow_other:true}}),
  message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
+ message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
  message('proposal-pending','Siap, ane susun proposal untuk Riwayat & Log Pengiriman (Phase 3).\n\nDi fase ini, setiap sesi broadcast yang dikirim akan otomatis tercatat di menu Kontak—lengkap dengan waktu pengiriman, subjek pesan, jumlah penerima sukses, dan rincian error jika ada email yang gagal terkirim. Tampilannya dirancang minimalis dan rapi mengikuti standar Things 3 / Bear Notes agar mudah dipantau tanpa menambah beban visual.\n\nDetail rencana dan kriteria tuntasnya sudah ane cantumkan pada kartu persetujuan berikut. Silakan dikonfirmasi jika cakupannya sudah sesuai.',{
@@ -129,7 +130,9 @@ let browser
 const checks=[]
 try{
  for(const width of (process.env.CUAN_WORKFLOW_NATIVE==='1'?[390,1440]:[390,1440,1920])){
-  browser=await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
+  browser=process.env.CUAN_REMOTE_BROWSER_URL
+    ? await chromium.connectOverCDP(process.env.CUAN_REMOTE_BROWSER_URL)
+    : await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
   const context=await browser.newContext({viewport:{width,height:width===390?844:1000},hasTouch:width===390})
   await context.addInitScript(()=>{localStorage.setItem('cuan-language','id');localStorage.setItem('cuan_token','isolated-fixture')})
   const page=await context.newPage(),errors=[]
@@ -154,7 +157,12 @@ try{
      }
      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})})
    }
-   else if(pathname.endsWith('/messages'))data={messages,tasks:allTasks,contact,requests:[]}
+   else if(pathname.endsWith('/messages')){
+     const match=pathname.match(/\/conversations\/([^/]+)\/messages/)
+     const reqId=match?match[1]:null
+     const matchedContact=reqId?(contactsList.find(c=>c.id===reqId||c.conversation_id===reqId)||contact):contact
+     data={messages,tasks:allTasks,contact:matchedContact,requests:[]}
+   }
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
     data=sessionStatus==='running'?fixtureTask:{...fixtureTask,status:'review',latest_attempt:{...attempt,status:'succeeded',finished_at:now},attempts:[{...attempt,status:'succeeded',finished_at:now}]}
@@ -364,6 +372,23 @@ try{
     assert.equal(await page.getByText(/is no longer current/i).count(), 0, 'Raw English message must not be displayed')
     await page.screenshot({path:path.join(output,`approval-card-stale-notice-${width}.png`)})
   }
+
+  // Verify RoomCard / Chat reference card calm styling & low visual noise (DoD)
+  const roomCard = page.locator('.inbox-message-list [data-card="room-card"]').first()
+  await roomCard.waitFor({state:'visible',timeout:10000})
+  assert.ok(await roomCard.count() >= 1, 'RoomCard must be visible in chat stream')
+  const roomCardText = await roomCard.innerText()
+  assert.ok(!roomCardText.includes('#'), 'RoomCard surface must be free of hash IDs')
+  assert.ok(roomCardText.includes('Penyederhanaan Timeline Task Chat'), 'Room title must be displayed as primary anchor')
+  assert.ok(!roomCardText.includes('Peserta:'), 'RoomCard must eliminate redundant Peserta: label')
+  assert.ok(await roomCard.getByRole('button', {name: /Buka ruang|Open room/i}).count() >= 1, 'Open room button must be present')
+  assert.ok(await roomCard.getByRole('button', {name: /Salin tautan|Copy link/i}).count() >= 1, 'Copy link button must be present')
+  const openRoomBtn = roomCard.getByRole('button', {name: /Buka ruang|Open room/i})
+  assert.ok((await openRoomBtn.boundingBox()).height >= 44, 'Open room button must meet 44px touch target')
+  const copyLinkBtn = roomCard.getByRole('button', {name: /Salin tautan|Copy link/i})
+  assert.ok((await copyLinkBtn.boundingBox()).height >= 44, 'Copy link button must meet 44px touch target')
+  await roomCard.scrollIntoViewIfNeeded()
+  await roomCard.screenshot({path:path.join(output,`room-card-${width}.png`)})
 
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
