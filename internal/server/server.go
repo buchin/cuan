@@ -124,6 +124,10 @@ type Server struct {
 	taskManager                 *scheduler.TaskManager
 	updater                     *updater.Service
 	resendClient                resend.Client
+	taskCountsMu                sync.RWMutex
+	taskCountsCached            scopedTaskCounts
+	taskCountsExpires           time.Time
+	taskCountsTTL               time.Duration
 	router                      *chi.Mux
 }
 
@@ -586,6 +590,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		scheduler:              sched,
 		taskManager:            taskMgr,
 		updater:                updateSvc,
+		taskCountsTTL:          2 * time.Second,
 		router:                 r,
 	}
 

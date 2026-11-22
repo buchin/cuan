@@ -314,3 +314,89 @@ func TestTaskCountsSQLNoLateral(t *testing.T) {
 	}
 }
 
+func TestReadProjectTaskProgress_InMemory(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	s := &Server{taskSvc: task.NewService(store, nil)}
+
+	_ = store.CreateTask(ctx, &task.Task{ID: "t-1", ProjectID: "proj-a", Status: "done"})
+	_ = store.CreateTask(ctx, &task.Task{ID: "t-2", ProjectID: "proj-a", Status: "doing"})
+	_ = store.CreateTask(ctx, &task.Task{ID: "t-3", ProjectID: "proj-b", Status: "queued"})
+
+	progA, err := s.readProjectTaskProgress(ctx, "proj-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if progA.Total != 2 || progA.Done != 1 || progA.Active != 1 {
+		t.Fatalf("unexpected progA: %+v", progA)
+	}
+
+	progB, err := s.readProjectTaskProgress(ctx, "proj-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if progB.Total != 1 || progB.Queued != 1 {
+		t.Fatalf("unexpected progB: %+v", progB)
+	}
+
+	progEmpty, err := s.readProjectTaskProgress(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if progEmpty.Total != 0 {
+		t.Fatalf("expected empty prog for empty projectID, got %+v", progEmpty)
+	}
+}
+
+func TestTaskCountsTTL_CacheAndInvalidation(t *testing.T) {
+	ctx := context.Background()
+	store := task.NewMemoryStore()
+	s := &Server{
+		taskSvc:       task.NewService(store, nil),
+		taskCountsTTL: 2 * time.Second,
+	}
+
+	_ = store.CreateTask(ctx, &task.Task{ID: "t-1", ProjectID: "proj-a", Status: "done"})
+	c1, err := s.readTaskCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c1.Projects["proj-a"].Done != 1 {
+		t.Fatalf("expected 1 done, got %d", c1.Projects["proj-a"].Done)
+	}
+
+	// Direct mutation of store without invalidation
+	_ = store.CreateTask(ctx, &task.Task{ID: "t-2", ProjectID: "proj-a", Status: "done"})
+	c2, err := s.readTaskCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should be served from cache (still 1 done)
+	if c2.Projects["proj-a"].Done != 1 {
+		t.Fatalf("expected cache hit with 1 done, got %d", c2.Projects["proj-a"].Done)
+	}
+
+	// Invalidate cache
+	s.invalidateTaskCounts()
+	c3, err := s.readTaskCounts(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Now should reflect 2 done
+	if c3.Projects["proj-a"].Done != 2 {
+		t.Fatalf("expected invalidated cache to show 2 done, got %d", c3.Projects["proj-a"].Done)
+	}
+}
+
+func TestSingleProjectTaskCountsSQLStructure(t *testing.T) {
+	if strings.Contains(strings.ToUpper(singleProjectTaskCountsSQL), "LATERAL") {
+		t.Fatalf("singleProjectTaskCountsSQL contains LATERAL joins")
+	}
+	for _, expectedCTE := range []string{"project_task_ids", "latest_attempts", "latest_launches", "canonical"} {
+		if !strings.Contains(singleProjectTaskCountsSQL, expectedCTE) {
+			t.Fatalf("singleProjectTaskCountsSQL missing CTE: %s", expectedCTE)
+		}
+	}
+}
+
+

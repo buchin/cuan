@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { CheckCircle2, Clock3, CheckCheck, AlertCircle, ChevronDown, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
@@ -27,8 +27,15 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
   const [open, setOpen] = useState(false)
 
   // Reverse-chronological: newest task always rendered at the top
-  const ordered = [...new Map(tasks.map(task => [task.id, task])).values()]
-    .sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || b.id.localeCompare(a.id))
+  const ordered = useMemo(
+    () =>
+      [...new Map(tasks.map(task => [task.id, task])).values()].sort(
+        (a, b) =>
+          (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) ||
+          b.id.localeCompare(a.id),
+      ),
+    [tasks],
+  )
 
   useEffect(() => {
     const wasOpened = open && !prevOpenRef.current

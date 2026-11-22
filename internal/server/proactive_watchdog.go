@@ -99,7 +99,7 @@ func (s *Server) syncIdleProjectsGit(ctx context.Context) {
 		}
 	}
 
-	projects, err := s.projectSvc.List(ctx)
+	projects, err := s.projectSvc.Store().ListProjectsFiltered(ctx, project.ArchivedFilterActive)
 	if err != nil || len(projects) == 0 {
 		return
 	}
@@ -123,7 +123,7 @@ func (s *Server) syncIdleProjectsGit(ctx context.Context) {
 		}
 
 		// 4. Preflight sync silently (safe fallback non-blocking on network / dirty working tree)
-		_ = s.projectSvc.PreflightSyncProject(ctx, p)
+		_ = s.projectSvc.PreflightSyncStoredProject(ctx, p)
 		_ = lease.Close()
 	}
 }

@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -12,6 +14,138 @@ import (
 // counters; completion progress uses Total-Canceled, and only accepted done work.
 type taskCounts struct{ Total, Active, Queued, Done, Failed, Review, Canceled int }
 type scopedTaskCounts struct{ Rooms, Projects map[string]taskCounts }
+
+func (s *Server) invalidateTaskCounts() {
+	s.taskCountsMu.Lock()
+	s.taskCountsExpires = time.Time{}
+	s.taskCountsMu.Unlock()
+}
+
+func (s *Server) readTaskCounts(ctx context.Context) (scopedTaskCounts, error) {
+	if s.taskCountsTTL > 0 {
+		now := time.Now()
+		s.taskCountsMu.RLock()
+		if now.Before(s.taskCountsExpires) {
+			cached := s.taskCountsCached
+			s.taskCountsMu.RUnlock()
+			return cached, nil
+		}
+		s.taskCountsMu.RUnlock()
+	}
+
+	result, err := s.queryTaskCounts(ctx)
+	if err != nil {
+		return result, err
+	}
+
+	if s.taskCountsTTL > 0 {
+		s.taskCountsMu.Lock()
+		s.taskCountsCached = result
+		s.taskCountsExpires = time.Now().Add(s.taskCountsTTL)
+		s.taskCountsMu.Unlock()
+	}
+	return result, nil
+}
+
+// readProjectTaskProgress returns the task progress for a specific project.
+// If valid cached task counts are present, it avoids any DB queries.
+// Otherwise, it performs a targeted single-project aggregate query rather than a full DB scan.
+func (s *Server) readProjectTaskProgress(ctx context.Context, projectID string) (*project.TaskProgress, error) {
+	if projectID == "" {
+		return &project.TaskProgress{}, nil
+	}
+	s.taskCountsMu.RLock()
+	if time.Now().Before(s.taskCountsExpires) {
+		if c, ok := s.taskCountsCached.Projects[projectID]; ok {
+			s.taskCountsMu.RUnlock()
+			return &project.TaskProgress{
+				Total:    c.Total - c.Canceled,
+				Done:     c.Done,
+				Active:   c.Active,
+				Queued:   c.Queued,
+				Review:   c.Review,
+				Blocked:  c.Failed,
+				Canceled: c.Canceled,
+			}, nil
+		}
+	}
+	s.taskCountsMu.RUnlock()
+
+	if s.db != nil {
+		var total, active, queued, done, failed, review, canceled int
+		err := s.db.QueryRowContext(ctx, singleProjectTaskCountsSQL, projectID).Scan(
+			&total, &active, &queued, &done, &failed, &review, &canceled,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return &project.TaskProgress{
+			Total:    total - canceled,
+			Done:     done,
+			Active:   active,
+			Queued:   queued,
+			Review:   review,
+			Blocked:  failed,
+			Canceled: canceled,
+		}, nil
+	}
+
+	counts, err := s.readTaskCounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c := counts.Projects[projectID]
+	return &project.TaskProgress{
+		Total:    c.Total - c.Canceled,
+		Done:     c.Done,
+		Active:   c.Active,
+		Queued:   c.Queued,
+		Review:   c.Review,
+		Blocked:  c.Failed,
+		Canceled: c.Canceled,
+	}, nil
+}
+
+const singleProjectTaskCountsSQL = `
+WITH project_task_ids AS (
+ SELECT id FROM tasks WHERE project_id = $1
+ UNION
+ SELECT task_id AS id FROM task_projects WHERE project_id = $1
+ UNION
+ SELECT id::text AS id FROM project_tasks WHERE project_id = $1
+),
+latest_attempts AS (
+ SELECT DISTINCT ON (a.task_id) a.id, a.task_id, a.status
+ FROM task_attempts a
+ JOIN project_task_ids pti ON pti.id = a.task_id
+ ORDER BY a.task_id, a.created_at DESC, a.id DESC
+),
+latest_launches AS (
+ SELECT DISTINCT ON (l.task_id) l.task_id, l.state
+ FROM task_launches l
+ JOIN project_task_ids pti ON pti.id = l.task_id
+ LEFT JOIN latest_attempts a ON a.task_id = l.task_id AND a.id = l.attempt_id AND a.status IN ('queued','running')
+ ORDER BY l.task_id, (a.id IS NOT NULL) DESC, l.created_at DESC, l.id DESC
+),
+canonical AS (
+ SELECT t.id,
+ ` + task.EffectiveStatusSQL + ` AS status
+ FROM tasks t
+ JOIN project_task_ids pti ON pti.id = t.id
+ LEFT JOIN latest_attempts a ON a.task_id = t.id
+ LEFT JOIN latest_launches l ON l.task_id = t.id
+ UNION ALL
+ SELECT p.id::text, lower(btrim(p.status)) FROM project_tasks p
+ WHERE p.project_id = $1 AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = p.id::text)
+)
+SELECT COUNT(*),
+ COUNT(*) FILTER (WHERE status IN ('doing','in_progress','running','working')),
+ COUNT(*) FILTER (WHERE status IN ('queued','pending')),
+ COUNT(*) FILTER (WHERE status = 'done'),
+ COUNT(*) FILTER (WHERE status IN ('blocked','failed')),
+ COUNT(*) FILTER (WHERE status = 'review'),
+ COUNT(*) FILTER (WHERE status IN ('canceled','cancelled'))
+FROM canonical`
 
 // One grouped query, independent of task-list pagination. Never reads instructions,
 // outputs or logs. Only the latest attempt/launch status is read; modern records
@@ -54,7 +188,7 @@ SELECT scope, scope_id, COUNT(*),
  COUNT(*) FILTER (WHERE status IN ('canceled','cancelled'))
 FROM scopes GROUP BY scope, scope_id`
 
-func (s *Server) readTaskCounts(ctx context.Context) (scopedTaskCounts, error) {
+func (s *Server) queryTaskCounts(ctx context.Context) (scopedTaskCounts, error) {
 	result := scopedTaskCounts{Rooms: map[string]taskCounts{}, Projects: map[string]taskCounts{}}
 	if s.db != nil {
 		rows, err := s.db.QueryContext(ctx, taskCountsSQL)

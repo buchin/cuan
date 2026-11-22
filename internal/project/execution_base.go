@@ -40,6 +40,20 @@ func (s *Service) PreflightSyncProject(ctx context.Context, p *ProjectResponse) 
 	if p == nil || p.RepoURL == "" || p.LocalPath == "" {
 		return nil
 	}
+	registered, err := s.store.GetProject(ctx, p.ID)
+	if err != nil || registered == nil {
+		return errors.New("Project repository connection is unavailable")
+	}
+	return s.PreflightSyncStoredProject(ctx, registered)
+}
+
+// PreflightSyncStoredProject executes a pre-flight fetch and fast-forward of the project's
+// default branch (default "dev") in its local path using stored project data directly,
+// avoiding extra round-trip database queries and response mapping.
+func (s *Service) PreflightSyncStoredProject(ctx context.Context, p *Project) error {
+	if p == nil || p.RepoURL == "" || p.LocalPath == "" || p.IsArchived {
+		return nil
+	}
 	if s.gitClient == nil {
 		return errors.New("Project repository access is unavailable")
 	}
@@ -47,10 +61,7 @@ func (s *Service) PreflightSyncProject(ctx context.Context, p *ProjectResponse) 
 	if err != nil {
 		return errors.New("Project repository is unavailable")
 	}
-	var token string
-	if registered, err := s.store.GetProject(ctx, p.ID); err == nil && registered != nil {
-		token, _ = s.repositoryToken(ctx, registered.EncryptedToken)
-	}
+	token, _ := s.repositoryToken(ctx, p.EncryptedToken)
 	branch := p.DefaultBranch
 	if branch == "" {
 		branch = "dev"

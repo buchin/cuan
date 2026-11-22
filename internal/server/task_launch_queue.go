@@ -376,6 +376,7 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	return finish("stopped", problem.Error)
 }
 func (s *Server) kickTaskLaunches() {
+	s.invalidateTaskCounts()
 	const key = "__durable_task_launches"
 	if s.inboxStopping.Load() || s.taskSvc == nil {
 		return

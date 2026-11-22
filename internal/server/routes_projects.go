@@ -213,13 +213,12 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get project: %v", err))
 		return
 	}
-	counts, err := s.readTaskCounts(r.Context())
+	progress, err := s.readProjectTaskProgress(r.Context(), p.ID)
 	if err != nil {
 		respondJSONError(w, http.StatusInternalServerError, "Could not load project task progress. Try again.")
 		return
 	}
-	c := counts.Projects[p.ID]
-	p.TaskProgress = &project.TaskProgress{Total: c.Total - c.Canceled, Done: c.Done, Active: c.Active, Queued: c.Queued, Review: c.Review, Blocked: c.Failed, Canceled: c.Canceled}
+	p.TaskProgress = progress
 	respondJSON(w, http.StatusOK, p)
 }
 

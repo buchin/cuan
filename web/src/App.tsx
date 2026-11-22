@@ -102,6 +102,83 @@ function ViewFallback() {
   )
 }
 
+function isProjectEqual(a?: Project, b?: Project): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (
+    a.id !== b.id ||
+    a.name !== b.name ||
+    a.repo_url !== b.repo_url ||
+    a.default_branch !== b.default_branch ||
+    a.is_archived !== b.is_archived ||
+    a.updated_at !== b.updated_at ||
+    a.clone_status !== b.clone_status ||
+    a.has_token !== b.has_token ||
+    a.last_fetched_at !== b.last_fetched_at ||
+    a.last_error !== b.last_error
+  ) {
+    return false
+  }
+  const pa = a.task_progress
+  const pb = b.task_progress
+  if (pa !== pb) {
+    if (!pa || !pb) return false
+    if (
+      pa.total !== pb.total ||
+      pa.done !== pb.done ||
+      pa.active !== pb.active ||
+      pa.queued !== pb.queued ||
+      pa.review !== pb.review ||
+      pa.blocked !== pb.blocked ||
+      pa.canceled !== pb.canceled
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+function areProjectsEqual(prev: Project[], next: Project[]): boolean {
+  if (prev === next) return true
+  if (prev.length !== next.length) return false
+  for (let i = 0; i < prev.length; i++) {
+    if (!isProjectEqual(prev[i], next[i])) return false
+  }
+  return true
+}
+
+function isContactEqual(a: ChatContact, b: ChatContact): boolean {
+  return (
+    a === b ||
+    (a.id === b.id &&
+      a.conversation_id === b.conversation_id &&
+      a.name === b.name &&
+      a.status === b.status &&
+      a.unread_count === b.unread_count &&
+      a.last_message === b.last_message &&
+      a.last_message_at === b.last_message_at &&
+      a.updated_at === b.updated_at &&
+      a.is_online === b.is_online &&
+      a.task_count === b.task_count &&
+      a.active_tasks === b.active_tasks &&
+      a.review_tasks === b.review_tasks &&
+      a.queued_tasks === b.queued_tasks &&
+      a.done_tasks === b.done_tasks &&
+      a.canceled_tasks === b.canceled_tasks &&
+      a.failed_tasks === b.failed_tasks &&
+      a.resolved === b.resolved)
+  )
+}
+
+function areContactsEqual(prev: ChatContact[], next: ChatContact[]): boolean {
+  if (prev === next) return true
+  if (prev.length !== next.length) return false
+  for (let i = 0; i < prev.length; i++) {
+    if (!isContactEqual(prev[i], next[i])) return false
+  }
+  return true
+}
+
 export function App() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const location = useLocation()
@@ -251,12 +328,12 @@ export function App() {
   const refreshProjects = useCallback(async () => {
     try {
       const data = await projectsApi.list()
-      setProjects(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data)
+      setProjects(previous => areProjectsEqual(previous, data) ? previous : data)
       setProjectsError('')
       setActiveProject(previous => {
         if (!previous) return undefined
         const next = data.find(project => project.id === previous.id) || previous
-        return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+        return isProjectEqual(previous, next) ? previous : next
       })
     } catch (err) {
       setProjectsError(
@@ -274,7 +351,7 @@ export function App() {
   const refreshContacts = useCallback(async () => {
     try {
       const list = await chatApi.listContacts()
-      setContacts(previous => JSON.stringify(previous) === JSON.stringify(list) ? previous : list)
+      setContacts(previous => areContactsEqual(previous, list) ? previous : list)
       setContactsError('')
     } catch { setContactsError('Could not load contacts. Check your connection and try again.') }
     finally { setContactsLoading(false) }

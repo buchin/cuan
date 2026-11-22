@@ -1,7 +1,7 @@
 import { ListSearch, ListTabs, ListTab, ListRowContent } from '../../components/layout/ListControls'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Folder, FolderGit2, ChevronLeft, Archive, MoreHorizontal, Sparkles, Terminal, ExternalLink, Loader2 } from 'lucide-react'
 import type { Project, Task } from '../../api/types'
@@ -76,11 +76,24 @@ export function ProjectsWorkspace({
   const [busy, setBusy] = useState(false)
   const [openingTerminalId, setOpeningTerminalId] = useState('')
   const [saveError, setSaveError] = useState('')
-  const visible = projects.filter(
-    (item) =>
-      !!item.is_archived === archived &&
-      item.name.toLowerCase().includes(query.toLowerCase().trim()),
-  )
+  const { activeCount, archivedCount } = useMemo(() => {
+    let active = 0
+    let arch = 0
+    for (const item of projects) {
+      if (item.is_archived) arch++
+      else active++
+    }
+    return { activeCount: active, archivedCount: arch }
+  }, [projects])
+
+  const visible = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    return projects.filter(
+      (item) =>
+        !!item.is_archived === archived &&
+        (!q || item.name.toLowerCase().includes(q)),
+    )
+  }, [projects, archived, query])
   async function archive() {
     if (!project || !onArchiveProject || busy) return
     if (
@@ -245,7 +258,16 @@ export function ProjectsWorkspace({
           <ListCreateAction label="New project" kind="projects" onClick={onNewProject} />
           <ListSearch aria-label={t('Search projects')} placeholder={t('Search projects…')} value={query} onChange={event => setQuery(event.target.value)} />
           <ListTabs className="mt-3 border-b-0" aria-label={t('Project filters')}>
-            {[false,true].map(value => <ListTab key={String(value)} selected={archived===value} count={projects.filter(item=>!!item.is_archived===value).length} onClick={()=>setArchived(value)}>{t(value?'Archived':'Active')}</ListTab>)}
+            {[false, true].map(value => (
+              <ListTab
+                key={String(value)}
+                selected={archived === value}
+                count={value ? archivedCount : activeCount}
+                onClick={() => setArchived(value)}
+              >
+                {t(value ? 'Archived' : 'Active')}
+              </ListTab>
+            ))}
           </ListTabs>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
