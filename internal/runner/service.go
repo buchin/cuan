@@ -288,6 +288,8 @@ func (s *RunnerService) Steer(ctx context.Context, attemptID string, req SteerAt
 	}, nil
 }
 
+type preferredTaskClaimKey struct{}
+
 // Claim attempts to acquire the next queued task attempt for the runner.
 func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDuration time.Duration) (*ClaimTaskResponse, error) {
 	if req.RunnerID == "" {
@@ -301,6 +303,9 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 	claimCtx = context.WithValue(claimCtx, liveInspectionRecoveryClaimKey{}, req.SupportsLiveInspectionRecovery)
 	claimCtx = context.WithValue(claimCtx, currentOutcomeClaimKey{}, req.SupportsCurrentOutcomeInspection)
 	claimCtx = context.WithValue(claimCtx, evidenceRevalidationClaimKey{}, req.SupportsEvidenceRevalidation)
+	if req.PreferredTaskID != "" {
+		claimCtx = context.WithValue(claimCtx, preferredTaskClaimKey{}, req.PreferredTaskID)
+	}
 	att, t, err := s.store.ClaimNextQueuedAttempt(claimCtx, req.RunnerID, req.SupportedAgents, leaseDuration, req.AvailableLanes)
 	if err != nil {
 		return nil, fmt.Errorf("claim attempt: %w", err)

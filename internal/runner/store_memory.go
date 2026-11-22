@@ -176,7 +176,17 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 	var oldestQueued *task.TaskAttempt
 	var matchedTask *task.Task
 
+	preferredTaskID, _ := ctx.Value(preferredTaskClaimKey{}).(string)
+
 	for _, t := range tasks {
+		if preferredTaskID != "" && t.ID != preferredTaskID {
+			if prefT, err := m.taskStore.GetTask(ctx, preferredTaskID); err == nil && prefT != nil {
+				if prefT.Status == task.TaskStatusReview && time.Since(prefT.UpdatedAt) < 30*time.Second {
+					// Preferred task is actively in review: hold claiming other tasks
+					continue
+				}
+			}
+		}
 		candidateLane := t.ExecutionCategory
 		if candidateLane == "" {
 			candidateLane = task.ExecutionCategoryCode
@@ -340,13 +350,21 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 				if oldestQueued == nil {
 					isBetterCandidate = true
 				} else {
-					aIsContinuation := a.AttemptNumber > 1
-					bestIsContinuation := oldestQueued.AttemptNumber > 1
-					if aIsContinuation && !bestIsContinuation {
+					aIsPreferred := preferredTaskID != "" && a.TaskID == preferredTaskID
+					bestIsPreferred := preferredTaskID != "" && oldestQueued.TaskID == preferredTaskID
+					if aIsPreferred && !bestIsPreferred {
 						isBetterCandidate = true
-					} else if aIsContinuation == bestIsContinuation {
-						if a.CreatedAt.Before(oldestQueued.CreatedAt) {
+					} else if !aIsPreferred && bestIsPreferred {
+						isBetterCandidate = false
+					} else {
+						aIsContinuation := a.AttemptNumber > 1
+						bestIsContinuation := oldestQueued.AttemptNumber > 1
+						if aIsContinuation && !bestIsContinuation {
 							isBetterCandidate = true
+						} else if aIsContinuation == bestIsContinuation {
+							if a.CreatedAt.Before(oldestQueued.CreatedAt) {
+								isBetterCandidate = true
+							}
 						}
 					}
 				}

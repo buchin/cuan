@@ -262,6 +262,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
  AND ($8 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan live-result inspection v1:%' AND l.revision LIKE '%"revalidation_kind":"evidence"%'))
  AND ($10 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan verification-only intent v1:%' AND l.revision LIKE '%"recovery_cause":"php_preparation"%'))
  AND ($9 OR NOT EXISTS(SELECT 1 FROM task_launches l WHERE l.attempt_id=a.id AND l.revision LIKE '%Cuan native-release intent%'))
+ AND ($11 = '' OR a.task_id = $11 OR NOT EXISTS (SELECT 1 FROM tasks pref_t WHERE pref_t.id = $11 AND pref_t.status = 'review' AND pref_t.updated_at > NOW() - INTERVAL '30 seconds'))
 		  AND (
 		      ($1 = true AND COALESCE(t.execution_category, 'code') = 'code')
 		      OR ($2 = true AND COALESCE(t.execution_category, 'code') = 'ops')
@@ -376,15 +377,17 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		      )
 		  )
 		ORDER BY
+			CASE WHEN $11 != '' AND a.task_id = $11 THEN 0 ELSE 1 END ASC,
 			CASE WHEN COALESCE(a.attempt_number, 1) > 1 THEN 0 ELSE 1 END ASC,
 			a.created_at ASC
 		LIMIT 1
 		FOR UPDATE OF a SKIP LOCKED
 	`
 
+	preferredTaskID, _ := ctx.Value(preferredTaskClaimKey{}).(string)
 	var att task.TaskAttempt
 	var t task.Task
-	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true, ctx.Value(dependencyPreparationClaimKey{}) == true).Scan(
+	err = tx.QueryRowContext(ctx, query, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true, ctx.Value(dependencyPreparationClaimKey{}) == true, preferredTaskID).Scan(
 		&att.ID,
 		&att.TaskID,
 		&att.RunnerID,
@@ -435,10 +438,10 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		if !locked {
 			return nil, nil, nil
 		}
-		check := strings.Replace(query, "ORDER BY", "AND a.id=$11 ORDER BY", 1)
+		check := strings.Replace(query, "ORDER BY", "AND a.id=$12 ORDER BY", 1)
 		check = "SELECT EXISTS(SELECT 1 FROM (" + check + ") eligible)"
 		var eligible bool
-		if err := tx.QueryRowContext(ctx, check, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true, ctx.Value(dependencyPreparationClaimKey{}) == true, att.ID).Scan(&eligible); err != nil {
+		if err := tx.QueryRowContext(ctx, check, canClaimCode, canClaimOps, canClaimRead, ctx.Value(verificationFinalizationClaimKey{}) == true, ctx.Value(liveInspectionClaimKey{}) == true, ctx.Value(liveInspectionRecoveryClaimKey{}) == true, ctx.Value(currentOutcomeClaimKey{}) == true, ctx.Value(evidenceRevalidationClaimKey{}) == true, ctx.Value(nativeReleaseClaimKey{}) == true, ctx.Value(dependencyPreparationClaimKey{}) == true, preferredTaskID, att.ID).Scan(&eligible); err != nil {
 			return nil, nil, fmt.Errorf("recheck project claim: %w", err)
 		}
 		if !eligible {
