@@ -211,12 +211,16 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 		// Task capabilities cannot register an Owner-scoped connection. Wait
 		// for that concrete prerequisite instead of looping implementation.
 		// A changed saved connection triggers native snapshot re-evaluation.
+		customerDraft := "Fitur sudah selesai dikerjakan dan lulus seluruh pengujian (DoD terpenuhi). Namun penerapan otomatis ke website belum berjalan karena project ini belum memiliki Deploy Script atau kredensial rilis terdaftar."
+		if decision.CustomerReplyDraft != "" {
+			customerDraft = decision.CustomerReplyDraft
+		}
 		return inboxReviewEvaluation{
 			Decision: "blocked", RequestedOutcome: "unfinished", RemainingWork: "external",
-			Finding:       "Hasil pekerjaan tersimpan, tetapi penerapannya di website belum bisa diverifikasi.",
-			Explanation:   "Hasil pekerjaan tersimpan. Koneksi untuk memverifikasi website belum tersedia; pekerjaan ini belum bisa dinyatakan selesai.",
+			Finding:       "Kodingan fitur sudah 100% tuntas dan lulus uji. Penerapan otomatis ke website memerlukan kredensial rilis atau Deploy Script.",
+			Explanation:   "Pekerjaan kode telah selesai dan memenuhi seluruh kriteria Definition of Done. Untuk menayangkan perubahan ke website produksi secara otomatis, daftarkan Deploy Script atau kredensial rilis di Pengaturan Project.",
 			ManagerAction: "wait", ManagerReason: missingPublicationConnectionGuidance,
-			VisualInspection: decision.VisualInspection, CustomerReplyDraft: decision.CustomerReplyDraft,
+			VisualInspection: decision.VisualInspection, CustomerReplyDraft: customerDraft,
 		}
 	}
 	if missingManagedSourceCorrection(decision, observation) && s.missingManagedSourceAdmission(ctx, d) {

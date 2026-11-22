@@ -35,6 +35,35 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
   const [showSecrets, setShowSecrets] = useState(false)
   const dirty = JSON.stringify(form) !== JSON.stringify(baseline)
   useEffect(() => {
+    let active = true
+    projectsApi.get(project.id).then(latest => {
+      if (!active || !latest) return
+      const next = values(latest)
+      setBaseline(next)
+      setForm(current => {
+        if (JSON.stringify(current) === JSON.stringify(baseline)) {
+          return next
+        }
+        return current
+      })
+      setVersion(latest.updated_at)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [project.id])
+  useEffect(() => {
+    if (project.metadata?.cuan_settings) {
+      const next = values(project)
+      setBaseline(next)
+      setForm(current => {
+        if (JSON.stringify(current) === JSON.stringify(baseline)) {
+          return next
+        }
+        return current
+      })
+      setVersion(project.updated_at)
+    }
+  }, [project])
+  useEffect(() => {
     if (!dirty) return
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', warn)
