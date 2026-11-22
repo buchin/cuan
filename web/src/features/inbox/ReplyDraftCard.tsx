@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { CardActions } from './CardActions'
 import { FileText, RefreshCw, Mail, Check, AlertCircle } from 'lucide-react'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
@@ -20,7 +20,7 @@ export interface ReplyDraftCardProps {
   regenerateDisabled?: boolean
 }
 
-export function ReplyDraftCard({
+const MemoizedReplyDraftCard = memo(function MemoizedReplyDraftCard({
   draft,
   internal,
   messageId,
@@ -205,4 +205,8 @@ export function ReplyDraftCard({
       </CardActions>
     </div>
   )
+})
+
+export function ReplyDraftCard(props: ReplyDraftCardProps) {
+  return <MemoizedReplyDraftCard {...props} />
 }

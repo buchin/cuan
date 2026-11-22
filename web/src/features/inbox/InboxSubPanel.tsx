@@ -12,13 +12,14 @@ import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
 import type { Agent } from '../../api/agents'
 import { agentForContact, connectionStatus } from '../agents/connection'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
 import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle } from 'lucide-react'
 import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
+import { TASK_STATUS_THEMES } from '../tasks/task-ui'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
@@ -115,7 +116,7 @@ export interface ConversationItemProps {
   language?: string
 }
 
-export function ConversationItem({
+const MemoizedConversationItem = memo(function MemoizedConversationItem({
   contact,
   isSelected,
   isLast,
@@ -316,13 +317,13 @@ export function ConversationItem({
             className={cn(
               'workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none',
               isComplete
-                ? 'text-emerald-600 dark:text-emerald-400'
+                ? TASK_STATUS_THEMES.done.textColor
                 : isWorking
-                  ? 'text-[color:var(--status-working)]'
+                  ? TASK_STATUS_THEMES.working.textColor
                   : hasFailed
-                    ? 'text-amber-500/90 dark:text-amber-400'
+                    ? TASK_STATUS_THEMES.attention.textColor
                     : hasReview
-                      ? 'text-purple-500/90 dark:text-purple-400'
+                      ? TASK_STATUS_THEMES.review.textColor
                       : 'text-muted-foreground/60 hover:text-foreground',
             )}
           >
@@ -341,7 +342,7 @@ export function ConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  opacity={isWorking || hasFailed ? "0.9" : "0.65"}
+                  opacity={isWorking || hasFailed || hasReview ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path
@@ -415,6 +416,10 @@ export function ConversationItem({
       )}
     </ItemActions>
   )
+})
+
+export function ConversationItem(props: ConversationItemProps) {
+  return <MemoizedConversationItem {...props} />
 }
 
 export type ContactFilterTab = 'all' | 'agents' | 'customers'
@@ -662,7 +667,7 @@ export function InboxSubPanel({
                 activeContactId === contact.conversation_id
               const isLast = index === filteredContacts.length - 1
               return (
-                <ConversationItem
+                <MemoizedConversationItem
                   key={contact.id}
                   contact={contact}
                   isSelected={isSelected}

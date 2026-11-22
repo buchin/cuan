@@ -28,19 +28,8 @@ func (s *Server) handleInboxMessageTask(w http.ResponseWriter, r *http.Request) 
 		respondJSONError(w, 400, "Invalid message ID")
 		return
 	}
-	messages, err := s.projectStudioRepo.ListMessagesByRoomID(r.Context(), resolved.RoomID)
-	if err != nil {
-		respondJSONError(w, 503, "Could not read the message")
-		return
-	}
-	var source *db.ProjectMessage
-	for i := range messages {
-		if messages[i].ID == id {
-			source = &messages[i]
-			break
-		}
-	}
-	if source == nil {
+	source, err := s.projectStudioRepo.GetMessageByID(r.Context(), id)
+	if err != nil || source == nil || source.RoomID != resolved.RoomID {
 		respondJSONError(w, 404, "Message not found in this conversation")
 		return
 	}

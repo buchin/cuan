@@ -48,3 +48,15 @@ test('4. App.tsx routes /schedules to SchedulesView', () => {
   assert.ok(content.includes("case 'schedules':\n        return 'schedules'"), 'Must map schedules rootSegment to currentTab schedules')
   assert.ok(content.includes('<SchedulesView'), 'Must render SchedulesView in App.tsx')
 })
+
+test('5. SchedulesView supports Editing and Target Project binding', () => {
+  const file = path.join(webSrcDir, 'features/schedules/SchedulesView.tsx')
+  assert.ok(fs.existsSync(file), 'SchedulesView.tsx must exist')
+
+  const content = fs.readFileSync(file, 'utf8')
+  assert.ok(content.includes('Pencil'), 'Must provide Pencil edit button')
+  assert.ok(content.includes('handleOpenEdit'), 'Must have handleOpenEdit handler')
+  assert.ok(content.includes('PUT'), 'Must support PUT method for updating scheduled task')
+  assert.ok(content.includes('/api/projects'), 'Must fetch projects for binding')
+  assert.ok(content.includes('Target Project'), 'Must have Target Project field')
+})

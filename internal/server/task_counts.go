@@ -18,6 +18,7 @@ type scopedTaskCounts struct{ Rooms, Projects map[string]taskCounts }
 func (s *Server) invalidateTaskCounts() {
 	s.taskCountsMu.Lock()
 	s.taskCountsExpires = time.Time{}
+	s.taskCountsCached = scopedTaskCounts{}
 	s.taskCountsMu.Unlock()
 }
 
@@ -79,6 +80,26 @@ func (s *Server) readProjectTaskProgress(ctx context.Context, projectID string) 
 		if err != nil {
 			return nil, err
 		}
+		c := taskCounts{
+			Total:    total,
+			Active:   active,
+			Queued:   queued,
+			Done:     done,
+			Failed:   failed,
+			Review:   review,
+			Canceled: canceled,
+		}
+		if s.taskCountsTTL > 0 {
+			s.taskCountsMu.Lock()
+			if s.taskCountsCached.Projects == nil {
+				s.taskCountsCached.Projects = make(map[string]taskCounts)
+			}
+			s.taskCountsCached.Projects[projectID] = c
+			if time.Now().After(s.taskCountsExpires) {
+				s.taskCountsExpires = time.Now().Add(s.taskCountsTTL)
+			}
+			s.taskCountsMu.Unlock()
+		}
 		return &project.TaskProgress{
 			Total:    total - canceled,
 			Done:     done,
@@ -129,6 +150,17 @@ func (s *Server) readRoomTaskCounts(ctx context.Context, roomID string) (taskCou
 		)
 		if err != nil {
 			return taskCounts{}, err
+		}
+		if s.taskCountsTTL > 0 {
+			s.taskCountsMu.Lock()
+			if s.taskCountsCached.Rooms == nil {
+				s.taskCountsCached.Rooms = make(map[string]taskCounts)
+			}
+			s.taskCountsCached.Rooms[roomID] = c
+			if time.Now().After(s.taskCountsExpires) {
+				s.taskCountsExpires = time.Now().Add(s.taskCountsTTL)
+			}
+			s.taskCountsMu.Unlock()
 		}
 		return c, nil
 	}

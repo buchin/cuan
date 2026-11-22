@@ -183,20 +183,32 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		return
 	}
 
+	candidateIDs := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		if t.SourceRoomID != "" && strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
+			candidateIDs = append(candidateIDs, t.ID)
+		}
+	}
+	if len(candidateIDs) == 0 {
+		return
+	}
+	latestMap := s.taskSvc.LatestAttemptsMapForIDs(ctx, candidateIDs)
+
+	requestsByRoom := make(map[string][]db.InboxRequest)
 	for _, t := range tasks {
 		if t.SourceRoomID == "" || !strings.HasPrefix(t.Instructions, "Cuan managed delegation v1.\n") {
 			continue
 		}
 
 		// Don't interfere if an attempt is currently running or queued
-		detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID)
-		if err != nil || detail == nil || detail.LatestAttempt == nil {
+		latest := latestMap[t.ID]
+		if latest == nil {
 			continue
 		}
-		if detail.LatestAttempt.Status == task.AttemptStatusRunning || detail.LatestAttempt.Status == task.AttemptStatusQueued {
+		if latest.Status == task.AttemptStatusRunning || latest.Status == task.AttemptStatusQueued {
 			continue
 		}
-		if detail.LatestAttempt.CancelRequested || detail.LatestAttempt.CanceledAt != nil {
+		if latest.CancelRequested || latest.CanceledAt != nil {
 			continue
 		}
 
@@ -205,6 +217,11 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			if launch.State == "queued" || launch.State == "claimed" || launch.State == "started" {
 				continue
 			}
+		}
+
+		detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID)
+		if err != nil || detail == nil {
+			continue
 		}
 
 		// Find the latest review assessment on this task
@@ -223,9 +240,14 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
-		requests, err := repo.ListInboxRequests(ctx, detail.SourceRoomID)
-		if err != nil {
-			continue
+		requests, ok := requestsByRoom[detail.SourceRoomID]
+		if !ok {
+			var err error
+			requests, err = repo.ListInboxRequests(ctx, detail.SourceRoomID)
+			if err != nil {
+				continue
+			}
+			requestsByRoom[detail.SourceRoomID] = requests
 		}
 
 		// Resolve the task's root owner authorization request.
@@ -525,6 +547,16 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 		allRecentMessages, _ = s.projectStudioRepo.ListRecentMessages(ctx, 1)
 	}
 
+	preferences := itemPreferences{}
+	if s.authSvc != nil {
+		if ownerID, err := s.authSvc.OwnerID(ctx); err == nil && ownerID != "" {
+			itemPreferencesMu.Lock()
+			saved, _ := readItemPreferences(ownerID)
+			itemPreferencesMu.Unlock()
+			preferences = saved
+		}
+	}
+
 	for _, room := range rooms {
 		msgs := allRecentMessages[room.ID]
 		if len(msgs) == 0 {
@@ -593,15 +625,6 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			}
 
 			// 2. Check operator conversation item preferences
-			preferences := itemPreferences{}
-			if s.authSvc != nil {
-				if ownerID, err := s.authSvc.OwnerID(ctx); err == nil && ownerID != "" {
-					itemPreferencesMu.Lock()
-					saved, _ := readItemPreferences(ownerID)
-					itemPreferencesMu.Unlock()
-					preferences = saved
-				}
-			}
 			state := preferences["conversation:"+room.ID]
 			if state.Unread {
 				// Operator explicitly marked conversation as unread; do not auto-resolve
