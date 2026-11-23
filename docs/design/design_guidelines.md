@@ -245,6 +245,60 @@ import { GroupedSection, GroupedRow } from '@/components/layout/GroupedSection'
 </GroupedSection>
 ```
 
+### 4.5. Reusable Calm Form Primitives (`FormField`, `Input`, `Select`, `Textarea`, `FormCard`)
+Standarisasi seluruh kontrol formulir antarmuka agar selalu sepadan, proporsional, dan mematuhi batas touch target 44px WCAG AA tanpa styling ad-hoc.
+
+```tsx
+import { FormField, Input, Select, Textarea, FormCard } from '@/components/ui/forms'
+
+<form className="space-y-5">
+  {/* Field Teks dengan Label Tenang & Helper Text */}
+  <FormField
+    label="Judul Rutinitas"
+    helperText="Nama pengenal rutinitas otomatis Anda"
+    required
+  >
+    <Input
+      type="text"
+      placeholder="cth. Follow-up Pelanggan WhatsApp"
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      className="font-medium"
+    />
+  </FormField>
+
+  {/* Dropdown Select Seragam */}
+  <FormField label="Proyek Target">
+    <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+      <option value="">Semua / Sistem Global</option>
+      {projects.map((p) => (
+        <option key={p.id} value={p.id}>{p.name}</option>
+      ))}
+    </Select>
+  </FormField>
+
+  {/* Kartu Bagian Formulir Simetris (FormCard) */}
+  <FormCard
+    title="Waktu & Frekuensi Eksekusi"
+    icon={<Clock className="h-3.5 w-3.5 text-muted-foreground/70" />}
+    accessory="Asia/Jakarta (WIB)"
+  >
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <FormField label="Frekuensi">
+        <Select value={scheduleType} onChange={(e) => setScheduleType(e.target.value)}>
+          <option value="daily">Harian</option>
+          <option value="weekly">Mingguan</option>
+        </Select>
+      </FormField>
+
+      <FormField label="Jam Eksekusi">
+        <Input type="time" mono value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} />
+      </FormField>
+    </div>
+  </FormCard>
+</form>
+```
+
 ---
 
 ## 5. Token Desain & Nilai Referensi CSS
@@ -257,8 +311,10 @@ import { GroupedSection, GroupedRow } from '@/components/layout/GroupedSection'
 | **Garis Pembatas (Hairline)** | `border-border/40` | Warna border dengan transparansi 40% (sangat halus) |
 | **Garis Pemisah (Divider)** | `divide-border/40` | Pembatas baris vertikal antar-elemen daftar |
 | **Micro-indicator Size** | `h-2 w-2` (8px) | Standar ukuran `StatusDot` |
-| **Touch Target Minimal** | `min-h-[44px]` | Standar aksesibilitas WCAG 2.1 AA |
-| **Radius Inset Group** | `rounded-xl` | 12px sudut melengkung halus untuk grup formulir |
+| **Touch Target Minimal** | `min-h-[44px]` / `min-h-11` | Standar aksesibilitas WCAG 2.1 AA |
+| **Form Control Height** | `h-11 min-h-11` | 44px seragam untuk seluruh Input, Select, dan Action buttons |
+| **Radius Kontrol & Group** | `rounded-xl` | 12px sudut melengkung halus untuk Input, Select, Card, Inset Group |
+| **Form Control Padding** | `px-3.5 py-2` | 14px horizontal padding untuk kenyamanan optik mata |
 | **Backdrop Drawer** | `backdrop:bg-black/40` | Latar belakang semi-transparan dengan `backdrop-blur-sm` |
 
 ---
@@ -272,6 +328,7 @@ import { GroupedSection, GroupedRow } from '@/components/layout/GroupedSection'
 5. **DILARANG:** Menampilkan raw JSON, log streaming panjang, atau prompt mentah langsung di aliran pesan utama (*Glanceable Layer*). Buka di `SlideDrawer`.
 6. **DILARANG:** Menggunakan animasi berputar (*spinning spinner*) berukuran besar yang membuat cemas. Gunakan denyut lembut `StatusDot` (`animate-pulse`) atau skeleton tenang.
 7. **DILARANG:** Menggunakan peninggalan kata "Toko" pada teks antarmuka atau kamus locale. Gunakan terminologi netral dan inklusif: "Workspace", "Ruang Kerja", atau "Bisnis".
+8. **DILARANG:** Membuat styling form control ad-hoc secara manual di setiap halaman/komponen dengan variasi ketinggian dan border radius (`h-9`, `rounded-md`, `rounded-lg`). Seluruh formulir di aplikasi WAJIB menggunakan reusable form primitives (`FormField`, `Input`, `Select`, `Textarea`, `FormCard`) dari `@/components/ui/forms` dengan token baku `h-11 min-h-11 rounded-xl` (44px seragam) untuk mencegah disparitas visual dan menjamin kepatuhan aksesibilitas touch target WCAG.
 
 ---
 

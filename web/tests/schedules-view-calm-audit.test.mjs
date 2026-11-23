@@ -15,7 +15,7 @@ test('1. SchedulesView: uses flexible HTML5 time input instead of rigid 7-option
 
   assert.match(
     content,
-    /<input[^>]*type="time"[^>]*value=\{timeOfDay\}/,
+    /<(?:input|Input)[^>]*type="time"[^>]*value=\{timeOfDay\}/,
     'SchedulesView must provide flexible type="time" input for 24h schedule selection',
   )
   assert.ok(
