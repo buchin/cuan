@@ -68,6 +68,10 @@ type Runner struct {
 	// Detached Worker Registry & Launcher (Pola #1: Detached Worker Process)
 	registry *WorkerRegistry
 	launcher *DetachedLauncher
+
+	// Task Affinity for run-to-completion active task bundles (Implementer -> Verifier)
+	preferredTaskID string
+	preferredUntil  time.Time
 }
 
 func NewRunner(cfg *config.Config, adapter agent.Adapter, customHTTPClient ...*http.Client) *Runner {
@@ -457,6 +461,10 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	if readCount < 4 {
 		availableLanes = append(availableLanes, task.ExecutionCategoryReadOnly)
 	}
+	prefTaskID := ""
+	if r.preferredTaskID != "" && time.Now().Before(r.preferredUntil) {
+		prefTaskID = r.preferredTaskID
+	}
 	r.mu.Unlock()
 
 	if len(availableLanes) == 0 {
@@ -464,6 +472,7 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	claimReq := ClaimTaskRequest{
+		PreferredTaskID:                  prefTaskID,
 		SupportsNativeRelease:            r.cfg.RunnerNativeRelease,
 		SupportsNativeVisualVerification: true,
 		SupportsCurrentOutcomeInspection: true,
@@ -498,6 +507,18 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	}
 
 	log.Printf("[Runner %s] Claimed %s task attempt %s (Task: '%s')", r.cfg.RunnerID, lane, claimResp.Attempt.ID, claimResp.Task.Title)
+
+	r.mu.Lock()
+	if claimResp.Task != nil {
+		if claimResp.Task.ID == r.preferredTaskID {
+			// Kept full affinity on active task bundle, extend window
+			r.preferredUntil = time.Now().Add(15 * time.Minute)
+		} else {
+			r.preferredTaskID = claimResp.Task.ID
+			r.preferredUntil = time.Now().Add(15 * time.Minute)
+		}
+	}
+	r.mu.Unlock()
 
 	// Acquire specific lane mutex:
 	// - code: git deployment mutex (build/git isolated)
@@ -567,6 +588,10 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 			}
 
 			r.mu.Lock()
+			if claim.Task != nil {
+				r.preferredTaskID = claim.Task.ID
+				r.preferredUntil = time.Now().Add(15 * time.Minute)
+			}
 			delete(r.activeAttempts, claim.Attempt.ID)
 			if r.currentAttempt != nil && r.currentAttempt.ID == claim.Attempt.ID {
 				r.currentAttempt = nil

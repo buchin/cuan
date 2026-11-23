@@ -71,6 +71,46 @@ export function evaluateInboxQuotaStatus(q: {
   }
 }
 
+export const INBOX_ACTIVITY_ROTATING_WORDS = [
+  'Thinking…',
+  'Analyzing…',
+  'Synthesizing…',
+  'Formulating…',
+  'Evaluating…',
+  'Processing…',
+  'Researching…',
+  'Reviewing…',
+  'Exploring…',
+  'Organizing…',
+  'Preparing…',
+  'Structuring…',
+  'Inspecting…',
+  'Refining…',
+  'Polishing…',
+  'Verifying…',
+] as const
+
+export const INBOX_ACTIVITY_VERBS = [
+  'Thinking',
+  'Analyzing',
+  'Synthesizing',
+  'Formulating',
+  'Evaluating',
+  'Processing',
+  'Researching',
+  'Reviewing',
+  'Exploring',
+  'Organizing',
+  'Preparing',
+  'Structuring',
+  'Inspecting',
+  'Refining',
+  'Polishing',
+  'Verifying',
+] as const
+
+export const ACTIVITY_ROTATION_INTERVAL_MS = 3500
+
 export function InboxActivity({
   request: q,
   onCancel,
@@ -89,6 +129,51 @@ export function InboxActivity({
   streamingText?: string
 }) {
   const { t, language } = useLanguage()
+
+  const [displayedText, setDisplayedText] = useState(streamingText || '')
+  const targetTextRef = useRef(streamingText || '')
+  targetTextRef.current = streamingText || ''
+  const animFrameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!streamingText) {
+      setDisplayedText('')
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+      return
+    }
+
+    const step = () => {
+      const target = targetTextRef.current
+      setDisplayedText((prev) => {
+        if (prev.length >= target.length) {
+          animFrameRef.current = null
+          return target
+        }
+        const gap = target.length - prev.length
+        const charsToAdd = Math.max(1, Math.min(gap, Math.ceil(gap / 6)))
+        return target.slice(0, prev.length + charsToAdd)
+      })
+      if (targetTextRef.current.length > displayedText.length) {
+        animFrameRef.current = requestAnimationFrame(step)
+      } else {
+        animFrameRef.current = null
+      }
+    }
+
+    if (!animFrameRef.current) {
+      animFrameRef.current = requestAnimationFrame(step)
+    }
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current)
+        animFrameRef.current = null
+      }
+    }
+  }, [streamingText])
 
   const [now, setNow] = useState(Date.now())
   const [expanded, setExpanded] = useState(false)
@@ -152,9 +237,47 @@ export function InboxActivity({
         'persistence',
       ].includes(step.kind),
     )
-  const activityText = latestActivity?.text
-    ? Array.from(latestActivity.text.split('\n')[0]).slice(0, 140).join('')
-    : t('Working…')
+
+  const hasSpecificStep = Boolean(latestActivity?.text?.trim())
+  const hasStreaming = Boolean(streamingText && streamingText.length > 0)
+  const shouldRotate = q.state === 'running' && !autoPending && !hasSpecificStep && !hasStreaming
+
+  const [rotatingIndex, setRotatingIndex] = useState(0)
+  const [fading, setFading] = useState(false)
+
+  // Reset index when request_id changes
+  useEffect(() => {
+    setRotatingIndex(0)
+    setFading(false)
+  }, [q.request_id])
+
+  // Periodic word rotation with clean lifecycle management
+  useEffect(() => {
+    if (!shouldRotate) {
+      setFading(false)
+      return
+    }
+
+    let fadeTimer: ReturnType<typeof setTimeout> | undefined
+
+    const rotationTimer = setInterval(() => {
+      setFading(true)
+      fadeTimer = setTimeout(() => {
+        setRotatingIndex((prev) => (prev + 1) % INBOX_ACTIVITY_ROTATING_WORDS.length)
+        setFading(false)
+      }, 250)
+    }, ACTIVITY_ROTATION_INTERVAL_MS)
+
+    return () => {
+      clearInterval(rotationTimer)
+      if (fadeTimer) clearTimeout(fadeTimer)
+    }
+  }, [shouldRotate, q.request_id])
+
+  const rotatingWord = INBOX_ACTIVITY_ROTATING_WORDS[rotatingIndex % INBOX_ACTIVITY_ROTATING_WORDS.length]
+  const activityText = hasSpecificStep
+    ? Array.from(latestActivity!.text.split('\n')[0]).slice(0, 140).join('')
+    : rotatingWord
   const autoRecovery = q.steps?.some((step) => step.kind === 'retry_auto')
   const active = ['queued', 'running', 'cancelling'].includes(q.state)
   const lastStepSeq = q.steps?.at(-1)?.seq
@@ -248,10 +371,10 @@ export function InboxActivity({
       aria-label={t('Response status')}
       data-response-state={q.state}
     >
-      {bubble && streamingText ? (
+      {bubble && (displayedText || streamingText) ? (
         <div className="calm-message-bubble wa-incoming rounded-2xl px-3.5 py-2 mb-2 text-foreground border border-border/30 shadow-none">
           <div className="wa-plain-text break-words font-sans">
-            <ChatMarkdown content={streamingText} />
+            <ChatMarkdown content={displayedText || streamingText || ''} />
             <span
               className="inline-block w-1.5 h-3.5 ml-1 align-baseline bg-foreground/60 animate-pulse rounded-xs"
               aria-hidden="true"
@@ -259,7 +382,7 @@ export function InboxActivity({
           </div>
         </div>
       ) : null}
-      {bubble && !streamingText && (
+      {bubble && !(displayedText || streamingText) && (
         <div className="flex items-center gap-2 px-2 pt-2 text-sm">
           <Icon
             aria-hidden
@@ -280,7 +403,16 @@ export function InboxActivity({
             {autoPending || (q.state === 'queued' && autoRecovery)
               ? t('Recovering reply…')
               : q.state === 'running'
-              ? activityText
+              ? (
+                <span
+                  data-testid="inbox-activity-text"
+                  className={`inline-block transition-opacity duration-300 ease-in-out motion-reduce:transition-none ${
+                    fading ? 'opacity-0' : 'opacity-100'
+                  }`}
+                >
+                  {activityText}
+                </span>
+              )
               : q.state === 'queued' && queueLabel
               ? queueLabel
               : q.state === 'failed'
@@ -332,7 +464,7 @@ export function InboxActivity({
                 {seconds} s{!active && ' recorded'}
               </span>
             )}
-            {bubble && streamingText && (
+            {bubble && (displayedText || streamingText) && (
               <Icon
                 className={`h-3.5 w-3.5 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : ''}`}
                 aria-hidden="true"
@@ -343,7 +475,7 @@ export function InboxActivity({
                 <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
                   {t('Detail')}
                 </span>
-                {bubble && streamingText && seconds !== null && (
+                {bubble && (displayedText || streamingText) && seconds !== null && (
                   <span className="tabular-nums text-xs">
                     · {seconds}s
                   </span>

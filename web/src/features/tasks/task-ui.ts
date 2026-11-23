@@ -1,4 +1,87 @@
 import type { Task, TaskAttempt, TaskDetail, TaskStatus } from '../../api/types'
+import type { StatusDotVariant } from '../../components/ui/StatusDot'
+
+export type TaskStateKey = 'review' | 'working' | 'done' | 'queued' | 'attention' | 'neutral'
+
+export interface TaskStatusTheme {
+  key: TaskStateKey
+  dotVariant: StatusDotVariant
+  textColor: string
+  badgeClass: string
+  counterBadgeClass: string
+}
+
+export const TASK_STATUS_THEMES: Record<TaskStateKey, TaskStatusTheme> = {
+  review: {
+    key: 'review',
+    dotVariant: 'review',
+    textColor: 'text-purple-600 dark:text-purple-400',
+    badgeClass: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/35',
+    counterBadgeClass: 'bg-purple-500/20 text-purple-800 dark:text-purple-300',
+  },
+  working: {
+    key: 'working',
+    dotVariant: 'working',
+    textColor: 'text-[color:var(--status-working)]',
+    badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+    counterBadgeClass: 'bg-blue-500/20 text-blue-800 dark:text-blue-300',
+  },
+  done: {
+    key: 'done',
+    dotVariant: 'success',
+    textColor: 'text-[color:var(--status-success)]',
+    badgeClass: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
+    counterBadgeClass: 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300',
+  },
+  queued: {
+    key: 'queued',
+    dotVariant: 'queued',
+    textColor: 'text-muted-foreground',
+    badgeClass: 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35',
+    counterBadgeClass: 'bg-muted text-muted-foreground',
+  },
+  attention: {
+    key: 'attention',
+    dotVariant: 'warning',
+    textColor: 'text-destructive',
+    badgeClass: 'bg-destructive/15 text-destructive dark:text-red-400 border-destructive/35',
+    counterBadgeClass: 'bg-destructive/20 text-destructive',
+  },
+  neutral: {
+    key: 'neutral',
+    dotVariant: 'neutral',
+    textColor: 'text-muted-foreground',
+    badgeClass: 'bg-muted/80 text-muted-foreground border-border/40',
+    counterBadgeClass: 'bg-muted text-muted-foreground',
+  },
+}
+
+export function getTaskStateKey(statusOrTask: string | Task): TaskStateKey {
+  if (typeof statusOrTask === 'object' && statusOrTask !== null) {
+    const task = statusOrTask
+    if (task.status === 'done') return 'done'
+    if (task.review_state || task.status === 'review') return 'review'
+    const ws = workStatus(task)
+    if (ws === 'Completed' || ws === 'Answered') return 'done'
+    if (ws === 'Ready for review') return 'review'
+    if (ws === 'Working') return 'working'
+    if (ws === 'Queued') return 'queued'
+    if (ws === 'Needs attention') return 'attention'
+    return 'neutral'
+  }
+  const s = String(statusOrTask).toLowerCase()
+  if (['review', 'ready for review', 'waiting for review', 'waiting for checks', 'checking result', 'memeriksa hasil', 'menunggu pemeriksaan'].includes(s)) return 'review'
+  if (['working', 'doing', 'running', 'in progress', 'deploying'].includes(s)) return 'working'
+  if (['done', 'completed', 'answered', 'success'].includes(s)) return 'done'
+  if (['queued', 'waiting to deploy', 'waiting to start', 'pending'].includes(s)) return 'queued'
+  if (['needs attention', 'attention', 'blocked', 'failed', 'warning'].includes(s)) return 'attention'
+  return 'neutral'
+}
+
+export function getTaskStatusTheme(statusOrTask: string | Task): TaskStatusTheme {
+  const key = getTaskStateKey(statusOrTask)
+  return TASK_STATUS_THEMES[key] || TASK_STATUS_THEMES.neutral
+}
 export const TASK_STATUSES: { id: TaskStatus; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
   { id: 'todo', label: 'Todo' },
@@ -81,11 +164,11 @@ export function workStatus(task: Task) {
   if (attempt === 'running') return 'Working'
   if (attempt === 'queued') return 'Queued'
   if (attempt === 'canceled' || attempt === 'cancelled') return 'Cancelled'
+  if (task.status === 'review') return task.result_kind === 'answer' && ['succeeded', 'completed'].includes(attempt || '') ? 'Answered' : 'Ready for review'
   if (task.launch?.state === 'stopped') return 'Needs attention'
   if (task.launch?.state === 'cancelled') return 'Cancelled'
   if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Queued'
   if (task.status === 'blocked' || ['failed', 'interrupted'].includes(attempt || '')) return 'Needs attention'
-  if (task.status === 'review') return task.result_kind === 'answer' && ['succeeded', 'completed'].includes(attempt || '') ? 'Answered' : 'Ready for review'
   if (task.status === 'doing') return 'Not running'
   return 'Not started'
 }
@@ -186,43 +269,43 @@ export function isTaskRunning(task: Task) {
 export function workStatusBadgeClass(status: string) {
   switch (status) {
     case 'Working':
-      return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
+      return TASK_STATUS_THEMES.working.badgeClass
     case 'Waiting to start':
     case 'Queued':
-      return 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35'
+      return TASK_STATUS_THEMES.queued.badgeClass
     case 'Completed':
     case 'Answered':
-      return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+      return TASK_STATUS_THEMES.done.badgeClass
     case 'Ready for review':
-      return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/35'
+      return TASK_STATUS_THEMES.review.badgeClass
     case 'Needs attention':
-      return 'bg-destructive/15 text-destructive dark:text-red-400 border-destructive/35'
+      return TASK_STATUS_THEMES.attention.badgeClass
     case 'Cancelled':
       return 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30'
     case 'Not running':
     case 'Not started':
     default:
-      return 'bg-muted/80 text-muted-foreground border-border/40'
+      return TASK_STATUS_THEMES.neutral.badgeClass
   }
 }
 
 export function taskStatusBadgeClass(status: TaskStatus | string) {
   switch (status) {
     case 'doing':
-      return 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
+      return TASK_STATUS_THEMES.working.badgeClass
     case 'queued':
-      return 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35'
+      return TASK_STATUS_THEMES.queued.badgeClass
     case 'review':
-      return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/35'
+      return TASK_STATUS_THEMES.review.badgeClass
     case 'done':
-      return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+      return TASK_STATUS_THEMES.done.badgeClass
     case 'blocked':
     case 'failed':
-      return 'bg-destructive/15 text-destructive dark:text-red-400 border-destructive/35'
+      return TASK_STATUS_THEMES.attention.badgeClass
     case 'todo':
     case 'backlog':
     default:
-      return 'bg-muted text-muted-foreground border-border/40'
+      return TASK_STATUS_THEMES.neutral.badgeClass
   }
 }
 

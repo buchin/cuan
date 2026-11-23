@@ -45,6 +45,7 @@ import (
 )
 
 type Server struct {
+	instanceID                  string
 	publicationVerifier         func(context.Context, publication.Config, string) error
 	publicationObserver         func(context.Context, publication.Config) (string, error)
 	releaseObservations         sync.Map
@@ -126,6 +127,7 @@ type Server struct {
 	taskManager                 *scheduler.TaskManager
 	updater                     *updater.Service
 	resendClient                resend.Client
+	deployCoordinator           *DeployCoordinator
 	taskCountsMu                sync.RWMutex
 	taskCountsCached            scopedTaskCounts
 	taskCountsExpires           time.Time
@@ -529,11 +531,19 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		sched.Start(context.Background())
 	}
 
+	var s *Server
 	taskMgr := scheduler.NewTaskManager(filepath.Join("data", "scheduled_tasks.json"), func(ctx context.Context, task *scheduler.ScheduledTask) error {
+		if s != nil {
+			return s.executeScheduledTask(ctx, task)
+		}
 		return nil
 	})
+	if cfg.InboxExecutionRole != "worker" {
+		taskMgr.Start(context.Background())
+	}
 
-	s := &Server{
+	s = &Server{
+		instanceID:             cuanDB.GenerateUUID(),
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
 		broadcastHistory:       &broadcastHistoryStore{logs: make(map[string][]CRMBroadcastLog)},
@@ -583,6 +593,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		scriptRunner:           scriptRunner,
 		processSupervisor:      processSupervisor,
 		wordpressRepo:          wpRepo,
+		deployCoordinator:      NewDeployCoordinator(),
 		wordpressOrchestrator:  wpOrchestrator,
 		wordpressWebmaster:     wpWebmaster,
 		projectRepo:            projRepo,
@@ -768,6 +779,12 @@ func (s *Server) ReconcileStaleRunners(ctx context.Context) error {
 // PrepareGracefulShutdown broadcasts restart notifications to active terminal sessions
 // and flushes/closes active session runners cleanly before server exit.
 func (s *Server) PrepareGracefulShutdown(_ time.Duration) {
+	if s.taskManager != nil {
+		s.taskManager.Stop()
+	}
+	if s.scheduler != nil {
+		s.scheduler.Stop()
+	}
 	if s.terminalManager == nil {
 		return
 	}
@@ -881,6 +898,12 @@ func (s *Server) routes() {
 			pr.Post("/settings/resend/validate", s.handleValidateResendKey)
 			pr.Post("/settings/resend/test", s.handleTestResendEmail)
 			pr.Post("/chat/idle/check", s.handleTriggerChatIdleCheck)
+
+			// Instabox / Remote Browser Service Integration
+			pr.Get("/settings/instabox", s.handleGetInstaboxSettings)
+			pr.Post("/settings/instabox", s.handleSaveInstaboxSettings)
+			pr.Patch("/settings/instabox", s.handleSaveInstaboxSettings)
+			pr.Post("/settings/instabox/validate", s.handleValidateInstaboxEndpoint)
 
 			// Tasks endpoints (T4 & T5)
 			s.registerTaskRoutes(pr)

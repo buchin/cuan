@@ -20,7 +20,7 @@ import {
   Rocket,
   CheckCircle2,
   Clock3,
-  CheckCheck,
+  Eye,
   AlertCircle,
   FolderOpen,
   ChevronDown,
@@ -619,14 +619,19 @@ function TaskDetailView({
             ) : taskAgentQueued(detail) ? (
               <Clock3 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
             ) : detail.status === 'review' ? (
-              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" aria-hidden />
+              <Eye className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" aria-hidden />
             ) : detail.status === 'blocked' ? (
               <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-hidden />
             ) : null}
             {t(workDisplayStatus(detail))}
           </span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground ml-auto sm:ml-0">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground ml-auto sm:ml-0">
             <TaskDuration task={detail} fallback={<>Updated {relativeTime(detail.updated_at)}</>} />
+            {detail.attempts && detail.attempts.length > 1 && (
+              <span className="text-[10px] text-muted-foreground/70">
+                · {detail.attempts.length} {id ? 'sesi' : 'sessions'}
+              </span>
+            )}
           </span>
         </div>
       </header>
@@ -915,18 +920,18 @@ function TaskDetailView({
                     </div>
                   </div>
                   </details>
-                  {detail.pr_url && /^https?:\/\//i.test(detail.pr_url) && (
+                  {Boolean(detail.pr_url || detail.branch_name) && (
                     <div className="mt-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Rocket className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           <span className="text-xs font-semibold text-foreground">
-                            {detail.status === 'done' || detail.complete_note?.includes('diterapkan')
+                            {detail.complete_note?.includes('diterapkan')
                               ? t('Changes applied')
                               : t('Changes ready to apply')}
                           </span>
                         </div>
-                        {detail.status === 'done' || detail.complete_note?.includes('diterapkan') ? (
+                        {detail.complete_note?.includes('diterapkan') ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             {t('Changes applied')}
@@ -934,7 +939,7 @@ function TaskDetailView({
                         ) : null}
                       </div>
 
-                      {detail.status !== 'done' && !detail.complete_note?.includes('diterapkan') ? (
+                      {!detail.complete_note?.includes('diterapkan') ? (
                         <>
                           <p className="text-xs text-muted-foreground leading-relaxed">
                             {t('Agent work has been verified and is ready to be applied to your project.')}
@@ -951,17 +956,19 @@ function TaskDetailView({
                         </>
                       ) : null}
 
-                      <div className="pt-1 border-t border-border/40">
-                        <a
-                          href={detail.pr_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          <span>{t('View technical details on GitHub')}</span>
-                        </a>
-                      </div>
+                      {detail.pr_url && /^https?:\/\//i.test(detail.pr_url) && (
+                        <div className="pt-1 border-t border-border/40">
+                          <a
+                            href={detail.pr_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span>{t('View technical details on GitHub')}</span>
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                 </section>

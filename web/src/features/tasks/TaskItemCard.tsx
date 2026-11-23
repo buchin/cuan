@@ -1,13 +1,13 @@
 import { TaskDuration } from './TaskDuration'
 import { ListRowContent } from '../../components/layout/ListControls'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Folder,
   Terminal,
   CheckCircle2,
   Clock3,
-  CheckCheck,
+  Eye,
   X,
   AlertCircle,
   Play,
@@ -79,7 +79,7 @@ export interface TaskItemCardProps {
   onDelete?: (task: Task) => void | Promise<void>
 }
 
-export function TaskItemCard({
+export const TaskItemCard = memo(function TaskItemCard({
   task,
   returnTo,
   showProject = true,
@@ -124,7 +124,8 @@ export function TaskItemCard({
   useEffect(() => {
     if ((!isRunning && !taskAgentPending(currentTask)) || managedUpdates) return
     let active = true
-    const interval = setInterval(async () => {
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       try {
         const updated = await tasksApi.get(currentTask.id)
         if (active && updated) {
@@ -147,10 +148,14 @@ export function TaskItemCard({
       } catch {
         // ignore
       }
-    }, 3000)
+    }
+    const interval = setInterval(() => void poll(), 3000)
+    const onResume = () => void poll()
+    document.addEventListener('visibilitychange', onResume)
     return () => {
       active = false
       clearInterval(interval)
+      document.removeEventListener('visibilitychange', onResume)
     }
   }, [isRunning, currentTask.id, currentTask.review_state, managedUpdates])
   const agent =
@@ -158,7 +163,7 @@ export function TaskItemCard({
   const statusBadgeClass = workStatusBadgeClass(status)
   const [applying, setApplying] = useState(false)
   const [applied, setApplied] = useState(
-    currentTask.status === 'done' && (currentTask.complete_note?.includes('diterapkan') || !!currentTask.pr_url)
+    Boolean(currentTask.complete_note?.includes('diterapkan'))
   )
   const [retrying, setRetrying] = useState(false)
   const [retryError, setRetryError] = useState('')
@@ -339,7 +344,7 @@ export function TaskItemCard({
             ) : isQueued ? (
               <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             ) : status === 'Ready for review' ? (
-              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+              <Eye className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
             ) : status === 'Completed' || status === 'Answered' ? (
               <CheckCircle2 className="h-3 w-3 shrink-0 text-[color:var(--status-success)]" />
             ) : status === 'Cancelled' ? (
@@ -527,7 +532,7 @@ export function TaskItemCard({
 
           {/* Primary Action: Always positioned on the Right */}
           <div className="flex items-center gap-2">
-            {currentTask.pr_url && !applied && status === 'Ready for review' && (
+            {Boolean(currentTask.pr_url || currentTask.branch_name) && !applied && (status === 'Ready for review' || status === 'Completed') && (
               <button
                 type="button"
                 disabled={applying}
@@ -579,7 +584,7 @@ export function TaskItemCard({
                 }}
                 className={cn(
                   'min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
-                  currentTask.pr_url && !applied && status === 'Ready for review'
+                  Boolean(currentTask.pr_url || currentTask.branch_name) && !applied && (status === 'Ready for review' || status === 'Completed')
                     ? 'action-secondary'
                     : 'action-primary'
                 )}
@@ -676,4 +681,4 @@ export function TaskItemCard({
       </ActionDialog>
     </div>
   )
-}
+})

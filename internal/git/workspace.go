@@ -112,6 +112,19 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		if err := c.checkoutRetainedTaskBranch(ctx, workspacePath, branchName, ws.BaseCommit); err != nil {
 			return nil, err
 		}
+		// If the retained task branch does not contain the newly pinned project baseline,
+		// and the worktree is clean, reconcile them so the workspace is on the latest baseline.
+		if ws.BaseCommit != "" {
+			if contained, _ := c.CommitContained(ctx, workspacePath, ws.BaseCommit, "HEAD"); !contained {
+				if head, err := c.GetLatestCommitSHA(ctx, workspacePath); err == nil && IsCommitHash(head) {
+					if clean, err := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "status", "--porcelain").Output(); err == nil && len(bytes.TrimSpace(clean)) == 0 {
+						if reconciled, rErr := c.ReconcileCommits(ctx, workspacePath, head, ws.BaseCommit, fmt.Sprintf("Reconcile retained task branch %s with updated project baseline %s", branchName, ws.BaseCommit[:8])); rErr == nil && IsCommitHash(reconciled) {
+							_ = exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "reset", "--hard", reconciled).Run()
+						}
+					}
+				}
+			}
+		}
 		if err := c.configureWorkspaceGitIdentity(workspacePath, authorName, authorEmail); err != nil {
 			return nil, err
 		}
@@ -213,22 +226,56 @@ func (c *Client) pinWorkspaceBase(ctx context.Context, ws *TaskWorkspace) error 
 	return nil
 }
 
+// isGitIndexLockContention reports whether git output indicates collision on .git/index.lock.
+func isGitIndexLockContention(msg string) bool {
+	return strings.Contains(msg, "index.lock") && (strings.Contains(msg, "File exists") || strings.Contains(msg, "locked") || strings.Contains(msg, "Unable to create"))
+}
+
+// executeGitWithRetry executes a git command, retrying with backoff if .git/index.lock contention is detected.
+func executeGitWithRetry(ctx context.Context, cmdFn func() *exec.Cmd, maxRetries int, delay time.Duration) ([]byte, error) {
+	var lastErr error
+	var lastOut []byte
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		cmd := cmdFn()
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+		lastOut = out
+		if isGitIndexLockContention(string(out)) && attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return lastOut, ctx.Err()
+			case <-time.After(delay):
+				continue
+			}
+		}
+		break
+	}
+	return lastOut, lastErr
+}
+
 // checkoutRetainedTaskBranch never rewinds an existing branch or discards files.
 func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch, baseRef string) error {
-	current, err := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD").Output()
+	currentCmd := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	currentCmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	current, err := currentCmd.Output()
 	if err == nil && strings.TrimSpace(string(current)) == branch {
 		return nil // Also preserve an in-progress merge/index on this branch.
 	}
 	args := []string{"-C", dir, "checkout"}
-	local := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
-	if err := local.Run(); err == nil {
+	localCmd := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	localCmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	if err := localCmd.Run(); err == nil {
 		args = append(args, branch)
 	} else {
 		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
 			return errors.New("retained workspace branch could not be inspected; saved files were preserved")
 		}
-		remote := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+branch)
-		if err := remote.Run(); err == nil {
+		remoteCmd := exec.CommandContext(ctx, c.gitBinary, "-C", dir, "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+branch)
+		remoteCmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+		if err := remoteCmd.Run(); err == nil {
 			args = append(args, "-b", branch, "--track", "origin/"+branch)
 		} else {
 			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
@@ -240,8 +287,12 @@ func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch, ba
 			}
 		}
 	}
-	if err := exec.CommandContext(ctx, c.gitBinary, args...).Run(); err != nil {
-		return errors.New("task branch checkout needs reconciliation; saved files, commits and conflicts were preserved")
+	if out, err := executeGitWithRetry(ctx, func() *exec.Cmd {
+		cmd := exec.CommandContext(ctx, c.gitBinary, args...)
+		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+		return cmd
+	}, 2, 250*time.Millisecond); err != nil {
+		return fmt.Errorf("task branch checkout needs reconciliation; saved files, commits and conflicts were preserved: %s", string(out))
 	}
 	return nil
 }
@@ -377,14 +428,18 @@ func (c *Client) linkWorkspaceDependencies(workspacePath, baseRepoDir string) {
 // CommitChanges stages all changes in workspace and commits with configured author identity.
 // Returns the commit SHA, or empty string if there are no changes.
 func (c *Client) CommitChanges(ctx context.Context, workspacePath, message, authorName, authorEmail string) (string, error) {
-	// Stage all changes
-	addCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "add", "-A")
-	if out, err := addCmd.CombinedOutput(); err != nil {
+	// Stage all changes with index lock retry resilience
+	if out, err := executeGitWithRetry(ctx, func() *exec.Cmd {
+		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "add", "-A")
+		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+		return cmd
+	}, 2, 250*time.Millisecond); err != nil {
 		return "", fmt.Errorf("git add: %s", string(out))
 	}
 
 	// Check if there are changes to commit
 	statusCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "status", "--porcelain")
+	statusCmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	statusOut, err := statusCmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git status: %w", err)
@@ -403,19 +458,22 @@ func (c *Client) CommitChanges(ctx context.Context, workspacePath, message, auth
 	}
 
 	authorFlag := fmt.Sprintf("%s <%s>", authorName, authorEmail)
-	commitCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "commit", "-m", message, "--author", authorFlag)
 
-	// Ensure author/committer env variables are preserved
+	// Ensure author/committer env variables and GIT_OPTIONAL_LOCKS are preserved
 	env := os.Environ()
 	env = append(env,
+		"GIT_OPTIONAL_LOCKS=0",
 		"GIT_AUTHOR_NAME="+authorName,
 		"GIT_AUTHOR_EMAIL="+authorEmail,
 		"GIT_COMMITTER_NAME="+authorName,
 		"GIT_COMMITTER_EMAIL="+authorEmail,
 	)
-	commitCmd.Env = env
 
-	if out, err := commitCmd.CombinedOutput(); err != nil {
+	if out, err := executeGitWithRetry(ctx, func() *exec.Cmd {
+		cmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "commit", "-m", message, "--author", authorFlag)
+		cmd.Env = env
+		return cmd
+	}, 2, 250*time.Millisecond); err != nil {
 		return "", fmt.Errorf("git commit: %s", string(out))
 	}
 

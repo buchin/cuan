@@ -646,6 +646,8 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cancelled := task.TaskStatusCancelled
+	_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, author, task.UpdateTaskRequest{Status: &cancelled})
 	if s.projectStudioRepo != nil {
 		_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "cancelled")
 	}

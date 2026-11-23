@@ -55,7 +55,6 @@ func (s *Server) StartInboxDispatcher(ctx context.Context) {
 						log.Print("local attempt recovery unavailable")
 					}
 					_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
-					_ = s.ReconcileZombies(ctx)
 				}
 				if s.runnerSvc != nil {
 					_, _ = s.runnerSvc.ReconcileExpiredLeases(ctx)
@@ -553,6 +552,12 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 									output = s.applyInboxTaskCancel(ctx, q, output)
 								} else if strings.Contains(output, "```cuan-task-reopen") {
 									output = s.applyInboxTaskReopen(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-schedule") {
+									output = s.applyInboxSchedule(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-project") {
+									output = s.applyInboxProject(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-skill") {
+									output = s.applyInboxSkill(ctx, q, output)
 								} else {
 									if strings.Contains(output, "```cuan-delegate") {
 										step("delegation", "Preparing the approved work.")

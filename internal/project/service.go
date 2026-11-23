@@ -248,6 +248,11 @@ func (s *Service) ListFiltered(ctx context.Context, filter ArchivedFilter) ([]*P
 	return items, nil
 }
 
+// Touch refreshes the project's updated_at timestamp to now, signalling fresh task or user activity.
+func (s *Service) Touch(ctx context.Context, id string) error {
+	return s.store.TouchProject(ctx, id)
+}
+
 // Sync triggers a fetch / sync against the remote GitHub repository.
 func (s *Service) Sync(ctx context.Context, id string) (*ProjectResponse, error) {
 	p, err := s.store.GetProject(ctx, id)
@@ -311,7 +316,7 @@ func (s *Service) ensureValidLocalPath(ctx context.Context, p *Project) {
 	if p == nil || p.ID == "" {
 		return
 	}
-	if p.ID == "default" && p.RepoURL == "" && p.LocalPath == "" {
+	if p.RepoURL == "" && p.LocalPath == "" {
 		return
 	}
 	// A stored path that belongs to this project and exists on disk is authoritative.

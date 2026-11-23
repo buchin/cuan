@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
-  CheckCheck,
+  Eye,
   Clock3,
   AlertCircle,
   ClipboardCheck,
@@ -51,7 +51,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
   className,
   isCustomerRoom = false,
 }: TaskCompletionCardProps) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const navigate = useNavigate()
 
   const [currentTask, setCurrentTask] = useState<Task>(task)
@@ -196,7 +196,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             ) : isQueued ? (
               <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             ) : isReview ? (
-              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <Eye className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
             ) : isNeedsAttention ? (
               <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
             ) : (
@@ -209,9 +209,14 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             {taskRef(currentTask.id)}
           </span>
 
-          <div className="hidden sm:flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
             <Clock className="h-3 w-3 shrink-0" />
             <TaskDuration task={currentTask} compact fallback={<span>{relativeTime(currentTask.updated_at || currentTask.created_at)}</span>} />
+            {currentTask.latest_attempt?.attempt_number && currentTask.latest_attempt.attempt_number > 1 && (
+              <span className="text-[10px] text-muted-foreground/70">
+                · {currentTask.latest_attempt.attempt_number} {language === 'id' ? 'sesi' : 'sessions'}
+              </span>
+            )}
           </div>
         </div>
 

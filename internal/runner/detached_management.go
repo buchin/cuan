@@ -93,6 +93,10 @@ func (r *Runner) monitorDetachedWorker(attemptID string, pid int, lane string) {
 	}
 
 	r.mu.Lock()
+	if act, ok := r.activeAttempts[attemptID]; ok && act.attempt != nil {
+		r.preferredTaskID = act.attempt.TaskID
+		r.preferredUntil = time.Now().Add(15 * time.Minute)
+	}
 	delete(r.activeAttempts, attemptID)
 	if r.currentAttempt != nil && r.currentAttempt.ID == attemptID {
 		r.currentAttempt = nil
@@ -108,6 +112,12 @@ func (r *Runner) monitorDetachedWorker(attemptID string, pid int, lane string) {
 
 	log.Printf("[Runner %s] Detached worker PID %d for attempt %s finished; lane '%s' released (remaining active: %d).",
 		r.cfg.RunnerID, pid, attemptID, lane, remaining)
+
+	// Trigger an immediate poll after detached worker finishes, with a short delay (1.5s) to allow coordinator review to queue the continuation attempt
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		r.pollAndExecute(context.Background())
+	}()
 }
 
 // RunDetachedAttempt executes a claimed attempt inside an isolated detached worker process.

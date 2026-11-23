@@ -399,10 +399,33 @@ def cleanup_worker_drain():
         pass
 
 
+def active_workers_dir():
+    return Path(os.environ.get('CUAN_WORKERS_DIR', '/tmp/cuan-workers'))
+
+
+def has_active_detached_workers():
+    workers_dir = active_workers_dir()
+    if not workers_dir.is_dir():
+        return False
+    for json_file in workers_dir.glob('att_*.json'):
+        try:
+            data = json.loads(json_file.read_text())
+            pid = data.get('pid')
+            if pid and isinstance(pid, int):
+                os.kill(pid, 0)
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
 def restart_worker_service():
-    """Auto-restart cuan-runner service to ensure new release binary is active without leftover drain state."""
+    """Auto-restart cuan-runner service when idle, preserving active in-flight worker attempts."""
     try:
         cleanup_worker_drain()
+        if has_active_detached_workers():
+            print('==> Notice: Active detached worker detected in cuan-workers; deferring cuan-runner restart to avoid interrupting in-flight tasks.')
+            return
         res = subprocess.run(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
         if res.returncode == 0:
             print('==> Successfully restarted cuan-runner.service on new release.')
@@ -713,6 +736,11 @@ def main():
                 old_sha = old_manifest.get('sha')
                 old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
                 recovered = old_healthy()
+                if supports_chat_worker(old_manifest) and not args.no_restart:
+                    try:
+                        start_chat_worker(old_manifest)
+                    except Exception as err:
+                        print(f'==> Warning: Failed to restart prior chat worker on rollback: {err}', flush=True)
                 restart_worker_service()
                 raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
             if not args.no_restart:

@@ -62,6 +62,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "chat" {
 		os.Exit(diagnostics.RunChatCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "schedule" {
+		os.Exit(diagnostics.RunScheduleCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "config" {
 		os.Exit(diagnostics.RunConfigCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
@@ -436,6 +439,7 @@ func printUsage() {
 Usage:
   cuan-server [flags]
   cuan chat <subcommand> [flags]
+  cuan schedule <subcommand> [flags]
   cuan task <subcommand> [flags]
   cuan account <list|usage|models|model|fallback|verify> [arguments]
   cuan maintenance <status|run>
@@ -451,6 +455,7 @@ Usage:
 
 Subcommands:
   chat              Agent chat & inbox conversations (new, send, list, messages)
+  schedule          Recurring routines & automations (list, create, delete, toggle, trigger)
   task              Task management (list, get, update, create) & runner reporting
   account           AI account readiness, capacity and existing-sign-in verification
   config            CLI and MCP connection settings (show, set)

@@ -186,6 +186,25 @@ func TestTaskCompletionChat_PostVerifyReviewSingleBubbleDeduplication(t *testing
 	s.inboxStopping.Store(false)
 	s.wireTaskService(s.taskSvc)
 
+	// Post-verify review: this fixture represents a finished native read-only audit.
+	d.ExecutionCategory = task.ExecutionCategoryReadOnly
+	if err := s.taskSvc.Store().UpdateTask(ctx, &d.Task); err != nil {
+		t.Fatal(err)
+	}
+	finished := time.Now().UTC()
+	d.LatestAttempt.FinishedAt = &finished
+	if err := s.taskSvc.Store().UpdateAttempt(ctx, d.LatestAttempt); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range []*task.TaskActivity{
+		{ID: "reconciled-current-report", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: "agent_report", Author: d.AssignedAgent, NewStatus: task.TaskStatusReview, Message: d.Summary + "\n" + d.CompleteNote, CreatedAt: finished},
+		{ID: "reconciled-unchanged-receipt", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: "repository_scope_verified", Author: d.LatestAttempt.RunnerID, NewStatus: "read_only", Message: "Native fixture verified unchanged audit scope", CreatedAt: finished},
+	} {
+		if err := s.taskSvc.Store().CreateActivity(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Set up mock provider binary returning a passing review evaluation
 	review := `{"decision":"pass","explanation":"Hasil verifikasi sudah lengkap dan sesuai instruksi.","revision":""}`
 	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": review}})

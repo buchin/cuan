@@ -57,15 +57,38 @@ try {
                 'workflow/cancel-modal-390.png', 'workflow/cancel-modal-1440.png',
                 'workflow/customer-reply-card-390.png', 'workflow/customer-reply-card-1440.png',
                 'workflow/customer-reply-sent-390.png', 'workflow/customer-reply-sent-1440.png',
-                'workflow/composer-tasks-expanded-390.png', 'workflow/composer-tasks-expanded-1440.png')
+                'workflow/composer-tasks-expanded-390.png', 'workflow/composer-tasks-expanded-1440.png',
+                'workflow/room-card-390.png', 'workflow/room-card-1440.png',
+                'workflow/desktop-navigation-active-inbox.png',
+                'workflow/desktop-navigation-active-studio.png',
+                'workflow/desktop-navigation-hover.png',
+                'workflow/mobile-navigation-active-inbox.png',
+                'workflow/mobile-navigation-active-studio.png',
+                'workflow/mobile-navigation-hover.png')
   for (const capture of captures) {
     const stat = await fs.stat(path.join(output, capture))
     if (!stat.isFile() || stat.size === 0) throw new Error(`Missing visual evidence: ${capture}`)
+  }
+  const navCaptures = [
+    'desktop-navigation-active-inbox.png',
+    'desktop-navigation-active-studio.png',
+    'desktop-navigation-hover.png',
+    'mobile-navigation-active-inbox.png',
+    'mobile-navigation-active-studio.png',
+    'mobile-navigation-hover.png',
+    'inbox-1440.png',
+    'inbox-390.png',
+  ]
+  for (const name of navCaptures) {
+    try {
+      await fs.copyFile(path.join(output, 'workflow', name), path.join(output, name))
+    } catch {}
   }
   const components = [
     'web/src/features/inbox/InboxView.tsx',
     'web/src/features/inbox/ComposerTasks.tsx',
     'web/src/features/inbox/InboxWorkPanel.tsx',
+    'web/src/features/inbox/RoomCard.tsx',
     'web/src/components/ui/AccordionTimeline.tsx',
     'web/src/features/inbox/PromptChoiceChips.tsx',
     'web/src/features/tasks/TaskSessionPage.tsx',

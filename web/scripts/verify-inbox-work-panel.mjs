@@ -18,6 +18,7 @@ const extraContacts=[
   {id:'c-azizoke',conversation_id:'c-azizoke',name:'azizoke 2022-05-30 09:30:43',type:'customer',email:'azizoke@example.test',unread_count:0,status:'offline',last_message:'Email lama kenapa sob',updated_at:now,task_count:0,active_tasks:0},
   {id:'c-anon',conversation_id:'c-anon',name:'Visitor #3f8a91',type:'customer',email:'',unread_count:0,status:'offline',last_message:'Tanya produk kak',updated_at:now,task_count:0,active_tasks:0},
   {id:'c-agent',conversation_id:'c-agent',name:'Penyederhanaan Timeline Task Chat',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Termasuk posisi judul task lain sejajar itu...',updated_at:now,task_count:1,active_tasks:1},
+  {id:'c-review',conversation_id:'c-review',name:'Peringatan Kapasitas Server',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Hasil optimasi selesai diperiksa.',updated_at:now,task_count:1,active_tasks:0,review_tasks:1},
 ]
 const contactsList=[contact,...extraContacts]
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
@@ -28,6 +29,7 @@ const earlierTasks=[
   {id:'task-2',title:'Remediasi dan Perbaikan Pengiriman Magic Link Login Nerd di Server Baru',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-30000).toISOString(),updated_at:now},
   {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now},
   {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now},
+  {id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-5000).toISOString(),updated_at:now,latest_progress:'Menunggu pemeriksaan',summary:'Identified disk usage bottlenecks (89% used, 9.0 GiB free)...'},
 ]
 const allTasks=[...earlierTasks,baseTask]
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
@@ -39,6 +41,7 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('choices','Pilih langkah yang paling sesuai.',{prompt_choices:{question:'Bagaimana kita lanjutkan?',options:[{id:'continue',label:'Lanjutkan pemeriksaan'},{id:'adjust',label:'Sesuaikan kebutuhan'}],allow_other:true}}),
  message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
+ message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
  message('proposal-pending','Siap, ane susun proposal untuk Riwayat & Log Pengiriman (Phase 3).\n\nDi fase ini, setiap sesi broadcast yang dikirim akan otomatis tercatat di menu Kontak—lengkap dengan waktu pengiriman, subjek pesan, jumlah penerima sukses, dan rincian error jika ada email yang gagal terkirim. Tampilannya dirancang minimalis dan rapi mengikuti standar Things 3 / Bear Notes agar mudah dipantau tanpa menambah beban visual.\n\nDetail rencana dan kriteria tuntasnya sudah ane cantumkan pada kartu persetujuan berikut. Silakan dikonfirmasi jika cakupannya sudah sesuai.',{
@@ -129,7 +132,9 @@ let browser
 const checks=[]
 try{
  for(const width of (process.env.CUAN_WORKFLOW_NATIVE==='1'?[390,1440]:[390,1440,1920])){
-  browser=await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
+  browser=process.env.CUAN_REMOTE_BROWSER_URL
+    ? await chromium.connectOverCDP(process.env.CUAN_REMOTE_BROWSER_URL)
+    : await chromium.launch({headless:true,executablePath:process.env.CUAN_CHROMIUM_EXECUTABLE,args:process.env.CUAN_BROWSER_NO_SANDBOX==='1'?['--no-sandbox']:[]})
   const context=await browser.newContext({viewport:{width,height:width===390?844:1000},hasTouch:width===390})
   await context.addInitScript(()=>{localStorage.setItem('cuan-language','id');localStorage.setItem('cuan_token','isolated-fixture')})
   const page=await context.newPage(),errors=[]
@@ -154,10 +159,27 @@ try{
      }
      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})})
    }
-   else if(pathname.endsWith('/messages'))data={messages,tasks:allTasks,contact,requests:[]}
+   else if(pathname.endsWith('/messages')){
+     const match=pathname.match(/\/conversations\/([^/]+)\/messages/)
+     const reqId=match?match[1]:null
+     const matchedContact=reqId?(contactsList.find(c=>c.id===reqId||c.conversation_id===reqId)||contact):contact
+     data={messages,tasks:allTasks,contact:matchedContact,requests:[]}
+   }
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
     data=sessionStatus==='running'?fixtureTask:{...fixtureTask,status:'review',latest_attempt:{...attempt,status:'succeeded',finished_at:now},attempts:[{...attempt,status:'succeeded',finished_at:now}]}
+   }
+   else if(pathname==='/api/v1/tasks/task-review'){
+    data={
+      id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:now,updated_at:now,
+      latest_attempt:{id:'attempt-review',task_id:'task-review',status:'succeeded',agent_name:'agent_cuan',runner_id:'runner',finished_at:now},
+      latest_progress:'Menunggu pemeriksaan',summary:'Pembersihan cache berhasil dieksekusi.',
+      attempts:[{id:'attempt-review',task_id:'task-review',status:'succeeded',started_at:now,finished_at:now}],
+      activities:[
+        {id:'act-1',task_id:'task-review',activity_type:'created',message:'Work created',created_at:now},
+        {id:'act-2',task_id:'task-review',activity_type:'agent_report',new_status:'review',message:'Eksekusi selesai, menunggu pemeriksaan',created_at:now}
+      ]
+    }
    }
    else if(pathname.endsWith('/run-agent/history'))data={history:[],live_session:sessionStatus==='running'?{session_id:'fixture-session',attempt_id:'attempt',agent_id:'agent_cuan',started_at:now}:null}
    else if(pathname.endsWith('/logs'))data={logs:[{id:1,line:'Isolated terminal fixture output',stream:'stdout',logged_at:now}]}
@@ -173,6 +195,34 @@ try{
   })
   await page.goto(new URL('/inbox/work-fixture',origin).href,{waitUntil:'domcontentloaded'})
   await page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),width===1920)
+  // Verify unified calm navigation styling (Things 3 & Bear Notes)
+  if(width===390){
+    const bottomNav = page.locator('nav.bottom-navigation')
+    await bottomNav.waitFor({ state: 'visible' })
+    const activeBottomInbox = bottomNav.locator('[data-testid="bottom-nav-inbox"][aria-current="page"]')
+    await activeBottomInbox.waitFor({ state: 'visible' })
+    const inactiveBottomTasks = bottomNav.locator('[data-testid="bottom-nav-tasks"]')
+    await inactiveBottomTasks.waitFor({ state: 'visible' })
+    assert.equal(await inactiveBottomTasks.getAttribute('aria-current'), null, 'Mobile tasks must be inactive')
+    await bottomNav.screenshot({ path: path.join(output, 'mobile-navigation-active-inbox.png') })
+    await inactiveBottomTasks.hover()
+    await page.waitForTimeout(100)
+    await bottomNav.screenshot({ path: path.join(output, 'mobile-navigation-hover.png') })
+  }
+  if(width>=1200){
+    const desktopNav = page.locator('nav.primary-navigation')
+    await desktopNav.waitFor({ state: 'visible' })
+    const activeInbox = desktopNav.locator('.nav-action[aria-current="page"]')
+    await activeInbox.waitFor({ state: 'visible' })
+    assert.equal(await activeInbox.getAttribute('data-nav-tone'), 'inbox', 'Active nav item must be inbox')
+    const inactiveTasks = desktopNav.locator('.nav-action[data-nav-tone="tasks"]')
+    await inactiveTasks.waitFor({ state: 'visible' })
+    assert.equal(await inactiveTasks.getAttribute('aria-current'), null, 'Tasks must be inactive')
+    await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-active-inbox.png') })
+    await inactiveTasks.hover()
+    await page.waitForTimeout(100)
+    await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-hover.png') })
+  }
   // Verify avatar monograms in Inbox header and contact list
   if(width===390){
     const backBtn=page.locator('button[aria-label="Kembali ke percakapan"], button[aria-label="Back to conversations"]').first()
@@ -225,6 +275,11 @@ try{
     assert.ok(Math.abs(collapsedChevronBox.x - expandedChevronBox.x) <= 3, `Zero layout shift horizontal: expected ~${collapsedChevronBox.x}, got ${expandedChevronBox.x}`)
     assert.ok(Math.abs(collapsedChevronBox.y - expandedChevronBox.y) <= 3, `Zero layout shift vertical: expected ~${collapsedChevronBox.y}, got ${expandedChevronBox.y}`)
   }
+  const reviewCard = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]')
+  await reviewCard.waitFor({state:'visible'})
+  assert.equal(await reviewCard.locator('svg.lucide-eye').count(), 1, 'Task in review must display Eye icon')
+  assert.equal(await reviewCard.locator('svg.lucide-check-check').count(), 0, 'Task in review must not display double checkmark')
+  assert.equal(await page.locator('.composer-tasks-panel svg.lucide-check-check').count(), 0, 'No task in review should use check-check')
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
   assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
@@ -365,6 +420,23 @@ try{
     await page.screenshot({path:path.join(output,`approval-card-stale-notice-${width}.png`)})
   }
 
+  // Verify RoomCard / Chat reference card calm styling & low visual noise (DoD)
+  const roomCard = page.locator('.inbox-message-list [data-card="room-card"]').first()
+  await roomCard.waitFor({state:'visible',timeout:10000})
+  assert.ok(await roomCard.count() >= 1, 'RoomCard must be visible in chat stream')
+  const roomCardText = await roomCard.innerText()
+  assert.ok(!roomCardText.includes('#'), 'RoomCard surface must be free of hash IDs')
+  assert.ok(roomCardText.includes('Penyederhanaan Timeline Task Chat'), 'Room title must be displayed as primary anchor')
+  assert.ok(!roomCardText.includes('Peserta:'), 'RoomCard must eliminate redundant Peserta: label')
+  assert.ok(await roomCard.getByRole('button', {name: /Buka ruang|Open room/i}).count() >= 1, 'Open room button must be present')
+  assert.ok(await roomCard.getByRole('button', {name: /Salin tautan|Copy link/i}).count() >= 1, 'Copy link button must be present')
+  const openRoomBtn = roomCard.getByRole('button', {name: /Buka ruang|Open room/i})
+  assert.ok((await openRoomBtn.boundingBox()).height >= 44, 'Open room button must meet 44px touch target')
+  const copyLinkBtn = roomCard.getByRole('button', {name: /Salin tautan|Copy link/i})
+  assert.ok((await copyLinkBtn.boundingBox()).height >= 44, 'Copy link button must meet 44px touch target')
+  await roomCard.scrollIntoViewIfNeeded()
+  await roomCard.screenshot({path:path.join(output,`room-card-${width}.png`)})
+
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()
   const previousScroll=await list.evaluate(el=>el.scrollTop)
@@ -409,6 +481,23 @@ try{
   await panel.waitFor({state:'visible'})
   await panel.locator('[data-work-back]').click()
   await panel.waitFor({state:'detached'})
+  const reviewAccordionTrigger = page.locator('.composer-tasks-panel [data-timeline-item="task-review"] [data-timeline-trigger]')
+  if(await reviewAccordionTrigger.count() > 0 && await reviewAccordionTrigger.isVisible()){
+    if(await reviewAccordionTrigger.getAttribute('aria-expanded') === 'false'){
+      await reviewAccordionTrigger.click()
+    }
+    const reviewDetailsBtn = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]').getByRole('button',{name:/^(Details|Detail|Rincian)$/})
+    if(await reviewDetailsBtn.count() > 0 && await reviewDetailsBtn.isVisible()){
+      await reviewDetailsBtn.click()
+      await panel.waitFor({state:'visible'})
+      const reviewDot = panel.locator('[data-status-dot="review"]')
+      await reviewDot.waitFor({state:'visible', timeout: 5000})
+      assert.ok(await reviewDot.count() >= 1, 'TaskTimeline must show review status dot')
+      await page.screenshot({path:path.join(output,`timeline-review-${width}.png`)})
+      await panel.locator('[data-work-back]').click()
+      await panel.waitFor({state:'detached'})
+    }
+  }
   await card.getByRole('button',{name:/terminal/i}).waitFor({state:'visible'})
   await card.getByRole('button',{name:/terminal/i}).click()
   await panel.locator('[data-work-terminal]').waitFor({state:'visible'})
@@ -478,6 +567,21 @@ try{
   await studioGoal.waitFor({ state: 'visible' })
   const initialStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
   assert.ok(initialStudioHeight >= 104, 'Studio goal textarea must have minimum 104px height')
+  if(width===390){
+    const bottomNav = page.locator('nav.bottom-navigation')
+    await bottomNav.waitFor({ state: 'visible' })
+    const activeBottomStudio = bottomNav.locator('[data-testid="bottom-nav-studio"][aria-current="page"]')
+    await activeBottomStudio.waitFor({ state: 'visible' })
+    await bottomNav.screenshot({ path: path.join(output, 'mobile-navigation-active-studio.png') })
+  }
+  if(width>=1200){
+    const desktopNav = page.locator('nav.primary-navigation')
+    await desktopNav.waitFor({ state: 'visible' })
+    const activeStudio = desktopNav.locator('.nav-action[aria-current="page"]')
+    await activeStudio.waitFor({ state: 'visible' })
+    assert.equal(await activeStudio.getAttribute('data-nav-tone'), 'studio', 'Active nav item must be studio')
+    await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-active-studio.png') })
+  }
   await page.screenshot({ path: path.join(output, `studio-${width}.png`) })
 
   await studioGoal.fill('Target pekerjaan baru:\n1. Integrasi API\n2. Penyesuaian layout\n3. Verifikasi otomatis\n4. Dokumentasi lengkap\n5. Pengujian di perangkat nyata')
