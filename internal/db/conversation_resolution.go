@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,7 +16,7 @@ func (r *SQLProjectStudioRepository) SetRoomResolved(ctx context.Context, id str
 	if !IsValidUUID(id) {
 		return ErrInvalidUUID
 	}
-	result, err := r.db.ExecContext(ctx, `UPDATE project_rooms SET resolved_at=$2 WHERE id=$1 AND ($2::timestamptz IS NULL OR NOT EXISTS (SELECT 1 FROM project_messages WHERE room_id=$1 AND created_at>$2))`, id, at)
+	result, err := r.db.ExecContext(ctx, `UPDATE project_rooms SET resolved_at=$2 WHERE id=$1 AND ($2::timestamptz IS NULL OR NOT EXISTS (SELECT 1 FROM project_messages WHERE room_id=$1 AND created_at>$2 AND author_id NOT IN ('cuan_system_lifecycle', 'cuan_work_review')))`, id, at)
 	if err != nil {
 		return fmt.Errorf("save conversation resolution: %w", err)
 	}
@@ -45,6 +46,9 @@ func (m *MemoryProjectStudioRepository) SetRoomResolved(ctx context.Context, id 
 	if at != nil {
 		for _, msg := range m.messages {
 			if msg.RoomID == id && msg.CreatedAt.After(*at) {
+				if msg.AuthorID == "cuan_system_lifecycle" || msg.AuthorID == "cuan_work_review" || strings.HasPrefix(strings.TrimSpace(msg.Content), "Sistem baru saja diperbarui") {
+					continue
+				}
 				return ErrConversationChanged
 			}
 		}

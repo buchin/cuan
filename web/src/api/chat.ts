@@ -10,6 +10,7 @@ export interface ChatContact {
   resolution_observed_at?: string
   resolved?: boolean
   resolved_at?: string
+  only_system_notices?: boolean
   contact_id?: string
   agent_id?: string
   agent_name?: string
