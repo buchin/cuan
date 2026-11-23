@@ -167,6 +167,7 @@ function isContactEqual(a: ChatContact, b: ChatContact): boolean {
       a.done_tasks === b.done_tasks &&
       a.canceled_tasks === b.canceled_tasks &&
       a.failed_tasks === b.failed_tasks &&
+      a.active_substage === b.active_substage &&
       a.resolved === b.resolved)
   )
 }
@@ -382,11 +383,34 @@ export function App() {
       }
       void refreshContacts()
     }
+    const handleSubstage = (e?: Event) => {
+      const custom = e as CustomEvent<{ roomId: string; substage?: string }> | undefined
+      if (custom?.detail?.roomId) {
+        const targetId = custom.detail.roomId
+        const newSubstage = custom.detail.substage
+        setContacts((prev) =>
+          prev.map((c) => {
+            if (
+              c.conversation_id === targetId ||
+              c.id === targetId ||
+              c.id === 'topic_' + targetId
+            ) {
+              if (c.active_substage !== newSubstage) {
+                return { ...c, active_substage: newSubstage }
+              }
+            }
+            return c
+          }),
+        )
+      }
+    }
     window.addEventListener('cuan-conversation-resolution', changed)
     window.addEventListener('cuan-conversation-updated', changed)
+    window.addEventListener('cuan:task-substage-changed', handleSubstage)
     return () => {
       window.removeEventListener('cuan-conversation-resolution', changed)
       window.removeEventListener('cuan-conversation-updated', changed)
+      window.removeEventListener('cuan:task-substage-changed', handleSubstage)
     }
   }, [refreshContacts])
   const refreshAgents = useCallback(async () => {

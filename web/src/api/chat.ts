@@ -39,6 +39,7 @@ export interface ChatContact {
   done_tasks?: number
   canceled_tasks?: number
   failed_tasks?: number
+  active_substage?: string
 }
 
 export interface AgentActionCard {
