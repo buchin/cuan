@@ -88,6 +88,16 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 				}
 			}
 			if !result.Verified {
+				if appliedSHA := extractAppliedCommitSHA(effectiveDetail.CompleteNote); appliedSHA != "" {
+					containedApplied, err := s.projectSvc.PublishedCommitContained(ctx, effectiveDetail.ProjectID, appliedSHA, running.Commit)
+					if err == nil && containedApplied {
+						result.ObservedRelease = running.Commit
+						result.ResultCommitContained = &containedApplied
+						result.Verified, result.Provenance = true, running.Provenance+"_contains_applied_commit"
+					}
+				}
+			}
+			if !result.Verified {
 				if inspected := s.liveInspectionReviewContext(ctx, d); inspected != nil && inspected["verified_result_commit"] == running.Commit {
 					result.Verified, result.Provenance, result.Commit = true, "verified_current_project_snapshot", running.Commit
 				}
@@ -443,4 +453,21 @@ func (s *Server) isPriorVerificationAttempt(ctx context.Context, d *task.TaskDet
 		}
 	}
 	return false
+}
+
+func extractAppliedCommitSHA(note string) string {
+	idx := strings.Index(note, "Perubahan telah berhasil diterapkan (Commit ")
+	if idx < 0 {
+		return ""
+	}
+	sub := note[idx+len("Perubahan telah berhasil diterapkan (Commit "):]
+	end := strings.Index(sub, ")")
+	if end < 0 {
+		return ""
+	}
+	sha := strings.TrimSpace(sub[:end])
+	if releaseObjectID.MatchString(sha) {
+		return sha
+	}
+	return ""
 }

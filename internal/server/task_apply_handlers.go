@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -95,10 +96,14 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{
+	updateReq := task.UpdateTaskRequest{
 		Status:       &doneStatus,
 		CompleteNote: &note,
-	})
+	}
+	if appliedSHA != "" {
+		updateReq.CommitSHA = &appliedSHA
+	}
+	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", updateReq)
 	if err != nil {
 		log.Printf("[Server] Task %s merged but status update note error: %v", taskID, err)
 	} else if updated != nil && updated.Status == task.TaskStatusDone {
@@ -145,6 +150,12 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 			if info, err := os.Stat(sourcePath); err == nil && info.IsDir() {
 				if _, _, pushErr := s.projectSvc.PushNativeTaskBranch(ctx, taskID, projectID, detail.Instructions, sourcePath, branchName, false, title); pushErr != nil {
 					log.Printf("[applyTaskInternal] note: PushNativeTaskBranch for %s: %v", taskID, pushErr)
+				}
+				if proj, err := s.projectSvc.Get(ctx, projectID); err == nil && proj != nil && proj.LocalPath != "" {
+					cmd := exec.CommandContext(ctx, "git", "-C", proj.LocalPath, "fetch", sourcePath, fmt.Sprintf("%s:%s", branchName, branchName))
+					if out, fetchErr := cmd.CombinedOutput(); fetchErr != nil {
+						log.Printf("[applyTaskInternal] note: local workspace branch fetch for %s: %v (%s)", taskID, fetchErr, strings.TrimSpace(string(out)))
+					}
 				}
 			}
 		}
@@ -288,10 +299,14 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 		note += " Verifikasi deployment production belum dikonfirmasi."
 	}
 	doneStatus := task.TaskStatusReview
-	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
+	autoUpdateReq := task.UpdateTaskRequest{
 		Status:       &doneStatus,
 		CompleteNote: &note,
-	})
+	}
+	if appliedSHA != "" {
+		autoUpdateReq.CommitSHA = &appliedSHA
+	}
+	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", autoUpdateReq)
 	s.triggerAutoDeploy(ctx, projectID, taskID)
 }
 

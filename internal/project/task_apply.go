@@ -97,15 +97,14 @@ func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, ti
 		if err != nil {
 			return nil, err
 		}
-		if strings.TrimSpace(token) == "" {
-			return nil, ErrGitHubConnectionRequired
-		}
-		res, err := s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: defaultBranch, SourceCommit: sourceCommit, Message: mergeMsg, Token: token})
-		if err == nil && res != nil {
-			if p.LocalPath != "" {
-				_ = s.gitClient.CloneOrFetch(ctx, owner, repo, token, p.LocalPath)
+		if strings.TrimSpace(token) != "" {
+			res, err := s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: defaultBranch, SourceCommit: sourceCommit, Message: mergeMsg, Token: token})
+			if err == nil && res != nil {
+				if p.LocalPath != "" {
+					_ = s.gitClient.CloneOrFetch(ctx, owner, repo, token, p.LocalPath)
+				}
+				return res, nil
 			}
-			return res, nil
 		}
 		if p.LocalPath != "" {
 			localRes, localErr := s.gitClient.MergeLocalBranch(ctx, p.LocalPath, defaultBranch, branchName, sourceCommit, mergeMsg)
@@ -116,6 +115,9 @@ func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, ti
 				_ = s.gitClient.PushCommitToBranch(ctx, p.LocalPath, p.RepoURL, defaultBranch, localRes.SHA, token)
 			}
 			return localRes, nil
+		}
+		if strings.TrimSpace(token) == "" {
+			return nil, ErrGitHubConnectionRequired
 		}
 		return nil, err
 	}
