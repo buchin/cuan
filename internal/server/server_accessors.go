@@ -16,6 +16,7 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/publisher"
 	"github.com/buchin/cuan/internal/runner"
+	"github.com/buchin/cuan/internal/scheduler"
 	"github.com/buchin/cuan/internal/sponsorship"
 	"github.com/buchin/cuan/internal/studio"
 	"github.com/buchin/cuan/internal/task"
@@ -54,6 +55,10 @@ func (s *Server) SetTaskProjectRepository(r cuanDB.TaskProjectRepository) {
 
 func (s *Server) TaskService() *task.Service {
 	return s.taskSvc
+}
+
+func (s *Server) TaskManager() *scheduler.TaskManager {
+	return s.taskManager
 }
 
 func (s *Server) wireTaskService(svc *task.Service) {

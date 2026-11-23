@@ -531,11 +531,18 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		sched.Start(context.Background())
 	}
 
+	var s *Server
 	taskMgr := scheduler.NewTaskManager(filepath.Join("data", "scheduled_tasks.json"), func(ctx context.Context, task *scheduler.ScheduledTask) error {
+		if s != nil {
+			return s.executeScheduledTask(ctx, task)
+		}
 		return nil
 	})
+	if cfg.InboxExecutionRole != "worker" {
+		taskMgr.Start(context.Background())
+	}
 
-	s := &Server{
+	s = &Server{
 		instanceID:             cuanDB.GenerateUUID(),
 		extensions:             extensionSDK.New(),
 		crm:                    &crmStore{contacts: make(map[string]CRMContact)},
@@ -772,6 +779,12 @@ func (s *Server) ReconcileStaleRunners(ctx context.Context) error {
 // PrepareGracefulShutdown broadcasts restart notifications to active terminal sessions
 // and flushes/closes active session runners cleanly before server exit.
 func (s *Server) PrepareGracefulShutdown(_ time.Duration) {
+	if s.taskManager != nil {
+		s.taskManager.Stop()
+	}
+	if s.scheduler != nil {
+		s.scheduler.Stop()
+	}
 	if s.terminalManager == nil {
 		return
 	}
