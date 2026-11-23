@@ -165,7 +165,7 @@ test('6. SchedulesView: SlideDrawer side-sheet replaces cramped modal with spaci
 
   assert.match(
     content,
-    /<SlideDrawer[\s\S]*isOpen=\{isModalOpen\}[\s\S]*size="lg"/,
+    /<SlideDrawer[\s\S]*isOpen=\{(?:isModalOpen|isDrawerOpen)\}[\s\S]*size="lg"/,
     'SchedulesView must use SlideDrawer with size="lg" instead of cramped centered modal',
   )
   assert.match(
@@ -200,5 +200,57 @@ test('7. SlideDrawer: data-slide-drawer attribute and index.css true slide-in ed
     cssContent,
     /dialog\[data-slide-drawer\]:modal[\s\S]*margin:\s*0 0 0 auto !important/,
     'index.css must pin slide drawer to right edge and override native modal centering',
+  )
+})
+
+test('8. SchedulesView: deep linking binds SlideDrawer to URL search params (?edit= and ?action=new)', () => {
+  const viewPath = path.join(srcDir, 'features/schedules/SchedulesView.tsx')
+  const content = fs.readFileSync(viewPath, 'utf8')
+
+  assert.match(
+    content,
+    /import\s*\{\s*useSearchParams\s*\}\s*from\s*['"]react-router-dom['"]/,
+    'SchedulesView must import useSearchParams from react-router-dom',
+  )
+  assert.match(
+    content,
+    /const\s*\[searchParams,\s*setSearchParams\]\s*=\s*useSearchParams\(\)/,
+    'SchedulesView must bind state to searchParams',
+  )
+  assert.match(
+    content,
+    /searchParams\.get\(['"]edit['"]\)/,
+    'SchedulesView must inspect edit search parameter',
+  )
+  assert.match(
+    content,
+    /searchParams\.get\(['"]action['"]\)\s*===\s*['"]new['"]/,
+    'SchedulesView must inspect action=new search parameter',
+  )
+  assert.match(
+    content,
+    /\/api\/system\/scheduler\/tasks\/\$\{encodeURIComponent\(editParam\)\}/,
+    'SchedulesView must support direct fetch of task when refreshing deep-linked edit URL',
+  )
+})
+
+test('9. SchedulesView: unified fieldControlClass guarantees symmetrical 44px field sizing and zero empty gaps', () => {
+  const viewPath = path.join(srcDir, 'features/schedules/SchedulesView.tsx')
+  const content = fs.readFileSync(viewPath, 'utf8')
+
+  assert.match(
+    content,
+    /const fieldControlClass =\s*['"]h-11 min-h-11 w-full rounded-xl border border-border\/60 bg-background\/80 px-3\.5 text-sm/,
+    'SchedulesView must define unified fieldControlClass with exact 44px (h-11) and rounded-xl token',
+  )
+  assert.match(
+    content,
+    /scheduleType === 'daily'[\s\S]*grid grid-cols-1 sm:grid-cols-2 gap-3/,
+    'Daily cadence must render exactly 2 equal 50% columns without empty holes',
+  )
+  assert.match(
+    content,
+    /scheduleType === 'weekly'[\s\S]*grid grid-cols-1 sm:grid-cols-3 gap-3/,
+    'Weekly cadence must render exactly 3 equal 33% columns',
   )
 })
