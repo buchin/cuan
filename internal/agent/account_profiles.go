@@ -539,6 +539,13 @@ func VerifyProviderAccount(ctx context.Context, owner, id string) (*ProviderAcco
 		a.AllowFailover = current.AllowFailover
 		a.AllowModelFallback = current.AllowModelFallback
 		a.ModelCooldowns = current.ModelCooldowns
+		if probeErr == nil && a.ModelCooldowns != nil {
+			delete(a.ModelCooldowns, model)
+			delete(a.ModelCooldowns, NormalizeModelAlias(model))
+			if model == "" {
+				delete(a.ModelCooldowns, "")
+			}
+		}
 		a.AgentID = current.AgentID
 		a.ConnectionID = current.ConnectionID
 		if current.LastCheckedAt != nil && current.LastCheckedAt.After(probeStarted) {

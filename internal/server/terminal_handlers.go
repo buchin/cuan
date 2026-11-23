@@ -689,6 +689,7 @@ type runTaskAgentPayload struct {
 	RequestID       string `json:"request_id"`
 	Revision        string `json:"revision"`
 	AgentID         string `json:"agent_id"`
+	AccountID       string `json:"account_id,omitempty"`
 	Prompt          string `json:"prompt"`
 	Binary          string `json:"binary"`
 	RunnerID        string `json:"runner_id,omitempty"`
@@ -818,7 +819,11 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			projID = pt.ProjectID
 		}
 	}
-	isDedicatedTerminalTask := (tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·")) || strings.HasPrefix(payload.Prompt, "Terminal ·")
+	cleanTaskTitle := ""
+	if tDetail != nil {
+		cleanTaskTitle = strings.TrimSpace(tDetail.Title)
+	}
+	isDedicatedTerminalTask := (tDetail != nil && (strings.HasPrefix(cleanTaskTitle, "Terminal ·") || strings.HasPrefix(cleanTaskTitle, "Terminal -") || strings.HasPrefix(cleanTaskTitle, "Terminal:"))) || strings.HasPrefix(payload.Prompt, "Terminal ·") || payload.RunnerID == "local_terminal"
 	if !isDedicatedTerminalTask && projID != "" && s.isProjectLaneActive(r.Context(), projID, taskCategory, taskID) {
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
@@ -954,7 +959,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 	}
-	nativePublicTask := expectedBinary == "agy" && registeredAgent.ID == db.AgentIDCuan && (payload.RunnerID == "" || payload.RunnerID == "cuan-runner")
+	nativePublicTask := !isDedicatedTerminalTask && expectedBinary == "agy" && registeredAgent.ID == db.AgentIDCuan && (payload.RunnerID == "" || payload.RunnerID == "cuan-runner")
 	if nativePublicTask {
 		// Admission must use the worker's selected-model and task-slot policy,
 		// not the separate chat router's legacy model fallbacks. Release this
@@ -967,39 +972,85 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		release()
 		profileHome = home
 	} else if expectedBinary == "agy" {
-		primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
-		limited := primary != nil && primary.State == "quota_limited"
-		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
-		if needsVision {
-			visionRoutes := make([]inboxAccountRoute, 0, len(routes))
-			for _, r := range routes {
-				if r.model == "" || agent.IsModelVisionCapable("agy", r.model) {
-					visionRoutes = append(visionRoutes, r)
+		if payload.AccountID != "" {
+			if targetAcct, aErr := agent.GetProviderAccount(ownerID, payload.AccountID); aErr == nil && targetAcct != nil && targetAcct.CredentialsPresent {
+				if targetHome, hErr := agent.ProviderAccountHome(ownerID, targetAcct.ID); hErr == nil {
+					targetModel := targetAcct.ModelID
+					if targetModel == "" {
+						targetModel = "gemini-3.8-flash-high"
+					}
+					if release, lErr := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, inboxAccountRoute{
+						accountID: targetAcct.ID,
+						home:      targetHome,
+						model:     targetModel,
+						provider:  targetAcct.Provider,
+						primary:   true,
+					}); lErr == nil {
+						routeRelease = release
+						selectedAccountID = targetAcct.ID
+						selectedModel = targetModel
+						profileHome = targetHome
+						selected = &inboxAccountRoute{
+							accountID: targetAcct.ID,
+							home:      targetHome,
+							model:     targetModel,
+							provider:  targetAcct.Provider,
+							primary:   true,
+						}
+					}
 				}
-			}
-			routes = visionRoutes
-		}
-		if len(routes) == 0 {
-			msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
-			code := "provider_unavailable"
-			if needsVision {
-				msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
-				code = "provider_vision_unsupported"
-			}
-			respondJSON(w, 409, map[string]string{"error": msg, "code": code})
-			return
-		}
-		for i := range routes {
-			release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
-			if err == nil {
-				routeRelease = release
-				selected = &routes[i]
-				break
 			}
 		}
 		if selected == nil {
-			respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
-			return
+			primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
+			limited := primary != nil && primary.State == "quota_limited"
+			routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
+			if needsVision {
+				visionRoutes := make([]inboxAccountRoute, 0, len(routes))
+				for _, r := range routes {
+					if r.model == "" || agent.IsModelVisionCapable("agy", r.model) {
+						visionRoutes = append(visionRoutes, r)
+					}
+				}
+				routes = visionRoutes
+			}
+			for i := range routes {
+				release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
+				if err == nil {
+					routeRelease = release
+					selected = &routes[i]
+					break
+				}
+			}
+			if selected == nil && isDedicatedTerminalTask {
+				if home, brain, rel, bErr := agent.LeaseHealthyBrain(ownerID, nil, needsVision); bErr == nil && brain != nil {
+					routeRelease = rel
+					profileHome = home
+					selectedModel = brain.ExecutionModelID()
+					selectedAccountID = brain.ID
+					selected = &inboxAccountRoute{
+						accountID: brain.ID,
+						home:      home,
+						model:     selectedModel,
+						provider:  brain.Provider,
+						primary:   false,
+					}
+				}
+			}
+			if selected == nil {
+				if len(routes) == 0 {
+					msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
+					code := "provider_unavailable"
+					if needsVision {
+						msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
+						code = "provider_vision_unsupported"
+					}
+					respondJSON(w, 409, map[string]string{"error": msg, "code": code})
+					return
+				}
+				respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
+				return
+			}
 		}
 		profileHome = selected.home
 		selectedModel = selected.model
@@ -1237,7 +1288,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			if runnerID == "" {
-				if agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal ·")) {
+				if isDedicatedTerminalTask || agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal ·")) {
 					runnerID = "local_terminal"
 				} else {
 					runnerID = "cuan-runner"

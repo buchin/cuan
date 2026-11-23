@@ -827,3 +827,311 @@ func (c *CuanClient) TriggerScheduledTask(ctx context.Context, id string) error 
 	}
 	return nil
 }
+
+// CreateProject creates a new project in Cuan.
+func (c *CuanClient) CreateProject(ctx context.Context, name, description, repoURL, branch string) (map[string]any, error) {
+	payload := map[string]any{"name": name}
+	if description != "" {
+		payload["description"] = description
+	}
+	if repoURL != "" {
+		payload["repo_url"] = repoURL
+	}
+	if branch != "" {
+		payload["default_branch"] = branch
+	}
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/projects", payload)
+	if err != nil {
+		return nil, fmt.Errorf("create project: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("create project failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal create project result: %w", err)
+	}
+	return res, nil
+}
+
+// UpdateProject updates an existing project in Cuan.
+func (c *CuanClient) UpdateProject(ctx context.Context, id, name, description, repoURL, branch string) (map[string]any, error) {
+	proj, err := c.GetProject(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get current project: %w", err)
+	}
+	realID, _ := proj["id"].(string)
+	if realID == "" {
+		realID = id
+	}
+	currentName, _ := proj["name"].(string)
+	if name == "" {
+		name = currentName
+	}
+	currentRepo, _ := proj["repo_url"].(string)
+	if repoURL == "" {
+		repoURL = currentRepo
+	}
+	currentBranch, _ := proj["default_branch"].(string)
+	if branch == "" {
+		branch = currentBranch
+		if branch == "" {
+			branch = "main"
+		}
+	}
+	goal, _ := proj["goal"].(string)
+	if description != "" {
+		goal = description
+	}
+	instructions, _ := proj["instructions"].(string)
+
+	payload := map[string]any{
+		"name":           name,
+		"repo_url":       repoURL,
+		"default_branch": branch,
+		"goal":           goal,
+		"instructions":   instructions,
+	}
+	if updatedAtStr, ok := proj["updated_at"].(string); ok && updatedAtStr != "" {
+		if t, parseErr := time.Parse(time.RFC3339Nano, updatedAtStr); parseErr == nil {
+			payload["expected_updated_at"] = t
+		} else if t, parseErr := time.Parse(time.RFC3339, updatedAtStr); parseErr == nil {
+			payload["expected_updated_at"] = t
+		}
+	}
+
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/settings", url.PathEscape(realID))
+	resp, err := c.doRequest(ctx, http.MethodPatch, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("update project: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("update project failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal update project result: %w", err)
+	}
+	return res, nil
+}
+
+// CreateContact creates a new contact in Cuan.
+func (c *CuanClient) CreateContact(ctx context.Context, name, email, phone, role, company, notes string) (map[string]any, error) {
+	reqID := db.GenerateUUID()
+	payload := map[string]any{
+		"request_id": reqID,
+		"name":       name,
+		"email":      email,
+	}
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/contacts", payload)
+	if err != nil {
+		return nil, fmt.Errorf("create contact: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("create contact failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal create contact result: %w", err)
+	}
+	if notes != "" {
+		contactID, _ := res["id"].(string)
+		if contactID == "" {
+			contactID = reqID
+		}
+		notePayload := map[string]any{
+			"request_id": db.GenerateUUID(),
+			"kind":       "note",
+			"body":       notes,
+		}
+		noteEndpoint := fmt.Sprintf("/api/v1/contacts/%s/memory", url.PathEscape(contactID))
+		if noteResp, noteErr := c.doRequest(ctx, http.MethodPost, noteEndpoint, notePayload); noteErr == nil {
+			noteResp.Body.Close()
+		}
+	}
+	return res, nil
+}
+
+// UpdateContact updates an existing contact in Cuan.
+func (c *CuanClient) UpdateContact(ctx context.Context, id, name, email, phone, role, company, notes string) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/contacts/%s", url.PathEscape(id))
+	var tags []string
+	if role != "" {
+		tags = append(tags, role)
+	}
+	if company != "" {
+		tags = append(tags, company)
+	}
+	payload := map[string]any{"tags": tags}
+	resp, err := c.doRequest(ctx, http.MethodPatch, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("update contact: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("update contact failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal update contact result: %w", err)
+	}
+	if notes != "" {
+		notePayload := map[string]any{
+			"request_id": db.GenerateUUID(),
+			"kind":       "note",
+			"body":       notes,
+		}
+		noteEndpoint := fmt.Sprintf("/api/v1/contacts/%s/memory", url.PathEscape(id))
+		if noteResp, noteErr := c.doRequest(ctx, http.MethodPost, noteEndpoint, notePayload); noteErr == nil {
+			noteResp.Body.Close()
+		}
+	}
+	return res, nil
+}
+
+// ListTeamMembers lists team members and agents in Cuan.
+func (c *CuanClient) ListTeamMembers(ctx context.Context) ([]map[string]any, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/agents", nil)
+	if err != nil {
+		return nil, fmt.Errorf("list team members: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("list team members failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var agents []map[string]any
+	if err := json.Unmarshal(bodyBytes, &agents); err != nil {
+		var wrapper struct {
+			Agents []map[string]any `json:"agents"`
+		}
+		if err2 := json.Unmarshal(bodyBytes, &wrapper); err2 == nil {
+			return wrapper.Agents, nil
+		}
+		return nil, fmt.Errorf("unmarshal team members: %w", err)
+	}
+	return agents, nil
+}
+
+// UpdateProviderAccount updates AI provider account settings.
+func (c *CuanClient) UpdateProviderAccount(ctx context.Context, accountID, label, modelID, fallbackModelID string, allowFallback *bool) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/provider-accounts/%s", url.PathEscape(accountID))
+	payload := map[string]any{}
+	if label != "" {
+		payload["label"] = label
+	}
+	if modelID != "" {
+		payload["model_id"] = modelID
+	}
+	var res map[string]any
+	if len(payload) > 0 {
+		resp, err := c.doRequest(ctx, http.MethodPatch, endpoint, payload)
+		if err != nil {
+			return nil, fmt.Errorf("update provider account: %w", err)
+		}
+		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("update provider account failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+		}
+		_ = json.Unmarshal(bodyBytes, &res)
+	}
+	if allowFallback != nil || fallbackModelID != "" {
+		fallbackEndpoint := fmt.Sprintf("/api/v1/provider-accounts/%s/model-fallback", url.PathEscape(accountID))
+		fbPayload := map[string]any{}
+		if allowFallback != nil {
+			fbPayload["enabled"] = *allowFallback
+		} else {
+			fbPayload["enabled"] = true
+		}
+		if fallbackModelID != "" {
+			fbPayload["model_id"] = fallbackModelID
+		}
+		resp, err := c.doRequest(ctx, http.MethodPatch, fallbackEndpoint, fbPayload)
+		if err != nil {
+			return nil, fmt.Errorf("update provider account fallback: %w", err)
+		}
+		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("update provider account fallback failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+		}
+		_ = json.Unmarshal(bodyBytes, &res)
+	}
+	if res == nil {
+		res = map[string]any{"account_id": accountID, "status": "updated"}
+	}
+	return res, nil
+}
+
+// GetBrandMemory reads brand taste guidelines and memory in Cuan.
+func (c *CuanClient) GetBrandMemory(ctx context.Context) (map[string]any, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/taste", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get brand memory: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("get brand memory failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal brand memory: %w", err)
+	}
+	return res, nil
+}
+
+// UpdateBrandMemory updates brand taste guidelines in Cuan.
+func (c *CuanClient) UpdateBrandMemory(ctx context.Context, guidelines string) (map[string]any, error) {
+	payload := map[string]any{
+		"category": "brand",
+		"topic":    "guidelines",
+		"content":  guidelines,
+	}
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/taste/items", payload)
+	if err != nil {
+		return nil, fmt.Errorf("update brand memory: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("update brand memory failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal update brand memory result: %w", err)
+	}
+	return res, nil
+}
+
+// RunTask dispatches an execution attempt for a task in Cuan.
+func (c *CuanClient) RunTask(ctx context.Context, taskID, agentID string) (map[string]any, error) {
+	reqID := db.GenerateUUID()
+	payload := map[string]any{
+		"request_id": reqID,
+		"agent_id":   agentID,
+	}
+	endpoint := fmt.Sprintf("/api/v1/tasks/%s/run-agent", url.PathEscape(taskID))
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("run task: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("run task failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal run task result: %w", err)
+	}
+	return res, nil
+}

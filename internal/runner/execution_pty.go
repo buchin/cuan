@@ -77,6 +77,9 @@ func (r *Runner) executeWithBrains(ctx context.Context, claim ClaimTaskResponse,
 			return result, runErr
 		}
 		duration, _, _ := agent.ParseProviderQuotaResetDuration(result.Error)
+		if duration > 24*time.Hour {
+			duration = 24 * time.Hour
+		}
 		if err := agent.RecordProviderModelQuotaWithDuration(claim.OwnerID, brain.ID, activeModel, duration); err != nil {
 			return nil, fmt.Errorf("could not retain AI capacity cooldown")
 		}

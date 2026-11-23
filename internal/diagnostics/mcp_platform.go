@@ -1213,3 +1213,208 @@ func UpdateTaskStatus(ctx context.Context, taskID, status, summary, completeNote
 		"updated_at":    time.Now().UTC().Format(time.RFC3339),
 	}, nil
 }
+
+// CreateProject creates a new project in Cuan.
+func CreateProject(ctx context.Context, name, description, repoURL, branch string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.CreateProject(ctx, name, description, repoURL, branch)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("configure Cuan connection or database before creating projects")
+	}
+	id := dbPkg.GenerateUUID()
+	if branch == "" {
+		branch = "main"
+	}
+	_, err := db.ExecContext(ctx, "INSERT INTO projects (id, name, repo_url, default_branch, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW())", id, name, repoURL, branch)
+	if err != nil {
+		return nil, fmt.Errorf("create project in db: %w", err)
+	}
+	return map[string]any{
+		"id":             id,
+		"name":           name,
+		"repo_url":       repoURL,
+		"default_branch": branch,
+		"status":         "created",
+	}, nil
+}
+
+// UpdateProject updates an existing project in Cuan.
+func UpdateProject(ctx context.Context, id, name, description, repoURL, branch string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.UpdateProject(ctx, id, name, description, repoURL, branch)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("configure Cuan connection or database before updating projects")
+	}
+	_, err := db.ExecContext(ctx,
+		"UPDATE projects SET name = CASE WHEN $1 <> '' THEN $1 ELSE name END, repo_url = CASE WHEN $2 <> '' THEN $2 ELSE repo_url END, default_branch = CASE WHEN $3 <> '' THEN $3 ELSE default_branch END, updated_at = NOW() WHERE id = $4 OR LOWER(name) = LOWER($4)",
+		name, repoURL, branch, id)
+	if err != nil {
+		return nil, fmt.Errorf("update project: %w", err)
+	}
+	return map[string]any{"id": id, "status": "updated"}, nil
+}
+
+// CreateContact creates a new CRM contact in Cuan.
+func CreateContact(ctx context.Context, name, email, phone, role, company, notes string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		return nil, fmt.Errorf("Connect Cuan to create CRM contacts")
+	}
+	return client.CreateContact(ctx, name, email, phone, role, company, notes)
+}
+
+// UpdateContact updates an existing CRM contact in Cuan.
+func UpdateContact(ctx context.Context, id, name, email, phone, role, company, notes string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, fmt.Errorf("contact_id is required")
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		return nil, fmt.Errorf("Connect Cuan to update CRM contacts")
+	}
+	return client.UpdateContact(ctx, id, name, email, phone, role, company, notes)
+}
+
+// ListTeamMembers lists team members and agent personas in Cuan.
+func ListTeamMembers(ctx context.Context) (any, error) {
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		members, err := client.ListTeamMembers(ctx)
+		if err == nil {
+			return map[string]any{"members": members, "total": len(members)}, nil
+		}
+	}
+	db := getPlatformDB()
+	if db != nil {
+		rows, err := db.QueryContext(ctx, "SELECT id, name, handle, role, status FROM agents ORDER BY name ASC")
+		if err == nil {
+			defer rows.Close()
+			var agents []map[string]any
+			for rows.Next() {
+				var id, name, handle, role, status string
+				if scanErr := rows.Scan(&id, &name, &handle, &role, &status); scanErr == nil {
+					agents = append(agents, map[string]any{
+						"id":     id,
+						"name":   name,
+						"handle": handle,
+						"role":   role,
+						"status": status,
+					})
+				}
+			}
+			return map[string]any{"members": agents, "total": len(agents)}, nil
+		}
+	}
+	return map[string]any{"members": []any{}, "total": 0}, nil
+}
+
+// VerifyProviderAccount probes and verifies an AI provider account.
+func VerifyProviderAccount(ctx context.Context, accountID string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return nil, fmt.Errorf("account_id is required")
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		return nil, fmt.Errorf("Connect Cuan to verify AI provider accounts")
+	}
+	return client.VerifyProviderAccount(ctx, accountID)
+}
+
+// UpdateProviderAccount updates an AI provider account's label, models, or fallback policy.
+func UpdateProviderAccount(ctx context.Context, accountID, label, modelID, fallbackModelID string, allowFallback *bool) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return nil, fmt.Errorf("account_id is required")
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		return nil, fmt.Errorf("Connect Cuan to update AI provider accounts")
+	}
+	return client.UpdateProviderAccount(ctx, accountID, label, modelID, fallbackModelID, allowFallback)
+}
+
+// GetBrandMemory retrieves brand guidelines and taste memory in Cuan.
+func GetBrandMemory(ctx context.Context) (any, error) {
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.GetBrandMemory(ctx)
+	}
+	db := getPlatformDB()
+	if db != nil {
+		var content string
+		err := db.QueryRowContext(ctx, "SELECT content FROM system_settings WHERE key = 'brand_taste' LIMIT 1").Scan(&content)
+		if err == nil {
+			return map[string]any{"content": content}, nil
+		}
+	}
+	return map[string]any{"content": ""}, nil
+}
+
+// UpdateBrandMemory updates brand guidelines and taste memory in Cuan.
+func UpdateBrandMemory(ctx context.Context, guidelines string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.UpdateBrandMemory(ctx, guidelines)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("Connect Cuan or configure database to update brand memory")
+	}
+	_, err := db.ExecContext(ctx, "INSERT INTO system_settings (key, content, updated_at) VALUES ('brand_taste', $1, NOW()) ON CONFLICT (key) DO UPDATE SET content = $1, updated_at = NOW()", guidelines)
+	if err != nil {
+		return nil, fmt.Errorf("update brand memory: %w", err)
+	}
+	return map[string]any{"status": "updated", "content": guidelines}, nil
+}
+
+// RunTask dispatches an execution attempt for a task in Cuan.
+func RunTask(ctx context.Context, taskID, agentID string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil, fmt.Errorf("task_id is required")
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		return nil, fmt.Errorf("Connect Cuan to run tasks")
+	}
+	return client.RunTask(ctx, taskID, agentID)
+}

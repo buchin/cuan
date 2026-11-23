@@ -168,6 +168,35 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "create_project",
+		Description: "Create a new project workspace in Cuan with name, optional description, repository URL, and default branch.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":        map[string]any{"type": "string", "description": "Project name"},
+				"description": map[string]any{"type": "string", "description": "Project goal or description"},
+				"repo_url":    map[string]any{"type": "string", "description": "Optional GitHub repository URL"},
+				"branch":      map[string]any{"type": "string", "description": "Default git branch (default: main)"},
+			},
+			"required": []string{"name"},
+		},
+	},
+	{
+		Name:        "update_project",
+		Description: "Update an existing project workspace in Cuan (name, description, repo URL, default branch).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id":  map[string]any{"type": "string", "description": "Project ID or name"},
+				"name":        map[string]any{"type": "string", "description": "Updated project name"},
+				"description": map[string]any{"type": "string", "description": "Updated project goal or description"},
+				"repo_url":    map[string]any{"type": "string", "description": "Updated repository URL"},
+				"branch":      map[string]any{"type": "string", "description": "Updated default branch"},
+			},
+			"required": []string{"project_id"},
+		},
+	},
+	{
 		Name:        "list_tasks",
 		Description: "List tasks across all projects or filtered by project ID, with optional status filter (backlog, doing, review, done, blocked).",
 		InputSchema: map[string]any{
@@ -379,6 +408,39 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "create_contact",
+		Description: "Create a new CRM contact in Cuan with name and optional email, phone, role, company, or relationship notes.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":    map[string]any{"type": "string", "description": "Contact person or organization name"},
+				"email":   map[string]any{"type": "string", "description": "Contact email address"},
+				"phone":   map[string]any{"type": "string", "description": "Contact phone number"},
+				"role":    map[string]any{"type": "string", "description": "Role or title"},
+				"company": map[string]any{"type": "string", "description": "Company name"},
+				"notes":   map[string]any{"type": "string", "description": "Initial relationship notes or memory"},
+			},
+			"required": []string{"name"},
+		},
+	},
+	{
+		Name:        "update_contact",
+		Description: "Update an existing CRM contact in Cuan with role/company tags or additional memory notes.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"contact_id": map[string]any{"type": "string", "description": "Contact UUID or identity"},
+				"name":       map[string]any{"type": "string", "description": "Updated name"},
+				"email":      map[string]any{"type": "string", "description": "Updated email"},
+				"phone":      map[string]any{"type": "string", "description": "Updated phone"},
+				"role":       map[string]any{"type": "string", "description": "Role or tag"},
+				"company":    map[string]any{"type": "string", "description": "Company tag"},
+				"notes":      map[string]any{"type": "string", "description": "Relationship note to append"},
+			},
+			"required": []string{"contact_id"},
+		},
+	},
+	{
 		Name:        "list_scheduled_jobs",
 		Description: "List scheduled background jobs, cron automations, and recurring tasks in Cuan.",
 		InputSchema: map[string]any{
@@ -510,6 +572,71 @@ var nativeMCPTools = []mcpToolDefinition{
 		InputSchema: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
+		},
+	},
+	{
+		Name:        "list_team_members",
+		Description: "List all team members and AI agent personas configured in Cuan.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
+	{
+		Name:        "verify_provider_account",
+		Description: "Probe and verify an AI provider account connection in Cuan, clearing stale cooldowns upon success.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"account_id": map[string]any{"type": "string", "description": "AI provider account ID"},
+			},
+			"required": []string{"account_id"},
+		},
+	},
+	{
+		Name:        "update_provider_account",
+		Description: "Update AI provider account settings including label, model ID, fallback model, or allow fallback policy.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"account_id":           map[string]any{"type": "string", "description": "AI provider account ID"},
+				"label":                map[string]any{"type": "string", "description": "Updated account label"},
+				"model_id":             map[string]any{"type": "string", "description": "Primary model ID"},
+				"fallback_model_id":    map[string]any{"type": "string", "description": "Backup fallback model ID"},
+				"allow_model_fallback": map[string]any{"type": "boolean", "description": "Enable automatic model fallback"},
+			},
+			"required": []string{"account_id"},
+		},
+	},
+	{
+		Name:        "get_brand_memory",
+		Description: "Retrieve brand taste guidelines, principles, tone, and memory settings in Cuan.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	},
+	{
+		Name:        "update_brand_memory",
+		Description: "Update brand taste guidelines, tone, and quality standards in Cuan memory.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"guidelines": map[string]any{"type": "string", "description": "Brand tone, guidelines, or quality criteria"},
+			},
+			"required": []string{"guidelines"},
+		},
+	},
+	{
+		Name:        "run_task",
+		Description: "Dispatch an execution attempt for a task in Cuan using a designated agent or default runner.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id":  map[string]any{"type": "string", "description": "Task ID to execute"},
+				"agent_id": map[string]any{"type": "string", "description": "Optional agent persona or brain ID"},
+			},
+			"required": []string{"task_id"},
 		},
 	},
 	{
@@ -753,7 +880,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			tools = make([]mcpToolDefinition, 0, len(nativeMCPTools))
 			for _, tool := range nativeMCPTools {
 				switch tool.Name {
-				case "send_inbox_message", "create_inbox_conversation", "create_task_draft", "update_task_status", "toggle_agent_skill", "update_project_environment", "create_scheduled_task", "update_scheduled_task", "delete_scheduled_task", "trigger_scheduled_task":
+				case "send_inbox_message", "create_inbox_conversation", "create_task_draft", "update_task_status", "toggle_agent_skill", "update_project_environment", "create_scheduled_task", "update_scheduled_task", "delete_scheduled_task", "trigger_scheduled_task", "create_project", "update_project", "create_contact", "update_contact", "verify_provider_account", "update_provider_account", "update_brand_memory", "run_task":
 					continue
 				}
 				tools = append(tools, tool)
@@ -834,6 +961,19 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		case "get_project":
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			toolResult, toolErr = GetProject(ctx, projectID)
+		case "create_project":
+			name, _ := callParams.Arguments["name"].(string)
+			desc, _ := callParams.Arguments["description"].(string)
+			repoURL, _ := callParams.Arguments["repo_url"].(string)
+			branch, _ := callParams.Arguments["branch"].(string)
+			toolResult, toolErr = CreateProject(ctx, name, desc, repoURL, branch)
+		case "update_project":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			name, _ := callParams.Arguments["name"].(string)
+			desc, _ := callParams.Arguments["description"].(string)
+			repoURL, _ := callParams.Arguments["repo_url"].(string)
+			branch, _ := callParams.Arguments["branch"].(string)
+			toolResult, toolErr = UpdateProject(ctx, projectID, name, desc, repoURL, branch)
 		case "list_tasks":
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			status, _ := callParams.Arguments["status"].(string)
@@ -907,6 +1047,23 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 		case "get_contact":
 			contactID, _ := callParams.Arguments["contact_id"].(string)
 			toolResult, toolErr = GetContact(ctx, contactID)
+		case "create_contact":
+			name, _ := callParams.Arguments["name"].(string)
+			email, _ := callParams.Arguments["email"].(string)
+			phone, _ := callParams.Arguments["phone"].(string)
+			role, _ := callParams.Arguments["role"].(string)
+			company, _ := callParams.Arguments["company"].(string)
+			notes, _ := callParams.Arguments["notes"].(string)
+			toolResult, toolErr = CreateContact(ctx, name, email, phone, role, company, notes)
+		case "update_contact":
+			contactID, _ := callParams.Arguments["contact_id"].(string)
+			name, _ := callParams.Arguments["name"].(string)
+			email, _ := callParams.Arguments["email"].(string)
+			phone, _ := callParams.Arguments["phone"].(string)
+			role, _ := callParams.Arguments["role"].(string)
+			company, _ := callParams.Arguments["company"].(string)
+			notes, _ := callParams.Arguments["notes"].(string)
+			toolResult, toolErr = UpdateContact(ctx, contactID, name, email, phone, role, company, notes)
 		case "list_scheduled_jobs":
 			toolResult, toolErr = ListScheduledJobs(ctx)
 		case "list_scheduled_tasks":
@@ -955,6 +1112,30 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			}
 		case "get_system_settings":
 			toolResult, toolErr = GetSystemSettings(ctx)
+		case "list_team_members":
+			toolResult, toolErr = ListTeamMembers(ctx)
+		case "verify_provider_account":
+			accountID, _ := callParams.Arguments["account_id"].(string)
+			toolResult, toolErr = VerifyProviderAccount(ctx, accountID)
+		case "update_provider_account":
+			accountID, _ := callParams.Arguments["account_id"].(string)
+			label, _ := callParams.Arguments["label"].(string)
+			modelID, _ := callParams.Arguments["model_id"].(string)
+			fallbackModelID, _ := callParams.Arguments["fallback_model_id"].(string)
+			var allowFallback *bool
+			if af, ok := callParams.Arguments["allow_model_fallback"].(bool); ok {
+				allowFallback = &af
+			}
+			toolResult, toolErr = UpdateProviderAccount(ctx, accountID, label, modelID, fallbackModelID, allowFallback)
+		case "get_brand_memory":
+			toolResult, toolErr = GetBrandMemory(ctx)
+		case "update_brand_memory":
+			guidelines, _ := callParams.Arguments["guidelines"].(string)
+			toolResult, toolErr = UpdateBrandMemory(ctx, guidelines)
+		case "run_task":
+			taskID, _ := callParams.Arguments["task_id"].(string)
+			agentID, _ := callParams.Arguments["agent_id"].(string)
+			toolResult, toolErr = RunTask(ctx, taskID, agentID)
 		case "inspect_database_query":
 			query, _ := callParams.Arguments["query"].(string)
 			limit := 50

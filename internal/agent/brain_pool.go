@@ -70,10 +70,38 @@ func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start
 			}
 			model := p.ModelID
 			if tier == 1 {
-				if !p.AllowModelFallback || p.FallbackModelID == "" || p.FallbackModelID == p.ModelID {
+				if !p.AllowModelFallback {
 					continue
 				}
-				model = p.FallbackModelID
+				if p.FallbackModelID != "" && p.FallbackModelID != p.ModelID {
+					model = p.FallbackModelID
+				} else if p.Provider == "agy" || p.Provider == "antigravity" || (p.Provider == "google" && !strings.HasPrefix(p.ID, "byok_")) {
+					catalog, ok := nativeAccountModelCatalog(context.Background(), owner, p.ID)
+					if !ok {
+						continue
+					}
+					found := ""
+					for candidate := range catalog {
+						normCand := NormalizeModelAlias(candidate)
+						if candidate == p.ModelID || normCand == NormalizeModelAlias(p.ModelID) {
+							continue
+						}
+						if time.Now().Before(p.ModelCooldowns[candidate]) || time.Now().Before(p.ModelCooldowns[normCand]) {
+							continue
+						}
+						if len(requiresVision) > 0 && requiresVision[0] && !IsModelVisionCapable(p.Provider, candidate) && !IsModelVisionCapable(p.Provider, normCand) {
+							continue
+						}
+						found = candidate
+						break
+					}
+					if found == "" {
+						continue
+					}
+					model = found
+				} else {
+					continue
+				}
 			}
 			normModel := NormalizeModelAlias(model)
 			if p.Legacy || excluded[p.ID] || excluded[BrainRouteKey(p.ID, model)] || excluded[BrainRouteKey(p.ID, normModel)] || !p.CredentialsPresent || p.State == "login_required" || p.State == "unavailable" || p.State == "setup_incomplete" {
@@ -107,7 +135,15 @@ func leaseHealthyBrainWithStart(owner string, profiles []*ProviderAccount, start
 				release()
 				continue
 			}
-			if (tier == 0 && current.ModelID != model && current.ModelID != normModel) || (tier == 1 && (!current.AllowModelFallback || (current.FallbackModelID != model && current.FallbackModelID != normModel) || current.ModelID == model)) {
+			if tier == 0 && current.ModelID != model && current.ModelID != normModel {
+				release()
+				continue
+			}
+			if tier == 1 && (!current.AllowModelFallback || current.ModelID == model) {
+				release()
+				continue
+			}
+			if tier == 1 && current.FallbackModelID != "" && current.FallbackModelID != current.ModelID && current.FallbackModelID != model && NormalizeModelAlias(current.FallbackModelID) != normModel {
 				release()
 				continue
 			}

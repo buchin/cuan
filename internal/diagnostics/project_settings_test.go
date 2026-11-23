@@ -141,3 +141,50 @@ func TestProjectSettingsCLIRun(t *testing.T) {
 		t.Fatalf("expected new script and auto_deploy false in output: %s", out.String())
 	}
 }
+
+func TestProjectListAndGetCLI(t *testing.T) {
+	projects := []map[string]any{
+		{
+			"id":             "proj_alpha",
+			"name":           "Alpha Project",
+			"repo_url":       "https://github.com/example/alpha",
+			"default_branch": "main",
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/projects" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"projects": projects, "total": len(projects)})
+			return
+		}
+		if r.URL.Path == "/api/v1/projects/proj_alpha" {
+			_ = json.NewEncoder(w).Encode(projects[0])
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	origClient := globalCuanClient
+	globalCuanClient = &CuanClient{BaseURL: server.URL, AuthToken: "test-token", HTTPClient: server.Client()}
+	defer func() { globalCuanClient = origClient }()
+
+	var out, errOut bytes.Buffer
+	code := RunProjectCLI([]string{"list"}, strings.NewReader(""), &out, &errOut)
+	if code != 0 {
+		t.Fatalf("cli list failed code=%d err=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "proj_alpha") {
+		t.Fatalf("expected proj_alpha in list output: %s", out.String())
+	}
+
+	out.Reset()
+	errOut.Reset()
+	code = RunProjectCLI([]string{"get", "proj_alpha"}, strings.NewReader(""), &out, &errOut)
+	if code != 0 {
+		t.Fatalf("cli get failed code=%d err=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Alpha Project") {
+		t.Fatalf("expected Alpha Project in get output: %s", out.String())
+	}
+}

@@ -46,6 +46,8 @@ export interface RunTaskResult {
 export interface RunTaskRequest {
   request_id: string
   agent_id: string
+  account_id?: string
+  runner_id?: string
   revision?: string
   cols?: number
   rows?: number

@@ -243,6 +243,9 @@ func (s *Server) executeInboxWithFailover(ctx context.Context, owner string, reg
 		hadQuotaFailure = true
 		if route.accountID != "" {
 			dur, _, _ := agent.ParseProviderQuotaResetDuration(failure)
+			if dur > 24*time.Hour {
+				dur = 24 * time.Hour
+			}
 			if err := agent.RecordProviderModelQuotaWithDuration(owner, route.accountID, route.model, dur); err != nil {
 				return "", "The provider reached a usage limit, but its cooldown could not be saved. Your message is saved. Check the account status."
 			}

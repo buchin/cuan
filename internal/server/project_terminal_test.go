@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -589,5 +590,89 @@ func TestProjectTerminal_DedicatedTaskDoneAutoReopensOnWebSocketConnect(t *testi
 	}
 	if detail.Status != task.TaskStatusDoing {
 		t.Fatalf("expected task status doing, got %s", detail.Status)
+	}
+}
+
+func TestProjectTerminal_DedicatedTaskBrainTargetedLaunch(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, token := setupTestChatServer(t)
+
+	owner, err := srv.authSvc.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("failed to validate token: %v", err)
+	}
+
+	tempBase := t.TempDir()
+	srv.cfg.WorkspacesDir = tempBase
+	projectStore := project.NewMemoryStore()
+	projSvc := project.NewService(projectStore, nil, "fixture-secret", tempBase)
+	srv.projectSvc = projSvc
+
+	projID := fmt.Sprintf("proj_brain_launch_%d", time.Now().UnixNano())
+	_ = terminal.TerminateProjectWorker(projID)
+	defer terminal.TerminateProjectWorker(projID)
+
+	_ = projSvc.Store().CreateProject(context.Background(), &project.Project{
+		ID:        projID,
+		Name:      "Brain Launch Project",
+		LocalPath: tempBase,
+	})
+
+	// Configure a test provider account
+	acct, err := agent.CreateProviderAccount(owner.ID, "Google Antigravity Brain")
+	if err != nil {
+		t.Fatalf("CreateProviderAccount failed: %v", err)
+	}
+	home, _ := agent.ProviderAccountHome(owner.ID, acct.ID)
+	_ = os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700)
+	_ = os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte(`{"access_token":"fixture-valid-test-token"}`), 0600)
+
+	// Create task directly in task store
+	createdTask, err := srv.taskSvc.CreateTask(context.Background(), owner.ID, task.CreateTaskRequest{
+		Title:        "Terminal · Google Antigravity Brain",
+		ProjectID:    projID,
+		ProjectIDs:   []string{projID},
+		Instructions: "Interactive AI Brain terminal session",
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	// Launch via POST /api/v1/tasks/{id}/run-agent with account_id and runner_id=local_terminal
+	runPayload := map[string]any{
+		"request_id": "80000000-0000-4000-8000-000000000001",
+		"runner_id":  "local_terminal",
+		"account_id": acct.ID,
+	}
+	bodyBytes, _ := json.Marshal(runPayload)
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/tasks/"+createdTask.ID+"/run-agent", bytes.NewReader(bodyBytes))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("run-agent request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(respBody, &res); err != nil {
+		t.Fatalf("failed to unmarshal run-agent response: %v", err)
+	}
+
+	if res["status"] != "running" {
+		t.Fatalf("expected status 'running', got %v", res["status"])
 	}
 }
