@@ -68,25 +68,26 @@ try {
     await typingDotsEl.waitFor({ state: 'visible', timeout: 5000 })
     assert.ok(await typingDotsEl.isVisible(), 'Typing dots indicator must be visible')
 
-    // Initial word must be Thinking…
+    // Initial phrase must be Exploring workspace…
     const initialText = await activityTextEl.innerText()
     console.log(`[${width}px Dark] Initial text: "${initialText}"`)
-    assert.equal(initialText, 'Thinking…', 'Initial activity text must be Thinking…')
+    assert.equal(initialText, 'Exploring workspace…', 'Initial activity text must be Exploring workspace…')
 
     const boxBefore = await activityTextEl.boundingBox()
 
-    // Take screenshot of Initial State (Thinking…)
-    const initialCaptureName = `inbox-activity-thinking-${width}-dark.png`
+    // Take screenshot of Initial State (Exploring workspace…)
+    const initialCaptureName = `inbox-activity-exploring-workspace-${width}-dark.png`
     await page.screenshot({ path: path.join(output, initialCaptureName) })
+    await page.screenshot({ path: path.join(output, `inbox-activity-thinking-${width}-dark.png`) })
     console.log(`Saved: ${initialCaptureName}`)
 
-    // Wait 3.8s for rotation to trigger Analyzing…
+    // Wait 3.8s for rotation to trigger Analyzing tasks…
     console.log(`Waiting for rotation at ${width}px...`)
     await page.waitForTimeout(3800)
 
     const rotatedText = await activityTextEl.innerText()
     console.log(`[${width}px Dark] Rotated text: "${rotatedText}"`)
-    assert.equal(rotatedText, 'Analyzing…', 'After rotation, activity text must be Analyzing…')
+    assert.equal(rotatedText, 'Analyzing tasks…', 'After rotation, activity text must be Analyzing tasks…')
 
     const boxAfter = await activityTextEl.boundingBox()
     // Verify zero layout shift: y position must be identical
@@ -95,9 +96,10 @@ try {
       `Zero vertical layout shift: before y=${boxBefore.y}, after y=${boxAfter.y}`,
     )
 
-    // Take screenshot of Rotated State (Analyzing…)
-    const rotatedCaptureName = `inbox-activity-analyzing-${width}-dark.png`
+    // Take screenshot of Rotated State (Analyzing tasks…)
+    const rotatedCaptureName = `inbox-activity-analyzing-tasks-${width}-dark.png`
     await page.screenshot({ path: path.join(output, rotatedCaptureName) })
+    await page.screenshot({ path: path.join(output, `inbox-activity-analyzing-${width}-dark.png`) })
     console.log(`Saved: ${rotatedCaptureName}`)
 
     // 2. Light Mode screenshot for contrast and low visual noise

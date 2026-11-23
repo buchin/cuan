@@ -105,104 +105,24 @@ export function TypingDots({
   )
 }
 
-export const INBOX_ACTIVITY_ROTATING_WORDS = [
-  'Thinking…',
-  'Analyzing…',
-  'Synthesizing…',
-  'Formulating…',
-  'Evaluating…',
-  'Processing…',
-  'Researching…',
-  'Reviewing…',
-  'Exploring…',
-  'Organizing…',
-  'Preparing…',
-  'Structuring…',
-  'Inspecting…',
-  'Refining…',
-  'Polishing…',
-  'Verifying…',
-  'Brainstorming…',
-  'Conceptualizing…',
-  'Envisioning…',
-  'Strategizing…',
-  'Deliberating…',
-  'Investigating…',
-  'Discovering…',
-  'Gathering…',
-  'Sifting…',
-  'Surveying…',
-  'Examining…',
-  'Browsing…',
-  'Uncovering…',
-  'Categorizing…',
-  'Arranging…',
-  'Mapping…',
-  'Outlining…',
-  'Sorting…',
-  'Cataloging…',
-  'Coordinating…',
-  'Systematizing…',
-  'Drafting…',
-  'Composing…',
-  'Writing…',
-  'Curating…',
-  'Assembling…',
-  'Creating…',
-  'Crafting…',
-  'Designing…',
-  'Generating…',
-  'Calculating…',
-  'Computing…',
-  'Estimating…',
-  'Forecasting…',
-  'Budgeting…',
-  'Assessing…',
-  'Auditing…',
-  'Quantifying…',
-  'Measuring…',
-  'Editing…',
-  'Enhancing…',
-  'Streamlining…',
-  'Perfecting…',
-  'Tailoring…',
-  'Fine-tuning…',
-  'Clarifying…',
-  'Harmonizing…',
-  'Planning…',
-  'Scheduling…',
-  'Aligning…',
-  'Optimizing…',
-  'Prioritizing…',
-  'Consolidating…',
-  'Connecting…',
-  'Orchestrating…',
-  'Validating…',
-  'Checking…',
-  'Balancing…',
-  'Finalizing…',
-  'Summarizing…',
-  'Distilling…',
-  'Reconciling…',
-  'Cross-checking…',
-  'Imagining…',
-] as const
-
 export const INBOX_ACTIVITY_VERBS = [
-  'Thinking',
+  'Exploring',
   'Analyzing',
   'Synthesizing',
+  'Reviewing',
+  'Connecting',
+  'Checking',
+  'Structuring',
+  'Curating',
+  'Drafting',
+  'Organizing',
+  'Refining',
+  'Preparing',
+  'Inspecting',
   'Formulating',
   'Evaluating',
   'Processing',
   'Researching',
-  'Reviewing',
-  'Exploring',
-  'Organizing',
-  'Preparing',
-  'Structuring',
-  'Inspecting',
-  'Refining',
   'Polishing',
   'Verifying',
   'Brainstorming',
@@ -226,10 +146,8 @@ export const INBOX_ACTIVITY_VERBS = [
   'Cataloging',
   'Coordinating',
   'Systematizing',
-  'Drafting',
   'Composing',
   'Writing',
-  'Curating',
   'Assembling',
   'Creating',
   'Crafting',
@@ -258,10 +176,8 @@ export const INBOX_ACTIVITY_VERBS = [
   'Optimizing',
   'Prioritizing',
   'Consolidating',
-  'Connecting',
   'Orchestrating',
   'Validating',
-  'Checking',
   'Balancing',
   'Finalizing',
   'Summarizing',
@@ -269,7 +185,46 @@ export const INBOX_ACTIVITY_VERBS = [
   'Reconciling',
   'Cross-checking',
   'Imagining',
+  'Thinking',
 ] as const
+
+export const INBOX_ACTIVITY_CONTEXT_OBJECTS = [
+  'workspace',
+  'tasks',
+  'context',
+  'conversation',
+  'project details',
+  'inbox activity',
+  'workflow',
+  'requirements',
+  'resources',
+  'brief',
+  'milestones',
+  'timeline',
+  'action items',
+  'deliverables',
+  'notes',
+  'guidelines',
+] as const
+
+export function formatActivityPhrase(verb: string, contextObject: string): string {
+  return `${verb} ${contextObject}…`
+}
+
+export const INBOX_ACTIVITY_ROTATING_PHRASES: string[] = (() => {
+  const phrases: string[] = []
+  // Generate multi-cycle variety (160 distinct dynamic pairs) so the assistant never feels repetitive
+  for (let cycle = 0; cycle < 2; cycle++) {
+    for (let i = 0; i < INBOX_ACTIVITY_VERBS.length; i++) {
+      const verb = INBOX_ACTIVITY_VERBS[i]
+      const objIndex = (i + cycle * 5) % INBOX_ACTIVITY_CONTEXT_OBJECTS.length
+      phrases.push(formatActivityPhrase(verb, INBOX_ACTIVITY_CONTEXT_OBJECTS[objIndex]))
+    }
+  }
+  return phrases
+})()
+
+export const INBOX_ACTIVITY_ROTATING_WORDS = INBOX_ACTIVITY_ROTATING_PHRASES
 
 export const ACTIVITY_ROTATION_INTERVAL_MS = 3500
 
