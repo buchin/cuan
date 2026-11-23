@@ -45,8 +45,16 @@ export function conversationPreview(message?: string, counts?: ChatContact, t: (
     }
     return t('Siap ditinjau')
   }
-  if (queuedTasks > 0) {
-    if (substage) {
+
+  const isQueuedNotice = message ? /(?:Work queued|The work is (?:queued waiting|waiting for an available AI session|waiting to start)|Pekerjaan (?:masuk dalam antrean|sedang menunggu ketersediaan sesi AI|sedang menunggu untuk dimulai))/i.test(message) : false
+  const totalTasks = counts?.task_count !== undefined
+    ? Math.max(0, counts.task_count - (counts.canceled_tasks || 0))
+    : 0
+  const doneTasks = typeof counts?.done_tasks === 'number' ? counts.done_tasks : Number(counts?.done_tasks) || 0
+  const allTasksDone = totalTasks > 0 && doneTasks >= totalTasks
+
+  if (queuedTasks > 0 || (!allTasksDone && !counts?.resolved && (isQueuedNotice || substage === 'Menunggu antrean' || substage === 'Queued'))) {
+    if (substage && substage !== 'Queued' && substage !== 'Menunggu antrean') {
       return t(substage) || substage
     }
     return t('Menunggu antrean')
@@ -188,11 +196,21 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
   const totalTasks = contact.task_count !== undefined
     ? Math.max(0, contact.task_count - (contact.canceled_tasks || 0))
     : (progModel?.total ?? 0)
-  const hasTasks = totalTasks > 0 || !!progModel
-  const allTasksDone = hasTasks && (progModel ? progModel.complete : doneTasks >= totalTasks)
+  const allTasksDone = (totalTasks > 0 || !!progModel) && (progModel ? progModel.complete : doneTasks >= totalTasks)
   const isResolved = Boolean(contact.resolved)
-  const isComplete = isResolved || allTasksDone
   const isWorking = hasActiveWork
+
+  const cachedSubstage = id ? getRoomActiveSubstage(id) : undefined
+  const substage = contact.active_substage || cachedSubstage
+  const isQueuedNotice = /(?:Work queued|The work is (?:queued waiting|waiting for an available AI session|waiting to start)|Pekerjaan (?:masuk dalam antrean|sedang menunggu ketersediaan sesi AI|sedang menunggu untuk dimulai))/i.test(contact.last_message || '')
+  const isQueued = !hasActiveWork && !reviewTasks && !allTasksDone && !isResolved && (
+    queuedTasks > 0 ||
+    Boolean(isQueuedNotice) ||
+    substage === 'Menunggu antrean' ||
+    substage === 'Queued'
+  )
+  const isComplete = (isResolved || allTasksDone) && !isWorking && !isQueued
+  const hasTasks = totalTasks > 0 || !!progModel || isQueued
 
   const fraction = progModel ? progModel.fraction : (totalTasks > 0 ? doneTasks / totalTasks : 0)
   const angle = fraction * Math.PI * 2
@@ -206,27 +224,33 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     ? t('Resolved (click to reopen)')
     : allTasksDone
       ? t('All tasks completed')
-      : hasTasks
-        ? (isWorking
-            ? t('Working on tasks')
-            : hasReview
-              ? t('Siap ditinjau')
-              : hasFailed
-                ? t('Action required / paused')
-                : queuedTasks > 0
-                  ? t('Task queued in background')
-                  : t('{{done}} of {{total}} tasks completed')
+      : isWorking
+        ? t('Working on tasks')
+        : hasReview
+          ? t('Siap ditinjau')
+          : hasFailed
+            ? t('Action required / paused')
+            : isQueued
+              ? t('Task queued in background')
+              : hasTasks
+                ? t('{{done}} of {{total}} tasks completed')
                     .replace('{{done}}', String(doneTasks))
-                    .replace('{{total}}', String(totalTasks)))
-        : t('Unresolved (click to resolve)')
+                    .replace('{{total}}', String(totalTasks))
+                : t('Unresolved (click to resolve)')
 
   const statusAriaLabel = isResolved
     ? t('Resolved')
     : allTasksDone
       ? t('All tasks completed')
-      : hasTasks
-        ? (hasReview ? t('Ready for review') : t('Task progress'))
-        : t('Unresolved')
+      : isWorking
+        ? t('Working on tasks')
+        : hasReview
+          ? t('Ready for review')
+          : isQueued
+            ? t('Menunggu antrean')
+            : hasTasks
+              ? t('Task progress')
+              : t('Unresolved')
 
   const isAgentConnectionIssue =
     contact.type === 'agent' && contact.agent_id !== 'agent_cuan' &&
@@ -391,7 +415,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                     ? TASK_STATUS_THEMES.review.textColor
                     : hasFailed
                       ? TASK_STATUS_THEMES.attention.textColor
-                      : queuedTasks > 0
+                      : isQueued
                         ? 'text-amber-500/80 dark:text-amber-400/80'
                         : 'text-muted-foreground/60 hover:text-foreground',
             )}
@@ -402,6 +426,30 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               <StatusDot status="working" size="md" className="m-0.5" />
             ) : hasReview ? (
               <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
+            ) : isQueued ? (
+              <svg
+                viewBox="0 0 16 16"
+                className="h-4 w-4"
+                data-testid="task-pie-progress"
+                aria-label={t('Menunggu antrean')}
+              >
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeDasharray="2.5 1.5"
+                  opacity="0.9"
+                />
+                {fraction > 0 && (
+                  <path
+                    d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
+                    fill="currentColor"
+                  />
+                )}
+              </svg>
             ) : hasTasks ? (
               <svg
                 viewBox="0 0 16 16"
@@ -415,8 +463,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  strokeDasharray={queuedTasks > 0 && doneTasks === 0 ? "2.5 1.5" : undefined}
-                  opacity={hasFailed || hasReview || queuedTasks > 0 ? "0.9" : "0.65"}
+                  opacity={hasFailed || hasReview ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path

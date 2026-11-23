@@ -262,6 +262,8 @@ try{
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Memeriksa hasil")').count()>=1,'Mobile list must show "Memeriksa hasil" for active substage matching task card')
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Siap ditinjau")').count()>=1,'Mobile list must show "Siap ditinjau" for review task')
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Mobile list must show "Menunggu antrean" for queued task')
+      const mobileQueuedItem = page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').first()
+      assert.ok(await mobileQueuedItem.locator('[data-testid="task-pie-progress"] circle[stroke-dasharray="2.5 1.5"]').count() >= 1, 'Mobile queued item must show dashed amber ring')
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Mobile list must fall back to last_message for idle contact')
       // Verify system lifecycle notice unread prevention:
       const bottomNav = page.locator('nav.bottom-navigation')
@@ -328,6 +330,8 @@ try{
     assert.ok(await page.locator('[data-avatar="true"]:has-text("AZ")').count()>=1,'Desktop sidebar must display AZ monogram')
     assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Sedang dikerjakan")').count()>=1,'Desktop list must show "Sedang dikerjakan" for active running task')
     assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Desktop list must show "Menunggu antrean" for queued task')
+    const desktopQueuedItem = page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').first()
+    assert.ok(await desktopQueuedItem.locator('[data-testid="task-pie-progress"] circle[stroke-dasharray="2.5 1.5"]').count() >= 1, 'Desktop queued item must show dashed amber ring')
     assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Desktop list must fall back to last_message for idle contact')
     assert.equal(await desktopNav.locator('[data-testid="inbox-unread-badge-rail"]').count(), 0, 'Desktop navigation rail must have no unread badge for system notices')
     await page.screenshot({path:path.join(output,`inbox-desktop-monogram-${width}.png`)})

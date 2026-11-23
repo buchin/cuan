@@ -225,3 +225,40 @@ test('8. conversationPreview reflects reactive room active substage via setRoomA
   setRoomActiveSubstage('room-reactive-1', undefined)
   assert.equal(conversationPreview(reactiveContact.last_message, reactiveContact, tId), 'Sedang dikerjakan')
 })
+
+test('9. conversationPreview preserves "Menunggu antrean" for Indonesian queued notices even during count lag', () => {
+  const idQueuedMsg = 'Pekerjaan masuk dalam antrean menunggu giliran. [View work](/tasks/msg_456)'
+  const lagContact = {
+    id: 'room-lag',
+    conversation_id: 'room-lag',
+    name: 'Pindahkan Detail Task ke SlideDrawer',
+    task_count: 1,
+    active_tasks: 0,
+    queued_tasks: 0,
+    done_tasks: 0,
+    last_message: idQueuedMsg,
+  }
+  assert.equal(
+    conversationPreview(idQueuedMsg, lagContact, tId),
+    'Menunggu antrean',
+    'Indonesian queued notice must display "Menunggu antrean" even if queued_tasks has transiently dropped'
+  )
+})
+
+test('10. conversationPreview normalizes "Queued" substage to "Menunggu antrean"', () => {
+  const queuedSubstageContact = {
+    id: 'room-substage-queued',
+    conversation_id: 'room-substage-queued',
+    name: 'Rapikan Task Bar',
+    task_count: 1,
+    active_tasks: 0,
+    queued_tasks: 1,
+    active_substage: 'Queued',
+    last_message: 'Pekerjaan masuk dalam antrean',
+  }
+  assert.equal(
+    conversationPreview(queuedSubstageContact.last_message, queuedSubstageContact, tId),
+    'Menunggu antrean',
+    '"Queued" substage must be localized to "Menunggu antrean"'
+  )
+})
