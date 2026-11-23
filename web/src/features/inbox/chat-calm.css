@@ -650,12 +650,14 @@
 .composer-tasks .composer-tasks-count { border-radius: 999px; }
 
 /* Affordance tombol subtle pill pada aksi ComposerTasks sesuai Bear/Things 3 */
-.composer-tasks [data-card-actions] {
+.composer-tasks [data-card-actions],
+[data-slide-drawer] [data-card-actions] {
   border-top: none;
   padding-top: 6px;
   gap: 0.5rem;
 }
-.composer-tasks [data-card-actions] > :is(button, a) {
+.composer-tasks [data-card-actions] > :is(button, a),
+[data-slide-drawer] [data-card-actions] > :is(button, a) {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -672,19 +674,23 @@
   transition: all 0.15s ease;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
 }
-.composer-tasks [data-card-actions] > :is(button, a):hover {
+.composer-tasks [data-card-actions] > :is(button, a):hover,
+[data-slide-drawer] [data-card-actions] > :is(button, a):hover {
   background: oklch(var(--muted) / 0.9);
   border-color: oklch(var(--border));
   color: oklch(var(--foreground));
 }
-.composer-tasks [data-card-actions] > :is(button, a):active {
+.composer-tasks [data-card-actions] > :is(button, a):active,
+[data-slide-drawer] [data-card-actions] > :is(button, a):active {
   background: oklch(var(--muted));
   transform: scale(0.98);
 }
-.composer-tasks [data-card-actions] > :is(button, a)::before {
+.composer-tasks [data-card-actions] > :is(button, a)::before,
+[data-slide-drawer] [data-card-actions] > :is(button, a)::before {
   display: none !important;
 }
-.composer-tasks [data-card-actions] > :is(button, a)::after {
+.composer-tasks [data-card-actions] > :is(button, a)::after,
+[data-slide-drawer] [data-card-actions] > :is(button, a)::after {
   content: '';
   position: absolute;
   inset: -5px -2px;

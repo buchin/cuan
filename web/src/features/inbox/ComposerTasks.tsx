@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, Clock3, Eye, AlertCircle, ChevronDown, Terminal, ArrowLeft } from 'lucide-react'
+import { CheckCircle2, Clock3, Eye, AlertCircle, ChevronDown, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
-import { AccordionTimeline } from '../../components/ui/AccordionTimeline'
+import { SlideDrawer } from '../../components/ui/SlideDrawer'
 import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, taskSummaryText, TASK_STATUS_THEMES } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
@@ -79,7 +79,6 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
 
   if (!tasks.length && !modes) return null
   const latestTask = ordered[0]
-  const defaultExpandedIds = latestTask ? [latestTask.id] : []
 
   const hasAttention = ordered.some(t => workStatus(t) === 'Needs attention')
   const hasActive = ordered.some(taskExecutionActive)
@@ -109,8 +108,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         data-status={badgeStatus}
         className={cn(
           "composer-mode-tab flex-1 flex items-center justify-between gap-2.5 min-w-0 min-h-11 sm:min-h-8 px-2 -mx-2 rounded-md text-left transition-colors cursor-pointer select-none",
-          "hover:bg-muted/30 active:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-          open && "sr-only"
+          "hover:bg-muted/30 active:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         )}
         onClick={() => setOpen(value => !value)}>
         {latestTask && (
@@ -122,7 +120,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             ) : hasReview ? (
               <Eye className={cn("h-3.5 w-3.5 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t('Ready for review')} />
             ) : isAllDone ? (
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
             ) : hasQueued ? (
               <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t('Queued')} />
             ) : (
@@ -144,98 +142,102 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         </div>
       </button>}
     </div>
-    {tasks.length > 0 && <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
-      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 h-[calc(100dvh-120px)] sm:h-auto sm:max-h-[calc(100dvh-160px)] pt-0 pb-1">
-        <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-0 pb-2.5 pt-0" items={ordered.map((task, index) => {
-          const work = workStatus(task)
-          const status = workDisplayStatus(task)
-          const progress = work === 'Needs attention' ? task.review_finding || ''
-            : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
-            : taskLiveActivityText(task, '') || taskSummaryText(task)
-          const isLatest = index === 0
-          return {
-            id: task.id,
-            indicator: status === 'Completed' ? (
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
-            ) : taskExecutionActive(task) ? (
-              <StatusDot status="working" size="xs" label={t(status)} />
-            ) : work === 'Queued' ? (
-              <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t(status)} />
-            ) : work === 'Ready for review' ? (
-              <Eye className={cn("h-3.5 w-3.5 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t(status)} />
-            ) : work === 'Needs attention' ? (
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label={t(status)} />
-            ) : (
-              <StatusDot status="neutral" size="xs" label={t(status)} />
-            ),
-            title: isLatest ? (
-              <span className="min-w-0 sm:flex sm:items-center sm:gap-3">
-                <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
-                <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
-              </span>
-            ) : (
-              <span className="line-clamp-2 min-w-0 flex-1 font-medium sm:line-clamp-1">{task.title}</span>
-            ),
-            pinnedAction: isLatest ? (
-              <span className="inline-flex shrink-0 items-center gap-1.5">
-                <span className={cn(
-                  "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
-                  TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
-                )}>{ordered.length}</span>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  aria-label={t('Collapse tasks')}
-                  data-testid="composer-tasks-collapse"
-                  onClick={e => {
-                    e.stopPropagation()
-                    setOpen(false)
-                    trigger.current?.focus()
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.stopPropagation()
-                      e.preventDefault()
-                      setOpen(false)
-                      trigger.current?.focus()
-                    }
-                  }}
-                  className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 rounded hover:bg-muted/40 text-muted-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    {tasks.length > 0 && (
+      <SlideDrawer
+        isOpen={open}
+        onClose={() => {
+          setOpen(false)
+          trigger.current?.focus()
+        }}
+        title={t('Conversation tasks')}
+        badge={<span className={cn(
+          "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
+          TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
+        )}>{ordered.length}</span>}
+        data-testid="composer-tasks-drawer"
+        size="md"
+      >
+        <div ref={panelRef} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 p-4 sm:p-6">
+          <ol className="relative min-w-0 space-y-6 pb-2.5" data-timeline="linear-progress">
+            {ordered.map((task, index) => {
+              const work = workStatus(task)
+              const status = workDisplayStatus(task)
+              const progress = work === 'Needs attention' ? task.review_finding || ''
+                : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
+                : taskLiveActivityText(task, '') || taskSummaryText(task)
+              return (
+                <li
+                  key={task.id}
+                  data-timeline-item={task.id}
+                  data-work-event={task.id}
+                  className="relative min-w-0 pl-7"
                 >
-                  <ChevronDown className="h-3.5 w-3.5 rotate-180 transition-transform duration-200 ease-in-out" />
-                </span>
-              </span>
-            ) : undefined,
-            meta: !isLatest ? (
-              <span className="block shrink-0 text-[11px] font-normal text-muted-foreground">{t(status)}</span>
-            ) : undefined,
-            content: <>
-              <TaskDuration task={task} className="mb-2 block" />
-              {progress && <p className="line-clamp-3 pb-2 text-sm leading-relaxed text-muted-foreground">{progress}</p>}
-              <CardActions className="px-0 text-xs">
-                <button type="button" className="mr-auto" onClick={() => onDetails(task)}>{t('Details')}</button>
-                {workStatus(task) === 'Working' && <TaskTerminalAction task={task} onTerminal={onTerminal} />}
-              </CardActions>
-            </>
-          }
-        })} />
-        <div className="pt-4 pb-8 flex items-center justify-center border-t border-border/20 mt-4">
-          <button
-            type="button"
-            data-testid="composer-tasks-back"
-            aria-label={t('Back to conversation')}
-            onClick={() => {
-              setOpen(false)
-              trigger.current?.focus()
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/50 bg-muted/40 hover:bg-muted text-xs font-medium text-foreground transition-colors min-h-11 sm:min-h-9 shadow-xs cursor-pointer select-none"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span>{t('Back to conversation')}</span>
-          </button>
+                  {index < ordered.length - 1 && (
+                    <span
+                      data-timeline-connector
+                      aria-hidden
+                      className="absolute left-[7px] top-[26px] -bottom-[24px] w-px bg-border/60"
+                    />
+                  )}
+                  <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center">
+                    {status === 'Completed' ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
+                    ) : taskExecutionActive(task) ? (
+                      <StatusDot status="working" size="xs" label={t(status)} />
+                    ) : work === 'Queued' ? (
+                      <Clock3 className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={t(status)} />
+                    ) : work === 'Ready for review' ? (
+                      <Eye className={cn("h-4 w-4 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t(status)} />
+                    ) : work === 'Needs attention' ? (
+                      <AlertCircle className="h-4 w-4 shrink-0 text-destructive" aria-label={t(status)} />
+                    ) : (
+                      <StatusDot status="neutral" size="xs" label={t(status)} />
+                    )}
+                  </span>
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-medium text-sm text-foreground leading-snug break-words">
+                        {task.title}
+                      </span>
+                      <span className="shrink-0 text-[11px] font-normal text-muted-foreground pt-0.5">
+                        {t(status)}
+                      </span>
+                    </div>
+                    <TaskDuration task={task} className="text-xs text-muted-foreground block" />
+                    {progress && (
+                      <p className="text-sm leading-relaxed text-muted-foreground break-words">
+                        {progress}
+                      </p>
+                    )}
+                    <CardActions className="px-0 pt-1 text-xs">
+                      <button
+                        type="button"
+                        className="mr-auto"
+                        onClick={() => {
+                          setOpen(false)
+                          onDetails(task)
+                        }}
+                      >
+                        {t('Details')}
+                      </button>
+                      {workStatus(task) === 'Working' && (
+                        <TaskTerminalAction
+                          task={task}
+                          onTerminal={t => {
+                            setOpen(false)
+                            onTerminal(t)
+                          }}
+                        />
+                      )}
+                    </CardActions>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
         </div>
-      </div>
-    </div>}
+      </SlideDrawer>
+    )}
   </section>
 }
 

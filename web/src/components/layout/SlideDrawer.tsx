@@ -113,6 +113,8 @@ export function SlideDrawer({
             type="button"
             onClick={onClose}
             aria-label="Close drawer"
+            data-testid={dataTestId === "composer-tasks-drawer" ? "composer-tasks-collapse" : dataTestId ? `${dataTestId}-close` : "slide-drawer-close"}
+            data-drawer-close
             className="rounded-md p-2 text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-11 min-w-11 flex items-center justify-center"
           >
             <X className="h-4 w-4" />

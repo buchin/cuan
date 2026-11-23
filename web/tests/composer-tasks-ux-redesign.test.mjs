@@ -15,29 +15,29 @@ const chatCalmCssSrc = fs.readFileSync(chatCalmCssPath, 'utf8')
 const enJson = JSON.parse(fs.readFileSync(enJsonPath, 'utf8'))
 const idJson = JSON.parse(fs.readFileSync(idJsonPath, 'utf8'))
 
-test('1. Full-height sheet on mobile: panel uses 100dvh viewport height to eliminate clipping', () => {
+test('1. SlideDrawer integration: opens SlideDrawer for desktop right panel and mobile full-sheet', () => {
   assert.ok(
-    composerTasksSrc.includes('h-[calc(100dvh-120px)]'),
-    'ComposerTasks panel must use 100dvh-based height on mobile for full-sheet presentation'
+    composerTasksSrc.includes('SlideDrawer'),
+    'ComposerTasks must render SlideDrawer for task details'
   )
   assert.ok(
-    composerTasksSrc.includes('sm:max-h-[calc(100dvh-160px)]'),
-    'ComposerTasks panel must have generous desktop max-height'
+    composerTasksSrc.includes('data-testid="composer-tasks-drawer"'),
+    'ComposerTasks must mount SlideDrawer with data-testid composer-tasks-drawer'
   )
 })
 
-test('2. Intuitive back to conversation & collapse navigation with 1 tap', () => {
+test('2. Linear timeline without accordion nesting & total elimination of inline back button', () => {
   assert.ok(
-    composerTasksSrc.includes('data-testid="composer-tasks-back"'),
-    'Back to conversation button must have testid composer-tasks-back'
+    !composerTasksSrc.includes('data-testid="composer-tasks-back"'),
+    'Inline Back to conversation button must be completely eliminated'
   )
   assert.ok(
-    composerTasksSrc.includes('t(\'Back to conversation\')'),
-    'Back to conversation button must use localized text'
+    !composerTasksSrc.includes('<AccordionTimeline'),
+    'ComposerTasks must not use nested AccordionTimeline'
   )
   assert.ok(
-    composerTasksSrc.includes('data-testid="composer-tasks-collapse"'),
-    'Top task header must have collapse toggle'
+    composerTasksSrc.includes('data-timeline="linear-progress"'),
+    'ComposerTasks must present tasks as a clean linear timeline'
   )
 })
 
@@ -77,8 +77,6 @@ test('5. Breathing room & scroll fighting isolation', () => {
 test('6. Localization completeness in id.json and en.json', () => {
   assert.equal(enJson['Terminal'], 'Terminal')
   assert.equal(idJson['Terminal'], 'Terminal')
-  assert.equal(enJson['Back to conversation'], 'Back to conversation')
-  assert.equal(idJson['Back to conversation'], 'Kembali ke percakapan')
-  assert.equal(enJson['Collapse tasks'], 'Collapse tasks')
-  assert.equal(idJson['Collapse tasks'], 'Tutup tugas')
+  assert.equal(enJson['Conversation tasks'], 'Conversation tasks')
+  assert.equal(idJson['Conversation tasks'], 'Task obrolan')
 })
