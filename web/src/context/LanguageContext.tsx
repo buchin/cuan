@@ -55,6 +55,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           /* Preference still works in this tab. */
         }
         setValue(next)
+        if (typeof window !== 'undefined' && localStorage.getItem('cuan_token')) {
+          fetch('/api/v1/profile', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('cuan_token')}`,
+            },
+            body: JSON.stringify({ locale: next }),
+          }).catch(() => {})
+        }
       },
       t: (text: string) => {
         const dict = dictionaries[language]
@@ -66,6 +76,20 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }),
     [preference, language],
   )
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cuan_token') : ''
+    const current = typeof window !== 'undefined' ? localStorage.getItem('cuan-language') : ''
+    if (token && current) {
+      fetch('/api/v1/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ locale: current }),
+      }).catch(() => {})
+    }
+  }, [])
   useEffect(() => {
     document.documentElement.lang = language
   }, [language])

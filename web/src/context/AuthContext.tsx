@@ -14,6 +14,7 @@ export interface OwnerInfo {
   name?: string
   role?: string
   is_active?: boolean
+  locale?: string
 }
 
 interface AuthContextType {

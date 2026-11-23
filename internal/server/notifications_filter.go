@@ -78,6 +78,8 @@ func isIntermediateRunnerMessage(authorName, content string) bool {
 		strings.Contains(lower, "cuan memeriksa hasil pekerjaan") ||
 		strings.Contains(lower, "hasil kode tersimpan") ||
 		strings.Contains(lower, "pekerjaan dalam antrean") ||
+		strings.Contains(lower, "pekerjaan masuk dalam antrean") ||
+		strings.Contains(lower, "menunggu tugas yang sedang aktif selesai") ||
 		strings.Contains(lower, "pekerjaan telah dihentikan") ||
 		strings.Contains(lower, "keputusan review belum tersimpan") ||
 		strings.Contains(lower, "hasil perubahan sudah diperiksa secara independen") ||
