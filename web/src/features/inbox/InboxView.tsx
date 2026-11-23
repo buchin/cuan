@@ -181,13 +181,17 @@ function isSameConversation(a?: string | null, b?: string | null, contact?: Chat
   if (!a || !b) return false
   if (a === b) return true
   if (!contact) return false
+  const isDirect = Boolean(
+    contact.type === 'agent' &&
+    (contact.id.startsWith('contact_') || contact.id === contact.agent_id || contact.id === 'cuan' || contact.conversation_id === 'cuan')
+  )
   const ids = new Set(
     [
       contact.conversation_id,
       contact.id,
-      contact.agent_id,
-      contact.agent_id ? 'contact_' + contact.agent_id : '',
-      contact.name?.toLowerCase(),
+      isDirect ? contact.agent_id : '',
+      isDirect && contact.agent_id ? 'contact_' + contact.agent_id : '',
+      isDirect ? contact.name?.toLowerCase() : '',
     ].filter(Boolean) as string[],
   )
   return ids.has(a) && ids.has(b)
@@ -839,8 +843,12 @@ export function InboxView({
     }
   }, [activeContact?.id, autoResizeTextarea])
 
+  const isDirectAgentChat = Boolean(
+    activeContact?.type === 'agent' &&
+    (activeContact.id.startsWith('contact_') || activeContact.id === activeContact.agent_id || activeContact.id === 'cuan' || activeContact.conversation_id === 'cuan')
+  )
   const convKey = activeContact
-    ? activeContact.type === 'agent'
+    ? isDirectAgentChat
       ? activeContact.agent_id || activeContact.id.replace(/^contact_/, '')
       : activeContact.conversation_id || activeContact.id
     : ''
