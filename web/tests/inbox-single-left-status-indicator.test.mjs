@@ -100,11 +100,16 @@ test('DoD 4: Animasi pulsating lama di sisi kanan dihilangkan secara tuntas; sis
   )
 })
 
-test('DoD 5: Saat task berstatus working, indikator kiri beranimasi subtle breathing pulse yang halus dan tidak mencolok', () => {
-  // Checks task-pulse-subtle conditional class when isWorking is true
+test('DoD 5: Saat task berstatus working, badge avatar menampilkan pulsating dot beranimasi halus menggantikan ring pie', () => {
+  // Checks StatusDot rendering on avatar badge when isWorking is true
   assert.ok(
-    subPanelSource.includes('isWorking && "task-pulse-subtle"'),
-    'Left pie indicator applies task-pulse-subtle when task is working'
+    subPanelSource.includes('isWorking ? (') &&
+      subPanelSource.includes('<StatusDot status="working"'),
+    'Left avatar badge renders StatusDot with working status when task is working'
+  )
+  assert.ok(
+    !subPanelSource.includes('isWorking && (\n                <StatusDot'),
+    'Conversation title row is clean of redundant StatusDot'
   )
   // Check CSS definition of task-subtle-pulse keyframes and duration ~2s
   assert.ok(

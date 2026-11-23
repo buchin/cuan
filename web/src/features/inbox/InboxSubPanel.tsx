@@ -366,10 +366,12 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
           >
             {isComplete ? (
               <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+            ) : isWorking ? (
+              <StatusDot status="working" size="md" className="m-0.5" />
             ) : hasTasks ? (
               <svg
                 viewBox="0 0 16 16"
-                className={cn("h-4 w-4", isWorking && "task-pulse-subtle")}
+                className="h-4 w-4"
                 data-testid="task-pie-progress"
               >
                 <circle
@@ -379,8 +381,8 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  strokeDasharray={queuedTasks > 0 && !isWorking && doneTasks === 0 ? "2.5 1.5" : undefined}
-                  opacity={isWorking || hasFailed || hasReview || queuedTasks > 0 ? "0.9" : "0.65"}
+                  strokeDasharray={queuedTasks > 0 && doneTasks === 0 ? "2.5 1.5" : undefined}
+                  opacity={hasFailed || hasReview || queuedTasks > 0 ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path
@@ -408,15 +410,6 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
-              {isWorking && (
-                <StatusDot
-                  status="working"
-                  size="md"
-                  title={t('Working on tasks')}
-                  aria-label={t('Working on tasks')}
-                  className="shrink-0"
-                />
-              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xs tabular-nums text-muted-foreground">
