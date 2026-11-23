@@ -142,7 +142,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     now,
   )
   const id = contact.conversation_id || contact.id
-  const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
+  const unread = contact.only_system_notices ? 0 : archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const reviewTasks = Number(contact.review_tasks) || 0
   const failedTasks = Number(contact.failed_tasks) || 0
@@ -526,7 +526,7 @@ export function InboxSubPanel({
   }
 
   const filteredContacts = contacts.filter((c) => {
-    if (showArchived ? !c.resolved : unresolvedOnly && c.resolved) return false
+    if (showArchived ? !c.resolved : unresolvedOnly && (c.resolved || c.only_system_notices)) return false
     if (activeTab === 'all') {
       if (c.type === 'customer' && c.has_messages === false) return false
     }
