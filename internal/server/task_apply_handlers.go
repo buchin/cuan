@@ -141,8 +141,14 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 	commitTitle := fmt.Sprintf("Apply Task %s: %s", taskID, title)
 	commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply.\n\nTask: %s\nSummary: %s", taskID, summary)
 
+	var prErr error
 	if prNumber > 0 {
-		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
+		res, err := s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
+		if err == nil {
+			return res, nil
+		}
+		prErr = err
+		log.Printf("[applyTaskInternal] ApplyTaskPullRequest for task %s (PR #%d) failed: %v; attempting ApplyTaskBranch fallback", taskID, prNumber, err)
 	}
 	if branchName != "" {
 		if s.cfg != nil && s.cfg.WorkspacesDir != "" && s.projectSvc != nil {
@@ -159,7 +165,17 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 				}
 			}
 		}
-		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
+		res, err := s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
+		if err == nil {
+			return res, nil
+		}
+		if prErr != nil {
+			return nil, fmt.Errorf("pull request apply failed (%v) and task branch apply failed: %w", prErr, err)
+		}
+		return nil, err
+	}
+	if prErr != nil {
+		return nil, prErr
 	}
 	return nil, errors.New("neither pull request nor task branch is available")
 }
@@ -280,6 +296,16 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
+		reviewStatus := task.TaskStatusReview
+		failNote := taskDetail.CompleteNote
+		if failNote != "" {
+			failNote += "\n\n"
+		}
+		failNote += fmt.Sprintf("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (%v). Hasil pekerjaan tetap tersimpan untuk ditinjau.", err)
+		_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
+			Status:       &reviewStatus,
+			CompleteNote: &failNote,
+		})
 		return
 	}
 	appliedSHA := ""
