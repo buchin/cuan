@@ -247,7 +247,7 @@ func (s *DBStore) ListProjects(ctx context.Context) ([]*Project, error) {
 			last_fetched_at,
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
-		ORDER BY created_at DESC
+		ORDER BY updated_at DESC, created_at DESC
 	`
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -339,7 +339,7 @@ func (s *DBStore) ListProjectsFiltered(ctx context.Context, filter ArchivedFilte
 			COALESCE(last_error, ''), created_at, updated_at
 		FROM projects
 		` + whereClause + `
-		ORDER BY created_at DESC
+		ORDER BY updated_at DESC, created_at DESC
 	`
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -474,6 +474,27 @@ func (s *DBStore) UpdateProject(ctx context.Context, p *Project) error {
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("update project rows affected: %w", err)
+	}
+	if rows == 0 {
+		return ErrProjectNotFound
+	}
+	return nil
+}
+
+func (s *DBStore) TouchProject(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return ErrInvalidProjectInput
+	}
+	now := time.Now().UTC()
+	query := `UPDATE projects SET updated_at = $1 WHERE id = $2`
+	res, err := s.db.ExecContext(ctx, query, now, id)
+	if err != nil {
+		return fmt.Errorf("touch project: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("touch project rows affected: %w", err)
 	}
 	if rows == 0 {
 		return ErrProjectNotFound

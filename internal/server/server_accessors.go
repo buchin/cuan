@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 
 	"github.com/buchin/cuan/internal/agent"
 	"github.com/buchin/cuan/internal/auth"
@@ -70,11 +71,35 @@ func (s *Server) wireTaskService(svc *task.Service) {
 		if t != nil && t.SourceRoomID != "" {
 			_, _ = s.syncRoomTitleOnTaskCreated(ctx, t.SourceRoomID, t.Title)
 		}
+		if t != nil && s.projectSvc != nil {
+			s.touchTaskProjects(ctx, t)
+		}
 	})
 	svc.OnTaskCompleted(func(ctx context.Context, t *task.Task) {
 		s.invalidateTaskCounts()
 		_ = s.PostTaskCompletionMessage(ctx, t)
+		if t != nil && s.projectSvc != nil {
+			s.touchTaskProjects(ctx, t)
+		}
 	})
+}
+
+func (s *Server) touchTaskProjects(ctx context.Context, t *task.Task) {
+	if s.projectSvc == nil || t == nil {
+		return
+	}
+	pids := make(map[string]struct{})
+	if pid := strings.TrimSpace(t.ProjectID); pid != "" {
+		pids[pid] = struct{}{}
+	}
+	for _, pid := range t.ProjectIDs {
+		if clean := strings.TrimSpace(pid); clean != "" {
+			pids[clean] = struct{}{}
+		}
+	}
+	for pid := range pids {
+		_ = s.projectSvc.Touch(ctx, pid)
+	}
 }
 
 func (s *Server) SetTaskService(svc *task.Service) {
