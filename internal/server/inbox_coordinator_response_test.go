@@ -23,6 +23,7 @@ func coordinatorJSON(reply, kind string, payload any) string {
 }
 
 func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
+	trueVal := true
 	cases := []struct {
 		kind    string
 		payload any
@@ -39,7 +40,7 @@ func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
 		{"prompt_choices", InboxPromptChoices{Question: "Langkah selanjutnya?", Options: []InboxPromptOption{{ID: "done", Label: "Selesai (Done)", Variant: "primary"}, {ID: "revisit", Label: "Revisi Dulu", Variant: "outline"}}}, "cuan-prompt"},
 		{"schedule", inboxScheduleAction{Action: "create", Title: "Daily Routine", ScheduleType: "daily", TimeOfDay: "03:00"}, "cuan-schedule"},
 		{"project", inboxProjectAction{Action: "create", Name: "My New Project"}, "cuan-project"},
-		{"skill", inboxSkillAction{Action: "toggle", AgentID: "agent_dev", SkillID: "vision_receipt_extractor", Enabled: true}, "cuan-skill"},
+		{"skill", inboxSkillAction{Action: "toggle", AgentID: "agent_dev", SkillID: "vision_receipt_extractor", Enabled: &trueVal}, "cuan-skill"},
 	}
 	for _, c := range cases {
 		t.Run(c.kind+c.marker, func(t *testing.T) {

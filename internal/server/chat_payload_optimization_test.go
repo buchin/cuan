@@ -142,6 +142,7 @@ func TestChatMessages_GetFormattedMessagesResultPaged(t *testing.T) {
 		Title:     "Paging Room",
 	})
 
+	now := time.Now().UTC()
 	var msgIDs []string
 	for i := 1; i <= 10; i++ {
 		id := "00000000-0000-0000-0000-" + format12Digit(i)
@@ -151,6 +152,7 @@ func TestChatMessages_GetFormattedMessagesResultPaged(t *testing.T) {
 			RoomID:     roomID,
 			AuthorType: "user",
 			Content:    "Message " + format12Digit(i),
+			CreatedAt:  now.Add(time.Duration(i) * time.Millisecond),
 		})
 	}
 

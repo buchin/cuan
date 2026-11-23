@@ -7,6 +7,9 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/buchin/cuan/internal/git"
@@ -93,10 +96,14 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", task.UpdateTaskRequest{
+	updateReq := task.UpdateTaskRequest{
 		Status:       &doneStatus,
 		CompleteNote: &note,
-	})
+	}
+	if appliedSHA != "" {
+		updateReq.CommitSHA = &appliedSHA
+	}
+	updated, err := s.taskSvc.UpdateTask(r.Context(), taskID, "owner", updateReq)
 	if err != nil {
 		log.Printf("[Server] Task %s merged but status update note error: %v", taskID, err)
 	} else if updated != nil && updated.Status == task.TaskStatusDone {
@@ -134,11 +141,41 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 	commitTitle := fmt.Sprintf("Apply Task %s: %s", taskID, title)
 	commitMessage := fmt.Sprintf("Applied via Cuan One-Click Apply.\n\nTask: %s\nSummary: %s", taskID, summary)
 
+	var prErr error
 	if prNumber > 0 {
-		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
+		res, err := s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
+		if err == nil {
+			return res, nil
+		}
+		prErr = err
+		log.Printf("[applyTaskInternal] ApplyTaskPullRequest for task %s (PR #%d) failed: %v; attempting ApplyTaskBranch fallback", taskID, prNumber, err)
 	}
 	if branchName != "" {
-		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
+		if s.cfg != nil && s.cfg.WorkspacesDir != "" && s.projectSvc != nil {
+			sourcePath := filepath.Join(s.cfg.WorkspacesDir, taskID)
+			if info, err := os.Stat(sourcePath); err == nil && info.IsDir() {
+				if _, _, pushErr := s.projectSvc.PushNativeTaskBranch(ctx, taskID, projectID, detail.Instructions, sourcePath, branchName, false, title); pushErr != nil {
+					log.Printf("[applyTaskInternal] note: PushNativeTaskBranch for %s: %v", taskID, pushErr)
+				}
+				if proj, err := s.projectSvc.Get(ctx, projectID); err == nil && proj != nil && proj.LocalPath != "" {
+					cmd := exec.CommandContext(ctx, "git", "-C", proj.LocalPath, "fetch", sourcePath, fmt.Sprintf("%s:%s", branchName, branchName))
+					if out, fetchErr := cmd.CombinedOutput(); fetchErr != nil {
+						log.Printf("[applyTaskInternal] note: local workspace branch fetch for %s: %v (%s)", taskID, fetchErr, strings.TrimSpace(string(out)))
+					}
+				}
+			}
+		}
+		res, err := s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
+		if err == nil {
+			return res, nil
+		}
+		if prErr != nil {
+			return nil, fmt.Errorf("pull request apply failed (%v) and task branch apply failed: %w", prErr, err)
+		}
+		return nil, err
+	}
+	if prErr != nil {
+		return nil, prErr
 	}
 	return nil, errors.New("neither pull request nor task branch is available")
 }
@@ -239,24 +276,36 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskApplyPermission(policy) != nil {
 		return
 	}
-	branch := taskDetail.BranchName
-	if branch == "" && taskDetail.PRNumber <= 0 {
-		branch = fmt.Sprintf("task/%s", taskDetail.ID)
-	}
-	if taskDetail.PRNumber <= 0 && branch == "" {
-		return
-	}
-	if taskDetail.ExecutionCategory == task.ExecutionCategoryReadOnly {
-		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for read-only task %s", taskID)
+	if taskDetail.ExecutionCategory != "" && taskDetail.ExecutionCategory != task.ExecutionCategoryCode {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code task %s (category: %s)", taskID, taskDetail.ExecutionCategory)
 		return
 	}
 	if taskDetail.ExecutionCategory != task.ExecutionCategoryCode && isInvestigationOrNonCodeText(taskDetail.Title) {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code investigation task %s", taskID)
 		return
 	}
+	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without branch or PR", taskID)
+		return
+	}
+	if !releaseObjectID.MatchString(taskDetail.CommitSHA) {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without valid commit SHA", taskID)
+		return
+	}
+	branch := taskDetail.BranchName
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
+		reviewStatus := task.TaskStatusReview
+		failNote := taskDetail.CompleteNote
+		if failNote != "" {
+			failNote += "\n\n"
+		}
+		failNote += fmt.Sprintf("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (%v). Hasil pekerjaan tetap tersimpan untuk ditinjau.", err)
+		_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
+			Status:       &reviewStatus,
+			CompleteNote: &failNote,
+		})
 		return
 	}
 	appliedSHA := ""
@@ -276,10 +325,14 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 		note += " Verifikasi deployment production belum dikonfirmasi."
 	}
 	doneStatus := task.TaskStatusReview
-	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
+	autoUpdateReq := task.UpdateTaskRequest{
 		Status:       &doneStatus,
 		CompleteNote: &note,
-	})
+	}
+	if appliedSHA != "" {
+		autoUpdateReq.CommitSHA = &appliedSHA
+	}
+	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", autoUpdateReq)
 	s.triggerAutoDeploy(ctx, projectID, taskID)
 }
 

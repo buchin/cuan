@@ -302,11 +302,29 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 
 		attemptCount := taskRevisionAttemptCount(detail)
 
-		// 1. Autonomous Self-Healing:
+		// 1. Autonomous publication reconciliation:
+		// When code is verified but uncontained in running release on an auto_deploy project,
+		// trigger auto-deploy autonomously.
+		if latestAssessment != nil &&
+			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			(latestAssessment.SourceReview == "pass" || latestAssessment.Decision == "pass" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			s.projectSvc != nil && detail.ProjectID != "" {
+			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
+				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+					log.Printf("[Watchdog AI Orchestrator] Autonomously triggering auto-deploy for verified publication task %s", detail.ID)
+					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
+					continue
+				}
+			}
+		}
+
+		// 2. Autonomous Self-Healing:
 		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
-		// and work is internal (not external).
+		// and work is internal (not external or publication).
 		if latestAssessment != nil && attemptCount < 3 &&
 			latestAssessment.RemainingWork != "external" &&
+			latestAssessment.RemainingWork != "publication" &&
+			!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
 			latestAssessment.Decision == "revise" &&
 			latestAssessment.RequestedOutcome != "needs_input" &&
@@ -319,22 +337,6 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			log.Printf("[Watchdog AI Orchestrator] Autonomously launched continuation for blocked task %s (attempt %d/3, notice=%s): %s",
 				detail.ID, attemptCount+1, notice, latestAssessment.Revision)
 			continue
-		}
-
-		// Autonomous publication reconciliation:
-		// When code is verified but uncontained in running release on an auto_deploy project,
-		// trigger auto-deploy autonomously.
-		if latestAssessment != nil &&
-			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
-			(latestAssessment.SourceReview == "pass" || latestAssessment.Decision == "pass") &&
-			s.projectSvc != nil && detail.ProjectID != "" {
-			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
-				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
-					log.Printf("[Watchdog AI Orchestrator] Autonomously triggering auto-deploy for verified publication task %s", detail.ID)
-					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
-					continue
-				}
-			}
 		}
 
 		// Autonomous native release handoff recovery:

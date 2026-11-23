@@ -125,6 +125,188 @@ func TestRunner_QueueAndConcurrencyLimit(t *testing.T) {
 	t.Logf("Second task attempt %s remains queued waiting for next runner/turn", att2.ID)
 }
 
+func TestRunner_PrioritizeContinuationOrVerificationAttempt(t *testing.T) {
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+
+	// Task 1: Brand new task, queued earlier (T0), attempt #1
+	t1 := &task.Task{
+		ID:                "task_01_initial",
+		Title:             "Initial Task 1",
+		Status:            task.TaskStatusQueued,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-10 * time.Minute),
+		UpdatedAt:         now.Add(-10 * time.Minute),
+	}
+	a1 := &task.TaskAttempt{
+		ID:            "att_task_01_attempt_1",
+		TaskID:        t1.ID,
+		Status:        task.AttemptStatusQueued,
+		AttemptNumber: 1,
+		CreatedAt:     now.Add(-10 * time.Minute),
+	}
+
+	// Task 2: In-flight task continuation / verifier attempt, queued later (T1 > T0), attempt #2
+	t2 := &task.Task{
+		ID:                "task_02_verification",
+		Title:             "Verification Task 2",
+		Status:            task.TaskStatusQueued,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-5 * time.Minute),
+		UpdatedAt:         now.Add(-5 * time.Minute),
+	}
+	a2 := &task.TaskAttempt{
+		ID:            "att_task_02_attempt_2",
+		TaskID:        t2.ID,
+		Status:        task.AttemptStatusQueued,
+		AttemptNumber: 2,
+		CreatedAt:     now.Add(-5 * time.Minute),
+	}
+
+	_ = taskStore.CreateTask(ctx, t1)
+	_ = taskStore.CreateTask(ctx, t2)
+	_ = taskStore.CreateAttempt(ctx, a1)
+	_ = taskStore.CreateAttempt(ctx, a2)
+
+	runnerID := "runner_test_priority"
+
+	// Runner claims next queued attempt.
+	// Even though a1 was created earlier, a2 is attempt #2 (continuation/verification),
+	// so a2 MUST be claimed first to complete the active cycle and avoid Convoy Effect.
+	claimedAttempt, claimedTask, err := runnerStore.ClaimNextQueuedAttempt(ctx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim failed: %v", err)
+	}
+	if claimedAttempt == nil || claimedTask == nil {
+		t.Fatalf("Expected attempt to be claimed")
+	}
+	if claimedAttempt.ID != a2.ID {
+		t.Fatalf("Expected continuation attempt %s (attempt #2) to take priority, got %s (attempt #%d)", a2.ID, claimedAttempt.ID, claimedAttempt.AttemptNumber)
+	}
+	t.Logf("Continuation attempt %s correctly prioritized over older initial attempt %s", claimedAttempt.ID, a1.ID)
+}
+
+func TestRunner_TaskAffinity_AtomicBundleRunToCompletion(t *testing.T) {
+	taskStore := task.NewMemoryStore()
+	runnerStore := NewMemoryStore(taskStore)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	// Task 1: Stale continuation attempt from an older task (created 10 minutes ago)
+	t1 := &task.Task{
+		ID:                "task_01_older_continuation",
+		Title:             "Older Continuation Task 1",
+		Status:            task.TaskStatusQueued,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-10 * time.Minute),
+		UpdatedAt:         now.Add(-10 * time.Minute),
+	}
+	a1 := &task.TaskAttempt{
+		ID:            "att_task_01_attempt_2",
+		TaskID:        t1.ID,
+		Status:        task.AttemptStatusQueued,
+		AttemptNumber: 2,
+		CreatedAt:     now.Add(-10 * time.Minute),
+	}
+
+	// Task 2: Active task bundle in progress! Implementer just finished, verifier attempt queued 5s ago
+	t2 := &task.Task{
+		ID:                "task_02_active_bundle",
+		Title:             "Active Bundle Task 2",
+		Status:            task.TaskStatusQueued,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-5 * time.Minute),
+		UpdatedAt:         now.Add(-5 * time.Second),
+	}
+	a2 := &task.TaskAttempt{
+		ID:            "att_task_02_verifier_attempt_2",
+		TaskID:        t2.ID,
+		Status:        task.AttemptStatusQueued,
+		AttemptNumber: 2,
+		CreatedAt:     now.Add(-5 * time.Second),
+	}
+
+	_ = taskStore.CreateTask(ctx, t1)
+	_ = taskStore.CreateTask(ctx, t2)
+	_ = taskStore.CreateAttempt(ctx, a1)
+	_ = taskStore.CreateAttempt(ctx, a2)
+
+	runnerID := "runner_affinity_test"
+
+	// Case 1: Runner calls claim with Task Affinity (PreferredTaskID = t2.ID).
+	// Because t2 is the active task bundle, its verifier attempt MUST be claimed
+	// immediately rather than being interleaved behind t1.
+	affinityCtx := context.WithValue(ctx, preferredTaskClaimKey{}, t2.ID)
+	claimedAttempt, claimedTask, err := runnerStore.ClaimNextQueuedAttempt(affinityCtx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim with affinity failed: %v", err)
+	}
+	if claimedAttempt == nil || claimedTask == nil {
+		t.Fatalf("Expected active bundle attempt to be claimed")
+	}
+	if claimedAttempt.ID != a2.ID {
+		t.Fatalf("Expected preferred task attempt %s to be claimed, got %s", a2.ID, claimedAttempt.ID)
+	}
+	t.Logf("✓ Task Affinity correctly claimed active bundle attempt %s ahead of older continuation attempt %s", a2.ID, a1.ID)
+
+	// Case 2: Active task is currently in coordinator review (status = 'review'), and hasn't queued its verifier/publisher attempt yet.
+	// Runner should hold (not claim unrelated tasks) to prevent lane hijacking up to 15 minutes.
+	t3 := &task.Task{
+		ID:                "task_03_in_review",
+		Title:             "In-Review Task 3",
+		Status:            task.TaskStatusReview,
+		AssignedAgent:     "agy",
+		ExecutionCategory: task.ExecutionCategoryCode,
+		CreatedAt:         now.Add(-2 * time.Minute),
+		UpdatedAt:         now.Add(-2 * time.Minute), // updated 2 minutes ago (< 15m hold window)
+	}
+	_ = taskStore.CreateTask(ctx, t3)
+
+	reviewAffinityCtx := context.WithValue(ctx, preferredTaskClaimKey{}, t3.ID)
+	heldAttempt, heldTask, err := runnerStore.ClaimNextQueuedAttempt(reviewAffinityCtx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim during review check failed: %v", err)
+	}
+	if heldAttempt != nil || heldTask != nil {
+		t.Fatalf("Expected claim to hold while preferred task is in review, but claimed %s", heldAttempt.ID)
+	}
+	t.Logf("✓ Runner claim cleanly held while active task is in coordinator review (2m in review)")
+
+	// Case 3: Active task is in queued stage (transitioning to publication launch, < 15m)
+	t3.Status = task.TaskStatusQueued
+	t3.UpdatedAt = now.Add(-1 * time.Minute)
+	_ = taskStore.UpdateTask(ctx, t3)
+	heldAttempt2, _, err := runnerStore.ClaimNextQueuedAttempt(reviewAffinityCtx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim during queued stage check failed: %v", err)
+	}
+	if heldAttempt2 != nil {
+		t.Fatalf("Expected claim to hold while preferred task is in queued stage, but claimed %s", heldAttempt2.ID)
+	}
+	t.Logf("✓ Runner claim cleanly held while active task is in queued stage")
+
+	// Case 4: Active bundle finishes (a2 succeeds), preferred task was completed ('done'). Hold is immediately released and next backlog task is claimed.
+	a2.Status = task.AttemptStatusSucceeded
+	_ = taskStore.UpdateAttempt(ctx, a2)
+	t3.Status = task.TaskStatusDone
+	_ = taskStore.UpdateTask(ctx, t3)
+	releasedAttempt, _, err := runnerStore.ClaimNextQueuedAttempt(reviewAffinityCtx, runnerID, []string{"agy"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("Claim after task done failed: %v", err)
+	}
+	if releasedAttempt == nil || releasedAttempt.ID != a1.ID {
+		t.Fatalf("Expected backlog attempt %s to be claimed after task done, got %v", a1.ID, releasedAttempt)
+	}
+	t.Logf("✓ Backlog attempt %s claimed immediately after preferred task reached terminal 'done'", a1.ID)
+}
+
 func TestRunner_DuplicateClaimProtection(t *testing.T) {
 	taskStore := task.NewMemoryStore()
 	runnerStore := NewMemoryStore(taskStore)

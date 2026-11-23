@@ -1545,6 +1545,9 @@ func (m *MemoryProjectStudioRepository) ListRoomsByProjectID(ctx context.Context
 		}
 	}
 	sort.Slice(list, func(i, j int) bool {
+		if list[i].CreatedAt.Equal(list[j].CreatedAt) {
+			return list[i].ID < list[j].ID
+		}
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
 	})
 	return list, nil
@@ -1707,6 +1710,9 @@ func (m *MemoryProjectStudioRepository) ListMessagesByRoomID(ctx context.Context
 		}
 	}
 	sort.Slice(list, func(i, j int) bool {
+		if list[i].CreatedAt.Equal(list[j].CreatedAt) {
+			return list[i].ID < list[j].ID
+		}
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
 	})
 	return list, nil
@@ -1986,6 +1992,9 @@ func (m *MemoryProjectStudioRepository) ListTasks(ctx context.Context, filter Pr
 	}
 
 	sort.Slice(list, func(i, j int) bool {
+		if list[i].CreatedAt.Equal(list[j].CreatedAt) {
+			return list[i].ID < list[j].ID
+		}
 		return list[i].CreatedAt.Before(list[j].CreatedAt)
 	})
 	return list, nil

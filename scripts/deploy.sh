@@ -7,6 +7,7 @@ explicit_branch=0
 frontend_only=0
 force_local=0
 native_sync=0
+devnull_broadcast=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,8 +28,12 @@ while [[ $# -gt 0 ]]; do
       native_sync=1
       shift
       ;;
+    --devnull)
+      devnull_broadcast=1
+      shift
+      ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] [--devnull] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
       exit 0
       ;;
     *)
@@ -194,6 +199,7 @@ for component in server migrate runner; do
     exit "$build_status"
   fi
 done
+ln -sf cuan-server "$release_dir/bin/cuan"
 echo "✓ Backend binaries compiled successfully."
 cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
@@ -336,3 +342,10 @@ else
 fi
 
 echo "Released $release_sha. Verify the public UI, OAuth, Inbox reply and retained data before marking done."
+
+if [[ "$devnull_broadcast" == 1 || "${DEVNULL_BROADCAST:-false}" == "true" ]]; then
+  echo "==> Broadcasting release announcement to dev-null.sh..."
+  commit_msg="$(git log -1 --pretty=%s "$release_sha" 2>/dev/null || echo "New production update")"
+  "$(dirname "$0")/post-to-devnull.sh" "Shipped Cuan release ${release_sha:0:7}: $commit_msg 🚀 https://app.cuan.work" || echo "Warning: dev-null broadcast failed; continuing." >&2
+fi
+

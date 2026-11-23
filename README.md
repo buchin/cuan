@@ -37,15 +37,20 @@ Punya segudang ide proyek digital — dari website, toko online, script otomatis
 
 ## ⚡ Coba dalam 30 Detik (Quick Start)
 
-Jalankan Cuan di server pribadi (VPS) atau komputer lokal:
+Jalankan Cuan di komputer lokal (Mac/Windows/Linux) atau server pribadi (VPS) dengan 1 baris perintah:
 
-### Opsi 1: Docker Compose (Disarankan)
+### Opsi 1: 1 Baris Perintah Universal (Komputer Lokal)
 
+**macOS & Linux:**
 ```bash
-curl -fsSL https://cuan.work/docker-compose.yml -o docker-compose.yml
-docker compose up -d
+curl -fsSL https://cuan.work/install.sh | bash
 ```
-Buka browser ke `http://localhost:8080` untuk masuk ke wizard aktivasi akun Owner pertama.
+
+**Windows (PowerShell):**
+```powershell
+irm https://cuan.work/install.ps1 | iex
+```
+*(Installer otomatis mendeteksi OS, menyiapkan folder data `~/.cuan` atau `%USERPROFILE%\.cuan`, memverifikasi Docker Desktop, dan membuka browser ke `http://localhost:8080`).*
 
 ### Opsi 2: 1 Baris Perintah Linux (VPS + Domain Pribadi)
 
@@ -56,7 +61,15 @@ curl -fsSL https://cuan.work/install.sh | bash -s -- --domain cuan.bisnisanda.co
 ```
 *(Cuan otomatis mengonfigurasi Caddy reverse proxy & sertifikat HTTPS gratis Let's Encrypt).*
 
-### Opsi 3: Build dari Source (Developer)
+### Opsi 3: Docker Compose Manual
+
+```bash
+curl -fsSL https://cuan.work/docker-compose.yml -o docker-compose.yml
+docker compose up -d
+```
+Buka browser ke `http://localhost:8080` untuk masuk ke wizard aktivasi akun Owner pertama.
+
+### Opsi 4: Build dari Source (Developer)
 
 ```bash
 git clone https://github.com/buchin/cuan.git

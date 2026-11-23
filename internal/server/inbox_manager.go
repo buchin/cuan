@@ -63,7 +63,6 @@ func (s *Server) managerContinuationAllowed(ctx context.Context, q db.InboxReque
 	}
 	saved, found := reviewAssessment(d, q.RequestID)
 	if !found || saved.Decision != "revise" || saved.RemainingWork == "external" || saved.RequestedOutcome == "needs_input" || saved.ManagerReason == "" || !matchesManagerRevision(saved, revision) || (saved.ManagerAction != "continue" && saved.ManagerAction != "replan") {
-		println("DEBUG managerContinuationAllowed: assessment check failed: found=", found, "dec=", saved.Decision, "rem=", saved.RemainingWork, "act=", saved.ManagerAction, "reas=", saved.ManagerReason, "matchRev=", matchesManagerRevision(saved, revision))
 		return false
 	}
 	// Repeating the same saved instruction for different failed executions is

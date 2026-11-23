@@ -98,6 +98,74 @@ func (s *Server) handleDisconnectApp(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleConnectRemoteApp registers and connects an external MCP server (e.g. tebar.app).
+// Route: POST /api/v1/apps/connect-remote
+// Alias: POST /api/apps/connect-remote
+func (s *Server) handleConnectRemoteApp(w http.ResponseWriter, r *http.Request) {
+	reg := s.MCPRegistry()
+	var req struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		BaseURL     string `json:"base_url"`
+		Transport   string `json:"transport"`
+		APIKey      string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if strings.TrimSpace(req.BaseURL) == "" {
+		respondJSONError(w, http.StatusBadRequest, "base_url is required")
+		return
+	}
+
+	cfg := mcp.ServerConfig{
+		ID:          strings.TrimSpace(req.ID),
+		Name:        strings.TrimSpace(req.Name),
+		Description: strings.TrimSpace(req.Description),
+		BaseURL:     strings.TrimSpace(req.BaseURL),
+		Transport:   mcp.TransportType(strings.TrimSpace(req.Transport)),
+		APIKey:      strings.TrimSpace(req.APIKey),
+		Enabled:     true,
+	}
+
+	app, tools, err := reg.RegisterRemoteMCP(r.Context(), cfg)
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+		"app":    app,
+		"tools":  tools,
+	})
+}
+
+// handleUnregisterRemoteApp disconnects and removes a custom remote MCP server.
+// Route: DELETE /api/v1/apps/{id}/custom
+// Alias: DELETE /api/apps/{id}/custom
+func (s *Server) handleUnregisterRemoteApp(w http.ResponseWriter, r *http.Request) {
+	reg := s.MCPRegistry()
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "app id is required")
+		return
+	}
+
+	if err := reg.UnregisterRemoteMCP(r.Context(), id); err != nil {
+		respondJSONError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "success",
+		"app_id": id,
+	})
+}
+
 // ============================================================================
 // Skills Endpoints
 // ============================================================================
@@ -185,5 +253,69 @@ func (s *Server) handleUpdateAgentSkills(w http.ResponseWriter, r *http.Request)
 		"agent_id": agentID,
 		"skills":   views,
 		"total":    len(views),
+	})
+}
+
+// handleInstallSkill installs a modular skill from URL or raw markdown content.
+// Route: POST /api/v1/skills/install
+// Alias: POST /api/skills/install
+func (s *Server) handleInstallSkill(w http.ResponseWriter, r *http.Request) {
+	reg := s.MCPRegistry()
+	var req struct {
+		URL         string   `json:"url"`
+		ID          string   `json:"id"`
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Category    string   `json:"category"`
+		Content     string   `json:"content"`
+		BoundAgents []string `json:"bound_agents"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	var skill *mcp.Skill
+	var err error
+
+	if strings.TrimSpace(req.URL) != "" {
+		skill, err = reg.InstallSkill(r.Context(), req.URL, req.BoundAgents)
+	} else if strings.TrimSpace(req.Content) != "" || strings.TrimSpace(req.Name) != "" {
+		skill, err = reg.InstallSkillFromContent(r.Context(), req.ID, req.Name, req.Description, req.Category, req.Content, req.BoundAgents)
+	} else {
+		respondJSONError(w, http.StatusBadRequest, "provide a skill URL or markdown content")
+		return
+	}
+
+	if err != nil {
+		respondJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusCreated, map[string]any{
+		"status": "success",
+		"skill":  skill,
+	})
+}
+
+// handleUninstallSkill uninstalls a custom modular skill.
+// Route: DELETE /api/v1/skills/{id}
+// Alias: DELETE /api/skills/{id}
+func (s *Server) handleUninstallSkill(w http.ResponseWriter, r *http.Request) {
+	reg := s.MCPRegistry()
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "skill id is required")
+		return
+	}
+
+	if err := reg.UninstallSkill(r.Context(), id); err != nil {
+		respondJSONError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status":   "success",
+		"skill_id": id,
 	})
 }

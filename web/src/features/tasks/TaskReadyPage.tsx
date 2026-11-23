@@ -37,7 +37,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
     [copied, setCopied] = useState(false),
     [applying, setApplying] = useState(false),
     [applied, setApplied] = useState(
-      task.status === 'done' && (task.complete_note?.includes('diterapkan') || !!task.pr_url),
+      Boolean(task.complete_note?.includes('diterapkan')),
     )
   const [cancelled, setCancelled] = useState(false)
 
@@ -249,7 +249,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
 
               {/* Action Toolbar */}
               <div className="flex flex-wrap items-center gap-2 pt-2">
-                {task.pr_url && !applied && (
+                {Boolean(task.pr_url || task.branch_name) && !applied && (
                   <button
                     type="button"
                     disabled={busy || applying}

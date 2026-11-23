@@ -203,3 +203,93 @@ func TestAppsAndSkills_RootAliases(t *testing.T) {
 		t.Errorf("expected 200 from /api/agents/agent_dev/skills alias, got %d", w.Code)
 	}
 }
+
+func TestDynamicSkillsAndRemoteMCP_Endpoints(t *testing.T) {
+	s := setupTestServerForAppsSkills(t)
+	s.mcpRegistry.SetSkillsDir(t.TempDir())
+
+	// 1. POST /api/v1/skills/install (content)
+	skillPayload := []byte(`{
+		"id": "skill_marketing",
+		"name": "Marketing Expert",
+		"description": "Menulis copy iklan persuasif",
+		"category": "marketing",
+		"content": "# Marketing SOP\nTulis dengan AIDA framework."
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/skills/install", bytes.NewReader(skillPayload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created from skill install, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var installResp struct {
+		Status string     `json:"status"`
+		Skill  *mcp.Skill `json:"skill"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&installResp); err != nil {
+		t.Fatal(err)
+	}
+	if installResp.Skill.ID != "skill_marketing" || installResp.Skill.Name != "Marketing Expert" {
+		t.Fatalf("unexpected skill installed: %+v", installResp.Skill)
+	}
+
+	// 2. DELETE /api/v1/skills/skill_marketing
+	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/skills/skill_marketing", nil)
+	delW := httptest.NewRecorder()
+	s.router.ServeHTTP(delW, delReq)
+	if delW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from skill delete, got %d: %s", delW.Code, delW.Body.String())
+	}
+
+	// 3. POST /api/v1/apps/connect-remote
+	remoteMock := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/mcp/tools" {
+			json.NewEncoder(rw).Encode(map[string]any{
+				"tools": []mcp.ToolDefinition{
+					{Name: "tebar_blast", Description: "Blast WhatsApp message"},
+				},
+			})
+			return
+		}
+		http.NotFound(rw, r)
+	}))
+	defer remoteMock.Close()
+
+	remotePayload := []byte(`{
+		"id": "tebar_app",
+		"name": "Tebar Gateway",
+		"base_url": "` + remoteMock.URL + `",
+		"transport": "http"
+	}`)
+	mcpReq := httptest.NewRequest(http.MethodPost, "/api/v1/apps/connect-remote", bytes.NewReader(remotePayload))
+	mcpReq.Header.Set("Content-Type", "application/json")
+	mcpW := httptest.NewRecorder()
+	s.router.ServeHTTP(mcpW, mcpReq)
+
+	if mcpW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from remote MCP connect, got %d: %s", mcpW.Code, mcpW.Body.String())
+	}
+
+	var mcpResp struct {
+		Status string     `json:"status"`
+		App    *mcp.App   `json:"app"`
+		Tools  []struct{} `json:"tools"`
+	}
+	if err := json.NewDecoder(mcpW.Body).Decode(&mcpResp); err != nil {
+		t.Fatal(err)
+	}
+	if mcpResp.App.ID != "tebar_app" || len(mcpResp.Tools) != 1 {
+		t.Fatalf("unexpected app or tools: %+v", mcpResp)
+	}
+
+	// 4. DELETE /api/v1/apps/tebar_app/custom
+	delAppReq := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/tebar_app/custom", nil)
+	delAppW := httptest.NewRecorder()
+	s.router.ServeHTTP(delAppW, delAppReq)
+	if delAppW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from app delete, got %d: %s", delAppW.Code, delAppW.Body.String())
+	}
+}

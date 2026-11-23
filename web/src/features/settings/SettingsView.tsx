@@ -23,6 +23,7 @@ import { AppsSkillsView } from './AppsSkillsView'
 import { AgentSettingsView } from '../agents/AgentSettingsView'
 import { TeamMembersView } from '../team/TeamMembersView'
 import { AgentMemoryView } from './AgentMemoryView'
+import { Select } from '../../components/ui/forms'
 import { SettingsMasterNav } from './SettingsMasterNav'
 import { GroupedSection, GroupedRow } from '../../components/layout/GroupedSection'
 
@@ -129,10 +130,10 @@ export function SettingsView({
                     'Choose your interface language. Conversation content stays unchanged.',
                   )}
                   control={
-                    <select
+                    <Select
                       id="interface-language"
                       aria-label={t('Language')}
-                      className="field-control text-xs w-44 sm:w-52"
+                      className="w-44 sm:w-52"
                       value={preference}
                       onChange={(e) =>
                         setPreference(e.target.value as LanguagePreference)
@@ -141,7 +142,7 @@ export function SettingsView({
                       <option value="auto">{t('Auto (browser language)')}</option>
                       <option value="en">{t('English')}</option>
                       <option value="id">Bahasa Indonesia</option>
-                    </select>
+                    </Select>
                   }
                 />
                 <GroupedRow

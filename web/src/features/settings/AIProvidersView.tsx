@@ -26,6 +26,7 @@ import {
   type AIProviderDTO,
   type TestAIProviderResponse,
 } from '../../api/aiProviders'
+import { FormField, Input, Select } from '../../components/ui/forms'
 
 export function AIProvidersView() {
   const { t } = useLanguage()
@@ -467,20 +468,16 @@ export function AIProvidersView() {
                       </button>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor={`${formBaseId}-sub-model-${provider.id}`}
-                        className="text-xs font-medium text-foreground block"
-                      >
-                        {t('Model Default Langganan')}
-                      </label>
-                      <select
+                    <FormField
+                      label={t('Model Default Langganan')}
+                      htmlFor={`${formBaseId}-sub-model-${provider.id}`}
+                    >
+                      <Select
                         id={`${formBaseId}-sub-model-${provider.id}`}
                         value={selectedModels[provider.id] || provider.default_model || ''}
                         onChange={(e) =>
                           setSelectedModels((prev) => ({ ...prev, [provider.id]: e.target.value }))
                         }
-                        className="field-control text-xs min-h-11 w-full"
                       >
                         {provider.models && provider.models.length > 0 ? (
                           provider.models.map((m) => (
@@ -493,31 +490,28 @@ export function AIProvidersView() {
                             {provider.default_model || t('Model Bawaan')}
                           </option>
                         )}
-                      </select>
-                    </div>
+                      </Select>
+                    </FormField>
                   </div>
                 ) : (
                   /* Mode BYOK Panel */
                   <div className="space-y-3.5">
                     {/* API Key Input */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label
-                          htmlFor={`${formBaseId}-key-${provider.id}`}
-                          className="text-xs font-medium text-foreground"
-                        >
-                          {t('API Key {name}').replace('{name}', provider.name)}
-                        </label>
-                        {provider.has_api_key && (
+                    <FormField
+                      label={t('API Key {name}').replace('{name}', provider.name)}
+                      htmlFor={`${formBaseId}-key-${provider.id}`}
+                      accessory={
+                        provider.has_api_key ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                             <ShieldCheck className="h-3.5 w-3.5" />
                             {t('Kunci Tersimpan Aman')}
                           </span>
-                        )}
-                      </div>
-
+                        ) : undefined
+                      }
+                      helperText={t('Kredensial dienkripsi AES-256-GCM. Tidak pernah ditampilkan utuh kembali.')}
+                    >
                       <div className="relative">
-                        <input
+                        <Input
                           id={`${formBaseId}-key-${provider.id}`}
                           type={showKey[provider.id] ? 'text' : 'password'}
                           value={apiKeys[provider.id] || ''}
@@ -531,7 +525,8 @@ export function AIProvidersView() {
                                 ? 'sk-...'
                                 : t('Masukkan API Key...')
                           }
-                          className="field-control text-xs min-h-11 pr-10 w-full font-mono"
+                          className="pr-10"
+                          mono
                           autoComplete="off"
                           spellCheck={false}
                         />
@@ -550,26 +545,19 @@ export function AIProvidersView() {
                           )}
                         </button>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {t('Kredensial dienkripsi AES-256-GCM. Tidak pernah ditampilkan utuh kembali.')}
-                      </p>
-                    </div>
+                    </FormField>
 
                     {/* Model Dropdown */}
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor={`${formBaseId}-byok-model-${provider.id}`}
-                        className="text-xs font-medium text-foreground block"
-                      >
-                        {t('Model Utama Pilihan')}
-                      </label>
-                      <select
+                    <FormField
+                      label={t('Model Utama Pilihan')}
+                      htmlFor={`${formBaseId}-byok-model-${provider.id}`}
+                    >
+                      <Select
                         id={`${formBaseId}-byok-model-${provider.id}`}
                         value={selectedModels[provider.id] || provider.default_model || ''}
                         onChange={(e) =>
                           setSelectedModels((prev) => ({ ...prev, [provider.id]: e.target.value }))
                         }
-                        className="field-control text-xs min-h-11 w-full"
                       >
                         {provider.models && provider.models.length > 0 ? (
                           provider.models.map((m) => (
@@ -582,35 +570,30 @@ export function AIProvidersView() {
                             {provider.default_model || t('Model Bawaan')}
                           </option>
                         )}
-                      </select>
-                    </div>
+                      </Select>
+                    </FormField>
 
                     {/* Optional Base URL (for Ollama, Groq, custom proxy) */}
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor={`${formBaseId}-url-${provider.id}`}
-                        className="text-xs font-medium text-muted-foreground block"
-                      >
-                        {t('URL Endpoint API Kustom (Opsional)')}
-                      </label>
-                      <div className="relative">
-                        <Globe className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input
-                          id={`${formBaseId}-url-${provider.id}`}
-                          type="url"
-                          value={baseUrls[provider.id] || ''}
-                          onChange={(e) =>
-                            setBaseUrls((prev) => ({ ...prev, [provider.id]: e.target.value }))
-                          }
-                          placeholder={
-                            provider.id === 'ollama'
-                              ? 'http://localhost:11434/v1'
-                              : 'https://api.example.com/v1'
-                          }
-                          className="field-control text-xs min-h-11 pl-9 w-full font-mono"
-                        />
-                      </div>
-                    </div>
+                    <FormField
+                      label={t('URL Endpoint API Kustom (Opsional)')}
+                      htmlFor={`${formBaseId}-url-${provider.id}`}
+                    >
+                      <Input
+                        id={`${formBaseId}-url-${provider.id}`}
+                        type="url"
+                        value={baseUrls[provider.id] || ''}
+                        onChange={(e) =>
+                          setBaseUrls((prev) => ({ ...prev, [provider.id]: e.target.value }))
+                        }
+                        placeholder={
+                          provider.id === 'ollama'
+                            ? 'http://localhost:11434/v1'
+                            : 'https://api.example.com/v1'
+                        }
+                        prefixIcon={<Globe className="h-4 w-4" />}
+                        mono
+                      />
+                    </FormField>
                   </div>
                 )}
 

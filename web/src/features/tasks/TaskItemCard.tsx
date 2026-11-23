@@ -163,7 +163,7 @@ export const TaskItemCard = memo(function TaskItemCard({
   const statusBadgeClass = workStatusBadgeClass(status)
   const [applying, setApplying] = useState(false)
   const [applied, setApplied] = useState(
-    currentTask.status === 'done' && (currentTask.complete_note?.includes('diterapkan') || !!currentTask.pr_url)
+    Boolean(currentTask.complete_note?.includes('diterapkan'))
   )
   const [retrying, setRetrying] = useState(false)
   const [retryError, setRetryError] = useState('')
@@ -532,7 +532,7 @@ export const TaskItemCard = memo(function TaskItemCard({
 
           {/* Primary Action: Always positioned on the Right */}
           <div className="flex items-center gap-2">
-            {currentTask.pr_url && !applied && status === 'Ready for review' && (
+            {Boolean(currentTask.pr_url || currentTask.branch_name) && !applied && (status === 'Ready for review' || status === 'Completed') && (
               <button
                 type="button"
                 disabled={applying}
@@ -584,7 +584,7 @@ export const TaskItemCard = memo(function TaskItemCard({
                 }}
                 className={cn(
                   'min-h-11 min-w-[44px] inline-flex items-center gap-1.5 px-4 text-xs font-medium rounded-lg justify-center shadow-sm focus-visible:outline-2 focus-visible:outline-ring',
-                  currentTask.pr_url && !applied && status === 'Ready for review'
+                  Boolean(currentTask.pr_url || currentTask.branch_name) && !applied && (status === 'Ready for review' || status === 'Completed')
                     ? 'action-secondary'
                     : 'action-primary'
                 )}

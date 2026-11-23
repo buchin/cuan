@@ -6,11 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata"
 )
 
 // ScheduledTask represents an automated routine defined by a user or agent.
@@ -23,6 +25,7 @@ type ScheduledTask struct {
 	TimeOfDay    string       `json:"time_of_day,omitempty"` // e.g. "08:00"
 	DayOfWeek    int          `json:"day_of_week,omitempty"` // 0=Sunday, 1=Monday... 6=Saturday
 	IntervalMins int          `json:"interval_mins,omitempty"`
+	Timezone     string       `json:"timezone,omitempty"` // e.g. "Asia/Jakarta"
 	Enabled      bool         `json:"enabled"`
 	CreatedAt    time.Time    `json:"created_at"`
 	NextRunAt    *time.Time   `json:"next_run_at,omitempty"`
@@ -40,6 +43,8 @@ type TaskManager struct {
 	storagePath string
 	tasks       map[string]*ScheduledTask
 	executor    TaskExecutor
+	stopCh      chan struct{}
+	running     bool
 }
 
 // NewTaskManager creates a manager that loads and saves tasks from storagePath.
@@ -58,10 +63,89 @@ func NewTaskManager(storagePath string, executor ...TaskExecutor) *TaskManager {
 		storagePath: storagePath,
 		tasks:       make(map[string]*ScheduledTask),
 		executor:    exec,
+		stopCh:      make(chan struct{}),
 	}
 
 	tm.load()
 	return tm
+}
+
+// Start begins background polling for due scheduled tasks.
+func (tm *TaskManager) Start(ctx context.Context) {
+	tm.mu.Lock()
+	if tm.running {
+		tm.mu.Unlock()
+		return
+	}
+	tm.running = true
+	tm.stopCh = make(chan struct{})
+	tm.mu.Unlock()
+
+	go tm.runLoop(ctx)
+}
+
+// Stop halts the background polling loop cleanly.
+func (tm *TaskManager) Stop() {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	if !tm.running {
+		return
+	}
+	tm.running = false
+	close(tm.stopCh)
+}
+
+func (tm *TaskManager) runLoop(ctx context.Context) {
+	// Initial check after short startup grace period
+	select {
+	case <-ctx.Done():
+		return
+	case <-tm.stopCh:
+		return
+	case <-time.After(5 * time.Second):
+		tm.checkAndRunDueTasks(ctx, time.Now())
+	}
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tm.stopCh:
+			return
+		case now := <-ticker.C:
+			tm.checkAndRunDueTasks(ctx, now)
+		}
+	}
+}
+
+func (tm *TaskManager) checkAndRunDueTasks(ctx context.Context, now time.Time) {
+	tm.mu.Lock()
+	var dueTasks []*ScheduledTask
+	for _, t := range tm.tasks {
+		if !t.Enabled {
+			continue
+		}
+		if t.LastStatus == StatusRunning {
+			continue
+		}
+		if t.NextRunAt != nil && !now.Before(*t.NextRunAt) {
+			dueTasks = append(dueTasks, t)
+			next := calculateTaskNextRun(t, now)
+			t.NextRunAt = &next
+		}
+	}
+	if len(dueTasks) > 0 {
+		_ = tm.save()
+	}
+	tm.mu.Unlock()
+
+	for _, t := range dueTasks {
+		_ = tm.TriggerTask(ctx, t.ID)
+	}
 }
 
 func (tm *TaskManager) load() {
@@ -74,7 +158,15 @@ func (tm *TaskManager) load() {
 	}
 	var list []*ScheduledTask
 	if err := json.Unmarshal(data, &list); err == nil {
+		now := time.Now()
 		for _, t := range list {
+			if t.Timezone == "" {
+				t.Timezone = "Asia/Jakarta"
+			}
+			if t.Enabled {
+				next := calculateTaskNextRun(t, now)
+				t.NextRunAt = &next
+			}
 			tm.tasks[t.ID] = t
 		}
 	}
@@ -128,6 +220,11 @@ func (tm *TaskManager) CreateTask(t *ScheduledTask) (*ScheduledTask, error) {
 	}
 	if t.TimeOfDay == "" {
 		t.TimeOfDay = "08:00"
+	}
+	if t.Timezone != "" {
+		t.Timezone = strings.TrimSpace(t.Timezone)
+	} else {
+		t.Timezone = "Asia/Jakarta"
 	}
 	t.Enabled = true
 	t.CreatedAt = time.Now().UTC()
@@ -249,6 +346,9 @@ func (tm *TaskManager) UpdateTask(id string, update *ScheduledTask) (*ScheduledT
 	if update.IntervalMins > 0 {
 		t.IntervalMins = update.IntervalMins
 	}
+	if update.Timezone != "" {
+		t.Timezone = strings.TrimSpace(update.Timezone)
+	}
 
 	if t.Enabled {
 		now := time.Now()
@@ -281,26 +381,56 @@ func (tm *TaskManager) TriggerTask(ctx context.Context, id string) error {
 	t.LastRunAt = &now
 	_ = tm.save()
 	exec := tm.executor
+	tCopy := *t
 	tm.mu.Unlock()
 
 	go func() {
-		err := exec(ctx, t)
+		defer func() {
+			if r := recover(); r != nil {
+				tm.mu.Lock()
+				if cur, ok := tm.tasks[id]; ok {
+					cur.LastStatus = StatusFailed
+					cur.LastError = fmt.Sprintf("panic: %v", r)
+					_ = tm.save()
+				}
+				tm.mu.Unlock()
+			}
+		}()
+
+		err := exec(ctx, &tCopy)
 		tm.mu.Lock()
 		defer tm.mu.Unlock()
-		if err != nil {
-			t.LastStatus = StatusFailed
-			t.LastError = err.Error()
-		} else {
-			t.LastStatus = StatusSuccess
-			t.LastError = ""
+		if cur, ok := tm.tasks[id]; ok {
+			if err != nil {
+				cur.LastStatus = StatusFailed
+				cur.LastError = err.Error()
+			} else {
+				cur.LastStatus = StatusSuccess
+				cur.LastError = ""
+			}
+			_ = tm.save()
 		}
-		_ = tm.save()
 	}()
 
 	return nil
 }
 
+func getTaskLocation(t *ScheduledTask) *time.Location {
+	if t != nil && t.Timezone != "" {
+		if loc, err := time.LoadLocation(t.Timezone); err == nil {
+			return loc
+		}
+	}
+	if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
+		return loc
+	}
+	return time.Local
+}
+
 func calculateTaskNextRun(t *ScheduledTask, ref time.Time) time.Time {
+	loc := getTaskLocation(t)
+	refInLoc := ref.In(loc)
+
 	switch t.ScheduleType {
 	case ScheduleInterval:
 		mins := t.IntervalMins
@@ -311,8 +441,8 @@ func calculateTaskNextRun(t *ScheduledTask, ref time.Time) time.Time {
 
 	case ScheduleDaily:
 		h, m := parseTimeOfDay(t.TimeOfDay)
-		target := time.Date(ref.Year(), ref.Month(), ref.Day(), h, m, 0, 0, ref.Location())
-		if !target.After(ref) {
+		target := time.Date(refInLoc.Year(), refInLoc.Month(), refInLoc.Day(), h, m, 0, 0, loc)
+		if !target.After(refInLoc) {
 			target = target.AddDate(0, 0, 1)
 		}
 		return target
@@ -323,10 +453,10 @@ func calculateTaskNextRun(t *ScheduledTask, ref time.Time) time.Time {
 		if targetDay < 0 || targetDay > 6 {
 			targetDay = 1
 		}
-		currentDay := int(ref.Weekday())
+		currentDay := int(refInLoc.Weekday())
 		daysUntil := (targetDay - currentDay + 7) % 7
-		target := time.Date(ref.Year(), ref.Month(), ref.Day(), h, m, 0, 0, ref.Location()).AddDate(0, 0, daysUntil)
-		if !target.After(ref) {
+		target := time.Date(refInLoc.Year(), refInLoc.Month(), refInLoc.Day(), h, m, 0, 0, loc).AddDate(0, 0, daysUntil)
+		if !target.After(refInLoc) {
 			target = target.AddDate(0, 0, 7)
 		}
 		return target

@@ -3,8 +3,10 @@ package project
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type MemoryStore struct {
@@ -105,6 +107,7 @@ func (m *MemoryStore) ListProjects(ctx context.Context) ([]*Project, error) {
 	for _, p := range m.projects {
 		list = append(list, cloneMemoryProject(p))
 	}
+	sortProjects(list)
 	return list, nil
 }
 
@@ -129,7 +132,32 @@ func (m *MemoryStore) ListProjectsFiltered(ctx context.Context, filter ArchivedF
 			}
 		}
 	}
+	sortProjects(list)
 	return list, nil
+}
+
+func sortProjects(list []*Project) {
+	sort.Slice(list, func(i, j int) bool {
+		if !list[i].UpdatedAt.Equal(list[j].UpdatedAt) {
+			return list[i].UpdatedAt.After(list[j].UpdatedAt)
+		}
+		if !list[i].CreatedAt.Equal(list[j].CreatedAt) {
+			return list[i].CreatedAt.After(list[j].CreatedAt)
+		}
+		return list[i].ID < list[j].ID
+	})
+}
+
+func (m *MemoryStore) TouchProject(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	p, exists := m.projects[id]
+	if !exists {
+		return ErrProjectNotFound
+	}
+	p.UpdatedAt = time.Now().UTC()
+	return nil
 }
 
 func (m *MemoryStore) UpdateProject(ctx context.Context, p *Project) error {

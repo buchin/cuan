@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/buchin/cuan/internal/crypto"
 	"github.com/buchin/cuan/internal/git"
@@ -360,6 +361,54 @@ func TestProjectService_ListFiltered_SecurityAndFiltering(t *testing.T) {
 	}
 	if len(allItems) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(allItems))
+	}
+}
+
+func TestProjectService_ListOrderingAndTouch(t *testing.T) {
+	store := NewMemoryStore()
+	svc := NewService(store, nil, "secret", t.TempDir())
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	p1 := &Project{
+		ID:        "proj-older",
+		Name:      "Older Project",
+		RepoURL:   "https://github.com/buchin/older",
+		CreatedAt: now.Add(-2 * time.Hour),
+		UpdatedAt: now.Add(-2 * time.Hour),
+	}
+	p2 := &Project{
+		ID:        "proj-newer",
+		Name:      "Newer Project",
+		RepoURL:   "https://github.com/buchin/newer",
+		CreatedAt: now.Add(-1 * time.Hour),
+		UpdatedAt: now.Add(-1 * time.Hour),
+	}
+
+	_ = store.CreateProject(ctx, p1)
+	_ = store.CreateProject(ctx, p2)
+
+	// Initially, p2 is more recently updated than p1
+	list1, err := svc.ListFiltered(ctx, ArchivedFilterAll)
+	if err != nil {
+		t.Fatalf("ListFiltered failed: %v", err)
+	}
+	if len(list1) != 2 || list1[0].ID != "proj-newer" || list1[1].ID != "proj-older" {
+		t.Fatalf("expected proj-newer first, got: %s, %s", list1[0].ID, list1[1].ID)
+	}
+
+	// Now touch p1 (e.g. task created or completed)
+	if err := svc.Touch(ctx, "proj-older"); err != nil {
+		t.Fatalf("Touch failed: %v", err)
+	}
+
+	// After touch, p1 should now be first!
+	list2, err := svc.ListFiltered(ctx, ArchivedFilterAll)
+	if err != nil {
+		t.Fatalf("ListFiltered failed: %v", err)
+	}
+	if len(list2) != 2 || list2[0].ID != "proj-older" || list2[1].ID != "proj-newer" {
+		t.Fatalf("expected proj-older first after touch, got: %s, %s", list2[0].ID, list2[1].ID)
 	}
 }
 
