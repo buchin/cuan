@@ -15,6 +15,26 @@ import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { GroupedSection } from '../../components/layout/GroupedSection'
 import { FormField, Input } from '../../components/ui/forms'
 
+function BrainQuotaTag({ account }: { account: ProviderAccount }) {
+  const { t } = useLanguage()
+  const [pct, setPct] = useState<number | null>(null)
+  useEffect(() => {
+    if (!account.credentials_present || account.provider !== 'agy' || account.state !== 'verified') return
+    let live = true
+    void Promise.all([accountsApi.usage(account.id), accountsApi.models(account.id)])
+      .then(([usage, models]) => {
+        if (!live) return
+        const rows = usage.models.filter(r => models.some(m => m.id === r.model) && Number.isFinite(r.remaining_percent) && r.remaining_percent >= 0)
+        if (rows.length === 0) return
+        const avg = rows.reduce((s, r) => s + r.remaining_percent, 0) / rows.length
+        setPct(Math.round(Math.min(100, Math.max(0, avg))))
+      }).catch(() => {/* silent */})
+    return () => { live = false }
+  }, [account.id, account.credentials_present, account.provider, account.state])
+  if (pct === null) return null
+  return <span className="mt-1 block text-xs tabular-nums text-muted-foreground">{pct}% {t('remaining')}</span>
+}
+
 const ASSISTANT_NAME_KEY = 'cuan.assistant_name'
 
 export function getStoredAssistantName(): string {
@@ -54,7 +74,6 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
   const [notice, setNotice] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [selected, setSelected] = useState<Brain | null>(null)
-  const [label, setLabel] = useState('')
   const [model, setModel] = useState('')
   const [drawerError, setDrawerError] = useState('')
   const [drawerNotice, setDrawerNotice] = useState('')
@@ -74,6 +93,17 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
         const saved = assistant.name.replace(/^@/, '')
         setName(saved); setBaselineName(saved); setStoredAssistantName(saved)
       }
+      // Auto-verify unknown accounts in background (fire-and-forget, update state silently)
+      const unknownAccounts = (accountList || []).filter(a => !a.legacy && a.credentials_present && a.state === 'unknown')
+      if (unknownAccounts.length > 0) {
+        void Promise.allSettled(unknownAccounts.map(a => accountsApi.verify(a.id))).then(results => {
+          const verified: Record<string, typeof accountList[number]> = {}
+          results.forEach((r, i) => { if (r.status === 'fulfilled') verified[unknownAccounts[i].id] = r.value })
+          if (Object.keys(verified).length > 0) {
+            setAccounts(old => old.map(a => verified[a.id] ?? a))
+          }
+        })
+      }
     } catch { setError(t('Could not load assistant settings. Try again.')) }
     finally { setLoading(false) }
   }, [t])
@@ -86,7 +116,7 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
   const cooldown = brains.filter(brain => brain.state === 'quota_limited').length
   const statusText = (state: string) => t(({ verified: 'Connected', quota_limited: 'Waiting for capacity', login_required: 'Sign-in required', unavailable: 'Connection needs attention', unknown: 'Not checked', configured: 'Configured' } as Record<string, string>)[state] || 'Not checked')
   const openBrain = (brain: Brain) => {
-    setSelected(brain); setLabel(brain.label)
+    setSelected(brain)
     setModel(brain.account?.model_id || brain.byok?.default_model || '')
     setDrawerError(''); setDrawerNotice('')
   }
@@ -108,10 +138,10 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     setBusy(true); setDrawerError(''); setDrawerNotice('')
     try {
       if (selected.account) {
-        const saved = await accountsApi.update(selected.account.id, { label, model_id: model })
+        const saved = await accountsApi.update(selected.account.id, { label: selected.label, model_id: model })
         setAccounts(old => old.map(account => account.id === saved.id ? saved : account))
         setSelected({ ...selected, label: saved.label, account: saved })
-        setLabel(saved.label); setModel(saved.model_id || '')
+        setModel(saved.model_id || '')
       } else if (selected.byok) {
         await aiProvidersApi.save({ provider: selected.byok.id, id: selected.byok.id, default_model: model })
         setProviders(old => old.map(provider => provider.id === selected.byok?.id ? { ...provider, default_model: model } : provider))
@@ -152,7 +182,7 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     } catch (cause) { setDrawerError(t(cause instanceof Error ? cause.message : 'Could not disconnect this brain. Try again.')) }
     finally { setBusy(false) }
   }
-  const dirty = selected ? label !== selected.label || model !== (selected.account?.model_id || selected.byok?.default_model || '') : false
+  const dirty = selected ? model !== (selected.account?.model_id || selected.byok?.default_model || '') : false
   const closeDrawer = () => {
     if (busy || checking) return
     if (dirty && !confirm(t('Discard unsaved changes?'))) return
@@ -193,12 +223,12 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     </section>
     <section className="space-y-3" aria-label={t('AI brains')}>
       <div className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold">{t('AI brains')}</h3>{isOwner && <button className="action-secondary inline-flex items-center gap-1.5" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" />{t('Add brain')}</button>}</div>
-      <p className="text-sm leading-6 text-muted-foreground">{t('Cuan uses available capacity automatically. Open a connection to edit its name, model, or connection details.')}</p>
+      <p className="text-sm leading-6 text-muted-foreground">{t('Cuan uses available capacity automatically. Open a connection to edit its model or connection details.')}</p>
       {loading ? <p role="status" className="py-5 text-sm text-muted-foreground">{t('Loading…')}</p> : brains.length === 0 ? <p className="py-5 text-sm text-muted-foreground">{t('Connect an AI brain to get started.')}</p> : <GroupedSection inset={false} containerClassName="!bg-transparent">
         {brains.map(brain => <ItemActions key={brain.id} label={brain.label} actions={[{ label: 'Edit brain', run: () => openBrain(brain) }, ...(isOwner ? [{ label: 'Disconnect brain', run: () => { openBrain(brain); setDisconnectOpen(true) } }] : [])]}>
           <button className="flex min-h-[76px] w-full items-center gap-3 py-3 text-left hover:bg-muted/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openBrain(brain)} aria-label={t('Edit brain') + ': ' + brain.label}>
             <ListRowContent leading={<span className="flex h-9 w-9 items-center justify-center bg-muted/50 text-xs text-muted-foreground">{brain.provider.slice(0,1).toUpperCase()}</span>} title={brain.label}
-              description={<><span className="block whitespace-normal break-all">{brain.account ? (brain.account.email || t('Email identity unavailable')) : brain.provider}</span><span className="mt-1 block whitespace-normal">{brain.provider} · {statusText(brain.state)}</span></>} />
+              description={<><span className="block whitespace-normal break-all">{brain.account ? (brain.account.email || t('Email identity unavailable')) : brain.provider}</span><span className="mt-1 block whitespace-normal">{brain.provider} · {statusText(brain.state)}</span>{brain.account && <BrainQuotaTag account={brain.account} />}</>} />
           </button>
         </ItemActions>)}
 
@@ -210,21 +240,10 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
           <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy} onClick={() => void checkBrain()}><RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />{t(checking ? 'Checking…' : 'Check connection')}</button>
         </div>
         <form onSubmit={saveBrain} className="space-y-5">
-          {selected.account ? (
-            <FormField label={t('Display name')} htmlFor="brain-label">
-              <Input
-                id="brain-label"
-                maxLength={100}
-                required
-                value={label}
-                disabled={busy || !isOwner || !selected.account || selected.account.legacy}
-                onChange={event => setLabel(event.target.value)}
-              />
-            </FormField>
-          ) : <p className="text-sm font-medium">{selected.label}</p>}
+          {!selected.account && <p className="text-sm font-medium">{selected.label}</p>}
           <AccountModelPicker account={selected.account} provider={selected.byok?.id} value={model} onChange={setModel} disabled={busy || !isOwner || selected.account?.legacy} />
           {drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}{drawerNotice && <p role="status" className="text-sm text-muted-foreground">{drawerNotice}</p>}
-          {isOwner && !selected.account?.legacy && <button className="action-primary" disabled={busy || !dirty || !label.trim()}>{t(busy ? 'Saving…' : 'Save changes')}</button>}
+          {isOwner && !selected.account?.legacy && <button className="action-primary" disabled={busy || !dirty}>{t(busy ? 'Saving…' : 'Save changes')}</button>}
         </form>
         {selected.account && <AccountUsageDetails key={selected.id} account={selected.account} />}
         {isOwner && <div className="border-t border-border/40 pt-5"><button type="button" className="min-h-11 text-sm text-muted-foreground hover:text-destructive" disabled={busy || checking} onClick={() => setDisconnectOpen(true)}>{t('Disconnect brain')}</button></div>}

@@ -1763,6 +1763,7 @@
   "Preferred model": "Model pilihan",
   "Used in new replies and conversations across your workspace.": "Digunakan pada balasan dan percakapan baru di seluruh ruang kerja.",
   "Cuan uses available capacity automatically. Open a connection to edit its name, model, or connection details.": "Cuan mengatur kapasitas yang tersedia secara otomatis. Buka koneksi untuk mengedit nama, model, atau rinciannya.",
+  "Cuan uses available capacity automatically. Open a connection to edit its model or connection details.": "Cuan mengatur kapasitas yang tersedia secara otomatis. Buka koneksi untuk mengedit model atau rincian koneksinya.",
   "Leave empty for Auto. Model availability depends on this connection.": "Kosongkan untuk Otomatis. Ketersediaan model mengikuti koneksi ini.",
   "connected": "terhubung",
   "waiting for capacity": "menunggu kapasitas",
