@@ -300,7 +300,9 @@ func (s *Server) handleInternalGetConversationMessages(w http.ResponseWriter, r 
 	copy(prunedRequests, requests)
 	for i := range prunedRequests {
 		q := &prunedRequests[i]
-		if q.State == "completed" || q.State == "cancelled" {
+		if q.State == "completed" {
+			q.Steps = nil
+		} else if q.State == "cancelled" {
 			if !visibleIDs[q.MessageID] && !visibleIDs[q.ReplyID] {
 				q.Steps = nil
 			}

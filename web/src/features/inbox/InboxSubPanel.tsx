@@ -20,6 +20,7 @@ import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
 import { TASK_STATUS_THEMES } from '../tasks/task-ui'
+import { getCachedConversation, setCachedConversation } from './InboxView'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
@@ -213,6 +214,21 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     void archive.markRead(id, true, contact.last_message_at).catch(() => {})
   }
 
+  const prefetchConversation = () => {
+    if (!id || getCachedConversation(id)) return
+    chatApi.getConversation(id, { limit: 50 }).then((data) => {
+      if (data && data.messages) {
+        setCachedConversation(id, {
+          messages: data.messages,
+          requests: data.requests || [],
+          tasks: data.tasks || [],
+          hasMore: Boolean(data.has_more),
+          cachedAt: Date.now(),
+        })
+      }
+    }).catch(() => {})
+  }
+
   const handleResolveAction = async () => {
     if (!contact.resolved && (contact.active_tasks || 0) > 0) {
       const confirmMessage = t('Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?')
@@ -270,6 +286,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
       <button
         type="button"
         onClick={openContact}
+        onMouseEnter={prefetchConversation}
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
