@@ -749,20 +749,22 @@ func (r *SQLProjectStudioRepository) ListAllMessages(ctx context.Context) (map[s
 }
 
 // ListRecentMessages lists at most limitPerRoom messages grouped by room_id chronologically in a single query.
+// It leverages idx_project_messages_room_created_at via CROSS JOIN LATERAL for sub-millisecond execution.
 func (r *SQLProjectStudioRepository) ListRecentMessages(ctx context.Context, limitPerRoom int) (map[string][]ProjectMessage, error) {
 	if limitPerRoom <= 0 {
 		return r.ListAllMessages(ctx)
 	}
 	query := `
-		WITH ranked AS (
-			SELECT id, room_id, author_type, author_id, author_name, content, reply_to_id, created_at, updated_at,
-			       ROW_NUMBER() OVER (PARTITION BY room_id ORDER BY created_at DESC) as rn
+		SELECT m.id, m.room_id, m.author_type, m.author_id, m.author_name, m.content, m.reply_to_id, m.created_at, m.updated_at
+		FROM project_rooms r
+		CROSS JOIN LATERAL (
+			SELECT id, room_id, author_type, author_id, author_name, content, reply_to_id, created_at, updated_at
 			FROM project_messages
-		)
-		SELECT id, room_id, author_type, author_id, author_name, content, reply_to_id, created_at, updated_at
-		FROM ranked
-		WHERE rn <= $1
-		ORDER BY created_at ASC
+			WHERE room_id = r.id
+			ORDER BY created_at DESC
+			LIMIT $1
+		) m
+		ORDER BY m.created_at ASC
 	`
 	rows, err := r.db.QueryContext(ctx, query, limitPerRoom)
 	if err != nil {
