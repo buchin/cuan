@@ -107,7 +107,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	roomsByID := make(map[string]db.ProjectRoom)
 	if s.projectStudioRepo != nil {
 		allRooms, _ = s.projectStudioRepo.ListAllRooms(r.Context())
-		allMessages, _ = s.projectStudioRepo.ListRecentMessages(r.Context(), 50)
+		allMessages, _ = s.projectStudioRepo.ListRecentMessages(r.Context(), 5)
 		for i := range allRooms {
 			roomsByID[allRooms[i].ID] = allRooms[i]
 			if allRooms[i].Topic != "" && roomsByTopic[allRooms[i].Topic] == "" {

@@ -147,12 +147,13 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
   const reviewTasks = Number(contact.review_tasks) || 0
   const failedTasks = Number(contact.failed_tasks) || 0
   const doneTasks = typeof contact.done_tasks === 'number' ? contact.done_tasks : Number(contact.done_tasks) || 0
+  const queuedTasks = typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0
   const progress = {
     total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0),
     done: doneTasks,
     canceled: contact.canceled_tasks,
     active: activeTasks,
-    queued: typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0,
+    queued: queuedTasks,
     review: reviewTasks,
     blocked: failedTasks,
   }
@@ -186,7 +187,9 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               ? t('Action required / paused')
               : hasReview
                 ? t('Review in progress')
-                : t('{{done}} of {{total}} tasks completed')
+                : queuedTasks > 0
+                  ? t('Task queued in background')
+                  : t('{{done}} of {{total}} tasks completed')
                     .replace('{{done}}', String(doneTasks))
                     .replace('{{total}}', String(totalTasks)))
         : t('Unresolved (click to resolve)')
@@ -356,7 +359,9 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                     ? TASK_STATUS_THEMES.attention.textColor
                     : hasReview
                       ? TASK_STATUS_THEMES.review.textColor
-                      : 'text-muted-foreground/60 hover:text-foreground',
+                      : queuedTasks > 0
+                        ? 'text-amber-500/80 dark:text-amber-400/80'
+                        : 'text-muted-foreground/60 hover:text-foreground',
             )}
           >
             {isComplete ? (
@@ -374,7 +379,8 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  opacity={isWorking || hasFailed || hasReview ? "0.9" : "0.65"}
+                  strokeDasharray={queuedTasks > 0 && !isWorking && doneTasks === 0 ? "2.5 1.5" : undefined}
+                  opacity={isWorking || hasFailed || hasReview || queuedTasks > 0 ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path
